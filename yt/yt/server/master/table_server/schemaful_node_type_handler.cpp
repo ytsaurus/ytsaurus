@@ -13,6 +13,7 @@ using namespace NCellMaster;
 using namespace NChaosServer;
 using namespace NCypressServer;
 using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,11 +77,12 @@ template <class TImpl>
 void TSchemafulNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     NCypressServer::ICypressNodeFactory* factory,
     NCypressServer::ENodeCloneMode mode,
     NSecurityServer::TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
@@ -102,9 +104,10 @@ template <class TImpl>
 void TSchemafulNodeTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* schemafulNode,
     NCypressServer::TEndCopyContext* context,
-    NCypressServer::ICypressNodeFactory* factory)
+    NCypressServer::ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(schemafulNode, context, factory);
+    TBase::DoEndCopy(schemafulNode, context, factory, inheritedAttributes);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     auto* schema = Load<TMasterTableSchema*>(*context);

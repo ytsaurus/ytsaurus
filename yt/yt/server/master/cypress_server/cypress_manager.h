@@ -108,20 +108,23 @@ public:
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NCypressClient::NullObjectId) = 0;
 
     //! Deserializes a node from a tree snapshot and registers its clone.
     virtual TCypressNode* EndCopyNode(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) = 0;
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
 
     //! Deserializes an existing #trunkNode node from a tree snapshot.
     virtual void EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) = 0;
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
 
     //! Returns the root node.
     virtual TCypressMapNode* GetRootNode() const = 0;

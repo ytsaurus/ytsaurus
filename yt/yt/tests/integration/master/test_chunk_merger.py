@@ -490,7 +490,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"a": "c"})
 
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
-        set("//tmp/t/@chunk_merger_mode", "deep")
+        set("//tmp/t/@chunk_merger_mode", merge_mode)
 
         copy("//tmp/t", "//tmp/t1")
 
@@ -1276,6 +1276,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/d/@chunk_merger_mode", merge_mode)
 
         create("table", "//tmp/d/t")
+        assert get("//tmp/d/t/@chunk_merger_mode") == merge_mode
         write_table("<append=true>//tmp/d/t", {"a": "b"})
         write_table("<append=true>//tmp/d/t", {"a": "c"})
         write_table("<append=true>//tmp/d/t", {"a": "d"})
@@ -1418,6 +1419,28 @@ class TestChunkMerger(YTEnvSetup):
 
         self._wait_for_merge("//tmp/t", "deep")
         assert len(get("//tmp/t/@chunk_ids")) == 1
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("merge_mode", ["auto", "deep", "shallow"])
+    @pytest.mark.parametrize("operation", [copy, move])
+    def test_inherit_chunk_merger_mode_after_copy(self, merge_mode, operation):
+        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
+
+        create("map_node", "//tmp/d")
+        set("//tmp/d/@chunk_merger_mode", merge_mode)
+        assert get("//tmp/d/@chunk_merger_mode") == merge_mode
+
+        create("table", "//aba/d1/d2/t", recursive=True)
+        set("//aba/d1/d2/t/@chunk_merger_mode", "none")
+        self._remove_merge_quotas("//aba/d1/d2/t")
+        operation("//aba/d1", "//tmp/d/d1")
+        assert get("//tmp/d/d1/d2/t/@chunk_merger_mode") == merge_mode
+
+        write_table("<append=true>//tmp/d/d1/d2/t", {"a": "b"})
+        write_table("<append=true>//tmp/d/d1/d2/t", {"a": "c"})
+        write_table("<append=true>//tmp/d/d1/d2/t", {"a": "d"})
+        self._wait_for_merge("//tmp/d/d1/d2/t", None)
+        remove("//aba", force=True)
 
 
 class TestChunkMergerMulticell(TestChunkMerger):

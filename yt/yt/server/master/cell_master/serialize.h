@@ -251,6 +251,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaReplicasConfig)                                        (2580))  // aleksandra-zh
     ((HunkStorageRemovalInTableZombify)                             (2581))  // akozhikhov
     ((DeltaStatisticsPointer)                                       (2582))  // cherepashka
+    ((InheritChunkMergerModeWhenCopy_24_1)                          (2583))  // cherepashka
     // 24.2 starts here.
 );
 

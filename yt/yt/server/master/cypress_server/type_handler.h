@@ -80,14 +80,16 @@ struct INodeTypeHandler
     virtual TCypressNode* EndCopy(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) = 0;
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
 
     //! Deserializes the subtree into an existing #trunkNode as a part of |EndCopy| verb handling.
     virtual void EndCopyInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) = 0;
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
 
     //! Fills attributes of a trunk node. Usually applied to newly created nodes.
     virtual void FillAttributes(
@@ -149,6 +151,7 @@ struct INodeTypeHandler
     //! Constructs a deep copy of the node.
     virtual TCypressNode* Clone(
         TCypressNode* sourceNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         TNodeId hintId,
         ENodeCloneMode mode,

@@ -65,6 +65,7 @@ protected:
     void DoClone(
         TChunkOwner* sourceNode,
         TChunkOwner* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -75,7 +76,8 @@ protected:
     void DoEndCopy(
         TChunkOwner* trunkNode,
         NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory) override;
+        NCypressServer::ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,9 +47,9 @@ void TPortalExitNode::Load(TLoadContext& context)
     Load(context, DirectAcd_);
 }
 
-void TPortalExitNode::FillInheritableAttributes(TTransientAttributes *attributes) const
+void TPortalExitNode::FillInheritableAttributes(TTransientAttributes *attributes, ENodeMaterializationReason mode) const
 {
-    TCompositeNodeBase::FillInheritableAttributes(attributes);
+    TCompositeNodeBase::FillInheritableAttributes(attributes, mode);
 
     if (EffectiveInheritableAttributes_) {
 #define XX(camelCaseName, snakeCaseName) \

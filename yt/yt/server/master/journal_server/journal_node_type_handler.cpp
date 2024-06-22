@@ -212,6 +212,7 @@ protected:
     void DoClone(
         TJournalNode* sourceNode,
         TJournalNode* clonedTrunkNode,
+        IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
@@ -223,7 +224,7 @@ protected:
         clonedTrunkNode->SetReadQuorum(sourceNode->GetReadQuorum());
         clonedTrunkNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
 
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
     }
 
     void DoBeginCopy(
@@ -244,13 +245,14 @@ protected:
     void DoEndCopy(
         TJournalNode* node,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        IAttributeDictionary* inheritedAttributes) override
     {
         using NYT::Load;
         node->SetReadQuorum(Load<int>(*context));
         node->SetWriteQuorum(Load<int>(*context));
 
-        TBase::DoEndCopy(node, context, factory);
+        TBase::DoEndCopy(node, context, factory, inheritedAttributes);
     }
 
     void HandleTransactionFinished(TJournalNode* branchedNode)

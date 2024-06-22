@@ -99,6 +99,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_inherit_attributes_during_copy", &TThis::EnableInheritAttributesDuringCopy)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

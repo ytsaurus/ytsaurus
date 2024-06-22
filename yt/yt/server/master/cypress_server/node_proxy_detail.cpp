@@ -1725,8 +1725,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     CopyCore(
         context,
         false,
-        [&] (ICypressNodeFactory* factory) {
-            auto* clonedNode = factory->CloneNode(sourceNode, mode);
+        [&] (ICypressNodeFactory* factory, IAttributeDictionary* inheritedAttributes) {
+            auto* clonedNode = factory->CloneNode(sourceNode, mode, inheritedAttributes);
             auto* clonedTrunkNode = clonedNode->GetTrunkNode();
             clonedTrunkNodeId = clonedTrunkNode->GetId();
             return clonedNode;
@@ -1858,10 +1858,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
     CopyCore(
         context,
         inplace,
-        [&] (ICypressNodeFactory* factory) {
+        [&] (ICypressNodeFactory* factory, IAttributeDictionary* inheritedAttributes) {
             auto* clonedNode = inplace
-                ? factory->EndCopyNodeInplace(TrunkNode_, &copyContext)
-                : factory->EndCopyNode(&copyContext);
+                ? factory->EndCopyNodeInplace(TrunkNode_, inheritedAttributes, &copyContext)
+                : factory->EndCopyNode(inheritedAttributes, &copyContext);
             auto* clonedTrunkNode = clonedNode->GetTrunkNode();
             clonedTrunkNodeId = clonedTrunkNode->GetId();
             return clonedNode;
@@ -1947,19 +1947,21 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         ThrowCannotHaveChildren(this);
     }
 
-    ICompositeNodePtr parentProxy;
+    auto* node = GetThisImpl();
+    // The node inside which the cloned node must be created.
+    TCypressNode* parentNode;
     if (replace && !inplace) {
-        parentProxy = GetParent();
-        if (!parentProxy) {
+        if (!node->GetParent()) {
             ThrowCannotReplaceNode(this);
         }
+        parentNode = node->GetParent()->GetTrunkNode();
+    } else {
+        parentNode = node;
     }
 
     ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
 
-    auto* account = (replace && !inplace)
-        ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->Account().Get()
-        : GetThisImpl()->Account().Get();
+    auto* account = parentNode->Account().Get();
 
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
@@ -1977,12 +1979,23 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         },
         path);
 
-    auto* clonedNode = clonedTreeBuilder(factory.get());
+    auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+    // Moving an opaque node cross-cell leads to it being a formal 'parent' here, for example test_cross_cell_move_opaque_with_user_attribute.
+    if (GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy && !inplace) {
+        YT_VERIFY(IsCompositeNodeType(parentNode->GetType()));
+
+        GatherInheritableAttributes(
+            parentNode,
+            &inheritedAttributes->Attributes(),
+            ENodeMaterializationReason::Copy);
+    }
+
+    auto* clonedNode = clonedTreeBuilder(factory.get(), inheritedAttributes.Get());
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
     if (!inplace) {
         auto clonedProxy = GetProxy(clonedTrunkNode);
         if (replace) {
-            parentProxy->ReplaceChild(this, clonedProxy);
+            GetProxy(parentNode)->AsComposite()->ReplaceChild(this, clonedProxy);
         } else {
             SetChildNode(
                 factory.get(),
@@ -3086,8 +3099,8 @@ void TSequoiaMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 }
 
 bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
-    NYTree::TInternedAttributeKey key,
-    NYson::IYsonConsumer* consumer)
+    TInternedAttributeKey key,
+    IYsonConsumer* consumer)
 {
     auto* mapNode = GetThisImpl();
     const auto Logger = CypressServerLogger;

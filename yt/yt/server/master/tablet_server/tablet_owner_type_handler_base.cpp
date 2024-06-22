@@ -12,6 +12,7 @@ namespace NYT::NTabletServer {
 using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +46,7 @@ template <class TImpl>
 void TTabletOwnerTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
@@ -55,7 +57,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoClone(
         mode,
         account);
 
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     tabletManager->CloneTabletOwner(sourceNode, clonedTrunkNode, mode);
 
@@ -93,9 +95,10 @@ template <class TImpl>
 void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* node,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(node, context, factory);
+    TBase::DoEndCopy(node, context, factory, inheritedAttributes);
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
 

@@ -519,13 +519,14 @@ template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    NYTree::IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
     // Order is important: table schema might be used in TChunkOwnerTypeHandler::DoClone.
-    TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
-    TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
+    TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     clonedTrunkNode->SetHunkStorageNode(sourceNode->GetHunkStorageNode());
 
@@ -595,10 +596,11 @@ template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* node,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TTabletOwnerTypeHandler::DoEndCopy(node, context, factory);
-    TSchemafulNodeTypeHandler::DoEndCopy(node, context, factory);
+    TTabletOwnerTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
+    TSchemafulNodeTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
 
     // TODO(babenko): support copying dynamic tables
 
@@ -741,6 +743,7 @@ void TReplicatedTableNodeTypeHandler::DoBranch(
 void TReplicatedTableNodeTypeHandler::DoClone(
     TReplicatedTableNode* sourceNode,
     TReplicatedTableNode* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     NCypressServer::ICypressNodeFactory* factory,
     NCypressServer::ENodeCloneMode mode,
     NSecurityServer::TAccount* account)
@@ -754,7 +757,7 @@ void TReplicatedTableNodeTypeHandler::DoClone(
         });
     }
 
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     // NB: Replica set is intentionally not copied but recreated by tablet manager.
     clonedTrunkNode->SetReplicatedTableOptions(CloneYsonStruct(sourceNode->GetReplicatedTableOptions()));
@@ -780,7 +783,8 @@ void TReplicatedTableNodeTypeHandler::DoBeginCopy(
 void TReplicatedTableNodeTypeHandler::DoEndCopy(
     TReplicatedTableNode* /*node*/,
     TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/)
+    ICypressNodeFactory* /*factory*/,
+    IAttributeDictionary* /*inheritedAttributes*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");

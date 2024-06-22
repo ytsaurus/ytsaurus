@@ -19,6 +19,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
+using namespace NYTree;
 
 using NTabletServer::TTabletResources;
 
@@ -230,7 +231,7 @@ bool TCypressNode::CanCacheResolve() const
     if (!TrunkNode_->LockingState().TransactionToExclusiveLocks.empty()) {
         return false;
     }
-    if (GetNodeType() != NYTree::ENodeType::Map &&
+    if (GetNodeType() != ENodeType::Map &&
         GetType() != EObjectType::Link &&
         GetType() != EObjectType::PortalEntrance)
     {

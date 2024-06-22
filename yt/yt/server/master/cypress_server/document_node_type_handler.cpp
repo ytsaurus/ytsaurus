@@ -67,11 +67,12 @@ private:
     void DoClone(
         TDocumentNode* sourceNode,
         TDocumentNode* clonedTrunkNode,
+        IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         clonedTrunkNode->SetValue(CloneNode(sourceNode->GetValue()));
     }
@@ -100,9 +101,10 @@ private:
     void DoEndCopy(
         TDocumentNode* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
         using NYT::Load;
         trunkNode->SetValue(ConvertToNode(Load<TYsonString>(*context)));

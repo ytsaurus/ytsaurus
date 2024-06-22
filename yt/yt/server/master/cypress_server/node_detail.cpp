@@ -646,7 +646,7 @@ const TCompositeNodeBase::TPersistentAttributes* TCompositeNodeBase::FindAttribu
     return Attributes_.get();
 }
 
-void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes) const
+void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason mode) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (!attributes->camelCaseName.IsSet()) { \
@@ -656,7 +656,11 @@ void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attribu
     }
 
     if (HasInheritableAttributes()) {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+        if (mode == ENodeMaterializationReason::Copy) {
+            FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
+        } else {
+            FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+        }
     }
 #undef XX
 }
@@ -743,10 +747,10 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes)
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes, ENodeMaterializationReason mode)
 {
     for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes);
+        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, mode);
     }
 }
 
@@ -756,11 +760,12 @@ template <class TImpl>
 void TCompositeNodeTypeHandler<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     clonedTrunkNode->CloneAttributesFrom(sourceNode);
 }
@@ -818,9 +823,10 @@ template <class TImpl>
 void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
     TImpl* trunkNode,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    NYTree::IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(trunkNode, context, factory);
+    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
     using NYT::Load;
     if (Load<bool>(*context)) {
@@ -1215,11 +1221,12 @@ template <class TImpl>
 void TCypressMapNodeTypeHandlerImpl<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     auto* transaction = factory->GetTransaction();
 
@@ -1238,7 +1245,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoClone(
     for (const auto& [key, trunkChildNode] : keyToChildList) {
         auto* childNode = cypressManager->GetVersionedNode(trunkChildNode, transaction);
 
-        auto* clonedChildNode = factory->CloneNode(childNode, mode);
+        auto* clonedChildNode = factory->CloneNode(childNode, mode, inheritedAttributes);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
         clonedChildren.Insert(key, clonedTrunkChildNode);
@@ -1295,9 +1302,10 @@ template <class TImpl>
 void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
     TImpl* trunkNode,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(trunkNode, context, factory);
+    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
     using NYT::Load;
 
@@ -1307,7 +1315,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
     for (size_t index = 0; index < size; ++index) {
         auto key = Load<TString>(*context);
 
-        auto* childNode = factory->EndCopyNode(context);
+        auto* childNode = factory->EndCopyNode(inheritedAttributes, context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
         children.Insert(key, trunkChildNode);
@@ -1398,11 +1406,12 @@ template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 }
 
 template <class TImpl>
@@ -1425,7 +1434,8 @@ template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
     TImpl* /*trunkNode*/,
     TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/)
+    ICypressNodeFactory* /*factory*/,
+    IAttributeDictionary* /*inheritedAttributes*/)
 {
     ThrowSequoiaNodeCloningNotImplemented();
 }
@@ -1553,18 +1563,19 @@ void TListNodeTypeHandler::DoMerge(
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     const auto& objectManager = GetBootstrap()->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
 
     for (int index = 0; index < static_cast<int>(indexToChild.size()); ++index) {
         auto* childNode = indexToChild[index];
-        auto* clonedChildNode = factory->CloneNode(childNode, mode);
+        auto* clonedChildNode = factory->CloneNode(childNode, mode, inheritedAttributes);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedTrunkNode->IndexToChild().push_back(clonedChildTrunkNode);
@@ -1605,9 +1616,10 @@ void TListNodeTypeHandler::DoBeginCopy(
 void TListNodeTypeHandler::DoEndCopy(
     TListNode* trunkNode,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(trunkNode, context, factory);
+    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
     using NYT::Load;
 
@@ -1617,7 +1629,7 @@ void TListNodeTypeHandler::DoEndCopy(
 
     int size = static_cast<int>(TSizeSerializer::Load(*context));
     for (int index = 0; index < size; ++index) {
-        auto* childNode = factory->EndCopyNode(context);
+        auto* childNode = factory->EndCopyNode(inheritedAttributes, context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
         indexToChild.push_back(trunkChildNode);
