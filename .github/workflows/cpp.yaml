@@ -29,7 +29,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 279GB
+          disk-size: 558GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
@@ -51,20 +51,6 @@ jobs:
           ref: 9602cbe953310f3b833b7b99cf5ced4021cdd63b
           path: ydb
 
-  build:
-    name: Build
-    needs:
-      - start-vm
-      - checkout
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
-      build-ytsaurus: true
-      build-query-tracker: false
-      build-chyt: true
-      build-python: true
-    uses: ./.github/workflows/build-jobs.yaml
-
   tag:
     name: Calculate docker tag
     needs:
@@ -81,9 +67,6 @@ jobs:
           if [[ $GITHUB_REF =~ main$ ]];
           then
             IMAGE_TAG=dev
-          elif [[ $GITHUB_REF =~ test ]];
-          then
-            IMAGE_TAG=test
           elif [[ $GITHUB_REF =~ stable ]];
           then
             IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
@@ -96,18 +79,45 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  docker:
-    name: Docker images
+  build-strawberry:
+    name: Build Strawberry controller
     needs:
       - start-vm
+      - checkout
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-strawberry: true
+    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+
+  build-cmake:
+    name: Build with cmake
+    needs:
+      - start-vm
+      - checkout
+      - build-strawberry
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
+      build-ytsaurus: true
+      build-chyt: ${{ github.ref_name == 'main' }}
+      build-python: true
+    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+
+  docker-cmake:
+    name: Docker images with cmake
+    needs:
+      - start-vm
+      - tag
+      - build-cmake
+      - build-strawberry
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
       publish-ytsaurus: true
-      publish-query-tracker: false
-      publish-chyt: true
+      publish-chyt: ${{ github.ref_name == 'main' }}
       publish-local: true
-      publish-strawberry: true
+      publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -115,11 +125,42 @@ jobs:
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
+  build-ya-make:
+    name: Build with ya-make
+    needs:
+      - start-vm
+      - checkout
+      - docker-cmake
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      build-ytsaurus: true
+      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-python: true
+    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+
+  docker-ya-make:
+    name: Docker images with ya-make
+    needs:
+      - start-vm
+      - tag
+      - build-ya-make
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml
+
   check:
     name: Check
     needs:
       - start-vm
-      - docker
+      - docker-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
@@ -131,6 +172,7 @@ jobs:
       - start-vm
       - tag
       - check
+      - docker-ya-make
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Mark latest nightly
@@ -193,4 +235,3 @@ jobs:
             ```
             ${{github.event.head_commit.message}}
             ```
-

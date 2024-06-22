@@ -1,3 +1,4 @@
+name: Check jobs
 on:
   workflow_call:
     inputs:
@@ -12,7 +13,8 @@ jobs:
       - name: Unittests
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build/
+          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
+          ln -s $(pwd)/../build_cmake_release $(pwd)/../build
           cd ../build
           ./run_unittests.sh
 

@@ -58,8 +58,8 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-python: true
-      build-query-tracker-ya-make-relwithdebinfo: true
-      build-query-tracker-ya-make-release: true
+      build-query-tracker: true
+      cpp-build-system: ya-make
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
@@ -83,8 +83,8 @@ jobs:
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      publish-query-tracker-ya-make-relwithdebinfo: true
-      publish-query-tracker-ya-make-release: true
+      cpp-build-system: ya-make
+      publish-query-tracker: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:

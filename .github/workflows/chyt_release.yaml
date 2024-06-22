@@ -50,6 +50,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
       build-python: true
       build-chyt: true
     uses: ./.github/workflows/build-jobs.yaml

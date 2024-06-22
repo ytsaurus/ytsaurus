@@ -1,4 +1,4 @@
-name: Go CI
+name: Go SDK CI
 
 on:
   push:
