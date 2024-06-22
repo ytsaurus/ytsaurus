@@ -1005,6 +1005,7 @@ public:
     TSlruCacheDynamicConfigPtr CompressionDictionaryCache;
 
     bool EnableChangelogNetworkUsageAccounting;
+    bool EnableCollocatedDatNodeThrottling;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

@@ -306,9 +306,13 @@ private:
 
     void Initialize()
     {
+        auto enableCollocatedDatNodeThrottling = Bootstrap_->GetDynamicConfigManager()
+            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+
         StoreWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterConfig);
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
         StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
+        StoreWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
         StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
@@ -319,6 +323,7 @@ private:
         HunkWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         HunkWriterConfig_->MinUploadReplicationFactor = HunkWriterConfig_->UploadReplicationFactor;
+        HunkWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
         HunkWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterOptions);
         HunkWriterOptions_->ValidateResourceUsageIncrease = false;

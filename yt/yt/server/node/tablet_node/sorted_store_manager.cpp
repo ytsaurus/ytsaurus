@@ -9,6 +9,9 @@
 #include "structured_logger.h"
 #include "automaton.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -640,10 +643,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfigManager()
+            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
 
         auto storeWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         storeWriterConfig->WorkloadDescriptor = workloadDescriptor;
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
+        storeWriterConfig->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
         storeWriterConfig->Postprocess();
 
         auto storeWriterOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
@@ -655,6 +661,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.HunkWriterConfig);
         hunkWriterConfig->WorkloadDescriptor = workloadDescriptor;
         hunkWriterConfig->MinUploadReplicationFactor = hunkWriterConfig->UploadReplicationFactor;
+        hunkWriterConfig->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
         hunkWriterConfig->Postprocess();
 
         auto hunkWriterOptions = CloneYsonStruct(tabletSnapshot->Settings.HunkWriterOptions);
