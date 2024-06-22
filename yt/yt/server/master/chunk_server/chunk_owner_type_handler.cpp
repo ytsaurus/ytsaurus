@@ -379,7 +379,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
-        originatingNode->DeltaStatistics() = branchedNode->DeltaStatistics();
+        *originatingNode->MutableDeltaStatistics() = branchedNode->DeltaStatistics();
         originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
         originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
         originatingNode->ChunkMergerTraversalInfo() = {};
@@ -464,7 +464,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 }
             }
 
-            originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+            *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
             originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
                 *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
         } else {
@@ -489,7 +489,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
-                originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
+                *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
                 originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
                     *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
             } else {

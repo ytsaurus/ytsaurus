@@ -37,7 +37,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, HunkPrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, SnapshotSecurityTags);
-    DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, DeltaStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, DeltaSecurityTags);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NCompression::ECodec, CompressionCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
@@ -71,6 +70,9 @@ public:
     const TChunkList* GetSnapshotChunkList(EChunkListContentType type) const;
 
     const TChunkList* GetDeltaChunkList() const;
+
+    const TChunkOwnerDataStatistics& DeltaStatistics() const;
+    TChunkOwnerDataStatistics* MutableDeltaStatistics();
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
@@ -137,6 +139,9 @@ public:
     bool FixStatistics();
     void FixStatisticsAndAlert();
     bool IsStatisticsFixNeeded() const;
+
+private:
+    TChunkOwnerDataStatisticsPtr DeltaStatistics_;
 
 private:
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;

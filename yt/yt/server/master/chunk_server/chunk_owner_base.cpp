@@ -84,7 +84,9 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, Replication_);
     Save(context, PrimaryMediumIndex_);
     Save(context, SnapshotStatistics_);
-    Save(context, DeltaStatistics_);
+    if (!IsTrunk()) {
+        Save(context, DeltaStatistics());
+    }
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
     Save(context, EnableStripedErasure_);
@@ -108,13 +110,23 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);
+
+    std::optional<TChunkOwnerDataStatistics> deltaStatistics;
+    // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::SerializationOfDataStatistics) {
         Load(context, SnapshotStatistics_);
-        Load(context, DeltaStatistics_);
+        // COMPAT(cherepashka)
+        if (context.GetVersion() >= EMasterReign::DeltaStatisticsPointer && !IsTrunk()) {
+            deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
+        }
     } else {
         SnapshotStatistics_ = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
-        DeltaStatistics_ = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
+        deltaStatistics = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
     }
+    if (deltaStatistics) {
+        *MutableDeltaStatistics() = *deltaStatistics;
+    }
+
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
     Load(context, EnableStripedErasure_);
@@ -240,6 +252,20 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
     }
 }
 
+const TChunkOwnerDataStatistics& TChunkOwnerBase::DeltaStatistics() const
+{
+    static const TChunkOwnerDataStatistics Empty;
+    return DeltaStatistics_ ? *DeltaStatistics_ : Empty;
+}
+
+TChunkOwnerDataStatistics* TChunkOwnerBase::MutableDeltaStatistics()
+{
+    if (!DeltaStatistics_) {
+        DeltaStatistics_ = std::make_unique<TChunkOwnerDataStatistics>();
+    }
+    return DeltaStatistics_.get();
+}
+
 TSecurityTags TChunkOwnerBase::ComputeSecurityTags() const
 {
     return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
@@ -280,7 +306,7 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     switch (UpdateMode_) {
         case EUpdateMode::Append:
             if (context.Statistics) {
-                DeltaStatistics_ = *context.Statistics;
+                *MutableDeltaStatistics() = *context.Statistics;
             }
             DeltaSecurityTags_ = context.SecurityTags;
             break;
@@ -312,7 +338,7 @@ ENodeType TChunkOwnerBase::GetNodeType() const
 
 TChunkOwnerDataStatistics TChunkOwnerBase::ComputeTotalStatistics() const
 {
-    return SnapshotStatistics_ + DeltaStatistics_;
+    return SnapshotStatistics_ + DeltaStatistics();
 }
 
 TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
@@ -344,7 +370,7 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 
 bool TChunkOwnerBase::HasDataWeight() const
 {
-    return SnapshotStatistics_.IsDataWeightValid() && DeltaStatistics_.IsDataWeightValid();
+    return SnapshotStatistics_.IsDataWeightValid() && DeltaStatistics().IsDataWeightValid();
 }
 
 void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
@@ -373,7 +399,7 @@ void TChunkOwnerBase::FixStatisticsAndAlert()
     YT_LOG_ALERT("Fixing chunk owner statistics (ChunkOwnerId: %v, SnapshotStatistics: %v, DeltaStatistics: %v)",
         GetId(),
         SnapshotStatistics_,
-        DeltaStatistics_);
+        DeltaStatistics());
 
     DoFixStatistics();
 }
@@ -382,14 +408,14 @@ bool TChunkOwnerBase::IsStatisticsFixNeeded() const
 {
     YT_VERIFY(IsTrunk());
 
-    return DeltaStatistics_ != TChunkOwnerDataStatistics();
+    return DeltaStatistics_ && DeltaStatistics() != TChunkOwnerDataStatistics();
 }
 
 void TChunkOwnerBase::DoFixStatistics()
 {
     // In this specific order.
     SnapshotStatistics_ = ComputeTotalStatistics();
-    DeltaStatistics_ = TChunkOwnerDataStatistics();
+    DeltaStatistics_.reset();
 }
 
 TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
@@ -401,11 +427,11 @@ TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() const
 {
     TChunkOwnerDataStatistics statistics;
     if (IsTrunk()) {
-        statistics = DeltaStatistics_ + SnapshotStatistics_;
+        statistics = DeltaStatistics() + SnapshotStatistics_;
     } else {
         switch (UpdateMode_) {
             case EUpdateMode::Append:
-                statistics = DeltaStatistics_;
+                statistics = DeltaStatistics();
                 break;
             case EUpdateMode::Overwrite:
                 statistics = SnapshotStatistics_;
