@@ -61,6 +61,7 @@ message TReqCloneForeignNode
     required NYT.NProto.TGuid account_id = 6;
     optional uint64 native_content_revision = 7;
     optional NYT.NProto.TGuid schema_id_hint = 8;
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

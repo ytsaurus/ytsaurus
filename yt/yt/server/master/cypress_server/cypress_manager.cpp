@@ -30,8 +30,6 @@
 #include "shard_type_handler.h"
 #include "shard.h"
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_server/cypress_integration.h>
@@ -40,6 +38,7 @@
 
 #include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/cypress_integration.h>
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
@@ -81,6 +80,8 @@
 #include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
@@ -236,6 +237,7 @@ public:
             protoRequest.set_mode(static_cast<int>(clone.Mode));
             ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
             protoRequest.set_native_content_revision(clone.NativeContentRevision);
+            ToProto(protoRequest.mutable_inherited_node_attributes(), *clone.ReplicationInheritedAttributes);
             multicellManager->PostToMaster(protoRequest, clone.ExternalCellTag);
         }
 
@@ -577,10 +579,22 @@ public:
     TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ENodeCloneMode mode,
+        IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NullObjectId) override
     {
+        // INodeTypeHandler::Clone and ::FillAttributes may modify the attributes.
+        IAttributeDictionaryPtr replicationInheritedAttributes;
+        // NB: Cloned node will be located on source node's cell, that means cloned node will be external iff source node is external.
+        if (sourceNode->IsExternal()) {
+            replicationInheritedAttributes = inheritedAttributes->Clone();
+        }
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode, hintId);
+        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode, inheritedAttributes, hintId);
+
+        const auto& handler = cypressManager->GetHandler(sourceNode);
+        handler->FillAttributes(clonedTrunkNode, inheritedAttributes, nullptr);
+
         auto* clonedNode = cypressManager->LockNode(
             clonedTrunkNode,
             Transaction_,
@@ -604,7 +618,8 @@ public:
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), externalizedClonedTransactionId),
                 .CloneAccountId = clonedNode->Account()->GetId(),
                 .ExternalCellTag = externalCellTag,
-                .NativeContentRevision = clonedNode->GetContentRevision()
+                .NativeContentRevision = clonedNode->GetContentRevision(),
+                .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes),
             });
         }
 
@@ -614,7 +629,8 @@ public:
     TCypressNode* EndCopyNodeCore(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
-        TNodeId sourceNodeId)
+        TNodeId sourceNodeId,
+        IAttributeDictionary* inheritedAttributes)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedNode = cypressManager->LockNode(
@@ -656,21 +672,24 @@ public:
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), clonedNodeExternalizedTransactionId),
                 .CloneAccountId = clonedNode->Account()->GetId(),
                 .ExternalCellTag = externalCellTag,
-                .SchemaIdHint = schemaId
+                .SchemaIdHint = schemaId,
+                .ReplicationInheritedAttributes = inheritedAttributes,
             });
         }
 
         return clonedNode;
     }
 
-    TCypressNode* EndCopyNode(TEndCopyContext* context) override
+    TCypressNode* EndCopyNode(
+        IAttributeDictionary* inheritedAttributes,
+        TEndCopyContext* context) override
     {
         // See BeginCopyCore.
         using NYT::Load;
         auto sourceNodeId = Load<TNodeId>(*context);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId, inheritedAttributes);
 
         if (context->IsOpaqueChild()) {
             if (!Transaction_) {
@@ -686,11 +705,12 @@ public:
             return clonedTrunkNode;
         }
 
-        return EndCopyNodeCore(clonedTrunkNode, context, sourceNodeId);
+        return EndCopyNodeCore(clonedTrunkNode, context, sourceNodeId, inheritedAttributes);
     }
 
     TCypressNode* EndCopyNodeInplace(
         TCypressNode* trunkNode,
+        IAttributeDictionary* inheritedAttributes,
         TEndCopyContext* context) override
     {
         // See BeginCopyCore.
@@ -698,9 +718,9 @@ public:
         auto sourceNodeId = Load<TNodeId>(*context);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
+        cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId, inheritedAttributes);
 
-        return EndCopyNodeCore(trunkNode, context, sourceNodeId);
+        return EndCopyNodeCore(trunkNode, context, sourceNodeId, inheritedAttributes);
     }
 
 private:
@@ -741,6 +761,7 @@ private:
         TCellTag ExternalCellTag;
         NHydra::TRevision NativeContentRevision;
         TMasterTableSchemaId SchemaIdHint;
+        IAttributeDictionaryPtr ReplicationInheritedAttributes;
     };
     std::vector<TClonedExternalNode> ClonedExternalNodes_;
 
@@ -1433,11 +1454,13 @@ public:
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
+        IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(sourceNode);
         YT_VERIFY(factory);
+        YT_VERIFY(inheritedAttributes);
 
         ValidateCreatedNodeTypePermission(sourceNode->GetType());
 
@@ -1452,35 +1475,40 @@ public:
             sourceNode,
             factory,
             hintId,
-            mode);
+            mode,
+            inheritedAttributes);
     }
 
     TCypressNode* EndCopyNode(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) override
+        TNodeId sourceNodeId,
+        IAttributeDictionary* inheritedAttributes) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
         YT_VERIFY(factory);
+        YT_VERIFY(inheritedAttributes);
 
         // See BeginCopyCore.
         auto type = Load<EObjectType>(*context);
         ValidateCreatedNodeTypePermission(type);
 
         const auto& handler = GetHandler(type);
-        return handler->EndCopy(context, factory, sourceNodeId);
+        return handler->EndCopy(context, factory, sourceNodeId, inheritedAttributes);
     }
 
     void EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) override
+        TNodeId sourceNodeId,
+        IAttributeDictionary* inheritedAttributes) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
         YT_VERIFY(factory);
+        YT_VERIFY(inheritedAttributes);
         YT_VERIFY(trunkNode->IsTrunk());
 
         // See BeginCopyCore.
@@ -1496,7 +1524,7 @@ public:
         }
 
         const auto& handler = GetHandler(type);
-        return handler->EndCopyInplace(trunkNode, context, factory, sourceNodeId);
+        return handler->EndCopyInplace(trunkNode, context, factory, sourceNodeId, inheritedAttributes);
     }
 
 
@@ -3916,7 +3944,8 @@ private:
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         TNodeId hintId,
-        ENodeCloneMode mode)
+        ENodeCloneMode mode,
+        IAttributeDictionary* inheritedAttributes)
     {
         // Prepare account.
         auto* account = factory->GetClonedNodeAccount(sourceNode->Account().Get());
@@ -3924,6 +3953,7 @@ private:
         const auto& handler = GetHandler(sourceNode);
         auto* clonedTrunkNode = handler->Clone(
             sourceNode,
+            inheritedAttributes,
             factory,
             hintId,
             mode,
@@ -4082,6 +4112,9 @@ private:
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto nativeContentRevision = request->native_content_revision();
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id_hint());
+        auto inheritedAttributes = request->has_inherited_node_attributes()
+            ? FromProto(request->inherited_node_attributes())
+            : CreateEphemeralAttributes();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
@@ -4138,7 +4171,8 @@ private:
             sourceNode,
             factory.get(),
             clonedNodeId,
-            mode);
+            mode,
+            inheritedAttributes.Get());
 
         // NB: Schema needs to be set here because cloned table's native cell is different from original's.
         if (schemaId) {
@@ -4163,6 +4197,9 @@ private:
         objectManager->RefObject(clonedTrunkNode);
 
         clonedTrunkNode->SetNativeContentRevision(nativeContentRevision);
+
+        const auto& handler = GetHandler(sourceNode);
+        handler->FillAttributes(clonedTrunkNode, inheritedAttributes.Get(), nullptr);
 
         LockNode(clonedTrunkNode, clonedTransaction, ELockMode::Exclusive);
 

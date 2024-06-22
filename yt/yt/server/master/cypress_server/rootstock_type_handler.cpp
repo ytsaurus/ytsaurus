@@ -104,6 +104,7 @@ private:
     void DoClone(
         TRootstockNode* /*sourceNode*/,
         TRootstockNode* /*clonedTrunkNode*/,
+        IAttributeDictionary* /*inheritedAttributes*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         TAccount* /*account*/) override
@@ -129,7 +130,8 @@ private:
     void DoEndCopy(
         TRootstockNode* /*trunkNode*/,
         TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/) override
+        ICypressNodeFactory* /*factory*/,
+        IAttributeDictionary* /*inheritedAttributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of rootstocks is not supported");
     }

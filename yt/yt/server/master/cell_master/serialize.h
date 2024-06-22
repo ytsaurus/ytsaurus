@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaReplicasConfig)                                        (2580))  // aleksandra-zh
     ((HunkStorageRemovalInTableZombify)                             (2581))  // akozhikhov
     ((DeltaStatisticsPointer)                                       (2582))  // cherepashka
+    ((InheritChunkMergerModeWhenCopy_24_1)                          (2583))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -211,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixCypressTransactionMirroring)                               (2619))  // kvk1920
     ((QueueProducers)                                               (2620))  // apachee
     ((AddForbiddenErasureCodecsOption)                              (2621))  // abogutskiy
+    ((InheritChunkMergerModeWhenCopy)                               (2622))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

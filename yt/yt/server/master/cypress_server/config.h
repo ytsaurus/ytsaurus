@@ -77,6 +77,8 @@ public:
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
 
+    bool EnableInheritAttributesDuringCopy;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

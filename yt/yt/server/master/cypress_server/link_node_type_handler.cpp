@@ -82,11 +82,12 @@ private:
     void DoClone(
         TLinkNode* sourceNode,
         TLinkNode* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         clonedTrunkNode->SetTargetPath(sourceNode->GetTargetPath());
     }
@@ -115,9 +116,10 @@ private:
     void DoEndCopy(
         TLinkNode* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
         using NYT::Load;
         trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));
@@ -259,13 +261,13 @@ private:
             originalLinkPath);
 
         const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
-        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId{
+        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId {
             .Key = {.Path = sequoiaLinkPath},
             .NodeId = id.ObjectId,
             .RedirectPath = originalTargetPath,
         };
         sequoiaQueueManager->EnqueueWrite(pathToNodeIdRecord);
-        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath{
+        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath {
             .Key = {.NodeId = id.ObjectId},
             .Path = originalLinkPath,
         };
@@ -296,7 +298,6 @@ private:
         }
         TBase::DoDestroy(node);
     }
-
 };
 
 class TSequoiaLinkNodeTypeHandler

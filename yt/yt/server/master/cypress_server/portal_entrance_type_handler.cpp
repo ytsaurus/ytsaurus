@@ -111,6 +111,7 @@ private:
     void DoClone(
         TPortalEntranceNode* /*sourceNode*/,
         TPortalEntranceNode* /*clonedTrunkNode*/,
+        IAttributeDictionary* /*inheritedAttributes*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         TAccount* /*account*/) override
@@ -141,9 +142,10 @@ private:
     void DoEndCopy(
         TPortalEntranceNode* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
         // TODO(babenko): cross-cell copying of portals
         THROW_ERROR_EXCEPTION("Cross-cell copying of portals is not supported");

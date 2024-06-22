@@ -23,6 +23,7 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,11 +106,12 @@ protected:
     void DoClone(
         TFileNode* sourceNode,
         TFileNode* clonedTrunkNode,
+        IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         clonedTrunkNode->SetMD5Hasher(sourceNode->GetMD5Hasher());
     }
@@ -127,9 +129,10 @@ protected:
     void DoEndCopy(
         TFileNode* node,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(node, context, factory);
+        TBase::DoEndCopy(node, context, factory, inheritedAttributes);
 
         using NYT::Load;
         node->SetMD5Hasher(Load<std::optional<TMD5Hasher>>(*context));

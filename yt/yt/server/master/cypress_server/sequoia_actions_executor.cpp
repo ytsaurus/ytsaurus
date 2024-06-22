@@ -393,7 +393,9 @@ private:
             securityManager->GetSysAccount(),
             factoryOptions);
 
-        auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, destinationNodeId);
+        // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
+        auto emptyInheritedAttributes = CreateEphemeralAttributes();
+        auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
 
         TCypressNode::TImmutableSequoiaProperties immutableProperties(
             /*key*/ NYPath::DirNameAndBaseName(request->dst_path()).second,

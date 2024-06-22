@@ -558,11 +558,12 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
     TChunkOwner* clonedTrunkNode,
+    IAttributeDictionary* inheritedAttributes,
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
     clonedTrunkNode->SetChunkMergerMode(sourceNode->GetChunkMergerMode());
     clonedTrunkNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
@@ -647,9 +648,10 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     TChunkOwner* trunkNode,
     TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    IAttributeDictionary* inheritedAttributes)
 {
-    TBase::DoEndCopy(trunkNode, context, factory);
+    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
     using NYT::Load;
 

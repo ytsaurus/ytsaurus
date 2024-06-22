@@ -230,11 +230,12 @@ private:
     void DoClone(
         TChaosReplicatedTableNode* sourceNode,
         TChaosReplicatedTableNode* clonedTrunkNode,
+        IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         const auto& chaosManager = GetBootstrap()->GetChaosManager();
         chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->GetTrunkNode()->ChaosCellBundle().Get());
@@ -263,9 +264,10 @@ private:
     void DoEndCopy(
         TChaosReplicatedTableNode* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
         using NYT::Load;
 

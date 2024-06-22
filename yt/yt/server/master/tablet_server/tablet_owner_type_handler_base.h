@@ -32,6 +32,7 @@ protected:
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -41,7 +42,8 @@ protected:
     void DoEndCopy(
         TImpl* node,
         NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory) override;
+        NCypressServer::ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

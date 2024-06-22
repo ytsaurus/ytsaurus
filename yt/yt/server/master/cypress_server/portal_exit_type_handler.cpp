@@ -11,6 +11,7 @@ using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,8 @@ private:
     void DoEndCopy(
         TPortalExitNode* /*trunkNode*/,
         TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/) override
+        ICypressNodeFactory* /*factory*/,
+        IAttributeDictionary* /*inheritedAttributes*/) override
     {
         // Should not actually happen.
         THROW_ERROR_EXCEPTION("Portal exits cannot be materialized during cross-cell cloning");

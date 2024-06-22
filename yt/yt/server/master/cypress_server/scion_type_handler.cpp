@@ -64,7 +64,8 @@ private:
     void DoEndCopy(
         TScionNode* /*trunkNode*/,
         TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/) override
+        ICypressNodeFactory* /*factory*/,
+        NYTree::IAttributeDictionary* /*inheritedAttributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of scions is not supported");
     }

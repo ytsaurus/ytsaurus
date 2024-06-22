@@ -217,13 +217,14 @@ public:
     TCypressNode* EndCopy(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) override
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) override
     {
         bool needCustomEndCopy;
         auto* trunkNode = EndCopyCore(context, factory, sourceNodeId, &needCustomEndCopy);
 
         if (needCustomEndCopy) {
-            DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
+            DoEndCopy(trunkNode->template As<TImpl>(), context, factory, inheritedAttributes);
         }
 
         return trunkNode;
@@ -233,10 +234,11 @@ public:
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId) override
+        TNodeId sourceNodeId,
+        NYTree::IAttributeDictionary* inheritedAttributes) override
     {
         EndCopyInplaceCore(trunkNode, context, factory, sourceNodeId);
-        DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
+        DoEndCopy(trunkNode->template As<TImpl>(), context, factory, inheritedAttributes);
     }
 
     std::unique_ptr<TCypressNode> Branch(
@@ -294,6 +296,7 @@ public:
 
     TCypressNode* Clone(
         TCypressNode* sourceNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         TNodeId hintId,
         ENodeCloneMode mode,
@@ -309,7 +312,7 @@ public:
         // Run custom stuff.
         auto* typedSourceNode = sourceNode->template As<TImpl>();
         auto* typedClonedTrunkNode = clonedTrunkNode->template As<TImpl>();
-        DoClone(typedSourceNode, typedClonedTrunkNode, factory, mode, account);
+        DoClone(typedSourceNode, typedClonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         // Run core epilogue stuff.
         CloneCoreEpilogue(
@@ -390,7 +393,8 @@ protected:
     virtual void DoEndCopy(
         TImpl* /*trunkNode*/,
         TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/)
+        ICypressNodeFactory* /*factory*/,
+        NYTree::IAttributeDictionary* /*inheritedAttributes*/)
     { }
 
     virtual void DoBranch(
@@ -444,6 +448,7 @@ protected:
     virtual void DoClone(
         TImpl* /*sourceNode*/,
         TImpl* /*clonedTrunkNode*/,
+        NYTree::IAttributeDictionary* /*inheritedAttributes*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         NSecurityServer::TAccount* /*account*/)
@@ -596,11 +601,12 @@ protected:
     void DoClone(
         TScalarNode<TValue>* sourceNode,
         TScalarNode<TValue>* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         clonedTrunkNode->Value() = sourceNode->Value();
     }
@@ -618,14 +624,22 @@ protected:
     void DoEndCopy(
         TScalarNode<TValue>* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
 
         using NYT::Load;
         Load(*context, trunkNode->Value());
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ENodeMaterializationReason,
+    ((Create)  (0))
+    ((Copy)    (1))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -659,6 +673,10 @@ protected:
     process(Media, media) \
     process(HunkPrimaryMediumIndex, hunk_primary_medium) \
     process(HunkMedia, hunk_media)
+
+// NB: For now only chunk_merger_mode will be supported as an inherited attribute in copy, because for others the semantics are non-trivial.
+#define FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(process) \
+    process(ChunkMergerMode, chunk_merger_mode)
 
 class TCompositeNodeBase
     : public TCypressNode
@@ -717,7 +735,9 @@ public:
     using TTransientAttributes = TAttributes</*Transient*/ true>;
     using TPersistentAttributes = TAttributes</*Transient*/ false>;
 
-    virtual void FillInheritableAttributes(TTransientAttributes* attributes) const;
+    virtual void FillInheritableAttributes(
+        TTransientAttributes* attributes,
+        ENodeMaterializationReason mode = ENodeMaterializationReason::Create) const;
 
 #define XX(camelCaseName, snakeCaseName) \
 public: \
@@ -750,7 +770,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Traverse all ancestors and collect inheritable attributes.
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes);
+void GatherInheritableAttributes(
+    TCypressNode* node,
+    TCompositeNodeBase::TTransientAttributes* attributes,
+    ENodeMaterializationReason mode = ENodeMaterializationReason::Create);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -768,6 +791,7 @@ protected:
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -789,7 +813,8 @@ protected:
     void DoEndCopy(
         TImpl* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override;
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -936,6 +961,7 @@ protected:
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -950,7 +976,8 @@ protected:
     void DoEndCopy(
         TImpl* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override;
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNode>;
@@ -990,6 +1017,7 @@ protected:
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -1004,7 +1032,8 @@ protected:
     void DoEndCopy(
         TImpl* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override;
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNode>;
@@ -1071,6 +1100,7 @@ private:
     void DoClone(
         TListNode* sourceNode,
         TListNode* clonedTrunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
@@ -1085,7 +1115,8 @@ private:
     void DoEndCopy(
         TListNode* trunkNode,
         TEndCopyContext* context,
-        ICypressNodeFactory* factory) override;
+        ICypressNodeFactory* factory,
+        NYTree::IAttributeDictionary* inheritedAttributes) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
