@@ -30,7 +30,7 @@ size_t EstimateSizes(Ts&&...values);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NYT::NJobAgent
 
 #define ESTIMATE_SIZE_HELPERS_INL_H_
 #include "estimate_size_helpers-inl.h"

@@ -148,4 +148,4 @@ constexpr TChunk* TChunkScannerWithPayload<TPayload>::GetChunk(const TQueuedChun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NChunkServer
+} // namespace NYT::NChunkServer

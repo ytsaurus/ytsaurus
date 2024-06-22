@@ -254,4 +254,4 @@ IJobProxyLogManagerPtr CreateJobProxyLogManager(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecNode::NYT
+} // namespace NYT::NExecNode

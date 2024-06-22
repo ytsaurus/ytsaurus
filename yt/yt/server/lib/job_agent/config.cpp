@@ -154,4 +154,4 @@ void TJobResourceManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NYT::NJobAgent
