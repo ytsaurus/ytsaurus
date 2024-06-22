@@ -76,6 +76,8 @@ yt_odin_webservice --config odin_webservice_config.json
 
 ### Docker image
 
+TODO: update
+
 It is possible to build a self-confined Odin image using the provided [Dockerfile](./Dockerfile). The image will be built using a [multi-stage build](https://docs.docker.com/build/building/multi-stage/) approach where only the necessary runtime files and dependencies are preserved in the final stage.
 
 To build the image run the following commands:

@@ -1,2 +1,3 @@
 yt/docker/*
 yt/python/yt/run_wrapper_tests.sh
+**/*.md
