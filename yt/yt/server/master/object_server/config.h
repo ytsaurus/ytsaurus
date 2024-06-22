@@ -76,6 +76,9 @@ public:
 
     TDuration ProfilingPeriod;
 
+    // COMPAT(akozhikhov).
+    bool ResetHunkStorageInTableDestroy;
+
     REGISTER_YSON_STRUCT(TDynamicObjectManagerConfig);
 
     static void Register(TRegistrar registrar);
