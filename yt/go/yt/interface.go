@@ -592,6 +592,8 @@ type ListOperationsOptions struct {
 	Type     *OperationType  `http:"type,omitnil"`
 	Filter   *string         `http:"filter,omitnil"`
 	Limit    *int            `http:"limit,omitnil"`
+	Pool     *string         `http:"pool,omitnil"`
+	PoolTree *string         `http:"pool_tree,omitnil"`
 }
 
 type ListJobsOptions struct {
