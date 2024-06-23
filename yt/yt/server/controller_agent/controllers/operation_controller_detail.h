@@ -122,8 +122,8 @@ class TOperationControllerBase
 
     // All potentially faulty controller interface methods are
     // guarded by enclosing into an extra method.
-#define IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(returnType, method, signature, args, catchStdException, returnValue) \
-public: \
+#define IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(accessSpecifier, returnType, method, signature, args, catchStdException, returnValue) \
+accessSpecifier: \
     virtual returnType method signature final \
     { \
         auto safeAssertionsGuard = CreateSafeAssertionGuard( \
@@ -146,31 +146,35 @@ public: \
 private: \
     returnType Safe ## method signature;
 
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, catchStdException) \
-    IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(returnType, method, signature, args, catchStdException, returnType())
+#define IMPLEMENT_SAFE_METHOD(accessSpecifier, returnType, method, signature, args, catchStdException) \
+    IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(accessSpecifier, returnType, method, signature, args, catchStdException, returnType())
 
     IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(
+        public,
         TOperationControllerPrepareResult,
         Prepare,
         (),
         (),
         false,
         (Error_.ThrowOnError(), TOperationControllerPrepareResult()))
-    IMPLEMENT_SAFE_METHOD(TOperationControllerMaterializeResult, Materialize, (), (), false)
+    IMPLEMENT_SAFE_METHOD(public, TOperationControllerMaterializeResult, Materialize, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnJobStarted,
         (const TJobletPtr& joblet),
         (joblet),
         true)
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnAllocationAborted,
         (TAbortedAllocationSummary&& abortedAllocationSummary),
         (std::move(abortedAllocationSummary)),
         true)
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnAllocationFinished,
         (TFinishedAllocationSummary&& finishedAllocationSummary),
@@ -178,6 +182,7 @@ private: \
         true);
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         AbandonJob,
         (TJobId jobId),
@@ -185,20 +190,22 @@ private: \
         false)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         InterruptJobByUserRequest,
         (TJobId jobId, TDuration timeout),
         (jobId, timeout),
         false)
 
-    IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededAllocationResources, (), (), true)
+    IMPLEMENT_SAFE_METHOD(public, void, UpdateMinNeededAllocationResources, (), (), true)
 
-    IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
-    IMPLEMENT_SAFE_METHOD(void, Terminate, (EControllerState finalState), (finalState), false)
+    IMPLEMENT_SAFE_METHOD(public, void, Commit, (), (), false)
+    IMPLEMENT_SAFE_METHOD(public, void, Terminate, (EControllerState finalState), (finalState), false)
 
-    IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
+    IMPLEMENT_SAFE_METHOD(public, void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
         (const TSchedulingContext& context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
@@ -206,6 +213,7 @@ private: \
         true)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         InvokeSafely,
         (std::function<void()> closure),
@@ -214,6 +222,7 @@ private: \
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnIntermediateChunkLocated,
         (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaWithMediumList& replicas, bool missing),
@@ -222,6 +231,7 @@ private: \
 
     //! Called by `TSnapshotBuilder` when snapshot is built.
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnSnapshotCompleted,
         (const TSnapshotCookie& cookie),
@@ -232,6 +242,7 @@ private: \
      *  \note Thread affinity: JobSpecBuildPool
      */
     IMPLEMENT_SAFE_METHOD(
+        public,
         TSharedRef,
         BuildJobSpecProto,
         (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec),
@@ -239,6 +250,7 @@ private: \
         false)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         OnJobInfoReceivedFromNode,
         (std::unique_ptr<TJobSummary> jobSummary),
@@ -246,11 +258,14 @@ private: \
         true)
 
     IMPLEMENT_SAFE_METHOD(
+        public,
         void,
         AbortJobByJobTracker,
         (TJobId jobId, EAbortReason abortReason),
         (jobId, abortReason),
         true);
+
+    IMPLEMENT_SAFE_METHOD(private, void, BuildAndSaveProgress, (), (), true);
 
 #undef IMPLEMENT_SAFE_METHOD
 
@@ -1328,8 +1343,6 @@ private:
     void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
-
-    void BuildAndSaveProgress();
 
     void UpdateActualHistogram(const TCompletedJobSummary& jobSummary);
 
