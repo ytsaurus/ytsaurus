@@ -88,7 +88,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
-    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+    uses: ./.github/workflows/build-jobs.yaml
 
   build-cmake:
     name: Build with cmake
@@ -102,7 +102,7 @@ jobs:
       build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
-    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+    uses: ./.github/workflows/build-jobs.yaml
 
   docker-cmake:
     name: Docker images with cmake
@@ -137,7 +137,7 @@ jobs:
       build-ytsaurus: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
-    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml
+    uses: ./.github/workflows/build-jobs.yaml
 
   docker-ya-make:
     name: Docker images with ya-make
@@ -154,7 +154,7 @@ jobs:
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml
+    uses: ./.github/workflows/docker-jobs.yaml
 
   check:
     name: Check
