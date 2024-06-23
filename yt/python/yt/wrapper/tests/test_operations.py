@@ -49,6 +49,15 @@ import time
 import uuid
 
 
+@contextlib.contextmanager
+def enable_logger_propogate(value):
+    logger.LOGGER.propagate = value
+    try:
+        yield
+    finally:
+        logger.LOGGER.propagate = False
+
+
 class AggregateMapper(object):
     def __init__(self):
         self.sum = 0
@@ -1015,29 +1024,30 @@ class TestOperationCommands(object):
 
     @authors("denvr")
     def test_operation_stderr_output(self, caplog):
-        input_table = TEST_DIR + "/input"
-        output_table = TEST_DIR + "/output"
-        yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        with enable_logger_propogate(yatest_common is None):
+            input_table = TEST_DIR + "/input"
+            output_table = TEST_DIR + "/output"
+            yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
 
-        op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
-        caplog.clear()
-        op.wait()
-        assert op.get_state() == "completed"
-        assert all("someerrout" not in rec.message for rec in caplog.records)
-
-        op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
-        with set_config_option("operation_tracker/always_show_job_stderr", True):
+            op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
             caplog.clear()
             op.wait()
-        assert op.get_state() == "completed"
-        assert any("someerrout" in rec.message for rec in caplog.records)
+            assert op.get_state() == "completed"
+            assert all("someerrout" not in rec.message for rec in caplog.records)
 
-        op = yt.run_map("cat; echo 'someerrout' >&2; exit 1", input_table, output_table, sync=False, job_count=1)
-        with pytest.raises(yt.errors.YtOperationFailedError):
-            caplog.clear()
-            op.wait()
-        assert op.get_state() == "failed"
-        assert any("someerrout" in rec.message for rec in caplog.records)
+            op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
+            with set_config_option("operation_tracker/always_show_job_stderr", True):
+                caplog.clear()
+                op.wait()
+            assert op.get_state() == "completed"
+            assert any("someerrout" in rec.message for rec in caplog.records)
+
+            op = yt.run_map("cat; echo 'someerrout' >&2; exit 1", input_table, output_table, sync=False, job_count=1)
+            with pytest.raises(yt.errors.YtOperationFailedError):
+                caplog.clear()
+                op.wait()
+            assert op.get_state() == "failed"
+            assert any("someerrout" in rec.message for rec in caplog.records)
 
     @authors("ignat")
     def test_complete_operation(self):
