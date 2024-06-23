@@ -43,6 +43,64 @@ TChunkOwnerDataStatistics TChunkOwnerDataStatistics::operator+ (const TChunkOwne
     return result;
 }
 
+void TChunkOwnerDataStatistics::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, UncompressedDataSize);
+    Save(context, CompressedDataSize);
+    Save(context, RowCount);
+    Save(context, ChunkCount);
+    Save(context, RegularDiskSpace);
+    Save(context, ErasureDiskSpace);
+    Save(context, DataWeight);
+}
+
+void TChunkOwnerDataStatistics::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, UncompressedDataSize);
+    Load(context, CompressedDataSize);
+    Load(context, RowCount);
+    Load(context, ChunkCount);
+    Load(context, RegularDiskSpace);
+    Load(context, ErasureDiskSpace);
+    Load(context, DataWeight);
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() < EMasterReign::RemovedDuplicateChunkCountFromSnapshot) {
+        Load<i64>(context);
+    }
+}
+
+void TChunkOwnerDataStatistics::Save(TBeginCopyContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, UncompressedDataSize);
+    Save(context, CompressedDataSize);
+    Save(context, RowCount);
+    Save(context, ChunkCount);
+    Save(context, RegularDiskSpace);
+    Save(context, ErasureDiskSpace);
+    Save(context, DataWeight);
+}
+
+void TChunkOwnerDataStatistics::Load(TEndCopyContext& context)
+{
+    using NYT::Load;
+
+    Load(context, UncompressedDataSize);
+    Load(context, CompressedDataSize);
+    Load(context, RowCount);
+    Load(context, ChunkCount);
+    Load(context, RegularDiskSpace);
+    Load(context, ErasureDiskSpace);
+    Load(context, DataWeight);
+}
+
+
 bool TChunkOwnerDataStatistics::operator== (const TChunkOwnerDataStatistics& other) const
 {
     return
@@ -64,27 +122,27 @@ void Serialize(const TChunkOwnerDataStatistics& statistics, IYsonConsumer* consu
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("chunk_count").Value(statistics.ChunkCount)
-        .Item("row_count").Value(statistics.RowCount)
-        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
         .Item("compressed_data_size").Value(statistics.CompressedDataSize)
         .Item("data_weight").Value(statistics.DataWeight)
-        .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
         .Item("erasure_disk_space").Value(statistics.ErasureDiskSpace)
+        .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
+        .Item("row_count").Value(statistics.RowCount)
+        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
     .EndMap();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TChunkOwnerDataStatistics& statistics, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
-        "{UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, RowCount: %v, "
-        "ChunkCount: %v, RegularDiskSpace: %v, ErasureDiskSpace: %v}",
-        statistics.UncompressedDataSize,
+        "{ChunkCount: %v, CompressedDataSize: %v, DataWeight: %v, ErasureDiskSpace: %v, "
+        "RegularDiskSpace: %v, RowCount: %v, UncompressedDataSize: %v}",
+        statistics.ChunkCount,
         statistics.CompressedDataSize,
         statistics.DataWeight,
-        statistics.RowCount,
-        statistics.ChunkCount,
+        statistics.ErasureDiskSpace,
         statistics.RegularDiskSpace,
-        statistics.ErasureDiskSpace);
+        statistics.RowCount,
+        statistics.UncompressedDataSize);
 }
 
 TString ToString(const TChunkOwnerDataStatistics& statistics)
@@ -112,6 +170,7 @@ void ToProto(
     const TChunkOwnerDataStatistics& dataStatistics)
 {
     protoDataStatistics->Clear();
+
     protoDataStatistics->set_uncompressed_data_size(dataStatistics.UncompressedDataSize);
     protoDataStatistics->set_compressed_data_size(dataStatistics.CompressedDataSize);
     protoDataStatistics->set_row_count(dataStatistics.RowCount);

@@ -22,10 +22,13 @@ struct TChunkOwnerDataStatistics
 
     bool IsDataWeightValid() const;
 
-    template <class TContext>
-    void Save(TContext& context) const;
-    template <class TContext>
-    void Load(TContext& context);
+    // COMPAT(cherepashka)
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+    // TODO(cherepashka): delete copy paste after compat is removed.
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +50,3 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-#define CHUNK_OWNER_DATA_STATISTICS_
-#include "chunk_owner_data_statistics-inl.h"
-#undef CHUNK_OWNER_DATA_STATISTICS_
