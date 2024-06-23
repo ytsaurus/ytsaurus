@@ -83,10 +83,10 @@ It is possible to build a self-confined Odin image using the provided [Dockerfil
 To build the image run the following commands:
 
 ```bash
-cd $SOURCE_ROOT/yt/odin
+cd $SOURCE_ROOT/yt/docker
 
 # ytsaurus-odin:latest is the label:tag of the resulting image
-docker build -t ytsaurus-odin:latest .
+./run_bake odin --set "odin.tags=ytsaurus-odin:latest"
 ```
 
 To run Odin inside a container do the following:
