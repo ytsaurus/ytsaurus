@@ -7,6 +7,7 @@ ARG VIRTUAL_ENV="${ROOT}/virtualenv"
 ARG ODIN_RUNTIME_ROOT="/var/odin"
 ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
+ARG PYTHON_RUNTIME_VERSION="3.10"
 
 # Install Odin Python libraries into the virtual env
 
@@ -59,7 +60,7 @@ RUN mkdir -p ${ODIN_CHECKS_DIR} \
 
 # Copy virtual env and odin checks from the previous ones
 
-FROM python:3.10-slim AS odin
+FROM python:${PYTHON_RUNTIME_VERSION}-slim AS odin
 
 ARG VIRTUAL_ENV
 ENV VIRTUAL_ENV $VIRTUAL_ENV

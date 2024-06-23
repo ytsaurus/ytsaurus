@@ -1,10 +1,9 @@
+variable "REPO_PATH" {}
+
 variable "BUILD_ROOT" {
-  default = "."
+  default = "${REPO_PATH}/yt/docker"
 }
 
-variable "REPO_PATH" {
-  default = "../ytsaurus"
-}
 
 # Common targets
 
