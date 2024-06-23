@@ -8788,7 +8788,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
     }
 }
 
-void TOperationControllerBase::BuildAndSaveProgress()
+void TOperationControllerBase::SafeBuildAndSaveProgress()
 {
     YT_LOG_DEBUG("Building and saving progress");
 

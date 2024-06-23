@@ -4,7 +4,7 @@ from yt_commands import (
     assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config,
     wait, wait_no_assert,
     get, create, write_table, map, run_test_vanilla,
-    with_breakpoint, wait_breakpoint, release_breakpoint)
+    raises_yt_error, with_breakpoint, wait_breakpoint, release_breakpoint)
 
 from yt.common import YtError
 
@@ -238,3 +238,20 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 job_type="task",
                 summary_type="sum")
             assert count == 2 and max == 10 and sum == 20
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("crash_inside_periodic", [False, True])
+    def test_incompatible_statistic_paths_should_not_crash_ca(self, crash_inside_periodic):
+        command = """
+            if [ "$YT_JOB_COOKIE" == 0 ]; then
+                echo '{"a"=1};' >&5;
+            else
+                echo '{"a"={"b"=1}};' >&5;
+            fi
+        """
+
+        if crash_inside_periodic:
+            command = with_breakpoint(command + "BREAKPOINT")
+
+        with raises_yt_error('Expected "slash" in YPath but found end-of-string'):
+            run_test_vanilla(command, job_count=2, track=True)
