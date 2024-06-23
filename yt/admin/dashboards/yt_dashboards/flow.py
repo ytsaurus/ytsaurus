@@ -30,8 +30,8 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread",
-                MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
+                "Busiest thread (Controller)",
+                MonitoringExpr(FlowController("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
@@ -41,7 +41,7 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread",
+                "Busiest thread (Worker)",
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
