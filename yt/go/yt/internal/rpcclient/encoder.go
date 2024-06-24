@@ -1801,7 +1801,8 @@ func (e *Encoder) ListOperations(
 		StateFilter:            opState,
 		TypeFilter:             opType,
 		SubstrFilter:           opts.Filter,
-		Pool:                   nil,   // todo
+		Pool:                   opts.Pool,
+		PoolTree:               opts.PoolTree,
 		IncludeArchive:         nil,   // todo
 		IncludeCounters:        nil,   // todo
 		Limit:                  limit, // todo

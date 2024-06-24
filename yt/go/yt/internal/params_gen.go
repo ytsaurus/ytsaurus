@@ -544,6 +544,14 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("limit")
 		w.Any(o.Limit)
 	}
+	if o.Pool != nil {
+		w.MapKeyString("pool")
+		w.Any(o.Pool)
+	}
+	if o.PoolTree != nil {
+		w.MapKeyString("pool_tree")
+		w.Any(o.PoolTree)
+	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }

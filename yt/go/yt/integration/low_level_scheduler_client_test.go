@@ -241,6 +241,8 @@ func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
 	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
 	out := makeTable(t, s.Env, nil)
 
+	poolTree := "default"
+	pool := "default"
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
 		"output_table_paths": []ypath.Path{out},
@@ -249,6 +251,8 @@ func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
 			"output_format": "yson",
 			"command":       "cat -",
 		},
+		"pool_trees": []string{poolTree},
+		"pool":       pool,
 	}
 
 	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
@@ -257,7 +261,7 @@ func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
 	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	result, err := yc.ListOperations(s.Ctx, nil)
+	result, err := yc.ListOperations(s.Ctx, &yt.ListOperationsOptions{PoolTree: &poolTree, Pool: &pool})
 	require.NoError(t, err)
 
 	opIDs := make([]yt.OperationID, 0, len(result.Operations))
