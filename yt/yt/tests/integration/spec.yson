@@ -15,10 +15,12 @@
         monitoring={
             enable=%true;
             sensor_names=[
+                "cpu/burst";
                 "cpu/user";
                 "cpu/system";
                 "cpu/wait";
                 "cpu/throttled";
+                "cpu/cfs_throttled";
                 "current_memory/rss";
                 "current_memory/mapped_file";
                 "current_memory/major_page_faults";
