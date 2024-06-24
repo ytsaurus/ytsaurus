@@ -116,8 +116,16 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::SerializationOfDataStatistics) {
         Load(context, SnapshotStatistics_);
         // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::DeltaStatisticsPointer && !IsTrunk()) {
-            deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
+        if (context.GetVersion() >= EMasterReign::DeltaStatisticsPointer) {
+            if (!IsTrunk()) {
+                deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
+            }
+        } else {
+            if (!IsTrunk()) {
+                deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
+            } else {
+                Load<TChunkOwnerDataStatistics>(context);
+            }
         }
     } else {
         SnapshotStatistics_ = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
