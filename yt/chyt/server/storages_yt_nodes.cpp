@@ -297,6 +297,7 @@ public:
         size_t /*numStreams*/) override
     {
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_nodes_base/read");
         // const auto& Logger = queryContext->Logger;
         auto client = queryContext->Client();
 

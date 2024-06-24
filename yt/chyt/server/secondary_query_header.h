@@ -48,7 +48,6 @@ public:
 
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
-    int StorageIndex = -42;
     int QueryDepth = -42;
 
     REGISTER_YSON_STRUCT(TSecondaryQueryHeader);

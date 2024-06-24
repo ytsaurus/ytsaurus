@@ -77,6 +77,7 @@ public:
         NTracing::TChildTraceContextGuard traceContextGuard(
             QueryContext_->TraceContext,
             "ClickHouseYt.PreparePipes");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_subquery/read");
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
@@ -159,6 +160,12 @@ public:
             granuleMinMaxFilter = CreateGranuleMinMaxFilter(queryInfo, StorageContext_->Settings->Composite, schema, context, realColumnNames);
         }
 
+        auto statisticsCallback = BIND([weakQueryContext = MakeWeak(QueryContext_)] (const TStatistics& statistics) {
+            if (auto queryContext = weakQueryContext.Lock()) {
+                queryContext->MergeStatistics(statistics);
+            }
+        });
+
         for (int threadIndex = 0;
             threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
             ++threadIndex)
@@ -174,7 +181,8 @@ public:
                     traceContext,
                     threadDataSliceDescriptors,
                     prewhereInfo,
-                    granuleMinMaxFilter)));
+                    granuleMinMaxFilter,
+                    statisticsCallback)));
             } else {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
                     StorageContext_,
@@ -184,7 +192,8 @@ public:
                     traceContext,
                     threadDataSliceDescriptors,
                     prewhereInfo,
-                    granuleMinMaxFilter)));
+                    granuleMinMaxFilter,
+                    statisticsCallback)));
             }
 
             i64 rowCount = 0;

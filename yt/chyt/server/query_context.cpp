@@ -2,8 +2,8 @@
 
 #include "helpers.h"
 #include "host.h"
+#include "query_finish_info.h"
 #include "query_registry.h"
-#include "statistics_reporter.h"
 #include "secondary_query_header.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -159,7 +159,6 @@ TQueryContext::TQueryContext(
     if (QueryKind == EQueryKind::SecondaryQuery) {
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
-        SelectQueryIndex = secondaryQueryHeader->StorageIndex;
         ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
         SnapshotLocks = secondaryQueryHeader->SnapshotLocks;
         DynamicTableReadTimestamp = secondaryQueryHeader->DynamicTableReadTimestamp;
@@ -263,7 +262,7 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
         return;
     }
 
-    auto readerGuard = Guard(PhaseLock_);
+    auto guard = Guard(PhaseLock_);
 
     if (nextPhase <= QueryPhase_.load()) {
         return;
@@ -282,8 +281,11 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
     }
 
     QueryPhase_ = nextPhase;
+    LastPhaseTime_ = currentTime;
 
-    readerGuard.Release();
+    guard.Release();
+
+    AddStatisticsSample(Format("/phase_duration_us/%v", oldPhase), duration.MicroSeconds());
 
     // It is effectively useless to count queries in state "Finish" in query registry,
     // and also we do not want exceptions to throw in query context destructor.
@@ -308,8 +310,6 @@ EQueryPhase TQueryContext::GetQueryPhase() const
 void TQueryContext::Finish()
 {
     FinishTime_ = TInstant::Now();
-    AggregatedStatistics.Merge(InstanceStatistics);
-    Host->GetQueryStatisticsReporter()->ReportQueryStatistics(MakeStrong(this));
 }
 
 TInstant TQueryContext::GetStartTime() const
@@ -647,6 +647,51 @@ void TQueryContext::AcquireSnapshotLocks(const std::vector<TYPath>& paths)
     }
 }
 
+void TQueryContext::AddStatisticsSample(const NYPath::TYPath& path, i64 sample)
+{
+    auto guard = Guard(QueryLogLock_);
+    Statistics_.AddSample(path, sample);
+}
+
+void TQueryContext::MergeStatistics(const TStatistics& statistics)
+{
+    auto guard = Guard(QueryLogLock_);
+    Statistics_.Merge(statistics);
+}
+
+void TQueryContext::AddSecondaryQueryId(TQueryId id)
+{
+    auto guard = Guard(QueryLogLock_);
+    SecondaryQueryIds_.push_back(id);
+}
+
+TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(NYPath::TYPath path)
+{
+    return TStatisticsTimerGuard(std::move(path), MakeWeak(this));
+}
+
+TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
+{
+    TQueryFinishInfo result;
+    {
+        auto guard = Guard(QueryLogLock_);
+        result.Statistics = Statistics_;
+        result.SecondaryQueryIds = SecondaryQueryIds_;
+    }
+
+    // Add last (current) phase duration.
+    TDuration lastPhaseDuration;
+    {
+        auto guard = Guard(PhaseLock_);
+        lastPhaseDuration = TInstant::Now() - LastPhaseTime_;
+    }
+    result.Statistics.AddSample(
+        Format("/phase_duration_us/%v", QueryPhase_.load()),
+        lastPhaseDuration.MicroSeconds());
+
+    return result;
+}
+
 // TODO(gudqeit): use TBatchAttributeFetcher.
 TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTableAttributesAsync(
     const std::vector<TYPath>& paths,
@@ -697,6 +742,21 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
 {
     return WaitForUniqueFast(FetchTableAttributesAsync(paths, transactionId))
         .ValueOrThrow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryContext::TStatisticsTimerGuard::TStatisticsTimerGuard(NYPath::TYPath path, TWeakPtr<TQueryContext> queryContext)
+    : Path_(std::move(path))
+    , QueryContext_(std::move(queryContext))
+{ }
+
+TQueryContext::TStatisticsTimerGuard::~TStatisticsTimerGuard()
+{
+    Timer_.Stop();
+    if (auto queryContext = QueryContext_.Lock()) {
+        queryContext->AddStatisticsSample(Path_ + "_us", Timer_.GetElapsedTime().MicroSeconds());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterStorageSystemLogTableExporter(
-    const TSystemLogTableExportersConfigPtr& config,
+    const THost* host,
     const NApi::NNative::IClientPtr& client,
     const IInvokerPtr& invoker);
 

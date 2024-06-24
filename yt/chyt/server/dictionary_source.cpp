@@ -92,11 +92,13 @@ public:
         auto blockInputStream = CreateBlockInputStream(
             reader,
             table->Schema,
-            nullptr /*traceContext*/,
+            /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
             Logger,
-            nullptr /*prewhereInfo*/);
+            /*prewhereInfo*/ nullptr,
+            /*chunkReaderStatistics*/ nullptr,
+            /*statisticsCallback*/ {});
 
         auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
 

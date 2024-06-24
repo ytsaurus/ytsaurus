@@ -144,7 +144,6 @@ DB::Pipe CreateRemoteSource(
     const DB::Tables& externalTables,
     DB::QueryProcessingStage::Enum processingStage,
     const DB::Block& blockHeader,
-    int storageIndex,
     TLogger logger)
 {
     const auto& queryAst = secondaryQuery.Query;
@@ -197,7 +196,6 @@ DB::Pipe CreateRemoteSource(
     queryHeader->ParentQueryId = queryContext->QueryId;
     queryHeader->SpanContext = New<TSerializableSpanContext>();
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
-    queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
     queryHeader->SnapshotLocks = queryContext->SnapshotLocks;
     queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
@@ -387,9 +385,6 @@ public:
             RemoveJoinFromQuery();
         }
 
-        SelectQueryIndex_ = QueryContext_->SelectQueries.size();
-        QueryContext_->SelectQueries.push_back(TString(queryToString(QueryInfo_.query)));
-
         PrepareInput();
 
         ChooseNodesToDistribute();
@@ -471,10 +466,9 @@ public:
                 Context_->getExternalTables(),
                 ProcessingStage_,
                 blockHeader,
-                SelectQueryIndex_,
                 Logger);
 
-            QueryContext_->SecondaryQueryIds.push_back(ToString(remoteQueryId));
+            QueryContext_->AddSecondaryQueryId(remoteQueryId);
 
             Pipes_.emplace_back(std::move(pipe));
         }
@@ -559,7 +553,6 @@ private:
     NChunkPools::TChunkStripeListPtr InputStripeList_;
     std::optional<double> SamplingRate_;
 
-    int SelectQueryIndex_ = -1;
     TClusterNodes CliqueNodes_;
     std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
@@ -907,6 +900,8 @@ public:
         DB::SelectQueryInfo& queryInfo) const override
     {
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/storage_distributor/get_query_processing_stage");
+
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
         const auto& executionSettings = storageContext->Settings->Execution;
         const auto& chSettings = context->getSettingsRef();
@@ -999,7 +994,8 @@ public:
         size_t /*maxBlockSize*/,
         size_t /*numStreams*/) override
     {
-        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+        TCurrentTraceContextGuard traceContextGuard(QueryContext_->TraceContext);
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read");
 
         auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
 
@@ -1043,6 +1039,7 @@ public:
         bool /*asyncInsert*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write");
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
@@ -1111,6 +1108,7 @@ public:
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write");
 
         // First, validate if SELECT part is suitable for distributed INSERT SELECT.
 
@@ -1230,6 +1228,7 @@ public:
         DB::TableExclusiveLockHolder&) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/truncate");
 
         THROW_ERROR_EXCEPTION_IF(Tables_.size() != 1,
             "Wrong number of tables for TRUNCATE: %v instead of 1",
@@ -1248,6 +1247,7 @@ public:
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/get_column_sizes");
 
         auto context = WeakContext_.lock();
         if (!context) {

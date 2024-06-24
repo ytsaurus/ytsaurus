@@ -99,8 +99,6 @@ DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings)
 DECLARE_REFCOUNTED_CLASS(TTestingSettings)
 DECLARE_REFCOUNTED_CLASS(TExecutionSettings)
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex)
-DECLARE_REFCOUNTED_STRUCT(IQueryStatisticsReporter)
-DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TGossipConfig)
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryRegistryConfig)
@@ -119,6 +117,7 @@ struct TSubquery;
 struct TQueryAnalysisResult;
 class TClickHouseIndexBuilder;
 struct TSqlObjectInfo;
+struct TQueryFinishInfo;
 
 struct IStorageDistributor;
 using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;

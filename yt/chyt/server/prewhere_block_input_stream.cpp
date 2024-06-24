@@ -50,7 +50,8 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const NTracing::TTraceContextPtr& traceContext,
-    IGranuleFilterPtr granuleFilter)
+    IGranuleFilterPtr granuleFilter,
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     auto prewhereColumns = ExtractColumnsFromPrewhereInfo(prewhereInfo);
     auto* queryContext = storageContext->QueryContext;
@@ -81,7 +82,8 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         traceContext,
         dataSliceDescriptors,
         std::move(prewhereInfo),
-        std::move(granuleFilter));
+        std::move(granuleFilter),
+        std::move(statisticsCallback));
 
     return WaitFor(BIND(&GetFilteredDataSliceDescriptors, blockInputStream)
         .AsyncVia(queryContext->Host->GetClickHouseWorkerInvoker())
@@ -107,7 +109,8 @@ public:
         NTracing::TTraceContextPtr traceContext,
         DB::PrewhereInfoPtr prewhereInfo,
         std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
-        IGranuleFilterPtr granuleFilter)
+        IGranuleFilterPtr granuleFilter,
+        TCallback<void(const TStatistics&)> statisticsCallback)
         : StorageContext_(storageContext)
         , QueryContext_(storageContext->QueryContext)
         , SubquerySpec_(subquerySpec)
@@ -123,8 +126,10 @@ public:
             TraceContext_,
             /*dataSliceDescriptors*/ {},
             PrewhereInfo_,
-            /*granuleFilter*/ nullptr)->getHeader())
+            /*granuleFilter*/ nullptr,
+            /*statisticsCallback*/ {})->getHeader())
         , GranuleFilter_(std::move(granuleFilter))
+        , StatisticsCallback_(std::move(statisticsCallback))
         , DataSliceDescriptors_(std::move(dataSliceDescriptors))
         , Logger(QueryContext_->Logger)
     { }
@@ -153,7 +158,8 @@ public:
             StorageContext_,
             SubquerySpec_,
             TraceContext_,
-            GranuleFilter_);
+            GranuleFilter_,
+            StatisticsCallback_);
 
         i64 filteredDataWeight = 0;
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
@@ -171,7 +177,8 @@ public:
             DataSliceDescriptors_,
             PrewhereInfo_,
             // Chunks have been already prefiltered.
-            /*granuleFilter*/ nullptr);
+            /*granuleFilter*/ nullptr,
+            StatisticsCallback_);
         BlockInputStream_->readPrefixImpl();
     }
 
@@ -190,6 +197,7 @@ private:
     DB::PrewhereInfoPtr PrewhereInfo_;
     DB::Block Header_;
     const IGranuleFilterPtr GranuleFilter_;
+    TCallback<void(const TStatistics&)> StatisticsCallback_;
 
     std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors_;
     std::shared_ptr<TBlockInputStream> BlockInputStream_;
@@ -212,7 +220,8 @@ DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     const NTracing::TTraceContextPtr& traceContext,
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo,
-    IGranuleFilterPtr granuleFilter)
+    IGranuleFilterPtr granuleFilter,
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TPrewhereBlockInputStream>(
         storageContext,
@@ -222,7 +231,8 @@ DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
         traceContext,
         std::move(prewhereInfo),
         std::move(dataSliceDescriptors),
-        std::move(granuleFilter));
+        std::move(granuleFilter),
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,10 @@
 #include "query_registry.h"
 
-#include "query_context.h"
-#include "private.h"
 #include "config.h"
 #include "helpers.h"
+#include "private.h"
+#include "query_context.h"
+#include "query_finish_info.h"
 
 #include <yt/yt/core/ytree/ypath_service.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -251,6 +252,10 @@ public:
             Invoker_,
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             Config_->ProcessListSnapshotUpdatePeriod))
+        , ClearQueryFinishInfosExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TImpl::ClearQueryFinishInfos, MakeWeak(this)),
+            Config_->ClearQueryFinishInfosPeriod))
     {
         TotalDurationTimer_ = QueryRegistryProfiler_.Timer("/total_duration");
         for (auto queryPhase : {EQueryPhase::Preparation, EQueryPhase::Execution}) {
@@ -279,7 +284,7 @@ public:
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(QueryContexts_.insert(queryContext.Get()).second);
+        YT_VERIFY(QueryContexts_.emplace(queryContext->QueryId, queryContext).second);
 
         auto& userProfilingEntry = GetOrRegisterUserProfilingEntry(queryContext->User);
         switch (queryContext->QueryKind) {
@@ -310,7 +315,7 @@ public:
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(QueryContexts_.erase(queryContext));
+        YT_VERIFY(QueryContexts_.erase(queryContext->QueryId));
 
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
         switch (queryContext->QueryKind) {
@@ -326,6 +331,13 @@ public:
                 break;
             default:
                 YT_ABORT();
+        }
+
+        if (queryContext->KeepQueryFinishInfo) {
+            QueryFinishInfos_.emplace(queryContext->QueryId, TQueryFinishInfosEntry{
+                .FinishTime = TInstant::Now(),
+                .Info = std::move(queryContext->GetQueryFinishInfo()),
+            });
         }
 
         YT_LOG_INFO("Query unregistered");
@@ -412,15 +424,46 @@ public:
 
     void UpdateProcessListSnapshot()
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         ProcessListSnapshot_ = TProcessListSnapshot(getContext()->getProcessList());
         SaveState();
     }
+
+    void ClearQueryFinishInfos()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        std::vector<TQueryId> toRemove;
+
+        auto now = TInstant::Now();
+
+        for (const auto& [queryId, entry] : QueryFinishInfos_) {
+            if (now - entry.FinishTime > Config_->ClearQueryFinishInfosPeriod) {
+                toRemove.push_back(queryId);
+            }
+        }
+
+        for (const auto& queryId : toRemove) {
+            QueryFinishInfos_.erase(queryId);
+        }
+    }
+
+    TFuture<std::vector<std::optional<TQueryFinishInfo>>> ExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TImpl::DoExtractQueryFinishInfos, MakeStrong(this), queryIds)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
 
 private:
     TQueryRegistryConfigPtr Config_;
 
     IInvokerPtr Invoker_;
-    THashSet<TQueryContextPtr> QueryContexts_;
+    THashMap<TQueryId, TQueryContextPtr> QueryContexts_;
 
     NProfiling::TProfiler QueryRegistryProfiler_;
 
@@ -437,6 +480,15 @@ private:
     TEnumIndexedArray<EQueryPhase, NProfiling::TEventTimer> PhaseDurationTimer_;
     NProfiling::TEventTimer TotalDurationTimer_;
 
+    struct TQueryFinishInfosEntry
+    {
+        TInstant FinishTime;
+        TQueryFinishInfo Info;
+    };
+    THashMap<TQueryId, TQueryFinishInfosEntry> QueryFinishInfos_;
+
+    TPeriodicExecutorPtr ClearQueryFinishInfosExecutor_;
+
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -444,8 +496,8 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
             .DoIf(Config_->SaveRunningQueries, [&] (TFluentMap fluent) {
-                fluent.Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContextPtr queryContext) {
-                    const auto& queryId = queryContext->QueryId;
+                fluent.Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const std::pair<TQueryId, TQueryContextPtr>& idAndContext) {
+                    const auto& [queryId, queryContext] = idAndContext;
                     fluent.Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusInfoByQueryId(queryId));
                 });
             })
@@ -471,6 +523,28 @@ private:
             it = UserToUserProfilingEntry_.emplace_direct(ctx, user, New<TUserProfilingEntry>(profiler));
         }
         return *it->second;
+    }
+
+    std::vector<std::optional<TQueryFinishInfo>> DoExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        std::vector<std::optional<TQueryFinishInfo>> result;
+        result.reserve(queryIds.size());
+
+        for (const auto& queryId: queryIds) {
+            if (auto it = QueryFinishInfos_.find(queryId); it != QueryFinishInfos_.end()) {
+                result.push_back(std::move(it->second.Info));
+                QueryFinishInfos_.erase(it);
+            } else if (auto it = QueryContexts_.find(queryId); it != QueryContexts_.end()) {
+                result.push_back(it->second->GetQueryFinishInfo());
+                it->second->KeepQueryFinishInfo = false;
+            } else {
+                result.push_back(std::nullopt);
+            }
+        }
+
+        return result;
     }
 };
 
@@ -536,6 +610,11 @@ void TQueryRegistry::Start()
 void TQueryRegistry::Stop()
 {
     Impl_->Stop();
+}
+
+TFuture<std::vector<std::optional<TQueryFinishInfo>>> TQueryRegistry::ExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
+{
+    return Impl_->ExtractQueryFinishInfos(queryIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

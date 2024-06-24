@@ -2,6 +2,7 @@
 
 #include "conversion.h"
 #include "std_helpers.h"
+#include "query_context.h"
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -16,6 +17,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,10 +28,12 @@ public:
     TGranuleMinMaxFilter(
         DB::KeyCondition keyCondition,
         TTableSchemaPtr queryRealColumnsSchema,
-        TCompositeSettingsPtr settings)
+        TCompositeSettingsPtr settings,
+        TCallback<void(const TYPath&, i64)> statisticsSampleCallback)
         : KeyCondition_(std::move(keyCondition))
         , QueryRealColumnsSchema_(std::move(queryRealColumnsSchema))
         , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
+        , StatisticsSampleCallback_(std::move(statisticsSampleCallback))
     { }
 
     bool CanSkip(
@@ -37,6 +41,7 @@ public:
         const TNameTablePtr& granuleNameTable) const override
     {
         if (!statistics.HasValueStatistics()) {
+            StatisticsSampleCallback_("/granule_min_max_filter/can_skip", false);
             return false;
         }
 
@@ -75,13 +80,18 @@ public:
             }
         }
 
-        return !KeyCondition_.checkInHyperrectangle(columnRanges, ColumnDataTypes_).can_be_true;
+        StatisticsSampleCallback_("/granule_min_max_filter/can_skip", false);
+
+        bool canSkip = !KeyCondition_.checkInHyperrectangle(columnRanges, ColumnDataTypes_).can_be_true;
+        StatisticsSampleCallback_("/granule_min_max_filter/can_skip", canSkip);
+        return canSkip;
     }
 
 private:
     const DB::KeyCondition KeyCondition_;
     const TTableSchemaPtr QueryRealColumnsSchema_;
     const DB::DataTypes ColumnDataTypes_;
+    const TCallback<void(const TYPath&, i64)> StatisticsSampleCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +110,17 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
 
     DB::KeyCondition keyCondition(queryInfo, context, ToNames(realColumnNames), primaryKeyExpression);
 
-    return New<TGranuleMinMaxFilter>(std::move(keyCondition), std::move(filteredSchema), std::move(compositeSettings));
+    auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TYPath& path, i64 sample) {
+        if (auto queryContext = weakContext.Lock()) {
+            queryContext->AddStatisticsSample(path, sample);
+        }
+    });
+
+    return New<TGranuleMinMaxFilter>(
+        std::move(keyCondition),
+        std::move(filteredSchema),
+        std::move(compositeSettings),
+        std::move(statisticsSampleCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

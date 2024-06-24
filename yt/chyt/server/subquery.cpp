@@ -163,7 +163,7 @@ public:
 
 private:
     const TStorageContext* StorageContext_;
-    const TQueryContext* QueryContext_;
+    TQueryContext* QueryContext_;
 
     NApi::NNative::IClientPtr Client_;
 
@@ -246,16 +246,25 @@ private:
         for (auto& stripe : ResultStripes_) {
             auto& dataSlices = stripe->DataSlices;
 
-            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
+            auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
                 if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
                     return false;
                 }
-
                 return !GetRangeMask(
                     EKeyConditionScale::TopLevelDataSlice,
                     dataSlice->LowerLimit().KeyBound,
                     dataSlice->UpperLimit().KeyBound,
                     dataSlice->GetInputStreamIndex()).can_be_true;
+            };
+
+            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
+                bool needToRemove = removePred(dataSlice);
+
+                TYPath prefix = (needToRemove ? "/input_fetcher/filtered_data_slices" : "/input_fetcher/data_slices");
+                QueryContext_->AddStatisticsSample(prefix + "/row_count", dataSlice->GetRowCount());
+                QueryContext_->AddStatisticsSample(prefix + "/data_weight", dataSlice->GetDataWeight());
+
+                return needToRemove;
             });
             dataSlices.resize(it - dataSlices.begin());
 

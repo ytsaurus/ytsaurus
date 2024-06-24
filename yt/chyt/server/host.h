@@ -93,8 +93,6 @@ public:
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
-    const IQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const;
-
     TYtConfigPtr GetConfig() const;
 
     EInstanceState GetInstanceState() const;
@@ -112,6 +110,7 @@ public:
     void SetContext(DB::ContextMutablePtr context);
     DB::ContextMutablePtr GetContext() const;
 
+    void InitQueryRegistry();
     void InitSingletones();
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;

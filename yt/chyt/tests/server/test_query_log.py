@@ -1,6 +1,6 @@
 from base import ClickHouseTestBase, Clique
 
-from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table)
+from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug)
 
 from yt.common import wait
 
@@ -72,3 +72,51 @@ class TestQueryLog(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             clique.make_query("select 1")
             wait(lambda: exists(table_path_1))
+
+    @authors("dakovalkov")
+    def test_log_table_extender(self):
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+
+        with Clique(1, config_patch=self._get_query_log_patch(root_dir)) as clique:
+            query_id = clique.make_query("select initialQueryID() as query_id, a from `//tmp/t`")[0]["query_id"]
+
+            table_path = root_dir + "/query_log/0"
+            wait(lambda: exists(table_path))
+            wait(lambda: len(read_table(table_path)) > 0)
+
+            row = read_table(table_path)[0]
+            assert len(row["chyt_version"]) > 0
+            assert row["chyt_instance_cookie"] == 0
+
+            def match(row, fields):
+                for key, value in fields.items():
+                    if key not in row or row[key] != value:
+                        return False
+                return True
+
+            initial_query_fields = {"query_id": query_id, "type": "QueryFinish"}
+            secondary_query_fields = {"initial_query_id": query_id, "type": "QueryFinish", "is_initial_query": 0}
+
+            wait(lambda: len([r for r in read_table(table_path) if match(r, initial_query_fields)]) == 1)
+            wait(lambda: len([r for r in read_table(table_path) if match(r, secondary_query_fields)]) == 1)
+
+            initial_query_entry = [r for r in read_table(table_path) if match(r, initial_query_fields)][0]
+            secondary_query_entry = [r for r in read_table(table_path) if match(r, secondary_query_fields)][0]
+
+            print_debug(initial_query_entry)
+            print_debug(secondary_query_entry)
+
+            assert secondary_query_entry["chyt_secondary_query_ids"] == []
+            assert initial_query_entry["chyt_secondary_query_ids"] == [secondary_query_entry["query_id"]]
+
+            assert 'storage_distributor' in initial_query_entry["chyt_query_statistics"]
+            assert 'storage_subquery' not in initial_query_entry["chyt_query_statistics"]
+            assert 'block_input_stream' not in initial_query_entry["chyt_query_statistics"]
+
+            assert 'storage_distributor' not in secondary_query_entry["chyt_query_statistics"]
+            assert 'storage_subquery' in secondary_query_entry["chyt_query_statistics"]
+            assert 'block_input_stream' in secondary_query_entry["chyt_query_statistics"]

@@ -204,6 +204,11 @@ private:
         ServerContext_->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Users)));
 
         Host_->SetContext(ServerContext_);
+        // NB: There is a weird dependency between THost and TClickHouseServer initializations.
+        // TClickHouseServer requires THost, but some THost's singletones require server context.
+        // E.g. TQueryRegistry requires the server context, but registering SystemLogTableExporter requires
+        // TQueryRegistry, so we need to initialize it right after setting up the context.
+        Host_->InitQueryRegistry();
 
         RegisterClickHouseSingletons();
 

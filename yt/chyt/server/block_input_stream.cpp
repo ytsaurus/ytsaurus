@@ -79,7 +79,6 @@ TTableSchemaPtr InsertVirtualColumns(
 TClientChunkReadOptions CreateChunkReadOptions(const TString& user)
 {
     TClientChunkReadOptions chunkReadOptions;
-    chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     chunkReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
     chunkReadOptions.WorkloadDescriptor.CompressionFairShareTag = user;
     chunkReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
@@ -154,7 +153,9 @@ TBlockInputStream::TBlockInputStream(
     THost* host,
     TQuerySettingsPtr settings,
     TLogger logger,
-    DB::PrewhereInfoPtr prewhereInfo)
+    DB::PrewhereInfoPtr prewhereInfo,
+    TChunkReaderStatisticsPtr chunkReaderStatistics,
+    TCallback<void(const TStatistics&)> statisticsCallback)
     : Reader_(std::move(reader))
     , ReadSchemaWithVirtualColumns_(std::move(readSchemaWithVirtualColumns))
     , TraceContext_(std::move(traceContext))
@@ -163,6 +164,8 @@ TBlockInputStream::TBlockInputStream(
     , Logger(std::move(logger))
     , RowBuffer_(New<NTableClient::TRowBuffer>())
     , PrewhereInfo_(std::move(prewhereInfo))
+    , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
+    , StatisticsCallback_(std::move(statisticsCallback))
 {
     Prepare();
 }
@@ -190,7 +193,22 @@ void TBlockInputStream::readSuffixImpl()
     TCurrentTraceContextGuard guard(TraceContext_);
     YT_LOG_DEBUG("readSuffixImpl() is called");
 
+    auto lastIdleDuration = IdleTimer_.GetCurrentDuration();
     IdleTimer_.Stop();
+
+    Statistics_.AddSample("/block_input_stream/idle_time_us", lastIdleDuration.MicroSeconds());
+
+    if (ChunkReaderStatistics_) {
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_disk", ChunkReaderStatistics_->DataBytesReadFromDisk);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_io_requests", ChunkReaderStatistics_->DataIORequests);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_transmitted", ChunkReaderStatistics_->DataBytesTransmitted);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_cache", ChunkReaderStatistics_->DataBytesReadFromCache);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/meta_bytes_read_from_disk", ChunkReaderStatistics_->MetaBytesReadFromDisk);
+    }
+
+    if (StatisticsCallback_) {
+        StatisticsCallback_(Statistics_);
+    }
 
     YT_LOG_DEBUG(
         "Block input stream timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
@@ -233,8 +251,11 @@ DB::Block TBlockInputStream::readImpl()
         nullGuard.Release();
     }
 
+    auto lastIdleDuration = IdleTimer_.GetCurrentDuration();
     IdleTimer_.Stop();
     ++ReadCount_;
+
+    Statistics_.AddSample("/block_input_stream/idle_time_us", lastIdleDuration.MicroSeconds());
 
     NProfiling::TWallTimer totalWallTimer;
     YT_LOG_TRACE("Started reading ClickHouse block");
@@ -257,6 +278,7 @@ DB::Block TBlockInputStream::readImpl()
 
             auto elapsed = wallTimer.GetElapsedTime();
             WaitReadyEventTime_ += elapsed;
+            Statistics_.AddSample("/block_input_stream/wait_ready_event_time_us", elapsed.MicroSeconds());
 
             if (elapsed > TDuration::Seconds(1)) {
                 YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
@@ -267,19 +289,31 @@ DB::Block TBlockInputStream::readImpl()
         {
             if (Settings_->ConvertRowBatchesInWorkerThreadPool) {
                 auto start = TInstant::Now();
+
                 block = WaitFor(BIND(&TBlockInputStream::ConvertRowBatchToBlock, this, batch)
                     .AsyncVia(Host_->GetClickHouseWorkerInvoker())
                     .Run())
                     .ValueOrThrow();
-                auto finish = TInstant::Now();
-                ConversionSyncWaitTime_ += finish - start;
+
+                auto elapsed = TInstant::Now() - start;
+                ConversionSyncWaitTime_ += elapsed;
+                Statistics_.AddSample("/block_input_stream/conversion_sync_wait_time_us", elapsed.MicroSeconds());
             } else {
                 block = ConvertRowBatchToBlock(batch);
             }
+
+            Statistics_.AddSample("/block_input_stream/block_rows", block.rows());
+            Statistics_.AddSample("/block_input_stream/block_columns", block.columns());
+            Statistics_.AddSample("/block_input_stream/block_bytes", block.bytes());
         }
 
         if (PrewhereInfo_) {
+            auto start = TInstant::Now();
+
             block = FilterRowsByPrewhereInfo(std::move(block), PrewhereActions_, PrewhereInfo_->prewhere_column_name);
+
+            auto elapsed = TInstant::Now() - start;
+            Statistics_.AddSample("/block_input_stream/filter_rows_by_prewhare_info_us", elapsed.MicroSeconds());
         }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
@@ -288,6 +322,8 @@ DB::Block TBlockInputStream::readImpl()
 
     auto totalElapsed = totalWallTimer.GetElapsedTime();
     YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
+
+    Statistics_.AddSample("/block_input_stream/read_impl_us", totalElapsed.MicroSeconds());
 
     IdleTimer_.Start();
 
@@ -327,10 +363,13 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
         InputHeaderBlock_,
         Settings_->Composite);
 
+    timer.Stop();
     if (isColumnarBatch) {
         ColumnarConversionCpuTime_ += timer.GetElapsedTime();
+        Statistics_.AddSample("/block_input_stream/columnar_conversion_cpu_time_us", timer.GetElapsedTime().MicroSeconds());
     } else {
         NonColumnarConversionCpuTime_ += timer.GetElapsedTime();
+        Statistics_.AddSample("/block_input_stream/non_columnar_conversion_cpu_time_us", timer.GetElapsedTime().MicroSeconds());
     }
 
     return result;
@@ -345,16 +384,20 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     THost* host,
     TQuerySettingsPtr querySettings,
     TLogger logger,
-    DB::PrewhereInfoPtr prewhereInfo)
+    DB::PrewhereInfoPtr prewhereInfo,
+    TChunkReaderStatisticsPtr chunkReaderStatistics,
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TBlockInputStream>(
         std::move(reader),
         std::move(readSchema),
         std::move(traceContext),
         host,
-        querySettings,
-        logger,
-        std::move(prewhereInfo));
+        std::move(querySettings),
+        std::move(logger),
+        std::move(prewhereInfo),
+        std::move(chunkReaderStatistics),
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,7 +410,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo,
-    IGranuleFilterPtr granuleFilter)
+    IGranuleFilterPtr granuleFilter,
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     auto* queryContext = storageContext->QueryContext;
     auto chunkReadOptions = CreateChunkReadOptions(queryContext->User);
@@ -459,7 +503,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Host,
         storageContext->Settings,
         queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
-        prewhereInfo);
+        prewhereInfo,
+        chunkReadOptions.ChunkReaderStatistics,
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

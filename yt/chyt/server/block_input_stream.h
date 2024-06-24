@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/statistics.h>
+
 #include <DataStreams/IBlockInputStream.h>
 #include <DataStreams/IBlockStream_fwd.h>
 
@@ -34,7 +36,9 @@ public:
         THost* host,
         TQuerySettingsPtr settings,
         NLogging::TLogger logger,
-        DB::PrewhereInfoPtr prewhereInfo);
+        DB::PrewhereInfoPtr prewhereInfo,
+        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
+        TCallback<void(const TStatistics&)> statisticsCallback);
 
     virtual std::string getName() const override;
     virtual DB::Block getHeader() const override;
@@ -66,6 +70,10 @@ private:
 
     int ReadCount_ = 0;
 
+    NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+    TStatistics Statistics_;
+    TCallback<void(const TStatistics&)> StatisticsCallback_;
+
     virtual DB::Block readImpl() override;
     void Prepare();
     DB::Block ConvertRowBatchToBlock(const NTableClient::IUnversionedRowBatchPtr& batch);
@@ -80,7 +88,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     THost* host,
     TQuerySettingsPtr settings,
     NLogging::TLogger logger,
-    DB::PrewhereInfoPtr prewhereInfo);
+    DB::PrewhereInfoPtr prewhereInfo,
+    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
+    TCallback<void(const TStatistics&)> statisticsCallback);
 
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     TStorageContext* storageContext,
@@ -90,7 +100,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo,
-    NTableClient::IGranuleFilterPtr granuleFilter);
+    NTableClient::IGranuleFilterPtr granuleFilter,
+    TCallback<void(const TStatistics&)> statisticsCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 

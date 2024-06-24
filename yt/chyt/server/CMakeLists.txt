@@ -97,7 +97,6 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/stack_size_checker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/statistics_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/std_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_distributor.cpp

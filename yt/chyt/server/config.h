@@ -400,25 +400,6 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryStatisticsReporterConfig
-    : public TArchiveReporterConfig
-{
-public:
-    TArchiveHandlerConfigPtr DistributedQueriesHandler;
-    TArchiveHandlerConfigPtr SecondaryQueriesHandler;
-    TArchiveHandlerConfigPtr AncestorQueryIdsHandler;
-
-    TString User;
-
-    REGISTER_YSON_STRUCT(TQueryStatisticsReporterConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TGossipConfig
     : public NYTree::TYsonStruct
 {
@@ -477,6 +458,8 @@ public:
 
     bool SaveRunningQueries;
     bool SaveUsers;
+
+    TDuration ClearQueryFinishInfosPeriod;
 
     REGISTER_YSON_STRUCT(TQueryRegistryConfig);
 
@@ -659,8 +642,6 @@ public:
     TDuration TotalMemoryTrackerUpdatePeriod;
 
     TQuerySettingsPtr QuerySettings;
-
-    TQueryStatisticsReporterConfigPtr QueryStatisticsReporter;
 
     TQueryRegistryConfigPtr QueryRegistry;
 

@@ -327,25 +327,6 @@ void TSecurityManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueryStatisticsReporterConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("distributed_queries_handler", &TThis::DistributedQueriesHandler)
-        .DefaultNew();
-    registrar.Parameter("secondary_queries_handler", &TThis::SecondaryQueriesHandler)
-        .DefaultNew();
-    registrar.Parameter("ancestor_query_ids_handler", &TThis::AncestorQueryIdsHandler)
-        .DefaultNew();
-
-    registrar.Parameter("user", &TThis::User)
-        .Default("yt-clickhouse");
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->Enabled = false;
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TGossipConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("period", &TThis::Period)
@@ -388,6 +369,9 @@ void TQueryRegistryConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("save_users", &TThis::SaveUsers)
         .Default(true);
+
+    registrar.Parameter("clear_query_finish_infos_period", &TThis::ClearQueryFinishInfosPeriod)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -578,9 +562,6 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("table_columnar_statistics_cache", &TThis::TableColumnarStatisticsCache)
-        .DefaultNew();
-
-    registrar.Parameter("query_statistics_reporter", &TThis::QueryStatisticsReporter)
         .DefaultNew();
 
     registrar.Parameter("query_registry", &TThis::QueryRegistry)

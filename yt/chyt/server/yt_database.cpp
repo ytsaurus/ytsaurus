@@ -118,6 +118,7 @@ public:
         };
 
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/get_tables_iterator");
 
         TTableTraverser traverser(
             queryContext->Client(),
@@ -152,6 +153,8 @@ public:
     void dropTable(DB::ContextPtr context, const String& name, bool /*noDelay*/) override
     {
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/drop_table");
+
         auto path = TYPath(name);
 
         WaitFor(queryContext->Client()->RemoveNode(path))
@@ -173,6 +176,8 @@ public:
         }
 
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/rename_table");
+
         auto client = queryContext->Client();
         auto srcPath = TYPath(name);
         auto dstPath = TYPath(toName);
@@ -263,6 +268,7 @@ private:
         }
 
         auto* queryContext = GetQueryContext(context);
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/do_get_table");
 
         try {
             auto tables = FetchTables(

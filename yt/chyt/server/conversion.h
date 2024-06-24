@@ -76,6 +76,13 @@ TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
     const std::vector<int>& columnIndexToId,
     const TCompositeSettingsPtr& settings);
 
+TSharedMutableRange<NTableClient::TMutableUnversionedRow> ToMutableRowRange(
+    const DB::Block& block,
+    const std::vector<DB::DataTypePtr>& dataTypes,
+    const std::vector<int>& columnIndexItId,
+    const TCompositeSettingsPtr& settings,
+    int extraColumnCapacity = 0);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TClickHouseKeys

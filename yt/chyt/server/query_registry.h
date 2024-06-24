@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/actions/public.h>
-
 #include "private.h"
+
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -38,6 +38,11 @@ public:
 
     void Start();
     void Stop();
+
+    //! Returns stored query finish info for every query id.
+    //! The query finish info is deleted from the query registry after the extraction.
+    //! Invoker affinity: any.
+    TFuture<std::vector<std::optional<TQueryFinishInfo>>> ExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds);
 
 private:
     class TImpl;

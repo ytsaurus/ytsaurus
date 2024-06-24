@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include "conversion.h"
 #include "cluster_nodes.h"
 #include "object_lock.h"
 
@@ -30,8 +29,6 @@
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TQueryContext;
 
 //! Context for select query.
 struct TStorageContext
@@ -93,15 +90,9 @@ public:
     //! CreatedTablePath is the path of the table created in write transaction.
     std::optional<NYPath::TYPath> CreatedTablePath;
 
-    // Fields for a statistics reporter.
-    std::vector<TString> SelectQueries;
-    std::vector<TString> SecondaryQueryIds;
-    //! Statistics for 'simple' query.
-    TStatistics InstanceStatistics;
-    //! Aggregated statistics from all subquery. InstanceStatistics is merged in the end of the query.
-    TStatistics AggregatedStatistics;
-    //! Index of this select in the parent query.
-    int SelectQueryIndex = 0;
+    //! if |true|, query registry should keep QueryFinishInfo after the query context is destroyed.
+    //! Invoker affinity: query registry invoker.
+    bool KeepQueryFinishInfo = true;
 
     //! Level of the query in an execution tree.
     int QueryDepth = 0;
@@ -151,6 +142,7 @@ public:
     void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
 
     // Transactionality
+
     void InitializeQueryWriteTransaction();
     void CommitWriteTransaction();
 
@@ -163,6 +155,34 @@ public:
 
     //! Synchronously acquire snapshot locks on given paths under the read transaction.
     void AcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
+
+    // QueryLog
+
+    void AddStatisticsSample(const NYPath::TYPath& path, i64 sample);
+    void MergeStatistics(const TStatistics& statistics);
+    void AddSecondaryQueryId(TQueryId id);
+
+    class TStatisticsTimerGuard;
+    TStatisticsTimerGuard CreateStatisticsTimerGuard(NYPath::TYPath path);
+
+    TQueryFinishInfo GetQueryFinishInfo();
+
+public:
+    //! A guard that automatically adds elapsed time to query statistics in destructor.
+    class TStatisticsTimerGuard
+    {
+    public:
+        explicit TStatisticsTimerGuard(NYPath::TYPath path, TWeakPtr<TQueryContext> queryContext);
+
+        TStatisticsTimerGuard(const TStatisticsTimerGuard& other) = delete;
+        TStatisticsTimerGuard& operator=(const TStatisticsTimerGuard& other) = delete;
+
+        ~TStatisticsTimerGuard();
+    private:
+        NYPath::TYPath Path_;
+        TWeakPtr<TQueryContext> QueryContext_;
+        NProfiling::TWallTimer Timer_;
+    };
 
 private:
     TInstant StartTime_;
@@ -180,6 +200,11 @@ private:
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryLogLock_);
+    //! CHYT-specific query statistics.
+    TStatistics Statistics_;
+    std::vector<TQueryId> SecondaryQueryIds_;
 
     //! Spinlock controlling lazy client creation.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
@@ -202,7 +227,6 @@ private:
         NApi::NNative::ITransactionPtr Transaction;
         NTransactionClient::TTimestamp Timestamp;
     };
-
     TFuture<TTransactionWithTimestamp> ReadTransactionFuture_;
 
     void InitializeQueryReadTransactionFuture();

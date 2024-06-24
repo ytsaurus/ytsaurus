@@ -2,20 +2,29 @@
 
 #include "config.h"
 #include "conversion.h"
+#include "host.h"
+#include "query_finish_info.h"
+#include "query_registry.h"
+#include "version.h"
 
 #include <yt/yt/server/lib/misc/archive_reporter.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <Processors/Sinks/SinkToStorage.h>
 #include <Processors/Sources/SourceFromChunks.h>
 #include <Storages/IStorage.h>
 #include <Storages/StorageFactory.h>
+
+#include <util/system/hostname.h>
 
 #include <deque>
 
@@ -28,6 +37,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYPath;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +126,202 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema ExtendSchema(const TTableSchema& schema, const std::vector<TColumnSchema>& extraColumns)
+{
+    auto columns = schema.Columns();
+    columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
+    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An interface to enrich rows with extra columns before exporting to a cypress table.
+struct ITableExtender
+    : public TRefCounted
+{
+    //! Returns column schemas for columns that may be added by the extender.
+    virtual const std::vector<TColumnSchema>& GetColumns() const = 0;
+
+    //! Modifies provided rows by adding column values.
+    //! The caller must ensure that every TMutableUnversionedRow has enough capacity
+    //! to store additional len(GetColumns()) values.
+    //! String-like values should be captured by the provided rowBuffer.
+    virtual void ExtendRows(
+        TMutableRange<TMutableUnversionedRow> rows,
+        TRowBufferPtr rowBuffer,
+        const TNameTablePtr& nameTable) = 0;
+};
+
+DECLARE_REFCOUNTED_STRUCT(ITableExtender)
+DEFINE_REFCOUNTED_TYPE(ITableExtender)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGeneralTableExtender
+    : public ITableExtender
+{
+public:
+    TGeneralTableExtender(int instanceCookie, TGuid instanceId)
+        : InstanceCookie_(instanceCookie)
+        , InstanceId_(instanceId)
+    { }
+
+    const std::vector<TColumnSchema>& GetColumns() const override
+    {
+        static const std::vector<TColumnSchema> columns {
+            TColumnSchema("chyt_instance_cookie", ESimpleLogicalValueType::Int64),
+            TColumnSchema("chyt_instance_fqdn", ESimpleLogicalValueType::String),
+            TColumnSchema("chyt_instance_id", ESimpleLogicalValueType::String),
+            TColumnSchema("chyt_version", ESimpleLogicalValueType::String),
+        };
+
+        return columns;
+    }
+
+    void ExtendRows(
+        TMutableRange<TMutableUnversionedRow> rows,
+        TRowBufferPtr rowBuffer,
+        const TNameTablePtr& nameTable) override
+    {
+        int cookieColumnId = nameTable->GetIdOrThrow("chyt_instance_cookie");
+        int fqdnColumnId = nameTable->GetIdOrThrow("chyt_instance_fqdn");
+        int instanceIdColumnId = nameTable->GetIdOrThrow("chyt_instance_id");
+        int chytVersionColumnId = nameTable->GetIdOrThrow("chyt_version");
+
+        auto cookieValue = MakeUnversionedInt64Value(InstanceCookie_, cookieColumnId);
+        auto fqdnValue = rowBuffer->CaptureValue(
+            MakeUnversionedStringValue(FQDNHostName(), fqdnColumnId));
+        auto instanceIdValue = rowBuffer->CaptureValue(
+            MakeUnversionedStringValue(ToString(InstanceId_), instanceIdColumnId));
+        auto chytVersionValue = rowBuffer->CaptureValue(
+            MakeUnversionedStringValue(GetChytVersion(), chytVersionColumnId));
+
+        for (auto& row : rows) {
+            row.PushBack(cookieValue);
+            row.PushBack(fqdnValue);
+            row.PushBack(instanceIdValue);
+            row.PushBack(chytVersionValue);
+        }
+    }
+
+private:
+    int InstanceCookie_;
+    TGuid InstanceId_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryLogTableExtender
+    : public TGeneralTableExtender
+{
+public:
+    TQueryLogTableExtender(int instanceCookie, TGuid instanceId, TQueryRegistryPtr queryRegistry)
+        : TGeneralTableExtender(instanceCookie, instanceId)
+        , QueryRegistry_(std::move(queryRegistry))
+    {
+        static const std::vector<TColumnSchema> queryLogExtraColumns {
+            TColumnSchema("chyt_query_statistics", ESimpleLogicalValueType::Any),
+            TColumnSchema("chyt_secondary_query_ids",
+                OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))),
+        };
+
+        Columns_ = TGeneralTableExtender::GetColumns();
+        Columns_.insert(Columns_.end(), queryLogExtraColumns.begin(), queryLogExtraColumns.end());
+    }
+
+    const std::vector<TColumnSchema>& GetColumns() const override
+    {
+        return Columns_;
+    }
+
+    void ExtendRows(
+        TMutableRange<TMutableUnversionedRow> rows,
+        TRowBufferPtr rowBuffer,
+        const TNameTablePtr& nameTable) override
+    {
+        TGeneralTableExtender::ExtendRows(rows, rowBuffer, nameTable);
+
+        auto rowInfos = ExtractRowInfos(rows, nameTable);
+
+        std::vector<TQueryId> queryIds;
+        queryIds.reserve(rows.size());
+
+        static constexpr auto typeQueryFinish = "QueryFinish";
+
+        for (const auto& rowInfo : rowInfos) {
+            if (rowInfo.Type == typeQueryFinish) {
+                queryIds.push_back(TQueryId::FromString(rowInfo.QueryId));
+            }
+        }
+
+        auto queryInfos = WaitFor(QueryRegistry_->ExtractQueryFinishInfos(queryIds))
+            .ValueOrThrow();
+
+        size_t queryIndex = 0;
+
+        int statisticsColumnId = nameTable->GetIdOrThrow("chyt_query_statistics");
+        int secondaryQueryIdsColumnId = nameTable->GetIdOrThrow("chyt_secondary_query_ids");
+
+        for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+            if (rowInfos[rowIndex].Type == typeQueryFinish) {
+                if (queryInfos[queryIndex].has_value()) {
+                    auto ysonStatistics = ConvertToYsonString(
+                        queryInfos[queryIndex]->Statistics);
+                    auto ysonSecondaryQueryIds = ConvertToYsonString(
+                        queryInfos[queryIndex]->SecondaryQueryIds);
+
+                    rows[rowIndex].PushBack(rowBuffer->CaptureValue(
+                        MakeUnversionedAnyValue(
+                            ysonStatistics.AsStringBuf(),
+                            statisticsColumnId)));
+                    rows[rowIndex].PushBack(rowBuffer->CaptureValue(
+                        MakeUnversionedCompositeValue(
+                            ysonSecondaryQueryIds.AsStringBuf(),
+                            secondaryQueryIdsColumnId)));
+                }
+                ++queryIndex;
+            }
+        }
+    }
+
+private:
+    std::vector<TColumnSchema> Columns_;
+
+    TQueryRegistryPtr QueryRegistry_;
+
+    struct TRowInfo
+    {
+        TStringBuf Type;
+        TStringBuf QueryId;
+    };
+
+    std::vector<TRowInfo> ExtractRowInfos(TRange<TMutableUnversionedRow> rows, const TNameTablePtr& nameTable)
+    {
+        std::vector<TRowInfo> result;
+        result.reserve(rows.size());
+
+        int typeColumnId = nameTable->GetIdOrThrow("type");
+        int queryIdColumnId = nameTable->GetIdOrThrow("query_id");
+
+        for (const auto& row : rows) {
+            auto& rowInfo = result.emplace_back();
+
+            for (const auto& value : row) {
+                if (value.Id == typeColumnId) {
+                    YT_VERIFY(value.Type == EValueType::String);
+                    rowInfo.Type = TStringBuf(value.Data.String, value.Length);
+                } else if (value.Id == queryIdColumnId) {
+                    YT_VERIFY(value.Type == EValueType::String);
+                    rowInfo.QueryId = TStringBuf(value.Data.String, value.Length);
+                }
+            }
+        }
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSystemLogTableExporterSink
     : public DB::SinkToStorage
 {
@@ -126,12 +332,16 @@ public:
         std::shared_ptr<const std::vector<int>> columnIndexToId,
         TCompositeSettingsPtr compositeSettings,
         IArchiveReporterPtr archiveReporter,
+        ITableExtenderPtr tableExtender,
+        TNameTablePtr nameTable,
         TLogger logger)
         : DB::SinkToStorage(header)
         , StorageBuffer_(std::move(storageBuffer))
         , ColumnIndexToId_(std::move(columnIndexToId))
         , CompositeSettings_(std::move(compositeSettings))
         , ArchiveReporter_(std::move(archiveReporter))
+        , TableExtender_(std::move(tableExtender))
+        , NameTable_(std::move(nameTable))
         , Logger(std::move(logger))
     { }
 
@@ -148,13 +358,24 @@ public:
     void onFinish() override
     {
         if (ArchiveReporter_) {
+            auto extraRowBuffer = New<TRowBuffer>();
+
             for (const auto& chunk : NewChunks_) {
                 try {
                     auto block = getHeader().cloneWithColumns(chunk.getColumns());
-                    auto rowRange = ToRowRange(block, block.getDataTypes(), *ColumnIndexToId_, CompositeSettings_);
+                    auto rowRange = ToMutableRowRange(
+                        block,
+                        block.getDataTypes(),
+                        *ColumnIndexToId_,
+                        CompositeSettings_,
+                        TableExtender_->GetColumns().size());
+
+                    TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
+
                     for (const auto& row : rowRange) {
                         ArchiveReporter_->Enqueue(std::make_unique<TCompletedRowlet>(TUnversionedOwningRow(row)));
                     }
+                    extraRowBuffer->Clear();
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Failed to convert chunk to unverionsed rows; chunk skipped (RowCount: %v)", chunk.getNumRows());
                 }
@@ -170,6 +391,8 @@ private:
 
     const TCompositeSettingsPtr CompositeSettings_;
     IArchiveReporterPtr ArchiveReporter_;
+    const ITableExtenderPtr TableExtender_;
+    const TNameTablePtr NameTable_;
 
     const TLogger Logger;
 
@@ -188,7 +411,8 @@ public:
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         DB::StorageID storageId,
-        DB::ColumnsDescription columnsDescription)
+        DB::ColumnsDescription columnsDescription,
+        ITableExtenderPtr tableExtender)
         : DB::IStorage(std::move(storageId))
         , Config_(std::move(config))
         , CypressTableDirectory_(std::move(cypressTableDirectory))
@@ -200,11 +424,18 @@ public:
         , ColumnIndexToId_(std::make_shared<const std::vector<int>>(
             GetColumnIndexToId(NameTable_, Schema_.GetColumnNames())))
         , Logger(SystemLogTableExporterLogger().WithTag("TableName: %v", getStorageID().getFullTableName()))
+        , Extender_(std::move(tableExtender))
         , Data_(New<TCircularChunkBuffer>(Config_->MaxBytesToKeep, Config_->MaxRowsToKeep))
     {
         DB::StorageInMemoryMetadata storageMetadata;
         storageMetadata.setColumns(columnsDescription);
         setInMemoryMetadata(storageMetadata);
+
+        const auto& extraColumns = Extender_->GetColumns();
+        Schema_ = ExtendSchema(Schema_, extraColumns);
+        for (const auto& column : extraColumns) {
+            NameTable_->RegisterNameOrThrow(column.Name());
+        }
     }
 
     constexpr static auto Name = "SystemLogTableExporter";
@@ -269,6 +500,8 @@ public:
             ColumnIndexToId_,
             CompositeSettings_,
             ArchiveReporter_,
+            Extender_,
+            NameTable_,
             Logger);
     }
 
@@ -278,10 +511,12 @@ private:
     const NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const TCompositeSettingsPtr CompositeSettings_;
-    const TTableSchema Schema_;
-    const TNameTablePtr NameTable_;
+    TTableSchema Schema_;
+    TNameTablePtr NameTable_;
     const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
     const TLogger Logger;
+
+    ITableExtenderPtr Extender_;
 
     TCircularChunkBufferPtr Data_;
     IArchiveReporterPtr ArchiveReporter_;
@@ -385,26 +620,42 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ITableExtenderPtr CreateTableExtender(TStringBuf tableName, const THost* host)
+{
+    if (tableName == "query_log") {
+        return New<TQueryLogTableExtender>(host->GetInstanceCookie(), host->GetConfig()->InstanceId, host->GetQueryRegistry());
+    } else {
+        return New<TGeneralTableExtender>(host->GetInstanceCookie(), host->GetConfig()->InstanceId);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void RegisterStorageSystemLogTableExporter(
-    const TSystemLogTableExportersConfigPtr& config,
+    const THost* host,
     const NNative::IClientPtr& client,
     const IInvokerPtr& invoker)
 {
     auto& factory = DB::StorageFactory::instance();
 
-    factory.registerStorage(TStorageSystemLogTableExporter::Name, [config, client, invoker](const DB::StorageFactory::Arguments& args) {
+    factory.registerStorage(TStorageSystemLogTableExporter::Name, [=](const DB::StorageFactory::Arguments& args) {
         if (args.table_id.database_name != "system") {
             THROW_ERROR_EXCEPTION("%v table may be created only in system database, got %Qv",
                 TStorageSystemLogTableExporter::Name,
                 args.table_id.database_name);
         }
+
+        auto config = host->GetConfig()->SystemLogTableExporters;
+        auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
+
         return std::make_shared<TStorageSystemLogTableExporter>(
             GetOrDefault(config->Tables, args.table_id.table_name, config->Default),
             Format("%v/%v", config->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
             client,
             invoker,
             args.table_id,
-            args.columns);
+            args.columns,
+            std::move(tableExtender));
     });
 }
 

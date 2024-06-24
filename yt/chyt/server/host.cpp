@@ -10,7 +10,6 @@
 #include "memory_watchdog.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "statistics_reporter.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
 #include "storage_system_log_table_exporter.h"
@@ -134,7 +133,6 @@ public:
         InitializeClients();
         InitializeCaches();
         InitializeReaderMemoryManager();
-        InitializeStatisticsReporter();
         RegisterFactories();
 
         // Configure clique's directory.
@@ -203,12 +201,16 @@ public:
         context = context_;
     }
 
-    void InitSingletones()
+    void InitQueryRegistry()
     {
         QueryRegistry_ = New<TQueryRegistry>(
             ControlInvoker_,
             getContext(),
             Config_->QueryRegistry);
+    }
+
+    void InitSingletones()
+    {
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,
             BIND(&TQueryRegistry::WriteStateToStderr, QueryRegistry_),
@@ -493,11 +495,6 @@ public:
         return ParallelReaderMemoryManager_;
     }
 
-    const IQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const
-    {
-        return QueryStatisticsReporter_;
-    }
-
     void HandleCrashSignal() const
     {
         QueryRegistry_->WriteStateToStderr();
@@ -688,7 +685,6 @@ private:
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
-    NApi::NNative::IClientPtr StatisticsReporterClient_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
@@ -705,8 +701,6 @@ private:
     THashMap<TString, int> UnknownInstancePingCounter_;
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
-
-    IQueryStatisticsReporterPtr QueryStatisticsReporter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -733,7 +727,6 @@ private:
         };
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
-        StatisticsReporterClient_ = getClientForUser(Config_->QueryStatisticsReporter->User);
     }
 
     void InitializeCaches()
@@ -769,13 +762,6 @@ private:
         ParallelReaderMemoryManager_ = CreateParallelReaderMemoryManager(
             parallelReaderMemoryManagerOptions,
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
-    }
-
-    void InitializeStatisticsReporter()
-    {
-        QueryStatisticsReporter_ = CreateQueryStatisticsReporter(
-            Config_->QueryStatisticsReporter,
-            StatisticsReporterClient_);
     }
 
     void StartDiscovery()
@@ -958,7 +944,7 @@ private:
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
         RegisterStorageSystemLogTableExporter(
-            Config_->SystemLogTableExporters,
+            Owner_,
             GetRootClient(),
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
@@ -1087,11 +1073,6 @@ const IMultiReaderMemoryManagerPtr& THost::GetMultiReaderMemoryManager() const
     return Impl_->GetMultiReaderMemoryManager();
 }
 
-const IQueryStatisticsReporterPtr& THost::GetQueryStatisticsReporter() const
-{
-    return Impl_->GetQueryStatisticsReporter();
-}
-
 NApi::NNative::IClientPtr THost::GetRootClient() const
 {
     return Impl_->GetRootClient();
@@ -1140,6 +1121,11 @@ void THost::SetContext(DB::ContextMutablePtr context)
 DB::ContextMutablePtr THost::GetContext() const
 {
     return Impl_->GetContext();
+}
+
+void THost::InitQueryRegistry()
+{
+    Impl_->InitQueryRegistry();
 }
 
 void THost::InitSingletones()

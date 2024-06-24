@@ -321,10 +321,28 @@ TSharedRange<TUnversionedRow> ToRowRange(
     const std::vector<int>& columnIndexToId,
     const TCompositeSettingsPtr& settings)
 {
+    auto mutableRows = ToMutableRowRange(block, dataTypes, columnIndexToId, settings);
+    std::vector<TUnversionedRow> rows(mutableRows.size());
+
+    for (size_t rowIndex = 0; rowIndex < mutableRows.size(); ++rowIndex) {
+        rows[rowIndex] = mutableRows[rowIndex];
+    }
+
+    return MakeSharedRange(std::move(rows), mutableRows.ReleaseHolder());
+}
+
+TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
+    const DB::Block& block,
+    const std::vector<DB::DataTypePtr>& dataTypes,
+    const std::vector<int>& columnIndexToId,
+    const TCompositeSettingsPtr& settings,
+    int extraColumnCapacity)
+{
     int columnCount = columnIndexToId.size();
     i64 rowCount = block.rows();
     const auto& columns = block.getColumns();
     YT_VERIFY(std::ssize(columns) == columnCount);
+    YT_VERIFY(extraColumnCapacity >= 0);
 
     std::vector<TCHYTConverter> converters;
     converters.reserve(columnCount);
@@ -336,7 +354,8 @@ TSharedRange<TUnversionedRow> ToRowRange(
     std::vector<TMutableUnversionedRow> mutableRows(rowCount);
 
     for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-        mutableRows[rowIndex] = rowBuffer->AllocateUnversioned(columnCount);
+        mutableRows[rowIndex] = rowBuffer->AllocateUnversioned(columnCount + extraColumnCapacity);
+        mutableRows[rowIndex].SetCount(columnCount);
     }
 
     for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
@@ -351,14 +370,9 @@ TSharedRange<TUnversionedRow> ToRowRange(
         }
     }
 
-    std::vector<TUnversionedRow> rows(rowCount);
-    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-        rows[rowIndex] = mutableRows[rowIndex];
-    }
-
     // Rows are backed up by row buffer, string data is backed up by converters (which
     // hold original columns if necessary).
-    return MakeSharedRange(std::move(rows), std::move(converters), std::move(rowBuffer));
+    return MakeSharedMutableRange(std::move(mutableRows), std::move(converters), std::move(rowBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

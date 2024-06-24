@@ -83,7 +83,6 @@ SRCS(
     schema_inference.cpp
     secondary_query_header.cpp
     stack_size_checker.cpp
-    statistics_reporter.cpp
     std_helpers.cpp
     storage_base.cpp
     storage_distributor.cpp
