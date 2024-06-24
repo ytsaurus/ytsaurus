@@ -1,5 +1,8 @@
 ---
 title: Документация {{product-name}}
+metadata:
+  - property: "og:title"
+    content: "Документация {{product-name}}"
 ---
 
 # {{product-name}}
