@@ -19,6 +19,22 @@ import string
 from copy import deepcopy, copy as shallowcopy
 
 
+# XXX(asaitgalin): Used in get_attribute function for `default` argument
+# instead of None value to distinguish case when default argument
+# is passed and is None from case when default is not passed.
+class _KwargSentinelClass(object):
+    __instance = None
+
+    def __new__(cls):
+        if cls.__instance is None:
+            cls.__instance = object.__new__(cls)
+            cls.__instance.name = "_KwargSentinelClassInstance"
+        return cls.__instance
+
+
+_KWARG_SENTINEL = _KwargSentinelClass()
+
+
 class _MapOrderSorted(object):
     __instance = None
 

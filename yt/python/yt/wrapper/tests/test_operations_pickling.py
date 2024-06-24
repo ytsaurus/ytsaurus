@@ -501,7 +501,7 @@ class Mapper(object):
         assert failures <= 1
 
     @authors("dmifedorov")
-    def test_set_custom_dill_pickler_params(self):
+    def test_set_custom_pickler_params(self):
         @yt_dataclass
         class OutputRow:
             str: str
@@ -518,5 +518,5 @@ class Mapper(object):
         with pytest.raises(PicklingError):
             yt.run_map(Mapper(), "//tmp/test_dynamic_dataclass_pickling", "//tmp/test_dynamic_dataclass_pickling")
 
-        with set_config_option("pickling/dill_kwargs/byref", False):
+        with set_config_option("pickling/pickler_kwargs", [{"key": "byref", "value": False}]):
             yt.run_map(Mapper(), "//tmp/test_dynamic_dataclass_pickling", "//tmp/test_dynamic_dataclass_pickling")

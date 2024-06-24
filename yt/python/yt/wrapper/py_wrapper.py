@@ -4,7 +4,7 @@ from . import config
 from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
-                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job, _KWARG_SENTINEL)
+                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job)
 from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -530,7 +530,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
             dump_kwargs["recurse"] = True
             dump_kwargs["byref"] = False
 
-        dump_kwargs.update({k: v for k, v in pickling_config["dill_kwargs"].items() if v is not _KWARG_SENTINEL})
+    dump_kwargs.update({item["key"]: item["value"] for item in pickling_config["pickler_kwargs"]})
 
     with open(function_filename, "wb") as fout:
         params.attributes = function.attributes if hasattr(function, "attributes") else {}
