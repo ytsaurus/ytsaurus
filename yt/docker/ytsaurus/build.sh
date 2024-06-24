@@ -76,12 +76,12 @@ if [[ "${component}" == "ytsaurus" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
     init_queue_agent_state="${ytsaurus_source_path}/yt/python/yt/environment/init_queue_agent_state.py"
-    init_operations_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operations_archive.py"
+    init_operations_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operation_archive.py"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
 
     cp ${ytserver_all} ${output_path}
     cp ${init_queue_agent_state} ${output_path}
-    cp ${init_operations_archive} ${output_path}
+    cp ${init_operations_archive} ${output_path}/init_operations_archive.py
 
     cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
