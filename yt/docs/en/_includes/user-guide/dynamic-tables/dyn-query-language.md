@@ -154,7 +154,6 @@ Arithmetic operators:
 ```
 Bitwise operators:
 ```bash
-<expr> ~ <expr>
 <expr> | <expr>
 <expr> & <expr>
 <expr> >> <expr>
