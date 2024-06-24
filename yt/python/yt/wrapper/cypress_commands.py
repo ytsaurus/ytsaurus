@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import flatten, get_value, YtError, set_param, deprecated, _KWARG_SENTINEL
+from .common import flatten, get_value, YtError, set_param, deprecated
 from .errors import YtResponseError
 from .driver import make_request, make_formatted_request, set_master_read_params, get_api_version, get_structured_format
 from .transaction import Transaction
