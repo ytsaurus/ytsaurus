@@ -58,10 +58,10 @@ class OperationInfo:
     data_input_data_weight: typing.Optional[float]
     data_output_chunk_count: typing.Optional[float]
     data_output_data_weight: typing.Optional[float]
+    jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
-    other: OtherColumns
 
 
 @authors("ignat")
@@ -96,7 +96,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                    "cumulative_max_memory", "cumulative_used_cpu", "tmpfs_max_usage", "tmpfs_limit", "time_total",
                    "time_prepare", "data_input_chunk_count", "data_input_data_weight",  "data_output_chunk_count",
                    "data_output_data_weight", "accumulated_resource_usage_gpu", "cumulative_gpu_utilization",
-                   "cumulative_sm_utilization"]
+                   "cumulative_sm_utilization", "jobs_count"]
 
         for index, row in enumerate(rows):
             for key in columns:
