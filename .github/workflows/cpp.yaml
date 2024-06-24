@@ -55,6 +55,7 @@ jobs:
     name: Calculate docker tag
     needs:
       - start-vm
+      - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
