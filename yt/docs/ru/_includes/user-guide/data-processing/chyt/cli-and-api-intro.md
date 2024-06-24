@@ -7,7 +7,7 @@
 Например, под Linux и macOS можно использовать следующую команду, чтобы установить переменные окружения и больше не передавать параметры `--proxy <cluster_name>` и `--alias *ch_public` во все последующие вызовы:
 
 ```bash
-export YT_PROXY=<cluster_name> YT_ALIAS=*ch_public
+export YT_PROXY=<cluster_name> CHYT_ALIAS=*ch_public
 ```
 
 {% cut "Про использование параметра `--alias`" %}

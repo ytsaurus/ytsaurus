@@ -9,7 +9,7 @@ The command line utility accepts two environment variables:
 For example, you can use the following command for Linux and macOS  to set environment variables and no longer pass the `--proxy <cluster_name>` and `--alias *ch_public` parameters to all subsequent calls:
 
 ```bash
-export YT_PROXY=<cluster_name> YT_ALIAS=*ch_public
+export YT_PROXY=<cluster_name> CHYT_ALIAS=*ch_public
 ```
 
 The process that launches the clique can sometimes be informally called a *launcher*.
