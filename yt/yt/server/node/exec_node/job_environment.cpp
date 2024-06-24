@@ -93,8 +93,10 @@ public:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
-       return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
-            .AsyncVia(ActionQueue_->GetInvoker())
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run(slotIndex, ESlotType::Common);
     }
 
@@ -757,6 +759,8 @@ private:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
             for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
                 auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
@@ -783,11 +787,10 @@ private:
                         "idle"))
                         .ThrowOnError();
                 }
-                CleanProcesses(slotIndex, ESlotType::Common);
-                CleanProcesses(slotIndex, ESlotType::Idle);
+                CleanProcesses(slotIndex, slotType);
             }
         })
-            .AsyncVia(ActionQueue_->GetInvoker())
+            .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run();
         return slotInitFuture;
     }
@@ -990,8 +993,11 @@ public:
 
         // Init fake slot to download resource once before running init slots concurrently
         // we need to wait for it before initializing slots.
-        WaitFor(Executor_->RunPodSandbox(New<NCri::TCriPodSpec>()))
-            .ThrowOnError();
+        auto tmpPodSpec = New<NCri::TCriPodSpec>();
+        tmpPodSpec->Name = Format("%v%v", SlotPodPrefix, 0);
+        auto tmpPodDescriptor = WaitFor(Executor_->RunPodSandbox(tmpPodSpec)).ValueOrThrow();
+        WaitFor(Executor_->StopPodSandbox(tmpPodDescriptor)).ThrowOnError();
+        WaitFor(Executor_->RemovePodSandbox(tmpPodDescriptor)).ThrowOnError();
 
         WaitFor(Executor_->PullImage(TCriImageDescriptor{
             .Image = Config_->JobProxyImage,
@@ -1001,6 +1007,8 @@ public:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
         podSpec->Resources.CpuLimit = CpuLimit_;
@@ -1008,15 +1016,20 @@ public:
         SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
 
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
-        slotInitFuture.Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
-            if (result.IsOK()) {
-                // Error is handled outside in slot manager.
-                PodDescriptors_[slotIndex] = result.Value();
-            }
-        }));
+        slotInitFuture
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+                VERIFY_THREAD_AFFINITY(JobThread);
+
+                if (result.IsOK()) {
+                    // Error is handled outside in slot manager.
+                    PodDescriptors_[slotIndex] = result.Value();
+                }  else {
+                    result.ThrowOnError();
+                }
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
 
         return slotInitFuture.AsVoid();
-
     }
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override

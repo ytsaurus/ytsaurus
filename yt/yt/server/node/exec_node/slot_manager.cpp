@@ -255,6 +255,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 } else {
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
                     JobEnvironment_->Disable(std::move(wrappedError));
+                    auto guard = WriterGuard(AlertsLock_);
+                    Alerts_.SetAlertError(std::move(wrappedError));
                 }
             })
             .Via(Bootstrap_->GetJobInvoker()));
@@ -1143,10 +1145,6 @@ void TSlotManager::AsyncInitialize()
         .WithTimeout(timeout));
 
     YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
-    YT_LOG_FATAL_IF(std::ssize(FreeSlots_) != SlotCount_,
-        "Some slots are still acquired (FreeSlots: %v, SlotCount: %v)",
-        std::ssize(FreeSlots_),
-        SlotCount_);
 
     NumaNodeStates_.clear();
 
