@@ -85,6 +85,7 @@ private:
             std::any Tag;
             TSharedRefArray Message;
             std::optional<size_t> Hash;
+            bool Mutating;
 
             NApi::NNative::TStickyGroupSizeCache::TKey GetKey() const;
         };
@@ -161,6 +162,7 @@ public:
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         void AddRequestMessage(
             TSharedRefArray innerRequestMessage,
+            bool mutating,
             std::optional<TString> key = std::nullopt,
             std::any tag = {},
             std::optional<size_t> hash = std::nullopt);

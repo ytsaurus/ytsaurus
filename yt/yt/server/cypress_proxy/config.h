@@ -46,6 +46,8 @@ public:
     //! requests execution.
     int ThreadPoolSize;
 
+    bool AlertOnMixedReadWriteBatch;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);

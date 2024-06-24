@@ -91,6 +91,7 @@ public:
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
         , MasterProxy_(std::move(masterProxy))
+        , Logger(Owner_->Logger)
     { }
 
     void Run()
@@ -116,6 +117,7 @@ private:
         bool ForcedNonSequoia = false;
     };
     std::vector<TSubrequest> Subrequests_;
+    const NLogging::TLogger& Logger;
 
     void GuardedRun()
     {
@@ -134,6 +136,7 @@ private:
         auto subrequestCount = request.part_counts_size();
         Subrequests_.resize(subrequestCount);
         int currentPartIndex = 0;
+        std::optional<bool> mutating;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
 
@@ -143,6 +146,22 @@ private:
                 messageBuilder.Add(attachments[currentPartIndex++]);
             }
             subrequest.RequestMessage = messageBuilder.Finish();
+
+            auto requestHeader = NRpc::NProto::TRequestHeader();
+            if (!ParseRequestHeader(Subrequests_[index].RequestMessage, &requestHeader)) {
+                THROW_ERROR_EXCEPTION("Could not parse subrequest header")
+                    << TErrorAttribute("subrequest_index", index);
+            }
+
+            const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            auto mutatingSubrequest = ypathExt.mutating();
+
+            if (!mutating) {
+                mutating = mutatingSubrequest;
+            }
+            if (mutating != mutatingSubrequest && Owner_->Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService->AlertOnMixedReadWriteBatch) {
+                YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
+            }
         }
     }
 
