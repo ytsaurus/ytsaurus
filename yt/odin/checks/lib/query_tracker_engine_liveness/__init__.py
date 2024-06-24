@@ -41,13 +41,15 @@ def log_query(logger, query_id, state):
 
 def track_query(yt_client, logger, query_id, stage):
     last_log_time = time.time()
+    last_state = ""
     while True:
         state = get_query_state(yt_client, query_id, stage)
 
         current_time = time.time()
-        if current_time - last_log_time >= LOG_FREQUENCY:
+        if current_time - last_log_time >= LOG_FREQUENCY and state != last_state:
             log_query(logger, query_id, state)
             last_log_time = current_time
+            last_state = state
 
         if check_terminal_state(state):
             return state
