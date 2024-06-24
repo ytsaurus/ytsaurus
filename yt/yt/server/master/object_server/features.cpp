@@ -31,14 +31,14 @@ std::vector<TTypeV3LogicalTypeWrapper> GetPrimitiveTypes()
 }
 
 std::vector<NCompression::ECodec> GetCompressionCodecs(
-    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds)
+    const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs)
 {
-    const auto& deprecatedCodecIds = configuredDeprecatedCodecIds
-        ? *configuredDeprecatedCodecIds
-        : NCompression::GetDeprecatedCodecIds();
+    const auto& codecs = configuredForbiddenCodecs
+        ? *configuredForbiddenCodecs
+        : NCompression::GetForbiddenCodecs();
     std::vector<NCompression::ECodec> result;
     for (auto id : TEnumTraits<NCompression::ECodec>::GetDomainValues()) {
-        if (!deprecatedCodecIds.contains(id)) {
+        if (!codecs.contains(id)) {
             result.push_back(id);
         }
     }
@@ -56,12 +56,12 @@ std::vector<NErasure::ECodec> GetErasureCodecs()
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString CreateFeatureRegistryYson(
-    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds)
+    const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCompressionCodecs)
 {
     return BuildYsonStringFluently()
         .BeginMap()
             .Item("primitive_types").List(GetPrimitiveTypes())
-            .Item("compression_codecs").List(GetCompressionCodecs(configuredDeprecatedCodecIds))
+            .Item("compression_codecs").List(GetCompressionCodecs(configuredForbiddenCompressionCodecs))
             .Item("erasure_codecs").List(GetErasureCodecs())
         .EndMap();
 }

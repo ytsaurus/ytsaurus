@@ -215,6 +215,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueProducers)                                               (2620))  // apachee
     ((AddForbiddenErasureCodecsOption)                              (2621))  // abogutskiy
     ((InheritChunkMergerModeWhenCopy)                               (2622))  // cherepashka
+    ((ForbiddenCompressionCodecsOptionRefactoring)                  (2623))  // abogutskiy
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

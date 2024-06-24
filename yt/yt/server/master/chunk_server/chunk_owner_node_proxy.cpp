@@ -1115,8 +1115,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
             ValidateCompressionCodec(
                 value,
-                config->DeprecatedCodecIds,
-                config->DeprecatedCodecNameToAlias);
+                config->ForbiddenCompressionCodecs,
+                config->ForbiddenCompressionCodecNameToAlias);
 
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             node->SetCompressionCodec(codec);
