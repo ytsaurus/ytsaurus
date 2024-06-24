@@ -183,10 +183,10 @@ class OperationInfo:
     data_input_data_weight: typing.Optional[float]
     data_output_chunk_count: typing.Optional[float]
     data_output_data_weight: typing.Optional[float]
+    jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
-    other: OtherColumns
 
 
 @yt_dataclass
@@ -224,7 +224,7 @@ class AggregateTags(TypedJob):
     def prepare_operation(self, context, preparer):
         for index in range(context.get_input_count()):
             preparer.input(index, type=OperationInfo)
-        preparer.output(0, type=TempTagsRow, infer_strict_schema=False)
+        preparer.output(0, type=TempTagsRow, infer_strict_schema=True)
 
     def extract_tags(self, annotations_yson):
         return annotations_yson.keys() if annotations_yson else ()
@@ -315,18 +315,16 @@ def merge_info(info_base, info_update):
     info_base.data_input_data_weight += info_update.data_input_data_weight
     info_base.data_output_chunk_count += info_update.data_output_chunk_count
     info_base.data_output_data_weight += info_update.data_output_data_weight
+    info_base.jobs_count += info_update.jobs_count
 
     if not OperationState(info_base.operation_state).is_finished():
         info_base.operation_state = info_update.operation_state
-    info_base.start_time = info_update.start_time
-    info_base.finish_time = info_update.finish_time
-    info_base.job_statistics = info_update.job_statistics
+    info_base.start_time = info_base.start_time or info_update.start_time
+    info_base.finish_time = info_base.finish_time or info_update.finish_time
+    info_base.job_statistics = info_base.job_statistics or info_update.job_statistics
 
     info_base.title = info_base.title or info_update.title
     info_base.sdk = info_base.sdk or info_update.sdk
-
-    if len(info_update.other):
-        info_base.other = info_update.other
 
 
 def build_pool_mapping(pools_info):
@@ -404,7 +402,7 @@ class FilterAndNormalizeEvents(TypedJob):
         self._cluster_and_tree_to_pool_mapping = cluster_and_tree_to_pool_mapping
 
     def prepare_operation(self, context, preparer):
-        preparer.input(0, type=InputRow).output(0, type=OperationInfo, infer_strict_schema=False)
+        preparer.input(0, type=InputRow).output(0, type=OperationInfo, infer_strict_schema=True)
 
     def _process_accumulated_usage_info(self, input_row):
         pool_mapping = build_pool_mapping(input_row["pools"])
@@ -439,10 +437,10 @@ class FilterAndNormalizeEvents(TypedJob):
                 data_input_data_weight=0.0,
                 data_output_chunk_count=0.0,
                 data_output_data_weight=0.0,
+                jobs_count=0,
                 job_statistics=None,
                 start_time=None,
                 finish_time=None,
-                other=OtherColumns(dict()),
             )
 
     def _process_operation_finished_or_started(self, input_row):
@@ -474,7 +472,14 @@ class FilterAndNormalizeEvents(TypedJob):
             job_statistics = None \
                 if all_job_statistics is None \
                 else extract_job_statistics_for_tree(all_job_statistics, pool_tree)
-            annotations_yson = yson.dumps(get_item(input_row, "trimmed_annotations"))
+            annotations_dict = get_item(input_row, "trimmed_annotations") or {}
+            if "yql_nile_job_uuid" in get_item(input_row, "spec", {}).get("description", {}):
+                annotations_dict["nile_driver"] = 'yql'
+            if "job.uuid" in get_item(input_row, "spec", {}).get("description", {}):
+                annotations_dict["nile_driver"] = 'yt'
+            if len(annotations_dict) == 0:
+                annotations_dict = None
+            annotations_yson = yson.dumps(annotations_dict)
             usage = input_row["accumulated_resource_usage_per_tree"][pool_tree]
             ms_multiplier = 1.0 / 1000
             operation_state = "running" \
@@ -518,10 +523,11 @@ class FilterAndNormalizeEvents(TypedJob):
                 data_input_data_weight=extract_statistic(job_statistics, "data/input/data_weight", default=0),
                 data_output_chunk_count=extract_data_output_stat(job_statistics, "chunk_count"),
                 data_output_data_weight=extract_data_output_stat(job_statistics, "data_weight"),
+                # time/total in count since it is presented in all jobs
+                jobs_count=extract_statistic(job_statistics, "time/total", aggr="count", default=0),
                 job_statistics=yson.dumps(job_statistics),
                 start_time=optional_date_string_to_timestamp(get_item(input_row, "start_time")),
                 finish_time=optional_date_string_to_timestamp(get_item(input_row, "finish_time")),
-                other=OtherColumns(dict()),
             )
 
     def start(self):
@@ -551,7 +557,7 @@ class FilterAndNormalizeEvents(TypedJob):
 
 class AggregateEvents(TypedJob):
     def prepare_operation(self, context, preparer):
-        preparer.input(0, type=OperationInfo).output(0, type=OperationInfo, infer_strict_schema=False)
+        preparer.input(0, type=OperationInfo).output(0, type=OperationInfo, infer_strict_schema=True)
 
     def __call__(self, rows):
         aggregated_row = None
