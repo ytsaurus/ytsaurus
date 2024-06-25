@@ -255,8 +255,6 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 } else {
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
                     JobEnvironment_->Disable(std::move(wrappedError));
-                    auto guard = WriterGuard(AlertsLock_);
-                    Alerts_.SetAlertError(std::move(wrappedError));
                 }
             })
             .Via(Bootstrap_->GetJobInvoker()));
