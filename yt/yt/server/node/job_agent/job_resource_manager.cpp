@@ -315,6 +315,7 @@ public:
             auto guard = ReaderGuard(ResourcesLock_);
 
             for (auto state : statesToInclude) {
+                YT_VERIFY(state != EResourcesState::Released);
                 resourceUsage += ResourceUsages_[state];
                 acquiredIncluded |= (state == EResourcesState::Acquired);
             }
@@ -604,7 +605,7 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, EvictedResources: %v)",
+            "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
             FormatResources(resources),
             FormatResources(pendingResources),
             FormatResources(acquiredResources),
@@ -614,7 +615,7 @@ public:
     }
 
     void OnResourcesAcquisitionFailed(
-        TResourceHolderPtr resourceHolder,
+        const TResourceHolderPtr& resourceHolder,
         ISlotPtr&& userSlot,
         std::vector<ISlotPtr>&& gpuSlots,
         std::vector<int>&& ports,
@@ -657,7 +658,7 @@ public:
         NotifyResourcesReleased(resourceHolder->ResourcesConsumerType, /*fullyReleased*/ true);
     }
 
-    void PrepareResourcesRelease(EResourcesState observed, const TJobResources& resources)
+    void PrepareResourcesRelease(const TLogger& Logger, EResourcesState observed, const TJobResources& resources)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -672,7 +673,9 @@ public:
 
             ResourceUsages_[observed] -= resources;
 
-            ResourceUsages_[EResourcesState::Releasing] += resources;
+            if (observed != EResourcesState::Pending) {
+                ResourceUsages_[EResourcesState::Releasing] += resources;
+            }
 
             pendingResources = ResourceUsages_[EResourcesState::Pending];
             acquiredResources = ResourceUsages_[EResourcesState::Acquired];
@@ -691,7 +694,7 @@ public:
             FormatResources(releasingResources));
     }
 
-    bool AcquireResourcesFor(TResourceHolderPtr resourceHolder)
+    bool AcquireResourcesFor(const TResourceHolderPtr& resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -948,7 +951,7 @@ public:
 
             pendingResources = ResourceUsages_[EResourcesState::Pending];
             acquiredResources = ResourceUsages_[EResourcesState::Acquired];
-            releasingResources = ResourceUsages_[EResourcesState::Released];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
         }
 
         bool resourceUsageOverdraftOccurred = false;
@@ -971,22 +974,28 @@ public:
 
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
-            NotifyResourcesReleased(resourcesConsumerType, /*fullyReceived*/ false);
+            NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ false);
         }
 
         if (resourceUsageOverdraftOccurred) {
             YT_LOG_INFO(
-                "Resource usage overdraft detected during updating resource usage (Delta: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
+                "Resource usage overdraft detected during updating resource usage (CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                state,
                 FormatResources(resourceDelta),
-                FormatResourceUsage(acquiredResources + releasingResources, resourceLimits),
+                FormatResources(acquiredResources),
+                FormatResources(releasingResources),
+                FormatResources(resourceLimits),
                 FormatResources(pendingResources));
 
             ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
         } else {
             YT_LOG_DEBUG(
-                "Resource usage updated (Delta: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
+                "Resource usage updated (CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                state,
                 FormatResources(resourceDelta),
-                FormatResourceUsage(acquiredResources + releasingResources, resourceLimits),
+                FormatResources(acquiredResources),
+                FormatResources(releasingResources),
+                FormatResources(resourceLimits),
                 FormatResources(pendingResources));
         }
 
@@ -1654,7 +1663,7 @@ void TResourceHolder::ReleaseBaseResources()
         std::ssize(GpuSlots_) > resources.Gpu,
         "GPU slots not matched with Gpu");
 
-    YT_LOG_INFO("Reset resource holder slots");
+    YT_LOG_INFO("Resetting resource holder slots");
 
     auto guard = WriterGuard(ResourcesLock_);
 
@@ -1664,6 +1673,8 @@ void TResourceHolder::ReleaseBaseResources()
 
     UserSlot_.Reset();
     GpuSlots_.clear();
+
+    YT_VERIFY(State_ != EResourcesState::Pending || AdditionalResourceUsage_ == TJobResources{});
 
     ResourceManagerImpl_->OnBaseResourcesReleased(
         ResourcesConsumerType,
@@ -1816,7 +1827,13 @@ void TResourceHolder::PrepareResourcesRelease() noexcept
 
     auto state = std::exchange(State_, EResourcesState::Releasing);
 
-    ResourceManagerImpl_->PrepareResourcesRelease(state, TotalResourceUsage());
+    YT_VERIFY(state != EResourcesState::Pending || AdditionalResourceUsage_ == TJobResources{});
+
+    ResourceManagerImpl_->PrepareResourcesRelease(Logger, state, TotalResourceUsage());
+    if (state == EResourcesState::Pending) {
+        YT_VERIFY(AdditionalResourceUsage_ == TJobResources{});
+        BaseResourceUsage_ = TJobResources{};
+    }
 }
 
 TJobResources TResourceHolder::TotalResourceUsage() const noexcept
