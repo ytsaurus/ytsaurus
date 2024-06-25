@@ -145,6 +145,7 @@ class Dashboard(Taggable):
     def __init__(self):
         self.rowsets = []
         self.has_set_values = False
+        self.name = None
         self.title = None
         self.description = None
         self.parameters = None
@@ -182,6 +183,13 @@ class Dashboard(Taggable):
             kwargs["tag_postprocessor"] = tag_postprocessor
         data = self.serialize(DebugSerializer(**kwargs))
         print(tabulate(data, tablefmt="grid"))
+
+    def try_set_name(self, name):
+        if self.name is None:
+            self.name = name
+
+    def set_name(self, name):
+        self.name = name
 
     def set_title(self, title):
         self.title = title

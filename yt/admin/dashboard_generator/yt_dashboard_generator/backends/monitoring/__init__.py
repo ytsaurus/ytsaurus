@@ -385,6 +385,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
 
         if dashboard.title is not None:
             result["title"] = dashboard.title
+        if dashboard.name is not None:
+            result["name"] = dashboard.name
         if dashboard.description is not None:
             result["description"] = dashboard.description
         if dashboard.parameters is not None:

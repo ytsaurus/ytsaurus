@@ -54,6 +54,7 @@ class MonitoringFacade(cli.FacadeBase):
 
     def do_submit(self, verbose):
         dashboard = self.func()
+        dashboard.try_set_name(self.uid)
         serializer = monitoring.MonitoringDictSerializer(self.tag_postprocessor)
         widgets = dashboard.serialize(serializer)
 
