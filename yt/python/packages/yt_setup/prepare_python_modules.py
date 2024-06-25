@@ -118,15 +118,15 @@ def prepare_python_modules(
         replace(os.path.join(source_root, module_path), output_path)
         if prepare_bindings_libraries:
             dir = os.path.join(build_root, library_path)
-            lib_so_paths = glob.glob(os.path.join(dir, f"*{name}.so"))
+            lib_so_paths = glob.glob(os.path.join(dir, "*{name}.so".format(name=name)))
             if not lib_so_paths:
-                raise RuntimeError(f"Bindings library {name} was not found in {dir}")
+                raise RuntimeError("Bindings library {name} was not found in {dir}".format(name=name, dir=dir))
             if len(lib_so_paths) > 1:
-                raise RuntimeError(f"Several bindings libraries {name} were found in {dir}")
+                raise RuntimeError("Several bindings libraries {name} were found in {dir}".format(name=name, dir=dir))
             lib_so_path = lib_so_paths[0]
             cp(
                 lib_so_path,
-                os.path.join(output_path, f"{os.path.basename(module_path)}/{name}.so"))
+                os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
 
     cp_r_755(os.path.join(python_root, "yt"), output_path)
 
