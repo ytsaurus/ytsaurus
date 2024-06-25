@@ -5160,18 +5160,24 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
 
     State = EControllerState::Completed;
 
-    // NB(coteeq): Inner lambda will abort on exception.
-    GetCancelableInvoker()->Invoke(
+    YT_UNUSED_FUTURE(
         BIND([this, this_ = MakeStrong(this)] {
-            AbortAllJoblets(EAbortReason::OperationCompleted, /*honestly*/ true);
+            try {
+                AbortAllJoblets(EAbortReason::OperationCompleted, /*honestly*/ true);
 
-            BuildAndSaveProgress();
-            FlushOperationNode(/*checkFlushResult*/ true);
+                BuildAndSaveProgress();
+                FlushOperationNode(/*checkFlushResult*/ true);
 
-            LogProgress(/*force*/ true);
+                LogProgress(/*force*/ true);
 
-            Host->OnOperationCompleted();
-        }));
+                Host->OnOperationCompleted();
+            } catch (const std::exception& ex) {
+                // NB(coteeq): Nothing we can do about it. Agent should've been disconnected from master.
+                YT_LOG_WARNING(ex, "Failed to complete operation");
+            }
+        })
+            .AsyncVia(GetCancelableInvoker())
+            .Run());
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
