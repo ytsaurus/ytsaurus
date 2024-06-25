@@ -10,6 +10,9 @@ from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
+from yt_dashboard_generator.sensor import (
+    MultiSensor
+)
 
 
 def build_versions():
@@ -182,6 +185,37 @@ def build_partition_store_commits():
                     .unit("UNIT_SECONDS"))
     )
 
+def build_heartbeats():
+    return (Rowset()
+        .stack(False)
+        .all("host")
+        .row()
+            .cell(
+                "Handshake/heartbeats requests",
+                MultiSensor(
+                    MonitoringExpr(FlowController("yt.rpc.server.request_count.rate").value("method", "Heartbeat")),
+                    MonitoringExpr(FlowController("yt.rpc.server.request_count.rate").value("method", "Handshake"))
+                )
+                    .unit("UNIT_REQUESTS_PER_SECOND")
+                    .aggr("host"),
+            )
+            .cell(
+                "Worker heartbeat prepare time",
+                FlowWorker("yt.flow.worker.controller_connector.heartbeat.prepare_request_time.max")
+                    .unit("UNIT_SECONDS")
+            )
+            .cell(
+                "Worker heartbeat wait response time",
+                FlowWorker("yt.flow.worker.controller_connector.heartbeat.wait_response_time.max")
+                    .unit("UNIT_SECONDS")
+            )
+            .cell(
+                "Worker heartbeat process response time",
+                FlowWorker("yt.flow.worker.controller_connector.heartbeat.process_response_time.max")
+                    .unit("UNIT_SECONDS")
+            )
+    )
+
 def build_pipeline():
     d = Dashboard()
     d.add(build_versions())
@@ -193,6 +227,7 @@ def build_pipeline():
     d.add(build_streams())
     d.add(build_buffers())
     d.add(build_partition_store_commits())
+    d.add(build_heartbeats())
 
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
