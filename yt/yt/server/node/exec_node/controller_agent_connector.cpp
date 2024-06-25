@@ -60,13 +60,17 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
 {
     if (ControllerAgentConnectorPool_->MasterConnected_) {
         HeartbeatExecutor_->Start();
-        YT_LOG_DEBUG("Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v)",
+        YT_LOG_DEBUG(
+            "Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
             ControllerAgentDescriptor_.Address,
-            ControllerAgentDescriptor_.IncarnationId);
+            ControllerAgentDescriptor_.IncarnationId,
+            *GetConfig());
     } else {
-        YT_LOG_DEBUG("Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v)",
+        YT_LOG_DEBUG(
+            "Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
             ControllerAgentDescriptor_.Address,
-            ControllerAgentDescriptor_.IncarnationId);
+            ControllerAgentDescriptor_.IncarnationId,
+            *GetConfig());
     }
 }
 
@@ -214,12 +218,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     YT_LOG_DEBUG(
-        "Set new controller agent heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
-        newConfig->HeartbeatExecutor.Period,
-        newConfig->HeartbeatExecutor.Splay,
-        newConfig->HeartbeatExecutor.MinBackoff,
-        newConfig->HeartbeatExecutor.MaxBackoff,
-        newConfig->HeartbeatExecutor.BackoffMultiplier);
+        "Set new controller agent heartbeat options (NewHeartbeatOptions: %v)",
+        *newConfig);
 
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);

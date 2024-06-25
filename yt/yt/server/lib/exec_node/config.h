@@ -399,6 +399,8 @@ public:
     static void Register(TRegistrar registrar);
 };
 
+void FormatValue(TStringBuilderBase* builder, const THeartbeatReporterDynamicConfigBase& config, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConnectorDynamicConfig
@@ -420,6 +422,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
+
+void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDynamicConfig& config, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

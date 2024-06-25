@@ -521,6 +521,17 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void FormatValue(TStringBuilderBase* builder, const THeartbeatReporterDynamicConfigBase& config, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v}",
+        config.HeartbeatExecutor.Period,
+        config.HeartbeatExecutor.Splay,
+        config.HeartbeatExecutor.MinBackoff,
+        config.HeartbeatExecutor.MaxBackoff,
+        config.HeartbeatExecutor.BackoffMultiplier);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
@@ -537,6 +548,11 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("job_staleness_delay", &TThis::JobStalenessDelay)
         .Default(TDuration::Minutes(10));
+}
+
+void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDynamicConfig& config, TStringBuf spec)
+{
+    FormatValue(builder, static_cast<const THeartbeatReporterDynamicConfigBase&>(config), spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
