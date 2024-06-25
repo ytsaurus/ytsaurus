@@ -1,1 +1,1 @@
-{% include [Схема данных](../../_includes/user-guide/storage/static-schema.md) %}
+{% include [Data schema](../../_includes/user-guide/storage/static-schema.md) %}

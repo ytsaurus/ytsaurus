@@ -193,21 +193,21 @@ Yson-словарь всегда имеет ключ `type_name`, в котор�
 
 ```bash
 # Создать таблицу без схемы
-yt create table //tmp/table_1
+$ yt --proxy {{prestable-cluster}} create table //tmp/table_1
 213c-a01da-3fc0191-54a9a802
-yt get //tmp/table_1/@schema_mode
+$ yt --proxy {{prestable-cluster}} get //tmp/table_1/@schema_mode
 "weak"
-yt get //tmp/table_1/@schema
+$ yt --proxy {{prestable-cluster}} get //tmp/table_1/@schema
 <
     "unique_keys" = %false;
     "strict" = %false;
 > []
 # Создать таблицу с явным указанием схемы
-yt create table //tmp/table_2 --attributes '{schema = [{name = a; type = int64}; {name = b; type = string}]}'
+$ yt --proxy {{prestable-cluster}} create table //tmp/table_2 --attributes '{schema = [{name = a; type = int64}; {name = b; type = string}]}'
 213c-b75ef-3fc0191-1e85fe66
-yt get //tmp/table_2/@schema_mode
+$ yt --proxy {{prestable-cluster}} get //tmp/table_2/@schema_mode
 "strong"
-yt get //tmp/table_2/@schema
+$ yt --proxy {{prestable-cluster}} get //tmp/table_2/@schema
 <
     "unique_keys" = %false;
     "strict" = %true;
@@ -305,7 +305,7 @@ yt get //tmp/table_2/@schema
 - CLI
 
   ```bash
-  yt create table //tmp/table --attributes '{schema = [{name = a; type = int64}; {name = b; type = string}]}'
+  yt --proxy {{prestable-cluster}} create table //tmp/table --attributes '{schema = [{name = a; type = int64}; {name = b; type = string}]}'
   ```
 
 - Python
@@ -340,9 +340,9 @@ yt get //tmp/table_2/@schema
 CLI
   ```bash
   # Включить поколоночный формат хранения
-  yt set //tmp/table/@optimize_for scan
+  yt --proxy {{prestable-cluster}} set //tmp/table/@optimize_for scan
   # Установить новую схему и переложить данные в новый формат хранения
-  yt merge --mode ordered --src //tmp/table --dst '<schema=[{name = a; type = int64; sort_order = ascending}; {name = b; type = string}]>//tmp/table' --spec '{schema_inference_mode = from_output; force_transform = %true}'
+  yt --proxy {{prestable-cluster}} merge --mode ordered --src //tmp/table --dst '<schema=[{name = a; type = int64; sort_order = ascending}; {name = b; type = string}]>//tmp/table' --spec '{schema_inference_mode = from_output; force_transform = %true}'
   ```
 
   Существуют более автоматические решения:
