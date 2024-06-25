@@ -993,7 +993,9 @@ NYT::TFormat GetFormatWithIntermediate(bool useProtoFormat, const std::vector<TT
     TVector<const ::google::protobuf::Descriptor*> descriptors;
     descriptors.emplace_back(TKVProto::GetDescriptor());
     for (const auto& table : tables) {
-        descriptors.emplace_back(table->GetProtoDescriptor());
+        auto descriptor = table->GetProtoDescriptor();
+        Y_ENSURE(descriptor, "Format of tables is different");
+        descriptors.emplace_back(descriptor);
     }
 
     return NYT::TFormat::Protobuf(descriptors, true);

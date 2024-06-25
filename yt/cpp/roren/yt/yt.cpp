@@ -40,11 +40,6 @@ public:
         }
     }
 
-    bool EnableDefaultPipelineOptimization() const override
-    {
-        return !Config_.GetEnableV2Optimizer();
-    }
-
     void Run(const TPipeline& pipeline) override
     {
         try {
@@ -52,12 +47,7 @@ public:
 
             YT_LOG_DEBUG("Transforming Roren pipeline to YT graph");
 
-            std::shared_ptr<IYtGraph> ytGraph;
-            if (Config_.GetEnableV2Optimizer()) {
-                ytGraph = BuildYtGraphV2(pipeline, Config_);
-            } else {
-                ytGraph = BuildYtGraph(pipeline, Config_);
-            }
+            std::shared_ptr<IYtGraph> ytGraph = BuildYtGraphV2(pipeline, Config_);
 
             YT_LOG_DEBUG("Optimizing YT graph");
 
@@ -69,16 +59,8 @@ public:
             context.Config = std::make_shared<TYtPipelineConfig>(Config_);
 
             auto concurrencyLimit = Config_.GetConcurrencyLimit();
-
-            if (Config_.GetEnableV2Optimizer()) {
-                auto runner = MakeDependencyRunner(tx, std::dynamic_pointer_cast<TYtGraphV2>(ytGraph), concurrencyLimit);
-                runner->RunOperations(context);
-            } else {
-                auto runner = MakeLevelRunner(tx, ytGraph, concurrencyLimit);
-                for (const auto& level : ytGraph->GetOperationLevels()) {
-                    runner->RunOperations(level, context);
-                }
-            }
+            auto runner = MakeDependencyRunner(tx, std::dynamic_pointer_cast<TYtGraphV2>(ytGraph), concurrencyLimit);
+            runner->RunOperations(context);
 
             YT_LOG_DEBUG("All operations was completed");
         } catch (...) {
