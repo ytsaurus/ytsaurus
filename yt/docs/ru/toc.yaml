@@ -444,7 +444,7 @@ items:
       - name: Возможные проблемы
         href: admin-guide/problems.md
       - name: Синхронизация пользователей и групп
-        href: admin-guide/problems.md
+        href: admin-guide/identity-sync.md
   - name: Релизы
     href: admin-guide/releases.md
   - name: FAQ
