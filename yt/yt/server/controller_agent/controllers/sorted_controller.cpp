@@ -359,7 +359,7 @@ protected:
 
     i64 InputSliceDataWeight_;
 
-    IFetcherChunkScraperPtr FetcherChunkScraper_;
+    TUnavailableChunksWatcherPtr UnavailableChunksWatcher_;
 
     // Custom bits of preparation pipeline.
 
@@ -370,8 +370,8 @@ protected:
 
     i64 GetUnavailableInputChunkCount() const override
     {
-        if (FetcherChunkScraper_ && State == EControllerState::Preparing) {
-            return FetcherChunkScraper_->GetUnavailableChunkCount();
+        if (UnavailableChunksWatcher_ && State == EControllerState::Preparing) {
+            UnavailableChunksWatcher_->GetUnavailableChunkCount();
         }
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();
@@ -745,17 +745,8 @@ protected:
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        FetcherChunkScraper_ = InputManager->CreateFetcherChunkScraper();
-
-        auto fetcher = NTableClient::CreateChunkSliceFetcher(
-            Config->ChunkSliceFetcher,
-            InputManager->GetInputNodeDirectory(),
-            GetCancelableInvoker(),
-            FetcherChunkScraper_,
-            Host->GetClient(),
-            RowBuffer,
-            Logger);
-        fetcher->SetCancelableContext(GetCancelableContext());
+        auto [fetcher, watcher] = InputManager->CreateChunkSliceFetcher();
+        UnavailableChunksWatcher_ = watcher;
         return fetcher;
     }
 };

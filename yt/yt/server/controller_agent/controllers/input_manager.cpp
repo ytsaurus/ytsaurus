@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -94,6 +95,50 @@ void TInputManager::TInputChunkDescriptor::Persist(const TPersistenceContext& co
     Persist(context, InputStripes);
     Persist(context, InputChunks);
     Persist(context, State);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnavailableChunksWatcher::TUnavailableChunksWatcher(std::vector<IFetcherChunkScraperPtr> chunkScrapers)
+    : ChunkScrapers_(std::move(chunkScrapers))
+{ }
+
+i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
+{
+    i64 chunkCount = 0;
+    for (const auto& scraper : ChunkScrapers_) {
+        chunkCount += scraper->GetUnavailableChunkCount();
+    }
+    return chunkCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCombiningSamplesFetcher::TCombiningSamplesFetcher(
+    std::vector<TSamplesFetcherPtr> samplesFetchers)
+: SamplesFetchers_(std::move(samplesFetchers))
+{ }
+
+TFuture<void> TCombiningSamplesFetcher::Fetch() const
+{
+    std::vector<TFuture<void>> fetchFutures;
+    for (const auto& fetcher : SamplesFetchers_) {
+        fetchFutures.push_back(fetcher->Fetch());
+    }
+    return AllSucceeded(fetchFutures);
+}
+
+std::vector<TSample> TCombiningSamplesFetcher::GetSamples() const
+{
+    std::vector<TSample> samples;
+    for (const auto& fetcher : SamplesFetchers_) {
+        const auto& newSamples = fetcher->GetSamples();
+        samples.insert(
+            samples.end(),
+            newSamples.begin(),
+            newSamples.end());
+    }
+    return samples;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -969,6 +1014,66 @@ std::vector<TInputChunkPtr> TInputManager::CollectPrimaryUnversionedChunks() con
 std::vector<TInputChunkPtr> TInputManager::CollectPrimaryVersionedChunks() const
 {
     return CollectPrimaryChunks(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TInputManager::CreateChunkSliceFetcher() const
+{
+    auto chunkScraper = CreateFetcherChunkScraper();
+    auto fetcher = NTableClient::CreateChunkSliceFetcher(
+        Host_->GetConfig()->ChunkSliceFetcher,
+        InputNodeDirectory_,
+        Host_->GetCancelableInvoker(),
+        chunkScraper,
+        Client_,
+        Host_->GetRowBuffer(),
+        Logger);
+
+    fetcher->SetCancelableContext(Host_->GetCancelableContext());
+
+    return std::pair(
+        std::move(fetcher),
+        New<TUnavailableChunksWatcher>(std::vector({chunkScraper})));
+}
+
+std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManager::CreateSamplesFetcher(
+    const NTableClient::TTableSchemaPtr& sampleSchema,
+    NTableClient::TRowBufferPtr rowBuffer,
+    i64 sampleCount,
+    i32 maxSampleSize) const
+{
+    auto chunkScraper = CreateFetcherChunkScraper();
+
+    auto fetcher = New<TSamplesFetcher>(
+        Host_->GetConfig()->Fetcher,
+        ESamplingPolicy::Sorting,
+        sampleCount,
+        sampleSchema->GetColumnNames(),
+        maxSampleSize,
+        InputNodeDirectory_,
+        Host_->GetCancelableInvoker(),
+        std::move(rowBuffer),
+        chunkScraper,
+        Client_,
+        Logger);
+
+    for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+        if (!chunk->IsDynamicStore()) {
+            fetcher->AddChunk(chunk);
+        }
+    }
+    for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+        if (!chunk->IsDynamicStore()) {
+            fetcher->AddChunk(chunk);
+        }
+    }
+
+    fetcher->SetCancelableContext(Host_->GetCancelableContext());
+
+    return std::pair(
+        New<TCombiningSamplesFetcher>(std::vector({fetcher})),
+        New<TUnavailableChunksWatcher>(std::vector({chunkScraper})));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

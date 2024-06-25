@@ -3194,8 +3194,8 @@ private:
 
     TSortOperationSpecPtr Spec;
 
-    IFetcherChunkScraperPtr FetcherChunkScraper;
-    TSamplesFetcherPtr SamplesFetcher;
+    TUnavailableChunksWatcherPtr UnavailableChunksWatcher_;
+    TRowBufferPtr SamplesRowBuffer_;
 
     // Custom bits of preparation pipeline.
 
@@ -3522,6 +3522,7 @@ private:
     std::vector<TSample> FetchSamples(const TTableSchemaPtr& sampleSchema)
     {
         TFuture<void> asyncSamplesResult;
+        TCombiningSamplesFetcherPtr samplesFetcher;
         YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             // TODO(gritukan): Should we do it here?
             if (EnableNewPartitionsHeuristic()) {
@@ -3531,47 +3532,26 @@ private:
             }
             i64 sampleCount = static_cast<i64>(PartitionCount) * Spec->SamplesPerPartition;
 
-            FetcherChunkScraper = InputManager->CreateFetcherChunkScraper();
-
-            auto samplesRowBuffer = New<TRowBuffer>(
+            SamplesRowBuffer_ = New<TRowBuffer>(
                 TRowBufferTag(),
                 Config->ControllerRowBufferChunkSize);
 
-            SamplesFetcher = New<TSamplesFetcher>(
-                Config->Fetcher,
-                ESamplingPolicy::Sorting,
+            std::tie(samplesFetcher, UnavailableChunksWatcher_) = InputManager->CreateSamplesFetcher(
+                sampleSchema,
+                SamplesRowBuffer_,
                 sampleCount,
-                sampleSchema->GetColumnNames(),
-                Options->MaxSampleSize,
-                InputManager->GetInputNodeDirectory(),
-                GetCancelableInvoker(),
-                samplesRowBuffer,
-                FetcherChunkScraper,
-                Host->GetClient(),
-                Logger);
+                Options->MaxSampleSize);
 
-            for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
-            }
-            for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
-            }
-
-            SamplesFetcher->SetCancelableContext(GetCancelableContext());
-            asyncSamplesResult = SamplesFetcher->Fetch();
+            asyncSamplesResult = samplesFetcher->Fetch();
         }
 
         WaitFor(asyncSamplesResult)
             .ThrowOnError();
 
-        FetcherChunkScraper.Reset();
+        UnavailableChunksWatcher_.Reset();
 
         YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
-            return SamplesFetcher->GetSamples();
+            return samplesFetcher->GetSamples();
         }
     }
 
@@ -3841,8 +3821,8 @@ private:
 
     i64 GetUnavailableInputChunkCount() const override
     {
-        if (FetcherChunkScraper && State == EControllerState::Preparing) {
-            return FetcherChunkScraper->GetUnavailableChunkCount();
+        if (UnavailableChunksWatcher_ && State == EControllerState::Preparing) {
+            return UnavailableChunksWatcher_->GetUnavailableChunkCount();
         }
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();
