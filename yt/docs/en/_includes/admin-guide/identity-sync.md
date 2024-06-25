@@ -1,6 +1,6 @@
 # Import users and groups from the external systems.
 
-Manual management {{product-name}}' users and groups is discussed in the section [Managing users, groups](../cluster-operations.md#managing-users,-groups-and-access-controls).  
+Manual management {{product-name}}' users and groups is discussed in the section [Managing users, groups](../../admin-guide/cluster-operations.md#managing-users,-groups-and-access-controls).  
 Sometimes it is required to keep users and group lists in sync with an external system.
 
 There is an app [ytsaurus-identity-sync](https://github.com/tractoai/ytsaurus-identity-sync)

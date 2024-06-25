@@ -1,6 +1,6 @@
 # Импорт пользователей и групп из внешних систем
 
-В разделе [Управление пользователями и группами](../cluster-operations.md#upravlenie-polzovatelyami,-gruppami-i-pravami-dostupa) 
+В разделе [Управление пользователями и группами](../../admin-guide/cluster-operations.md#upravlenie-polzovatelyami,-gruppami-i-pravami-dostupa) 
 описано ручное администрирование пользователей и групп в {{product-name}}.  
 Иногда возникает необходимость поддерживать синхронизацию списка пользователей и групп с внешней системой.
 
