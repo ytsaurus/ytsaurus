@@ -703,7 +703,8 @@ private:
                     ClockClusterTag_ = Owner_->ClockManager_->GetCurrentClockTag();
                     YT_LOG_DEBUG("Generating transaction start timestamp (ClockClusterTag: %v)",
                         ClockClusterTag_);
-                    return Owner_->ClockManager_->GetTimestampProviderOrThrow(ClockClusterTag_)->GenerateTimestamps()
+                    auto connection = TryLockConnection().ValueOrThrow();
+                    return connection->GetTimestampProvider()->GenerateTimestamps(1, ClockClusterTag_)
                         .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
                 }
 
