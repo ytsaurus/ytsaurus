@@ -685,7 +685,7 @@ private:
             erasedPartIndices,
             repairPartReaders,
             erasedPartWriters,
-            /*options*/ {}))
+            ReadBlocksOptions_))
             .ThrowOnError();
 
         for (int index = 0; index < std::ssize(erasedPartIndices); ++index) {
