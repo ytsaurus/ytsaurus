@@ -664,6 +664,8 @@ protected:
         const NApi::NNative::IClientPtr& client,
         NTransactionClient::TTransactionId parentTransactionId = {});
 
+    TFuture<void> AbortInputTransactions() const;
+
     void RegisterTask(TTaskPtr task);
 
     void UpdateTask(const TTaskPtr& task) override;

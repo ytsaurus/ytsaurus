@@ -636,7 +636,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             // NB: Don't touch user transaction.
             scheduleAbort(outputTransaction, OutputClient);
             scheduleAbort(debugTransaction, Client);
-            asyncResults.push_back(InputTransactions->Abort());
+            asyncResults.push_back(AbortInputTransactions());
         } else {
             YT_LOG_INFO("Reusing operation transactions");
             OutputTransaction = outputTransaction;
@@ -648,7 +648,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
     }
-
 
     if (CleanStart) {
         if (HasJobUniquenessRequirements()) {
@@ -1696,6 +1695,14 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     }));
 }
 
+TFuture<void> TOperationControllerBase::AbortInputTransactions() const
+{
+    if (InputTransactions) {
+        return InputTransactions->Abort();
+    }
+    return VoidFuture;
+}
+
 void TOperationControllerBase::PickIntermediateDataCells()
 {
     if (GetOutputTablePaths().empty()) {
@@ -2586,7 +2593,7 @@ void TOperationControllerBase::CommitTransactions()
             YT_UNUSED_FUTURE(transaction->Abort());
         }
     };
-    YT_UNUSED_FUTURE(InputTransactions->Abort());
+    YT_UNUSED_FUTURE(AbortInputTransactions());
     abortTransaction(AsyncTransaction);
 }
 
@@ -4267,9 +4274,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     // NB: We do not abort input transactions synchronously since
     // some of them can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    if (InputTransactions) {
-        YT_UNUSED_FUTURE(InputTransactions->Abort());
-    }
+    YT_UNUSED_FUTURE(AbortInputTransactions());
 
     abortTransaction(OutputTransaction, SchedulerOutputClient);
     abortTransaction(AsyncTransaction, SchedulerClient, /*sync*/ false);
