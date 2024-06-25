@@ -773,7 +773,7 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
 
 void TOperationControllerBase::InitializeStructures()
 {
-    DataFlowGraph_->SetNodeDirectory(InputManager->GetInputNodeDirectory());
+    DataFlowGraph_->SetNodeDirectory(OutputNodeDirectory_);
     DataFlowGraph_->Initialize();
 
     InitializeOrchid();
@@ -1797,8 +1797,8 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         CancelableInvokerPool,
         ChunkScraperInvoker_,
         Host->GetChunkLocationThrottlerManager(),
-        InputClient,
-        InputManager->GetInputNodeDirectory(),
+        OutputClient,
+        OutputNodeDirectory_,
         BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
                 return GetAliveIntermediateChunks();
@@ -5846,7 +5846,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         IntermediateTable->LivePreviewTableName = name;
         (*LivePreviews_)[name] = New<TLivePreview>(
             New<TTableSchema>(),
-            InputManager->GetInputNodeDirectory(),
+            OutputNodeDirectory_,
             OperationId,
             name);
     }
@@ -7956,7 +7956,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
-        New<TLivePreview>(std::move(schema), InputManager->GetInputNodeDirectory(), OperationId, name, table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -9962,6 +9962,12 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         InputManager->LoadInputNodeDirectory(context);
         InputManager->LoadInputTables(context);
     }
+    if (context.GetVersion() < ESnapshotVersion::OutputNodeDirectory) {
+        YT_VERIFY(context.IsLoad());
+        OutputNodeDirectory_ = InputManager->GetInputNodeDirectory();
+    } else {
+        Persist(context, OutputNodeDirectory_);
+    }
     Persist(context, InputStreamDirectory_);
     Persist(context, OutputTables_);
     Persist(context, StderrTable_);
@@ -10795,7 +10801,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
     auto replicas = GetReplicasFromChunkSpec(chunkSpec);
     for (auto replica : replicas) {
         auto nodeId = replica.GetNodeId();
-        if (InputManager->GetInputNodeDirectory()->FindDescriptor(nodeId)) {
+        if (OutputNodeDirectory_->FindDescriptor(nodeId)) {
             continue;
         }
 
@@ -10808,7 +10814,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
             return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::UnresolvedNodeId);
         }
 
-        InputManager->GetInputNodeDirectory()->AddDescriptor(nodeId, *descriptor);
+        OutputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
     }
 
     return nullptr;

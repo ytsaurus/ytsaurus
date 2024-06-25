@@ -603,6 +603,8 @@ protected:
     TOutputTablePtr StderrTable_;
     TOutputTablePtr CoreTable_;
 
+    NNodeTrackerClient::TNodeDirectoryPtr OutputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
