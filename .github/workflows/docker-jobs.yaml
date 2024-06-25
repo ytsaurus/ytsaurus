@@ -58,7 +58,7 @@ jobs:
           NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
           if [[ ${{ matrix.build-type }} =~ "relwithdebinfo" ]]; then
             IMAGE_TAG=${IMAGE_TAG}-relwithdebinfo
-            NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-relwithdebinfo
+            NIGHTLY_IMAGE_TAG=${NIGHTLY_IMAGE_TAG}-relwithdebinfo
           fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
