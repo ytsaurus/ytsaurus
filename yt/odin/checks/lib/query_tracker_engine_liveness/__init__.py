@@ -13,7 +13,6 @@ class Data():
 
 
 POLL_FREQUENCY = 0.1
-LOG_FREQUENCY = 1.0
 TEMP_PATH = "//sys/admin/odin/query_tracker_liveness"
 TABLE_EXPIRATION_TIMEOUT_MILLISECONDS = 360 * 1000
 
@@ -46,7 +45,7 @@ def track_query(yt_client, logger, query_id, stage):
         state = get_query_state(yt_client, query_id, stage)
 
         current_time = time.time()
-        if current_time - last_log_time >= LOG_FREQUENCY and state != last_state:
+        if state != last_state:
             log_query(logger, query_id, state)
             last_log_time = current_time
             last_state = state
