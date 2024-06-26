@@ -320,6 +320,8 @@ items:
                   href: user-guide/data-processing/spyt/read-transaction.md
                 - name: Опции записи
                   href: user-guide/data-processing/spyt/thesaurus/write-options.md
+                - name: Использование GPU
+                  href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
             - name: Best practices
               href: user-guide/data-processing/spyt/best-practices.md
         - name: YQL
