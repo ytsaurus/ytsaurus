@@ -7,8 +7,6 @@
 #include "master_connector.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
@@ -47,14 +45,6 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/job_agent/job_resource_manager.h>
-
-#include <yt/yt/server/lib/misc/address_helpers.h>
-#include <yt/yt/server/lib/misc/job_reporter.h>
-
-#include <yt/yt/server/node/query_agent/query_executor.h>
-#include <yt/yt/server/node/query_agent/query_service.h>
-
 #include <yt/yt/server/node/tablet_node/backing_store_cleaner.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/hint_manager.h>
@@ -71,7 +61,22 @@
 #include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
+
+#include <yt/yt/server/node/query_agent/query_executor.h>
+#include <yt/yt/server/node/query_agent/query_service.h>
+
+#include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/config.h>
+
 #include <yt/yt/server/lib/chaos_node/config.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -83,6 +88,8 @@
 #include <yt/yt/server/lib/io/config.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
 
+#include <yt/yt/server/lib/hydra/snapshot.h>
+
 #ifdef __linux__
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/instance_limits_tracker.h>
@@ -92,14 +99,14 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/server/lib/hydra/snapshot.h>
-
-#include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
-#include <yt/yt/server/lib/cellar_agent/cellar.h>
-#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
-#include <yt/yt/server/lib/cellar_agent/config.h>
-
 #include <yt/yt/library/program/build_attributes.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -121,17 +128,12 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/library/monitoring/http_integration.h>
-#include <yt/yt/library/monitoring/monitoring_manager.h>
-
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -150,12 +152,11 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/library/profiling/solomon/registry.h>
-
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/http/server.h>
 
@@ -168,7 +169,6 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -182,8 +182,6 @@
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/virtual.h>
-
-#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <util/system/fs.h>
 
@@ -243,7 +241,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
-    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
+    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
 
 public:
     TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -1570,10 +1568,9 @@ private:
             InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
         }
 
-        // For consistency it is important to start reporting heartbeats before update of SecondaryMasterConnectionConfigs_, which is viewable.
-        // But before it is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
+        // It is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
         MasterConnector_->AddMasterCellTags(newSecondaryMasterCellTags);
-        ReadyToReportHeartbeatsToNewMasters_.Fire(newSecondaryMasterConfigs);
+        SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
 
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);
@@ -1640,9 +1637,9 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
         BIND_NO_PROPAGATE([this] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);
         }));
-    Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
+    Bootstrap_->SubscribeSecondaryMasterCellListChanged(
         BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
-            ReadyToReportHeartbeatsToNewMasters_.Fire(newSecondaryMasterConfigs);
+            SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
         }));
 }
 

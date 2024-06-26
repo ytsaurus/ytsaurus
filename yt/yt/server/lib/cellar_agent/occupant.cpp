@@ -963,8 +963,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
-        Bootstrap_->ScheduleCellarHeartbeat(/*immediately*/ true);
+        // Notify masters about recovery completion as soon as possible via out-of-order heartbeat.
+        Bootstrap_->ScheduleCellarHeartbeat();
     }
 
     void ConfigureTimestampProvider(TCellTag clockClusterTag)

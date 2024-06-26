@@ -450,10 +450,20 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
-        .Default();
-    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
-        .Default();
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default({
+            {
+                .Period = TDuration::Seconds(5),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
+
     registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)

@@ -53,7 +53,7 @@ public:
     {
         if (Bootstrap_->IsDataNode()) {
             const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
-            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
+            masterConnector->ScheduleHeartbeat();
         }
     }
 

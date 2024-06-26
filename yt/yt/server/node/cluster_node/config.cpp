@@ -194,14 +194,20 @@ void TResourceLimitsOverrides::Register(TRegistrar registrar)
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
-        .Default();
-    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
-        .Default();
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default();
-    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
-        .Default();
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default({
+            {
+                .Period = TDuration::Seconds(30),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
+
     registrar.Parameter("use_host_objects", &TThis::UseHostObjects)
         .Default(false);
 }

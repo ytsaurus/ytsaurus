@@ -5,6 +5,8 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
+#include "master_heartbeat_reporter.h"
+#include "master_heartbeat_reporter_callbacks.h"
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
@@ -99,8 +101,6 @@ public:
         , MonitoringHttpAddresses_(monitoringHttpAddresses)
         , NodeTags_(nodeTags)
         , LocalDescriptor_(RpcAddresses_)
-        , HeartbeatPeriod_(Config_->HeartbeatPeriod)
-        , HeartbeatPeriodSplay_(Config_->HeartbeatPeriodSplay)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
@@ -118,6 +118,15 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         UpdateLocalHostName(/*useHostObjects*/ false);
+
+        const auto& heartbeatLogger = Logger.WithTag("HeartbeatType: Cluster");
+        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
+            Bootstrap_,
+            /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
+            dynamicConfigManager->GetConfig()->MasterConnector->HeartbeatExecutor,
+            heartbeatLogger);
+        HeartbeatReporter_->Initialize();
     }
 
     void Start() override
@@ -127,18 +136,22 @@ public:
         ResetAndRegisterAtMaster(/* firstTime */ true);
     }
 
-    TReqHeartbeat GetHeartbeatRequest()
+    TNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(GetNodeId() != InvalidNodeId);
 
-        TReqHeartbeat heartbeat;
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
-        heartbeat.set_node_id(ToProto<ui32>(GetNodeId()));
+        auto heartbeat = proxy.Heartbeat();
+        heartbeat->SetTimeout(Config_->HeartbeatTimeout);
+
+        heartbeat->set_node_id(ToProto<ui32>(GetNodeId()));
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
-        auto* protoMemory = heartbeat.mutable_statistics()->mutable_memory();
+        auto* protoMemory = heartbeat->mutable_statistics()->mutable_memory();
         protoMemory->set_total_limit(memoryTracker->GetTotalLimit());
         protoMemory->set_total_used(memoryTracker->GetTotalUsed());
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -152,10 +165,10 @@ public:
             protoCategory->set_used(used);
         }
 
-        Bootstrap_->GetNetworkStatistics().UpdateStatistics(heartbeat.mutable_statistics());
+        Bootstrap_->GetNetworkStatistics().UpdateStatistics(heartbeat->mutable_statistics());
 
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
-        auto* protoCpu = heartbeat.mutable_statistics()->mutable_cpu();
+        auto* protoCpu = heartbeat->mutable_statistics()->mutable_cpu();
 
         if (auto cpuLimit = resourceManager->GetCpuLimit()) {
             protoCpu->set_total_limit(*cpuLimit);
@@ -168,13 +181,13 @@ public:
         protoCpu->set_tablet_slots(resourceManager->GetTabletSlotCpu());
         protoCpu->set_dedicated(resourceManager->GetNodeDedicatedCpu());
 
-        ToProto(heartbeat.mutable_alerts(), GetAlerts());
+        ToProto(heartbeat->mutable_alerts(), GetAlerts());
 
         WaitFor(BIND(
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-                *heartbeat.mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
-                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage({
+                *heartbeat->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
+                *heartbeat->mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage({
                     NJobAgent::EResourcesState::Pending,
                     NJobAgent::EResourcesState::Acquired,
                 }));
@@ -186,29 +199,29 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatResponse(const TRspHeartbeat& response)
+    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto hostName = response.has_host_name() ? std::make_optional(response.host_name()) : std::nullopt;
+        auto hostName = response->has_host_name() ? std::make_optional(response->host_name()) : std::nullopt;
         UpdateHostName(hostName);
 
-        auto rack = response.has_rack() ? std::make_optional(response.rack()) : std::nullopt;
+        auto rack = response->has_rack() ? std::make_optional(response->rack()) : std::nullopt;
         UpdateRack(rack);
 
-        auto dataCenter = response.has_data_center() ? std::make_optional(response.data_center()) : std::nullopt;
+        auto dataCenter = response->has_data_center() ? std::make_optional(response->data_center()) : std::nullopt;
         UpdateDataCenter(dataCenter);
 
-        auto tags = FromProto<std::vector<TString>>(response.tags());
+        auto tags = FromProto<std::vector<TString>>(response->tags());
         UpdateTags(std::move(tags));
 
-        Bootstrap_->SetDecommissioned(response.decommissioned());
+        Bootstrap_->SetDecommissioned(response->decommissioned());
 
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
-        resourceManager->SetResourceLimitsOverride(response.resource_limits_overrides());
+        resourceManager->SetResourceLimitsOverride(response->resource_limits_overrides());
 
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-        jobResourceManager->SetResourceLimitsOverrides(response.resource_limits_overrides());
+        jobResourceManager->SetResourceLimitsOverrides(response->resource_limits_overrides());
     }
 
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
@@ -333,8 +346,7 @@ private:
 
     NApi::ITransactionPtr LeaseTransaction_;
 
-    TDuration HeartbeatPeriod_;
-    TDuration HeartbeatPeriodSplay_;
+    IMasterHeartbeatReporterPtr HeartbeatReporter_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
@@ -483,7 +495,7 @@ private:
             GetNodeId(),
             GetMasterCellTags());
 
-        StartHeartbeats();
+        HeartbeatReporter_->StartHeartbeats();
     }
 
     void InitMedia()
@@ -533,7 +545,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
-        TNodeTrackerServiceProxy proxy(masterChannel);
+        TNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
         auto req = proxy.RegisterNode();
         req->SetTimeout(Config_->RegisterTimeout);
@@ -644,61 +656,6 @@ private:
         YT_LOG_INFO("Master cell directory synchronized");
     }
 
-    void StartHeartbeats()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO("Start reporting cluster node heartbeats to master");
-        ScheduleHeartbeat(/* immediately */ true);
-    }
-
-    void ScheduleHeartbeat(bool immediately)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
-        TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this)),
-            delay,
-            MasterConnectionInvoker_);
-    }
-
-    void ReportHeartbeat()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_VERIFY(GetNodeId() != InvalidNodeId);
-
-        // Cluster node heartbeats are required at primary master only.
-        auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
-        TNodeTrackerServiceProxy proxy(masterChannel);
-
-        auto req = proxy.Heartbeat();
-        req->SetTimeout(Config_->HeartbeatTimeout);
-
-        static_cast<TReqHeartbeat&>(*req) = GetHeartbeatRequest();
-
-        YT_LOG_INFO("Sending cluster node heartbeat to master (%v)",
-            req->statistics());
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            OnHeartbeatResponse(*rspOrError.Value());
-
-            YT_LOG_INFO("Successfully reported cluster node heartbeat to master");
-
-            // Schedule next heartbeat.
-            ScheduleHeartbeat(/* immediately */ false);
-        } else {
-            YT_LOG_WARNING(rspOrError, "Error reporting cluster node heartbeat to master");
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                ScheduleHeartbeat(/*immediately*/ false);
-            } else {
-                ResetAndRegisterAtMaster(/* firstTime */ false);
-            }
-        }
-    }
-
     void UpdateLocalHostName(bool useHostObjects)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -720,8 +677,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatPeriod_ = newNodeConfig->MasterConnector->HeartbeatPeriod.value_or(Config_->HeartbeatPeriod);
-        HeartbeatPeriodSplay_ = newNodeConfig->MasterConnector->HeartbeatPeriodSplay.value_or(Config_->HeartbeatPeriodSplay);
+        HeartbeatReporter_->Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor);
 
         UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
     }

@@ -19,8 +19,9 @@ struct IBootstrap;
 struct IBootstrapBase;
 
 DECLARE_REFCOUNTED_STRUCT(ISlot)
-
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
+DECLARE_REFCOUNTED_STRUCT(IMasterHeartbeatReporterCallbacks)
+DECLARE_REFCOUNTED_STRUCT(IMasterHeartbeatReporter)
 
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsDynamicConfig)

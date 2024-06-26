@@ -26,7 +26,7 @@ struct IMasterConnector
      *  \note
      *  Thread affinity: any
      */
-    virtual void ScheduleHeartbeat(bool immediately) = 0;
+    virtual void ScheduleHeartbeat() = 0;
 
     //! Schedules out-of-order job heartbeate to a given job tracker.
     /*!

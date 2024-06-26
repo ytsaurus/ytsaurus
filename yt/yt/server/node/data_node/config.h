@@ -451,11 +451,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Period between consequent incremental data node heartbeats.
-    std::optional<TDuration> IncrementalHeartbeatPeriod;
-
-    //! Splay for data node heartbeats.
-    std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     //! Timeout for incremental data node heartbeat RPC request.
     TDuration IncrementalHeartbeatTimeout;

@@ -1,3 +1,4 @@
+from yt.environment.default_config import get_dynamic_node_config
 from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
 
 from yt_commands import (
@@ -21,8 +22,9 @@ from yt_helpers import profiler_factory
 import yt_error_codes
 
 import yt.yson as yson
-from yt.common import YtError
+from yt.common import YtError, update_inplace
 
+from copy import deepcopy
 from collections import namedtuple
 
 import pytest
@@ -425,36 +427,45 @@ class TestNodeDynamicConfig(YTEnvSetup):
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["nodeA"])
 
+        current_config = get_dynamic_node_config()["%true"]
+        patch_nodeA = {
+            "config_annotation": "nodeA",
+            "tablet_node": {
+                "slots": 0,
+            },
+        }
+        patch_not_nodeA = {
+            "config_annotation": "!nodeA",
+            "tablet_node": {
+                "slots": 0,
+            },
+        }
+        config_nodeA = update_inplace(deepcopy(current_config), patch_nodeA)
+        config_not_nodeA = update_inplace(deepcopy(current_config), patch_not_nodeA)
+
         # All nodes are non-tablet.
         config = {
-            "nodeA": {
-                "config_annotation": "nodeA",
-                "tablet_node": {
-                    "slots": 0,
-                },
-            },
-            "!nodeA": {
-                "config_annotation": "notNodeA",
-                "tablet_node": {
-                    "slots": 0,
-                },
-            },
+            "nodeA": config_nodeA,
+            "!nodeA": config_not_nodeA,
         }
         set("//sys/cluster_nodes/@config", config)
 
         wait(lambda: self._healthy_cell_count() == 0)
 
         if config_node == "cellar":
-            config["nodeA"]["cellar_node"] = {
-                "cellar_manager": {
-                    "cellars": {
-                        "tablet": {
-                            "type": "tablet",
-                            "size": 0,
+            cellar_patch = {
+                "cellar_node": {
+                    "cellar_manager": {
+                        "cellars": {
+                            "tablet": {
+                                "type": "tablet",
+                                "size": 0,
+                            }
                         }
                     }
                 }
             }
+            update_inplace(config["nodeA"], cellar_patch)
         return node, config
 
     @authors("gritukan", "savrus")

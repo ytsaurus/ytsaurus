@@ -186,14 +186,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> IncrementalHeartbeatPeriod;
-    std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
-
-    //! Period between consequent cluster node heartbeats.
-    std::optional<TDuration> HeartbeatPeriod;
-
-    //! Splay for cluster node heartbeats.
-    std::optional<TDuration> HeartbeatPeriodSplay;
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     // COMPAT(gritukan)
     bool UseHostObjects;

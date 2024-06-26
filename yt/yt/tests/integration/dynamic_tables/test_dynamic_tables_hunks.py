@@ -1599,9 +1599,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             rows[i]["$row_index"] = i
 
         hunk_store_id = self._get_active_store_id("//tmp/h")
-        set("//sys/cluster_nodes/@config", {"%true": {
-            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
-        }})
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 123,
+                    "unlock_check_period": 127
+                }
+            }
+        })
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
@@ -1649,9 +1654,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             rows[i]["$row_index"] = i
 
         hunk_store_id = self._get_active_store_id("//tmp/h")
-        set("//sys/cluster_nodes/@config", {"%true": {
-            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
-        }})
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 123,
+                    "unlock_check_period": 127
+                }
+            }
+        })
 
         build_snapshot(cell_id=None)
         with Restarter(self.Env, NODES_SERVICE):
@@ -1982,9 +1992,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         hunk_store_id = self._get_active_store_id("//tmp/h")
-        set("//sys/cluster_nodes/@config", {"%true": {
-            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
-        }})
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 123,
+                    "unlock_check_period": 127
+                }
+            }
+        })
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")

@@ -119,6 +119,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/dynamic_config_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_heartbeat_reporter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/ally_replica_manager.cpp
