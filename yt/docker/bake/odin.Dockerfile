@@ -9,9 +9,27 @@ ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 ARG PYTHON_RUNTIME_VERSION="3.10"
 
-# Install Odin Python libraries into the virtual env
+# Prepare python modules for Odin.
 
-FROM built_yson AS odin_libs
+FROM built_yson as odin_prepared_python_libs
+
+ARG SOURCE_ROOT
+
+ARG PYTHON_ROOT
+ENV PYTHON_ROOT $PYTHON_ROOT
+
+ARG ODIN_ROOT
+ENV ODIN_ROOT $ODIN_ROOT
+
+WORKDIR $PYTHON_ROOT
+
+RUN $ODIN_ROOT/packages/prepare_python_modules.py --source-root "$SOURCE_ROOT" --output-path "$PYTHON_ROOT" \
+  && cp "$ODIN_ROOT/packages/setup.py" ./ && python3 setup.py bdist_wheel --universal
+
+
+# Install Odin Python libraries into the virtual env.
+
+FROM python:${PYTHON_RUNTIME_VERSION}-slim AS odin_libs
 
 ARG SOURCE_ROOT
 
@@ -20,7 +38,6 @@ ENV PYTHON_ROOT $PYTHON_ROOT
 
 ARG VIRTUAL_ENV
 ENV VIRTUAL_ENV $VIRTUAL_ENV
-
 
 ARG ODIN_ROOT
 ENV ODIN_ROOT $ODIN_ROOT
@@ -36,12 +53,9 @@ ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 
 WORKDIR $PYTHON_ROOT
 
-RUN $ODIN_ROOT/packages/prepare_python_modules.py --source-root "$SOURCE_ROOT" --output-path "$PYTHON_ROOT" \
-  && cp "$ODIN_ROOT/packages/setup.py" ./ && python3 setup.py bdist_wheel --universal
-
-COPY --from=built_yson ${PYTHON_ROOT}/dist/* ${PYTHON_ROOT}/dist/
-COPY --from=built_yson ${ODIN_ROOT} ${ODIN_ROOT}
-COPY --from=built_yson ${ODIN_ROOT}/../yt/scripts ${ODIN_ROOT}/../yt/scripts
+COPY --from=odin_prepared_python_libs ${PYTHON_ROOT}/dist/* ${PYTHON_ROOT}/dist/
+COPY --from=odin_prepared_python_libs ${ODIN_ROOT} ${ODIN_ROOT}
+COPY --from=odin_prepared_python_libs ${ODIN_ROOT}/../yt/scripts ${ODIN_ROOT}/../yt/scripts
 
 RUN pip install virtualenv \
     && virtualenv ${VIRTUAL_ENV}

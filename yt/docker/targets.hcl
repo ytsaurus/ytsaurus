@@ -33,9 +33,18 @@ target "built_yt_all" {
 
 # Odin targets
 
-target "odin_libs" {
+target "odin_prepared_python_libs" {
   contexts = {
     built_yson = "target:built_yson"
+  }
+  target = "odin_prepared_python_libs"
+  context = "${REPO_PATH}"
+  dockerfile = "${BUILD_ROOT}/bake/odin.Dockerfile"
+}
+
+target "odin_libs" {
+  contexts = {
+    odin_prepared_python_libs = "target:odin_prepared_python_libs"
   }
   target = "odin_libs"
   context = "${REPO_PATH}"
