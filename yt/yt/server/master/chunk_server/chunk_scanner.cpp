@@ -38,6 +38,7 @@ void TGlobalChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
 
     ScheduleGlobalScan(descriptor);
 
+    GlobalScanStarted_ = GetCpuInstant();
     YT_LOG_INFO("Chunk scanner started for shard (ShardIndex: %v)",
         descriptor.ShardIndex);
 }
@@ -102,8 +103,12 @@ TChunk* TGlobalChunkScanner::DequeueChunk()
     return nullptr;
 }
 
-bool TGlobalChunkScanner::HasUnscannedChunk() const
+bool TGlobalChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
+    if (GlobalScanStarted_ > deadline) {
+        return false;
+    }
+
     return ActiveGlobalChunkScanIndex_ != -1;
 }
 

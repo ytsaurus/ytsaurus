@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -72,6 +73,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(TransactionDescendant, "transaction_descendants", TransactionDescendants)
         XX(TransactionReplica, "transaction_replicas", TransactionReplicas)
         XX(DependentTransaction, "dependent_transactions", DependentTransactions)
+        XX(UnapprovedChunkReplicas, "unapproved_chunk_replicas", UnapprovedChunkReplicas)
         default:
             YT_ABORT();
     }

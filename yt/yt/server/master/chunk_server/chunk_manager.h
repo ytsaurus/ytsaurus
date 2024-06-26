@@ -5,6 +5,7 @@
 #include "chunk_placement.h"
 #include "chunk_replica.h"
 #include "chunk_view.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_requisition.h"
 #include "medium_base.h"
 
@@ -131,13 +132,6 @@ struct IChunkManager
         NChunkClient::NProto::TReqExecuteBatch* request,
         NChunkClient::NProto::TRspExecuteBatch* response) = 0;
 
-    virtual bool CanHaveSequoiaReplicas(TRealChunkLocation* location) const = 0;
-    virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
-    virtual bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const = 0;
-    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const = 0;
-    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const = 0;
-    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location, int probability) const = 0;
-
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NChunkServer::NProto::TReqHeartbeat,
         NChunkServer::NProto::TRspHeartbeat>;
@@ -252,6 +246,8 @@ struct IChunkManager
 
     virtual const IChunkReincarnatorPtr& GetChunkReincarnator() const = 0;
 
+    virtual const IChunkReplicaFetcherPtr& GetChunkReplicaFetcher() const = 0;
+
     virtual bool IsChunkReplicatorEnabled() = 0;
     virtual bool IsChunkRefreshEnabled() = 0;
     virtual bool IsChunkRequisitionUpdateEnabled() = 0;
@@ -351,31 +347,6 @@ struct IChunkManager
     virtual TFuture<void> AddSequoiaConfirmReplicas(
         std::unique_ptr<NChunkServer::NProto::TReqAddConfirmReplicas> request) = 0;
 
-    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
-        TNodeId nodeId,
-        TChunkLocationUuid location) const = 0;
-    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
-
-    using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>>;
-    // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
-    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(
-        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
-    virtual TChunkToLocationPtrWithReplicaInfoList GetChunkReplicas(
-        const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
-
-    // Do not apply anything to these futures using AsyncVia, it will break everything!
-    virtual TFuture<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
-        NObjectServer::TEphemeralObjectPtr<TChunk> chunk) const = 0;
-    virtual TFuture<TChunkToLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
-        std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> chunks) const = 0;
-
-    virtual TFuture<std::vector<TNodeId>> GetLastSeenReplicas(
-        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
-
-    virtual TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
-        const std::vector<TChunkId>& chunkIds) const = 0;
-
-private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;
     friend class TChunkViewTypeHandler;

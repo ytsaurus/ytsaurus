@@ -9,6 +9,7 @@
 #include "job_registry.h"
 #include "domestic_medium.h"
 #include "helpers.h"
+#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -107,6 +108,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnapprovedSequoiaReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Movable)
             .SetPresent(!isForeign));
@@ -310,6 +313,7 @@ private:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
@@ -352,7 +356,7 @@ private:
 
                 auto chunkHolder = TEphemeralObjectPtr<TChunk>(chunk);
                 // This is context switch, chunk may die.
-                auto replicas = chunkManager->GetChunkReplicas(chunkHolder)
+                auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunkHolder)
                     .ValueOrThrow();
 
                 auto statuses = chunkReplicator->ComputeChunkStatuses(chunkHolder.Get(), replicas);
@@ -979,6 +983,7 @@ private:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& cellManager = Bootstrap_->GetCellManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto* chunk = GetThisImpl();
 
@@ -1096,7 +1101,7 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkManager->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
@@ -1111,7 +1116,7 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkManager->GetOnlySequoiaChunkReplicas({chunk->GetId()})
+                return chunkReplicaFetcher->GetOnlySequoiaChunkReplicas({chunk->GetId()})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>& replicas) {
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
@@ -1127,7 +1132,7 @@ private:
 
                 auto isErasure = chunk->IsErasure();
                 auto chunkId = chunk->GetId();
-                return chunkManager->GetLastSeenReplicas(TEphemeralObjectPtr<TChunk>(chunk)).Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TNodeId>& lastSeenReplicas) {
+                return chunkReplicaFetcher->GetLastSeenReplicas(TEphemeralObjectPtr<TChunk>(chunk)).Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TNodeId>& lastSeenReplicas) {
                     TNodePtrWithReplicaIndexList replicas;
                     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                     auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
@@ -1171,6 +1176,30 @@ private:
                                 .Value(replica.GetPtr()->GetDefaultAddress());
                         });
                 }));
+            }
+
+            case EInternedAttributeKey::UnapprovedSequoiaReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                return chunkReplicaFetcher->GetUnapprovedSequoiaChunkReplicas({chunk->GetId()})
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& rawReplicas) {
+                        TNodePtrWithReplicaIndexList replicas;
+                        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                        for (const auto& rawReplica : rawReplicas) {
+                            auto* node = nodeTracker->FindNode(rawReplica.NodeId);
+                            if (IsObjectAlive(node)) {
+                                replicas.emplace_back(node, rawReplica.ReplicaIndex);
+                            }
+                        }
+
+                        return BuildYsonStringFluently()
+                            .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
+                                fluent.Item()
+                                    .Value(replica.GetPtr()->GetDefaultAddress());
+                            });
+                        }));
             }
 
             default:
@@ -1219,8 +1248,10 @@ private:
         auto chunk = TEphemeralObjectPtr<TChunk>(GetThisImpl());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
         // This is context switch, chunk may die.
-        auto replicas = chunkManager->GetChunkReplicas(chunk)
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk)
             .ValueOrThrow();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());

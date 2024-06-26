@@ -3,6 +3,7 @@
 #include "chunk_owner_base.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_tree_traverser.h"
 #include "config.h"
 #include "job_registry.h"
@@ -139,12 +140,13 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
     const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
     for (const auto& chunk : InputChunks_) {
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
         // This is context switch, but chunk is ephemeral pointer.
-        auto replicasOrError = chunkManager->GetChunkReplicas(chunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
         if (!replicasOrError.IsOK()) {
             return false;
         }

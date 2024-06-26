@@ -90,6 +90,7 @@ SRCS(
     chunk_server/chunk_proxy.cpp
     chunk_server/chunk_reincarnator.cpp
     chunk_server/chunk_replacer.cpp
+    chunk_server/chunk_replica_fetcher.cpp
     chunk_server/chunk_replica.cpp
     chunk_server/chunk_replicator.cpp
     chunk_server/chunk_replication_queue.cpp

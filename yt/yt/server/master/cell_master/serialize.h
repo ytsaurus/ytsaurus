@@ -254,6 +254,7 @@ DEFINE_ENUM(EMasterReign,
     ((InheritChunkMergerModeWhenCopy_24_1)                          (2583))  // cherepashka
     ((ForbidExportChunkWithHunks)                                   (2584))  // kivedernikov
     ((RemovedDuplicateChunkCountFromSnapshot)                       (2585))  // cherepashka
+    ((UnapprovedSequoiaReplicas)                                    (2586))  // aleksandra-zh
     // 24.2 starts here.
 );
 

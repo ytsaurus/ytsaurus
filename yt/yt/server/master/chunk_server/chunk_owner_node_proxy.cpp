@@ -10,6 +10,7 @@
 #include "helpers.h"
 #include "medium_base.h"
 #include "private.h"
+#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -399,9 +400,10 @@ private:
     bool PopulateReplicas()
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, chunks may die.
-        auto replicas = chunkManager->GetChunkReplicas(Chunks_);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(Chunks_, /*useUnapproved*/ true);
         for (const auto& chunk : Chunks_) {
             if (!IsObjectAlive(chunk)) {
                 ReplyError(TError("Chunk %v died during replica fetch",
@@ -998,15 +1000,16 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 break;
             }
 
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [chunkManager] (const TChunk* chunk) -> std::optional<int> {
+                [chunkReplicaFetcher] (const TChunk* chunk) -> std::optional<int> {
                     // TODO(aleksandra-zh): batch getting replicas.
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(const_cast<TChunk*>(chunk));
                     // This is context switch, chunk may die.
-                    auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
+                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
                     if (replicas.empty()) {
                         return std::nullopt;

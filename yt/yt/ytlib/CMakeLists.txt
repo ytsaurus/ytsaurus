@@ -1044,6 +1044,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
 target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
@@ -1487,6 +1488,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
@@ -1558,6 +1560,34 @@ add_custom_command(
   yt/yt/client/node_tracker_client/public.h
   --output-include
   yt/yt/client/object_client/public.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/client/node_tracker_client/public.h
+  --output-include
+  library/cpp/yt/yson_string/string.h
 )
 add_custom_command(
   OUTPUT

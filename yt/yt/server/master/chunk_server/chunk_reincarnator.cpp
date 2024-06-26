@@ -6,6 +6,7 @@
 #include "chunk_scanner.h"
 #include "config.h"
 #include "helpers.h"
+#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -565,9 +566,10 @@ bool TReincarnationJob::FillJobSpec(
     builder.Add(TargetReplicas_);
 
     const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
     if (auto* oldChunk = chunkManager->FindChunk(OldChunkId_)) {
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
-        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
         if (!replicasOrError.IsOK() || !IsObjectAlive(ephemeralChunk)) {
             return false;
         }
@@ -1336,7 +1338,8 @@ private:
 
     void TryScheduleJob(TJobInfo jobInfo, IJobSchedulingContext* context)
     {
-        const auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
         const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
         auto oldChunkId = jobInfo.OldChunkId;
@@ -1395,7 +1398,7 @@ private:
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
         TNodePtrWithReplicaAndMediumIndexList sourceReplicas;
         // This is context switch, chunk may die.
-        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
         if (!replicasOrError.IsOK()) {
             return;
         }

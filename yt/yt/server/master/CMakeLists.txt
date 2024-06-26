@@ -401,6 +401,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_reincarnator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replacer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replicator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replication_queue.cpp

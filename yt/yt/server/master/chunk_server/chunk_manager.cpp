@@ -10,9 +10,9 @@
 #include "chunk_owner_base.h"
 #include "chunk_reincarnator.h"
 #include "chunk_replicator.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_placement.h"
 #include "chunk_type_handler.h"
-#include "chunk_replicator.h"
 #include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_tree_traverser.h"
@@ -109,12 +109,14 @@
 
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -384,6 +386,7 @@ public:
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
         , ChunkReincarnator_(CreateChunkReincarnator(Bootstrap_))
+        , ChunkReplicaFetcher_(CreateChunkReplicaFetcher(Bootstrap_))
         , MasterCellChunkStatisticsCollector_(
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
@@ -574,6 +577,11 @@ public:
         return ChunkReincarnator_;
     }
 
+    const IChunkReplicaFetcherPtr& GetChunkReplicaFetcher() const override
+    {
+        return ChunkReplicaFetcher_;
+    }
+
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request) override
     {
         return CreateMutation(
@@ -717,87 +725,6 @@ public:
             std::move(context),
             &TChunkManager::HydraAttachChunkTrees,
             this);
-    }
-
-    bool CanHaveSequoiaReplicas(TRealChunkLocation* location) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        int mediumIndex = location->GetEffectiveMediumIndex();
-        auto* medium = FindMediumByIndex(mediumIndex);
-        if (!medium || !medium->IsDomestic()) {
-            return false;
-        }
-
-        auto domesticMedium = medium->AsDomestic();
-        if (!domesticMedium->GetEnableSequoiaReplicas()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (IsJournalChunkId(chunkId)) {
-            return false;
-        }
-
-        return static_cast<int>(HashFromId(chunkId) % 100) < probability;
-    }
-
-    bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (!config->Enable) {
-            return false;
-        }
-
-        auto probability = config->ReplicasPercentage;
-        return CanHaveSequoiaReplicas(chunkId, probability);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        return IsSequoiaChunkReplica(chunkId, location);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location, int probability) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!CanHaveSequoiaReplicas(chunkId, probability)) {
-            return false;
-        }
-
-        return CanHaveSequoiaReplicas(location);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        if (!CanHaveSequoiaReplicas(chunkId)) {
-            return false;
-        }
-
-        return CanHaveSequoiaReplicas(location);
     }
 
     TNodeList AllocateWriteTargets(
@@ -1272,7 +1199,7 @@ public:
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
-        auto canHaveSequoiaReplicas = chunk->IsNative() && CanHaveSequoiaReplicas(chunk->GetId());
+        auto canHaveSequoiaReplicas = chunk->IsNative() && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId());
 
         TCompactVector<TSequoiaChunkReplica, 3> sequoiaReplicas;
 
@@ -1675,7 +1602,7 @@ public:
         TouchChunk(chunk);
 
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-        auto replicasOrError = GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(ephemeralChunk);
         if (!replicasOrError.IsOK()) {
             return TError(replicasOrError);
         }
@@ -2456,175 +2383,6 @@ public:
         return DynamicStoreMap_;
     }
 
-    TFuture<std::vector<TNodeId>> GetLastSeenReplicas(const TEphemeralObjectPtr<TChunk>& chunk) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        auto chunkId = chunk->GetId();
-        auto isErasure = chunk->IsErasure();
-
-        auto masterReplicas = chunk->LastSeenReplicas();
-        std::vector<TNodeId> replicas(masterReplicas.begin(), masterReplicas.end());
-
-        if (isErasure && std::ssize(replicas) < ::NErasure::MaxTotalPartCount) {
-            if (!replicas.empty()) {
-                YT_LOG_ALERT("Last seen replicas count stored on master is weird (ChunkId: %v, ReplicaCount: %v)",
-                    chunkId,
-                    std::ssize(replicas));
-            }
-            replicas.resize(::NErasure::MaxTotalPartCount);
-        }
-
-        if (!CanHaveSequoiaReplicas(chunkId) || !GetDynamicConfig()->SequoiaChunkReplicas->FetchReplicasFromSequoia) {
-            return MakeFuture(replicas);
-        }
-
-        return DoGetSequoiaLastSeenReplicas(chunkId)
-            .Apply(BIND([replicas = std::move(replicas), isErasure] (const std::vector<TSequoiaChunkReplica>& sequoiaReplicas) mutable {
-                if (isErasure) {
-                    YT_VERIFY(std::ssize(replicas) == ::NErasure::MaxTotalPartCount);
-                    for (const auto& replica : sequoiaReplicas) {
-                        replicas[replica.ReplicaIndex] = replica.NodeId;
-                    }
-                } else {
-                    for (const auto& replica : sequoiaReplicas) {
-                        replicas.push_back(replica.NodeId);
-                    }
-                    SortUnique(replicas);
-                }
-
-                return replicas;
-            }));
-    }
-
-    TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
-        const std::vector<TChunkId>& chunkIds) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList> result;
-        for (auto chunkId : chunkIds) {
-            result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
-        }
-
-        if (!GetDynamicConfig()->SequoiaChunkReplicas->FetchReplicasFromSequoia) {
-            return MakeFuture(std::move(result));
-        }
-
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (auto chunkId : chunkIds) {
-            if (CanHaveSequoiaReplicas(chunkId)) {
-                sequoiaChunkIds.push_back(chunkId);
-            }
-        }
-
-        if (sequoiaChunkIds.empty()) {
-            return MakeFuture(std::move(result));
-        }
-
-        // TODO(aleksandra-zh)
-        SortUnique(sequoiaChunkIds);
-
-        return DoGetSequoiaChunkReplicas({chunkIds})
-            .Apply(BIND([result = std::move(result), this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& sequoiaReplicas) mutable {
-                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                for (const auto& replica : sequoiaReplicas) {
-                    auto chunkId = replica.ChunkId;
-                    auto locationUuid = replica.LocationUuid;
-                    auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-                    if (!IsObjectAlive(location)) {
-                        YT_LOG_ALERT("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationUuid: %v)",
-                            chunkId,
-                            locationUuid);
-                        continue;
-                    }
-
-                    TChunkLocationPtrWithReplicaInfo chunkLocationWithReplicaInfo(
-                        location,
-                        replica.ReplicaIndex,
-                        EChunkReplicaState::Generic);
-                    result[chunkId].push_back(chunkLocationWithReplicaInfo);
-                }
-
-                return result;
-            })
-            .AsyncViaGuarded(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
-                TError("Error fetching Sequoia replicas")));
-    }
-
-    TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(const TEphemeralObjectPtr<TChunk>& chunk) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        // This is so stupid.
-        std::vector<TEphemeralObjectPtr<TChunk>> chunks;
-        chunks.emplace_back(chunk.Get());
-        auto result = GetChunkReplicas(chunks);
-        return GetOrCrash(result, chunk->GetId());
-    }
-
-    TChunkToLocationPtrWithReplicaInfoList GetChunkReplicas(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (const auto& chunk : chunks) {
-            if (CanHaveSequoiaReplicas(chunk->GetId())) {
-                sequoiaChunkIds.push_back(chunk->GetId());
-            }
-        }
-
-        auto sequoiaReplicasOrError = WaitForFast(GetOnlySequoiaChunkReplicas(sequoiaChunkIds));
-        return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
-    }
-
-    TFuture<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(TEphemeralObjectPtr<TChunk> chunk) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        auto chunkId = chunk->GetId();
-
-        // This is so stupid.
-        std::vector<TEphemeralObjectPtr<TChunk>> chunks;
-        chunks.emplace_back(std::move(chunk));
-        return GetChunkReplicasAsync(std::move(chunks))
-            .Apply(BIND([chunkId] (const TChunkToLocationPtrWithReplicaInfoList& sequoiaReplicas) {
-                return GetOrCrash(sequoiaReplicas, chunkId)
-                    .ValueOrThrow();
-            }));
-    }
-
-    TFuture<TChunkToLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(std::vector<TEphemeralObjectPtr<TChunk>> chunks) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (const auto& chunk : chunks) {
-            if (CanHaveSequoiaReplicas(chunk->GetId())) {
-                sequoiaChunkIds.push_back(chunk->GetId());
-            }
-        }
-
-        if (sequoiaChunkIds.empty()) {
-            TChunkToLocationPtrWithReplicaInfoList result;
-            for (const auto& chunk : chunks) {
-                auto masterReplicas = chunk->StoredReplicas();
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
-                EmplaceOrCrash(result, chunk->GetId(), replicaList);
-            }
-            return MakeFuture(std::move(result));
-        }
-
-        return GetOnlySequoiaChunkReplicas(sequoiaChunkIds)
-            .Apply(BIND([sequoiaChunkIds = std::move(sequoiaChunkIds), chunks = std::move(chunks), this, this_ = MakeStrong(this)] (const TErrorOr<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>>& sequoiaReplicasOrError) mutable {
-                return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
-            })
-            .AsyncViaGuarded(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
-                TError("Error fetching Sequoia replicas")));
-    }
-
 private:
     template <class T>
     class TEntityMapTypeTraits
@@ -2702,12 +2460,11 @@ private:
 
     const TChunkReplicatorPtr ChunkReplicator_;
     const IChunkSealerPtr ChunkSealer_;
-
     const IChunkAutotomizerPtr ChunkAutotomizer_;
-
     const TChunkMergerPtr ChunkMerger_;
-
     const IChunkReincarnatorPtr ChunkReincarnator_;
+
+    const IChunkReplicaFetcherPtr ChunkReplicaFetcher_;
 
     const IMasterCellChunkStatisticsCollectorPtr MasterCellChunkStatisticsCollector_;
 
@@ -2887,99 +2644,6 @@ private:
         return chunkList;
     }
 
-    TChunkToLocationPtrWithReplicaInfoList GetReplicas(
-        const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
-        const TErrorOr<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>>& sequoiaReplicasOrError,
-        const std::vector<TChunkId>& sequoiaChunkIds) const
-    {
-        TChunkToLocationPtrWithReplicaInfoList result;
-        if (!sequoiaReplicasOrError.IsOK()) {
-            for (auto chunkId : sequoiaChunkIds) {
-                EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
-            }
-        } else {
-            for (auto& [chunkId, replicas] : sequoiaReplicasOrError.Value()) {
-                EmplaceOrCrash(result, chunkId, std::move(replicas));
-            }
-        }
-
-        for (const auto& chunk : chunks) {
-            auto masterReplicas = chunk->StoredReplicas();
-            TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
-            auto [it, inserted] = result.emplace(chunk->GetId(), replicaList);
-
-            if (inserted) {
-                continue;
-            }
-
-            if (!it->second.IsOK()) {
-                continue;
-            }
-
-            auto& replicas = it->second.Value();
-            replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
-
-            // TODO(aleksandra-zh): remove lambda (or some stuff from it) when there are no imaginary locations.
-            SortUniqueBy(replicas, [] (const auto& replica) {
-                auto location = replica.GetPtr();
-
-                auto replicaIndex = replica.GetReplicaIndex();
-                auto isImaginary = location->IsImaginary();
-
-                // These are for imaginary.
-                auto nodeId = GetObjectId(location->GetNode());
-                auto effectiveMediumIndex = isImaginary ? location->GetEffectiveMediumIndex() : 0;
-
-                // This is for real.
-                auto uuid = isImaginary ? TChunkLocationUuid() : location->AsReal()->GetUuid();
-                return std::tuple(replicaIndex, isImaginary, nodeId, effectiveMediumIndex, uuid);
-            });
-        }
-
-        return result;
-    }
-
-    TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
-        TNodeId nodeId,
-        TChunkLocationUuid locationUuid) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (!config->Enable) {
-            return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
-        }
-
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->SelectRows<NRecords::TLocationReplicas>({
-                .WhereConjuncts = {
-                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                    Format("node_id = %v", nodeId),
-                    Format("location_uuid = %Qv", locationUuid)
-                }
-            });
-    }
-
-    TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
-    {
-        YT_VERIFY(!HasMutationContext());
-
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (!config->Enable) {
-            return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
-        }
-
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->SelectRows<NRecords::TLocationReplicas>({
-                .WhereConjuncts = {
-                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                    Format("node_id = %v", nodeId)
-                }
-            });
-    }
-
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
     {
         YT_VERIFY(HasHydraContext());
@@ -3153,7 +2817,7 @@ private:
             auto chunkId = chunk->GetId();
             if (!isImaginary) {
                 auto* realLocation = location->AsReal();
-                if (IsSequoiaChunkReplica(chunkId, realLocation)) {
+                if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
                     YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
                         chunkId,
                         realLocation->GetUuid());
@@ -3170,7 +2834,7 @@ private:
                 auto chunkId = replica.Id;
                 if (!isImaginary) {
                     auto* realLocation = location->AsReal();
-                    if (IsSequoiaChunkReplica(chunkId, realLocation)) {
+                    if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
                         YT_LOG_INFO("Removing destroyed Sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
                             chunkId,
                             realLocation->GetUuid());
@@ -3614,35 +3278,17 @@ private:
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request->replicas());
-                NRecords::TChunkReplicas chunkReplica{
+                NRecords::TUnapprovedChunkReplicas chunkReplicas{
                     .Key = {
                         .ChunkId = chunkId,
                     },
                     .StoredReplicas = GetReplicasYson(replicas, {}),
-                    .LastSeenReplicas = GetReplicasListYson(replicas),
+                    .ConfirmationTime = TInstant::Now(),
                 };
                 transaction->WriteRow(
-                    chunkReplica,
+                    chunkReplicas,
                     NTableClient::ELockType::SharedWrite,
                     NTableClient::EValueFlags::Aggregate);
-
-                for (const auto& replica : replicas) {
-                    auto locationUuid = replica.GetChunkLocationUuid();
-                    NRecords::TLocationReplicas locationReplica{
-                        .Key = {
-                            .CellTag = Bootstrap_->GetCellTag(),
-                            .NodeId = replica.GetNodeId(),
-                            .LocationUuid = locationUuid,
-                            .ChunkId = chunkId,
-                            .ReplicaIndex = replica.GetReplicaIndex(),
-                        },
-                        .Fake = true
-                    };
-                    transaction->WriteRow(
-                        locationReplica,
-                        NTableClient::ELockType::SharedWrite,
-                        NTableClient::EValueFlags::Aggregate);
-                }
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
@@ -5718,96 +5364,6 @@ private:
         return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
     }
 
-    static TSequoiaChunkReplica ParseSequoiaReplica(TYsonPullParserCursor* cursor, TChunkId chunkId)
-    {
-        TSequoiaChunkReplica chunkReplica;
-        chunkReplica.ChunkId = chunkId;
-
-        auto consume = [&] (EYsonItemType type, const auto& fillField) {
-            const auto& current = cursor->GetCurrent();
-            if (current.GetType() != type) {
-                THROW_ERROR_EXCEPTION("Invalid YSON item type while parsing Sequoia replicas: expected %Qlv, actual %Qlv)",
-                    type,
-                    current.GetType());
-            }
-            fillField(current);
-            cursor->Next();
-        };
-
-        consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
-        consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
-            chunkReplica.LocationUuid = TGuid::FromString(current.UncheckedAsString());
-        });
-        consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
-            chunkReplica.ReplicaIndex = current.UncheckedAsInt64();
-        });
-        consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
-            chunkReplica.NodeId = TNodeId(current.UncheckedAsUint64());
-        });
-        consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
-
-        return chunkReplica;
-    }
-
-    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(
-        const std::vector<TChunkId>& chunkIds,
-        const TColumnFilter& columns,
-        const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
-    {
-        std::vector<NRecords::TChunkReplicasKey> keys;
-        for (auto chunkId : chunkIds) {
-            NRecords::TChunkReplicasKey chunkReplicasKey{
-                .ChunkId = chunkId,
-            };
-            keys.push_back(chunkReplicasKey);
-        }
-
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columns)
-            .Apply(BIND([extractReplicas] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
-                std::vector<TSequoiaChunkReplica> replicas;
-                for (const auto& replicaRecord : replicaRecords) {
-                    if (!replicaRecord) {
-                        continue;
-                    }
-
-                    auto chunkId = replicaRecord->Key.ChunkId;
-                    auto extractedReplicas = extractReplicas(*replicaRecord);
-
-                    TMemoryInput input(extractedReplicas.AsStringBuf().data(), extractedReplicas.AsStringBuf().size());
-                    TYsonPullParser parser(&input, EYsonType::Node);
-                    TYsonPullParserCursor cursor(&parser);
-
-                    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-                        replicas.push_back(ParseSequoiaReplica(cursor, chunkId));
-                    });
-                }
-
-                return replicas;
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-    }
-
-    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
-    {
-        const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);
-        TColumnFilter filter({*idMapping.ChunkId, *idMapping.LastSeenReplicas});
-        return DoGetSequoiaReplicas({chunkId}, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
-            return replicaRecord.LastSeenReplicas;
-        });
-    }
-
-    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const
-    {
-        const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
-        TColumnFilter filter({*idMapping.ChunkId, *idMapping.StoredReplicas});
-        return DoGetSequoiaReplicas(chunkIds, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
-            return replicaRecord.StoredReplicas;
-        });
-    }
-
     void OnSequoiaReplicaRemoval()
     {
         YT_VERIFY(IsLeader());
@@ -5840,7 +5396,7 @@ private:
             }
         }
 
-        auto replicasOrError = WaitFor(DoGetSequoiaChunkReplicas(chunkIds));
+        auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
             YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
             return;
@@ -6216,7 +5772,7 @@ private:
             }
 
             auto isImaginary = location->IsImaginary();
-            if (!isImaginary && IsSequoiaChunkReplica(chunkIdWithIndexes.Id, location->AsReal()->GetUuid())) {
+            if (!isImaginary && ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkIdWithIndexes.Id, location->AsReal()->GetUuid())) {
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunkIdWithIndexes.Id;
                 replica.ReplicaIndex = chunkIdWithIndexes.ReplicaIndex;
