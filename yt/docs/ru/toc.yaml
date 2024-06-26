@@ -348,9 +348,13 @@ items:
             href: user-guide/problems/slow-read.md
           - name: Статистики джобов
             href: user-guide/problems/jobstatistics.md
-      - name: Импорт внешних данных
+      - name: Импорт и экспорт данных
         when: audience == "public"
-        href: user-guide/import.md
+        items:
+          - name: Импорт данных из Hive, S3, MongoDB и других систем
+            href: user-guide/import.md
+          - name: Работа с данными Microsoft Excel
+            href: user-guide/excel.md
       - name: Query tracker
         when: audience == "public"
         href: user-guide/query-tracker.md
