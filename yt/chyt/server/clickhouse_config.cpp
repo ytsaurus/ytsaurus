@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <Core/Defines.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +119,20 @@ void TPocoOpenSslConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueryCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_size_in_bytes", &TThis::MaxSizeInBytes)
+        .Default(DEFAULT_QUERY_CACHE_MAX_SIZE);
+    registrar.Parameter("max_entries", &TThis::MaxEntries)
+        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRIES);
+    registrar.Parameter("max_entry_size_in_bytes", &TThis::MaxEntrySizeInBytes)
+        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_BYTES);
+    registrar.Parameter("max_entry_size_in_rows", &TThis::MaxEntrySizeInRows)
+        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_ROWS);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TClickHouseConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("users", &TThis::Users)
@@ -229,6 +245,9 @@ void TClickHouseConfig::Register(TRegistrar registrar)
                 .EndMap()->AsMap();
         })
         .ResetOnLoad();
+
+    registrar.Parameter("query_cache", &TThis::QueryCache)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& userDefaultProfile = config->Users->Profiles["default"];

@@ -328,6 +328,14 @@ private:
 
         ServerContext_->setTemporaryStoragePath("tmp", Config_->MaxTemporaryDataOnDiskSize);
 
+        YT_LOG_DEBUG("Setting up query cache");
+
+        ServerContext_->setQueryCache(
+            Config_->QueryCache->MaxSizeInBytes,
+            Config_->QueryCache->MaxEntries,
+            Config_->QueryCache->MaxEntrySizeInBytes,
+            Config_->QueryCache->MaxEntrySizeInRows);
+
         YT_LOG_INFO("Finished setting up context");
     }
 

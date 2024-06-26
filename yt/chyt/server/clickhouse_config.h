@@ -158,6 +158,24 @@ DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryCacheConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    size_t MaxSizeInBytes;
+    size_t MaxEntries;
+    size_t MaxEntrySizeInBytes;
+    size_t MaxEntrySizeInRows;
+
+    REGISTER_YSON_STRUCT(TQueryCacheConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Config containing native clickhouse settings. Do not add our own settings here.
 class TClickHouseConfig
     : public NYTree::TYsonStruct
@@ -214,6 +232,8 @@ public:
     TPocoOpenSslConfigPtr OpenSsl;
 
     NYTree::IMapNodePtr QueryMaskingRules;
+
+    TQueryCacheConfigPtr QueryCache;
 
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 
