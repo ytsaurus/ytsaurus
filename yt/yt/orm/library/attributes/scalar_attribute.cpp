@@ -486,9 +486,8 @@ class TClearVisitor final
     : public TProtoVisitor<Message*>
 {
 public:
-    TClearVisitor(bool allowMissing)
+    TClearVisitor()
     {
-        AllowMissing_ = allowMissing;
         AllowAsterisk_ = true;
     }
 
@@ -1304,7 +1303,9 @@ void ClearProtobufFieldByPath(
         // Skip visitor machinery in the simple use case.
         message.Clear();
     } else {
-        TClearVisitor(skipMissing).Visit(&message, path);
+        TClearVisitor visitor;
+        visitor.AllowMissing_ = skipMissing;
+        visitor.Visit(&message, path);
     }
 }
 

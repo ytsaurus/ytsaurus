@@ -546,4 +546,82 @@ struct TProtoVisitorTraits<const TCompactVector<TQualifiedMessage*, N>&>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TWrappedMessage, typename TVisitParam>
+    requires std::convertible_to<TVisitParam, TWrappedMessage>
+struct TProtoVisitorContainerTraits<TWrappedMessage, TVisitParam>
+{
+    static constexpr bool IsScalar = true;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap = false;
+    static constexpr bool TakeAddress = false;
+};
+
+template <typename TWrappedMessage, typename TVisitParam>
+    requires std::convertible_to<TVisitParam*, TWrappedMessage>
+struct TProtoVisitorContainerTraits<TWrappedMessage, TVisitParam>
+{
+    static constexpr bool IsScalar = true;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap = false;
+    static constexpr bool TakeAddress = true;
+};
+
+template <typename TWrappedMessage, typename TEntry>
+struct TProtoVisitorContainerTraits<TWrappedMessage, std::vector<TEntry>>
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector =
+        TProtoVisitorContainerTraits<TWrappedMessage, TEntry>::IsScalar;
+    static constexpr bool IsMap = false;
+    static constexpr bool TakeAddress =
+        TProtoVisitorContainerTraits<TWrappedMessage, TEntry>::TakeAddress;
+};
+
+template <typename TWrappedMessage, typename TEntry, size_t N>
+struct TProtoVisitorContainerTraits<TWrappedMessage, TCompactVector<TEntry, N>>
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector =
+        TProtoVisitorContainerTraits<TWrappedMessage, TEntry>::IsScalar;
+    static constexpr bool IsMap = false;
+    static constexpr bool TakeAddress =
+        TProtoVisitorContainerTraits<TWrappedMessage, TEntry>::TakeAddress;
+};
+
+template <typename TWrappedMessage, typename TKey, typename TValue>
+struct TProtoVisitorContainerTraits<TWrappedMessage, std::unordered_map<TKey, TValue>>
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::IsScalar;
+    static constexpr bool TakeAddress =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::TakeAddress;
+    using TMapKey = TKey;
+};
+
+template <typename TWrappedMessage, typename TKey, typename TValue>
+struct TProtoVisitorContainerTraits<TWrappedMessage, std::map<TKey, TValue>>
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::IsScalar;
+    static constexpr bool TakeAddress =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::TakeAddress;
+    using TMapKey = TKey;
+};
+
+template <typename TWrappedMessage, typename TKey, typename TValue>
+struct TProtoVisitorContainerTraits<TWrappedMessage, THashMap<TKey, TValue>>
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::IsScalar;
+    static constexpr bool TakeAddress =
+        TProtoVisitorContainerTraits<TWrappedMessage, TValue>::TakeAddress;
+    using TMapKey = TKey;
+};
+
 } // namespace NYT::NOrm::NAttributes

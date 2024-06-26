@@ -47,6 +47,14 @@ bool TProtoVisitorBase::PathComplete() const
     return Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
 }
 
+void TProtoVisitorBase::Reset(NYPath::TYPathBuf path)
+{
+    Tokenizer_.Reset(path);
+    Tokenizer_.Advance();
+    Stack_.Reset();
+    StopIteration_ = false;
+}
+
 TErrorOr<TIndexParseResult> TProtoVisitorBase::ParseCurrentListIndex(int size) const
 {
     Expect(NYPath::ETokenType::Literal);

@@ -13,6 +13,14 @@ namespace NYT::NOrm::NAttributes {
 
 // Unimplemented generic template provided for documentation.
 
+// Specializations are provided for TWrappedMessage in:
+// - Message*
+// - const Message*
+// - std::pair<[const] Message*, [const] Message*>&
+// - std::vector<[const] Message*>&
+// - TCompactVector<[const] Message*, N>&
+// Null message pointers are allowed and are treated meaningfully by all methods.
+
 template <typename TWrappedMessage>
 struct TProtoVisitorTraits
 {
@@ -64,15 +72,29 @@ struct TProtoVisitorTraits
         const NProtoBuf::FieldDescriptor* fieldDescriptor);
 };
 
-// Specializations are provided for TWrappedMessage in:
-// - Message*
-// - const Message*
-// - std::pair<[const] Message*, [const] Message*>&
-// - std::vector<[const] Message*>&
-// - TCompactVector<[const] Message*, N>&
-// Null message pointers are allowed and are treated meaningfully by all methods.
-
 ////////////////////////////////////////////////////////////////////////////////
+
+// Classification of containers passed to TProtoVisitor::Visit. Make sure to drop qualifications on
+// the template parameters with std::remove_cvref_t to avoid mismatches. If the parameter is neither
+// scalar, not vector, nor map, Visit throws.
+
+// Specializations are provided for TVisitParam in:
+// - TWrappedMessage[*] (scalar)
+// - std::vector/TCompactVector<TWrappedMessage[*]> (vector)
+// - std::[unordered_]map/THashMap<$TKey, TWrappedMessage[*]> (map)
+
+template <typename TWrappedMessage, typename TVisitParam>
+struct TProtoVisitorContainerTraits
+{
+    static constexpr bool IsScalar = false;
+    static constexpr bool IsVector = false;
+    static constexpr bool IsMap = false;
+
+    // The actual message is given by value or reference.
+    static constexpr bool TakeAddress = false;
+
+    using TMapKey = void;
+};
 
 } // namespace NYT::NOrm::NAttributes
 
