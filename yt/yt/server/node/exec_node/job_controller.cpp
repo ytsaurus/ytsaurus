@@ -523,7 +523,7 @@ private:
 
     THashMap<TJobId, TJobPtr> IdToJob_;
     THashMap<TAllocationId, TAllocationPtr> IdToAllocations_;
-    std::queue<TAllocationPtr> AllocationsWaitingForResources_;
+    std::vector<TAllocationPtr> AllocationsWaitingForResources_;
     THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
 
     THashSet<TJobPtr> JobsWaitingForCleanup_;
@@ -708,7 +708,7 @@ private:
             waitingForResourcesTimeout,
             Bootstrap_->GetJobInvoker());
 
-        AllocationsWaitingForResources_.push(std::move(allocation));
+        AllocationsWaitingForResources_.push_back(std::move(allocation));
 
         ScheduleStartAllocations();
     }
@@ -1512,23 +1512,20 @@ private:
 
         StartAllocationsScheduled_ = false;
 
+        auto allocationsToStart = std::move(AllocationsWaitingForResources_);
+
         if (AreJobsDisabled()) {
-            for (; !empty(AllocationsWaitingForResources_); AllocationsWaitingForResources_.pop()) {
-                const auto& allocation = AllocationsWaitingForResources_.front();
+            for (const auto& allocation : allocationsToStart) {
                 allocation->Abort(MakeJobsDisabledError());
             }
 
             return;
         }
 
-        for (; !empty(AllocationsWaitingForResources_);) {
-            const auto& allocation = AllocationsWaitingForResources_.front();
-
+        for (auto& allocation : allocationsToStart) {
             auto allocationId = allocation->GetId();
             if (!IdToAllocations_.contains(allocationId) || allocation->GetState() != EAllocationState::Waiting) {
                 YT_LOG_DEBUG("No such allocation, it seems to be aborted (AllocationId: %v)", allocationId);
-
-                AllocationsWaitingForResources_.pop();
                 continue;
             }
 
@@ -1536,8 +1533,8 @@ private:
 
             try {
                 if (!resourceAcquiringContext.TryAcquireResourcesFor(allocation->GetResourceHolder())) {
-                    YT_LOG_DEBUG("Allocation was not started, starting waing for resources (AllocationId: %v)", allocationId);
-                    break;
+                    YT_LOG_DEBUG("Allocation was not started (AllocationId: %v)", allocationId);
+                    AllocationsWaitingForResources_.push_back(std::move(allocation));
                 } else {
                     YT_LOG_DEBUG("Allocation started (AllocationId: %v)", allocationId);
                     allocation->OnResourcesAcquired();
@@ -1550,8 +1547,6 @@ private:
                     "Unexpected exception during starting allocations (CurrentAllocationId: %v)",
                     allocationId);
             }
-
-            AllocationsWaitingForResources_.pop();
         }
     }
 
