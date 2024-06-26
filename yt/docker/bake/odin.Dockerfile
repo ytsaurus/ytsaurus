@@ -57,6 +57,13 @@ COPY --from=odin_prepared_python_libs ${PYTHON_ROOT}/dist/* ${PYTHON_ROOT}/dist/
 COPY --from=odin_prepared_python_libs ${ODIN_ROOT} ${ODIN_ROOT}
 COPY --from=odin_prepared_python_libs ${ODIN_ROOT}/../yt/scripts ${ODIN_ROOT}/../yt/scripts
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        libcap-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
 RUN pip install virtualenv \
     && virtualenv ${VIRTUAL_ENV}
 
@@ -84,6 +91,23 @@ ENV ODIN_RUNTIME_ROOT $ODIN_RUNTIME_ROOT
 
 COPY --from=built_odin ${VIRTUAL_ENV}/ ${VIRTUAL_ENV}/
 COPY --from=built_odin ${ODIN_RUNTIME_ROOT}/ ${ODIN_RUNTIME_ROOT}/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        procps \
+        curl \ 
+        strace \
+        less \
+        zstd \
+        jq \
+        linux-perf \
+        google-perftools \
+        gdb \
+        lsof \
+        htop \
+        iputils-ping \
+        telnet \
+    && rm -rf /var/lib/apt/lists/* 
 
 RUN mkdir -p ${ODIN_RUNTIME_ROOT}/log \
     && ln -sf /dev/stdout ${ODIN_RUNTIME_ROOT}/log/odin.log \
