@@ -492,7 +492,7 @@ private:
             .ThrowOnError();
 
         auto processedRowCount = ProcessRows(reader);
-        YT_LOG_ALERT_IF(currentSampleCount != processedRowCount,
+        YT_LOG_ERROR_IF(currentSampleCount != processedRowCount,
             "Compression dictionary builder processed unexpected amount of rows "
             "(Actual: %v, Expected: %v, ChunkId: %v, Ranges: [%v])",
             processedRowCount,
