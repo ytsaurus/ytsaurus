@@ -13,6 +13,7 @@ SRCS(
     cluster_node/dynamic_config_manager.cpp
     cluster_node/node_resource_manager.cpp
     cluster_node/master_connector.cpp
+    cluster_node/master_heartbeat_reporter.cpp
     cluster_node/bootstrap.cpp
     cluster_node/config.cpp
 

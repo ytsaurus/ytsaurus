@@ -140,6 +140,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_heartbeat_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/ally_replica_manager.cpp

@@ -18,10 +18,19 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default();
-    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
-        .Default();
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default({
+            {
+                .Period = TDuration::Seconds(5),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 }

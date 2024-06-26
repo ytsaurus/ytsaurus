@@ -9,6 +9,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_callbacks.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -60,8 +62,6 @@ public:
     explicit TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
-        , HeartbeatPeriod_(Config_->HeartbeatPeriod)
-        , HeartbeatPeriodSplay_(Config_->HeartbeatPeriodSplay)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
@@ -71,40 +71,49 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
         Bootstrap_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
-        Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnReadyToReportHeartbeatsToNewMasters, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Cellar");
+        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
+            Bootstrap_,
+            /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TCellarNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
+            GetDynamicConfig()->HeartbeatExecutor,
+            heartbeatLogger);
+        HeartbeatReporter_->Initialize();
     }
 
-    void ScheduleHeartbeat(TCellTag cellTag, bool immediately) override
+    void ScheduleHeartbeat(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetControlInvoker()->Invoke(
-            BIND([this, this_ = MakeStrong(this), cellTag, immediately] {
-                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, immediately));
+            BIND([this, this_ = MakeStrong(this), cellTag] {
+                HeartbeatReporter_->StartHeartbeatsToCell(cellTag);
             }));
     }
 
-    TReqHeartbeat GetHeartbeatRequest(TCellTag /*cellTag*/) const
+    TCellarNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(Bootstrap_->IsConnected());
 
-        TReqHeartbeat heartbeatRequest;
-        heartbeatRequest.set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TCellarNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        auto heartbeatRequest = proxy.Heartbeat();
+        heartbeatRequest->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
+
+        heartbeatRequest->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
 
         const auto& cellarManager = Bootstrap_->GetCellarManager();
 
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
             if (auto cellar = cellarManager->FindCellar(cellarType)) {
-                auto* cellarInfo = heartbeatRequest.add_cellars();
+                auto* cellarInfo = heartbeatRequest->add_cellars();
                 cellarInfo->set_type(ToProto<int>(cellarType));
 
                 AddCellarInfoToHeartbeatRequest(
@@ -121,19 +130,19 @@ public:
         return heartbeatRequest;
     }
 
-    void OnHeartbeatResponse(const TRspHeartbeat& response)
+    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TCellarNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& cellarManager = Bootstrap_->GetCellarManager();
         std::optional<ECellarType> singleCellarType;
 
-        for (const auto& cellarInfo : response.cellars()) {
+        for (const auto& cellarInfo : response->cellars()) {
             auto cellarType = FromProto<ECellarType>(cellarInfo.type());
             auto cellar = cellarManager->FindCellar(cellarType);
             UpdateCellarFromHeartbeatResponse(cellarType, cellar, cellarInfo);
 
-            if (response.cellars().size() == 1) {
+            if (response->cellars().size() == 1) {
                 singleCellarType = cellarType;
             }
         }
@@ -154,16 +163,7 @@ private:
     IBootstrap* const Bootstrap_;
     const TMasterConnectorConfigPtr Config_;
 
-    IInvokerPtr HeartbeatInvoker_;
-    TDuration HeartbeatPeriod_;
-    TDuration HeartbeatPeriodSplay_;
-
-    struct TPerCellTagData
-    {
-        TAsyncReaderWriterLock HeartbeatLock;
-        int ScheduledHeartbeatCount = 0;
-    };
-    THashMap<TCellTag, TPerCellTagData> PerCellTagData_;
+    IMasterHeartbeatReporterPtr HeartbeatReporter_;
 
     TError SolomonTagAlert_;
 
@@ -182,65 +182,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
-
-        StartHeartbeats();
-    }
-
-    void OnMasterDisconnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (auto& [_, data] : PerCellTagData_) {
-            data.ScheduledHeartbeatCount = 0;
-        }
-    }
-
-    void OnReadyToReportHeartbeatsToNewMasters(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        std::vector<TFuture<bool>> futures;
-        std::vector<TCellTag> newSecondaryMasterCellTags;
-        futures.reserve(newSecondaryMasterConfigs.size());
-        newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
-        for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
-            newSecondaryMasterCellTags.emplace_back(cellTag);
-            if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
-                futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
-                    VERIFY_THREAD_AFFINITY(ControlThread);
-
-                    if (auto this_ = weakThis.Lock()) {
-                        return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
-                    } else {
-                        return MakeFuture(false);
-                    }
-                }).AsyncVia(HeartbeatInvoker_).Run());
-            }
-        }
-
-        auto resultsOrError = WaitFor(AllSucceeded(std::move(futures)));
-        YT_LOG_ALERT_UNLESS(
-            resultsOrError.IsOK(),
-            resultsOrError,
-            "Failed to report cellar node heartbeat to new masters "
-            "(NewCellTags: %v)",
-            newSecondaryMasterCellTags);
-
-        if (resultsOrError.IsOK()) {
-            auto results = resultsOrError.Value();
-            YT_LOG_WARNING_UNLESS(
-                AllOf(results, [] (auto result) { return result; }),
-                "Some of cellar heartbeats failed, node will re-register at primary master "
-                "(NewCellTags: %v)",
-                newSecondaryMasterCellTags);
-        }
-
-        YT_LOG_INFO(
-            "Received master cell directory change, attempted to report heartbeats to new masters "
-            "(NewCellTags: %v)",
-            newSecondaryMasterCellTags);
+        HeartbeatReporter_->StartHeartbeats();
     }
 
     void OnDynamicConfigChanged(
@@ -249,82 +191,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatPeriod_ = newNodeConfig->CellarNode->MasterConnector->HeartbeatPeriod.value_or(Config_->HeartbeatPeriod);
-        HeartbeatPeriodSplay_ = newNodeConfig->CellarNode->MasterConnector->HeartbeatPeriodSplay.value_or(Config_->HeartbeatPeriodSplay);
-    }
-
-    void StartHeartbeats()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO("Starting cellar node heartbeats");
-
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ true));
-        }
-    }
-
-    TFuture<bool> DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        ++PerCellTagData_[cellTag].ScheduledHeartbeatCount;
-
-        auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
-        return TDelayedExecutor::MakeDelayed(delay, HeartbeatInvoker_)
-            .Apply(BIND([this, this_ = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
-                if (error.IsOK()) {
-                    return ReportHeartbeat(cellTag);
-                }
-                return MakeFuture<bool>(error);
-            }).AsyncVia(HeartbeatInvoker_));
-    }
-
-    TFuture<bool> ReportHeartbeat(TCellTag cellTag)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&PerCellTagData_[cellTag].HeartbeatLock))
-            .ValueOrThrow();
-
-        --PerCellTagData_[cellTag].ScheduledHeartbeatCount;
-
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TCellarNodeTrackerServiceProxy proxy(masterChannel);
-
-        auto req = proxy.Heartbeat();
-        req->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
-
-        static_cast<TReqHeartbeat&>(*req) = GetHeartbeatRequest(cellTag);
-
-        YT_LOG_INFO("Sending cellar node heartbeat to master (CellTag: %v)",
-            cellTag);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            OnHeartbeatResponse(*rspOrError.Value());
-
-            YT_LOG_INFO("Successfully reported cellar node heartbeat to master (CellTag: %v)",
-                cellTag);
-
-            // Schedule next heartbeat if no more heartbeats are scheduled.
-            if (PerCellTagData_[cellTag].ScheduledHeartbeatCount == 0) {
-                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ false));
-            }
-            return MakeFuture(true);
-        } else {
-            YT_LOG_WARNING(rspOrError, "Error reporting cellar node heartbeat to master (CellTag: %v)",
-                cellTag);
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
-                return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
-            } else {
-                YT_LOG_INFO(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
-                    cellTag);
-                Bootstrap_->ResetAndRegisterAtMaster();
-            }
-            return MakeFuture(false);
-        }
+        HeartbeatReporter_->Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor);
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const

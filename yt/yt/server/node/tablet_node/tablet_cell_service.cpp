@@ -51,7 +51,7 @@ private:
         if (Bootstrap_->IsConnected()) {
             auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
             const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
-            masterConnector->ScheduleHeartbeat(primaryCellTag, /*immediately*/ true);
+            masterConnector->ScheduleHeartbeat(primaryCellTag);
         }
 
         context->Reply();

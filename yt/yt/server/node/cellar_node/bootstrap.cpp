@@ -95,9 +95,9 @@ public:
         return Bootstrap_->GetResourceLimitsManager();
     }
 
-    void ScheduleCellarHeartbeat(bool immediately) const override
+    void ScheduleCellarHeartbeat() const override
     {
-        Bootstrap_->ScheduleCellarHeartbeat(immediately);
+        Bootstrap_->ScheduleCellarHeartbeat();
     }
 
     const IThroughputThrottlerPtr& GetChangelogOutThrottler() const override
@@ -210,7 +210,7 @@ public:
         return MasterConnector_;
     }
 
-    void ScheduleCellarHeartbeat(bool immediately) const override
+    void ScheduleCellarHeartbeat() const override
     {
         if (!IsConnected()) {
             return;
@@ -218,7 +218,7 @@ public:
 
         const auto& clusterNodeMasterConnector = GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
+            MasterConnector_->ScheduleHeartbeat(masterCellTag);
         }
     }
 

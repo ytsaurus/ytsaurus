@@ -3,15 +3,14 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/server/node/tablet_node/bootstrap.h>
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
-
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
+#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
+#include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
-#include <yt/yt/server/node/cellar_node/config.h>
+#include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 

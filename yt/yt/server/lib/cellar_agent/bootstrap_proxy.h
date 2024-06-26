@@ -34,7 +34,7 @@ struct ICellarBootstrapProxy
 
     virtual NSecurityServer::IResourceLimitsManagerPtr GetResourceLimitsManager() const = 0;
 
-    virtual void ScheduleCellarHeartbeat(bool immediately) const = 0;
+    virtual void ScheduleCellarHeartbeat() const = 0;
 
     virtual NRpc::IAuthenticatorPtr GetNativeAuthenticator() const = 0;
 

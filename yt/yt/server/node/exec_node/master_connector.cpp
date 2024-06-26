@@ -9,6 +9,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_callbacks.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -56,6 +58,15 @@ public:
     {
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+
+        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Exec");
+        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
+            Bootstrap_,
+            /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TExecNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
+            DynamicConfig_->HeartbeatExecutor,
+            heartbeatLogger);
+        HeartbeatReporter_->Initialize();
     }
 
     void OnDynamicConfigChanged(
@@ -66,24 +77,23 @@ public:
 
         DynamicConfig_ = newConfig;
 
-        // NB(arkady-e1ppa): HeartbeatExecutor is created once OnMasterRegistrationSignal is fired.
-        // This happens after the first time DynamicConfigManager applies dynamic config.
-        // Therefore we must be ready to encounter null HeartbeatExecutor_.
-        if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetOptions(DynamicConfig_->HeartbeatExecutor);
-        }
+        HeartbeatReporter_->Reconfigure(DynamicConfig_->HeartbeatExecutor);
     }
 
-    TReqHeartbeat GetHeartbeatRequest() const
+    TExecNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Bootstrap_->IsConnected());
 
-        TReqHeartbeat heartbeat;
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TExecNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
-        heartbeat.set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+        auto heartbeat = proxy.Heartbeat();
+        heartbeat->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
 
-        auto* statistics = heartbeat.mutable_statistics();
+        heartbeat->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+
+        auto* statistics = heartbeat->mutable_statistics();
         const auto& slotManager = Bootstrap_->GetSlotManager();
         for (const auto& location : slotManager->GetLocations()) {
             auto* locationStatistics = statistics->add_slot_locations();
@@ -94,10 +104,18 @@ public:
         }
 
         if (auto buildInfo = Bootstrap_->GetJobController()->GetBuildInfo()) {
-            heartbeat.set_job_proxy_build_version(buildInfo->Version);
+            heartbeat->set_job_proxy_build_version(buildInfo->Version);
         }
 
         return heartbeat;
+    }
+
+    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TExecNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        bool disableSchedulerJobs = response->disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
+        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
     }
 
 private:
@@ -105,41 +123,13 @@ private:
 
     TMasterConnectorDynamicConfigPtr DynamicConfig_;
 
-    TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
-    TFuture<void> PreviousHeartbeatExecutorStoppedEvent_;
-
-    IInvokerPtr HeartbeatInvoker_;
+    IMasterHeartbeatReporterPtr HeartbeatReporter_;
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (PreviousHeartbeatExecutorStoppedEvent_ &&
-            !PreviousHeartbeatExecutorStoppedEvent_.IsSet())
-        {
-            YT_LOG_DEBUG("Waiting for the previous heartbeat executor to stop");
-            auto error = WaitFor(std::move(PreviousHeartbeatExecutorStoppedEvent_));
-
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for previous heartbeat executor to shut down");
-        }
-
-        // MasterConnectionInvoker changes after every registration
-        // and so we have to make a new HeartbeatExecutor.
-        // Technically, we could support "UpdateInvoker" method,
-        // but there is no reason to preserve HeartbeatExecutor's state.
-        HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
-            Bootstrap_->GetMasterConnectionInvoker(),
-            BIND([this, weakThis = MakeWeak(this)] {
-                auto this_ = weakThis.Lock();
-                return this_ ? ReportHeartbeat() : TError("Master connector is destroyed");
-            }),
-            DynamicConfig_->HeartbeatExecutor);
-
-        YT_LOG_INFO("Starting exec node heartbeats");
-        HeartbeatExecutor_->Start();
+        HeartbeatReporter_->StartHeartbeats();
 
         MasterConnected_.Fire();
     }
@@ -147,50 +137,6 @@ private:
     void OnMasterDisconnected()
     {
         MasterDisconnected_.Fire();
-    }
-
-    void OnHeartbeatResponse(const TRspHeartbeat& response)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        bool disableSchedulerJobs = response.disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
-        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
-    }
-
-    TError ReportHeartbeat()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Exec node heartbeats are required at primary master only.
-        auto masterChannel = Bootstrap_->GetMasterChannel(PrimaryMasterCellTagSentinel);
-        TExecNodeTrackerServiceProxy proxy(masterChannel);
-
-        auto req = proxy.Heartbeat();
-        req->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
-
-        static_cast<TReqHeartbeat&>(*req) = GetHeartbeatRequest();
-
-        YT_LOG_INFO("Sending exec node heartbeat to master (%v)",
-            req->statistics());
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            OnHeartbeatResponse(*rspOrError.Value());
-
-            YT_LOG_INFO("Successfully reported exec node heartbeat to master");
-
-            return TError();
-        } else {
-            YT_LOG_WARNING(rspOrError, "Error reporting exec node heartbeat to master");
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                // TODO(arkady-e1ppa): Maybe backoff in this case?
-                return TError();
-            } else {
-                PreviousHeartbeatExecutorStoppedEvent_ = HeartbeatExecutor_->Stop();
-                Bootstrap_->ResetAndRegisterAtMaster();
-                return TError("Unretryable error received from master");
-            }
-        }
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const

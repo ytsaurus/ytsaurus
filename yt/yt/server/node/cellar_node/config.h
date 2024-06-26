@@ -41,11 +41,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Period between consequent cellar node heartbeats.
-    std::optional<TDuration> HeartbeatPeriod;
-
-    //! Splay for cellar node heartbeats.
-    std::optional<TDuration> HeartbeatPeriodSplay;
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     //! Timeout of the cellar node heartbeat RPC request.
     TDuration HeartbeatTimeout;

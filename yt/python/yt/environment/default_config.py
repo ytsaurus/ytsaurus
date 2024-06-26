@@ -689,7 +689,23 @@ def get_dynamic_node_config():
 {
     "%true" = {
         config_annotation = "default";
+        cellar_node = {
+            master_connector = {
+                heartbeat_executor = {
+                    period = 100;
+                    splay = 30;
+                    jitter = 0.3;
+                };
+            };
+        };
         data_node = {
+            master_connector = {
+                heartbeat_executor = {
+                    period = 200;
+                    splay = 100;
+                    jitter = 0.3;
+                };
+            };
             remove_chunk_job = {
                 wait_for_incremental_heartbeat_barrier = %false;
             };
@@ -718,14 +734,9 @@ def get_dynamic_node_config():
                 running_job_statistics_sending_backoff = 0;
                 send_waiting_jobs = %true;
                 heartbeat_period = 100;
-                heartbeats = {
-                    periodic = {
-                        period = 100;
-                        splay = 100;
-                    };
-                };
                 heartbeat_executor = {
                     period = 100;
+                    splay = 100;
                 };
                 enable_tracing = %true;
             };
@@ -735,16 +746,6 @@ def get_dynamic_node_config():
                 failed_heartbeat_backoff_max_time = 50;
                 failed_heartbeat_backoff_multiplier = 1.0;
                 heartbeat_period = 100;
-                heartbeats = {
-                    periodic = {
-                        period = 100;
-                    };
-                    backoff_strategy = {
-                        min_backoff = 200;
-                        max_backoff = 200;
-                        backoff_multiplier = 1.0;
-                    };
-                };
                 heartbeat_executor = {
                     period = 100;
                     min_backoff = 200;
@@ -755,14 +756,6 @@ def get_dynamic_node_config():
             };
 
             master_connector = {
-                heartbeat_period = 100;
-                heartbeat_splay = 30;
-                heartbeats = {
-                    periodic = {
-                        period = 100;
-                        splay = 30;
-                    };
-                };
                 heartbeat_executor = {
                     period = 100;
                     splay = 30;
@@ -772,6 +765,22 @@ def get_dynamic_node_config():
 
             slot_manager = {
                 abort_on_jobs_disabled = %true;
+            };
+        };
+        master_connector = {
+            heartbeat_executor = {
+                period = 100;
+                splay = 30;
+                jitter = 0.3;
+            };
+        };
+        tablet_node = {
+            master_connector = {
+                heartbeat_executor = {
+                    period = 100;
+                    splay = 30;
+                    jitter = 0.3;
+                };
             };
         };
     };

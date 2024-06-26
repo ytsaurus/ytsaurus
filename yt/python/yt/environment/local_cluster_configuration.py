@@ -184,6 +184,31 @@ DYNAMIC_MASTER_CONFIG_PATCHES = [
 # COMPAT(arkady-e1ppa): heartbeat_period, heartbeat_splay, failed_heartbeat_backoff_start_time, failed_heartbeat_backoff_max_time, failed_heartbeat_backoff_multiplier
 DYNAMIC_NODE_CONFIG_PATCHES = [
     {
+        "master_connector": {
+            "heartbeat_executor": {
+                "period": 300,
+                "splay": 50,
+                "jitter": 0.3,
+            },
+        },
+        "cellar_node": {
+            "master_connector": {
+                "heartbeat_executor": {
+                    "period": 300,
+                    "splay": 50,
+                    "jitter": 0.3,
+                },
+            },
+        },
+        "data_node": {
+            "master_connector": {
+                "heartbeat_executor": {
+                    "period": 200,
+                    "splay": 50,
+                    "jitter": 0.3,
+                },
+            },
+        },
         "exec_node": {
             "job_proxy": {
                 "job_proxy_heartbeat_period": 100,
@@ -194,17 +219,6 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
                 "failed_heartbeat_backoff_start_time": 50,
                 "failed_heartbeat_backoff_max_time": 50,
                 "failed_heartbeat_backoff_multiplier": 1.0,
-                "heartbeats": {
-                    "periodic": {
-                        "period": 100,
-                        "splay": 50,
-                    },
-                    "backoff_strategy": {
-                        "min_backoff": 50,
-                        "max_backoff": 50,
-                        "backoff_multiplier": 1.0,
-                    },
-                },
                 "heartbeat_executor": {
                     "period": 100,
                     "splay": 50,
@@ -214,14 +228,15 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
                 },
             },
             "master_connector": {
-                "heartbeat_period": 300,
-                "heartbeat_splay": 50,
-                "heartbeats": {
-                    "periodic": {
-                        "period": 300,
-                        "splay": 50,
-                    },
+                "heartbeat_executor": {
+                    "period": 300,
+                    "splay": 50,
+                    "jitter": 0.3,
                 },
+            },
+        },
+        "tablet_node": {
+            "master_connector": {
                 "heartbeat_executor": {
                     "period": 300,
                     "splay": 50,
