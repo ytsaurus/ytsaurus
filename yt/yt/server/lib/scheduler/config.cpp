@@ -1184,7 +1184,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("disable_scheduling_on_node_with_waiting_allocations", &TThis::DisableSchedulingOnNodeWithWaitingAllocations)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(50);
