@@ -41,7 +41,7 @@ COPY --link ./ ${SOURCE_ROOT}/
 WORKDIR ${ROOT}
 
 RUN mkdir -p ${BUILD_ROOT} ; cd ${BUILD_ROOT} \
-    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${SOURCE_ROOT}/clang.toolchain ${SOURCE_ROOT} \
+    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${SOURCE_ROOT}/clang14.toolchain ${SOURCE_ROOT} \
     && ninja ${BUILD_TARGETS}
 
 RUN mkdir ${PYTHON_ROOT} \
