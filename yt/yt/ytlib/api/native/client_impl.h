@@ -311,15 +311,14 @@ public: \
     IMPLEMENT_METHOD(TCreateQueueProducerSessionResult, CreateQueueProducerSession, (
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
-        const TString& sessionId,
-        const std::optional<NYson::TYsonString>& userMeta,
+        const NQueueClient::TQueueProducerSessionId& sessionId,
         const TCreateQueueProducerSessionOptions& options = {}),
-        (producerPath, queuePath, sessionId, userMeta, options));
+        (producerPath, queuePath, sessionId, options));
 
     IMPLEMENT_METHOD(void, RemoveQueueProducerSession, (
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
-        const TString& sessionId,
+        const NQueueClient::TQueueProducerSessionId& sessionId,
         const TRemoveQueueProducerSessionOptions& options = {}),
         (producerPath, queuePath, sessionId, options));
 

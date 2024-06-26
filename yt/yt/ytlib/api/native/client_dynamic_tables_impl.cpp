@@ -2852,16 +2852,17 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
 TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     const NYPath::TRichYPath& producerPath,
     const NYPath::TRichYPath& queuePath,
-    const TString& sessionId,
-    const std::optional<TYsonString>& userMeta,
-    const TCreateQueueProducerSessionOptions& /*options*/)
+    const TQueueProducerSessionId& sessionId,
+    const TCreateQueueProducerSessionOptions& options)
 {
     // NB(apachee): Current implementation does not handle RT/CRT correctly and ignores
     // cluster in paths completely.
 
     // XXX(apachee): Maybe everything should be moved in queue_client.
 
-    IClientPtr client = MakeStrong(this);
+    const auto& tableMountCache = GetTableMountCache();
+    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath())).ValueOrThrow();
+    CheckWritePermission(producerPath.GetPath(), producerTableInfo, Options_, Connection_);
 
     auto queueCluster = Connection_->GetClusterName();
     if (!queueCluster) {
@@ -2869,15 +2870,15 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
             "cluster connection was not properly configured with a cluster name");
     }
 
-    auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+    auto transaction = WaitFor(StartTransaction(NTransactionClient::ETransactionType::Tablet, TTransactionStartOptions{}))
         .ValueOrThrow();
 
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
-    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey = {
+    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
         .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
-        .SessionId = sessionId,
+        .SessionId = sessionId.Underlying(),
     };
 
     auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
@@ -2889,29 +2890,32 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         .ValueOrThrow()
         .Rowset;
 
-    i64 lastSequenceNumber = -1;
-    i64 epoch = 0;
-    auto responseUserMeta = userMeta;
+    TQueueProducerSequenceNumber lastSequenceNumber{-1};
+    TQueueProducerEpoch epoch{0};
+    auto responseUserMeta = options.UserMeta;
 
     auto records = ToRecords<NQueueClient::NRecords::TQueueProducerSession>(sessionRowset);
     // If rows is empty, then create new session.
     if (!records.empty()) {
         const auto& record = records[0];
+        YT_LOG_DEBUG("Fetched previous queue producer session info (SequenceNumber: %v, Epoch: %v)", record.SequenceNumber, record.Epoch);
 
-        lastSequenceNumber = record.SequenceNumber;
-        epoch = record.Epoch + 1;
-        if (!responseUserMeta) {
-            responseUserMeta = record.UserMeta;
+        lastSequenceNumber = TQueueProducerSequenceNumber(record.SequenceNumber);
+        epoch = TQueueProducerEpoch(record.Epoch + 1);
+        if (!responseUserMeta && record.UserMeta) {
+            responseUserMeta = ConvertTo<INodePtr>(*record.UserMeta);
         }
+    } else {
+        YT_LOG_DEBUG("No info was available for this queue producer session, initializing");
     }
 
-    NQueueClient::NRecords::TQueueProducerSessionPartial resultRecord = {
+    NQueueClient::NRecords::TQueueProducerSessionPartial resultRecord{
         .Key = sessionKey,
-        .SequenceNumber = lastSequenceNumber,
-        .Epoch = epoch,
+        .SequenceNumber = lastSequenceNumber.Underlying(),
+        .Epoch = epoch.Underlying(),
     };
-    if (userMeta) {
-        resultRecord.UserMeta = userMeta;
+    if (options.UserMeta) {
+        resultRecord.UserMeta = ConvertToYsonString(options.UserMeta);
     }
 
     auto resultRows = FromRecords(MakeRange(std::array{resultRecord}));
@@ -2920,23 +2924,29 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     WaitFor(transaction->Commit())
         .ValueOrThrow();
 
+    YT_LOG_DEBUG("Created queue producer session (SequenceNumber: %v, Epoch: %v)", lastSequenceNumber, epoch);
+
     return TCreateQueueProducerSessionResult{
         .SequenceNumber = lastSequenceNumber,
         .Epoch = epoch,
-        .UserMeta = responseUserMeta,
+        .UserMeta = std::move(responseUserMeta),
     };
 }
 
 void TClient::DoRemoveQueueProducerSession(
     const NYPath::TRichYPath& producerPath,
     const NYPath::TRichYPath& queuePath,
-    const TString& sessionId,
+    const TQueueProducerSessionId& sessionId,
     const TRemoveQueueProducerSessionOptions& /*options*/)
 {
     // NB(apachee): Current implementation does not handle RT/CRT correctly and ignores
     // cluster in paths completely.
 
     // XXX(apachee): Maybe everything should be moved in queue_client.
+
+    const auto& tableMountCache = GetTableMountCache();
+    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath())).ValueOrThrow();
+    CheckWritePermission(producerPath.GetPath(), producerTableInfo, Options_, Connection_);
 
     IClientPtr client = MakeStrong(this);
 
@@ -2946,15 +2956,17 @@ void TClient::DoRemoveQueueProducerSession(
             "cluster connection was not properly configured with a cluster name");
     }
 
+    // FIXME(apachee): Check permissions.
+
     auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
-    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey = {
+    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
         .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
-        .SessionId = sessionId,
+        .SessionId = sessionId.Underlying(),
     };
 
     auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));

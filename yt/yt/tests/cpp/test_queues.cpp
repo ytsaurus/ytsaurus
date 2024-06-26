@@ -1111,8 +1111,8 @@ TEST_F(TProducerApiTest, TestBasic)
                 TColumnSchema("b", EValueType::String)}),
             queueAttributes);
 
-    auto sessionId = "session_1";
-    i64 epoch = 0;
+    NQueueClient::TQueueProducerSessionId sessionId{"session_1"};
+    NQueueClient::TQueueProducerEpoch epoch{0};
 
     WaitFor(Client_->CreateQueueProducerSession(producerPath, queuePath, sessionId))
         .ValueOrThrow();
@@ -1137,10 +1137,10 @@ TEST_F(TProducerApiTest, TestBasic)
     auto nameTable = TNameTable::FromSchema(*queue->GetSchema());
 
     auto result = WaitFor(transaction->PushQueueProducer(
-        producerPath, queuePath, sessionId, epoch, nameTable, rows, TPushQueueProducerOptions{.SequenceNumber = 0}))
+        producerPath, queuePath, sessionId, epoch, nameTable, rows, TPushQueueProducerOptions{.SequenceNumber = TQueueProducerSequenceNumber{0}}))
         .ValueOrThrow();
 
-    ASSERT_EQ(result.LastSequenceNumber, 9);
+    ASSERT_EQ(result.LastSequenceNumber, TQueueProducerSequenceNumber(9));
 
     WaitFor(transaction->Commit())
         .ThrowOnError();

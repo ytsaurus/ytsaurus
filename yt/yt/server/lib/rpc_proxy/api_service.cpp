@@ -107,6 +107,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NQueryTrackerClient;
+using namespace NQueueClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -4098,11 +4099,11 @@ private:
         auto producerPath = FromProto<TRichYPath>(request->producer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
-        auto sessionId = FromProto<TString>(request->session_id());
+        auto sessionId = FromProto<TQueueProducerSessionId>(request->session_id());
 
         TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
-        options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number);
+        options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number, TQueueProducerSequenceNumber);
         if (request->has_user_meta()) {
             options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
@@ -4143,14 +4144,14 @@ private:
                     producerPath,
                     queuePath,
                     sessionId,
-                    request->epoch(),
+                    FromProto<TQueueProducerEpoch>(request->epoch()),
                     rowset->GetNameTable(),
                     rowsetRows,
                     options);
             },
             [] (const auto& context, const auto& pushQueueProducerResult) {
                 auto* response = &context->Response();
-                response->set_last_sequence_number(pushQueueProducerResult.LastSequenceNumber);
+                response->set_last_sequence_number(pushQueueProducerResult.LastSequenceNumber.Underlying());
                 response->set_skipped_row_count(pushQueueProducerResult.SkippedRowCount);
             });
     }
@@ -4403,8 +4404,7 @@ private:
         TListQueueConsumerRegistrationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("QueuePath: %v", queuePath);
-        context->SetRequestInfo("ConsumerPath: %v", consumerPath);
+        context->SetRequestInfo("QueuePath: %v, ConsumerPath: %v", queuePath, consumerPath);
 
         ExecuteCall(
             context,
@@ -4436,18 +4436,19 @@ private:
 
         auto producerPath = FromProto<TRichYPath>(request->producer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
-        auto sessionId = FromProto<TString>(request->session_id());
-        std::optional<TYsonString> userMeta;
-        if (request->has_user_meta()) {
-            userMeta = TYsonString(request->user_meta());
-        }
+        auto sessionId = FromProto<TQueueProducerSessionId>(request->session_id());
 
         TCreateQueueProducerSessionOptions options;
         SetTimeoutOptions(&options, context.Get());
+        if (request->has_user_meta()) {
+            options.UserMeta = ConvertTo<INodePtr>(TYsonString(FromProto<TString>(request->user_meta())));
+        }
 
-        context->SetRequestInfo("ProducerPath: %v", producerPath);
-        context->SetRequestInfo("QueuePath: %v", queuePath);
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->SetRequestInfo(
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v",
+            producerPath,
+            queuePath,
+            sessionId);
 
         ExecuteCall(
             context,
@@ -4456,20 +4457,21 @@ private:
                     producerPath,
                     queuePath,
                     sessionId,
-                    userMeta,
                     options);
             },
             [=] (const auto& context, const TCreateQueueProducerSessionResult& result) {
                 auto* response = &context->Response();
 
-                response->set_sequence_number(result.SequenceNumber);
-                response->set_epoch(result.Epoch);
+                response->set_sequence_number(result.SequenceNumber.Underlying());
+                response->set_epoch(result.Epoch.Underlying());
                 if (result.UserMeta) {
-                    ToProto(response->mutable_user_meta(), result.UserMeta->AsStringBuf());
+                    ToProto(response->mutable_user_meta(), ConvertToYsonString(result.UserMeta).ToString());
                 }
 
-                context->SetResponseInfo("SequenceNumber: %v", result.SequenceNumber);
-                context->SetResponseInfo("Epoch: %v", result.Epoch);
+                context->SetResponseInfo(
+                    "SequenceNumber: %v, Epoch: %v",
+                    result.SequenceNumber,
+                    result.Epoch);
             });
     }
 
@@ -4479,14 +4481,16 @@ private:
 
         auto producerPath = FromProto<TRichYPath>(request->producer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
-        auto sessionId = FromProto<TString>(request->session_id());
+        auto sessionId = FromProto<TQueueProducerSessionId>(request->session_id());
 
         TRemoveQueueProducerSessionOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("ProducerPath: %v", producerPath);
-        context->SetRequestInfo("QueuePath: %v", queuePath);
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->SetRequestInfo(
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v",
+            producerPath,
+            queuePath,
+            sessionId);
 
         ExecuteCall(
             context,

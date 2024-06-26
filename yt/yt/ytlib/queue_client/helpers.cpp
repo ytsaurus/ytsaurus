@@ -40,11 +40,11 @@ IYPathServicePtr CreateQueueAgentYPathService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<i64> GetSequenceNumberFromRow(
+std::optional<TQueueProducerSequenceNumber> GetSequenceNumberFromRow(
     TUnversionedRow row,
     int sequenceNumberColumnId)
 {
-    i64 sequenceNumber = -1;
+    TQueueProducerSequenceNumber sequenceNumber{-1};
 
     for (const auto& value : row) {
         if (value.Id == sequenceNumberColumnId && value.Type != EValueType::Null) {
@@ -64,17 +64,17 @@ std::optional<i64> GetSequenceNumberFromRow(
 TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
     const NTableClient::TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TUnversionedRow>& rows,
-    i64 lastProducerSequenceNumber,
-    std::optional<i64> initialSequenceNumber)
+    TQueueProducerSequenceNumber lastProducerSequenceNumber,
+    std::optional<TQueueProducerSequenceNumber> initialSequenceNumber)
 {
     auto sequenceNumberColumnId = nameTable->GetIdOrRegisterName(SequenceNumberColumnName);
 
-    std::optional<i64> nextSequenceNumber = initialSequenceNumber;
+    std::optional<TQueueProducerSequenceNumber> nextSequenceNumber = initialSequenceNumber;
 
-    i64 lastSequenceNumber = -1;
+    TQueueProducerSequenceNumber lastSequenceNumber{-1};
     i64 skipRowCount = 0;
 
-    auto updateLastSequenceNumber = [&lastSequenceNumber](i64 sequenceNumber) {
+    auto updateLastSequenceNumber = [&lastSequenceNumber](TQueueProducerSequenceNumber sequenceNumber) {
         if (sequenceNumber <= lastSequenceNumber) {
             THROW_ERROR_EXCEPTION(
                 NQueueClient::EErrorCode::InvalidRowSequenceNumbers,
@@ -92,10 +92,10 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
 
         if (rowSequenceNumber) {
             THROW_ERROR_EXCEPTION_IF(
-                *rowSequenceNumber < 0,
+                rowSequenceNumber->Underlying() < 0,
                 NQueueClient::EErrorCode::InvalidRowSequenceNumbers,
                 "Sequence number %v cannot be negative",
-                *rowSequenceNumber);
+                rowSequenceNumber->Underlying());
 
             updateLastSequenceNumber(*rowSequenceNumber);
         } else {
@@ -105,7 +105,7 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
                 "There is no $sequence_number in the row and initial sequence number was not received");
 
             updateLastSequenceNumber(*nextSequenceNumber);
-            ++(*nextSequenceNumber);
+            ++(nextSequenceNumber->Underlying());
         }
 
         // Such rows should be ignored, they were written before.

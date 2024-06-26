@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/client/queue_client/public.h>
+
 #include <yt/yt/core/rpc/channel.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -20,15 +22,15 @@ NYTree::IYPathServicePtr CreateQueueAgentYPathService(
 
 struct TValidatePushQueueProducerRowsResult
 {
-    i64 LastSequenceNumber = -1;
+    TQueueProducerSequenceNumber LastSequenceNumber{-1};
     i64 SkipRowCount = 0;
 };
 
 TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
     const NTableClient::TNameTablePtr& nameTable,
     const TSharedRange<NTableClient::TUnversionedRow>& rows,
-    i64 lastProducerSequenceNumber,
-    std::optional<i64> initialSequenceNumber);
+    TQueueProducerSequenceNumber lastProducerSequenceNumber,
+    std::optional<TQueueProducerSequenceNumber> initialSequenceNumber);
 
 ////////////////////////////////////////////////////////////////////////////////
 

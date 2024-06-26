@@ -387,8 +387,8 @@ public:
     TFuture<TPushQueueProducerResult> PushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
-        const TString& sessionId,
-        i64 epoch,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
         const TPushQueueProducerOptions& options) override
@@ -421,7 +421,7 @@ public:
         NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
             .QueueCluster = TString(*cluster),
             .QueuePath = queuePath.GetPath(),
-            .SessionId = sessionId,
+            .SessionId = sessionId.Underlying(),
         };
 
         auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
@@ -441,23 +441,24 @@ public:
         const auto& session = sessions[0];
 
         THROW_ERROR_EXCEPTION_IF(
-            session.Epoch > epoch,
+            session.Epoch > epoch.Underlying(),
             NQueueClient::EErrorCode::ZombieEpoch,
             "Received session epoch %v is less than the actual %v epoch, probably it is a zombie",
             epoch,
             session.Epoch);
 
         THROW_ERROR_EXCEPTION_IF(
-            session.Epoch < epoch,
+            session.Epoch < epoch.Underlying(),
             NQueueClient::EErrorCode::InvalidEpoch,
             "Received epoch %v is greater than the actual %v epoch",
             epoch,
             session.Epoch);
 
-        auto lastProducerSequenceNumber = session.SequenceNumber;
+        auto lastProducerSequenceNumber = TQueueProducerSequenceNumber(session.SequenceNumber);
 
         // If we push in the same transaction using the same session several times,
         // we should save last sequence number in the transaction state for the correct checking of sequence numbers.
+        // FIXME(apachee): Possible data race in case of parallel writing in different sessions.
         auto actualLastProducerSequenceNumberIt = QueueProducerSessionToSequenceNumber_.find(std::tuple(producerPath, queuePath, sessionId));
         if (actualLastProducerSequenceNumberIt != QueueProducerSessionToSequenceNumber_.end()) {
             lastProducerSequenceNumber = actualLastProducerSequenceNumberIt->second;
@@ -485,8 +486,9 @@ public:
 
         NQueueClient::NRecords::TQueueProducerSessionPartial updatedSession{
             .Key = sessionKey,
-            .SequenceNumber = validateResult.LastSequenceNumber,
-            .Epoch = epoch,
+            .SequenceNumber = validateResult.LastSequenceNumber.Underlying(),
+            // XXX(apachee): I don't think we need to set epoch, since it stays unchanged, but it doesn't really matter.
+            .Epoch = epoch.Underlying(),
         };
         if (options.UserMeta) {
             updatedSession.UserMeta = ConvertToYsonString(options.UserMeta);
@@ -1326,7 +1328,7 @@ private:
     TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
     bool SecondaryIndicesProcessed_ = false;
 
-    THashMap<std::tuple<TRichYPath, TRichYPath, TString>, int> QueueProducerSessionToSequenceNumber_;
+    THashMap<std::tuple<TRichYPath, TRichYPath, TQueueProducerSessionId>, TQueueProducerSequenceNumber> QueueProducerSessionToSequenceNumber_;
 
     struct TSyncReplica
     {
