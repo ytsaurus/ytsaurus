@@ -103,7 +103,7 @@ auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
 template <class TPayload>
 bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
-    if (TBase::HasUnscannedChunk()) {
+    if (TBase::HasUnscannedChunk(deadline)) {
         return true;
     }
 

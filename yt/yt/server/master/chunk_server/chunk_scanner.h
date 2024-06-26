@@ -60,8 +60,8 @@ public:
      */
     TChunk* DequeueChunk();
 
-    //! Returns |true| if there are some unscanned chunks.
-    bool HasUnscannedChunk() const;
+    //! Returns |true| if there are some unscanned chunks at #deadline or earlier.
+    bool HasUnscannedChunk(NProfiling::TCpuInstant deadline = std::numeric_limits<NProfiling::TCpuInstant>::max()) const;
 
     //! Returns the effective queue size, including both chunks scheduled for the global scan
     //! and added manually to global chunk scanner.
@@ -69,6 +69,7 @@ public:
 
 protected:
     std::bitset<ChunkShardCount> ActiveShardIndices_;
+    NProfiling::TCpuInstant GlobalScanStarted_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
 
     TGlobalChunkScanner(
         bool journal,

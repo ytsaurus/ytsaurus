@@ -497,7 +497,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_chunk_refresh", &TThis::EnableChunkRefresh)
         .Default(true);
     registrar.Parameter("chunk_refresh_delay", &TThis::ChunkRefreshDelay)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Seconds(90));
     registrar.Parameter("chunk_refresh_period", &TThis::ChunkRefreshPeriod)
         .Default(TDuration::MilliSeconds(100));
 
@@ -715,6 +715,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
+        }
+
+        // COMPAT(aleksandra-zh).
+        if (config->SequoiaChunkReplicas->Enable && config->ChunkRefreshDelay < config->ReplicaApproveTimeout) {
+            config->ChunkRefreshDelay = config->ReplicaApproveTimeout;
         }
     });
 }

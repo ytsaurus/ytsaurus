@@ -840,6 +840,12 @@ class YTEnvSetup(object):
                 driver=ground_driver)
             yt_commands.mount_table(table_path, driver=ground_driver)
 
+        path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 100, driver=ground_driver)
+
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
 

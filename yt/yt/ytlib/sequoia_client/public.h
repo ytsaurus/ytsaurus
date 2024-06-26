@@ -19,6 +19,7 @@ DEFINE_ENUM(ESequoiaTable,
     (NodeIdToPath)
     (ChunkReplicas)
     (LocationReplicas)
+    (UnapprovedChunkReplicas)
     (ChildNode)
     (Transactions)
     (TransactionDescendants)
@@ -34,6 +35,7 @@ struct TChildNode;
 
 struct TChunkReplicas;
 struct TLocationReplicas;
+struct TUnapprovedChunkReplicas;
 
 struct TTransaction;
 struct TTransactionDescendant;

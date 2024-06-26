@@ -9,7 +9,9 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
@@ -272,6 +274,7 @@ private:
         YT_VERIFY(IsLeader());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto* location = node->RealChunkLocations()[locationIndex];
         if (location->GetBeingDisposed()) {
@@ -279,7 +282,7 @@ private:
         }
         location->SetBeingDisposed(true);
 
-        auto sequoiaReplicasFuture = chunkManager->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid());
+        auto sequoiaReplicasFuture = chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid());
         auto errorOrSequoiaReplicas = WaitFor(sequoiaReplicasFuture);
         if (!errorOrSequoiaReplicas.IsOK()) {
             location->SetBeingDisposed(false);

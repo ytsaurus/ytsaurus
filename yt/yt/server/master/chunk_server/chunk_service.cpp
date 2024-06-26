@@ -9,6 +9,7 @@
 #include "chunk_owner_base.h"
 #include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
+#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -393,6 +394,7 @@ private:
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto addressType = request->has_address_type()
             ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
@@ -430,7 +432,7 @@ private:
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
 
-                    auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
+                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
 
                     BuildChunkSpec(
@@ -512,6 +514,7 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // Gather chunks.
         std::vector<TEphemeralObjectPtr<TChunk>> chunks;
@@ -526,7 +529,7 @@ private:
             chunks.emplace_back(chunk);
         }
 
-        auto replicas = chunkManager->GetChunkReplicas(chunks);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks);
 
         for (const auto& subrequest : request->subrequests()) {
             auto sessionId = FromProto<TSessionId>(subrequest.session_id());
@@ -920,6 +923,8 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
         const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
         // COMPAT(kvk1920)
         if (!chunkManagerConfig->EnableChunkConfirmationWithoutLocationUuid) {
@@ -938,7 +943,7 @@ private:
 
             for (const auto& replica : allReplicas) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
-                if (!chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                if (!chunkReplicaFetcher->IsSequoiaChunkReplica(chunkId, locationUuid)) {
                     *context->Request().add_replicas() = replica;
                 } else {
                     *addSequoiaReplicas->add_replicas() = replica;

@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_sequoia_helpers import (
-    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path
+    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path, get_ground_driver
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -14,7 +14,8 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
     exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
-    link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address)
+    link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
+    remount_table, sync_compact_table)
 
 from yt.wrapper import yson
 
@@ -26,6 +27,13 @@ import pytest
 
 
 def sequoia_tables_empty():
+    unapproved_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+    ground_driver = get_ground_driver()
+
+    set("{}/@forced_compaction_revision".format(unapproved_replicas_path), 1, driver=ground_driver)
+    sync_compact_table(unapproved_replicas_path, driver=ground_driver)
+    remount_table(unapproved_replicas_path, driver=ground_driver)
+
     return all(
         select_rows_from_ground(f"* from [{table.get_default_path()}]") == []
         for table in DESCRIPTORS.get_group("chunk_tables"))
@@ -271,6 +279,36 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
+
+        remove("//tmp/t")
+
+    @authors("aleksandra-zh")
+    def test_unapproved(self):
+        ground_driver = get_ground_driver()
+        unapproved_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        set("{}/@mount_config/min_data_versions".format(unapproved_replicas_path), 1, driver=ground_driver)
+
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+
+        write_table("//tmp/t", [{"x": 1}])
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.unapproved_chunk_replicas.get_default_path()}]")) == 1)
+
+        set("//sys/@config/chunk_manager/replica_approve_timeout", 100000)
+        assert len(get("#{}/@unapproved_sequoia_replicas".format(chunk_id))) > 0
+        set("//sys/@config/chunk_manager/replica_approve_timeout", 0)
+        assert len(get("#{}/@unapproved_sequoia_replicas".format(chunk_id))) == 0
+
+        set("{}/@mount_config/min_data_versions".format(unapproved_replicas_path), 0, driver=ground_driver)
 
         remove("//tmp/t")
 

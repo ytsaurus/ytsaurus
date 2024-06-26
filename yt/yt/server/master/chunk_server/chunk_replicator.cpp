@@ -17,6 +17,7 @@
 #include "data_node_tracker.h"
 #include "chunk_manager.h"
 #include "incumbency_epoch.h"
+#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -201,8 +202,10 @@ public:
 
         bool isErasure = Chunk_->IsErasure();
         const auto& chunkManager = bootstrap->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
         // This is context switch, but Chunk_ is ephemeral pointer.
-        auto replicasOrError = chunkManager->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
         if (!replicasOrError.IsOK()) {
             return false;
         }
@@ -288,8 +291,10 @@ public:
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
         const auto& chunkManager = bootstrap->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
         // This is context switch, but Chunk_ is ephemeral pointer.
-        auto replicasOrError = chunkManager->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
         if (!replicasOrError.IsOK()) {
             return false;
         }
@@ -1771,6 +1776,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     THashMap<int, int> misscheduledPushReplicationJobsPerPriority;
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
     auto maxReplicationJobCount = resourceLimits.replication_slots();
 
@@ -1823,7 +1829,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
         }
     }
 
-    auto pullReplicas = chunkManager->GetChunkReplicas(pullChunks);
+    auto pullReplicas = chunkReplicaFetcher->GetChunkReplicas(pullChunks);
 
     // Move CRP-enabled chunks from pull to push queues.
     for (const auto& [chunkId, replicasOrError] : pullReplicas) {
@@ -1912,7 +1918,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     }
 
     // TODO(aleksandra-zh): maybe unite this with getting pull chunk replicas.
-    auto chunkReplicas = chunkManager->GetChunkReplicas(chunksToReplicate);
+    auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(chunksToReplicate);
 
     // Schedule replication jobs. Iterate chunks to preserve order.
     for (const auto& chunk : chunksToReplicate) {
@@ -2144,6 +2150,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
 void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
     auto* node = context->GetNode();
 
@@ -2205,7 +2212,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
         }
     }
 
-    auto replicas = chunkManager->GetChunkReplicas(chunks);
+    auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks);
 
     // Schedule repair jobs.
     for (const auto& chunk : chunks) {
@@ -2661,8 +2668,9 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
     YT_VERIFY(!HasMutationContext());
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-    auto sequoiaReplicasFuture = chunkManager->GetSequoiaNodeReplicas(nodeId);
+    auto sequoiaReplicasFuture = chunkReplicaFetcher->GetSequoiaNodeReplicas(nodeId);
     auto sequoiaReplicasOrError = WaitFor(sequoiaReplicasFuture);
     if (!sequoiaReplicasOrError.IsOK()) {
         YT_LOG_ERROR(sequoiaReplicasOrError, "Error getting Sequoia node replicas");
@@ -2702,6 +2710,8 @@ void TChunkReplicator::OnRefresh()
     auto deadline = GetCpuInstant() - DurationToCpuDuration(config->ChunkRefreshDelay);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
     auto doRefreshChunks = [&] (
         const std::unique_ptr<TChunkRefreshScanner>& scanner,
         int* const totalCount,
@@ -2722,7 +2732,7 @@ void TChunkReplicator::OnRefresh()
             chunkIdToErrorCount[chunk->GetId()] = errorCount;
         }
 
-        auto replicas = chunkManager->GetChunkReplicas(chunksToRefresh);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToRefresh);
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         for (const auto& chunk : chunksToRefresh) {
             if (!IsObjectAlive(chunk)) {

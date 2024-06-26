@@ -16,6 +16,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
@@ -26,8 +27,8 @@
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -137,6 +138,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
@@ -144,7 +146,7 @@ public:
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         THashSet<int> sequoiaLocationIndices;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            if (chunkManager->CanHaveSequoiaReplicas(locationDirectory[i])) {
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
                 InsertOrCrash(sequoiaLocationIndices, i);
             }
         }
@@ -168,7 +170,7 @@ public:
             for (const auto& chunkInfo : originalRequest.chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
                     *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
@@ -247,6 +249,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
@@ -254,7 +257,7 @@ public:
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         THashSet<int> sequoiaLocationIndices;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            if (chunkManager->CanHaveSequoiaReplicas(locationDirectory[i])) {
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
                 InsertOrCrash(sequoiaLocationIndices, i);
             }
         }
@@ -279,7 +282,7 @@ public:
             for (const auto& chunkInfo : originalRequest.added_chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
                     *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
@@ -289,7 +292,7 @@ public:
             for (const auto& chunkInfo : originalRequest.removed_chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
+                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
                     *preparedRequest->SequoiaRequest->add_removed_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;

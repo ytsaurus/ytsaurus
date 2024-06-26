@@ -174,9 +174,10 @@ private:
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, chunk may die.
-        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
         // TODO(aleksandra-zh): maybe do smth else.
         if (!replicasOrError.IsOK()) {
             return false;
