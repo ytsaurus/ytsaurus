@@ -1664,8 +1664,6 @@ TEST_P(TInferRangesTest, Stress)
     TRandomExpressionGenerator gen{schema, rowBuffer, columnEvaluator};
 
     auto testExpression = [&] (TString expressionString) {
-        Cout << Format("Expression: %v", expressionString) << Endl;
-
         auto expr = PrepareExpression(expressionString, *schema);
 
         TQueryOptions options;
