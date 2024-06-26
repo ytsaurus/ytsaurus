@@ -1,4 +1,5 @@
 {
+    "": "build/config/tests/ruff/ruff.toml",
     "crypta": "crypta/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
     "maps/sprav/snezhana/": "maps/sprav/snezhana/pyproject.toml",
