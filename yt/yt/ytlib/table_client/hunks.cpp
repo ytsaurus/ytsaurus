@@ -2078,14 +2078,14 @@ public:
             underlyingUnreadRows.insert(underlyingUnreadRows.end(), firstIt, lastIt);
         };
 
-        // Fetched but not decodable rows.
-        addRows(this->EncodedRows_.begin() + this->CurrentEncodedRowIndex_, this->EncodedRows_.end());
+        // Unread rows.
+        addRows(unreadRows.begin(), unreadRows.end());
 
         // Decodable rows.
         addRows(this->DecodableRows_.begin(), this->DecodableRows_.end());
 
-        // Unread rows.
-        addRows(unreadRows.begin(), unreadRows.end());
+        // Fetched but not decodable rows.
+        addRows(this->EncodedRows_.begin() + this->CurrentEncodedRowIndex_, this->EncodedRows_.end());
 
         return this->Underlying_->GetInterruptDescriptor(MakeRange(underlyingUnreadRows));
     }
