@@ -66,7 +66,7 @@ public:
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
-        TThread::SetCurrentThreadName("ProxyMain");
+        TThread::SetCurrentThreadName("HttpProxyMain");
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();

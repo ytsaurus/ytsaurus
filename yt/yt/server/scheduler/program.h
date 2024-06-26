@@ -35,7 +35,7 @@ public:
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
-        TThread::SetCurrentThreadName("Main");
+        TThread::SetCurrentThreadName("SchedulerMain");
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();
