@@ -24,7 +24,7 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse
 
 def check_controller_api_readiness():
     try:
-        describe_api(os.environ["CHYT_CTL_ADDRESS"], "chyt")
+        describe_api(os.environ["CHYT_CTL_ADDRESS"], "chyt", "test_stage")
         return True
     except requests.exceptions.ConnectionError:
         return False

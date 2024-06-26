@@ -7,6 +7,8 @@ import (
 
 	"go.ytsaurus.tech/yt/chyt/controller/test/cli"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 func TestCLISimple(t *testing.T) {
@@ -77,5 +79,33 @@ func TestCLIListMutuallyExclusiveGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	err = r.RunYT("clickhouse", "ctl", "list", "--attributes", "[start_time]")
+	require.NoError(t, err)
+}
+
+func TestCLIClientConfigFromCluster(t *testing.T) {
+	// NB: This test uses Cypress client_config, so it cannot be executed in parallel.
+	// t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	r := cli.NewRunner(env, t)
+
+	configPath := ypath.Path("//sys/client_config/default")
+
+	_, err := env.YT.CreateNode(env.Ctx, configPath, yt.NodeDocument, &yt.CreateNodeOptions{
+		IgnoreExisting: true,
+		Recursive:      true,
+		Attributes: map[string]any{
+			"value": struct{}{},
+		},
+	})
+	require.NoError(t, err)
+
+	err = env.YT.SetNode(env.Ctx, configPath.Child("strawberry_ctl_address"), c.Endpoint, nil)
+	require.NoError(t, err)
+
+	err = r.RunYT("chyt", "ctl", "list")
+	require.NoError(t, err)
+
+	err = env.YT.RemoveNode(env.Ctx, configPath.Child("strawberry_ctl_address"), nil)
 	require.NoError(t, err)
 }
