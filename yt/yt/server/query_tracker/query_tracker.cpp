@@ -312,7 +312,7 @@ private:
 
         YT_LOG_INFO(
             "Query is still expired, acquiring it "
-            "(Timestamp: %v, Incarnation: %v, LeaseTranasctionId: %v, State: %v)",
+            "(Timestamp: %v, Incarnation: %v, LeaseTransactionId: %v, State: %v)",
             transaction->GetStartTimestamp(),
             newIncarnation,
             leaseTransactionId,
