@@ -29,7 +29,6 @@ namespace NYT::NExecNode {
 struct IJobInputCache
     : public virtual TRefCounted
 {
-public:
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         NChunkClient::TChunkId chunkId,
         const std::vector<int>& blockIndices,
