@@ -225,12 +225,13 @@ void TClient::DoDumpJobProxyLog(
     auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read))
         .ValueOrThrow();
 
+    // TODO(ignat): introduce MakeJobProberServiceProxy to avoid copy-paste of SetDefaultTimeout.
     NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
     jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Dump JobProxy logs of job %v of operation %v", jobId, operationId));
+        attributes->Set("title", Format("Dump job proxy logs of job %v of operation %v", jobId, operationId));
 
         NApi::TTransactionStartOptions options{
             .Attributes = std::move(attributes)

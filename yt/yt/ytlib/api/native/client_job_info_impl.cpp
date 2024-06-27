@@ -586,7 +586,7 @@ void TClient::DoDumpJobContext(
         attributes->Set("title", Format("Dump input context of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
 
         NApi::TTransactionStartOptions options{
-            .Attributes = std::move(attributes)
+            .Attributes = std::move(attributes),
         };
 
         return WaitFor(StartTransaction(ETransactionType::Master, options))

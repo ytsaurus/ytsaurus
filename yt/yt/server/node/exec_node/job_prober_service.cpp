@@ -222,7 +222,8 @@ private:
             transactionId);
 
         auto jobProxyLogManager = Bootstrap_->GetJobController()->GetJobProxyLogManager();
-        jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId);
+        WaitFor(jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId))
+            .ThrowOnError();
 
         context->Reply();
     }

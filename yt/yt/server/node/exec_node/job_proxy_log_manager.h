@@ -23,7 +23,7 @@ struct IJobProxyLogManager
         TJobProxyLogManagerDynamicConfigPtr oldConfig,
         TJobProxyLogManagerDynamicConfigPtr newConfig) = 0;
 
-    virtual void DumpJobProxyLog(
+    virtual TFuture<void> DumpJobProxyLog(
         TJobId jobId,
         const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId) = 0;
