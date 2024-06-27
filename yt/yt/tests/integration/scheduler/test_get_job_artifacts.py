@@ -69,6 +69,128 @@ def wait_for_data_in_job_archive(op_id, job_ids):
     wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
 
+# COMPAT(levysotsky): This class is to be removed after enable_table_column_renaming is set everywhere.
+# See YT-16507
+class TestGetJobInputCompat(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Force snapshot never happen
+            "snapshot_period": 10
+            ** 9,
+            "enable_table_column_renaming": False,
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestGetJobInputCompat, self).setup_method(method)
+        self._tmpdir = create_tmpdir("inputs")
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def teardown_method(self, method):
+        shutil.rmtree(self._tmpdir)
+        remove("//sys/operations_archive")
+        super(TestGetJobInputCompat, self).teardown_method(method)
+
+    def check_job_ids(self, job_id_iter):
+        for job_id in job_id_iter:
+            input_file = os.path.join(self._tmpdir, job_id)
+            with open(input_file, "rb") as inf:
+                actual_input = inf.read()
+            assert actual_input
+            assert get_job_input(job_id) == actual_input
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_map_with_rename_columns(self, optimize_for):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+                "optimize_for": optimize_for,
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"a": 42}])
+
+        op = map(
+            in_="<rename_columns={a=b}>//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat > {0}/$YT_JOB_ID".format(self._tmpdir)
+        )
+        job_ids = os.listdir(self._tmpdir)
+        wait_for_data_in_job_archive(op.id, job_ids)
+        for job_id in job_ids:
+            get_job_input(job_id)
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reduce_with_rename_columns(self, optimize_for):
+        create(
+            "table",
+            "//tmp/t_in1",
+            attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}],
+                "optimize_for": optimize_for,
+            },
+        )
+        write_table("//tmp/t_in1", [{"a": 40}, {"a": 45}], sorted_by="a")
+
+        create(
+            "table",
+            "//tmp/t_in2",
+            attributes={
+                "schema": [{"name": "b", "type": "int64", "sort_order": "ascending"}],
+                "optimize_for": optimize_for,
+            },
+        )
+        write_table("//tmp/t_in2", [{"b": 50}, {"b": 55}], sorted_by="b")
+
+        create("table", "//tmp/t_out")
+
+        op = reduce(
+            in_=[
+                "<rename_columns={a=b}>//tmp/t_in1",
+                "//tmp/t_in2",
+            ],
+            reduce_by=["b"],
+            out="//tmp/t_out",
+            command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
+        )
+
+        job_ids = os.listdir(self._tmpdir)
+        wait_for_data_in_job_archive(op.id, job_ids)
+        for job_id in job_ids:
+            get_job_input(job_id)
+
+
 class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
