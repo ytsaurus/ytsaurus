@@ -171,7 +171,8 @@ def start(master_count=1,
           clock_count=0,
           chaos_node_count=0,
           replicated_table_tracker_count=0,
-          job_proxy_logging_mode=None):
+          job_proxy_logging_mode=None,
+          use_native_client=False):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -270,7 +271,8 @@ def start(master_count=1,
         wait_tablet_cell_initialization=wait_tablet_cell_initialization,
         init_operations_archive=init_operations_archive,
         job_proxy_logging=job_proxy_logging,
-        job_proxy_log_manager=job_proxy_log_manager)
+        job_proxy_log_manager=job_proxy_log_manager,
+        use_native_client=use_native_client)
 
     environment = YTInstance(
         sandbox_path,
