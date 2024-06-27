@@ -113,6 +113,20 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         assert partitions == []
 
     @authors("galtsev")
+    def test_invalid_options(self):
+        table = "//tmp/sorted-static"
+        self._create_table(table, chunk_count=1, rows_per_chunk=1, row_weight=1)
+
+        with raises_yt_error("Missing required parameter /data_weight_per_partition"):
+            partition_tables([table])
+
+        with raises_yt_error("Validation failed at /data_weight_per_partition"):
+            partition_tables([table], data_weight_per_partition=-1)
+
+        with raises_yt_error("Validation failed at /max_partition_count"):
+            partition_tables([table], data_weight_per_partition=1, max_partition_count=-1)
+
+    @authors("galtsev")
     @pytest.mark.parametrize("dynamic,sorted", [(False, False), (False, True), (True, False)])
     def test_unordered_one_table(self, dynamic, sorted):
         table = "//tmp/sorted-static"
