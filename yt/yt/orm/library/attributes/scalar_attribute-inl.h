@@ -9,13 +9,16 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
-#include <google/protobuf/util/message_differencer.h>
-
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
+
+bool AreProtoMessagesEqual(
+    const google::protobuf::Message& lhs,
+    const google::protobuf::Message& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer);
 
 bool AreProtoMessagesEqualByPath(
     const google::protobuf::Message& lhs,
@@ -30,6 +33,7 @@ concept CScalarAttributeTriviallyComparable =
         std::same_as<T, TStringBuf> ||
         std::same_as<T, TGuid> ||
         std::same_as<T, TInstant> ||
+        std::same_as<T, double> ||
         std::integral<T> ||
         TEnumTraits<T>::IsEnum);
 
@@ -46,79 +50,108 @@ bool AreScalarAttributesEqualAsYTrees(const T& lhs, const T& rhs, const NYPath::
 ////////////////////////////////////////////////////////////////////////////////
 
 template <NDetail::CScalarAttributeTriviallyComparable T>
-bool AreScalarAttributesEqualImpl(const T& lhs, const T& rhs)
+bool AreScalarAttributesEqualImpl(
+    const T& lhs,
+    const T& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
+    Y_UNUSED(messageDifferencer);
     return lhs == rhs;
 }
 
 template <class T>
 bool AreScalarAttributesEqualImpl(
     const TIntrusivePtr<T>& lhs,
-    const TIntrusivePtr<T>& rhs)
+    const TIntrusivePtr<T>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
     requires std::convertible_to<T*, NYTree::INode*>
 {
+    Y_UNUSED(messageDifferencer);
     return NYTree::AreNodesEqual(lhs, rhs);
 }
 
 template <class T>
 bool AreScalarAttributesEqualImpl(
     const T& lhs,
-    const T& rhs)
+    const T& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
     requires std::convertible_to<T*, google::protobuf::Message*>
 {
-    return google::protobuf::util::MessageDifferencer::Equals(lhs, rhs);
+    return AreProtoMessagesEqual(lhs, rhs, messageDifferencer);
 }
 
 template <class TArray>
 bool AreScalarAttributeArraysEqual(
     const TArray& lhs,
-    const TArray& rhs)
+    const TArray& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
     if (lhs.size() != rhs.size()) {
         return false;
     }
     for (decltype(lhs.size()) i = 0; i < lhs.size(); ++i) {
-        if (!AreScalarAttributesEqualImpl(lhs[i], rhs[i])) {
+        if (!AreScalarAttributesEqualImpl(lhs[i], rhs[i], messageDifferencer)) {
             return false;
         }
     }
     return true;
 }
 
-template <class TValue>
-bool AreScalarAttributesEqualImpl(
-    const google::protobuf::RepeatedPtrField<TValue>& lhs,
-    const google::protobuf::RepeatedPtrField<TValue>& rhs)
+template <class TMapping>
+bool AreScalarAttributeMappingsEqual(
+    const TMapping& lhs,
+    const TMapping& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
-    return AreScalarAttributeArraysEqual(lhs, rhs);
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (const auto& [key, value] : lhs) {
+        auto it = rhs.find(key);
+        if (it == rhs.end()) {
+            return false;
+        }
+        if (!AreScalarAttributesEqualImpl(value, it->second, messageDifferencer)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <class T>
 bool AreScalarAttributesEqualImpl(
     const std::vector<T>& lhs,
-    const std::vector<T>& rhs)
+    const std::vector<T>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
-    return AreScalarAttributeArraysEqual(lhs, rhs);
+    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
+}
+
+template <class TValue>
+bool AreScalarAttributesEqualImpl(
+    const google::protobuf::RepeatedPtrField<TValue>& lhs,
+    const google::protobuf::RepeatedPtrField<TValue>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+{
+    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
 }
 
 template <NDetail::CScalarAttributeTriviallyComparable TKey, class TValue>
 bool AreScalarAttributesEqualImpl(
     const THashMap<TKey, TValue>& lhs,
-    const THashMap<TKey, TValue>& rhs)
+    const THashMap<TKey, TValue>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
-    if (lhs.size() != rhs.size()) {
-        return false;
-    }
-    for (const auto& [k, v] : lhs) {
-        auto it = rhs.find(k);
-        if (it == rhs.end()) {
-            return false;
-        }
-        if (!AreScalarAttributesEqualImpl(v, it->second)) {
-            return false;
-        }
-    }
-    return true;
+    return AreScalarAttributeMappingsEqual(lhs, rhs, messageDifferencer);
+}
+
+template <NDetail::CScalarAttributeTriviallyComparable TKey, class TValue>
+bool AreScalarAttributesEqualImpl(
+    const ::google::protobuf::Map<TKey, TValue>& lhs,
+    const ::google::protobuf::Map<TKey, TValue>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+{
+    return AreScalarAttributeMappingsEqual(lhs, rhs, messageDifferencer);
 }
 
 } // namespace NDetail
@@ -128,9 +161,10 @@ bool AreScalarAttributesEqualImpl(
 template <class T>
 bool AreScalarAttributesEqual(
     const T& lhs,
-    const T& rhs)
+    const T& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
 {
-    return NDetail::AreScalarAttributesEqualImpl(lhs, rhs);
+    return NDetail::AreScalarAttributesEqualImpl(lhs, rhs, messageDifferencer);
 }
 
 template <class T>

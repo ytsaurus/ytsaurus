@@ -5,8 +5,15 @@
 #include <yt/yt/core/ytree/public.h>
 
 namespace google::protobuf {
+namespace util {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class MessageDifferencer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace util
 
 class Message;
 
@@ -37,7 +44,8 @@ void SetProtobufFieldByPath(
 template <class T>
 bool AreScalarAttributesEqual(
     const T& lhs,
-    const T& rhs);
+    const T& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer = nullptr);
 
 template <class T>
 bool AreScalarAttributesEqualByPath(

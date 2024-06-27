@@ -1274,15 +1274,28 @@ protected:
     }
 }; // TComparisonVisitor
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool AreProtoMessagesEqual(
+    const Message& lhs,
+    const Message& rhs,
+    MessageDifferencer* messageDifferencer)
+{
+    if (messageDifferencer) {
+        return messageDifferencer->Compare(lhs, rhs);
+    }
+    return MessageDifferencer::Equals(lhs, rhs);
+}
+
 bool AreProtoMessagesEqualByPath(
-    const google::protobuf::Message& lhs,
-    const google::protobuf::Message& rhs,
+    const Message& lhs,
+    const Message& rhs,
     const NYPath::TYPath& path)
 {
     TComparisonVisitor visitor;
@@ -1290,12 +1303,12 @@ bool AreProtoMessagesEqualByPath(
     return visitor.Equal_;
 }
 
-} // namespace NDetail
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDetail
+
 void ClearProtobufFieldByPath(
-    google::protobuf::Message& message,
+    Message& message,
     const NYPath::TYPath& path,
     bool skipMissing)
 {
@@ -1310,7 +1323,7 @@ void ClearProtobufFieldByPath(
 }
 
 void SetProtobufFieldByPath(
-    google::protobuf::Message& message,
+    Message& message,
     const NYPath::TYPath& path,
     const INodePtr& value,
     const TProtobufWriterOptions& options,
