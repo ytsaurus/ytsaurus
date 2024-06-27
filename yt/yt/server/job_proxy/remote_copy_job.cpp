@@ -499,7 +499,11 @@ private:
         if (repairChunk) {
             auto copyStarted = TInstant::Now();
 
-            WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
+            auto waitError = WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
+            if (!waitError.IsOK()) {
+                FailedChunkIds_.push_back(inputChunkId);
+            }
+            waitError.ThrowOnError();
 
             // COMPAT(gritukan)
             TDuration erasureChunkRepairDelay;
@@ -586,7 +590,7 @@ private:
     }
 
     //! Waits until enough parts were copied to perform repair.
-    void WaitUntilErasureChunkCanBeRepaired(
+    TError WaitUntilErasureChunkCanBeRepaired(
         NErasure::ICodec* erasureCodec,
         std::vector<TFuture<void>>* copyFutures)
     {
@@ -627,8 +631,7 @@ private:
             }));
         }
 
-        WaitFor(callbackContext->CanStartRepair.ToFuture())
-            .ThrowOnError();
+        return WaitFor(callbackContext->CanStartRepair.ToFuture());
     }
 
     void RepairErasureChunk(
