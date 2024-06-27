@@ -9,6 +9,7 @@ PEERDIR(
     yt/python/yt/local
     yt/python/yt/environment
     yt/python/yt/environment/arcadia_interop
+    yt/yt/python/yt_driver_bindings
     yt/yt/python/yt_yson_bindings
 )
 
