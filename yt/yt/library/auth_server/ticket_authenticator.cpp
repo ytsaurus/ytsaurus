@@ -151,11 +151,19 @@ private:
             return TError(errorNode->GetValue<TString>());
         }
 
-        static const TString LoginPath("/users/0/login");
-        auto loginNode = GetNodeByYPath(data, LoginPath);
+        static const TString UserPath("/users/0");
+        auto userNode = GetNodeByYPath(data, UserPath);
+
+        auto login = BlackboxService_->GetLogin(userNode);
+
+        // Sanity checks.
+        if (!login.IsOK()) {
+            return TError("Blackbox returned invalid response")
+                << login;
+        }
 
         TAuthenticationResult result;
-        result.Login = loginNode->GetValue<TString>();
+        result.Login = login.Value();
         result.Realm = "blackbox:user-ticket";
         return result;
     }
