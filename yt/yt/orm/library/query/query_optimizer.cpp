@@ -402,8 +402,8 @@ private:
             }
         }
         return OptimizationChecker_.IsOptimizationAllowed(Query_->WherePredicate) &&
-                OptimizationChecker_.IsOptimizationAllowed(Query_->HavingPredicate) &&
-                OptimizationChecker_.IsOptimizationAllowed(Query_->OrderExpressions);
+            OptimizationChecker_.IsOptimizationAllowed(Query_->HavingPredicate) &&
+            OptimizationChecker_.IsOptimizationAllowed(Query_->OrderExpressions);
     }
 };
 
