@@ -31,6 +31,7 @@ DEFINE_ENUM(EChaosReign,
     ((ConfirmMigrations)            (300012)) // ponasenko-rs
     ((SaneTxActionAbort)            (300013)) // kvk1920
     ((SaneTxActionAbortFix)         (300014)) // kvk1920
+    ((ClockClusterTagValidation)    (300015)) // osidorkin
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

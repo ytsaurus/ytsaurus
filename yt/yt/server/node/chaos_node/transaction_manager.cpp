@@ -131,7 +131,8 @@ public:
         ValidateTimestampClusterTag(
             transactionId,
             options.PrepareTimestampClusterTag,
-            options.PrepareTimestamp);
+            options.PrepareTimestamp,
+            true);
 
         YT_VERIFY(options.Persistent);
 
@@ -198,7 +199,8 @@ public:
         ValidateTimestampClusterTag(
             transactionId,
             options.CommitTimestampClusterTag,
-            transaction->GetPrepareTimestamp());
+            transaction->GetPrepareTimestamp(),
+            false);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
@@ -561,18 +563,38 @@ private:
         return transaction;
     }
 
-    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag, TTimestamp prepareTimestamp)
+    void ValidateTimestampClusterTag(
+        TTransactionId transactionId,
+        TClusterTag timestampClusterTag,
+        TTimestamp prepareTimestamp,
+        bool shouldThrow)
     {
         if (prepareTimestamp == NullTimestamp) {
             return;
         }
 
-        if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
+        if (ClockClusterTag_ == InvalidCellTag) {
+            return;
+        }
+
+        // COMPAT(osidorkin)
+        if (timestampClusterTag == InvalidCellTag &&
+            GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::ClockClusterTagValidation))
+        {
             return;
         }
 
         if (ClockClusterTag_ != timestampClusterTag) {
-            YT_LOG_ALERT("Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
+            if (shouldThrow) {
+                THROW_ERROR_EXCEPTION("Transaction timestamp is generated from unexpected clock")
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << TErrorAttribute("transaction_clock_cluster_tag", timestampClusterTag)
+                    << TErrorAttribute("coordinator_clock_cluster_tag", ClockClusterTag_);
+            }
+
+            YT_LOG_ALERT(
+                "Transaction timestamp is generated from unexpected clock "
+                "(TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
                 transactionId,
                 timestampClusterTag,
                 ClockClusterTag_);
