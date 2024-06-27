@@ -215,6 +215,9 @@ items:
         - name: Автоматическое слияние чанков на выходе операций
           when: audience == "public"
           href: user-guide/data-processing/operations/automerge.md
+        - name: Автоматическое укрупнение чанков
+          when: audience == "public"
+          href: user-guide/data-processing/operations/chunk-merger.md
         - name: Рекомендации
           when: audience == "public"
           href: user-guide/data-processing/operations/recommendations.md
