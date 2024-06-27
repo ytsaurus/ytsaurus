@@ -57,8 +57,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_KAFKA_HANDLER(method) \
-    TRsp##method Do##method([[maybe_unused]] const TConnectionId& connectionId, [[maybe_unused]] const TReq##method& request, const NLogging::TLogger& Logger)
+#define DEFINE_KAFKA_HANDLER(method)                         \
+    TRsp##method Do##method(                                 \
+        [[maybe_unused]] TConnectionId connectionId,         \
+        [[maybe_unused]] const TReq##method& request,        \
+        const NLogging::TLogger& Logger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,7 +202,7 @@ private:
         }
     }
 
-    TConnectionStatePtr GetConnectionState(const TConnectionId& connectionId)
+    TConnectionStatePtr GetConnectionState(TConnectionId connectionId)
     {
         auto guard = ReaderGuard(ConnectionMapLock_);
         auto connectionIt = Connections_.find(connectionId);
@@ -344,7 +347,7 @@ private:
         return false;
     }
 
-    DECLARE_KAFKA_HANDLER(ApiVersions)
+    DEFINE_KAFKA_HANDLER(ApiVersions)
     {
         YT_LOG_DEBUG("Start to handle ApiVersions request (ClientSoftwareName: %v)",
             request.ClientSoftwareName);
@@ -435,7 +438,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(SaslHandshake)
+    DEFINE_KAFKA_HANDLER(SaslHandshake)
     {
         static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
 
@@ -458,7 +461,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(SaslAuthenticate)
+    DEFINE_KAFKA_HANDLER(SaslAuthenticate)
     {
         YT_LOG_DEBUG("Start to handle SaslAuthenticate request");
 
@@ -510,7 +513,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(Metadata)
+    DEFINE_KAFKA_HANDLER(Metadata)
     {
         YT_LOG_DEBUG("Start to handle Metadata request (TopicsSize: %v)",
             request.Topics.size());
@@ -568,7 +571,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(FindCoordinator)
+    DEFINE_KAFKA_HANDLER(FindCoordinator)
     {
         YT_LOG_DEBUG("Start to handle FindCoordinator request (Key: %v)",
             request.Key);
@@ -581,7 +584,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(JoinGroup)
+    DEFINE_KAFKA_HANDLER(JoinGroup)
     {
         YT_LOG_DEBUG("Start to handle JoinGroup request (GroupId: %v, MemberId: %v, ProtocolType: %v)",
             request.GroupId,
@@ -597,7 +600,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(SyncGroup)
+    DEFINE_KAFKA_HANDLER(SyncGroup)
     {
         YT_LOG_DEBUG("Start to handle SyncGroup request (GroupId: %v, MemberId: %v)",
             request.GroupId,
@@ -613,7 +616,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(Heartbeat)
+    DEFINE_KAFKA_HANDLER(Heartbeat)
     {
         YT_LOG_DEBUG("Start to handle Heartbreat request (GroupId: %v, MemberId: %v)",
             request.GroupId,
@@ -624,7 +627,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(OffsetCommit)
+    DEFINE_KAFKA_HANDLER(OffsetCommit)
     {
         YT_LOG_DEBUG("Start to handle OffsetCommit request (GroupId: %v)", request.GroupId);
 
@@ -705,7 +708,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(OffsetFetch)
+    DEFINE_KAFKA_HANDLER(OffsetFetch)
     {
         YT_LOG_DEBUG("Start to handle OffsetFetch request (GroupId: %v)",
             request.GroupId);
@@ -759,7 +762,7 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(Fetch)
+    DEFINE_KAFKA_HANDLER(Fetch)
     {
         YT_LOG_DEBUG("Start to handle Fetch request (TopicCount: %v)",
             request.Topics.size());
@@ -830,9 +833,9 @@ private:
         return response;
     }
 
-    DECLARE_KAFKA_HANDLER(Produce)
+    DEFINE_KAFKA_HANDLER(Produce)
     {
-        YT_LOG_DEBUG("Start to handle Produce request (TopicsCount: %v)",
+        YT_LOG_DEBUG("Start to handle Produce request (TopicCount: %v)",
             request.TopicData.size());
 
         auto userName = GetConnectionState(connectionId)->UserName;

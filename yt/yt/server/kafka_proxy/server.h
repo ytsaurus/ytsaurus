@@ -27,14 +27,14 @@ struct IServer
     virtual void Start() = 0;
 
     //! Represents abstract Kafka request handler.
-    using THandler = TCallback<TSharedRef(const TConnectionId&, NKafka::IKafkaProtocolReader*, int)>;
+    using THandler = TCallback<TSharedRef(TConnectionId, NKafka::IKafkaProtocolReader*, int)>;
     virtual void RegisterHandler(
         NKafka::ERequestType requestType,
         THandler handler) = 0;
 
     //! Represents Kafka request handler.
     template <class TRequest, class TResponse>
-    using TTypedHandler = TCallback<TResponse(const TConnectionId&, const TRequest&, const NLogging::TLogger&)>;
+    using TTypedHandler = TCallback<TResponse(TConnectionId, const TRequest&, const NLogging::TLogger&)>;
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
 };
