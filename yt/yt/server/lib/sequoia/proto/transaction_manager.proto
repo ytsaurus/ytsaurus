@@ -1,0 +1,87 @@
+package NYT.NTransactionServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2; // NTransactionClient::TTimestamp
+    optional uint64 native_commit_mutation_revision = 3;
+}
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
+}
+
+message TReqStartForeignTransaction
+{
+    required NYT.NProto.TGuid id = 1;
+    optional NYT.NProto.TGuid parent_id = 2;
+    optional string title = 3;
+    required bool upload = 4;
+    optional string operation_type = 5;
+    optional string operation_id = 6;
+    optional string operation_title = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartCypressTransaction
+{
+    required int64 timeout = 1;  // TDuration
+    optional uint64 deadline = 2;  // TInstant
+
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
+    optional string title = 4;
+
+    optional NYT.NProto.TGuid parent_id = 5;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 6;
+
+    repeated uint32 replicate_to_cell_tags = 7;
+
+    // Used _only_ for transactions mirrored to Sequoia.
+    optional NYT.NProto.TGuid hint_id = 10;
+
+    required string user = 8;
+    optional string user_tag = 9;
+}
+
+message TReqCommitCypressTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2; // NTransactionClient::TTimestamp
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 3;
+    required string user = 4;
+    optional string user_tag = 5;
+}
+
+message TReqAbortCypressTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
+    required string user = 3;
+    optional string user_tag = 4;
+
+    // Used for transactions mirrored to Sequoia.
+    // COMPAT(kvk1920): make it required after 24.2.
+    optional bool replicate_via_hive = 5 [default = true];
+}
+
+message TReqMarkCypressTransactionsReplicatedToCells
+{
+    repeated uint32 destination_cell_tags = 1;
+    repeated NYT.NProto.TGuid transaction_ids = 2;
+}
+
+message TReqMaterializeCypressTransactionReplicas
+{
+    repeated TReqStartForeignTransaction transactions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

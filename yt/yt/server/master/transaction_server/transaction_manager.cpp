@@ -4,7 +4,6 @@
 
 #include "config.h"
 #include "boomerang_tracker.h"
-#include "helpers.h"
 #include "sequoia_integration.h"
 #include "transaction_presence_cache.h"
 #include "transaction_replication_session.h"
@@ -59,6 +58,8 @@
 #include <yt/yt/server/master/sequoia_server/context.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
+#include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 

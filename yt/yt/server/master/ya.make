@@ -401,7 +401,6 @@ SRCS(
     transaction_server/config.cpp
     transaction_server/cypress_integration.cpp
     transaction_server/cypress_transaction_service.cpp
-    transaction_server/helpers.cpp
     transaction_server/sequoia_integration.cpp
     transaction_server/transaction_manager.cpp
     transaction_server/transaction_presence_cache.cpp
@@ -442,6 +441,7 @@ PEERDIR(
     yt/yt/server/lib/timestamp_server
     yt/yt/server/lib/transaction_supervisor
     yt/yt/server/lib/zookeeper_master
+    yt/yt/server/lib/sequoia
 
     library/cpp/yt/phdr_cache
 

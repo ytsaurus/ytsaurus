@@ -328,6 +328,7 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-timestamp_server
   server-lib-transaction_supervisor
   server-lib-zookeeper_master
+  server-lib-sequoia
   cpp-yt-phdr_cache
   server-lib-scheduler
   server-lib-controller_agent
@@ -736,7 +737,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_transaction_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/sequoia_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_presence_cache.cpp

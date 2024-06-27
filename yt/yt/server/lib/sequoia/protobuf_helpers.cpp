@@ -1,8 +1,12 @@
-#include "helpers.h"
+#include "protobuf_helpers.h"
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NTransactionServer {
+
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

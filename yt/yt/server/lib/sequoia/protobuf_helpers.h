@@ -1,18 +1,14 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
 
-// TODO(kvk1920): consider using forward declaration.
-#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
-
-#include <yt/yt/server/master/object_server/public.h>
-
-// TODO(kvk1920): consider using forward declaration.
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
+
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTransactionServer {
 
@@ -23,13 +19,13 @@ NProto::TReqStartCypressTransaction BuildStartCypressTransactionRequest(
     const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
 NProto::TReqCommitCypressTransaction BuildCommitCypressTransactionRequest(
-    TTransactionId transactionId,
-    TTimestamp commitTimestamp,
-    TRange<TTransactionId> prerequisiteTransactionIds,
+    NTransactionClient::TTransactionId transactionId,
+    NTransactionClient::TTimestamp commitTimestamp,
+    TRange<NTransactionClient::TTransactionId> prerequisiteTransactionIds,
     const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
 NProto::TReqAbortCypressTransaction BuildAbortCypressTransactionRequest(
-    TTransactionId transactionId,
+    NTransactionClient::TTransactionId transactionId,
     bool force,
     bool replicateViaHive,
     const NRpc::TAuthenticationIdentity& authenticationIdentity);

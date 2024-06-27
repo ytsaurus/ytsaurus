@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 namespace NYT::NSequoiaServer {
@@ -45,7 +47,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // There is a common problem: if user got OK response on hist request
+        // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
         // committed. To observe all succeeded (from user point of view) txs
         // we have to wait until all currenly prepared txs are finished.

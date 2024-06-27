@@ -39,6 +39,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>

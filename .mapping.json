@@ -1111,6 +1111,7 @@
   "yt/yt/server/lib/rpc_proxy/CMakeLists.txt":"",
   "yt/yt/server/lib/scheduler/CMakeLists.txt":"",
   "yt/yt/server/lib/security_server/CMakeLists.txt":"",
+  "yt/yt/server/lib/sequoia/CMakeLists.txt":"",
   "yt/yt/server/lib/shell/CMakeLists.txt":"",
   "yt/yt/server/lib/table_server/CMakeLists.txt":"",
   "yt/yt/server/lib/tablet_balancer/CMakeLists.txt":"",
