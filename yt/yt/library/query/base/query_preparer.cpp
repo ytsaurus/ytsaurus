@@ -33,9 +33,9 @@ static constexpr size_t MaxExpressionDepth = 50;
 struct TQueryPreparerBufferTag
 { };
 
-constexpr ssize_t MaxQueryLimit = 10000000;
-constexpr ssize_t MaxJoinNumber = 200;
-constexpr ssize_t MaxMultiJoinGroupNumber = 15;
+constexpr int MaxQueryLimit = 10'000'000;
+constexpr int MaxJoinNumber = 200;
+constexpr int MaxMultiJoinGroupNumber = 15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
