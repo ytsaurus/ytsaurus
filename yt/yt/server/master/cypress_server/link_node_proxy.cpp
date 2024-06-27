@@ -38,6 +38,11 @@ public:
         auto propagate = [&] {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto* linkNode = GetThisImpl();
+            if (linkNode->IsSequoia()) {
+                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                    "Cannot resolve Sequoia symlinks at master");
+            }
+
             auto combinedPath = linkNode->ComputeEffectiveTargetPath() + path;
             return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
         };

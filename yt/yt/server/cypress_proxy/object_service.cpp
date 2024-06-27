@@ -42,6 +42,7 @@ public:
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
         , Invoker_(ThreadPool_->GetInvoker())
+        , DynamicConfig_(New<TObjectServiceDynamicConfig>())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
@@ -54,12 +55,18 @@ public:
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
     {
+        DynamicConfig_.Store(config);
         ThreadPool_->Configure(config->ThreadPoolSize);
     }
 
     IServicePtr GetService() override
     {
         return MakeStrong(this);
+    }
+
+    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
+    {
+        return DynamicConfig_.Acquire();
     }
 
 private:
@@ -72,11 +79,21 @@ private:
     const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
 
+    TAtomicIntrusivePtr<TObjectServiceDynamicConfig> DynamicConfig_;
+
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 };
 
 using TObjectServicePtr = TIntrusivePtr<TObjectService>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ERequestTarget,
+    (Master)
+    (ForcedMaster)
+    (Sequoia)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,8 +130,7 @@ private:
     {
         TSharedRefArray RequestMessage;
 
-        // Whether Sequoia said that request should be handled by master.
-        bool ForcedNonSequoia = false;
+        ERequestTarget Target;
     };
     std::vector<TSubrequest> Subrequests_;
     const NLogging::TLogger& Logger;
@@ -122,9 +138,17 @@ private:
     void GuardedRun()
     {
         ParseSubrequests();
-        PredictNonSequoia();
+
+        if (Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
+            PredictNonSequoia();
+        } else {
+            PredictSequoia();
+            InvokeMasterRequests(/*firstRun*/ true);
+        }
+
         InvokeSequoiaRequests();
-        InvokeMasterRequests();
+        InvokeMasterRequests(/*firstRun*/ false);
+
         Reply();
     }
 
@@ -165,6 +189,23 @@ private:
         }
     }
 
+    bool PredictSequoiaForSubrequest(const TSubrequest& subrequest)
+    {
+        // If this is a rootstock creation request - don't bother master with it.
+        auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
+        if (context->GetMethod() == "Create") {
+            THandlerInvocationOptions options;
+            auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(context, options);
+            if (!typedContext->DeserializeRequest()) {
+                return false;
+            }
+            return FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock;
+        }
+
+        // TODO(h0pless): Do something more smart when resolve cache will be implemented.
+        return false;
+    }
+
     bool PredictNonSequoiaForSubrequest(const TSubrequest& subrequest)
     {
         auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
@@ -182,20 +223,35 @@ private:
         return false;
     }
 
-    void PredictNonSequoia()
+    void PredictSequoia()
     {
         for (auto& subrequest : Subrequests_) {
-            subrequest.ForcedNonSequoia = PredictNonSequoiaForSubrequest(subrequest);
+            subrequest.Target = PredictSequoiaForSubrequest(subrequest)
+                ? ERequestTarget::Sequoia
+                : ERequestTarget::Master;
         }
     }
 
-    void InvokeMasterRequests()
+    void PredictNonSequoia()
+    {
+        for (auto& subrequest : Subrequests_) {
+            subrequest.Target = PredictNonSequoiaForSubrequest(subrequest)
+                ? ERequestTarget::ForcedMaster
+                : ERequestTarget::Sequoia;
+        }
+    }
+
+    void InvokeMasterRequests(bool firstRun)
     {
         const auto& request = RpcContext_->Request();
 
+        auto subrequestFilter = firstRun
+            ? [] (const TSubrequest& subrequest) { return subrequest.Target == ERequestTarget::Master; }
+            : [] (const TSubrequest& subrequest) { return subrequest.Target == ERequestTarget::ForcedMaster; };
+
         std::vector<int> subrequestIndices;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            if (Subrequests_[index].ForcedNonSequoia) {
+            if (subrequestFilter(Subrequests_[index])) {
                 subrequestIndices.push_back(index);
             }
         }
@@ -248,14 +304,21 @@ private:
                 rsp->Attachments().begin() + currentPartIndex + partCount);
             currentPartIndex += partCount;
 
-            auto* subresponseInfo = response.add_subresponses();
             auto index = subrequestIndices[subresponse.index()];
+
+            TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
+            if (firstRun && CheckSubresponseError(subresponseMessage, NObjectClient::EErrorCode::RequestInvolvesSequoia)) {
+                Subrequests_[index].Target = ERequestTarget::Sequoia;
+                continue;
+            }
+
+            auto* subresponseInfo = response.add_subresponses();
             subresponseInfo->set_index(index);
             subresponseInfo->set_part_count(partCount);
             response.Attachments().insert(
                 response.Attachments().end(),
-                partsRange.begin(),
-                partsRange.end());
+                subresponseMessage.Begin(),
+                subresponseMessage.End());
         }
     }
 
@@ -266,7 +329,7 @@ private:
 
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
-            if (subrequest.ForcedNonSequoia) {
+            if (subrequest.Target != ERequestTarget::Sequoia) {
                 continue;
             }
 
@@ -279,7 +342,7 @@ private:
             auto rsp = WaitFor(rspFuture)
                 .ValueOrThrow();
             if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
-                subrequest.ForcedNonSequoia = true;
+                subrequest.Target = ERequestTarget::ForcedMaster;
                 continue;
             }
 

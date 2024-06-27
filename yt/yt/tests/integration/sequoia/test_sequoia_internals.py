@@ -466,6 +466,21 @@ class TestSequoiaInternals(YTEnvSetup):
             create("sequoia_map_node", "//tmp/m")
 
 
+class TestSequoiaResolve(TestSequoiaInternals):
+    @classmethod
+    def setup_class(cls):
+        super(TestSequoiaInternals, cls).setup_class()
+
+        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
+
+        new_config = {
+            "object_service": {
+                "allow_bypass_master_resolve": True,
+            }
+        }
+        set("//sys/cypress_proxies/@config", new_config)
+
+
 ##################################################################
 
 

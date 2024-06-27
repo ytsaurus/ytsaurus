@@ -276,6 +276,8 @@ private:
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
+        DynamicConfigManager_->Start();
+
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
 
