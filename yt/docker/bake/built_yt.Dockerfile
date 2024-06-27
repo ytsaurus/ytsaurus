@@ -19,16 +19,22 @@ RUN apt-get update \
       ninja-build \
       libidn11-dev \
       m4 \
-      clang-14 \
-      lld-14 \
       cmake \
       unzip \
-      llvm-14-dev \
       gcc \
       make \
       python3-dev \
       git \
+      wget \
+      lsb-release \
+      software-properties-common \
+      gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh \
+    && chmod +x /tmp/llvm.sh \
+    && /tmp/llvm.sh 16 \
+    && rm /tmp/llvm.sh
 
 RUN python3 -m pip install PyYAML==6.0 conan==1.57.0 dacite
 
@@ -41,7 +47,11 @@ COPY --link ./ ${SOURCE_ROOT}/
 WORKDIR ${ROOT}
 
 RUN mkdir -p ${BUILD_ROOT} ; cd ${BUILD_ROOT} \
-    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${SOURCE_ROOT}/clang14.toolchain ${SOURCE_ROOT} \
+    && cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_TOOLCHAIN_FILE=${SOURCE_ROOT}/clang.toolchain \
+        -DREQUIRED_LLVM_TOOLING_VERSION=16 \
+        ${SOURCE_ROOT} \
     && ninja ${BUILD_TARGETS}
 
 RUN mkdir ${PYTHON_ROOT} \
