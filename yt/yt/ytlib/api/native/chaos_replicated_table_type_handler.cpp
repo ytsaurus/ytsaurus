@@ -152,9 +152,11 @@ private:
 
     TString GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
     {
-        auto yson = WaitFor(transaction->GetNode(Format("#%v/@chaos_cell_bundle", tableId)))
-            .ValueOrThrow();
-        return ConvertTo<TString>(yson);
+        return GetAttributeOrThrow<TString>(
+            transaction,
+            FromObjectId(tableId),
+            "chaos_cell_bundle",
+            Format("Table %v has no associated chaos cell bundle", tableId));
     }
 
     TCellId GetChaosMetadataCellId(const ITransactionPtr& transaction, TTableId tableId)
