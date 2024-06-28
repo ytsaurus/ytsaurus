@@ -177,7 +177,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
         auto portoUserOrError = WaitFor(Executor_->GetContainerProperty(RootContainerName_, "user"));
 
         if (!portoUserOrError.IsOK() || !portoUserOrError.Value().has_value()) {
-            YT_LOG_DEBUG(portoUserOrError, "Failed to get porto user");
+            YT_LOG_DEBUG(portoUserOrError, "Failed to get Porto user");
             return {};
         }
 

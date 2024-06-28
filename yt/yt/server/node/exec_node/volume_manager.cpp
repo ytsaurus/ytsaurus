@@ -2318,7 +2318,7 @@ private:
                 }
 
                 // Import layer in context of container, i.e. account memory allocations to container, e.g.
-                // "self" container. If container is empty, memory allocations are accounted to porto daemon.
+                // "self" container. If container is empty, memory allocations are accounted to Porto daemon.
                 TString container;
                 if (location->ResidesOnTmpfs()) {
                     container = "self";
@@ -2973,7 +2973,7 @@ private:
                 artifactKey)
             .AsyncVia(GetCurrentInvoker()))
             // This uncancelable future ensures that TOverlayData object owning the volume will be created
-            // and protects from porto volume leak.
+            // and protects from Porto volume leak.
             .ToUncancelable()
             .As<TOverlayData>();
 
@@ -3070,7 +3070,7 @@ private:
                     std::move(nbdServer));
             })).ToUncancelable();
             // This uncancelable future ensures that TNbdVolume object owning the volume will be created
-            // and protects from porto volume leak.
+            // and protects from Porto volume leak.
 
             auto volume = WaitFor(volumeFuture)
                 .ValueOrThrow();
@@ -3182,7 +3182,7 @@ private:
                 std::move(location));
         })).ToUncancelable();
         // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
-        // and protects from porto volume leak.
+        // and protects from Porto volume leak.
 
         auto volume = WaitFor(volumeFuture)
             .ValueOrThrow();

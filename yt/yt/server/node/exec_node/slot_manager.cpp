@@ -1074,7 +1074,7 @@ void TSlotManager::FinishInitialization(const TError& error)
 
         {
             auto guard = WriterGuard(AlertsLock_);
-            // Could be either porto failure (volume manager -> can resurrect?)
+            // Could be either Porto failure (volume manager -> can resurrect?)
             // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
             Alerts_.SetAlertError(std::move(wrappedError));
         }
