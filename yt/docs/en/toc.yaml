@@ -99,8 +99,6 @@ items:
                  href: user-guide/storage/examples.md
                - name: Batch processing of requests
                  href: user-guide/storage/batch-requests.md
-              #  - name: Working with Excel
-              #    href: user-guide/storage/excel.md
            - name: FAQ
              href: user-guide/storage/faq.md
        - name: Dynamic tables
@@ -346,7 +344,11 @@ items:
            href: user-guide/problems/jobstatistics.md
        - name: Importing external data
          when: audience == "public"
-         href: user-guide/import.md
+         items:
+           - name: Importing data from Hive, S3, MongoDB, etc
+             href: user-guide/import.md
+           - name: Working with Microsoft Excel tables
+             href: user-guide/excel.md
        - name: Query Tracker
          when: audience == "public"
          href: user-guide/query-tracker.md
