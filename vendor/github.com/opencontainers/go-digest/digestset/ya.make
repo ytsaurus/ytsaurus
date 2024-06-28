@@ -1,9 +1,6 @@
 GO_LIBRARY()
 
-LICENSE(
-    Apache-2.0 AND
-    CC-BY-SA-4.0
-)
+LICENSE(Apache-2.0)
 
 SRCS(
     set.go
