@@ -1472,8 +1472,7 @@ class TestJobProfiling(YTEnvSetup):
         assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_memory")) < 20
         assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_cpu")) < 20
 
-    @authors("omgronny")
-    def test_user_job_cuda_profiling(self):
+    def _start_cuda_profiling_operation(self, probability):
         input_table = "//tmp/input_table"
         output_table = "//tmp/output_table"
 
@@ -1495,19 +1494,23 @@ class TestJobProfiling(YTEnvSetup):
                 "profilers": [{
                     "binary": "user_job",
                     "type": "cuda",
-                    "profiling_probability": 0.5,
+                    "profiling_probability": probability,
                 }],
             },
 
             "job_count": 20,
         }
 
-        op = map(
+        return map(
             in_=input_table,
             out=output_table,
             mapper_command=mapper_command,
             spec=spec,
         )
+
+    @authors("omgronny")
+    def test_user_job_cuda_profiling(self):
+        op = self._start_cuda_profiling_operation(0.5)
 
         @wait_no_assert
         def profile_ready():
@@ -1519,3 +1522,18 @@ class TestJobProfiling(YTEnvSetup):
         assert all(row["profiling_probability"] == 0.5 for row in profiles)
         assert all(row["profile_blob"] == "profile_cuda" for row in profiles if row["profile_type"] == "user_job_cuda")
         assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_cuda")) < 20
+
+    @authors("omgronny")
+    def test_has_trace_in_archive_features(self):
+        op = self._start_cuda_profiling_operation(1.0)
+
+        @wait_no_assert
+        def profile_ready():
+            profiles = get_profiles_from_table(op.id)
+            assert len(builtins.set(row["profile_type"] for row in profiles)) >= 1
+            assert len(profiles) >= 20
+
+        jobs = list_jobs(op.id)["jobs"]
+        for job in jobs:
+            assert "has_trace" in job["archive_features"]
+            assert job["archive_features"]["has_trace"]

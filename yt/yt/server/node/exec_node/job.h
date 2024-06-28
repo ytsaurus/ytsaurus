@@ -201,6 +201,8 @@ public:
 
     void ReportProfile();
 
+    NYson::TYsonString BuildArchiveFeatures() const;
+
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,

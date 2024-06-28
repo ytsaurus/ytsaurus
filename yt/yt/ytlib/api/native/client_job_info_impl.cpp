@@ -1267,6 +1267,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .PoolTree = record.PoolTree,
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
+            .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
         };
 
         if (responseIdMapping.OperationIdHi) {
@@ -1391,6 +1392,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("monitoring_descriptor");
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
+    builder.AddSelectExpression("archive_features");
     builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
     builder.AddSelectExpression("controller_state");
     builder.AddSelectExpression(

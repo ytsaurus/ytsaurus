@@ -54,6 +54,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
@@ -217,6 +219,24 @@ TJob::~TJob()
     // Offload job spec destruction to a large thread pool.
     NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
         BIND_NO_PROPAGATE([jobSpec = std::move(JobSpec_)]{ }));
+}
+
+TYsonString TJob::BuildArchiveFeatures() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    bool hasTrace = false;
+    for (const auto& profiler : JobSpecExt_->job_profilers()) {
+        if (profiler.type() == static_cast<int>(EProfilerType::Cuda)) {
+            hasTrace = true;
+            break;
+        }
+    }
+
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Item("has_trace").Value(hasTrace)
+        .EndMap();
 }
 
 void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddresses)
@@ -718,6 +738,9 @@ void TJob::OnJobFinalized()
     StatisticsYson_ = ConvertToYsonString(statistics);
 
     JobFinished_.Fire(MakeStrong(this));
+
+    HandleJobReport(MakeDefaultJobReport()
+        .ArchiveFeatures(BuildArchiveFeatures()));
 
     if (!currentError.IsOK()) {
         // NB: it is required to report error that occurred in some place different

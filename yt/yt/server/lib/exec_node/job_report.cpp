@@ -172,6 +172,12 @@ void TNodeJobReport::SetTaskName(const TString& taskName)
     TaskName_ = taskName;
 }
 
+TNodeJobReport TNodeJobReport::ArchiveFeatures(const TYsonString& archiveFeatures)
+{
+    ArchiveFeatures_ = archiveFeatures.ToString();
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
