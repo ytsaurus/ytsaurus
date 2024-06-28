@@ -303,6 +303,7 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
                 if (tableName != reference.TableName) {
                     THROW_ERROR_EXCEPTION(
                         "Query %Qv contains conflicting table names: expected %Qv, but got %Qv",
+                        query,
                         tableName,
                         reference.TableName);
                 }
