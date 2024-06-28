@@ -17,9 +17,8 @@ find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-protobuf)
 
 target_compile_options(contrib-libs-protobuf PRIVATE
-  -DHAVE_CONFIG_H
-  -DHAVE_PTHREAD=1
-  -DHAVE_ZLIB=1
+  -DGOOGLE_PROTOBUF_CMAKE_BUILD
+  -DHAVE_ZLIB
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -193,9 +192,8 @@ add_global_library_for(contrib-libs-protobuf.global
 )
 
 target_compile_options(contrib-libs-protobuf.global PRIVATE
-  -DHAVE_CONFIG_H
-  -DHAVE_PTHREAD=1
-  -DHAVE_ZLIB=1
+  -DGOOGLE_PROTOBUF_CMAKE_BUILD
+  -DHAVE_ZLIB
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
