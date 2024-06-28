@@ -127,6 +127,7 @@ public:
     const NTabletServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
     const NTransactionServer::ITransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
+    const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const;
     const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const;
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
@@ -217,6 +218,7 @@ protected:
     NTransactionServer::ITransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
+    NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr TransactionLeaseTrackerThreadPool_;
     NTransactionSupervisor::ITransactionSupervisorPtr TransactionSupervisor_;
     NLeaseServer::ILeaseManagerPtr LeaseManager_;
     NCypressServer::ICypressManagerPtr CypressManager_;

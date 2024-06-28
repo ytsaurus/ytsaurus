@@ -81,7 +81,6 @@ public:
     TTransactionSupervisor(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
-        IInvokerPtr trackerInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         IResponseKeeperPtr responseKeeper,
@@ -96,7 +95,6 @@ public:
             automaton,
             automatonInvoker)
         , Config_(std::move(config))
-        , TrackerInvoker_(std::move(trackerInvoker))
         , HydraManager_(std::move(hydraManager))
         , ResponseKeeper_(std::move(responseKeeper))
         , TransactionManager_(std::move(transactionManager))
@@ -110,7 +108,6 @@ public:
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
     {
         YT_VERIFY(Config_);
-        YT_VERIFY(TrackerInvoker_);
         YT_VERIFY(ResponseKeeper_);
         YT_VERIFY(TransactionManager_);
         YT_VERIFY(TimestampProvider_);
@@ -349,7 +346,6 @@ private:
     }
 
     const TTransactionSupervisorConfigPtr Config_;
-    const IInvokerPtr TrackerInvoker_;
     const IHydraManagerPtr HydraManager_;
     const IResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
@@ -829,7 +825,7 @@ private:
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction)
                 .SetHeavy(true));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
-                .SetInvoker(owner->TrackerInvoker_));
+                .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
         }
@@ -994,11 +990,7 @@ private:
                 pingAncestors);
 
             auto owner = GetOwnerOrThrow();
-
-            // Any exception thrown here is replied to the client.
-            owner->TransactionManager_->PingTransaction(transactionId, pingAncestors);
-
-            context->Reply();
+            context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, GetDownedParticipants)
@@ -2693,7 +2685,6 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
 ITransactionSupervisorPtr CreateTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
-    IInvokerPtr trackerInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     IResponseKeeperPtr responseKeeper,
@@ -2707,7 +2698,6 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     return New<TTransactionSupervisor>(
         std::move(config),
         std::move(automatonInvoker),
-        std::move(trackerInvoker),
         std::move(hydraManager),
         std::move(automaton),
         std::move(responseKeeper),

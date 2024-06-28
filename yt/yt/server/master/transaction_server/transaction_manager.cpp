@@ -153,13 +153,12 @@ public:
         , BoomerangTracker_(New<TBoomerangTracker>(Bootstrap_))
         , BufferedProducer_(New<TBufferedProducer>())
         , LeaseTracker_(CreateTransactionLeaseTracker(
-            Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
+            Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
     {
         TransactionServerProfiler.AddProducer("", BufferedProducer_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
         Logger = TransactionServerLogger();
 
@@ -1423,13 +1422,13 @@ public:
             /*replicateViaHive*/ true);
     }
 
-    void PingTransaction(
+    TFuture<void> PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override
     {
-        VERIFY_THREAD_AFFINITY(TrackerThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
     TTransactionId FindUsedNonMirroredTransaction(const TCtxStartCypressTransactionPtr& context)
@@ -1929,7 +1928,6 @@ private:
     THashSet<TTransaction*> NativeTransactions_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-    DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
 
     // This should become a mutation used to create system transactions only.

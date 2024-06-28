@@ -69,7 +69,7 @@ public:
             bootstrap)
         , Config_(config)
         , LeaseTracker_(CreateTransactionLeaseTracker(
-            Bootstrap_->GetTransactionTrackerInvoker(),
+            Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             Logger))
         , ClockClusterTag_(clockClusterTag)
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
@@ -261,11 +261,11 @@ public:
         TransactionMap_.Remove(transactionId);
     }
 
-    void PingTransaction(TTransactionId transactionId, bool pingAncestors) override
+    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
     bool CommitTransaction(TCtxCommitTransactionPtr /*context*/) override

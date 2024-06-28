@@ -595,11 +595,11 @@ public:
         }
     }
 
-    void PingTransaction(TTransactionId transactionId, bool pingAncestors) override
+    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
     bool CommitTransaction(TCtxCommitTransactionPtr /*context*/) override

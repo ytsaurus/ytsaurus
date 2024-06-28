@@ -30,7 +30,7 @@ struct IBootstrap
     virtual void Initialize() = 0;
     virtual void Run() = 0;
 
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const = 0;
+    virtual const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const = 0;
 
     virtual const NSecurityServer::IResourceLimitsManagerPtr& GetResourceLimitsManager() const = 0;
 

@@ -61,6 +61,10 @@ def get_master_config():
         update_period = 1000000000;
     };
 
+    transaction_lease_tracker = {
+        thread_count = 2;
+    };
+
     expose_testing_facilities = %true
 }
 """)
@@ -511,6 +515,10 @@ def get_node_config():
         master_connector = {
             heartbeat_period = 100;
             heartbeat_period_splay = 30;
+        };
+
+        transaction_lease_tracker = {
+            thread_count = 2;
         };
     };
 

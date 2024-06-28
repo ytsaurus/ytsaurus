@@ -660,7 +660,7 @@ public:
             this,
             GetOptions()->ClockClusterTag,
             CreateTransactionLeaseTracker(
-                Bootstrap_->GetTransactionTrackerInvoker(),
+                Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
                 Logger));
 
         DistributedThrottlerManager_ = CreateDistributedThrottlerManager(

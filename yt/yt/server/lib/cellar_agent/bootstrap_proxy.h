@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -28,7 +30,7 @@ struct ICellarBootstrapProxy
     virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
-    virtual IInvokerPtr GetTransactionTrackerInvoker() const = 0;
+    virtual const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const = 0;
 
     virtual NRpc::IServerPtr GetRpcServer() const = 0;
 

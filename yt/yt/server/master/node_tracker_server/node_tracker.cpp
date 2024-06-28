@@ -2800,19 +2800,17 @@ private:
             transactionManager->SetTransactionTimeout(transaction, timeout);
 
             if (node->IsPendingRestart() && IsLeader()) {
-                const auto& invoker = Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker();
-                invoker->Invoke(BIND([=] {
-                    try {
-                        transactionManager->PingTransaction(
-                            transaction->GetId(),
-                            /*pingAncestors*/ false);
-                    } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(
-                            ex,
-                            "Failed to ping node lease transaction after "
-                            "extending its timeout for a pending restart");
-                    }
-                }));
+                transactionManager->PingTransaction(transaction->GetId(), /*pingAncestors*/ false)
+                    .Subscribe(BIND([nodeId = node->GetId(), address = node->GetDefaultAddress()] (const TError& error) {
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(
+                                error,
+                                "Failed to ping node lease transaction after "
+                                "extending its timeout for a pending restart (NodeId: %v, Address: %v)",
+                                nodeId,
+                                address);
+                        }
+                    }));
             }
         };
 

@@ -27,4 +27,19 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransactionLeaseTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int ThreadCount;
+
+    REGISTER_YSON_STRUCT(TTransactionLeaseTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionLeaseTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTransactionSupervisor

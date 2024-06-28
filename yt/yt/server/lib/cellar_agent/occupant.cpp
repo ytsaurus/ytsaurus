@@ -614,7 +614,6 @@ public:
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
                 occupier->GetOccupierAutomatonInvoker(),
-                Bootstrap_->GetTransactionTrackerInvoker(),
                 hydraManager,
                 Automaton_,
                 ResponseKeeper_,

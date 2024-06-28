@@ -20,4 +20,13 @@ void TTransactionSupervisorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransactionLeaseTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("thread_count", &TThis::ThreadCount)
+        .Default(1)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTransactionSupervisor

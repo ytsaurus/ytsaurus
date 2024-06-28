@@ -42,7 +42,6 @@ public:
             TCypressTransactionServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::CypressTransactionService,
             TransactionServerLogger())
-        , TrackerInvoker_(bootstrap->GetHydraFacade()->GetTransactionTrackerInvoker())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetHeavy(true));
@@ -51,14 +50,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
-            .SetInvoker(TrackerInvoker_));
+            .SetInvoker(GetSyncInvoker()));
 
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
     }
 
 private:
-    const IInvokerPtr TrackerInvoker_;
-
     void SyncWithSequoiaTransactions()
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
@@ -161,10 +158,7 @@ private:
             pingAncestors);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        // Any exception thrown here is replied to the client.
-        transactionManager->PingTransaction(transactionId, pingAncestors);
-
-        context->Reply();
+        context->ReplyFrom(transactionManager->PingTransaction(transactionId, pingAncestors));
     }
 };
 

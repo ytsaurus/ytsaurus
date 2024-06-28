@@ -26,6 +26,7 @@ using namespace NCellarClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NTabletServer;
+using namespace NTransactionSupervisor;
 using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,9 +66,9 @@ public:
         SlotManager_->Start();
     }
 
-    const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const override
     {
-        return GetCellarNodeBootstrap()->GetTransactionTrackerInvoker();
+        return GetCellarNodeBootstrap()->GetTransactionLeaseTrackerThreadPool();
     }
 
     const NCellarAgent::ICellarManagerPtr& GetCellarManager() const override

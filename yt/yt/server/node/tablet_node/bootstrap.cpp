@@ -74,6 +74,7 @@ using namespace NConcurrency;
 using namespace NDataNode;
 using namespace NQueryClient;
 using namespace NSecurityServer;
+using namespace NTransactionSupervisor;
 using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
@@ -458,9 +459,9 @@ public:
         return GetCellarNodeBootstrap()->GetCellarManager();
     }
 
-    const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const override
     {
-        return GetCellarNodeBootstrap()->GetTransactionTrackerInvoker();
+        return GetCellarNodeBootstrap()->GetTransactionLeaseTrackerThreadPool();
     }
 
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const override

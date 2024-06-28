@@ -39,8 +39,6 @@ public:
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) = 0;
 
-    virtual IInvokerPtr GetTransactionTrackerInvoker() = 0;
-
     virtual NConcurrency::IThreadPoolPtr GetSnapshotSaveBackgroundThreadPool() = 0;
     virtual NConcurrency::IThreadPoolPtr GetSnapshotLoadBackgroundThreadPool() = 0;
 

@@ -53,7 +53,6 @@ DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)
 ITransactionSupervisorPtr CreateTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
-    IInvokerPtr trackerInvoker,
     NHydra::IHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
     NRpc::IResponseKeeperPtr responseKeeper,

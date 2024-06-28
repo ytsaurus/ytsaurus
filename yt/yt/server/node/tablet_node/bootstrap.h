@@ -40,8 +40,8 @@ struct IBootstrap
 
     virtual const NCellarAgent::ICellarManagerPtr& GetCellarManager() const = 0;
 
-    // Invokers.
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const = 0;
+    // Threading.
+    virtual const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const = 0;
     virtual const IInvokerPtr& GetTableReplicatorPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const = 0;

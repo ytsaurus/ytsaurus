@@ -23,6 +23,8 @@
 #include <yt/yt/server/lib/hydra/dry_run/public.h>
 #include <yt/yt/server/lib/hydra/local_snapshot_store.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NCellarNode {
@@ -38,6 +40,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,9 +83,9 @@ public:
         return Bootstrap_->GetControlInvoker();
     }
 
-    IInvokerPtr GetTransactionTrackerInvoker() const override
+    const ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const override
     {
-        return Bootstrap_->GetTransactionTrackerInvoker();
+        return Bootstrap_->GetTransactionLeaseTrackerThreadPool();
     }
 
     IServerPtr GetRpcServer() const override
@@ -135,7 +138,9 @@ public:
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
-        TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
+        TransactionLeaseTrackerThreadPool_ = CreateTransactionLeaseTrackerThreadPool(
+            "TxTracker",
+            GetConfig()->CellarNode->TransactionLeaseTracker);
 
         // TODO(gritukan): Move TSecurityManager from Tablet Node.
         ResourceLimitsManager_ = New<NTabletNode::TSecurityManager>(GetConfig()->TabletNode->SecurityManager, this);
@@ -190,9 +195,9 @@ public:
     void Run() override
     { }
 
-    const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const override
     {
-        return TransactionTrackerQueue_->GetInvoker();
+        return TransactionLeaseTrackerThreadPool_;
     }
 
     const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
@@ -269,8 +274,7 @@ public:
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
-    TActionQueuePtr TransactionTrackerQueue_;
-
+    ITransactionLeaseTrackerThreadPoolPtr TransactionLeaseTrackerThreadPool_;
     IResourceLimitsManagerPtr ResourceLimitsManager_;
 
     ICellarManagerPtr CellarManager_;

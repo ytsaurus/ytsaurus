@@ -41,6 +41,7 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
@@ -103,6 +104,7 @@
 #include <yt/yt/server/master/transaction_server/cypress_transaction_service.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_service.h>
+#include <yt/yt/server/master/transaction_server/config.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
@@ -402,6 +404,11 @@ const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
 const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
+}
+
+const ITransactionLeaseTrackerThreadPoolPtr& TBootstrap::GetTransactionLeaseTrackerThreadPool() const
+{
+    return TransactionLeaseTrackerThreadPool_;
 }
 
 const ITransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
@@ -841,6 +848,10 @@ void TBootstrap::DoInitialize()
         .ValueOrThrow();
     SnapshotStore_ = snapshotStore;
 
+    TransactionLeaseTrackerThreadPool_ = CreateTransactionLeaseTrackerThreadPool(
+        "TxTracker",
+        Config_->TransactionLeaseTracker);
+
     HydraFacade_ = CreateHydraFacade(this);
 
     AlertManager_ = CreateAlertManager(this);
@@ -1027,7 +1038,6 @@ void TBootstrap::DoInitialize()
     TransactionSupervisor_ = CreateTransactionSupervisor(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
-        HydraFacade_->GetTransactionTrackerInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),

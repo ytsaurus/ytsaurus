@@ -45,10 +45,11 @@ class TTransactionAbortOptions;
 DECLARE_REFCOUNTED_STRUCT(ITransactionSupervisor)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
-
+DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTrackerThreadPool)
 DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTracker)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisorConfig)
+DECLARE_REFCOUNTED_CLASS(TTransactionLeaseTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

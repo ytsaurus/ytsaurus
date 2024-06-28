@@ -54,6 +54,9 @@ void TCellarNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
+
+    registrar.Parameter("transaction_lease_tracker", &TThis::TransactionLeaseTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

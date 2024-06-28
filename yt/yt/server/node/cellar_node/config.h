@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/config.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -79,6 +81,8 @@ public:
     NCellarAgent::TCellarManagerConfigPtr CellarManager;
 
     TMasterConnectorConfigPtr MasterConnector;
+
+    NTransactionSupervisor::TTransactionLeaseTrackerConfigPtr TransactionLeaseTracker;
 
     REGISTER_YSON_STRUCT(TCellarNodeConfig);
 

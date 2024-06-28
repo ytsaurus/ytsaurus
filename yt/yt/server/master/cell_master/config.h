@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/master/table_server/public.h>
@@ -303,6 +305,8 @@ public:
     NSecurityServer::TSecurityManagerConfigPtr SecurityManager;
 
     NTableServer::TTableManagerConfigPtr TableManager;
+
+    NTransactionSupervisor::TTransactionLeaseTrackerConfigPtr TransactionLeaseTracker;
 
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;

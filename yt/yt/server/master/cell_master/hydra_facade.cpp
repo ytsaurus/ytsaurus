@@ -41,8 +41,6 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -102,8 +100,6 @@ public:
             .ThrowOnError();
 
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
-
-        TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 
         ResponseKeeper_ = CreatePersistentResponseKeeper(
             NObjectServer::ObjectServerLogger(),
@@ -218,11 +214,6 @@ public:
         return GuardedInvokers_[queue];
     }
 
-
-    IInvokerPtr GetTransactionTrackerInvoker() override
-    {
-        return TransactionTrackerQueue_->GetInvoker();
-    }
 
     IThreadPoolPtr GetSnapshotSaveBackgroundThreadPool() override
     {
@@ -377,8 +368,6 @@ private:
     IEnumIndexedFairShareActionQueuePtr<EAutomatonThreadQueue> AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
-
-    TActionQueuePtr TransactionTrackerQueue_;
 
     IThreadPoolPtr SnapshotSaveBackgroundThreadPool_;
     IThreadPoolPtr SnapshotLoadBackgroundThreadPool_;

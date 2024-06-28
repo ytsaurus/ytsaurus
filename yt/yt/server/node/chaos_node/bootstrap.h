@@ -22,8 +22,8 @@ struct IBootstrap
     virtual void Initialize() = 0;
     virtual void Run() = 0;
 
-    // Invokers.
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const = 0;
+    // Threading.
+    virtual const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const = 0;
 
     // Chaos cells stuff.
     virtual const NCellarAgent::ICellarManagerPtr& GetCellarManager() const = 0;

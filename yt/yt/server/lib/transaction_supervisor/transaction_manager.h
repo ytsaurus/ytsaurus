@@ -88,7 +88,7 @@ struct ITransactionManager
         TTransactionId transactionId,
         const TTransactionAbortOptions& options) = 0;
 
-    virtual void PingTransaction(
+    virtual TFuture<void> PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) = 0;
 

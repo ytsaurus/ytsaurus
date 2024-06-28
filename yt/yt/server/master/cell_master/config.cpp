@@ -285,6 +285,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("table_manager", &TThis::TableManager)
         .DefaultNew();
+    registrar.Parameter("transaction_lease_tracker", &TThis::TransactionLeaseTracker)
+        .DefaultNew();
     registrar.Parameter("enable_provision_lock", &TThis::EnableProvisionLock)
         .Default(true);
     registrar.Parameter("bus_client", &TThis::BusClient)
