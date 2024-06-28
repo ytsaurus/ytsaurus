@@ -16,6 +16,8 @@ from yt.wrapper import yson
 
 
 class TestQueriesChyt(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
