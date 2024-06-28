@@ -67,7 +67,7 @@ func (c *Controller) buildCommand(speclet *Speclet, oplet *strawberry.Oplet) (co
 		"JUPYTER_ACO_NAMESPACE":    c.Family(),
 		"JUPYTER_ACO_ROOT_PATH":    strawberry.AccessControlNamespacesPath.String(),
 	}
-	for key, value := range c.config.ExtraEnvVars {
+	for key, value := range c.config.ExtraEnvVarsOrDefault() {
 		jupyterEnv[key] = value
 	}
 	return cmd, jupyterEnv
