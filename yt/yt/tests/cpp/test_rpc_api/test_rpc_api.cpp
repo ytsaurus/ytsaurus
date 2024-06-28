@@ -68,7 +68,11 @@ TString GetStickyProxyAddress(const ITransactionPtr& transaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TApiTestBase, TestDuplicateTransactionId)
+class TTransactionTest
+    : public TApiTestBase
+{ };
+
+TEST_F(TTransactionTest, DuplicateTransactionId)
 {
     TTransactionStartOptions options{
         .Id = MakeRandomId(EObjectType::AtomicTabletTransaction, MinValidCellTag)
@@ -98,7 +102,7 @@ TEST_F(TApiTestBase, TestDuplicateTransactionId)
         .ValueOrThrow();
 }
 
-TEST_F(TApiTestBase, TestStartTimestamp)
+TEST_F(TTransactionTest, StartTimestamp)
 {
     auto timestamp = WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
@@ -113,7 +117,7 @@ TEST_F(TApiTestBase, TestStartTimestamp)
     EXPECT_EQ(timestamp, transaction->GetStartTimestamp());
 }
 
-TEST_F(TApiTestBase, TestTransactionProxyAddress)
+TEST_F(TTransactionTest, TransactionProxyAddress)
 {
     // Prepare for tests: discover some proxy address.
     auto proxyAddress = GetStickyProxyAddress(WaitFor(Client_->StartTransaction(
@@ -169,7 +173,7 @@ TEST_F(TApiTestBase, TestTransactionProxyAddress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TModifyRowsTest, TestAttachTabletTransaction)
+TEST_F(TModifyRowsTest, AttachTabletTransaction)
 {
     auto transaction = WaitFor(Client_->StartTransaction(
         NTransactionClient::ETransactionType::Tablet))
@@ -243,7 +247,7 @@ TEST_F(TModifyRowsTest, TestAttachTabletTransaction)
     EXPECT_THROW(WaitFor(transaction3->Commit()).ValueOrThrow(), TErrorException);
 }
 
-TEST_F(TModifyRowsTest, TestModificationsFlushedSignal)
+TEST_F(TModifyRowsTest, ModificationsFlushedSignal)
 {
     auto transaction = WaitFor(Client_->StartTransaction(
         NTransactionClient::ETransactionType::Tablet))
@@ -263,7 +267,7 @@ TEST_F(TModifyRowsTest, TestModificationsFlushedSignal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TModifyRowsTest, TestReordering)
+TEST_F(TModifyRowsTest, Reordering)
 {
     const int rowCount = 20;
 
@@ -280,7 +284,7 @@ TEST_F(TModifyRowsTest, TestReordering)
     ValidateTableContent(expected);
 }
 
-TEST_F(TModifyRowsTest, TestIgnoringSeqNumbers)
+TEST_F(TModifyRowsTest, IgnoringSeqNumbers)
 {
     WriteSimpleRow(0, 10, 4);
     WriteSimpleRow(1, 11, 3);
@@ -329,7 +333,7 @@ public:
     }
 };
 
-TEST_F(TMultiLookupTest, TestMultiLookup)
+TEST_F(TMultiLookupTest, MultiLookup)
 {
     WriteUnversionedRow(
         {"k0", "v1"},
@@ -384,6 +388,11 @@ class TClearTmpTestBase
     : public TApiTestBase
 {
 public:
+    static TYPath MakeRandomTmpPath()
+    {
+        return Format("//tmp/%v", TGuid::Create());
+    }
+
     static void TearDownTestCase()
     {
         WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
@@ -393,391 +402,130 @@ public:
     }
 };
 
-TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
+////////////////////////////////////////////////////////////////////////////////
+
+class TAnyTypeTest
+    : public TClearTmpTestBase
+{ };
+
+TEST_F(TAnyTypeTest, YsonValidation)
 {
-    TRichYPath tablePath("//tmp/test_any_validation");
-
-    TCreateNodeOptions options;
-    options.Attributes = NYTree::CreateEphemeralAttributes();
-    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
-    options.Force = true;
-
-    // Empty yson.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    auto test = [&] (const TUnversionedValue& value) {
+        auto path = MakeRandomTmpPath();
+        TCreateNodeOptions options;
+        options.Attributes = NYTree::CreateEphemeralAttributes();
+        options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
+        options.Force = true;
+        WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
             .ThrowOnError();
 
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        auto value = MakeUnversionedAnyValue("");
         TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
+        std::vector<TUnversionedRow> rows{owningRow};
         YT_VERIFY(writer->Write(rows));
         EXPECT_THROW_WITH_ERROR_CODE(
             WaitFor(writer->Close()).ThrowOnError(),
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(path + "/@row_count"))
             .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
-    }
 
+    };
 
-    // Non-empty invalid yson.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedAnyValue("{foo");
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        EXPECT_THROW_WITH_ERROR_CODE(
-            WaitFor(writer->Close()).ThrowOnError(),
-            NYT::NTableClient::EErrorCode::SchemaViolation);
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 0);
-    }
-
-    // Composite value with invalid yson.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedCompositeValue("{foo");
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        EXPECT_THROW_WITH_ERROR_CODE(
-            WaitFor(writer->Close()).ThrowOnError(),
-            NYT::NTableClient::EErrorCode::SchemaViolation);
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 0);
-    }
-
-    // Valid value of another type should not be checked.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedInt64Value(42);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
+    test(MakeUnversionedAnyValue(""));
+    test(MakeUnversionedAnyValue("{foo"));
+    test(MakeUnversionedCompositeValue("{foo"));
 }
 
-TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
+TEST_F(TAnyTypeTest, CompatibleTypes)
 {
-    TRichYPath tablePath("//tmp/test_any_compatible_types");
-    TCreateNodeOptions options;
-    options.Attributes = NYTree::CreateEphemeralAttributes();
-    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
-    options.Force = true;
-
-    // Null.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    auto test = [&] (const TUnversionedValue& value) {
+        auto path = MakeRandomTmpPath();
+        TCreateNodeOptions options;
+        options.Attributes = NYTree::CreateEphemeralAttributes();
+        options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
+        options.Force = true;
+        WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
             .ThrowOnError();
 
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        auto value = MakeUnversionedNullValue();
         TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
+        std::vector<TUnversionedRow> rows{owningRow};
         YT_VERIFY(writer->Write(rows));
         WaitFor(writer->Close())
             .ThrowOnError();
 
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(path + "/@row_count"))
             .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
-    }
+    };
 
-    // Int64.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedInt64Value(1);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Uint64.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedUint64Value(1);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Boolean.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedBooleanValue(false);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Double.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedDoubleValue(4.2);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // String.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedStringValue("hello world!");
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Any.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto ysonString = ConvertToYsonString(42);
-        auto value = MakeUnversionedAnyValue(ysonString.AsStringBuf());
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Composite.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedCompositeValue("[1; {a=1; b=2}]");
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        WaitFor(writer->Close())
-            .ThrowOnError();
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 1);
-    }
-
-    // Min is not compatible.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedSentinelValue(EValueType::Min);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        EXPECT_THROW_WITH_ERROR_CODE(
-            WaitFor(writer->Close()).ThrowOnError(),
-            NYT::NTableClient::EErrorCode::SchemaViolation);
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 0);
-    }
-
-    // Max is not compatible.
-
-    {
-        WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
-            .ThrowOnError();
-
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
-            .ValueOrThrow();
-
-        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
-
-        auto value = MakeUnversionedSentinelValue(EValueType::Max);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
-
-        std::vector<TUnversionedRow> rows;
-        rows.push_back(owningRow);
-        YT_VERIFY(writer->Write(rows));
-        EXPECT_THROW_WITH_ERROR_CODE(
-            WaitFor(writer->Close()).ThrowOnError(),
-            NYT::NTableClient::EErrorCode::SchemaViolation);
-
-        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-            .ValueOrThrow());
-        EXPECT_EQ(rowCount, 0);
-    }
+    test(MakeUnversionedNullValue());
+    test(MakeUnversionedInt64Value(1));
+    test(MakeUnversionedUint64Value(1));
+    test(MakeUnversionedBooleanValue(false));
+    test(MakeUnversionedDoubleValue(4.2));
+    test(MakeUnversionedStringValue("hello world!"));
+    test(MakeUnversionedAnyValue("42"));
+    test(MakeUnversionedCompositeValue("[1; {a=1; b=2}]"));
 }
 
-TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
+TEST_F(TAnyTypeTest, IncompatibleTypes)
 {
-    TRichYPath tablePath{"//tmp/test_empty_table_skiff_reading"};
+    auto test = [&] (const TUnversionedValue& value) {
+        auto path = MakeRandomTmpPath();
+        TCreateNodeOptions options;
+        options.Attributes = NYTree::CreateEphemeralAttributes();
+        options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Any}}));
+        options.Force = true;
+        WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
+
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        std::vector<TUnversionedRow> rows{owningRow};
+        YT_VERIFY(writer->Write(rows));
+        EXPECT_THROW_WITH_ERROR_CODE(
+            WaitFor(writer->Close()).ThrowOnError(),
+            NYT::NTableClient::EErrorCode::SchemaViolation);
+
+        auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(path + "/@row_count"))
+            .ValueOrThrow());
+        EXPECT_EQ(rowCount, 0);
+    };
+
+    test(MakeUnversionedSentinelValue(EValueType::Min));
+    test(MakeUnversionedSentinelValue(EValueType::Max));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSkiffTest
+    : public TClearTmpTestBase
+{ };
+
+TEST_F(TSkiffTest, EmptyTableSkiffReading_YT18817)
+{
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Int64}}));
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     for (int i = 0; i < 100; ++i) {
@@ -810,7 +558,7 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
 
         req->set_format(format.ToString());
 
-        ToProto(req->mutable_path(), tablePath);
+        ToProto(req->mutable_path(), path);
         auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
             .ValueOrThrow();
 
@@ -818,19 +566,18 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
     }
 }
 
-TEST_F(TClearTmpTestBase, TestErroneousSkiffReading_YTADMINREQ_32428)
+TEST_F(TSkiffTest, ErroneousSkiffReading_YTADMINREQ_32428)
 {
-    TRichYPath tablePath{"//tmp/test_errorneous_skiff_reading"};
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
-    // options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Int64}}));
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto aColumnId = writer->GetNameTable()->GetIdOrRegisterName("a");
 
@@ -874,51 +621,51 @@ TEST_F(TClearTmpTestBase, TestErroneousSkiffReading_YTADMINREQ_32428)
 
     req->set_format(format.ToString());
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
     EXPECT_THROW_WITH_SUBSTRING(stream->ReadAll(), "Unexpected type of");
 }
 
-TEST_F(TClearTmpTestBase, FordiddenFormat_YT_20098)
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcProxyFormatTest
+    : public TClearTmpTestBase
+{ };
+
+TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
 {
-    TString name = "foo";
-    if (!WaitFor(Client_->NodeExists("//sys/users/" + name)).ValueOrThrow()) {
+    TString userName = "foo";
+    if (!WaitFor(Client_->NodeExists("//sys/users/" + userName)).ValueOrThrow()) {
         TCreateObjectOptions options;
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("name", name);
+        attributes->Set("name", userName);
         options.Attributes = std::move(attributes);
         WaitFor(Client_->CreateObject(NObjectClient::EObjectType::User, options))
             .ThrowOnError();
     }
 
-    auto clientOptions = TClientOptions::FromUser(name);
+    auto clientOptions = TClientOptions::FromUser(userName);
     auto client_ = Connection_->CreateClient(clientOptions);
 
-    THashMap<TString, bool> enableFalse;
-    enableFalse["enable"] = false;
-    THashMap<TString, THashMap<TString, bool>> disableArrow;
-    disableArrow["arrow"] = enableFalse;
-    THashMap<TString, THashMap<TString, THashMap<TString, bool>>> formatsConf;
-    formatsConf["formats"] = disableArrow;
-
-    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(formatsConf))).ThrowOnError();
+    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", TYsonString(TString("{formats = {arrow = {enable = false}}}"))))
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(0.5));
 
-    TRichYPath tablePath("//tmp/forbidden_format");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
     options.Attributes->Set("optimize_for", "scan");
     options.Force = true;
 
-    WaitFor(client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
@@ -938,83 +685,83 @@ TEST_F(TClearTmpTestBase, FordiddenFormat_YT_20098)
 
     req->set_format(format.ToString());
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
 
     EXPECT_THROW_WITH_ERROR_CODE(WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow(), NYT::NApi::EErrorCode::FormatDisabled);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArrowTestBase
+class TArrowTest
     : public TClearTmpTestBase
-{ };
-
-std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
 {
-    auto buffer = arrow::Buffer(reinterpret_cast<const ui8*>(buf.data()), buf.size());
-    arrow::io::BufferReader bufferReader(buffer);
-    auto batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
-    auto batch = batchReader->Next().ValueOrDie();
-    return batch;
-}
-
-std::vector<i64> ReadIntegerArray(const std::shared_ptr<arrow::Array>& array)
-{
-    auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
-    YT_VERIFY(int64Array);
-    return {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
-}
-
-std::vector<ui32> ReadInterger32Array(const std::shared_ptr<arrow::Array>& array)
-{
-    auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
-    YT_VERIFY(int32Array);
-    return {int32Array->raw_values(), int32Array->raw_values() + int32Array->length()};
-}
-
-std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& array)
-{
-    auto arraySize = array->length();
-    auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
-    YT_VERIFY(binArray);
-
-    std::vector<std::string> stringArray;
-    for (int i = 0; i < arraySize; i++) {
-        stringArray.push_back(binArray->GetString(i));
+protected:
+    static std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
+    {
+        auto buffer = arrow::Buffer(reinterpret_cast<const ui8*>(buf.data()), buf.size());
+        arrow::io::BufferReader bufferReader(buffer);
+        auto batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+        auto batch = batchReader->Next().ValueOrDie();
+        return batch;
     }
-    return stringArray;
-}
 
-std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_ptr<arrow::Array>& array)
-{
-    auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
-    YT_VERIFY(dictArray);
-
-    auto indices = ReadInterger32Array(dictArray->indices());
-
-    // Get values array.
-    auto values =  ReadStringArray(dictArray->dictionary());
-
-    std::vector<std::string> result;
-    for (auto index : indices) {
-        auto value = values[index];
-        result.push_back(value);
+    static std::vector<i64> ReadIntegerArray(const std::shared_ptr<arrow::Array>& array)
+    {
+        auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
+        YT_VERIFY(int64Array);
+        return {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
     }
-    return result;
-}
 
-std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
-{
-    auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
-    YT_VERIFY(floatArray);
-    return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
-}
+    static std::vector<ui32> ReadInterger32Array(const std::shared_ptr<arrow::Array>& array)
+    {
+        auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
+        YT_VERIFY(int32Array);
+        return {int32Array->raw_values(), int32Array->raw_values() + int32Array->length()};
+    }
 
-TEST_F(TArrowTestBase, YTADMINREQ_33599)
+    static std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& array)
+    {
+        auto arraySize = array->length();
+        auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
+        YT_VERIFY(binArray);
+
+        std::vector<std::string> stringArray;
+        for (int i = 0; i < arraySize; i++) {
+            stringArray.push_back(binArray->GetString(i));
+        }
+        return stringArray;
+    }
+
+    static std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_ptr<arrow::Array>& array)
+    {
+        auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
+        YT_VERIFY(dictArray);
+
+        auto indices = ReadInterger32Array(dictArray->indices());
+
+        // Get values array.
+        auto values =  ReadStringArray(dictArray->dictionary());
+
+        std::vector<std::string> result;
+        for (auto index : indices) {
+            auto value = values[index];
+            result.push_back(value);
+        }
+        return result;
+    }
+
+    static std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
+    {
+        auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
+        YT_VERIFY(floatArray);
+        return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
+    }
+};
+
+TEST_F(TArrowTest, YTADMINREQ_33599)
 {
-    TRichYPath tablePath("//tmp/test_arrow_reading");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"StringColumn", EValueType::String}}));
@@ -1022,11 +769,11 @@ TEST_F(TArrowTestBase, YTADMINREQ_33599)
     options.Force = true;
     const int rowCount = 20;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("StringColumn");
         std::vector<TUnversionedRow> rows;
@@ -1052,7 +799,7 @@ TEST_F(TArrowTestBase, YTADMINREQ_33599)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
@@ -1079,7 +826,7 @@ TEST_F(TArrowTestBase, YTADMINREQ_33599)
     }
 }
 
-TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
+TEST_F(TArrowTest, ReadWithSystemColumns)
 {
     WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(THashMap<TString, int>{})))
         .ThrowOnError();
@@ -1090,18 +837,18 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
 
     Sleep(TDuration::Seconds(0.5));
 
-    TRichYPath tablePath("//tmp/test_arrow_reading_with_system_columns");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
     options.Attributes->Set("optimize_for", "scan");
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
 
         auto intColumnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
@@ -1137,7 +884,7 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
     req->set_enable_range_index(true);
     req->set_enable_row_index(true);
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
@@ -1161,20 +908,20 @@ TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
     }
 }
 
-TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
+TEST_F(TArrowTest, ReadWithoutSystemColumns)
 {
-    TRichYPath tablePath("//tmp/test_arrow_reading_without_system_columns");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
     options.Attributes->Set("optimize_for", "scan");
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
@@ -1193,7 +940,7 @@ TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
@@ -1220,20 +967,20 @@ TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
     }
 }
 
-TEST_F(TArrowTestBase, TestArrowNullColumns)
+TEST_F(TArrowTest, NullColumns)
 {
-    TRichYPath tablePath("//tmp/test_arrow_reading_null_columns");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"NullColumn", ESimpleLogicalValueType::Null}, {"VoidColumn", ESimpleLogicalValueType::Void}}));
     options.Attributes->Set("optimize_for", "scan");
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto nullColumnId = writer->GetNameTable()->GetIdOrRegisterName("NullColumn");
         auto nullValue = MakeUnversionedNullValue(nullColumnId);
@@ -1257,7 +1004,7 @@ TEST_F(TArrowTestBase, TestArrowNullColumns)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
@@ -1286,20 +1033,20 @@ TEST_F(TArrowTestBase, TestArrowNullColumns)
     }
 }
 
-TEST_F(TArrowTestBase, Float)
+TEST_F(TArrowTest, Float)
 {
-    TRichYPath tablePath("//tmp/test_arrow_reading");
+    auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"FloatColumn", ESimpleLogicalValueType::Float}}));
     options.Attributes->Set("optimize_for", "scan");
     options.Force = true;
 
-    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
         .ThrowOnError();
 
     {
-         auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+         auto writer = WaitFor(Client_->CreateTableWriter(path))
             .ValueOrThrow();
         auto floatColumnId = writer->GetNameTable()->GetIdOrRegisterName("FloatColumn");
         auto floatValue = MakeUnversionedDoubleValue(3.14, floatColumnId);
@@ -1319,7 +1066,7 @@ TEST_F(TArrowTestBase, Float)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    ToProto(req->mutable_path(), tablePath);
+    ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
         .ValueOrThrow();
 
