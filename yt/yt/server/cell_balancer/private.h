@@ -21,6 +21,7 @@ DECLARE_REFCOUNTED_STRUCT(ICellTracker)
 DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
 DECLARE_REFCOUNTED_STRUCT(IBundleController)
 DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
+DECLARE_REFCOUNTED_STRUCT(ICellDowntimeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,6 +20,7 @@ SRCS(
     program.cpp
     proxy_roles_manager.cpp
     bundle_controller_service.cpp
+    cell_downtime_tracker.cpp
 )
 
 PEERDIR(

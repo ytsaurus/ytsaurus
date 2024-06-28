@@ -6,6 +6,8 @@
 #include "config.h"
 #include "cypress_bindings.h"
 #include "orchid_bindings.h"
+#include "bundle_sensors.h"
+#include "cell_downtime_tracker.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -53,75 +55,12 @@ static const TString SensorTagInstanceSize = "instance_size";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBundleSensors final
-{
-    TProfiler Profiler;
-
-    TGauge CpuAllocated;
-    TGauge CpuAlive;
-    TGauge CpuQuota;
-
-    TGauge MemoryAllocated;
-    TGauge MemoryAlive;
-    TGauge MemoryQuota;
-
-    TGauge WriteThreadPoolSize;
-    TGauge TabletDynamicSize;
-    TGauge TabletStaticSize;
-    TGauge CompressedBlockCacheSize;
-    TGauge UncompressedBlockCacheSize;
-    TGauge KeyFilterBlockCacheSize;
-    TGauge VersionedChunkMetaSize;
-    TGauge LookupRowCacheSize;
-
-    THashMap<TString, TGauge> AliveNodesBySize;
-    THashMap<TString, TGauge> AliveProxiesBySize;
-
-    THashMap<TString, TGauge> AllocatedNodesBySize;
-    THashMap<TString, TGauge> AllocatedProxiesBySize;
-
-    THashMap<TString, TGauge> TargetTabletNodeSize;
-    THashMap<TString, TGauge> TargetRpcProxSize;
-
-    TGauge UsingSpareNodeCount;
-    TGauge UsingSpareProxyCount;
-
-    TGauge AssigningTabletNodes;
-    TGauge AssigningSpareNodes;
-    TGauge ReleasingSpareNodes;
-
-    TGauge OfflineNodeCount;
-    TGauge DecommissionedNodeCount;
-    TGauge OfflineProxyCount;
-    TGauge MaintenanceRequestedNodeCount;
-
-    TGauge InflightNodeAllocationCount;
-    TGauge InflightNodeDeallocationCount;
-    TGauge InflightCellRemovalCount;
-
-    TGauge InflightProxyAllocationCounter;
-    TGauge InflightProxyDeallocationCounter;
-
-    TTimeGauge NodeAllocationRequestAge;
-    TTimeGauge NodeDeallocationRequestAge;
-    TTimeGauge RemovingCellsAge;
-
-    TTimeGauge ProxyAllocationRequestAge;
-    TTimeGauge ProxyDeallocationRequestAge;
-
-    THashMap<TString, TGauge> AssignedBundleNodesPerDC;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TBundleAlertCounters
 {
     THashMap<TString, TCounter> IdToCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
 
 struct TZoneSensors final
 {
@@ -249,15 +188,16 @@ private:
     TCounter ChangedSystemAccountLimitCounter_;
     TCounter ChangedResourceLimitCounter_;
 
-    mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
-    mutable THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
+    THashMap<TString, TBundleSensorsPtr> BundleSensors_;
+    THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
 
-    mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
-    mutable Orchid::TZonesRacksInfo OrchidRacksInfo_;
+    Orchid::TBundlesInfo OrchidBundlesInfo_;
+    Orchid::TZonesRacksInfo OrchidRacksInfo_;
 
-    mutable THashMap<TString, TBundleAlertCounters> BundleAlerts_;
+    THashMap<TString, TBundleAlertCounters> BundleAlerts_;
+    ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
-    void ScanBundles() const
+    void ScanBundles()
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -272,7 +212,7 @@ private:
         ScanChaosCellBundles();
     }
 
-    void ScanTabletCellBundles() const
+    void ScanTabletCellBundles()
     {
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
@@ -287,7 +227,7 @@ private:
         }
     }
 
-    void ScanChaosCellBundles() const
+    void ScanChaosCellBundles()
     {
         try {
             DoScanChaosBundles();
@@ -297,13 +237,14 @@ private:
         }
     }
 
-    void ClearState() const
+    void ClearState()
     {
         OrchidBundlesInfo_.clear();
         OrchidRacksInfo_.clear();
         BundleAlerts_.clear();
         ZoneSensors_.clear();
         BundleSensors_.clear();
+        CellDowntimeTracker_.Reset();
     }
 
     void LinkOrchidService() const
@@ -409,7 +350,7 @@ private:
         return result;
     }
 
-    void DoScanTabletBundles() const
+    void DoScanTabletBundles()
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -440,9 +381,17 @@ private:
         // Update input state for serving orchid requests.
         OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState, mutations);
         OrchidRacksInfo_ = Orchid::GetZonesRacksInfo(inputState);
+
+        if (!CellDowntimeTracker_) {
+            CellDowntimeTracker_ = CreateCellDowntimeTracker();
+        }
+
+        CellDowntimeTracker_->HandleState(inputState, [this] (const TString& bundleName) {
+            return GetBundleSensors(bundleName);
+        });
     }
 
-    void DoScanChaosBundles() const
+    void DoScanChaosBundles()
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -484,7 +433,7 @@ private:
     inline static const TString  BundleAttributeNodeTagFilter = "node_tag_filter";
     inline static const TString  BundleAttributeTargetConfig = "bundle_controller_target_config";
 
-    void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
+    void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -563,7 +512,7 @@ private:
     void Mutate(
         const TChaosSchedulerMutations& mutations,
         const ITransactionPtr& transaction,
-        TForeignClientProvider* clientProvider) const
+        TForeignClientProvider* clientProvider)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -665,7 +614,7 @@ private:
         const TSchedulerInputState::TInstanceCountBySize& countBySize,
         const TString& sensorName,
         TProfiler& profiler,
-        THashMap<TString, TGauge>& sensors) const
+        THashMap<TString, TGauge>& sensors)
     {
         for (auto& [sizeName, count] : countBySize) {
             auto it = sensors.find(sizeName);
@@ -690,7 +639,7 @@ private:
         const TString& sensorName,
         int instanceCount,
         TProfiler& profiler,
-        THashMap<TString, TGauge>& sensors) const
+        THashMap<TString, TGauge>& sensors)
     {
         auto it = sensors.find(targetSizeName);
         if (it != sensors.end()) {
@@ -708,7 +657,7 @@ private:
         }
     }
 
-    void ReportInflightMetrics(const TSchedulerInputState& input, const TSchedulerMutations& mutations) const
+    void ReportInflightMetrics(const TSchedulerInputState& input, const TSchedulerMutations& mutations)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -758,7 +707,7 @@ private:
         }
     }
 
-    void ReportResourceUsage(TSchedulerInputState& input) const
+    void ReportResourceUsage(TSchedulerInputState& input)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -971,7 +920,7 @@ private:
         }
     }
 
-    void RegisterAlert(const TAlert& alert) const
+    void RegisterAlert(const TAlert& alert)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -993,7 +942,7 @@ private:
         it->second.Increment(1);
     }
 
-    TBundleSensorsPtr GetBundleSensors(const TString& bundleName) const
+    TBundleSensorsPtr GetBundleSensors(const TString& bundleName)
     {
         auto it = BundleSensors_.find(bundleName);
         if (it != BundleSensors_.end()) {
@@ -1045,12 +994,13 @@ private:
 
         sensors->ProxyAllocationRequestAge = bundleProfiler.TimeGauge("/proxy_allocation_request_age");
         sensors->ProxyDeallocationRequestAge = bundleProfiler.TimeGauge("/proxy_deallocation_request_age");
+        sensors->BundleCellsDowntime = bundleProfiler.TimeGauge("/bundle_cells_downtime");
 
         BundleSensors_[bundleName] = sensors;
         return sensors;
     }
 
-    TZoneSensorsPtr GetZoneSensors(const TString& zoneName, const TString& dataCenter) const
+    TZoneSensorsPtr GetZoneSensors(const TString& zoneName, const TString& dataCenter)
     {
         auto it = ZoneSensors_.find(zoneName);
         if (it != ZoneSensors_.end()) {

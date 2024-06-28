@@ -211,6 +211,8 @@ struct TTabletCellPeer
 {
     TString Address;
     TString State;
+    TString LastSeenState;
+    TInstant LastSeenTime;
 
     REGISTER_YSON_STRUCT(TTabletCellPeer);
 

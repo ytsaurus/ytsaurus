@@ -54,5 +54,6 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_downtime_tracker.cpp
 )
 

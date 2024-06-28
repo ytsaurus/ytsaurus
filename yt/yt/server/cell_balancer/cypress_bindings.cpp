@@ -111,6 +111,10 @@ void TTabletCellPeer::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("state", &TThis::State)
         .Default();
+    registrar.Parameter("last_seen_state", &TThis::LastSeenState)
+        .Default();
+    registrar.Parameter("last_seen_time", &TThis::LastSeenTime)
+        .Default();
 }
 
 void TAbcInfo::Register(TRegistrar registrar)
