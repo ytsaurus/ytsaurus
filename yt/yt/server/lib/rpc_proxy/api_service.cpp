@@ -4153,6 +4153,11 @@ private:
                 auto* response = &context->Response();
                 response->set_last_sequence_number(pushQueueProducerResult.LastSequenceNumber.Underlying());
                 response->set_skipped_row_count(pushQueueProducerResult.SkippedRowCount);
+
+                context->SetResponseInfo(
+                    "LastSequenceNumber: %v, SkippedRowCount: %v",
+                    pushQueueProducerResult.LastSequenceNumber.Underlying(),
+                    pushQueueProducerResult.SkippedRowCount);
             });
     }
 

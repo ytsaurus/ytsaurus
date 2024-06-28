@@ -44,21 +44,18 @@ std::optional<TQueueProducerSequenceNumber> GetSequenceNumberFromRow(
     TUnversionedRow row,
     int sequenceNumberColumnId)
 {
-    TQueueProducerSequenceNumber sequenceNumber{-1};
-
     for (const auto& value : row) {
         if (value.Id == sequenceNumberColumnId && value.Type != EValueType::Null) {
             try {
-                FromUnversionedValue(&sequenceNumber, value);
-                return sequenceNumber;
+                return TQueueProducerSequenceNumber{FromUnversionedValue<i64>(value)};
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing sequence number from row, Int64 was expected")
+                THROW_ERROR_EXCEPTION("Error parsing sequence number from row")
                     << ex;
             }
         }
     }
 
-    return {};
+    return std::nullopt;
 }
 
 TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
@@ -69,16 +66,18 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
 {
     auto sequenceNumberColumnId = nameTable->GetIdOrRegisterName(SequenceNumberColumnName);
 
-    std::optional<TQueueProducerSequenceNumber> nextSequenceNumber = initialSequenceNumber;
+    auto nextSequenceNumber = initialSequenceNumber;
 
     TQueueProducerSequenceNumber lastSequenceNumber{-1};
     i64 skipRowCount = 0;
 
-    auto updateLastSequenceNumber = [&lastSequenceNumber](TQueueProducerSequenceNumber sequenceNumber) {
+    auto updateLastSequenceNumber = [&lastSequenceNumber] (TQueueProducerSequenceNumber sequenceNumber) {
         if (sequenceNumber <= lastSequenceNumber) {
             THROW_ERROR_EXCEPTION(
                 NQueueClient::EErrorCode::InvalidRowSequenceNumbers,
-                "Sequence numbers are not strongly monotonic");
+                "Sequence numbers are not strongly monotonic: %v <= %v",
+                sequenceNumber,
+                lastSequenceNumber);
         }
         lastSequenceNumber = sequenceNumber;
     };
