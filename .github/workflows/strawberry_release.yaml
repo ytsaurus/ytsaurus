@@ -29,6 +29,8 @@ jobs:
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
           disk-size: 93GB
+          public-ip: false
+          ttl: PT24H
 
   checkout:
     name: Checkout
