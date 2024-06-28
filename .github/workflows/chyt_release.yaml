@@ -32,6 +32,8 @@ jobs:
           public-ip: false
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT24H
 
   checkout:
     name: Checkout
