@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 
 const leaseTimeoutMicroseconds = 60 * 1000 * 1000
 
-func getDiscoveryClientAndServers(t *testing.T, env *yttest.Env) (yt.DiscoveryClient, []string) {
+func getDiscoveryClientAndServers(t *testing.T, env *yttest.Env) (yt.DiscoveryClient, string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(env.Ctx, time.Minute)
@@ -36,7 +35,19 @@ func getDiscoveryClientAndServers(t *testing.T, env *yttest.Env) (yt.DiscoveryCl
 	})
 	require.NoError(t, err)
 
-	return client, servers
+	var sysFolders []string
+	err = env.YT.ListNode(ctx, ypath.Path("//sys"), &sysFolders, nil)
+	require.NoError(t, err)
+
+	discoveryServerPath := "//sys/"
+	if slices.Contains(sysFolders, "discovery_servers") {
+		discoveryServerPath += "discovery_servers/"
+	} else {
+		discoveryServerPath += "primary_masters/"
+	}
+	discoveryServerPath += servers[0]
+
+	return client, discoveryServerPath
 }
 
 func initMembers(
@@ -73,7 +84,7 @@ func TestDiscoveryClient(t *testing.T) {
 
 	env := yttest.New(t)
 
-	dc, servers := getDiscoveryClientAndServers(t, env)
+	dc, discoveryServerPath := getDiscoveryClientAndServers(t, env)
 	defer dc.Stop()
 
 	ctx, cancel := context.WithTimeout(env.Ctx, time.Minute)
@@ -117,7 +128,7 @@ func TestDiscoveryClient(t *testing.T) {
 			}, leaseTimeoutMicroseconds, nil)
 			require.NoError(t, err)
 
-			groupPath := ypath.Path(fmt.Sprintf("//sys/primary_masters/%v/orchid/discovery_server/test/heartbeat", servers[0]))
+			groupPath := ypath.Path(discoveryServerPath + "/orchid/discovery_server/test/heartbeat")
 
 			checkGroup(groupPath, 1)
 			checkMember(groupPath, "member1")

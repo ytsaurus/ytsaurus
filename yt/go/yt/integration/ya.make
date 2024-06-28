@@ -2,6 +2,10 @@ GO_TEST()
 
 SIZE(MEDIUM)
 
+IF (OPENSOURCE AND AUTOCHECK)
+    SKIP_TEST(Tests use docker)
+ENDIF()
+
 IF (NOT OPENSOURCE)
     INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_tablets.inc)
 ENDIF()
@@ -35,7 +39,14 @@ GO_TEST_SRCS(
 
 IF (NOT OPENSOURCE)
     GO_TEST_SRCS(
+        main_internal_test.go
         tracing_test.go
+    )
+ENDIF()
+
+IF (OPENSOURCE)
+    GO_TEST_SRCS(
+        main_test.go
     )
 ENDIF()
 

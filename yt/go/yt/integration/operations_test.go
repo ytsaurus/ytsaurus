@@ -255,11 +255,3 @@ func (c *HelloJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapre
 func init() {
 	mapreduce.Register(&HelloJob{})
 }
-
-func TestMain(m *testing.M) {
-	if mapreduce.InsideJob() {
-		os.Exit(mapreduce.JobMain())
-	}
-
-	os.Exit(m.Run())
-}
