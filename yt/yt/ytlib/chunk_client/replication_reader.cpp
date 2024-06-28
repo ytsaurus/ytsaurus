@@ -165,9 +165,9 @@ public:
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , ChunkProber_(New<TChunkProber>(this))
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v",
             ChunkId_))
+        , ChunkProber_(New<TChunkProber>(this))
         , InitialSeeds_(std::move(seedReplicas))
     {
         YT_VERIFY(NodeDirectory_);
@@ -263,9 +263,9 @@ private:
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
-    const TChunkProberPtr ChunkProber_;
-
     const NLogging::TLogger Logger;
+
+    const TChunkProberPtr ChunkProber_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
@@ -412,12 +412,11 @@ public:
         IInvokerPtr Invoker;
     };
 
-    explicit TChunkProber(
-        TReplicationReader* reader)
+    explicit TChunkProber(TReplicationReader* reader)
         : ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
         , ChunkId_(reader->ChunkId_)
-        , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
+        , Logger(reader->Logger)
     { }
 
     TFuture<TPeerResponsePtr> ProbeBlockSet(const TProbeRequest& request)

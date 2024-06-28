@@ -255,7 +255,7 @@ public:
     }
 
 private:
-    struct TGetBlockResponseBillet
+    struct TGetBlockResponseTemplate
     {
         IChunkPtr Chunk;
         TWorkloadDescriptor WorkloadDescriptor;
@@ -265,7 +265,7 @@ private:
         bool DiskThrottling;
         long DiskQueueSize;
         bool ThrottledLargeBlock;
-        const TChunkReaderStatisticsPtr ChunkReaderStatistics;
+        TChunkReaderStatisticsPtr ChunkReaderStatistics;
     };
 
     const TDataNodeConfigPtr Config_;
@@ -820,7 +820,7 @@ private:
         const TRequest* request,
         bool fetchFromCache,
         bool fetchFromDisk,
-        TChunkReaderStatisticsPtr chunkReaderStatistics) const
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
     {
         TChunkReadOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -829,9 +829,7 @@ private:
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
         options.ChunkReaderStatistics = chunkReaderStatistics;
-        options.ReadSessionId = request->has_read_session_id()
-            ? FromProto<TReadSessionId>(request->read_session_id())
-            : TReadSessionId{};
+        options.ReadSessionId = FromProto<TReadSessionId>(request->read_session_id());
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
 
         if (context->GetTimeout() && context->GetStartTime()) {
@@ -847,27 +845,27 @@ private:
     TFuture<void> PrepareGetBlocksResponse(
         const TIntrusivePtr<TContext>& context,
         TResponse* response,
-        TGetBlockResponseBillet responseBillet,
+        TGetBlockResponseTemplate responseTemplate,
         const std::vector<NChunkClient::TBlock>& blocks) const
     {
-        auto netThrottling = responseBillet.NetThrottling;
+        auto netThrottling = responseTemplate.NetThrottling;
 
         if (!netThrottling) {
             SetRpcAttachedBlocks(response, blocks);
         }
 
         auto blocksSize = GetByteSize(response->Attachments());
-        if (blocksSize == 0 && responseBillet.ThrottledLargeBlock) {
+        if (blocksSize == 0 && responseTemplate.ThrottledLargeBlock) {
             netThrottling = true;
         }
 
         response->set_net_throttling(netThrottling);
 
-        auto chunkReaderStatistics = responseBillet.ChunkReaderStatistics;
+        auto chunkReaderStatistics = responseTemplate.ChunkReaderStatistics;
         auto bytesReadFromDisk =
             chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
             chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
-        auto chunk = responseBillet.Chunk;
+        auto chunk = responseTemplate.Chunk;
         const auto& ioTracker = Bootstrap_->GetIOTracker();
 
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
@@ -889,12 +887,12 @@ private:
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
-            responseBillet.HasCompleteChunk,
+            responseTemplate.HasCompleteChunk,
             netThrottling,
-            responseBillet.NetQueueSize,
-            responseBillet.DiskThrottling,
-            responseBillet.DiskQueueSize,
-            responseBillet.ThrottledLargeBlock,
+            responseTemplate.NetQueueSize,
+            responseTemplate.DiskThrottling,
+            responseTemplate.DiskQueueSize,
+            responseTemplate.ThrottledLargeBlock,
             blocksWithData,
             blocksSize);
 
@@ -903,7 +901,7 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
-            const auto& netThrottler = Bootstrap_->GetOutThrottler(responseBillet.WorkloadDescriptor);
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
             return netThrottler->Throttle(blocksSize);
         } else {
             return VoidFuture;
@@ -915,9 +913,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
-        auto readSessionId = request->has_read_session_id()
-            ? FromProto<TReadSessionId>(request->read_session_id())
-            : TReadSessionId{};
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         bool populateCache = request->populate_cache();
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
@@ -959,17 +955,18 @@ private:
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        struct TReadBlocksResult {
+        struct TReadBlocksResult
+        {
             bool ReadFromP2P;
             std::vector<TBlock> Blocks;
         };
 
-        auto readBlocks = BIND([=, this, this_ = MakeStrong(this)] () {
+        auto readBlocks = BIND([=, this, this_ = MakeStrong(this)] {
             bool readFromP2P = false;
             TFuture<std::vector<TBlock>> blocksFuture;
 
             if (fetchFromCache || fetchFromDisk) {
-                TChunkReadOptions options = PrepareChunkReadOptions(
+                auto options = PrepareChunkReadOptions(
                     context,
                     request,
                     fetchFromCache && !netThrottling.Enabled,
@@ -996,23 +993,23 @@ private:
             }
 
             return blocksFuture
-                .Apply(BIND([readFromP2P = readFromP2P] (const std::vector<TBlock>& blocks) {
+                .ApplyUnique(BIND([=] (std::vector<TBlock>&& blocks) {
                     return TReadBlocksResult{
                         .ReadFromP2P = readFromP2P,
-                        .Blocks = blocks,
+                        .Blocks = std::move(blocks),
                     };
                 }));
         });
 
-        TFuture<TReadBlocksResult> blocksFuture = WaitP2PBarriers(request)
+        auto blocksFuture = WaitP2PBarriers(request)
             .Apply(readBlocks);
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
         // of a new fiber and an increase in the number of stacks.
-        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (const TReadBlocksResult& result) {
+        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (TReadBlocksResult&& result) {
             auto readFromP2P = result.ReadFromP2P;
-            auto blocks = result.Blocks;
+            auto& blocks = result.Blocks;
 
             // NB: P2P manager might steal blocks and assign null values.
             const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
@@ -1028,7 +1025,7 @@ private:
             return PrepareGetBlocksResponse(
                 context,
                 response,
-                TGetBlockResponseBillet{
+                TGetBlockResponseTemplate{
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,
@@ -1039,18 +1036,16 @@ private:
                     .ThrottledLargeBlock = throttledLargeBlock,
                     .ChunkReaderStatistics = chunkReaderStatistics,
                 },
-                std::move(blocks));
+                std::move(result.Blocks));
         });
 
-        context->ReplyFrom(blocksFuture.Apply(onBlocksRead));
+        context->ReplyFrom(blocksFuture.ApplyUnique(onBlocksRead));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto readSessionId = request->has_read_session_id()
-            ? FromProto<TReadSessionId>(request->read_session_id())
-            : TReadSessionId{};
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
 
         SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockRange"), ToString(readSessionId));
 
@@ -1107,7 +1102,7 @@ private:
             return PrepareGetBlocksResponse(
                 context,
                 response,
-                TGetBlockResponseBillet{
+                TGetBlockResponseTemplate{
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,
