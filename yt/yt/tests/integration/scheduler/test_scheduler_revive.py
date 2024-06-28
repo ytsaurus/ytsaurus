@@ -774,7 +774,6 @@ class OperationReviveBase(YTEnvSetup):
 
         op = None
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            # time.sleep(1)
             op = map(
                 track=False,
                 command="cat",
@@ -788,9 +787,7 @@ class OperationReviveBase(YTEnvSetup):
             )
 
             # Wait for scheduler to fail to assign controller agent.
-            time.sleep(0.5)
-
-            assert op.get_state() == "waiting_for_agent"
+            wait(lambda: op.get_state() == "waiting_for_agent")
 
             # NB: Scheduler's restart is essential. Otherwise, operation will not be revived - just started from scratch
             with Restarter(self.Env, SCHEDULERS_SERVICE):
