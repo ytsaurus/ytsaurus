@@ -50,7 +50,7 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
-func (c *Controller) buildCommand(oplet *strawberry.Oplet) (command string, env map[string]string) {
+func (c *Controller) buildCommand(speclet *Speclet, oplet *strawberry.Oplet) (command string, env map[string]string) {
 	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
@@ -83,7 +83,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	description = map[string]any{}
 
 	// Build command.
-	command, env := c.buildCommand(oplet)
+	command, env := c.buildCommand(&speclet, oplet)
 
 	spec = map[string]any{
 		"tasks": map[string]any{
