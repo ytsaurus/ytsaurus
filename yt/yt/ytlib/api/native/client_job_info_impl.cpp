@@ -304,8 +304,7 @@ TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     NRpc::IChannelPtr nodeChannel)
 {
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
-    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto jobProberServiceProxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
 
     auto req = jobProberServiceProxy.GetSpec();
     ToProto(req->mutable_job_id(), jobId);
@@ -593,9 +592,8 @@ void TClient::DoDumpJobContext(
             .ValueOrThrow();
     }();
 
-    auto nodeChannel = ChannelFactory_->CreateChannel(allocationBriefInfo.NodeDescriptor);
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
-    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto jobProberServiceProxy = CreateNodeJobProberServiceProxy(
+        ChannelFactory_->CreateChannel(allocationBriefInfo.NodeDescriptor));
 
     auto req = jobProberServiceProxy.DumpInputContext();
     ToProto(req->mutable_job_id(), jobId);
@@ -910,8 +908,7 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     }
     auto nodeChannel = std::move(nodeChannelOrError).Value();
 
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
-    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto jobProberServiceProxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
 
     auto rspOrError = RetryJobIsNotRunning(
         operationId,
@@ -1028,8 +1025,7 @@ TSharedRef TClient::DoGetJobFailContextFromNode(
     }
     auto nodeChannel = std::move(nodeChannelOrError).Value();
 
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
-    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto jobProberServiceProxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
 
     auto rspOrError = RetryJobIsNotRunning(
         operationId,
@@ -2327,6 +2323,13 @@ TYsonString TClient::DoGetJob(
         .Do([&] (TFluentAny fluent) {
             Serialize(job, fluent.GetConsumer(), "job_id");
         });
+}
+
+NJobProberClient::TJobProberServiceProxy TClient::CreateNodeJobProberServiceProxy(IChannelPtr nodeChannel)
+{
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    return jobProberServiceProxy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

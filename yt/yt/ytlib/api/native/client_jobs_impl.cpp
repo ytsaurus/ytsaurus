@@ -148,8 +148,7 @@ TPollJobShellResponse TClient::DoPollJobShell(
         jobShellDescriptor);
 
     auto nodeChannel = ChannelFactory_->CreateChannel(jobShellDescriptor.NodeDescriptor);
-    TJobProberServiceProxy proxy(std::move(nodeChannel));
-    proxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto proxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
 
     auto req = proxy.PollJobShell();
     ToProto(req->mutable_job_id(), jobId);
@@ -208,8 +207,8 @@ void TClient::DoAbortJob(
             allocationBriefInfo.ControllerAgentDescriptor.IncarnationId,
             *options.InterruptTimeout);
     } else {
-        TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
-            allocationBriefInfo.NodeDescriptor));
+        auto proxy = CreateNodeJobProberServiceProxy(
+            ChannelFactory_->CreateChannel(allocationBriefInfo.NodeDescriptor));
         RequestJobAbort(proxy, jobId, Options_.GetAuthenticatedUser());
     }
 }
@@ -225,9 +224,7 @@ void TClient::DoDumpJobProxyLog(
     auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read))
         .ValueOrThrow();
 
-    // TODO(ignat): introduce MakeJobProberServiceProxy to avoid copy-paste of SetDefaultTimeout.
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
-    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    auto jobProberServiceProxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
 
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();

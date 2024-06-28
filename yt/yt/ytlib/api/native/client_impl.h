@@ -1384,6 +1384,10 @@ private:
         TInstant deadline,
         const THashSet<TString>& attributes);
 
+
+    NJobProberClient::TJobProberServiceProxy CreateNodeJobProberServiceProxy(
+        NRpc::IChannelPtr nodeChannel);
+
     //
     // Administration
     //
