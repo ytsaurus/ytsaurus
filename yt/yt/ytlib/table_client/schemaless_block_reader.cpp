@@ -282,7 +282,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         if (IsHunkValue(value)) {
-            YT_VERIFY(GetKeyColumnCount() <= value.Id);
+            YT_VERIFY(GetChunkKeyColumnCount() <= value.Id);
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
                 HunkChunkRefs_,
