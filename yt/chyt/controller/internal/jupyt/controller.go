@@ -3,7 +3,6 @@ package jupyt
 import (
 	"context"
 	"fmt"
-
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -17,6 +16,26 @@ const (
 )
 
 type Config struct {
+	YtAuthCookieName *string           `yson:"yt_auth_cookie_name"`
+	ExtraEnvVars     map[string]string `json:"extra_env_vars"`
+}
+
+const (
+	DefaultYtAuthCookieName = ""
+)
+
+func (c *Config) YtAuthCookieNameOrDefault() string {
+	if c.YtAuthCookieName != nil {
+		return *c.YtAuthCookieName
+	}
+	return DefaultYtAuthCookieName
+}
+
+func (c *Config) ExtraEnvVarsOrDefault() map[string]string {
+	if c.ExtraEnvVars != nil {
+		return c.ExtraEnvVars
+	}
+	return make(map[string]string)
 }
 
 type Controller struct {
@@ -31,17 +50,27 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
-func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
+func (c *Controller) buildCommand(oplet *strawberry.Oplet) (command string, env map[string]string) {
 	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
+
 	cmd := fmt.Sprintf(
 		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
-	return cmd, map[string]string{
-		"NB_GID":  "0",
-		"NB_UID":  "0",
-		"NB_USER": "root",
+	jupyterEnv := map[string]string{
+		"NB_GID":                   "0",
+		"NB_UID":                   "0",
+		"NB_USER":                  "root",
+		"JUPYTER_YT_HOST":          c.cluster,
+		"JUPYTER_AUTH_COOKIE_NAME": c.config.YtAuthCookieNameOrDefault(),
+		"JUPYTER_ACO_NAME":         oplet.Alias(),
+		"JUPYTER_ACO_NAMESPACE":    c.Family(),
+		"JUPYTER_ACO_ROOT_PATH":    strawberry.AccessControlNamespacesPath.String(),
 	}
+	for key, value := range c.config.ExtraEnvVars {
+		jupyterEnv[key] = value
+	}
+	return cmd, jupyterEnv
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
@@ -54,7 +83,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	description = map[string]any{}
 
 	// Build command.
-	command, env := c.buildCommand(&speclet)
+	command, env := c.buildCommand(oplet)
 
 	spec = map[string]any{
 		"tasks": map[string]any{
