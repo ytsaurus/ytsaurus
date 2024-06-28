@@ -286,6 +286,7 @@ private:
             if (TInstant::Now() - LastSuccessfulSyncTime_ > Config_->ExpireAfterSuccessfulSyncTime) {
                 auto lock = getLock();
                 removeAllObjectsExcept({});
+                LastSeenObjectRevisions_.clear();
             }
         }
     }
