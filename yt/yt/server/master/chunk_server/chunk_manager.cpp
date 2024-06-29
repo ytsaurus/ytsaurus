@@ -3208,7 +3208,8 @@ private:
 
         auto refreshSequoiaChunks = [&] (const auto& chunkInfos) {
             for (const auto& chunkInfo : chunkInfos) {
-                auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto* chunk = FindChunk(chunkIdWithIndex.Id);
                 if (IsObjectAlive(chunk)) {
                     ScheduleChunkRefresh(chunk);
                 }
@@ -3229,6 +3230,7 @@ private:
         // which is not the case if Sequoia replicas are no longer stored on master.
         refreshSequoiaChunks(request->removed_chunks());
     }
+
     static void BuildReplicasListYson(
         IYsonConsumer* consumer,
         const std::vector<TChunkReplicaWithLocation>& replicas)
