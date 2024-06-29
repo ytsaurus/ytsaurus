@@ -79,7 +79,7 @@ struct ICellarOccupant
     virtual void PopulateAlerts(std::vector<TError>* alerts) const = 0;
 
     // Auxiliary.
-    virtual int EstimateChangelogMediumBytes(int payload) const = 0;
+    virtual i64 EstimateChangelogMediumBytes(i64 payload) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarOccupant)

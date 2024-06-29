@@ -110,7 +110,7 @@ message TPutBlocksStatistics
 message TRspPutBlocks
 {
     optional bool close_demanded = 1 [default = false];
-    optional TPutBlocksStatistics Statistics = 2;
+    optional TPutBlocksStatistics statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

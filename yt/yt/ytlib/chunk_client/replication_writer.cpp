@@ -249,6 +249,7 @@ private:
 
     void PutGroup(const TReplicationWriterPtr& writer);
     void SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes);
+    bool ShouldThrottle(const TString& address, const TReplicationWriterPtr& writer) const;
 
     void Process();
 };
@@ -1160,6 +1161,11 @@ bool TGroup::IsWritten() const
     return true;
 }
 
+bool TGroup::ShouldThrottle(const TString& address, const TReplicationWriterPtr& writer) const
+{
+    return !IsAddressLocal(address) || writer->Config_->EnableLocalThrottling;
+}
+
 void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
@@ -1202,7 +1208,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
             Size_);
 
         TFuture<void> throttleFuture;
-        if (!IsAddressLocal(node->GetDefaultAddress())) {
+        if (ShouldThrottle(node->GetDefaultAddress(), writer)) {
             throttleFuture = writer->Throttler_->Throttle(Size_).Apply(BIND([] (const TError& error) {
                 if (!error.IsOK()) {
                     return TError(

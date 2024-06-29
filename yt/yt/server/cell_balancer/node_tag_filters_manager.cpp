@@ -821,8 +821,8 @@ void SetNodeTagFilter(
             requiredDataCenterSlotCount = 0;
         }
 
-        int readyBundleNodes = GetReadyNodeCount(bundleInfo, aliveNodes, input);
-        int actualSlotCount = perNodeSlotCount * readyBundleNodes;
+        int readyBundleNodeCount = GetReadyNodeCount(bundleInfo, aliveNodes, input);
+        int actualSlotCount = perNodeSlotCount * readyBundleNodeCount;
         int usedSpareSlotCount = getSpareSlotCount(spareNodes.UsedByBundle);
 
         int releasingSlotCount = usedSpareSlotCount + actualSlotCount - requiredDataCenterSlotCount;

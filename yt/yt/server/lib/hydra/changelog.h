@@ -48,6 +48,10 @@ struct IChangelog
      */
     virtual i64 GetDataSize() const = 0;
 
+    //! Based on collected statistics estimates changelog bytes required to write specified payload.
+    /*!
+     *  Thread affinity: any
+     */
     virtual i64 EstimateChangelogSize(i64 payloadSize) const = 0;
 
     //! Asynchronously appends a record to the changelog.

@@ -56,7 +56,7 @@ public:
     std::optional<double> ContainerMemoryRatio;
 
     //! If true tcmalloc crashes when system allocates more memory than #ContainerMemoryRatio.
-    bool IsHard;
+    bool Hard;
 
     REGISTER_YSON_STRUCT(THeapSizeLimit);
 

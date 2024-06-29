@@ -6,6 +6,9 @@
 #include "tablet_profiling.h"
 #include "transaction.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -269,6 +272,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
+        writerConfig->EnableLocalThrottling = TabletContext_->GetDynamicConfigManager()
+            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
         writerConfig->Postprocess();
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(

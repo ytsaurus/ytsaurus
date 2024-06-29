@@ -360,6 +360,8 @@ DEFINE_ENUM(ETabletNodeThrottlerKind,
     //! Controls incoming bandwidth used by lookups and selects
     //! that corresponds to tablet and data node interaction.
     (UserBackendIn)
+    //! Controls outcoming bandwidth used by remote changelogs.
+    (ChangelogOut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

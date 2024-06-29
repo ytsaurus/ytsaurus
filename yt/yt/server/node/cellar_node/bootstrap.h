@@ -39,6 +39,8 @@ struct IBootstrap
     virtual const NCellarNode::IMasterConnectorPtr& GetMasterConnector() const = 0;
 
     virtual void ScheduleCellarHeartbeat() const = 0;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetChangelogOutThrottler() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

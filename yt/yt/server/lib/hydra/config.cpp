@@ -265,6 +265,9 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Optional();
+
+    registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

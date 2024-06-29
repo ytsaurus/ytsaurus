@@ -1493,14 +1493,12 @@ private:
                 "Failed to apply throttling in fragment chunk reader")
                 << error;
 
-            BIND(
+            SessionInvoker_->Invoke(BIND(
                 &TSimpleReadFragmentsSession::OnGotChunkFragments,
                 MakeStrong(this),
                 plan,
                 0 /*throttledBytes*/,
-                throttlingError)
-                .Via(SessionInvoker_)
-                .Run();
+                throttlingError));
             return;
         }
 

@@ -641,7 +641,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         endBlockIndex - startBlockIndex);
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload  (Blocks: %v-%v, Bytes: %v)",
+        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v-%v, Bytes: %v)",
             startBlockIndex,
             endBlockIndex,
             preThrottledBytes);
