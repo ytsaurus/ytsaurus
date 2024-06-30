@@ -1262,25 +1262,26 @@ class TestChaos(ChaosTestBase):
             set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id3)
 
     @authors("babenko")
-    def test_chaos_replicated_table_with_implicit_card_id(self):
+    def test_chaos_replicated_table_failure(self):
         with pytest.raises(YtError, match=".* is neither specified nor inherited.*"):
             create("chaos_replicated_table", "//tmp/crt")
 
-        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
-
+        self._create_chaos_cell_bundle(name="chaos_bundle")
         with pytest.raises(YtError, match="Chaos cell bundle .* has no associated metadata chaos cell"):
             create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
 
+    @authors("babenko")
+    def test_chaos_replicated_table_with_implicit_card_id(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
 
         table_id = create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
-
         assert get("//tmp/crt/@type") == "chaos_replicated_table"
         assert get("//tmp/crt/@owns_replication_card")
 
         card_id = get("//tmp/crt/@replication_card_id")
-
         assert exists("#{0}".format(card_id))
+
         card = get("#{0}/@".format(card_id))
         assert card["table_id"] == table_id
         assert card["table_path"] == "//tmp/crt"
