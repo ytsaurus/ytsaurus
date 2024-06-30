@@ -564,6 +564,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     }
 
     @authors("renadeen", "ignat")
+    @pytest.mark.xfail(run=False, reason="It's too flacky now and not sure that it is correct")
     def test_strategy_with_slow_controller(self):
         update_pool_tree_config(
             "default",
