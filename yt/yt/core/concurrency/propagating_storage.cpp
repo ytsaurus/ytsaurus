@@ -1,5 +1,7 @@
 #include "propagating_storage.h"
 
+#include <yt/yt/core/misc/static_ring_queue.h>
+
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
@@ -51,8 +53,26 @@ public:
     DEFINE_SIGNAL_SIMPLE(void(), OnBeforeUninstall);
     DEFINE_SIGNAL_SIMPLE(void(), OnAfterInstall);
 
+    void RecordLocation(TSourceLocation loc)
+    {
+        Locations_.Append(&loc, &loc + 1);
+    }
+
+    void PrintModificationLocationsToStderr()
+    {
+        size_t size = Locations_.Size();
+        TSourceLocation lastLocations[MaxSize];
+        Locations_.CopyTailTo(size, &lastLocations[0]);
+        for (size_t i = 0; i < size; ++i) {
+            Cerr << NYT::ToString(lastLocations[i]) << Endl;
+        }
+    }
+
 private:
     TStorage Data_;
+
+    static constexpr int MaxSize = 8;
+    TStaticRingQueue<TSourceLocation, MaxSize> Locations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,11 +198,21 @@ void TPropagatingStorage::EnsureUnique()
     Impl_ = Impl_->Clone();
 }
 
+void TPropagatingStorage::RecordLocation(TSourceLocation loc)
+{
+    Impl_->RecordLocation(loc);
+}
+
+void TPropagatingStorage::PrintModificationLocationsToStderr()
+{
+    Impl_->PrintModificationLocationsToStderr();
+}
+
 struct TPropagatingStorageInfo
 {
     TPropagatingStorage Storage;
     TSourceLocation Location;
-    TSourceLocation ModifyLocation;
+    TSourceLocation PrevLocation;
 };
 
 inline TFlsSlot<TPropagatingStorageInfo>& PropagatingStorageSlot()
@@ -261,20 +291,18 @@ void InstallGlobalPropagatingStorageSwitchHandler(TPropagatingStorageGlobalSwitc
 
 TSourceLocation SwitchPropagatingStorageLocation(TSourceLocation loc)
 {
+    PropagatingStorageSlot()->PrevLocation = PropagatingStorageSlot()->Location;
     return std::exchange(PropagatingStorageSlot()->Location, loc);
-}
-
-TSourceLocation SwitchPropagatingStorageModifyLocation(TSourceLocation loc)
-{
-    return std::exchange(PropagatingStorageSlot()->ModifyLocation, loc);
 }
 
 void PrintLocationToStderr()
 {
     Cerr << Format(
-        "PropagatingStorageLoccation: %v, ModificationLocation: %v",
+        "PropagatingStorageLocation: %v, PrevLocation: %v, ModificationLocations:",
         PropagatingStorageSlot()->Location,
-        PropagatingStorageSlot()->ModifyLocation) << Endl;
+        PropagatingStorageSlot()->PrevLocation) << Endl;
+
+    PropagatingStorageSlot()->Storage.PrintModificationLocationsToStderr();
 }
 
 TPropagatingStorageGuard::TPropagatingStorageGuard(TPropagatingStorage storage, TSourceLocation loc)

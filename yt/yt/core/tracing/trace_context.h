@@ -319,7 +319,6 @@ public:
 private:
     bool Active_;
     TTraceContextPtr OldTraceContext_;
-    TSourceLocation OldLocation_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -340,7 +339,6 @@ public:
 private:
     bool Active_;
     TTraceContextPtr OldTraceContext_;
-    TSourceLocation OldLocation_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
