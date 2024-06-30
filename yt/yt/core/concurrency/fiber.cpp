@@ -256,7 +256,7 @@ TInstant TFiber::GetWaitingSince() const
 const TPropagatingStorage& TFiber::GetPropagatingStorage() const
 {
     YT_VERIFY(State_.load() == EFiberState::Introspecting);
-    return NConcurrency::GetPropagatingStorage(*Fls_);
+    return *NConcurrency::TryGetPropagatingStorage(*Fls_);
 }
 
 TFls* TFiber::GetFls() const

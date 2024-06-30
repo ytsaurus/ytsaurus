@@ -354,6 +354,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DECLARE_THREAD_LOCAL(TFls*, PerThreadFls);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FiberTrampoline()
 {
     RunAfterSwitch();
@@ -365,6 +369,20 @@ void FiberTrampoline()
     // Break loop to terminate fiber
     while (auto* fiberThread = TryGetFiberThread()) {
         YT_VERIFY(!TryGetResumerFiber());
+        YT_VERIFY(CurrentFls() == nullptr);
+
+        if (auto perThreadFls = NDetail::PerThreadFls()) {
+            const auto* propStorage = TryGetPropagatingStorage(*perThreadFls);
+            if (propStorage != nullptr) {
+                if (!propStorage->IsNull()) {
+                    Cerr << "Unexpected propagating storage" << Endl;
+                    PrintLocationToStderr();
+                    YT_ABORT();
+                }
+            }
+        }
+
+        YT_VERIFY(GetCurrentPropagatingStorage().IsNull());
 
         TCallback<void()> callback;
         {
