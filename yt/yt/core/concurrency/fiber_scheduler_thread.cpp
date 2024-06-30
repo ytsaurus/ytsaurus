@@ -354,10 +354,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DECLARE_THREAD_LOCAL(TFls*, PerThreadFls);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void FiberTrampoline()
 {
     RunAfterSwitch();
@@ -371,25 +367,14 @@ void FiberTrampoline()
         YT_VERIFY(!TryGetResumerFiber());
         YT_VERIFY(CurrentFls() == nullptr);
 
-        if (auto perThreadFls = NDetail::PerThreadFls()) {
-            const auto* propStorage = TryGetPropagatingStorage(*perThreadFls);
-            if (propStorage != nullptr) {
-                if (!propStorage->IsNull()) {
-                    Cerr << "Unexpected propagating storage" << Endl;
-                    PrintLocationToStderr();
-                    YT_ABORT();
-                }
-            }
-        }
-
-        YT_VERIFY(GetCurrentPropagatingStorage().IsNull());
+        YT_VERIFY(GetCurrentPropagatingStorage().IsEmpty());
 
         TCallback<void()> callback;
         {
             // We wrap fiberThread->OnExecute() into a propagating storage guard to ensure
             // that the propagating storage created there won't spill into the fiber callbacks.
             TNullPropagatingStorageGuard guard;
-            YT_VERIFY(guard.GetOldStorage().IsNull());
+            YT_VERIFY(guard.GetOldStorage().IsEmpty());
             callback = fiberThread->OnExecute();
         }
 
