@@ -456,16 +456,17 @@ private:
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
             return resultFuture
                 .Apply(BIND([
-                    this,
-                    this_ = MakeStrong(this),
-                    masterConnector = Bootstrap_->GetMasterConnector(),
-                    chunkId = ChunkId_
+                        this,
+                        this_ = MakeStrong(this),
+                        masterConnector = Bootstrap_->GetMasterConnector(),
+                        chunkId = ChunkId_
                     ] {
-                    // Wait for the removal notification to be delivered to master.
-                    // Cf. YT-6532.
-                    YT_LOG_INFO("Waiting for heartbeat barrier");
-                    return masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId));
-                }));
+                        // Wait for the removal notification to be delivered to master.
+                        // Cf. YT-6532.
+                        auto cellTag = CellTagFromId(chunkId);
+                        YT_LOG_INFO("Waiting for heartbeat barrier (CellTag: %v)", cellTag);
+                        return masterConnector->GetHeartbeatBarrier(cellTag);
+                    }));
         } else {
             return resultFuture;
         }
