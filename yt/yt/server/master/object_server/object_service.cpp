@@ -1347,7 +1347,7 @@ private:
                 : NApi::EMasterChannelKind::Follower;
 
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, channelKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage, subrequest.YPathExt->mutating());
+            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();

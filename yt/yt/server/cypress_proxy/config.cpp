@@ -35,11 +35,6 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(1);
-
-    // COMPAT(kivedernikov): change to true
-    registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
-        .Default(false);
-
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
 }

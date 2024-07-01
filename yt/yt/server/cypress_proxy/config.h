@@ -45,8 +45,6 @@ public:
     //! Size of the thread pool used for object service requests execution.
     int ThreadPoolSize;
 
-    bool AlertOnMixedReadWriteBatch;
-
     //! Skip the first phase in the two-phase request execution at master.
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
