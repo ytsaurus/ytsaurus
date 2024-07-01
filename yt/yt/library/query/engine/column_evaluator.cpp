@@ -121,7 +121,7 @@ public:
         const TConstTypeInferrerMapPtr& typeInferrers,
         const TConstFunctionProfilerMapPtr& profilers)
         : TSyncSlruCacheBase(config->CGCache)
-        , TypeInferers_(typeInferrers)
+        , TypeInferrers_(typeInferrers)
         , Profilers_(profilers)
     { }
 
@@ -137,7 +137,7 @@ public:
 
             auto evaluator = TColumnEvaluator::Create(
                 schema,
-                TypeInferers_,
+                TypeInferrers_,
                 Profilers_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
 
@@ -153,7 +153,7 @@ public:
     }
 
 private:
-    const TConstTypeInferrerMapPtr TypeInferers_;
+    const TConstTypeInferrerMapPtr TypeInferrers_;
     const TConstFunctionProfilerMapPtr Profilers_;
 };
 
