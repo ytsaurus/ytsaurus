@@ -16,26 +16,19 @@ const (
 )
 
 type Config struct {
-	YtAuthCookieName *string           `yson:"yt_auth_cookie_name"`
-	ExtraEnvVars     map[string]string `json:"extra_env_vars"`
+	YTAuthCookieName *string           `yson:"yt_auth_cookie_name"`
+	ExtraEnvVars     map[string]string `yson:"extra_env_vars"`
 }
 
 const (
 	DefaultYtAuthCookieName = ""
 )
 
-func (c *Config) YtAuthCookieNameOrDefault() string {
-	if c.YtAuthCookieName != nil {
-		return *c.YtAuthCookieName
+func (c *Config) YTAuthCookieNameOrDefault() string {
+	if c.YTAuthCookieName != nil {
+		return *c.YTAuthCookieName
 	}
 	return DefaultYtAuthCookieName
-}
-
-func (c *Config) ExtraEnvVarsOrDefault() map[string]string {
-	if c.ExtraEnvVars != nil {
-		return c.ExtraEnvVars
-	}
-	return make(map[string]string)
 }
 
 type Controller struct {
@@ -61,13 +54,13 @@ func (c *Controller) buildCommand(speclet *Speclet, oplet *strawberry.Oplet) (co
 		"NB_GID":                   "0",
 		"NB_UID":                   "0",
 		"NB_USER":                  "root",
-		"JUPYTER_YT_HOST":          c.cluster,
-		"JUPYTER_AUTH_COOKIE_NAME": c.config.YtAuthCookieNameOrDefault(),
+		"JUPYTER_YT_PROXY":         c.cluster,
+		"JUPYTER_AUTH_COOKIE_NAME": c.config.YTAuthCookieNameOrDefault(),
 		"JUPYTER_ACO_NAME":         oplet.Alias(),
 		"JUPYTER_ACO_NAMESPACE":    c.Family(),
 		"JUPYTER_ACO_ROOT_PATH":    strawberry.AccessControlNamespacesPath.String(),
 	}
-	for key, value := range c.config.ExtraEnvVarsOrDefault() {
+	for key, value := range c.config.ExtraEnvVars {
 		jupyterEnv[key] = value
 	}
 	return cmd, jupyterEnv
