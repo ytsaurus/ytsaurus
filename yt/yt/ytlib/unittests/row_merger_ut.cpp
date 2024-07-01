@@ -570,6 +570,14 @@ public:
         return config;
     }
 
+    TYsonString CreateWatermarkRuntimeData(const TWatermarkRuntimeDataConfig& config)
+    {
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item(CustomRuntimeDataWatermarkKey).Value(ConvertToNode(config))
+            .EndMap();
+    }
+
 protected:
     const TRowBufferPtr MergedRowBuffer_ = New<TRowBuffer>();
 };
@@ -1735,10 +1743,9 @@ TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
 
 TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 {
-    auto watermarkData = TWatermarkRuntimeDataConfig();
-    watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 11;
-    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
+    watermarkDataConfig.ColumnName = "watermark";
+    watermarkDataConfig.Watermark = 11;
     auto merger = GetTypicalMerger(
         nullptr,
         1000,
@@ -1748,7 +1755,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
         false,
         false,
         ERowMergerType::Watermark,
-        std::move(runtimeData));
+        CreateWatermarkRuntimeData(watermarkDataConfig));
 
     auto row = BuildVersionedRow(
         "<id=0> 0",
@@ -1764,7 +1771,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
 TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
 {
-    auto invalidRuntimeData = TYsonString(TString("{column_name=l; watermark=\"11\"}"));
+    auto invalidRuntimeData = TYsonString(Format("{ %v = {column_name=l; watermark=\"11\"} }", CustomRuntimeDataWatermarkKey));
     auto merger = GetTypicalMerger(
         nullptr,
         1000,
@@ -1782,7 +1789,7 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
         "<id=2;ts=15> 42; <id=2;ts=13> 52");
     merger->AddPartialRow(row);
 
-    // Invalid runtime data is ignored
+    // Invalid runtime data is ignored.
     EXPECT_EQ(
         TIdentityComparableVersionedRow{row},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
@@ -1790,10 +1797,9 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
 
 TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
 {
-    auto watermarkData = TWatermarkRuntimeDataConfig();
-    watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 13;
-    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
+    watermarkDataConfig.ColumnName = "watermark";
+    watermarkDataConfig.Watermark = 13;
     auto merger = GetTypicalMerger(
         nullptr,
         1000,
@@ -1803,7 +1809,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
         false,
         false,
         ERowMergerType::Watermark,
-        std::move(runtimeData));
+        CreateWatermarkRuntimeData(watermarkDataConfig));
 
     auto row = BuildVersionedRow(
         "<id=0> 0",
@@ -1821,10 +1827,9 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
     config->MinDataTtl = TDuration::Zero();
     config->MaxDataTtl = TDuration::Seconds(5);
 
-    auto watermarkData = TWatermarkRuntimeDataConfig();
-    watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 13;
-    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
+    watermarkDataConfig.ColumnName = "watermark";
+    watermarkDataConfig.Watermark = 13;
     auto merger = GetTypicalMerger(
         config,
         TimestampFromUnixTime(10),
@@ -1834,9 +1839,9 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
         false,
         false,
         ERowMergerType::Watermark,
-        std::move(runtimeData));
+        CreateWatermarkRuntimeData(watermarkDataConfig));
 
-    // Without watermarks all rows should be deleted according to MaxDataTtl
+    // Without watermarks all rows should be deleted according to MaxDataTtl.
     auto row = BuildVersionedRow(
         "<id=0> 0",
         Format(
@@ -1868,10 +1873,9 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
     config->MinDataTtl = TDuration::Seconds(5);
     config->MaxDataTtl = TDuration::Seconds(10);
 
-    auto watermarkData = TWatermarkRuntimeDataConfig();
-    watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 100;
-    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
+    watermarkDataConfig.ColumnName = "watermark";
+    watermarkDataConfig.Watermark = 100;
     auto merger = GetTypicalMerger(
         config,
         TimestampFromUnixTime(8),
@@ -1881,9 +1885,9 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
         false,
         false,
         ERowMergerType::Watermark,
-        std::move(runtimeData));
+        CreateWatermarkRuntimeData(watermarkDataConfig));
 
-    // According to watermark all rows should be deleted, but MinDataTtl prevents it
+    // According to watermark all rows should be deleted, but MinDataTtl prevents it.
     auto row = BuildVersionedRow(
         "<id=0> 0",
         Format(

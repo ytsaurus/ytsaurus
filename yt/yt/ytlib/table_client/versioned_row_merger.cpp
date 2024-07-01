@@ -553,7 +553,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
             if (customRuntimeData) {
                 try {
-                    auto watermarkRuntimeDataConfig = ConvertTo<TWatermarkRuntimeDataConfig>(customRuntimeData);
+                    auto customRuntimeDataMap = ConvertTo<IMapNodePtr>(customRuntimeData);
+                    auto watermarkRuntimeDataConfig = customRuntimeDataMap->GetChildValueOrThrow<TWatermarkRuntimeDataConfig>(CustomRuntimeDataWatermarkKey);
 
                     auto columnSchema = tableSchema->GetColumnOrThrow(watermarkRuntimeDataConfig.ColumnName);
                     if (!columnSchema.IsOfV1Type(ESimpleLogicalValueType::Uint64)) {

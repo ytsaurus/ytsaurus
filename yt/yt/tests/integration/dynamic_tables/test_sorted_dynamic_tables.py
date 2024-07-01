@@ -224,7 +224,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
 
     def _sync_set_watermark(self, watermark, column_name="watermark"):
-        runtime_data = {"column_name": column_name, "watermark": watermark}
+        runtime_data = {"watermark" : {"column_name": column_name, "watermark": watermark}}
         set("//tmp/t/@custom_runtime_data", runtime_data)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
