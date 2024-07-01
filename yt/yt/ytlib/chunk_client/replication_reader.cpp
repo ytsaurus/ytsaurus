@@ -1340,9 +1340,8 @@ protected:
 
     bool ShouldThrottle(const TString& address, bool condition) const
     {
-        return
-            (!IsAddressLocal(address) && condition) ||
-            ReaderConfig_->EnableLocalThrottling;
+        return condition &&
+            (ReaderConfig_->EnableLocalThrottling || !IsAddressLocal(address));
     }
 
     bool IsCanceled() const
