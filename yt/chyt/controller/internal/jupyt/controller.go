@@ -139,7 +139,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		YTAcoNamespace:   c.Family(),
 		YTAcoRootPath:    strawberry.AccessControlNamespacesPath.String(),
 	}
-	ytServerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.json", ytServerConfig)
+	ytServerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", ytServerConfig)
 	if err != nil {
 		return nil
 	}
