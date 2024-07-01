@@ -21,14 +21,14 @@ type Config struct {
 }
 
 const (
-	DefaultYtAuthCookieName = ""
+	DefaultYTAuthCookieName = ""
 )
 
 func (c *Config) YTAuthCookieNameOrDefault() string {
 	if c.YTAuthCookieName != nil {
 		return *c.YTAuthCookieName
 	}
-	return DefaultYtAuthCookieName
+	return DefaultYTAuthCookieName
 }
 
 type Controller struct {
