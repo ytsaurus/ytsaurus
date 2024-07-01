@@ -7,6 +7,8 @@
 
 #include "delayed_executor.h"
 #include "thread_affinity.h"
+#include "public.h"
+#include "scheduler_api.h"
 
 #include <yt/yt/core/tracing/trace_context.h>
 
@@ -89,6 +91,8 @@ void TAsyncBatcher<T>::DoRun(TGuard<NThreading::TSpinLock>& guard)
     swap(ActivePromise_, PendingPromise_);
 
     guard.Release();
+
+    YT_VERIFY(GetCurrentFiberId() != InvalidFiberId);
 
     Provider_
         .Run()
