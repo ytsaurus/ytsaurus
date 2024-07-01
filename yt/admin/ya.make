@@ -1,5 +1,6 @@
-
+       
 RECURSE(
+    cms
     dashboard_generator
     dashboards
 )
@@ -8,7 +9,6 @@ IF (NOT OPENSOURCE)
     RECURSE(
         common
         core
-        cms
         acl_dumper
         ytcfgen
         ytdyncfgen

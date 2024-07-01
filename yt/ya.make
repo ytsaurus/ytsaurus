@@ -11,6 +11,7 @@ RECURSE(
     docs
     docker
     odin
+    spark/spark-over-yt
     styleguide
     systest
     admin
@@ -40,7 +41,6 @@ IF (NOT OPENSOURCE)
         recipe
         scripts
         skynet
-        spark/spark-over-yt
         terraform
         yt_proto
         yt_sync
