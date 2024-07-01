@@ -57,44 +57,32 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
         check(deprecated_statistics, extract_deprecated_statistic)
 
-    @authors("max42")
+    @authors("max42", "pavook")
     def test_tricky_names(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
-        # Keys with special symbols not allowed inside YPath are ok (they are represented as is).
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"max_failed_job_count": 1},
-            command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5',
-        )
-
-        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
-        assert extract_statistic_v2(
-            statistics_v2,
-            key="custom.name/with/slashes.@table_index",
-            job_state="completed",
-            job_type="map",
-            summary_type="max") == 42
-
-        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert extract_deprecated_statistic(
-            deprecated_statistics,
-            key="custom.name/with/slashes.@table_index",
-            job_state="completed",
-            job_type="map",
-            summary_type="max") == 42
-
-        # But the empty keys are not ok (as well as for any other map nodes).
+        # Empty keys are not ok (as well as for any other map nodes).
         with pytest.raises(YtError):
-            op = map(
+            map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 spec={"max_failed_job_count": 1},
                 command='cat; echo "{\\"\\"=42}">&5',
             )
+
+        # And keys with [^a-zA-Z0-9_] are not ok
+        # it can cause the prefix check to be incorrect, see YT-22118
+        # backslash is twice-scaped: in bash and in YSON
+        for invalid_character in (".", "@", "/", "\\" * 4, "щ", "#", "-"):
+            with raises_yt_error("Invalid character"):
+                map(
+                    in_="//tmp/t1",
+                    out="//tmp/t2",
+                    spec={"max_failed_job_count": 1},
+                    command='cat; echo "{\\"a/b' + invalid_character + 'c/d\\"=42}">&5',
+                )
 
     @authors("tramsmm", "acid")
     def test_name_is_too_long(self):
