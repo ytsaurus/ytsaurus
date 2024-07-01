@@ -94,12 +94,15 @@ bool TClient::DoesOperationsArchiveExist()
         .ValueOrThrow();
 }
 
-int TClient::DoGetOperationsArchiveVersion()
+std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
     auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
+    if (!versionNodeOrError.IsOK() && versionNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        return {};
+    }
     if (!versionNodeOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to get operations archive version")
             << versionNodeOrError;
@@ -1236,7 +1239,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
 // and an operation is in both Cypress and archive.
 TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& oldOptions)
 {
-    auto Logger = this->Logger().WithTag("Command: ListOperations");
+    auto Logger = this->Logger.WithTag("Command: ListOperations");
 
     auto options = oldOptions;
 
