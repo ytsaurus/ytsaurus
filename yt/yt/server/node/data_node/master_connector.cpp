@@ -545,6 +545,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (!Initialized_) {
+            YT_LOG_WARNING("Master connector is not initialized");
+            return;
+        }
+
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
