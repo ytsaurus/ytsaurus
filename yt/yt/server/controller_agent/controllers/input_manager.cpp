@@ -325,7 +325,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     auto chunkSliceSizeFetcher = New<TChunkSliceSizeFetcher>(
         Host_->GetConfig()->Fetcher,
         InputNodeDirectory_,
-        Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
+        Host_->GetChunkScraperInvoker(),
         /*chunkScraper*/ CreateFetcherChunkScraper(),
         Client_,
         Logger);
