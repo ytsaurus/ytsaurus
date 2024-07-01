@@ -114,9 +114,9 @@ private:
         YT_LOG_INFO("Start creating job proxy sharding key directories");
 
         try {
-            TRuntimeFormat formatString{Format("%%0%dx", ShardingKeyLength_)};
+            auto formatString = Format("%%0%dx", ShardingKeyLength_);
             for (int i = 0; i < Power(16, ShardingKeyLength_); i++) {
-                auto dirName = Format(formatString, i);
+                auto dirName = Format(TRuntimeFormat{formatString}, i);
 
                 auto dirPath = NFS::CombinePaths(Directory_, dirName);
                 NFS::MakeDirRecursive(dirPath);
