@@ -1262,7 +1262,7 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
         result->StartDescriptor.emplace(TAllocationStartDescriptor{
             .Id = allocationId,
             .ResourceLimits = FromProto<TJobResourcesWithQuota>(response.resource_limits()),
-            });
+        });
         FromProto(
             &(result->StartDescriptor->AllocationAttributes),
             response.allocation_attributes());
