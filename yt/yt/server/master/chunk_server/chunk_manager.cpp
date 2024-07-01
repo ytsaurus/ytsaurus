@@ -2818,7 +2818,7 @@ private:
             auto chunkId = chunk->GetId();
             if (!isImaginary) {
                 auto* realLocation = location->AsReal();
-                if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
+                if (approved && ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
                     YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
                         chunkId,
                         realLocation->GetUuid());
