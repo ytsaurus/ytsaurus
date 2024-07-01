@@ -255,19 +255,22 @@ class TestSequoiaReplicas(YTEnvSetup):
         remove("//tmp/t")
 
     @authors("aleksandra-zh")
-    def test_refresh(self):
+    @pytest.mark.parametrize("erasure_codec", ["lrc_12_2_2"])
+    def test_refresh(self, erasure_codec):
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
+        desired_replica_count = 3 if erasure_codec == "none" else 16
+
         assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
