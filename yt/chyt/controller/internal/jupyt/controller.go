@@ -43,7 +43,7 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
-func (c *Controller) buildCommand(speclet *Speclet, oplet *strawberry.Oplet) (command string, env map[string]string) {
+func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
 	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
@@ -51,14 +51,9 @@ func (c *Controller) buildCommand(speclet *Speclet, oplet *strawberry.Oplet) (co
 	cmd := fmt.Sprintf(
 		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
 	jupyterEnv := map[string]string{
-		"NB_GID":                   "0",
-		"NB_UID":                   "0",
-		"NB_USER":                  "root",
-		"JUPYTER_YT_PROXY":         c.cluster,
-		"JUPYTER_AUTH_COOKIE_NAME": c.config.YTAuthCookieNameOrDefault(),
-		"JUPYTER_ACO_NAME":         oplet.Alias(),
-		"JUPYTER_ACO_NAMESPACE":    c.Family(),
-		"JUPYTER_ACO_ROOT_PATH":    strawberry.AccessControlNamespacesPath.String(),
+		"NB_GID":  "0",
+		"NB_UID":  "0",
+		"NB_USER": "root",
 	}
 	for key, value := range c.config.ExtraEnvVars {
 		jupyterEnv[key] = value
@@ -75,8 +70,14 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	description = map[string]any{}
 
-	// Build command.
-	command, env := c.buildCommand(&speclet, oplet)
+	var filePaths []ypath.Rich
+
+	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
+	if err != nil {
+		return
+	}
+
+	command, env := c.buildCommand(&speclet)
 
 	spec = map[string]any{
 		"tasks": map[string]any{
@@ -86,6 +87,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"docker_image":                       speclet.JupyterDockerImage,
 				"memory_limit":                       speclet.MemoryOrDefault(),
 				"cpu_limit":                          speclet.CPUOrDefault(),
+				"file_paths":                         filePaths,
 				"port_count":                         1,
 				"max_stderr_size":                    1024 * 1024 * 1024,
 				"user_job_memory_digest_lower_bound": 1.0,
@@ -126,6 +128,22 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 }
 
 func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+	return nil
+}
+
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
+	ytServerConfig := YTServerConfig{
+		YTProxy:          c.cluster,
+		YTAuthCookieName: c.config.YTAuthCookieNameOrDefault(),
+		YTAcoName:        oplet.Alias(),
+		YTAcoNamespace:   c.Family(),
+		YTAcoRootPath:    strawberry.AccessControlNamespacesPath.String(),
+	}
+	ytServerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.json", ytServerConfig)
+	if err != nil {
+		return nil
+	}
+	*filePaths = append(*filePaths, ytServerConfigPath)
 	return nil
 }
 
