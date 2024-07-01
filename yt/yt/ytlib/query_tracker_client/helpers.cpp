@@ -12,7 +12,7 @@ using namespace NYson;
 
 namespace {
 
-TString FormatAcoList(std::optional<TYsonString> accessControlObjects) {
+TString FormatAcoList(const std::optional<TYsonString> accessControlObjects) {
     if (!accessControlObjects) {
         return "[]";
     }
@@ -36,7 +36,7 @@ TString GetFilterFactors(const TActiveQueryPartial& record)
     return Format("%v %v acos:%v",
         record.Query,
         (record.Annotations && *record.Annotations) ? ConvertToYsonString(*record.Annotations, EYsonFormat::Text).ToString() : "",
-        FormatAcoList(record.AccessControlObjects));
+        FormatAcoList(record.AccessControlObjects.value_or(std::nullopt)));
 }
 
 TString GetFilterFactors(const TFinishedQueryPartial& record)

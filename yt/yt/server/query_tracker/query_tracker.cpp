@@ -568,7 +568,7 @@ private:
                     .Files = activeQueryRecord->Files,
                     .Settings = activeQueryRecord->Settings,
                     .User = activeQueryRecord->User,
-                    .AccessControlObjects = activeQueryRecord->AccessControlObjects,
+                    .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
                     .StartTime = activeQueryRecord->StartTime,
                     .State = finalState,
                     .Progress = activeQueryRecord->Progress,
@@ -592,7 +592,7 @@ private:
                     .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
                     .User = activeQueryRecord->User,
-                    .AccessControlObjects = activeQueryRecord->AccessControlObjects,
+                    .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
                     .State = finalState,
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };
