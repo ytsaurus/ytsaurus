@@ -56,6 +56,7 @@ DEFINE_ENUM(ETabletReign,
     ((DistributedTabletPrerequisites)              (100908)) // gritukan
     ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
     ((ChunkReplicaAlwaysPrecache)                  (100910)) // osidorkin
+    ((FixCDWComputationForChaosReplicas)           (100911)) // akozhikhov
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
     ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad
