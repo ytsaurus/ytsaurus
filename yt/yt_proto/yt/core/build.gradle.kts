@@ -41,6 +41,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/core/misc/proto/bloom_filter.proto")
         include("yt/yt_proto/yt/core/misc/proto/error.proto")
         include("yt/yt_proto/yt/core/misc/proto/guid.proto")
+        include("yt/yt_proto/yt/core/misc/proto/hyperloglog.proto")
         include("yt/yt_proto/yt/core/misc/proto/protobuf_helpers.proto")
         include("yt/yt_proto/yt/core/tracing/proto/span.proto")
         include("yt/yt_proto/yt/core/tracing/proto/tracing_ext.proto")

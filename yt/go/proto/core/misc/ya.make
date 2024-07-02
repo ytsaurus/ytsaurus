@@ -11,8 +11,9 @@ PROTO_ADDINCL(
 
 SRCS(
     convert.go
-    ${ARCADIA_ROOT}/yt/yt_proto/yt/core/misc/proto/guid.proto
     ${ARCADIA_ROOT}/yt/yt_proto/yt/core/misc/proto/error.proto
+    ${ARCADIA_ROOT}/yt/yt_proto/yt/core/misc/proto/guid.proto
+    ${ARCADIA_ROOT}/yt/yt_proto/yt/core/misc/proto/hyperloglog.proto
 )
 
 END()
