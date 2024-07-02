@@ -261,3 +261,7 @@ def wait_no_peers_in_read_only(driver=None):
 def master_exit_read_only_sync(driver=None):
     master_exit_read_only(driver=driver)
     wait_no_peers_in_read_only(driver=driver)
+
+
+def wait_until_unlocked(path, driver=None):
+    wait(lambda: get(path + "/@lock_count", driver=driver) == 0)

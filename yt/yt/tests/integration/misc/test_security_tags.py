@@ -5,6 +5,7 @@ from yt_commands import (
     lock, write_file,
     read_table, write_table, map)
 
+from yt_helpers import wait_until_unlocked
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
@@ -265,8 +266,10 @@ class TestSecurityTags(YTEnvSetup):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             write_table('<security_tags=[""]>//tmp/t', [])
+        wait_until_unlocked("//tmp/t")
         with pytest.raises(YtError):
             write_table('<security_tags=["' + "a" * 129 + '"]>//tmp/t', [])
+        wait_until_unlocked("//tmp/t")
         write_table('<security_tags=["' + "a" * 128 + '"]>//tmp/t', [])
 
 
