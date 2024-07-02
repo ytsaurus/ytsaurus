@@ -137,18 +137,18 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 }
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
-	ytServerConfig := jupytServerConfig{
+	serverConfig := jupytServerConfig{
 		YTProxy:          c.cluster,
 		YTAuthCookieName: c.config.YTAuthCookieNameOrDefault(),
 		YTACOName:        oplet.Alias(),
 		YTACONamespace:   c.Family(),
 		YTACORootPath:    strawberry.AccessControlNamespacesPath.String(),
 	}
-	ytServerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", ytServerConfig)
+	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig)
 	if err != nil {
 		return nil
 	}
-	*filePaths = append(*filePaths, ytServerConfigPath)
+	*filePaths = append(*filePaths, serverConfigYTPath)
 	return nil
 }
 
