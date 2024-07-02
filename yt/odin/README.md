@@ -76,15 +76,16 @@ yt_odin_webservice --config odin_webservice_config.json
 
 ### Docker image
 
+
 It is possible to build a self-confined Odin image using the provided [Dockerfile](./Dockerfile). The image will be built using a [multi-stage build](https://docs.docker.com/build/building/multi-stage/) approach where only the necessary runtime files and dependencies are preserved in the final stage.
 
 To build the image run the following commands:
 
 ```bash
-cd $SOURCE_ROOT/yt/odin
+cd $SOURCE_ROOT/yt/docker
 
 # ytsaurus-odin:latest is the label:tag of the resulting image
-docker build -t ytsaurus-odin:latest .
+./run_bake odin --set "odin.tags=ytsaurus-odin:latest"
 ```
 
 To run Odin inside a container do the following:
