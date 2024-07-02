@@ -318,6 +318,13 @@ func (a *API) Create(
 					"roles":    []string{"use", "manage", "responsible"},
 				},
 			},
+			"acl": []yt.ACE{
+				{
+					Action:      yt.ActionAllow,
+					Subjects:    []string{user},
+					Permissions: []yt.Permission{yt.PermissionAdminister},
+				},
+			},
 		},
 	})
 
