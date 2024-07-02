@@ -473,7 +473,9 @@ public:
     {
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
         auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
-        auto transformNode = rawPipeline->AddTransform(NPrivate::MakeRawGroupByKey<TKey, TValue>(), {rawInputNode});
+        auto rawTransform = NPrivate::MakeRawGroupByKey<TKey, TValue>();
+        MergeAttributes(*rawTransform, Attributes_);
+        auto transformNode = rawPipeline->AddTransform(rawTransform, {rawInputNode});
 
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
         Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
