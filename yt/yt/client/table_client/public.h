@@ -127,6 +127,7 @@ extern const TString TimestampColumnPrefix;
 extern const TString CumulativeDataWeightColumnName;
 extern const TString EmptyValueColumnName;
 extern const TString PrimaryLockName;
+extern const TString SequenceNumberColumnName;
 
 constexpr int TypicalHunkColumnCount = 8;
 

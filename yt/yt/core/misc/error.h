@@ -183,7 +183,8 @@ public:
 
     bool IsOK() const;
 
-    void ThrowOnError() const;
+    template <class... TArgs>
+    void ThrowOnError(TArgs&&... args) const;
 
     std::optional<TError> FindMatching(std::function<bool(const TError&)> filter) const;
     std::optional<TError> FindMatching(std::function<bool(TErrorCode)> filter) const;

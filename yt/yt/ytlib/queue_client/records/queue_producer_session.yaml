@@ -25,15 +25,15 @@ types:
         required: True
 
       - cpp_name: SequenceNumber
-        cpp_type: ui64
+        cpp_type: i64
         column_name: sequence_number
-        column_type: Uint64
+        column_type: Int64
         required: True
 
       - cpp_name: Epoch
-        cpp_type: ui64
+        cpp_type: i64
         column_name: epoch
-        column_type: Uint64
+        column_type: Int64
         required: True
 
       - cpp_name: UserMeta

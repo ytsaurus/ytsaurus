@@ -809,13 +809,6 @@ bool TError::IsOK() const
     return Impl_->IsOK();
 }
 
-void TError::ThrowOnError() const
-{
-    if (!IsOK()) {
-        THROW_ERROR *this;
-    }
-}
-
 TError TError::Wrap() const &
 {
     return *this;

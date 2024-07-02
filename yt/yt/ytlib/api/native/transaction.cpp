@@ -2,8 +2,8 @@
 
 #include "cell_commit_session.h"
 #include "client.h"
-#include "connection.h"
 #include "config.h"
+#include "connection.h"
 #include "helpers.h"
 #include "secondary_index_modification.h"
 #include "sync_replica_cache.h"
@@ -19,9 +19,10 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
-#include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -36,7 +37,10 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
+
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
+#include <yt/yt/ytlib/queue_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -350,35 +354,27 @@ public:
         int partitionIndex,
         std::optional<i64> oldOffset,
         i64 newOffset,
-        const TAdvanceQueueConsumerOptions& /*options*/) override
+        const TAdvanceQueueConsumerOptions& options) override
     {
-        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
-            .ValueOrThrow();
+        return BIND(&TTransaction::DoAdvanceQueueConsumer, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run(consumerPath, queuePath, partitionIndex, oldOffset, newOffset, options);
+    }
 
-        CheckReadPermission(tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const TPushQueueProducerOptions& options) override
+    {
+        ValidateTabletTransactionId(GetId());
 
-        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
-
-        auto queueClient = GetClient();
-        if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {
-            auto queueConnection = FindRemoteConnection(Client_->GetNativeConnection(), *queueCluster);
-            if (!queueConnection) {
-                THROW_ERROR_EXCEPTION(
-                    "Queue cluster %Qv was not found for path %v",
-                    *queueCluster,
-                    queuePath
-                );
-            }
-
-            auto queueClientOptions = TClientOptions::FromUser(Client_->GetOptions().GetAuthenticatedUser());
-            queueClient = queueConnection->CreateNativeClient(queueClientOptions);
-        }
-
-        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), registrationCheckResult.ResolvedQueue);
-        subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
-
-        return VoidFuture;
+        return BIND(&TTransaction::DoPushQueueProducer, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run(producerPath, queuePath, sessionId, epoch, nameTable, rows, options);
     }
 
     void ModifyRows(
@@ -750,8 +746,9 @@ private:
             const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
             const auto& primaryWithTabletIndexIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::PrimaryWithTabletIndex);
 
-            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Write);
+            auto writeSchemaKind = Options_.WriteViaQueueProducer ? ETableSchemaKind::WriteViaQueueProducer : ETableSchemaKind::Write;
+            const auto& writeSchema = tableInfo->Schemas[writeSchemaKind];
+            const auto& writeIdMapping = GetColumnIdMapping(transaction, tableInfo, writeSchemaKind);
 
             const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
             const auto& versionedWriteIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::VersionedWrite);
@@ -1204,6 +1201,9 @@ private:
     std::vector<TModificationRequest*> PendingRequests_;
     TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
     bool SecondaryIndicesProcessed_ = false;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueProducerSessionSpinLock_);
+    THashMap<std::tuple<TRichYPath, TRichYPath, TQueueProducerSessionId>, TQueueProducerSequenceNumber> QueueProducerSessionToSequenceNumber_;
 
     struct TSyncReplica
     {
@@ -1753,6 +1753,162 @@ private:
 
         AbortPromise_.SetFrom(Transaction_->Abort(options));
         return abortFuture;
+    }
+
+    void DoAdvanceQueueConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        int partitionIndex,
+        std::optional<i64> oldOffset,
+        i64 newOffset,
+        const TAdvanceQueueConsumerOptions& /*options*/)
+    {
+        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
+            .ValueOrThrow();
+
+        CheckReadPermission(consumerPath.GetPath(), tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+
+        auto queueClient = GetClient();
+        if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {
+            auto queueConnection = FindRemoteConnection(Client_->GetNativeConnection(), *queueCluster);
+            if (!queueConnection) {
+                THROW_ERROR_EXCEPTION(
+                    "Queue cluster %Qv was not found for path %v",
+                    *queueCluster,
+                    queuePath);
+            }
+
+            auto queueClientOptions = TClientOptions::FromUser(Client_->GetOptions().GetAuthenticatedUser());
+            queueClient = queueConnection->CreateNativeClient(queueClientOptions);
+        }
+
+        auto subConsumerClient = CreateSubConsumerClient(
+            GetClient(),
+            queueClient,
+            consumerPath.GetPath(),
+            registrationCheckResult.ResolvedQueue);
+        subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
+    }
+
+    TPushQueueProducerResult DoPushQueueProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const TPushQueueProducerOptions& options)
+    {
+        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
+        auto producerTableInfoFuture = tableMountCache->GetTableInfo(producerPath.GetPath());
+        auto queueTableInfoFuture = tableMountCache->GetTableInfo(queuePath.GetPath());
+
+        auto producerTableInfo = WaitFor(producerTableInfoFuture).ValueOrThrow();
+        // TODO(nadya73): use special producer permission.
+        CheckWritePermission(producerPath.GetPath(), producerTableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        auto queueTableInfo = WaitFor(queueTableInfoFuture).ValueOrThrow();
+        CheckWritePermission(queuePath.GetPath(), queueTableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        // TODO(nadya73): check queue producer registration.
+
+        // Cluster for queue and producer should be the same.
+        auto cluster = Client_->GetClusterName();
+        if (!cluster) {
+            THROW_ERROR_EXCEPTION("Cannot serve request, there is a server-side misconfiguration, "
+                "cluster connection was not properly configured with a cluster name");
+        }
+
+        // TODO(nadya73): resolve RT/CRT paths by replicas.
+
+        auto producerNameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
+        NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
+            .QueueCluster = TString(*cluster),
+            .QueuePath = queuePath.GetPath(),
+            .SessionId = sessionId.Underlying(),
+        };
+
+        auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+
+        auto sessionRowset = WaitFor(LookupRows(
+            producerPath.GetPath(),
+            producerNameTable,
+            keys,
+            TLookupRowsOptions{}))
+            .ValueOrThrow()
+            .Rowset;
+
+        auto sessions = ToRecords<NRecords::TQueueProducerSession>(sessionRowset);
+        THROW_ERROR_EXCEPTION_IF(sessions.empty(), "Unknown queue producer session %Qv", sessionId);
+
+        YT_VERIFY(sessions.size() == 1);
+        const auto& session = sessions[0];
+
+        THROW_ERROR_EXCEPTION_IF(
+            session.Epoch > epoch.Underlying(),
+            NQueueClient::EErrorCode::ZombieEpoch,
+            "Received session epoch %v is less than the actual %v epoch, probably it is a zombie",
+            epoch,
+            session.Epoch);
+
+        THROW_ERROR_EXCEPTION_IF(
+            session.Epoch < epoch.Underlying(),
+            NQueueClient::EErrorCode::InvalidEpoch,
+            "Received epoch %v is greater than the actual %v epoch",
+            epoch,
+            session.Epoch);
+
+        auto lastProducerSequenceNumber = TQueueProducerSequenceNumber(session.SequenceNumber);
+
+        // If we push in the same transaction using the same session several times,
+        // we should save last sequence number in the transaction state for the correct checking of sequence numbers.
+        auto guard = Guard(QueueProducerSessionSpinLock_);
+        auto actualLastProducerSequenceNumberIt = QueueProducerSessionToSequenceNumber_.find(std::tuple(producerPath, queuePath, sessionId));
+        if (actualLastProducerSequenceNumberIt != QueueProducerSessionToSequenceNumber_.end()) {
+            lastProducerSequenceNumber = actualLastProducerSequenceNumberIt->second;
+        }
+
+        auto validateResult = ValidatePushQueueProducerRows(
+            nameTable, rows, lastProducerSequenceNumber, options.SequenceNumber);
+
+        YT_LOG_DEBUG("Rows were validated (SkipRowCount: %v, LastSequenceNumber: %v)",
+            validateResult.SkipRowCount,
+            validateResult.LastSequenceNumber);
+
+        if (validateResult.SkipRowCount >= std::ssize(rows)) {
+            YT_LOG_DEBUG("After validation all rows should be skipped, do nothing (RowCount: %v, SkipRowCount: %v)",
+                std::ssize(rows),
+                validateResult.SkipRowCount);
+        }
+
+        auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
+        WriteRows(
+            queuePath.GetPath(),
+            nameTable,
+            filteredRows,
+            TModifyRowsOptions{ .WriteViaQueueProducer = true });
+
+        QueueProducerSessionToSequenceNumber_[std::tuple(producerPath, queuePath, sessionId)] = validateResult.LastSequenceNumber;
+
+        NQueueClient::NRecords::TQueueProducerSessionPartial updatedSession{
+            .Key = sessionKey,
+            .SequenceNumber = validateResult.LastSequenceNumber.Underlying(),
+            .Epoch = epoch.Underlying(),
+        };
+        if (options.UserMeta) {
+            updatedSession.UserMeta = ConvertToYsonString(options.UserMeta);
+        }
+
+        auto updatedSessionRows = FromRecords(MakeRange(std::array{updatedSession}));
+        WriteRows(producerPath.GetPath(), producerNameTable, updatedSessionRows);
+
+        return TPushQueueProducerResult{
+            .LastSequenceNumber = validateResult.LastSequenceNumber,
+            .SkippedRowCount = validateResult.SkipRowCount,
+        };
     }
 
     TFuture<void> PrepareRequests()

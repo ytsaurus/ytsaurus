@@ -939,6 +939,35 @@ TTableSchemaPtr TTableSchema::ToQuery() const
     }
 }
 
+TTableSchemaPtr TTableSchema::ToWriteViaQueueProducer() const
+{
+    std::vector<TColumnSchema> columns;
+    if (IsSorted()) {
+        for (const auto& column : Columns()) {
+            if (!column.Expression()) {
+                columns.push_back(column);
+            }
+        }
+    } else {
+        columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending));
+        columns.push_back(TColumnSchema(SequenceNumberColumnName, ESimpleLogicalValueType::Int64));
+        for (const auto& column : Columns()) {
+            if (column.StableName().Underlying() != TimestampColumnName &&
+                column.StableName().Underlying() != CumulativeDataWeightColumnName)
+            {
+                columns.push_back(column);
+            }
+        }
+    }
+    return New<TTableSchema>(
+        std::move(columns),
+        Strict_,
+        UniqueKeys_,
+        ETableSchemaModification::None,
+        DeletedColumns());
+}
+
 TTableSchemaPtr TTableSchema::ToWrite() const
 {
     std::vector<TColumnSchema> columns;
@@ -959,8 +988,13 @@ TTableSchemaPtr TTableSchema::ToWrite() const
             }
         }
     }
-    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
-        ETableSchemaModification::None, DeletedColumns_);
+
+    return New<TTableSchema>(
+        std::move(columns),
+        Strict_,
+        UniqueKeys_,
+        ETableSchemaModification::None,
+        DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::WithTabletIndex() const
@@ -971,8 +1005,13 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
         auto columns = Columns();
         // XXX: Is it ok? $tablet_index is usually a key column.
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
-        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
-            ETableSchemaModification::None, DeletedColumns_);
+
+        return New<TTableSchema>(
+            std::move(columns),
+            Strict_,
+            UniqueKeys_,
+            ETableSchemaModification::None,
+            DeletedColumns_);
     }
 }
 
@@ -984,8 +1023,13 @@ TTableSchemaPtr TTableSchema::ToVersionedWrite() const
         auto columns = Columns();
         columns.insert(columns.begin(), TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
-        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
-            ETableSchemaModification::None, DeletedColumns_);
+
+        return New<TTableSchema>(
+            std::move(columns),
+            Strict_,
+            UniqueKeys_,
+            ETableSchemaModification::None,
+            DeletedColumns_);
     }
 }
 
@@ -1153,11 +1197,11 @@ TTableSchemaPtr TTableSchema::ToReplicationLog() const
         columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }
     return New<TTableSchema>(
-            std::move(columns),
-            /* strict */ true,
-            /* uniqueKeys */ false,
-            ETableSchemaModification::None,
-            DeletedColumns_);
+        std::move(columns),
+        /* strict */ true,
+        /* uniqueKeys */ false,
+        ETableSchemaModification::None,
+        DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
@@ -1194,11 +1238,11 @@ TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
     }
 
     return New<TTableSchema>(
-            std::move(columns),
-            /*strict*/ true,
-            /*uniqueKeys*/ sorted,
-            ETableSchemaModification::None,
-            DeletedColumns_);
+        std::move(columns),
+        /*strict*/ true,
+        /*uniqueKeys*/ sorted,
+        ETableSchemaModification::None,
+        DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToModifiedSchema(ETableSchemaModification schemaModification) const
