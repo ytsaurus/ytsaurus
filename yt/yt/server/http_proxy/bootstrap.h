@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/driver/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
@@ -20,7 +22,7 @@
 #include <yt/yt/library/containers/public.h>
 #include <yt/yt/library/containers/disk_manager/public.h>
 
-#include <yt/yt/client/driver/public.h>
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
 
@@ -126,7 +128,9 @@ private:
     THostsHandlerPtr HostsHandler_;
     TClusterConnectionHandlerPtr ClusterConnectionHandler_;
     TPingHandlerPtr PingHandler_;
-    TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
+    TDiscoverVersionsHandlerPtr DiscoverVersionsHandler_;
+
+    NProfiling::TSolomonProxyPtr SolomonProxy_;
 
     IAccessCheckerPtr AccessChecker_;
 
