@@ -1,0 +1,50 @@
+name: Docs Release
+
+on:
+  push:
+    branches:
+      - main
+    paths: 'yt/docs/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build
+        uses: diplodoc-platform/docs-build-action@v3
+        with:
+          revision: "${{ github.sha }}"
+          src-root: "./yt/docs"
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Upload
+        uses: diplodoc-platform/docs-upload-action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          project-link: ${{ vars.DIPLODOC_PROJECT_LINK }}
+          storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
+          storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
+          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
+          src-root: "./yt/docs"
+  release:
+    needs: upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        uses: diplodoc-platform/docs-release-action@v2
+        with:
+          revision: "${{ github.sha }}"
+          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
+          src-root: "./yt/docs"
+          server: "https://viewer.ydocs.io"
+

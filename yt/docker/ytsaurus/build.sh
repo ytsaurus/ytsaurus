@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -ex
 
 script_name=$0
 
@@ -66,6 +66,8 @@ while [[ $# -gt 0 ]]; do
         ;;
     esac
 done
+
+mkdir -p ${output_path}
 
 dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 cp ${dockerfile} ${output_path}

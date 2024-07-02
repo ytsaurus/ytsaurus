@@ -28,7 +28,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 93GB
+          disk-size: 279GB
           public-ip: false
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
@@ -52,6 +52,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
       build-python: true
       build-chyt: true
     uses: ./.github/workflows/build-jobs.yaml

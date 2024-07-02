@@ -1,0 +1,20 @@
+name: Docs Build
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths: 'yt/docs/**'
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        uses: diplodoc-platform/docs-build-action@v3
+        with:
+          revision: "pr-${{ github.event.pull_request.number }}"
+          src-root: "./yt/docs"

@@ -80,6 +80,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DREQUIRED_LLVM_TOOLING_VERSION=16 \
             ../ytsaurus/ytsaurus
 
       - name: Build C++
@@ -89,6 +90,15 @@ jobs:
           export CCACHE_REMOTE_ONLY=true
           export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
           ninja yson_lib driver_lib driver_rpc_lib
+
+      - name: Build ya make
+        run: |
+          export SOURCE_ROOT="$(pwd)/ytsaurus"
+          export YA_BUILD_PATH=$(realpath $(pwd)/../ya_build)
+          mkdir -p "$YA_BUILD_PATH"
+
+          ytsaurus/yt/python/packages/build_python_libraries_with_docker.sh
+          cp "$YA_BUILD_PATH/yt/yt/python/yson_shared/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
 
       - name: Build package
         id: build
@@ -101,12 +111,12 @@ jobs:
           source ../venv/bin/activate
           pip3 install -r ./ytsaurus/yt/yt/scripts/pytest_requirements.txt
 
-          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
+          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }} --apply-auditwheel
 
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
 
-          pip3 install sphinx
+          pip3 install sphinx sphinx-argparse
 
           cp -r ./ytsaurus/yt/python/packages/docs "${ytsaurus_python}"
 

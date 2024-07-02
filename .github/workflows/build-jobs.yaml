@@ -1,9 +1,15 @@
+name: Build Jobs
 on:
   workflow_call:
     inputs:
       runs-on-value:
         required: true
         type: string
+      cpp-build-system:
+        required: false
+        # cmake or ya-make
+        type: string
+        default: ''
       build-strawberry:
         default: false
         required: false
@@ -26,159 +32,258 @@ on:
         type: boolean
 
 jobs:
-  build:
+  venv:
     runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 480
     steps:
       - name: Prepare python virtual environment
         run: |
           python3.11 -m venv ../venv
 
+  strawberry:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    if: ${{ inputs.build-strawberry }}
+    timeout-minutes: 480
+    steps:
       - name: Build strawberry controller
-        if: ${{ inputs.build-strawberry }}
         run: |
           cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build
 
-      - name: Configure ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+  cmake_build:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 480
+    if: ${{ inputs.cpp-build-system == 'cmake' }}
+    strategy:
+      matrix:
+        include:
+          - build-type: "release"
+            cmake-build-type: "Release"
+          - build-type: "relwithdebinfo"
+            cmake-build-type: "RelWithDebInfo"
+    steps:
+      - name: Create build directories
         run: |
-          mkdir -p ../build
-          cd ../build
-          rm -rf *
+          for prefix in build \
+                        build_yql
+          do
+            build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+            mkdir -p ../${build_dir}
+            cd ../${build_dir}
+            rm -rf *
+          done
+
+      - name: Configure ytsaurus (${{ matrix.build-type }})
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
           cmake \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} \
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DREQUIRED_LLVM_TOOLING_VERSION=16 \
             ../ytsaurus/ytsaurus
 
-      - name: Configure ytsaurus (relwithdebinfo)
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
-        run: |
-          mkdir -p ../build_relwithdebinfo
-          cd ../build_relwithdebinfo
-          rm -rf *
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DREQUIRED_LLVM_TOOLING_VERSION=16 \
-            ../ytsaurus/ytsaurus
+          ccache --set-config base_dir="$(realpath ..)"
+          ccache --set-config remote_only=true
+          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
 
-      - name: Configure query tracker
+      - name: Configure YQL agent (${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
           #TODO: install it inside vm image.
           sudo apt-get -y install antlr3 libaio1 libaio-dev
 
           #TODO: remove -DMKQL_DISABLE_CODEGEN after YT-19852.
-          mkdir -p ../build_qt
-          cd ../build_qt
+          cd ../build_yql_${{ matrix.build-type }}
           rm -rf *
           cmake \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} \
             -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
+
+            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+
             -DCMAKE_C_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
             -DCMAKE_CXX_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
-            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
-            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
-            ../ytsaurus/ydb
 
-      - name: Configure query tracker (relwithdebinfo)
-        if: ${{ inputs.build-query-tracker }}
-        run: |
-          mkdir -p ../build_qt_relwithdebinfo
-          cd ../build_qt_relwithdebinfo
-          rm -rf *
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
-            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
-            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
             -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
             -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+
             ../ytsaurus/ydb
 
-      - name: Build ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
-        run: |
-          export CCACHE_BASEDIR="$(realpath ..)"
-          export CCACHE_REMOTE_ONLY=true
-          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
+          ccache --set-config base_dir="$(realpath ..)"
+          ccache --set-config remote_only=true
+          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
 
-          cd ../build
-          ninja
-
-          cd ../build_relwithdebinfo
-          ninja ytserver-all
-
-      - name: Build chyt
-        if: ${{ inputs.build-chyt }}
-        run: |
-          export CCACHE_BASEDIR="$(realpath ..)"
-          export CCACHE_REMOTE_ONLY=true
-          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
-
-          cd ../build_relwithdebinfo
-          ninja ytserver-clickhouse
-
-      - name: Build query tracker
-        if: ${{ inputs.build-query-tracker }}
-        run: |
-          export CCACHE_BASEDIR="$(realpath ..)"
-          export CCACHE_REMOTE_ONLY=true
-          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
-
-          for dir in build_qt build_qt_relwithdebinfo ; do 
-              cd ../${dir}
-              ninja libcompress_udf.so
-              ninja libdatetime2_udf.so
-              ninja libdigest_udf.so
-              ninja libdsv_udf.so
-              ninja libfile_udf.so
-              ninja libhistogram_udf.so
-              ninja libhyperloglog_udf.so
-              ninja libhyperscan_udf.so
-              ninja libip_udf.so
-              ninja libjson2_udf.so
-              ninja libjson_udf.so
-              ninja libmath_udf.so
-              ninja libpire_udf.so
-              ninja libprotobuf_udf.so
-              ninja libre2_udf.so
-              ninja libset_udf.so
-              ninja libstat_udf.so
-              ninja libstreaming_udf.so
-              ninja libstring_udf.so
-              ninja libtopfreq_udf.so
-              ninja libtop_udf.so
-              ninja libunicode_udf.so
-              ninja liburl_udf.so
-              ninja libyqlplugin.so
-              ninja libyson2_udf.so
-              ninja mrjob
-          done
-
-          cd ../build_relwithdebinfo
-          ninja ytserver-yql-agent
-
-      - name: Build Python packages
+      - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
         run: |
+          build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+          cd ${build_dir}
+          ninja yson_lib driver_lib driver_rpc_lib
+
+          cd ../ytsaurus
+
           source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
 
+      - name: Build ytsaurus (cmake, ${{ matrix.build-type }})
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type}}
+          if [ "${{ matrix.build-type }}" == "release" ]; then
+            ninja
+          else
+            ninja ytserver-all ytserver-clickhouse
+          fi
 
+      - name: Build YQL agent (cmake, ${{ matrix.build-type }})
+        if: ${{ inputs.build-query-tracker }}
+        run: |
+          cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          ninja libcompress_udf.so
+          ninja libdatetime2_udf.so
+          ninja libdigest_udf.so
+          ninja libdsv_udf.so
+          ninja libfile_udf.so
+          ninja libhistogram_udf.so
+          ninja libhyperloglog_udf.so
+          ninja libhyperscan_udf.so
+          ninja libip_udf.so
+          ninja libjson2_udf.so
+          ninja libjson_udf.so
+          ninja libmath_udf.so
+          ninja libpire_udf.so
+          ninja libprotobuf_udf.so
+          ninja libre2_udf.so
+          ninja libset_udf.so
+          ninja libstat_udf.so
+          ninja libstreaming_udf.so
+          ninja libstring_udf.so
+          ninja libtopfreq_udf.so
+          ninja libtop_udf.so
+          ninja libunicode_udf.so
+          ninja liburl_udf.so
+          ninja libyqlplugin.so
+          ninja libyson2_udf.so
+          ninja mrjob
+
+          cd ../build_${{ matrix.build-type }}
+          ninja ytserver-yql-agent
+
+  ya-make_build:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 480
+    if: ${{ inputs.cpp-build-system == 'ya-make' }}
+    strategy:
+      matrix:
+        build-type: [release, relwithdebinfo]
+    steps:
+      - name: Calculate variables
+        id: vars
+        run: |
+          STRIP_VALUE=no
+          if [ "${{ matrix.build-type }}" == "release" ]
+          then
+            STRIP_VALUE=yes
+          fi
+          echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
+
+      - name: Create build directories
+        run: |
+          build_dir_prefixes=()
+
+          for prefix in build \
+                        build_yql
+          do
+            build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+            mkdir -p ../${build_dir}
+            cd ../${build_dir}
+            rm -rf *
+          done
+
+      - name: Build Python packages (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-python }}
+        run: |
+          build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+          cd ${build_dir}
+
+          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+
+          cd ../ytsaurus
+
+          source ../venv/bin/activate
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+
+      - name: Build ytsaurus (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          ../ytsaurus/ytsaurus/ya make --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+
+          ../ytsaurus/ytsaurus/ya make --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+
+      - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-query-tracker }}
+        run: |
+          shopt -s expand_aliases
+
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          ../ytsaurus/ytsaurus/ya make -T --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
+
+          cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}  --ignore-recurses --output=."
+
+          for path in "ydb/library/yql/tools/mrjob" \
+                      "ydb/library/yql/yt/dynamic" \
+                      "ydb/library/yql/yt/dq_vanilla_job" \
+                      "ydb/library/yql/yt/dq_vanilla_job.lite" \
+                      "ydb/library/yql/udfs/logs/dsv"
+          do
+            ydb-ya-make ../ytsaurus/ydb/$path
+          done
+
+          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
+          for udf_name in compress_base \
+                          datetime2 \
+                          digest \
+                          file \
+                          histogram \
+                          hyperloglog \
+                          hyperscan \
+                          ip_base \
+                          json \
+                          json2 \
+                          math \
+                          pire \
+                          protobuf \
+                          re2 \
+                          set \
+                          stat \
+                          streaming \
+                          string \
+                          top \
+                          topfreq \
+                          unicode_base \
+                          url_base \
+                          yson2
+          do
+            ydb-ya-make  ${udfs_prefix}/${udf_name}
+          done
