@@ -228,6 +228,7 @@ private:
     EJobEnvironmentType JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
+    // Invoker affinity: JobInvoker
     TRingQueue<int> FreeSlots_;
     int UsedIdleSlotCount_ = 0;
 
