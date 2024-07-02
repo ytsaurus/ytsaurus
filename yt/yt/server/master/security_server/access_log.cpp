@@ -286,9 +286,11 @@ bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
         return false;
     }
 
-    if (!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader() &&
-        !bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery())
-    {
+    if (bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
+        return false;
+    }
+
+    if (!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader()) {
         return true;
     }
 
