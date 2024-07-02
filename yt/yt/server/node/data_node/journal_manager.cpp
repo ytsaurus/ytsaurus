@@ -382,7 +382,7 @@ private:
             auto changelog = Callbacks_->OpenSplitChangelog(chunkId);
             if (!changelog) {
                 if (!AbsentChunkIds_.contains(chunkId)) {
-                    YT_LOG_DEBUG("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
+                    YT_LOG_INFO("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
                         chunkId);
                     AbsentChunkIds_.insert(chunkId);
                 }
