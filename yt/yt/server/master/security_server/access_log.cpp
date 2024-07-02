@@ -280,7 +280,8 @@ bool IsAccessLoggedType(const EObjectType type)
     return typesForAccessLog.contains(type);
 }
 
-bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap) {
+bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
+{
     if (!bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog) {
         return false;
     }

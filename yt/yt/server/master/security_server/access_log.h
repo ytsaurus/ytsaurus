@@ -11,8 +11,7 @@
 
 #define YT_LOG_ACCESS(...) \
     do { \
-        if (IsAccessLogEnabled(Bootstrap_)) \
-        { \
+        if (IsAccessLogEnabled(Bootstrap_)) { \
             LogAccess(Bootstrap_, __VA_ARGS__); \
         } \
     } while (false)
@@ -25,7 +24,7 @@
 //! Evaluates an expression the result of which is to be access-logged later.
 //! Crucially, skips the evaluation if access logging is no-op.
 #define YT_EVALUATE_FOR_ACCESS_LOG(...) \
-    ((IsAccessLogEnabled(Bootstrap_)) \
+    (IsAccessLogEnabled(Bootstrap_) \
         ? std::optional(__VA_ARGS__) \
         : std::nullopt)
 
