@@ -152,6 +152,10 @@ public:
         YT_VERIFY(!Dialed_);
         Dialed_ = true;
 
+        if (Config_->ConnectTimeout) {
+            Deadline_ = Config_->ConnectTimeout->ToDeadLine();
+        }
+
         Connect(guard);
     }
 
@@ -204,6 +208,7 @@ private:
     bool Dialed_ = false;
     bool Finished_ = false;
     TDuration Timeout_;
+    std::optional<TInstant> Deadline_;
     TDelayedExecutorCookie TimeoutCookie_;
     TPollablePtr Pollable_;
 
@@ -287,10 +292,14 @@ private:
             return;
         }
 
-        if (Config_->EnableAggressiveReconnect) {
+        if (Config_->EnableAggressiveReconnect || Deadline_) {
+            const auto deadline = Min(
+                Deadline_ ? *Deadline_ : TInstant::Max(),
+                Config_->EnableAggressiveReconnect ? Timeout_.ToDeadLine() : TInstant::Max());
+
             TimeoutCookie_ = TDelayedExecutor::Submit(
                 BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                Timeout_);
+                deadline);
         }
     }
 
@@ -357,6 +366,16 @@ private:
 
         if (Timeout_ < Config_->MaxRto) {
             Timeout_ *= Config_->RtoScale * GetRandomVariation();
+        }
+
+        if (Deadline_ && TInstant::Now() >= *Deadline_) {
+            auto error = TError(NRpc::EErrorCode::TransportError, "Connect timed out")
+                << TErrorAttribute("Timeout", Config_->ConnectTimeout);
+            YT_LOG_ERROR(error);
+            Finished_ = true;
+            guard.Release();
+            OnFinished_(error);
+            return;
         }
 
         YT_LOG_DEBUG("Connect timeout; trying to reconnect (Timeout: %v)",
