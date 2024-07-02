@@ -200,6 +200,7 @@ private:
     THashSet<TChunkId> CreateChunkIds_;
     THashSet<TChunkId> RemoveChunkIds_;
     THashSet<TChunkId> AppendChunkIds_;
+    THashSet<TChunkId> AbsentChunkIds_;
     THashMap<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
 
     struct TSplitEntry
@@ -380,9 +381,14 @@ private:
         if (it == SplitMap_.end()) {
             auto changelog = Callbacks_->OpenSplitChangelog(chunkId);
             if (!changelog) {
-                YT_LOG_FATAL("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
-                    chunkId);
+                if (!AbsentChunkIds_.contains(chunkId)) {
+                    YT_LOG_DEBUG("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
+                        chunkId);
+                    AbsentChunkIds_.insert(chunkId);
+                }
+                return;
             }
+
             it = SplitMap_.emplace(
                 chunkId,
                 TSplitEntry(chunkId, changelog)).first;
