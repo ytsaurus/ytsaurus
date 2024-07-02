@@ -777,6 +777,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     masterReq->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
     masterReq->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
     masterReq->set_populate_features(options.PopulateFeatures);
+    masterReq->set_populate_user_directory(options.PopulateUserDirectory);
     SetCachingHeader(masterReq, options);
     batchReq->AddRequest(masterReq, "cluster_meta");
 
@@ -822,6 +823,10 @@ TClusterMeta TClient::DoGetClusterMeta(
             auto schedulerFeatures = ConvertTo<IMapNodePtr>(TYsonStringBuf(schedulerRspOrError.Value()->value()));
             meta.Features = PatchNode(meta.Features, schedulerFeatures)->AsMap();
         }
+    }
+    if (options.PopulateUserDirectory) {
+        meta.UserDirectory = std::make_shared<NObjectClient::NProto::TUserDirectory>();
+        meta.UserDirectory->Swap(masterRsp->mutable_user_directory());
     }
     return meta;
 }

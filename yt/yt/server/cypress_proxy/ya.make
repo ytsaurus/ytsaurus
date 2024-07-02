@@ -16,6 +16,8 @@ SRCS(
     sequoia_service.cpp
     sequoia_service_detail.cpp
     sequoia_tree_visitor.cpp
+    user_directory_synchronizer.cpp
+    user_directory.cpp
 )
 
 PEERDIR(

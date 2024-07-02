@@ -1074,6 +1074,20 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-yt-ytlib)
 
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -1177,6 +1191,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/user_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
@@ -1273,6 +1288,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/user_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h

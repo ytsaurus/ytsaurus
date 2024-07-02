@@ -29,12 +29,30 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
+    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
+
     REGISTER_YSON_STRUCT(TCypressProxyConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressProxyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserDirectorySynchronizerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Interval between consequent directory updates.
+    TDuration SyncPeriod;
+
+    REGISTER_YSON_STRUCT(TUserDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,10 +27,15 @@ DECLARE_REFCOUNTED_STRUCT(ISequoiaService)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
+DECLARE_REFCOUNTED_STRUCT(IUserDirectorySynchronizer)
+
+DECLARE_REFCOUNTED_CLASS(TUserDirectory)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TObjectServiceDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressProxyDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TUserDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

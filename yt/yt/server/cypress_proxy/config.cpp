@@ -22,6 +22,9 @@ void TCypressProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
 
+    registrar.Parameter("user_directory_synchronizer", &TThis::UserDirectorySynchronizer)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->DynamicConfigPath) {
             config->DynamicConfigPath = config->RootPath + "/@config";
@@ -37,6 +40,14 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(1);
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

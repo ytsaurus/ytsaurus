@@ -1,0 +1,19 @@
+package NYT.NObjectClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserRequestLimits
+{
+    required bytes user_name = 1;
+    optional int32 read_request_rate_limit = 2;
+    optional int32 write_request_rate_limit = 3;
+    optional int32 request_queue_size_limit = 4;
+}
+
+message TUserDirectory
+{
+    repeated TUserRequestLimits limits = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

@@ -47,5 +47,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_tree_visitor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory.cpp
 )
 

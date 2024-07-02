@@ -324,6 +324,7 @@ SRCS(
     object_client/proto/master_ypath.proto
     object_client/proto/object_service.proto
     object_client/proto/object_ypath.proto
+    object_client/proto/user_directory.proto
 
     orchid/orchid_service.cpp
     orchid/orchid_ypath_service.cpp
