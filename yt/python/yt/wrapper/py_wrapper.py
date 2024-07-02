@@ -519,15 +519,18 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
                                         is_local_mode, params, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
-    pickler_name = get_config(client)["pickling"]["framework"]
+    pickling_config = get_config(client)["pickling"]
+    pickler_name = pickling_config["framework"]
     pickler = Pickler(pickler_name)
     dump_kwargs = {}
     if pickler_name == "dill":
-        if get_config(client)["pickling"]["load_additional_dill_types"]:
+        if pickling_config["load_additional_dill_types"]:
             pickler.load_types()
         if is_running_interactively():
             dump_kwargs["recurse"] = True
             dump_kwargs["byref"] = False
+
+    dump_kwargs.update({item["key"]: item["value"] for item in pickling_config["pickler_kwargs"]})
 
     with open(function_filename, "wb") as fout:
         params.attributes = function.attributes if hasattr(function, "attributes") else {}
