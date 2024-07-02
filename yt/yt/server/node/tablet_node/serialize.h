@@ -62,6 +62,7 @@ DEFINE_ENUM(ETabletReign,
     ((DistributedTabletPrerequisites)              (100908)) // gritukan
     ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
     ((ChunkReplicaAlwaysPrecache)                  (100910)) // osidorkin
+    ((FixCDWComputationForChaosReplicas)           (100911)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
