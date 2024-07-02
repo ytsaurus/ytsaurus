@@ -375,7 +375,7 @@ TFileChangelogIndex::TChunk TFileChangelogIndex::AllocateChunk()
     auto holder = MakeSharedRangeHolder(buffer);
     auto chunk = TChunk(reinterpret_cast<TRecord*>(buffer.Begin()), RecordsPerChunk, std::move(holder));
     std::uninitialized_default_construct(chunk.Begin(), chunk.End());
-    MemoryUsageTrackerGuard_.IncrementSize(std::ssize(buffer));
+    MemoryUsageTrackerGuard_.IncreaseSize(std::ssize(buffer));
     return chunk;
 }
 

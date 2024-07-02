@@ -206,6 +206,28 @@ void TLocationMemoryGuard::Release()
     }
 }
 
+void TLocationMemoryGuard::IncreaseSize(i64 delta)
+{
+    YT_VERIFY(Owner_);
+
+    Size_ += delta;
+    Owner_->IncreaseUsedMemory(Direction_, Category_, delta);
+}
+
+void TLocationMemoryGuard::DecreaseSize(i64 delta)
+{
+    YT_VERIFY(Owner_);
+    YT_VERIFY(Size_ >= delta);
+
+    Size_ -= delta;
+    Owner_->DecreaseUsedMemory(Direction_, Category_, delta);
+}
+
+i64 TLocationMemoryGuard::GetSize()
+{
+    return Size_;
+}
+
 TLocationMemoryGuard::operator bool() const
 {
     return Owner_.operator bool();
@@ -927,6 +949,16 @@ void TChunkLocation::UpdatePendingIOSize(
         delta);
 }
 
+void TChunkLocation::IncreaseUsedMemory(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdateUsedMemory(direction, category, delta);
+}
+
 void TChunkLocation::DecreaseUsedMemory(
     EIODirection direction,
     EIOCategory category,
@@ -1222,15 +1254,47 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     auto readQueueSize =
         GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
-    bool throttled =
-        readQueueSize > GetReadThrottlingLimit() ||
-        IOEngine_->IsReadInFlightRequestLimitExceeded() ||
-        GetUsedMemory(EIODirection::Read) >= GetReadMemoryLimit() ||
-        GetPendingIOSize(EIODirection::Read) >= GetPendingReadIOLimit() ||
-        ReadMemoryTracker_->IsExceeded();
+
+    bool throttled = true;
+
+    if (readQueueSize > GetReadThrottlingLimit()) {
+        YT_LOG_DEBUG("Pending IO size more than read throttling limit (PendingIOSize: %v, ReadThrottligLimit: %v)",
+            readQueueSize,
+            GetReadThrottlingLimit());
+    } else if (IOEngine_->IsReadInFlightRequestLimitExceeded()) {
+        YT_LOG_DEBUG("There are too many read IO requests (InFlightReadRequests: %v, ReadRequestsLimit: %v)",
+            IOEngine_->GetInFlightReadRequestCount(),
+            IOEngine_->GetReadRequestLimit());
+    } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Read),
+        readThrottlingLimit = GetPendingReadIOLimit();
+        pendingIOSize > readThrottlingLimit)
+    {
+        YT_LOG_DEBUG("Summary pending IO size more than read throttling limit (PendingIOSize: %v, ReadThrottligLimit: %v)",
+            pendingIOSize,
+            readThrottlingLimit);
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read),
+        readMemoryLimit = GetReadMemoryLimit();
+        usedMemory > readMemoryLimit)
+    {
+        YT_LOG_DEBUG(
+            "Not enough location memory to serve %Qlv acquisition request (BytesUsed: %v, BytesLimit: %v)",
+            EMemoryCategory::PendingDiskRead,
+            usedMemory,
+            readMemoryLimit);
+    } else if (ReadMemoryTracker_->IsExceeded()) {
+        YT_LOG_DEBUG(
+            "Not enough memory to serve %Qlv acquisition request (BytesUsed: %v, BytesLimit: %v)",
+            EMemoryCategory::PendingDiskRead,
+            ReadMemoryTracker_->GetUsed(),
+            ReadMemoryTracker_->GetLimit());
+    } else {
+        throttled = false;
+    }
+
     if (throttled && incrementCounter) {
         ReportThrottledRead();
     }
+
     return TChunkLocation::TDiskThrottlingResult{.Enabled = throttled, .QueueSize = readQueueSize};
 }
 
@@ -1239,20 +1303,60 @@ void TChunkLocation::ReportThrottledRead() const
     PerformanceCounters_->ReportThrottledRead();
 }
 
-bool TChunkLocation::CheckWriteThrottling(
+void TChunkLocation::CheckWriteThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
     bool incrementCounter) const
 {
-    bool throttled =
-        GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
-        IOEngine_->IsWriteInFlightRequestLimitExceeded() ||
-        GetUsedMemory(EIODirection::Write) >= GetWriteMemoryLimit() ||
-        GetPendingIOSize(EIODirection::Write) >= GetPendingWriteIOLimit() ||
-        WriteMemoryTracker_->IsExceeded();
-    if (throttled && incrementCounter) {
-        ReportThrottledWrite();
+    try {
+        if (WriteMemoryTracker_->IsExceeded()) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Not enough memory to serve %Qlv acquisition request",
+                EMemoryCategory::PendingDiskWrite)
+                << TErrorAttribute("bytes_used", WriteMemoryTracker_->GetUsed())
+                << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
+        } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
+            writeMemoryLimit = GetWriteMemoryLimit();
+            usedMemory > writeMemoryLimit)
+        {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Not enough location memory to serve %Qlv acquisition request",
+                EMemoryCategory::PendingDiskWrite)
+                << TErrorAttribute("bytes_used", usedMemory)
+                << TErrorAttribute("bytes_limit", writeMemoryLimit);
+        } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write, workloadDescriptor),
+            writeThrottlingLimit = GetWriteThrottlingLimit();
+            pendingIOSize > writeThrottlingLimit)
+        {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Pending IO size more than write throttling limit")
+                << TErrorAttribute("pending_io_size", pendingIOSize)
+                << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
+        } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write),
+            writeThrottlingLimit = GetPendingWriteIOLimit();
+            pendingIOSize > writeThrottlingLimit)
+        {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Summary pending IO size more than write throttling limit")
+                << TErrorAttribute("pending_io_size", pendingIOSize)
+                << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
+        } else if (IOEngine_->IsWriteInFlightRequestLimitExceeded()) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "There are too many write IO requests")
+                << TErrorAttribute("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
+                << TErrorAttribute("write_request_limit", IOEngine_->GetWriteRequestLimit());
+        }
+    } catch (const std::exception& ex) {
+        if (incrementCounter) {
+            ReportThrottledWrite();
+        }
+
+        THROW_ERROR(ex);
     }
-    return throttled;
 }
 
 void TChunkLocation::ReportThrottledWrite() const

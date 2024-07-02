@@ -524,6 +524,26 @@ public:
         return Underlying_->IsWriteInFlightRequestLimitExceeded();
     }
 
+    i64 GetInFlightReadRequestCount() const override
+    {
+        return Underlying_->GetInFlightReadRequestCount();
+    }
+
+    i64 GetReadRequestLimit() const override
+    {
+        return Underlying_->GetReadRequestLimit();
+    }
+
+    i64 GetInFlightWriteRequestCount() const override
+    {
+        return Underlying_->GetInFlightWriteRequestCount();
+    }
+
+    i64 GetWriteRequestLimit() const override
+    {
+        return Underlying_->GetWriteRequestLimit();
+    }
+
 private:
     const IIOEnginePtr Underlying_;
     const NLogging::TLogger Logger;

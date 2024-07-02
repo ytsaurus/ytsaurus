@@ -783,7 +783,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        WriteLogsMemoryTrackerGuard_.IncrementSize(writeRecord.GetByteSize() * multiplier);
+        WriteLogsMemoryTrackerGuard_.IncreaseSize(writeRecord.GetByteSize() * multiplier);
         bool replicatorWrite = IsReplicatorWrite(transaction);
         IncrementTabletPendingWriteRecordCount(replicatorWrite, multiplier);
     }
