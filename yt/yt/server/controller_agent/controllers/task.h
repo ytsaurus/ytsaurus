@@ -303,8 +303,6 @@ protected:
 
     void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
 
-    std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
-        NControllerAgent::NProto::TJobSpecExt* schedulerJobSpec);
     void AddSequentialInputSpec(
         NControllerAgent::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,

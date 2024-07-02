@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -46,6 +48,8 @@ struct TChunkReaderHost
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
         NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
         NConcurrency::IThroughputThrottlerPtr mediumThrottler = NConcurrency::GetUnlimitedThrottler());
+
+    TChunkReaderHostPtr CreateHostForCluster(const NScheduler::TClusterName& clusterName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderHost)

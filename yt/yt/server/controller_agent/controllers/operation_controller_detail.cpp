@@ -474,7 +474,7 @@ void TOperationControllerBase::InitializeClients()
     SchedulerInputClient = Client;
     SchedulerOutputClient = Client;
 
-    InputManager->InitializeClient(InputClient);
+    InputManager->InitializeClients(InputClient);
 }
 
 void TOperationControllerBase::InitializeInputTransactions()
@@ -494,14 +494,13 @@ void TOperationControllerBase::InitializeInputTransactions()
     }
 
     InputTransactions = New<TInputTransactionsManager>(
-        TInputClients {
-            .Client = InputClient,
-            .SchedulerClient = SchedulerInputClient,
-        },
+        InputClient,
+        New<TClusterResolver>(InputClient),
         OperationId,
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
+        AuthenticatedUser,
         Config,
         Logger);
 }
@@ -773,12 +772,12 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
 
 void TOperationControllerBase::InitializeStructures()
 {
+    InputManager->InitializeStructures(InputClient, InputTransactions);
+
     DataFlowGraph_->SetNodeDirectory(OutputNodeDirectory_);
     DataFlowGraph_->Initialize();
 
     InitializeOrchid();
-
-    InputManager->InitializeStructures(InputTransactions);
 
     InitOutputTables();
 
@@ -1698,7 +1697,7 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 TFuture<void> TOperationControllerBase::AbortInputTransactions() const
 {
     if (InputTransactions) {
-        return InputTransactions->Abort();
+        return InputTransactions->Abort(SchedulerClient);
     }
     return VoidFuture;
 }
@@ -6585,40 +6584,48 @@ void TOperationControllerBase::FetchUserFiles()
 {
     std::vector<TUserFile*> userFiles;
 
-    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
-        InputClient,
-        TMasterReadOptions{},
-        InputManager->GetInputNodeDirectory(),
-        GetCancelableInvoker(),
-        Config->MaxChunksPerFetch,
-        Config->MaxChunksPerLocateRequest,
-        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
-            const auto& file = *userFiles[fileIndex];
-            req->set_fetch_all_meta_extensions(false);
-            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
-                req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
-            }
-            if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-            }
-            if (file.Dynamic) {
-                if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
-                    req->set_omit_dynamic_stores(true);
-                }
-                if (OperationType == EOperationType::RemoteCopy) {
-                    req->set_throw_on_chunk_views(true);
-                }
-            }
-            // NB: we always fetch parity replicas since
-            // erasure reader can repair data on flight.
-            req->set_fetch_parity_replicas(true);
-            AddCellTagToSyncWith(req, file.ObjectId);
-            SetTransactionId(req, file.ExternalTransactionId);
-        },
-        Logger);
+    TMasterChunkSpecFetcherPtr chunkSpecFetcher;
 
-    auto addFileForFetching = [&userFiles, &chunkSpecFetcher] (TUserFile& file) {
+    auto initializeFetcher = [&] {
+        if (chunkSpecFetcher) {
+            return;
+        }
+        chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
+            InputManager->GetClient(LocalClusterName),
+            TMasterReadOptions{},
+            InputManager->GetNodeDirectory(LocalClusterName),
+            GetCancelableInvoker(),
+            Config->MaxChunksPerFetch,
+            Config->MaxChunksPerLocateRequest,
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+                const auto& file = *userFiles[fileIndex];
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
+                    req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
+                }
+                if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                }
+                if (file.Dynamic) {
+                    if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
+                        req->set_omit_dynamic_stores(true);
+                    }
+                    if (OperationType == EOperationType::RemoteCopy) {
+                        req->set_throw_on_chunk_views(true);
+                    }
+                }
+                // NB: we always fetch parity replicas since
+                // erasure reader can repair data on flight.
+                req->set_fetch_parity_replicas(true);
+                AddCellTagToSyncWith(req, file.ObjectId);
+                SetTransactionId(req, file.ExternalTransactionId);
+            },
+            Logger);
+    };
+
+    auto addFileForFetching = [&userFiles, &chunkSpecFetcher, &initializeFetcher] (TUserFile& file) {
+        initializeFetcher();
         int fileIndex = userFiles.size();
         userFiles.push_back(&file);
 
@@ -6659,6 +6666,11 @@ void TOperationControllerBase::FetchUserFiles()
         addFileForFetching(*BaseLayer_);
     }
 
+    if (!chunkSpecFetcher) {
+        YT_LOG_INFO("No user files to fetch");
+        return;
+    }
+
     YT_LOG_INFO("Fetching user files");
 
     WaitFor(chunkSpecFetcher->Fetch())
@@ -6691,13 +6703,26 @@ void TOperationControllerBase::FetchUserFiles()
 void TOperationControllerBase::ValidateUserFileSizes()
 {
     YT_LOG_INFO("Validating user file sizes");
+    bool hasFiles = false;
+    for (const auto& [_, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            YT_VERIFY(!file.Path.GetCluster().has_value());
+            hasFiles = true;
+        }
+    }
+
+    if (!hasFiles) {
+        YT_LOG_INFO("No user files");
+        return;
+    }
+
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
         ChunkScraperInvoker_,
-        InputClient,
+        InputManager->GetClient(LocalClusterName),
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config->Fetcher,
-            .NodeDirectory = InputManager->GetInputNodeDirectory(),
-            .ChunkScraper = InputManager->CreateFetcherChunkScraper(),
+            .NodeDirectory = InputManager->GetNodeDirectory(LocalClusterName),
+            .ChunkScraper = InputManager->CreateFetcherChunkScraper(LocalClusterName),
             .Mode = Spec_->UserFileColumnarStatistics->Mode,
             .EnableEarlyFinish = Config->EnableColumnarStatisticsEarlyFinish,
             .Logger = Logger,
@@ -6865,10 +6890,18 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     // XXX(babenko): refactor; in particular, request attributes from external cells
     YT_LOG_INFO("Getting user files attributes");
+    for (const auto& [_, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            if (file.Path.GetCluster().has_value()) {
+                THROW_ERROR_EXCEPTION("User file must not have \"cluster\" attribute")
+                    << TErrorAttribute("file_path", file.Path);
+            }
+        }
+    }
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         GetUserObjectBasicAttributes(
-            Client,
+            InputManager->GetClient(LocalClusterName),
             MakeUserObjectList(files),
             InputTransactions->GetLocalInputTransactionId(),
             Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
@@ -6882,7 +6915,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         std::vector<TUserObject*> layers(1, &*BaseLayer_);
 
         GetUserObjectBasicAttributes(
-            Client,
+            InputManager->GetClient(LocalClusterName),
             layers,
             InputTransactions->GetLocalInputTransactionId(),
             Logger,
@@ -6918,7 +6951,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
 
-    auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
+    auto proxy = CreateObjectServiceReadProxy(InputManager->GetClient(LocalClusterName), EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& files : GetValues(UserJobFiles_)) {
@@ -7480,9 +7513,9 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
 
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
-    auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
+    auto createScraperForFetcher = [&] (const TClusterName& clusterName) -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            auto scraper = InputManager->CreateFetcherChunkScraper();
+            auto scraper = InputManager->CreateFetcherChunkScraper(clusterName);
             DataSliceFetcherChunkScrapers.push_back(scraper);
             return scraper;
         } else {
@@ -7503,10 +7536,10 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             // because the latter protects RowBuffer.
             auto fetcher = CreateChunkSliceFetcher(
                 Config->ChunkSliceFetcher,
-                InputManager->GetInputNodeDirectory(),
+                InputManager->GetNodeDirectory(table->ClusterName),
                 GetCancelableInvoker(),
-                createScraperForFetcher(),
-                Host->GetClient(),
+                createScraperForFetcher(table->ClusterName),
+                InputManager->GetClient(table->ClusterName),
                 RowBuffer,
                 Logger);
 
@@ -9282,11 +9315,6 @@ const std::optional<TJobResources>& TOperationControllerBase::CachedMaxAvailable
     return CachedMaxAvailableExecNodeResources_;
 }
 
-const TNodeDirectoryPtr& TOperationControllerBase::InputNodeDirectory() const
-{
-    return InputManager->GetInputNodeDirectory();
-}
-
 TInputManagerPtr TOperationControllerBase::GetInputManager() const
 {
     return InputManager;
@@ -9956,15 +9984,18 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::InputManagerIntroduction) {
         Persist(context, InputManager);
     }
-    InputManager->InitializeClient(InputClient);
+    if (context.IsLoad()) {
+        InputManager->InitializeClients(InputClient);
+    }
     if (context.GetVersion() < ESnapshotVersion::InputManagerIntroduction) {
         YT_VERIFY(context.IsLoad());
         InputManager->LoadInputNodeDirectory(context);
+        OutputNodeDirectory_ = InputManager->GetNodeDirectory(LocalClusterName);
         InputManager->LoadInputTables(context);
     }
     if (context.GetVersion() < ESnapshotVersion::OutputNodeDirectory) {
         YT_VERIFY(context.IsLoad());
-        OutputNodeDirectory_ = InputManager->GetInputNodeDirectory();
+        OutputNodeDirectory_ = InputManager->GetNodeDirectory(LocalClusterName);
     } else {
         Persist(context, OutputNodeDirectory_);
     }
@@ -9972,6 +10003,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, OutputTables_);
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);
+    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, OutputNodeDirectory_);
+    }
     Persist(context, IntermediateTable);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, UserJobFiles_);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);

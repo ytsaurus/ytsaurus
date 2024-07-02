@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
@@ -41,6 +43,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVirtualValueDirectoryPtr, VirtualValueDirectory);
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::TClusterName, ClusterName);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
     NTableClient::TComparator GetComparator() const;

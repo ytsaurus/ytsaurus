@@ -1232,7 +1232,7 @@ private:
 
         InputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
         SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-        InputManager->InitializeClient(InputClient);
+        InputManager->InitializeClients(InputClient);
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override

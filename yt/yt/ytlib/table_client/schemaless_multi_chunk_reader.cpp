@@ -77,6 +77,7 @@ using namespace NTableChunkFormat::NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
+using namespace NScheduler;
 using namespace NApi;
 using namespace NLogging;
 
@@ -152,25 +153,30 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
-    auto chunkFragmentReader = CreateChunkFragmentReader(
-        config,
-        chunkReaderHost->Client,
-        CreateTrivialNodeStatusDirectory(),
-        GetNullBlockCache(),
-        /*profiler*/ {},
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
-        /*throttlerProvider*/ {});
-
+    THashMap<TClusterName, IChunkFragmentReaderPtr> chunkFragmentReaders;
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+        auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
+
+        auto& chunkFragmentReader = chunkFragmentReaders[dataSource.GetClusterName()];
+        if (!chunkFragmentReader) {
+            chunkFragmentReader = CreateChunkFragmentReader(
+                config,
+                perClusterChunkReaderHost->Client,
+                CreateTrivialNodeStatusDirectory(),
+                GetNullBlockCache(),
+                /*profiler*/ {},
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*throttlerProvider*/ {});
+        }
 
         auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,
                 config,
                 nameTable,
-                chunkReaderHost);
+                perClusterChunkReaderHost);
             return CreateHunkDecodingSchemalessChunkReader(
                 config,
                 std::move(chunkReader),
@@ -197,7 +203,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             chunkSpec,
                             config,
                             options,
-                            chunkReaderHost);
+                            perClusterChunkReaderHost);
                     } catch (const std::exception& ex) {
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
@@ -226,7 +232,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         }
 
                         auto chunkState = New<TChunkState>(TChunkState{
-                            .BlockCache = chunkReaderHost->BlockCache,
+                            .BlockCache = perClusterChunkReaderHost->BlockCache,
                             .ChunkSpec = chunkSpec,
                             .VirtualValueDirectory = dataSource.GetVirtualValueDirectory(),
                             .TableSchema = dataSource.Schema(),
@@ -300,7 +306,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             config->DynamicStoreReader,
                             options,
                             nameTable,
-                            chunkReaderHost,
+                            perClusterChunkReaderHost,
                             chunkReadOptions,
                             columnsToRead,
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
@@ -330,7 +336,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     return wrapReader(CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
-                        chunkReaderHost,
+                        perClusterChunkReaderHost,
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,

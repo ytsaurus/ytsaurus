@@ -48,6 +48,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AllocationMap)                        (301508))
     ((SingleChunkTeleportStrategy)          (301509))
     ((OutputNodeDirectory)                  (301510))
+    ((RemoteInputForOperations)             (301511))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

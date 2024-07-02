@@ -1547,6 +1547,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/producer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/cluster_name.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp

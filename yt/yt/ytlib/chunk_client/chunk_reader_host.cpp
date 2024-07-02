@@ -3,14 +3,18 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NApi;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderHost::TChunkReaderHost(
-    NApi::NNative::IClientPtr client,
+    NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDescriptor localDescriptor,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
@@ -31,7 +35,7 @@ TChunkReaderHost::TChunkReaderHost(
 { }
 
 TChunkReaderHostPtr TChunkReaderHost::FromClient(
-    NApi::NNative::IClientPtr client,
+    NNative::IClientPtr client,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler)
@@ -47,6 +51,26 @@ TChunkReaderHostPtr TChunkReaderHost::FromClient(
         rpsThrottler,
         mediumThrottler,
         /*trafficMeter*/ nullptr);
+}
+
+TChunkReaderHostPtr TChunkReaderHost::CreateHostForCluster(const TClusterName& clusterName) const
+{
+    return New<TChunkReaderHost>(
+        IsLocal(clusterName)
+            ? Client
+            : Client
+                ->GetNativeConnection()
+                ->GetClusterDirectory()
+                ->GetConnectionOrThrow(clusterName.Underlying())
+                ->CreateNativeClient(Client->GetOptions()),
+        LocalDescriptor,
+        BlockCache,
+        ChunkMetaCache,
+        NodeStatusDirectory,
+        BandwidthThrottler,
+        RpsThrottler,
+        MediumThrottler,
+        TrafficMeter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,7 +66,7 @@ bool TInputTable::UseReadViaExecNode() const
 
 bool TInputTable::SupportsTeleportation() const
 {
-    if (Dynamic || !ColumnRenameDescriptors.empty()) {
+    if (Dynamic || !ColumnRenameDescriptors.empty() || !IsLocal(ClusterName)) {
         return false;
     }
 
@@ -111,6 +111,10 @@ void TInputTable::Persist(const TPersistenceContext& context)
     Persist(context, Comparator);
     Persist(context, SchemaMode);
     Persist(context, Dynamic);
+    // COMPAT(coteeq)
+    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, ClusterName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

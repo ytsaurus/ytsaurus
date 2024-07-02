@@ -17,6 +17,7 @@ TEST_SRCS(
     test_partition_tables.py
     test_reduce_operation.py
     test_remote_copy_operation.py
+    test_remote_operation.py
     test_sort_operation.py
     test_vanilla_operation.py
 )

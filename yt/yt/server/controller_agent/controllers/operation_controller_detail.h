@@ -424,8 +424,6 @@ public:
 
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
-    const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
-
     TInputManagerPtr GetInputManager() const override;
 
     void RegisterRecoveryInfo(

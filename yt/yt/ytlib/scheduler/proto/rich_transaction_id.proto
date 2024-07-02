@@ -8,6 +8,7 @@ message TRichTransactionId
 {
     required NYT.NProto.TGuid id = 1;
     required NYT.NProto.TGuid parent_id = 2;
+    optional string cluster = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

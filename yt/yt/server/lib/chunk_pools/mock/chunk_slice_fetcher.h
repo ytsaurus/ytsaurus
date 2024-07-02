@@ -24,6 +24,7 @@ public:
     MOCK_METHOD(TFuture<void>, Fetch, (), (override));
     MOCK_METHOD(std::vector<NChunkClient::TInputChunkSlicePtr>, GetChunkSlices, (), (override));
     MOCK_METHOD(void, SetCancelableContext, (TCancelableContextPtr), (override));
+    MOCK_METHOD(i64, GetChunkSliceCount, (), (const, override));
 };
 
 using TStrictMockChunkSliceFetcherPtr = TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>>;

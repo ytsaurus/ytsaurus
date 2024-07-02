@@ -694,10 +694,10 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
         orchid_path = op.get_orchid_path()
         wait(lambda: exists(orchid_path))
-        wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [get_first_chunk_id("//tmp/t_in")])
+        wait(lambda: get(orchid_path + "/unavailable_input_chunks/<local>") == [get_first_chunk_id("//tmp/t_in")])
 
         set_node_banned(node, False)
-        wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [])
+        wait(lambda: get(orchid_path + "/unavailable_input_chunks/<local>") == [])
 
         op.track()
 

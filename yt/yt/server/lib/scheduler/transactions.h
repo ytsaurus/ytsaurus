@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <functional>
 
 namespace NYT::NScheduler {
@@ -17,11 +19,14 @@ struct TRichTransactionId
     NTransactionClient::TTransactionId Id;
     NTransactionClient::TTransactionId ParentId;
 
-    // TODO(coteeq)
-    // TString Cluster;
+    TClusterName Cluster;
 
     std::strong_ordering operator <=>(const TRichTransactionId& other) const = default;
 };
+
+TRichTransactionId MakeRichTransactionId(NTransactionClient::TTransactionId id);
+
+void FormatValue(TStringBuilderBase* builder, const TRichTransactionId& transactionId, TStringBuf spec);
 
 void Deserialize(TRichTransactionId& transaction, const NYTree::INodePtr& node);
 void Serialize(const TRichTransactionId& transaction, NYson::IYsonConsumer* consumer);

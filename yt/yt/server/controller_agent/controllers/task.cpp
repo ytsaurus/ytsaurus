@@ -1405,18 +1405,6 @@ IDigest* TTask::GetJobProxyMemoryDigest() const
     return JobProxyMemoryDigest_.Get();
 }
 
-std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
-    TJobSpecExt* jobSpecExt)
-{
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
-    return TaskHost_->GetOperationType() == EOperationType::RemoteCopy
-        ? std::make_unique<TNodeDirectoryBuilder>(
-            TaskHost_->InputNodeDirectory(),
-            jobSpecExt->mutable_input_node_directory())
-        : nullptr;
-}
-
 void TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet,
@@ -1425,12 +1413,15 @@ void TTask::AddSequentialInputSpec(
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    auto directoryBuilder = MakeNodeDirectoryBuilder(jobSpecExt);
+    auto nodeDirectoryBuilderFactory = TNodeDirectoryBuilderFactory(
+        jobSpecExt,
+        TaskHost_->GetInputManager(),
+        TaskHost_->GetOperationType());
     auto* inputSpec = jobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(
-            directoryBuilder.get(),
+            IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
             comparator);
@@ -1446,14 +1437,17 @@ void TTask::AddParallelInputSpec(
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    auto directoryBuilder = MakeNodeDirectoryBuilder(jobSpecExt);
+    auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
+        jobSpecExt,
+        TaskHost_->GetInputManager(),
+        TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = stripe->Foreign
             ? jobSpecExt->add_foreign_input_table_specs()
             : jobSpecExt->add_input_table_specs();
         AddChunksToInputSpec(
-            directoryBuilder.get(),
+            IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
             comparator);
