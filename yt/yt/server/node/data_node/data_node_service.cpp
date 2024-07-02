@@ -282,6 +282,11 @@ private:
         return DynamicConfigManager_->GetConfig()->DataNode;
     }
 
+    std::optional<double> GetFallbackTimeoutFraction() const
+    {
+        return GetDynamicConfig()->FallbackTimeoutFraction;
+    }
+
     void SetSessionIdAllocationTag(TTraceContextPtr context, TString sessionId)
     {
         context->SetAllocationTags({{SessionIdAllocationTag, sessionId}});
@@ -904,10 +909,56 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
+
             const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
-            return netThrottler->Throttle(blocksSize);
+            auto resultFuture = netThrottler->Throttle(blocksSize);
+
+            auto timeoutFraction = GetFallbackTimeoutFraction();
+
+            if (context->GetTimeout() && context->GetStartTime() && timeoutFraction) {
+                auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+                auto throttleFuture = resultFuture
+                    .Apply(BIND([] {
+                        return false;
+                    }));
+                auto fallbackFuture = TDelayedExecutor::MakeDelayed(std::max(deadline - TInstant::Now(), TDuration::Zero()))
+                    .Apply(BIND([] {
+                        return true;
+                    }));
+                return AnySet<bool>({throttleFuture, fallbackFuture})
+                    .Apply(BIND([=] (bool isThrottled) {
+                        if (isThrottled) {
+                            response->set_net_throttling(true);
+                            response->Attachments().clear();
+                        }
+                    }));
+            } else {
+                return resultFuture;
+            }
         } else {
             return VoidFuture;
+        }
+    }
+
+    template <class T, class TContext>
+    TFuture<T> WrapWithTimeout(
+        TFuture<T> future,
+        const TIntrusivePtr<TContext>& context,
+        TCallback<T()> fallbackValue)
+    {
+        auto timeoutFraction = GetFallbackTimeoutFraction();
+
+        if (context->GetTimeout() && context->GetStartTime() && timeoutFraction) {
+            auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+            return AnySet<T>({
+                future,
+                TDelayedExecutor::MakeDelayed(std::max(deadline - TInstant::Now(), TDuration::Zero()))
+                    .Apply(fallbackValue)
+            });
+        } else {
+            return future;
         }
     }
 
@@ -1004,8 +1055,16 @@ private:
                 }));
         });
 
-        auto blocksFuture = WaitP2PBarriers(request)
-            .Apply(readBlocks);
+        auto blocksFuture = WrapWithTimeout(
+            WaitP2PBarriers(request)
+                .Apply(readBlocks),
+            context,
+            BIND([] {
+                return TReadBlocksResult{
+                    .ReadFromP2P = false,
+                    .Blocks = std::vector<TBlock>(),
+                };
+            }));
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
@@ -1092,10 +1151,15 @@ private:
             chunkReaderStatistics);
 
         auto blocksFuture = chunk
-            ? chunk->ReadBlockRange(
-                firstBlockIndex,
-                blockCount,
-                options)
+            ? WrapWithTimeout(
+                chunk->ReadBlockRange(
+                    firstBlockIndex,
+                    blockCount,
+                    options),
+                context,
+                BIND([] {
+                    return std::vector<TBlock>();
+                }))
             : MakeFuture(std::vector<TBlock>());
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,

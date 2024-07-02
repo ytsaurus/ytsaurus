@@ -1091,6 +1091,8 @@ public:
     //! Job controller config.
     TJobControllerDynamicConfigPtr JobController;
 
+    std::optional<double> FallbackTimeoutFraction;
+
     REGISTER_YSON_STRUCT(TDataNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
