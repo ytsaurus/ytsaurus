@@ -72,6 +72,11 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	var filePaths []ypath.Rich
 
+	err = c.prepareCypressDirectories(ctx, oplet.Alias())
+	if err != nil {
+		return
+	}
+
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
 	if err != nil {
 		return
@@ -132,12 +137,12 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 }
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
-	ytServerConfig := YTServerConfig{
+	ytServerConfig := jupytServerConfig{
 		YTProxy:          c.cluster,
 		YTAuthCookieName: c.config.YTAuthCookieNameOrDefault(),
-		YTAcoName:        oplet.Alias(),
-		YTAcoNamespace:   c.Family(),
-		YTAcoRootPath:    strawberry.AccessControlNamespacesPath.String(),
+		YTACOName:        oplet.Alias(),
+		YTACONamespace:   c.Family(),
+		YTACORootPath:    strawberry.AccessControlNamespacesPath.String(),
 	}
 	ytServerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", ytServerConfig)
 	if err != nil {

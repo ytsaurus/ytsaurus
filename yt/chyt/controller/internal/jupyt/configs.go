@@ -7,19 +7,19 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
-type YTServerConfig struct {
+type jupytServerConfig struct {
 	YTProxy          string `json:"yt_proxy"`
 	YTAuthCookieName string `json:"yt_auth_cookie_name"`
-	YTAcoName        string `json:"yt_aco_name"`
-	YTAcoNamespace   string `json:"yt_aco_namespace"`
-	YTAcoRootPath    string `json:"yt_aco_root_path"`
+	YTACOName        string `json:"yt_aco_name"`
+	YTACONamespace   string `json:"yt_aco_namespace"`
+	YTACORootPath    string `json:"yt_aco_root_path"`
 }
 
 func (c Controller) artifactDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("artifacts")
 }
 
-func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config YTServerConfig) (richPath ypath.Rich, err error) {
+func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config jupytServerConfig) (richPath ypath.Rich, err error) {
 	configJson, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return
