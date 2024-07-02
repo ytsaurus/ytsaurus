@@ -225,6 +225,11 @@ pick-hotfix-23.2:
 	git reset --hard upstream/stable/23.2
 	git cherry-pick -x --keep-redundant-commits `git for-each-ref --sort="-authordate" "--format=%(refname)" "refs/heads/pr/stable/23.2/"` --not upstream/stable/23.2
 
+pick-hotfix-23.2-tractoai:
+	git checkout hotfix/23.2
+	git reset --hard upstream/stable/23.2
+	git cherry-pick -x --keep-redundant-commits `git for-each-ref --sort="-authordate" "--format=%(refname)" "refs/remotes/tractoai/pr/stable/23.2/"` --not upstream/stable/23.2
+
 pick-hotfix-main:
 	git checkout hotfix/main
 	git reset --hard upstream/main
