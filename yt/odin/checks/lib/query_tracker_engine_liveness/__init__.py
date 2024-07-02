@@ -39,7 +39,6 @@ def log_query(logger, query_id, state):
 
 
 def track_query(yt_client, logger, query_id, stage):
-    last_log_time = time.time()
     last_state = ""
     while True:
         state = get_query_state(yt_client, query_id, stage)
