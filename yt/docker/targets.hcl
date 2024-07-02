@@ -7,7 +7,7 @@ variable "BUILD_ROOT" {
 
 # Common targets
 
-target "built_yson" {
+target "python_binary_libraries" {
   args = {
     BUILD_TARGETS = "yson_lib driver_lib driver_rpc_lib"
   }
@@ -19,7 +19,7 @@ target "built_yson" {
   context = "${REPO_PATH}"
 }
 
-target "built_yt_all" {
+target "yt_all" {
   args = {
     BUILD_TARGETS = ""
   }
@@ -35,7 +35,7 @@ target "built_yt_all" {
 
 target "odin_prepared_python_libs" {
   contexts = {
-    built_yson = "target:built_yson"
+    python_binary_libraries = "target:python_binary_libraries"
   }
   target = "odin_prepared_python_libs"
   context = "${REPO_PATH}"
@@ -64,7 +64,7 @@ target "odin" {
 
 target "python_test_image" {
   contexts = {
-    built_yt = "target:built_yt_all"
+    yt_all = "target:yt_all"
   }
   context = "${REPO_PATH}"
   dockerfile = "${BUILD_ROOT}/bake/py_test_image.Dockerfile"

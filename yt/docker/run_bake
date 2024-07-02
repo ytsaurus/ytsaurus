@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
 
-set -x
+set -ex
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-BAKE_FILES=(
-    targets.hcl
-)
-
-for BFILE in "${BAKE_FILES[@]}"
-do
-  FILE_ARGS+=(--file "${SCRIPT_DIR}/${BFILE}")
-done
 
 YT_SOURCE_ROOT="${SCRIPT_DIR}/../../"
 export REPO_PATH=${YT_SOURCE_ROOT}
 
-exec docker buildx bake "${FILE_ARGS[@]}" "$@"
+docker buildx bake --file "${SCRIPT_DIR}/targets.hcl" "$@"

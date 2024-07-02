@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y python3 python3-pip
 
 RUN mkdir /source
 
-COPY --from=built_yt /ytsaurus/python /workdir/python_build
-COPY --from=built_yt /ytsaurus/build/yt/yt/server/all/ytserver-all /workdir/yt/yt/server/all/ytserver-all
-COPY --from=built_yt /ytsaurus/ytsaurus/yt/yt/scripts /workdir/scripts
+COPY --from=yt_all /ytsaurus/python /workdir/python_build
+COPY --from=yt_all /ytsaurus/build/yt/yt/server/all/ytserver-all /workdir/yt/yt/server/all/ytserver-all
+COPY --from=yt_all /ytsaurus/ytsaurus/yt/yt/scripts /workdir/scripts
 
 RUN cp -r /workdir/python_build/yt_* /source
 

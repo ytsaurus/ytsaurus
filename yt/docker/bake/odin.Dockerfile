@@ -11,7 +11,7 @@ ARG PYTHON_RUNTIME_VERSION="3.10"
 
 # Prepare python modules for Odin.
 
-FROM built_yson as odin_prepared_python_libs
+FROM python_binary_libraries as odin_prepared_python_libs
 
 ARG SOURCE_ROOT
 
