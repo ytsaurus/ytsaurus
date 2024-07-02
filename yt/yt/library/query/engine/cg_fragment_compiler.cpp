@@ -3783,7 +3783,7 @@ TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& en
     if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(
     #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-            FROM_HERE,
+            YT_CURRENT_SOURCE_LOCATION,
     #endif
             cgModule,
             entryFunctionName);
@@ -3795,7 +3795,7 @@ TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& en
     auto piFunction = cgModule->GetCompiledFunction<TPISignature>(entryFunctionName);
     auto caller = New<TCGPICaller<TSignature, TPISignature>>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-        FROM_HERE,
+        YT_CURRENT_SOURCE_LOCATION,
 #endif
         piFunction);
 
