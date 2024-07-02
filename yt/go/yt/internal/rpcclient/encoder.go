@@ -442,6 +442,30 @@ func (e *Encoder) LinkNode(
 	return
 }
 
+func (e *Encoder) Concatenate(
+	ctx context.Context,
+	src []ypath.YPath,
+	dst ypath.YPath,
+	options *yt.ConcatenateOptions,
+) (err error) {
+	srcs := make([]string, 0, len(src))
+	for _, s := range src {
+		srcs = append(srcs, s.YPath().String())
+	}
+	req := &rpc_proxy.TReqConcatenateNodes{
+		SrcPaths:             srcs,
+		DstPath:              ptr.String(dst.YPath().String()),
+		Fetcher:              nil,
+		TransactionalOptions: convertTransactionOptions(options.TransactionOptions),
+		MutatingOptions:      convertMutatingOptions(options.MutatingOptions),
+	}
+	call := e.newCall(MethodConcatenate, NewConcatenateRequest(req), nil)
+
+	var rsp rpc_proxy.TRspConcatenateNodes
+	err = e.Invoke(ctx, call, &rsp)
+	return
+}
+
 var _ yt.FileClient = (*client)(nil)
 
 func (e *Encoder) WriteFile(
