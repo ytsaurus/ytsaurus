@@ -138,7 +138,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				ControllerMappings:        config.HTTPControllerMappings,
 				BaseACL:                   config.BaseACL,
 				RobotUsername:             config.Strawberry.RobotUsername,
-				AssignAdministerToCreator: config.Strawberry.AssignAdministerToCreator,
+				AssignAdministerToCreator: config.Strawberry.AssignAdministerToCreatorOrDefault(),
 			},
 			ClusterInfos:    agentInfos,
 			LocationAliases: config.HTTPLocationAliases,
