@@ -295,7 +295,7 @@ func (a *API) Create(
 	}
 
 	// Create "access" node.
-	_, err = a.Ytc.CreateObject(ctx, yt.NodeAccessControlObject, &yt.CreateObjectOptions{
+	acoOptions := &yt.CreateObjectOptions{
 		Attributes: map[string]any{
 			"name":      alias,
 			"namespace": a.ctl.Family(),
@@ -318,15 +318,19 @@ func (a *API) Create(
 					"roles":    []string{"use", "manage", "responsible"},
 				},
 			},
-			"acl": []yt.ACE{
-				{
-					Action:      yt.ActionAllow,
-					Subjects:    []string{user},
-					Permissions: []yt.Permission{yt.PermissionAdminister},
-				},
-			},
 		},
-	})
+	}
+
+	if a.cfg.AssignAdministerToCreator {
+		acoOptions.Attributes["acl"] = []yt.ACE{
+			{
+				Action:      yt.ActionAllow,
+				Subjects:    []string{user},
+				Permissions: []yt.Permission{yt.PermissionAdminister},
+			},
+		}
+	}
+	_, err = a.Ytc.CreateObject(ctx, yt.NodeAccessControlObject, acoOptions)
 
 	if err != nil {
 		if !yterrors.ContainsAlreadyExistsError(err) {

@@ -38,6 +38,9 @@ type Config struct {
 	// Available template parameters: Proxy.
 	// E.g. "https://example.com/{{.Proxy}}"
 	ClusterURLTemplate string `yson:"cluster_url_template"`
+
+	// set `administer` to resource's creator
+	AssignAdministerToCreator bool `yson:"assign_administer_to_creator"`
 }
 
 const (

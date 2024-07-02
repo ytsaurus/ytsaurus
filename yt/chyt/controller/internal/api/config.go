@@ -10,11 +10,12 @@ type APIConfig struct {
 	ControllerFactories map[string]strawberry.ControllerFactory
 	// ControllerMappings contains rules of mapping host to a particular controller.
 	// See https://github.com/go-chi/hostrouter/blob/master/README.md for key examples.
-	ControllerMappings map[string]string
-	AgentInfo          strawberry.AgentInfo
-	BaseACL            []yt.ACE
-	RobotUsername      string
-	ValidatePoolAccess *bool
+	ControllerMappings        map[string]string
+	AgentInfo                 strawberry.AgentInfo
+	BaseACL                   []yt.ACE
+	RobotUsername             string
+	ValidatePoolAccess        *bool
+	AssignAdministerToCreator bool
 }
 
 const (
