@@ -38,13 +38,18 @@ type Config struct {
 	// Available template parameters: Proxy.
 	// E.g. "https://example.com/{{.Proxy}}"
 	ClusterURLTemplate string `yson:"cluster_url_template"`
+
+	// AssignAdministerToCreator determines whether the operation creator
+	// should be granted the `administer` right to the corresponding ACO.
+	AssignAdministerToCreator *bool `yson:"assign_administer_to_creator"`
 }
 
 const (
-	DefaultPassPeriod              = yson.Duration(5 * time.Second)
-	DefaultCollectOperationsPeriod = yson.Duration(time.Minute)
-	DefaultRevisionCollectPeriod   = yson.Duration(5 * time.Second)
-	DefaultPassWorkerNumber        = 1
+	DefaultPassPeriod                = yson.Duration(5 * time.Second)
+	DefaultCollectOperationsPeriod   = yson.Duration(time.Minute)
+	DefaultRevisionCollectPeriod     = yson.Duration(5 * time.Second)
+	DefaultPassWorkerNumber          = 1
+	DefaultAssignAdministerToCreator = true
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -73,4 +78,11 @@ func (c *Config) PassWorkerNumberOrDefault() int {
 		return *c.PassWorkerNumber
 	}
 	return DefaultPassWorkerNumber
+}
+
+func (c *Config) AssignAdministerToCreatorOrDefault() bool {
+	if c.AssignAdministerToCreator != nil {
+		return *c.AssignAdministerToCreator
+	}
+	return DefaultAssignAdministerToCreator
 }
