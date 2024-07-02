@@ -152,6 +152,8 @@ struct IUserJobEnvironment
     virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;
 
     virtual i64 GetMajorPageFaultCount() const = 0;
+
+    virtual std::optional<i64> GetJobOOMKillCount() const noexcept = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
@@ -174,6 +176,7 @@ struct IJobProxyEnvironment
     virtual std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept = 0;
     virtual std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept = 0;
     virtual std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept = 0;
+    virtual std::optional<i64> GetJobOOMKillCount() const noexcept = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
