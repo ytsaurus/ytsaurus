@@ -1,6 +1,7 @@
 package NYT.NOrm.NAttributes.NTests.NProto;
 
 import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 message TNestedMessage
 {
@@ -8,6 +9,7 @@ message TNestedMessage
     optional TNestedMessage nested_message = 2;
     repeated int32 repeated_int32_field = 100;
     map<string, TNestedMessage> nested_message_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+    optional NYT.NYTree.NProto.TAttributeDictionary attribute_dictionary = 4;
 }
 
 enum EColor
@@ -47,4 +49,5 @@ message TMessage
     map<string, TNestedMessage> nested_message_map = 15 [(NYT.NYson.NProto.yson_map) = true];
     map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
     map<int32, int32> int32_to_int32_map = 35 [(NYT.NYson.NProto.yson_map) = true];
+    optional NYT.NYTree.NProto.TAttributeDictionary attribute_dictionary = 36;
 }

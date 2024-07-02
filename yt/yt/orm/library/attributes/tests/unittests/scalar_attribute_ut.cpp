@@ -522,6 +522,65 @@ TEST(TSetAttributeTest, MapField)
     EXPECT_TRUE(message.string_to_int32_map().empty());
 }
 
+TEST(TSetAttributeTest, AttributeDictionaryField)
+{
+    auto node = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("a").Value("foo_a")
+            .Item("b").Value("foo_b")
+        .EndMap();
+
+    NProto::TMessage message;
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/attribute_dictionary", node));
+    EXPECT_EQ(2, message.attribute_dictionary().attributes_size());
+    EXPECT_EQ("a", message.attribute_dictionary().attributes(0).key());
+    EXPECT_EQ(
+        "foo_a",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.attribute_dictionary().attributes(0).value())));
+    EXPECT_EQ("b", message.attribute_dictionary().attributes(1).key());
+    EXPECT_EQ(
+        "foo_b",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.attribute_dictionary().attributes(1).value())));
+
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/attribute_dictionary",
+            NYTree::BuildYsonNodeFluently().Entity()));
+    EXPECT_EQ(0, message.attribute_dictionary().attributes_size());
+}
+
+TEST(TSetAttributeTest, NestedAttributeDictionaryField)
+{
+    auto node = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("a").Value("foo_a")
+            .Item("b").Value("foo_b")
+        .EndMap();
+
+    NProto::TMessage message;
+    EXPECT_NO_THROW(SetProtobufFieldByPath(
+        message,
+        "/nested_message/attribute_dictionary",
+        node,
+        /*options*/ {},
+        /*recursive*/ true));
+    EXPECT_EQ(2, message.nested_message().attribute_dictionary().attributes_size());
+    EXPECT_EQ("a", message.nested_message().attribute_dictionary().attributes(0).key());
+    EXPECT_EQ(
+        "foo_a",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.nested_message().attribute_dictionary().attributes(0).value())));
+    EXPECT_EQ("b", message.nested_message().attribute_dictionary().attributes(1).key());
+    EXPECT_EQ(
+        "foo_b",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.nested_message().attribute_dictionary().attributes(1).value())));
+
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/nested_message/attribute_dictionary",
+            NYTree::BuildYsonNodeFluently().Entity()));
+    EXPECT_EQ(0, message.nested_message().attribute_dictionary().attributes_size());
+}
+
 TEST(TSetAttributeTest, RepeatedField)
 {
 #define TESTCASE(field, value1, value2)                                                                   \
