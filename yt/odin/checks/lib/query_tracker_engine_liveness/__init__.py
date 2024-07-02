@@ -46,7 +46,6 @@ def track_query(yt_client, logger, query_id, stage):
         current_time = time.time()
         if state != last_state:
             log_query(logger, query_id, state)
-            last_log_time = current_time
             last_state = state
 
         if check_terminal_state(state):
