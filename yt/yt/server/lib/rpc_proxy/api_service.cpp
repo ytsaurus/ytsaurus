@@ -1224,7 +1224,6 @@ private:
 
         if (clockClusterTag == InvalidCellTag) {
             Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
-            clockClusterTag = Connection_->GetClusterTag();
         }
 
         const auto& timestampProvider = Connection_->GetTimestampProvider();

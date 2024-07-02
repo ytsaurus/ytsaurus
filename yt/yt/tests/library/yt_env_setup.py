@@ -503,6 +503,10 @@ class YTEnvSetup(object):
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
+        has_ground = cls.get_param("USE_SEQUOIA", index) and not cls._is_ground_cluster(index)
+        primary_cell_tag = (index + 1) * 10
+        clock_cluster_tag = (index + cls.get_ground_index_offset() + 1) * 10 if has_ground else primary_cell_tag
+
         if cls.USE_SLOT_USER_ID is None:
             use_slot_user_id = cls.USE_PORTO
         else:
@@ -547,7 +551,9 @@ class YTEnvSetup(object):
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
-            primary_cell_tag=(index + 1) * 10,
+            primary_cell_tag=primary_cell_tag,
+            has_ground=has_ground,
+            clock_cluster_tag=clock_cluster_tag,
             enable_structured_logging=True,
             enable_log_compression=True,
             log_compression_method="zstd",
