@@ -39,7 +39,8 @@ type Config struct {
 	// E.g. "https://example.com/{{.Proxy}}"
 	ClusterURLTemplate string `yson:"cluster_url_template"`
 
-	// set `administer` to resource's creator
+	// AssignAdministerToCreator determines whether the operation creator
+	// should be granted the `administer` right to the corresponding ACO.
 	AssignAdministerToCreator bool `yson:"assign_administer_to_creator"`
 }
 
