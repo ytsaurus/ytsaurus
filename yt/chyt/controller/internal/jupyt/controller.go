@@ -17,6 +17,19 @@ const (
 )
 
 type Config struct {
+	YTAuthCookieName *string           `yson:"yt_auth_cookie_name"`
+	ExtraEnvVars     map[string]string `yson:"extra_env_vars"`
+}
+
+const (
+	DefaultYTAuthCookieName = ""
+)
+
+func (c *Config) YTAuthCookieNameOrDefault() string {
+	if c.YTAuthCookieName != nil {
+		return *c.YTAuthCookieName
+	}
+	return DefaultYTAuthCookieName
 }
 
 type Controller struct {
@@ -35,13 +48,18 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
+
 	cmd := fmt.Sprintf(
 		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
-	return cmd, map[string]string{
+	jupyterEnv := map[string]string{
 		"NB_GID":  "0",
 		"NB_UID":  "0",
 		"NB_USER": "root",
 	}
+	for key, value := range c.config.ExtraEnvVars {
+		jupyterEnv[key] = value
+	}
+	return cmd, jupyterEnv
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
@@ -53,7 +71,18 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	description = map[string]any{}
 
-	// Build command.
+	var filePaths []ypath.Rich
+
+	err = c.prepareCypressDirectories(ctx, oplet.Alias())
+	if err != nil {
+		return
+	}
+
+	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
+	if err != nil {
+		return
+	}
+
 	command, env := c.buildCommand(&speclet)
 
 	spec = map[string]any{
@@ -64,6 +93,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"docker_image":                       speclet.JupyterDockerImage,
 				"memory_limit":                       speclet.MemoryOrDefault(),
 				"cpu_limit":                          speclet.CPUOrDefault(),
+				"file_paths":                         filePaths,
 				"port_count":                         1,
 				"max_stderr_size":                    1024 * 1024 * 1024,
 				"user_job_memory_digest_lower_bound": 1.0,
@@ -104,6 +134,22 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 }
 
 func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+	return nil
+}
+
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
+	serverConfig := jupytServerConfig{
+		YTProxy:          c.cluster,
+		YTAuthCookieName: c.config.YTAuthCookieNameOrDefault(),
+		YTACOName:        oplet.Alias(),
+		YTACONamespace:   c.Family(),
+		YTACORootPath:    strawberry.AccessControlNamespacesPath.String(),
+	}
+	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig)
+	if err != nil {
+		return nil
+	}
+	*filePaths = append(*filePaths, serverConfigYTPath)
 	return nil
 }
 
