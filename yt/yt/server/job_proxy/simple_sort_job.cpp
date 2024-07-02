@@ -82,7 +82,7 @@ public:
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             TCallback<TUUComparerSignature> cgComparer;
-            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
+            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGComparatorApplicable()) {
                 cgComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
             }
 
