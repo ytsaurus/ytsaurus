@@ -314,7 +314,7 @@ protected:
         ToProto(SamplesExt_.add_entries(), mergedRow);
         i64 rowSize = SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
         SamplesExtSize_ += rowSize;
-        SamplesMemoryUsageGuard_.IncreaseSize(rowSize);
+        SamplesMemoryUsageGuard_.IncrementSize(rowSize);
     }
 
     void MaybeWriteKeyFilterBlocks()

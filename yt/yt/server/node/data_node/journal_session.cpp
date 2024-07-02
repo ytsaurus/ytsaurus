@@ -92,7 +92,6 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
 TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
-    i64 /*cumulativeBlockSize*/,
     bool /*enableCaching*/)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -142,7 +141,6 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     int /*startBlockIndex*/,
     int /*blockCount*/,
-    i64 /*cumulativeBlockSize*/,
     const TNodeDescriptor& /*target*/)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
