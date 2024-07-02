@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/ytlib/election/cell_manager.h>
+
 #include <library/cpp/yt/string/raw_formatter.h>
 
 namespace NYT::NSecurityServer {
@@ -276,6 +278,27 @@ bool IsAccessLoggedType(const EObjectType type)
         EObjectType::Link
     };
     return typesForAccessLog.contains(type);
+}
+
+bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
+{
+    if (!bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog) {
+        return false;
+    }
+
+    if (bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
+        return false;
+    }
+
+    if (!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader()) {
+        return true;
+    }
+
+    if (bootstrap->GetCellManager()->GetTotalPeerCount() <= 1) {
+        return true;
+    }
+
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
