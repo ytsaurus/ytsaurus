@@ -1,7 +1,11 @@
-UNITTEST_FOR(yt/cpp/mapreduce/interface/logging)
+GTEST()
 
 SRCS(
     log_ut.cpp
+)
+
+PEERDIR(
+    yt/cpp/mapreduce/interface/logging
 )
 
 END()

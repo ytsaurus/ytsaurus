@@ -1,4 +1,4 @@
-UNITTEST_FOR(yt/cpp/mapreduce/util)
+GTEST()
 
 SRCS(
     temp_table_ut.cpp
@@ -7,6 +7,7 @@ SRCS(
 
 PEERDIR(
     yt/cpp/mapreduce/library/mock_client
+    yt/cpp/mapreduce/util
 )
 
 END()

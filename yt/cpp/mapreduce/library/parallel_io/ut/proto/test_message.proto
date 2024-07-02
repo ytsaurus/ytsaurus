@@ -1,0 +1,6 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TTestMessage {
+    optional string Key = 1              [(NYT.column_name) = "key"];
+    optional uint64 Value = 2            [(NYT.column_name) = "value"];
+}

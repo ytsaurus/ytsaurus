@@ -16,16 +16,13 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-cpp-mapreduce-raw_client-ut)
 
-target_include_directories(yt-cpp-mapreduce-raw_client-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client
-)
-
 target_link_libraries(yt-cpp-mapreduce-raw_client-ut PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
-  cpp-testing-unittest_main
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   cpp-mapreduce-raw_client
 )
 
@@ -42,32 +39,18 @@ target_link_options(yt-cpp-mapreduce-raw_client-ut PRIVATE
 )
 
 target_sources(yt-cpp-mapreduce-raw_client-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_batch_request_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_requests_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/ut/raw_batch_request_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/ut/raw_requests_ut.cpp
+)
+
+add_test(
+  NAME
+  yt-cpp-mapreduce-raw_client-ut
+  COMMAND
+  yt-cpp-mapreduce-raw_client-ut
 )
 
 set_property(
-  TARGET
-  yt-cpp-mapreduce-raw_client-ut
-  PROPERTY
-  SPLIT_FACTOR
-  1
-)
-
-add_yunittest(
-  NAME
-  yt-cpp-mapreduce-raw_client-ut
-  TEST_TARGET
-  yt-cpp-mapreduce-raw_client-ut
-  TEST_ARG
-  --print-before-suite
-  --print-before-test
-  --fork-tests
-  --print-times
-  --show-fails
-)
-
-set_yunittest_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
   PROPERTY
@@ -75,7 +58,7 @@ set_yunittest_property(
   SMALL
 )
 
-set_yunittest_property(
+set_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
   PROPERTY
@@ -83,7 +66,7 @@ set_yunittest_property(
   1
 )
 
-set_yunittest_property(
+set_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
   PROPERTY

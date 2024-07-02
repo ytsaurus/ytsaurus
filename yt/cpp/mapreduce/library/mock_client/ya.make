@@ -4,7 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PEERDIR(
     yt/cpp/mapreduce/interface
-    library/cpp/testing/gmock_in_unittest
+    library/cpp/testing/gtest_extensions
 )
 
 SRCS(
