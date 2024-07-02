@@ -12,7 +12,7 @@ class Data():
         self.dynamic = dynamic
 
 
-POLL_FREQUENCY = 0.1
+POLL_FREQUENCY = 1.0
 TEMP_PATH = "//sys/admin/odin/query_tracker_liveness"
 TABLE_EXPIRATION_TIMEOUT_MILLISECONDS = 360 * 1000
 
