@@ -483,13 +483,18 @@ private:
 
         YT_VERIFY(!SplitMap_.contains(chunkId));
 
-        if (!Callbacks_->RemoveSplitChangelog(chunkId))
-            return;
+        if (Callbacks_->RemoveSplitChangelog(chunkId)) {
+            YT_LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
+                chunkId);
+        }
 
-        YT_LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
-            chunkId);
+        if (AbsentChunkIds_.contains(chunkId)) {
+            AbsentChunkIds_.erase(chunkId);
+
+            YT_LOG_INFO("Replay removed absent journal chunk (ChunkId: %v)",
+                chunkId);
+        }
     }
-
 };
 
 class TMultiplexedWriter
