@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/kafka/packet.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
@@ -192,6 +194,8 @@ private:
 
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
