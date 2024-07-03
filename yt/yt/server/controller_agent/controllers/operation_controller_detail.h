@@ -358,7 +358,7 @@ public:
 
     ui64 NextJobIndex() override;
     void InitUserJobSpecTemplate(
-        NControllerAgent::NProto::TUserJobSpec* proto,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
         const TString& debugArtifactsAccount) override;

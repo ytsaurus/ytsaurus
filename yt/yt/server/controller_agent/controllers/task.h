@@ -329,7 +329,8 @@ protected:
         const TOutputStreamDescriptorPtr& streamDescriptor,
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
-        bool processEmptyStripes = false);
+        bool processEmptyStripes = false,
+        const std::optional<NCrypto::TMD5Hash>& digest = std::nullopt);
 
     virtual void DoRegisterInGraph();
 
@@ -409,8 +410,10 @@ private:
     using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IPersistentChunkPoolInputPtr>;
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
-    std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
-    std::map<TCookieAndPool, NChunkClient::TChunkId> LostIntermediateChunkCookieMap;
+    std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap_;
+    std::map<TCookieAndPool, NChunkClient::TChunkId> LostIntermediateChunkCookieMap_;
+    std::map<TCookieAndPool, NCrypto::TMD5Hash> JobOutputHash_;
+    int ReceivedDigestCount_ = 0;
 
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;

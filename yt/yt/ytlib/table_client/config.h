@@ -19,10 +19,14 @@ class TTableWriterOptions
     : public TChunkWriterOptions
     , public NChunkClient::TMultiChunkWriterOptions
 {
+public:
+    // Whether to compute output digest.
+    // May be used to determine job determinism.
+    bool ComputeDigest;
+
     REGISTER_YSON_STRUCT(TTableWriterOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)

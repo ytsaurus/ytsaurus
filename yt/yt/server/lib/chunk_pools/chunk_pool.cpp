@@ -140,7 +140,7 @@ int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(ICh
 template <class TJobManager>
 void TChunkPoolOutputWithJobManagerBase<TJobManager>::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
 {
-JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+    JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 }
 
 template <class TJobManager>

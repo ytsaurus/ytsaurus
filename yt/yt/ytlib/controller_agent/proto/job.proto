@@ -25,6 +25,8 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
+import "yt_proto/yt/core/crypto/proto/crypto.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Describes a job to be run at a node.
@@ -513,6 +515,10 @@ message TJobResultExt
 
     optional bool has_stderr = 21;
     optional bool has_fail_context = 22;
+
+    // MD5 digest for each output table.
+    // May be empty for some tables, e.g. if the table is not intermediate.
+    repeated NYT.NCrypto.NProto.TMD5Hash output_digests = 23;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

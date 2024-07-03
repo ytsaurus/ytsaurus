@@ -55,16 +55,12 @@ using namespace NYPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
+using NCrypto::TMD5Hash;
 using NProfiling::TWallTimer;
+using NControllerAgent::NProto::TJobSpec;
 using NControllerAgent::NProto::TJobSpecExt;
 using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TTableInputSpec;
-
-using NControllerAgent::NProto::TJobSpec;
-using NControllerAgent::NProto::TJobStatus;
-
-using std::placeholders::_1;
-using std::placeholders::_2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -661,11 +657,11 @@ void TTask::ScheduleJob(
     }
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
-    auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
-    bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
+    auto it = LostJobCookieMap_.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
+    bool restarted = it != LostJobCookieMap_.end() && it->first.first == joblet->OutputCookie;
 
-    auto lostIntermediateChunk = LostIntermediateChunkCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
-    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap.end() && it->first.first == joblet->OutputCookie;
+    auto lostIntermediateChunk = LostIntermediateChunkCookieMap_.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
+    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap_.end() && it->first.first == joblet->OutputCookie;
 
     auto accountBuildingJobSpec = BIND(&ITaskHost::AccountBuildingJobSpecDelta, MakeWeak(TaskHost_));
     accountBuildingJobSpec.Run(+1, +sliceCount);
@@ -837,6 +833,7 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("completed").Value(IsCompleted())
         .Item("min_needed_resources").Value(GetMinNeededResources())
         .Item("job_proxy_memory_reserve_factor").Value(GetJobProxyMemoryReserveFactor())
+        .Item("received_output_digest_count").Value(ReceivedDigestCount_)
         .DoIf(HasUserJob(), [&] (TFluentMap fluent) {
             fluent.Item("user_job_memory_reserve_factor").Value(*GetUserJobMemoryReserveFactor());
         })
@@ -948,7 +945,7 @@ void TTask::Persist(const TPersistenceContext& context)
             TDefaultSerializer,
             TUnsortedTag
         >
-    >(context, LostJobCookieMap);
+    >(context, LostJobCookieMap_);
 
     Persist(context, OutputStreamDescriptors_);
     Persist(context, InputStreamDescriptors_);
@@ -1000,6 +997,16 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, UserJobMemoryMultiplier_);
     Persist(context, JobProxyMemoryMultiplier_);
+
+    if (context.GetVersion() >= ESnapshotVersion::JobDeterminismValidation) {
+        Persist<
+            TMapSerializer<
+                TTupleSerializer<TCookieAndPool, 2>,
+                TDefaultSerializer,
+                TUnsortedTag
+            >
+        >(context, JobOutputHash_);
+    }
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -1298,10 +1305,10 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
 void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
 {
     auto cookieAndPoll = TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool);
-    YT_VERIFY(LostJobCookieMap.emplace(
+    YT_VERIFY(LostJobCookieMap_.emplace(
         cookieAndPoll,
         completedJob->InputCookie).second);
-    LostIntermediateChunkCookieMap.emplace(cookieAndPoll, chunkId);
+    LostIntermediateChunkCookieMap_.emplace(cookieAndPoll, chunkId);
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobLost(completedJob->OutputCookie);
     }
@@ -1903,6 +1910,12 @@ void TTask::RegisterOutput(
         joblet->InputStripeList,
         &outputStripes);
 
+    if (std::ssize(joblet->OutputStreamDescriptors) != jobResultExt.output_digests_size()) {
+        YT_LOG_ERROR("Invalid number of output digests (Expected %v, Actual %v)",
+            std::ssize(joblet->OutputStreamDescriptors),
+            jobResultExt.output_digests_size());
+    }
+
     const auto& streamDescriptors = joblet->OutputStreamDescriptors;
     for (int tableIndex = 0; tableIndex < std::ssize(streamDescriptors); ++tableIndex) {
         if (outputStripes[tableIndex]) {
@@ -1914,12 +1927,18 @@ void TTask::RegisterOutput(
                     dataSlice->GetSingleUnversionedChunk());
             }
 
+            std::optional<TMD5Hash> hash;
+            if (tableIndex < jobResultExt.output_digests_size()) {
+                FromProto(&hash, jobResultExt.output_digests()[tableIndex]);
+            }
+
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
                 streamDescriptor,
                 joblet,
                 key,
-                processEmptyStripes);
+                processEmptyStripes,
+                hash);
         }
     }
 }
@@ -1954,7 +1973,8 @@ void TTask::RegisterStripe(
     const TOutputStreamDescriptorPtr& streamDescriptor,
     TJobletPtr joblet,
     TChunkStripeKey key,
-    bool processEmptyStripes)
+    bool processEmptyStripes,
+    const std::optional<TMD5Hash>& digest)
 {
     if (stripe->DataSlices.empty() && !stripe->ChunkListId) {
         return;
@@ -1962,6 +1982,10 @@ void TTask::RegisterStripe(
 
     if (stripe->DataSlices.empty() && !processEmptyStripes) {
         return;
+    }
+
+    if (digest) {
+        ++ReceivedDigestCount_;
     }
 
     YT_VERIFY(joblet);
@@ -1977,8 +2001,25 @@ void TTask::RegisterStripe(
             joblet->JobType);
 
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
-        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, streamDescriptor->DestinationPool));
-        if (lostIt == LostJobCookieMap.end()) {
+        TCookieAndPool outputCookie{joblet->OutputCookie, streamDescriptor->DestinationPool};
+
+        if (digest) {
+            auto digestIt = JobOutputHash_.find(outputCookie);
+            if (digestIt != JobOutputHash_.end() && digestIt->second != digest) {
+                TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
+                    TError("Restarted job produced dissimilar output; "
+                           "this may lead to inconsistent operation results; "
+                           "consider setting enable_intermediate_output_recalculation=%false.")
+                        << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor())
+                        << TErrorAttribute("job_id", joblet->JobId));
+            }
+            if (digestIt == JobOutputHash_.end()) {
+                JobOutputHash_.emplace(outputCookie, *digest);
+            }
+        }
+
+        auto lostIt = LostJobCookieMap_.find(outputCookie);
+        if (lostIt == LostJobCookieMap_.end()) {
             // NB: if job is not restarted, we should not add its output for the
             // second time to the destination pools that did not trigger the replay.
             if (!joblet->Restarted) {
@@ -2006,7 +2047,7 @@ void TTask::RegisterStripe(
 
             destinationPool->Resume(inputCookie);
 
-            LostJobCookieMap.erase(lostIt);
+            LostJobCookieMap_.erase(lostIt);
         }
 
         // If destination pool decides not to do anything with this data,

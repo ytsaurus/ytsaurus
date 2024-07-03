@@ -49,6 +49,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SingleChunkTeleportStrategy)          (301509))
     ((OutputNodeDirectory)                  (301510))
     ((RemoteInputForOperations)             (301511))
+    ((JobDeterminismValidation)             (301512))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -71,6 +71,8 @@
 #include <util/generic/ylimits.h>
 #include <util/generic/buffer.h>
 
+#include <utility>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -91,6 +93,7 @@ using namespace NYson;
 using namespace NApi;
 using namespace NQueryClient;
 using namespace NTracing;
+using namespace NCrypto;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1151,6 +1154,10 @@ protected:
             EvaluateComputedColumns(mutableRow);
             EvaluateSkynetColumns(mutableRow, rowIndex + 1 == rows.Size());
 
+            if (Options_->ComputeDigest) {
+                UpdateDigest(row);
+            }
+
             result.push_back(mutableRow);
         }
 
@@ -1176,6 +1183,56 @@ private:
     // For duplicate id validation.
     TCompactVector<i64, TypicalColumnCount> IdValidationMarks_;
     i64 CurrentIdValidationMark_ = 1;
+
+    TMD5Hasher Hasher_;
+
+    std::optional<TMD5Hash> GetDigest() const override
+    {
+        if (!Options_->ComputeDigest) {
+            return std::nullopt;
+        }
+
+        return Hasher_.GetDigest();
+    }
+
+    void UpdateDigest(TUnversionedRow row)
+    {
+        std::vector<int> columnOrder(row.GetCount());
+        std::iota(columnOrder.begin(), columnOrder.end(), 0);
+        std::sort(columnOrder.begin(), columnOrder.end(), [this, &row](int lhs, int rhs) {
+            return NameTable_->GetNameOrThrow(row[lhs].Id) < NameTable_->GetNameOrThrow(row[rhs].Id);
+        });
+
+        for (int index : columnOrder) {
+            const auto& value = row[index];
+            Hasher_.Append(NameTable_->GetName(value.Id));
+            Hasher_.Append(TRef::FromPod(value.Type));
+            switch (value.Type) {
+                case EValueType::Null:
+                    break;
+                case EValueType::Int64:
+                    Hasher_.Append(TRef::FromPod(value.Data.Int64));
+                    break;
+                case EValueType::Uint64:
+                    Hasher_.Append(TRef::FromPod(value.Data.Uint64));
+                    break;
+                case EValueType::Double:
+                    Hasher_.Append(TRef::FromPod(value.Data.Double));
+                    break;
+                case EValueType::Boolean:
+                    Hasher_.Append(TRef::FromPod(value.Data.Boolean));
+                    break;
+                case EValueType::String:
+                case EValueType::Any:
+                case EValueType::Composite:
+                    Hasher_.Append(value.AsStringBuf());
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unexpected value type: %Qlv",
+                        value.Type);
+            }
+        }
+    }
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
     {
@@ -1360,7 +1417,7 @@ public:
             trafficMeter,
             throttler,
             blockCache)
-        , Partitioner_(partitioner)
+        , Partitioner_(std::move(partitioner))
         , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
         Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
@@ -1622,7 +1679,7 @@ public:
             trafficMeter,
             throttler,
             blockCache)
-        , CreateChunkWriter_(createChunkWriter)
+        , CreateChunkWriter_(std::move(createChunkWriter))
     { }
 
     bool Write(TRange<TUnversionedRow> rows) override

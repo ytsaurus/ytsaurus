@@ -26,10 +26,51 @@ from random import shuffle
 import datetime
 import os
 
+
 ##################################################################
 
 
-class TestSchedulerMapReduceCommands(YTEnvSetup):
+class TestSchedulerMapReduceBase(YTEnvSetup):
+    def _find_intermediate_chunks(self):
+        # Figure out the intermediate chunk
+        chunks = ls("//sys/chunks", attributes=["requisition"])
+        return [
+            str(c)
+            for c in chunks
+            if c.attributes["requisition"][0]["account"] == "intermediate"
+        ]
+
+    def _ban_nodes_with_intermediate_chunks(self, ban_all=False):
+        intermediate_chunk_ids = self._find_intermediate_chunks()
+
+        assert len(intermediate_chunk_ids) == 1 or ban_all
+
+        banned_nodes = []
+        for chunk_id in intermediate_chunk_ids:
+            replicas = get("#{}/@stored_replicas".format(chunk_id))
+            if not replicas:
+                continue
+
+            node_id = replicas[0]
+
+            set_node_banned(node_id, True)
+
+            controller_agent_addresses = ls("//sys/controller_agents/instances")
+            for controller_agent_address in controller_agent_addresses:
+                wait(lambda: not exists("//sys/controller_agents/instances/{}/orchid/controller_agent/job_tracker/nodes/{}".format(
+                    controller_agent_address, node_id)))
+
+            banned_nodes.append(node_id)
+
+        assert len(banned_nodes) >= 1
+
+        return banned_nodes
+
+
+##################################################################
+
+
+class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -805,32 +846,6 @@ print "x={0}\ty={1}".format(x, y)
             {"a_new": 42, "b": "42", "c_new": False},
             {"a_new": 43, "b": "43", "c_new": False},
         ]
-
-    def _find_intermediate_chunks(self):
-        # Figure out the intermediate chunk
-        chunks = ls("//sys/chunks", attributes=["requisition"])
-        return [
-            str(c)
-            for c in chunks
-            if c.attributes["requisition"][0]["account"] == "intermediate"
-        ]
-
-    def _ban_nodes_with_intermediate_chunks(self):
-        intermediate_chunk_ids = self._find_intermediate_chunks()
-        assert len(intermediate_chunk_ids) == 1
-        intermediate_chunk_id = intermediate_chunk_ids[0]
-
-        replicas = get("#{}/@stored_replicas".format(intermediate_chunk_id))
-        assert len(replicas) == 1
-        node_id = replicas[0]
-
-        set_node_banned(node_id, True)
-
-        controller_agent_addresses = ls("//sys/controller_agents/instances")
-        for controller_agent_address in controller_agent_addresses:
-            wait(lambda: not exists("//sys/controller_agents/instances/{}/orchid/controller_agent/job_tracker/nodes/{}".format(
-                controller_agent_address, node_id)))
-        return [node_id]
 
     def _abort_single_job_if_running_after_node_ban(self, op, job_id):
         jobs = op.get_running_jobs().keys()
@@ -3601,3 +3616,561 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
             },
         }
     }
+
+
+##################################################################
+
+
+class TestSchedulerMapReduceDeterminism(TestSchedulerMapReduceBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
+            },
+        }
+    }
+
+    @authors("apollo1321")
+    def test_map_deterministic_job_lost(self):
+        """
+        Test the deterministic behavior of the "partition_map" job to ensure
+        that it triggers no false-positive alerts.
+
+        Given that only a single user_slot is provided, the jobs are executed
+        sequentially in the specified order:
+
+          input       =| x=1 y=2 | x=2 y=3 |     -> [partition_map]    -> | a=2 b=3 x=1 c=10 d=20 | x=7 b=4 |
+          partition[0]=| a=2 b=3 x=1 c=10 d=20 | -> [partition_reduce] -> | a=2 b=3 x=1 c=10 d=20 |
+          partition[1]=CHUNK LOST                -> [partition_reduce] -> ERROR
+          input       =| x=1 y=2 | x=2 y=3 |     -> [partition_map]    -> | x=1 c=10 b=3 d=20 a=2 | b=4 x=7 |
+          partition[1]=| x=7 b=4 |               -> [partition_reduce] -> | x=7 b=4 |
+
+        Importantly, the ordering of columns within each row does not
+        influence the outcome of the hash digest calculations. This is due to
+        the internal sorting of row values by their respective header names
+        before computation.
+
+        For each value, the hash-sum is updated using a tuple of
+        (column_name, column_type, data), ensuring the consistency of the hash
+        value across different job runs.
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        mapper_cmd = """
+if [[ ${YT_TASK_JOB_INDEX} == 0 ]]; then
+    echo 'a=2\tb=3\tx=1\tc=10\td=20\nx=7\tb=4'
+else
+    echo 'x=1\tc=10\tb=3\td=20\ta=2\nb=4\tx=7'
+fi
+"""
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            mapper_command=mapper_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"}
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        assert ls(op.get_path() + "/@alerts") == ["lost_intermediate_chunks"]
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+
+        assert len(tasks) == 2
+
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 2
+
+        assert tasks[1]["task_name"] == "partition_reduce"
+        assert tasks[1]["received_output_digest_count"] == 0
+
+        assert get(op.get_path() + "/@progress/partition_map/total") == 1
+        assert get(op.get_path() + "/@progress/partition_map/lost") == 1
+
+        assert get(op.get_path() + "/@progress/partition_reduce/total") == 2
+        assert get(op.get_path() + "/@progress/partition_reduce/aborted/total") >= 1
+
+        assert_items_equal(
+            read_table("//tmp/t_out"),
+            [{"x": "1", "a": "2", "b": "3", "c": "10", "d": "20"}, {"x": "7", "b": "4"}]
+        )
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("error_type", ["header", "value", "type", "row_reorder"])
+    def test_map_non_deterministic_job_lost(self, error_type):
+        """
+        Test the non-determhnistih behavior of the "partition_map" job to
+        ensure that it triggers alert.
+
+        As we provide only single user_slot, jobs are executed sequentially, in
+        the following order:
+
+          [partition_map] -> [{"x": 0, "y": 1}, {"x": 2, "y": 3}]
+          partition[0] -> [partition_reduce],  -> [{"x": 0, "y": 1}]
+          partition[1] CHUNK LOST -> [partition_reduce]-> ERROR
+          [partition_map] -> INCONSISTENT OUTPUT
+          partition[1] -> [partition_reduce] -> UNDEFINED OUTPUT
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 0, "y": 1}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        first_output = '{"x": 0, "y": 1}\n{"x": 2, "y": 3}'
+
+        if error_type == "header":
+            second_output = '{"x": 0, "yy": 1}\n{"xx": 2, "y": 3}'
+        elif error_type == "value":
+            second_output = '{"x": 0, "y": 1}\n{"x": 3, "y": 3}'
+        elif error_type == "type":
+            second_output = '{"x": "0", "y": 1}\n{"x": 2, "y": 3}'
+        elif error_type == "row_reorder":
+            second_output = '{"x": 2, "y": 3}\n{"x": "0", "y": 1}'
+
+        mapper_cmd = f"""
+if [[ ${{YT_TASK_JOB_INDEX}} == 0 ]]; then
+    echo '{first_output}'
+else
+    echo '{second_output}'
+fi
+"""
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            mapper_command=mapper_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+                "mapper": {"format": "json"},
+                "reducer": {"format": "json"}
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 2
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 2
+        assert tasks[1]["task_name"] == "partition_reduce"
+        assert tasks[1]["received_output_digest_count"] == 0
+
+        assert sorted(ls(op.get_path() + "/@alerts")) == ["job_is_not_deterministic", "lost_intermediate_chunks"]
+
+        assert get(op.get_path() + "/@progress/partition_map/total") == 1
+        assert get(op.get_path() + "/@progress/partition_map/lost") == 1
+
+        assert get(op.get_path() + "/@progress/partition_reduce/total") == 2
+        assert get(op.get_path() + "/@progress/partition_reduce/aborted/total") >= 1
+
+    @authors("apollo1321")
+    def test_map_job_lost_without_recalculation(self):
+        """
+        Test that "partition_map" job output digest is not computed when
+        recalculation is disabled.
+
+        As we provide only single user_slot, jobs are executed sequentially, in
+        the following order:
+          [partition_map] -> [{"x": 1, "y": 2}, {"x": 2, "y": 3}]
+          [partition_reduce], partition 0 -> [{"x": 1, "y": 2}]
+          [partition_reduce], partition 1 -> ERROR, CHUNK LOST
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        mapper_cmd = "cat"
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            mapper_command=mapper_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": False,
+                "unavailable_chunk_tactics": "fail",
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        with pytest.raises(YtError):
+            op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) >= 1
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 0
+
+    @authors("apollo1321")
+    def test_map_job_lost_trivial(self):
+        """
+        Test that "partition_map" job output digest is not computed when
+        map phase of map-reduce operation is trivial.
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) >= 1
+        assert tasks[0]["task_name"] == "partition(0)"
+        assert tasks[0]["received_output_digest_count"] == 0
+
+    @authors("apollo1321")
+    def test_map_job_lost_multilevel_shuffle(self):
+        """
+        Test that digest is not computed for "partition" tasks in multilevel shuffle.
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [
+            {"x": 1, "y": True},
+            {"x": 2, "y": False},
+            {"x": 3, "y": True}
+        ])
+
+        format = yson.YsonString(b"skiff")
+        format.attributes["table_skiff_schemas"] = [{
+            "wire_type": "tuple",
+            "children": [
+                {
+                    "wire_type": "int64",
+                    "name": "x",
+                },
+                {
+                    "wire_type": "boolean",
+                    "name": "y",
+                },
+            ],
+        }]
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command="cat",
+            mapper_command="cat",
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 3,
+                "max_partition_factor": 2,
+                "resource_limits": {"user_slots": 1},
+                "mapper": {"format": format},
+                "reducer": {"format": format}
+            },
+            track=False,
+        )
+
+        op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 3
+
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 1
+
+        assert tasks[1]["task_name"] == "partition(1)"
+        assert tasks[1]["received_output_digest_count"] == 0
+
+        assert tasks[2]["task_name"] == "partition_reduce"
+        assert tasks[2]["received_output_digest_count"] == 0
+
+        assert_items_equal(
+            read_table("//tmp/t_out"),
+            [{"x": 1, "y": True}, {"x": 2, "y": False}, {"x": 3, "y": True}]
+        )
+
+    @authors("apollo1321")
+    def test_map_job_lost_with_intermediate_output(self):
+        """
+        Verify that the digest computation excludes intermediate mapper output
+        tables.
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out_mapper")
+
+        write_table("//tmp/t_in", [
+            {"x": 1, "y": 3},
+            {"x": 2, "y": 4},
+        ])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        mapper_cmd = """
+if [[ ${YT_TASK_JOB_INDEX} == 0 ]]; then
+    echo '{"x": 5, "y": 6}\n{"x": 7, "y": 8}'
+    echo '{"a": 8, "b": 9}\n{"a": 10, "b": 11}' > /proc/self/fd/4
+else
+    echo '{"x": 5, "y": 6}\n{"x": 7, "y": 8}'
+    echo '{"a": 0, "b": 0}\n{"a": 0, "c": 0}' > /proc/self/fd/4
+fi
+"""
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_mapper", "//tmp/t_out"],
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            mapper_command=mapper_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "mapper_output_table_count": 1,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+                "mapper": {"format": "json"},
+                "reducer": {"format": "json"}
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 2
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 2
+        assert tasks[1]["task_name"] == "partition_reduce"
+        assert tasks[1]["received_output_digest_count"] == 0
+
+        assert sorted(ls(op.get_path() + "/@alerts")) == ["lost_intermediate_chunks"]
+
+        assert get(op.get_path() + "/@progress/partition_map/total") == 1
+        assert get(op.get_path() + "/@progress/partition_map/lost") == 1
+
+        assert get(op.get_path() + "/@progress/partition_reduce/total") == 2
+        assert get(op.get_path() + "/@progress/partition_reduce/aborted/total") >= 1
+
+        assert_items_equal(
+            read_table("//tmp/t_out"),
+            [{"x": 5, "y": 6}, {"x": 7, "y": 8}]
+        )
+
+        assert_items_equal(
+            read_table("//tmp/t_out_mapper"),
+            [{"a": 8, "b": 9}, {"a": 10, "b": 11}]
+        )
+
+    @authors("apollo1321")
+    def test_reduce_combiner_non_deterministic_job_lost(self):
+        """
+        Test the non-deterministic behavior of the "reduce_combiner" job to
+        ensure that it triggers alert.
+
+        As we provide only single user_slot, jobs are executed sequentially, in
+        the following order:
+
+          input=[{"x": 0, "y": 1}, {"x": 2, "y": 3}] -> [partition_map]   -> [{"x": 0, "y": 1}, {"x": 2, "y": 3}]
+          partition[0]=[{"x": 0, "y": 1}]            -> [reduce_combiner] -> [{"x": 0, "y": 1}]
+          partition[1]=[{"x": 2, "y": 3}]            -> [reduce_combiner] -> [{"x": 2, "y": 3}]
+          partition`[0]=[{"x": 0, "y": 10}]          -> [sorted_reduce]   -> [{"z": 20}]
+          partition`[1]=CHUNK LOST                   -> [sorted_reduce]   -> ERROR
+          input=[{"x": 0, "y": 1}, {"x": 2, "y": 3}] -> [partition_map]   -> [{"x": 0, "y": 1}, {"x": 2, "y": 3}]
+          partition[0]=[{"x": 0, "y": 1}]            -> [reduce_combiner] -> [{"x": 0, "y": 1}]
+          partition[1]=[{"x": 2, "y": 3}]            -> [reduce_combiner] -> INCONSISTENT OUTPUT
+          partition`[1]=INCONSISTENT DATA            -> [sorted_reduce]   -> UNDEFINED OUTPUT
+        """
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 0, "y": 1}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        mapper_cmd = "cat"
+        reduce_combiner_cmd = """
+if [[ ${YT_TASK_JOB_INDEX} != 3 ]]; then
+    cat
+else
+    echo '{"x": 2, "y": 4}'
+fi
+"""
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            mapper_command=mapper_cmd,
+            reduce_combiner_command=reduce_combiner_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+                "mapper": {"format": "json"},
+                "reducer": {"format": "json"},
+                "reduce_combiner": {"format": "json"},
+                "force_reduce_combiners": True,
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks(ban_all=True)
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 3
+        assert tasks[0]["task_name"] == "partition_map(0)"
+        assert tasks[0]["received_output_digest_count"] == 2
+        assert tasks[1]["task_name"] == "reduce_combiner"
+        assert tasks[1]["received_output_digest_count"] == 4
+        assert tasks[2]["task_name"] == "sorted_reduce"
+        assert tasks[2]["received_output_digest_count"] == 0
+
+        assert sorted(ls(op.get_path() + "/@alerts")) == ["job_is_not_deterministic", "lost_intermediate_chunks"]
+
+        assert get(op.get_path() + "/@progress/partition_map/total") == 1
+        assert get(op.get_path() + "/@progress/partition_map/lost") == 1
+
+        assert get(op.get_path() + "/@progress/reduce_combiner/total") == 2
+        assert get(op.get_path() + "/@progress/reduce_combiner/lost") == 2
+
+        assert get(op.get_path() + "/@progress/sorted_reduce/total") == 2
+        # NB: There is a race condition between the completion of the sorted_reduce task
+        # and node unregistering. The number of aborted jobs can be either 1 or 2.
+        assert get(op.get_path() + "/@progress/sorted_reduce/aborted/total") >= 1
