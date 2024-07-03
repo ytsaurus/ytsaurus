@@ -48,6 +48,8 @@ DECLARE_REFCOUNTED_CLASS(TJobTrackerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDockerRegistryConfig)
 
+DECLARE_REFCOUNTED_CLASS(TDisallowRemoteOperationsConfig)
+
 struct TSettleJobRequest
 {
     TOperationId OperationId;
@@ -133,4 +135,3 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

@@ -6,6 +6,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/client/transaction_client/public.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -13,6 +15,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NApi;
+using namespace NHiveClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NLogging;
@@ -20,33 +23,87 @@ using namespace NTransactionClient;
 using namespace NScheduler;
 
 using NScheduler::TOperationId;
+using NApi::NNative::IClientPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClusterResolver::TClusterResolver(IClientPtr client)
+    : LocalClusterName_(client->GetClusterName().value_or(""))
+{ }
+
+TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
+{
+    auto clusterName = path.GetCluster();
+    if (clusterName.has_value() && !IsLocalClusterName(*clusterName)) {
+        return TClusterName(*clusterName);
+    }
+    return LocalClusterName;
+}
+
+TString TClusterResolver::GetLocalClusterName() const
+{
+    return LocalClusterName_;
+}
+
+bool TClusterResolver::IsLocalClusterName(const TString& clusterName) const
+{
+    return IsLocal(TClusterName(clusterName)) || clusterName == LocalClusterName_;
+}
+
+void TClusterResolver::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, LocalClusterName_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputTransactionsManager::TInputTransactionsManager(
-    TInputClients clients,
+    IClientPtr client,
+    TClusterResolverPtr clusterResolver,
     TOperationId operationId,
     const std::vector<TRichYPath>& filesAndTables,
-    bool forceStartNativeTransaction,
+    bool forceStartLocalTransaction,
     TTransactionId userTransactionId,
+    const TString& authenticatedUser,
     TControllerAgentConfigPtr config,
     TLogger logger)
     : OperationId_(operationId)
-    , Client_(clients.Client)
-    , SchedulerClient_(clients.SchedulerClient)
     , Logger(logger)
     , ControllerConfig_(config)
     , UserTransactionId_(userTransactionId)
+    , ClusterResolver_(clusterResolver)
 {
+    auto createClient = [&] (const auto& name) {
+        if (!Clients_.contains(name)) {
+            Clients_[name] = IsLocal(name)
+                ? client
+                : client
+                    ->GetNativeConnection()
+                    ->GetClusterDirectory()
+                    ->GetConnectionOrThrow(name.Underlying())
+                    ->CreateNativeClient(client->GetOptions());
+        }
+    };
     for (const auto& path : filesAndTables) {
         ParentToTransaction_[GetTransactionParentFromPath(path)] = nullptr;
+        auto clusterName = ClusterResolver_->GetClusterName(path);
+        ValidateRemoteOperationsAllowed(clusterName, authenticatedUser, path);
+        createClient(clusterName);
+
         if (auto parent = path.GetTransactionId(); parent) {
             OldNonTrivialInputTransactionParents_.push_back(*parent);
         }
     }
 
-    if (forceStartNativeTransaction) {
-        ParentToTransaction_[UserTransactionId_] = nullptr;
+    if (forceStartLocalTransaction) {
+        createClient(LocalClusterName);
+        auto localParent = TRichTransactionId {
+            .Id = UserTransactionId_,
+            .ParentId = NullTransactionId,
+            .Cluster = LocalClusterName,
+        };
+        ParentToTransaction_[localParent] = nullptr;
     }
 }
 
@@ -55,27 +112,26 @@ TFuture<void> TInputTransactionsManager::Start(
 {
     std::vector<TFuture<void>> transactionFutures;
 
-    for (const auto& [parentTransactionId, _] : ParentToTransaction_) {
-        YT_LOG_INFO("Starting input transaction (ParentId: %v)", parentTransactionId);
+    for (const auto& [parentTransaction, _] : ParentToTransaction_) {
+        YT_LOG_INFO("Starting input transaction (Parent: %v)", parentTransaction);
 
         TTransactionStartOptions options;
         options.AutoAbort = false;
         options.PingAncestors = false;
         options.Attributes = transactionAttributes->Clone();
-        options.ParentId = parentTransactionId;
+        options.ParentId = parentTransaction.Id;
         options.Timeout = ControllerConfig_->OperationTransactionTimeout;
         options.PingPeriod = ControllerConfig_->OperationTransactionPingPeriod;
 
-        auto transactionFuture = Client_->StartNativeTransaction(
+        auto transactionFuture = Clients_[parentTransaction.Cluster]->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             options);
 
         transactionFutures.push_back(
             transactionFuture.Apply(
                 BIND(
-                    [=, this, this_ = MakeStrong(this)]
-                    (const TErrorOr<NNative::ITransactionPtr>& transactionOrError)
-                    {
+                    [=, this, this_ = MakeStrong(this), parentTransaction = parentTransaction]
+                    (const TErrorOr<NNative::ITransactionPtr>& transactionOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(
                             transactionOrError,
                             "Error starting input transaction");
@@ -85,11 +141,11 @@ TFuture<void> TInputTransactionsManager::Start(
                         YT_LOG_INFO("Input transaction started (TransactionId: %v)",
                             transaction->GetId());
 
-                        YT_VERIFY(ParentToTransaction_.contains(parentTransactionId));
+                        YT_VERIFY(ParentToTransaction_.contains(parentTransaction));
                         // NB: Assignments are not racy, because invoker of this "Apply" is serialized.
-                        ParentToTransaction_[parentTransactionId] = transaction;
-                        if (parentTransactionId == UserTransactionId_) {
-                            NativeInputTransaction_ = transaction;
+                        ParentToTransaction_[parentTransaction] = transaction;
+                        if (parentTransaction.Id == UserTransactionId_) {
+                            LocalInputTransaction_ = transaction;
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -101,6 +157,17 @@ TFuture<void> TInputTransactionsManager::Start(
 std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTransactions(
     const TControllerTransactionIds& transactionIds) const
 {
+    /// Old (aka NonTrivial) transactions come in a fixed layout, which is hopefully the same as in
+    /// OldNonTrivialInputTransactionParents.
+    ///
+    /// OldNonTrivialInputTransactionParents: [p1,  p2,  p1 ]
+    /// transactionIds.NestedInputIds:        [tx1, tx2, tx1]
+    ///
+    /// We need to restore a mapping parent_transaction -> transaction, given transactions from
+    /// cypress and parents from snapshot. The tricky part is that transactionIds.NestedInputIds is
+    /// kind of a mapping table -> transaction, so transactions may be duplicated there. The
+    /// following code also does a little sanity check: it verifies that each parent has exactly one
+    /// unique child.
     if (transactionIds.NestedInputIds.size() != OldNonTrivialInputTransactionParents_.size()) {
         THROW_ERROR_EXCEPTION(
             "Transaction count from Cypress differs from internal transaction count, will use clean start")
@@ -109,32 +176,38 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
     }
 
     std::vector<TRichTransactionId> flatTransactionIds(ParentToTransaction_.size());
-    THashMap<TTransactionId, int> parentToIndex;
+    std::map<TRichTransactionId, int> parentToIndex;
     for (const auto& [i, parentAndTransaction] : Enumerate(ParentToTransaction_)) {
-        parentToIndex[parentAndTransaction.first] = i;
+        const auto& [parent, _] = parentAndTransaction;
+        YT_VERIFY(IsLocal(parent.Cluster));
+        parentToIndex[parent] = i;
     }
 
     for (int i = 0; i < std::ssize(OldNonTrivialInputTransactionParents_); ++i) {
         auto txId = transactionIds.NestedInputIds[i];
-        auto parent = OldNonTrivialInputTransactionParents_[i];
-        auto& flatTxId = flatTransactionIds[parentToIndex[parent]];
-        auto richTxId = TRichTransactionId { .Id = txId, .ParentId = parent};
-        if (flatTxId.Id) {
+        auto oldParentId = OldNonTrivialInputTransactionParents_[i];
+        auto& flatTxId = flatTransactionIds[parentToIndex[MakeRichTransactionId(oldParentId)]];
+        auto richTxId = TRichTransactionId { .Id = txId, .ParentId = oldParentId, .Cluster = LocalClusterName };
+        bool firstTimeSeen = flatTxId.Id == NullTransactionId;
+        if (firstTimeSeen) {
+            flatTxId = richTxId;
+        } else {
             if (flatTxId != richTxId) {
                 THROW_ERROR_EXCEPTION("Expected transactions with same parent to be equal")
                     << TErrorAttribute("index", i)
                     << TErrorAttribute("transaction_id_left", flatTxId)
                     << TErrorAttribute("transaction_id_right", richTxId);
             }
-        } else {
-            flatTxId = richTxId;
         }
     }
 
-    if (ParentToTransaction_.contains(UserTransactionId_)) {
-        flatTransactionIds[parentToIndex[UserTransactionId_]] = TRichTransactionId {
+    auto inputTxParent = MakeRichTransactionId(UserTransactionId_);
+    if (ParentToTransaction_.contains(inputTxParent)) {
+        YT_VERIFY(flatTransactionIds[parentToIndex[inputTxParent]].Id == NullTransactionId);
+        flatTransactionIds[parentToIndex[inputTxParent]] = TRichTransactionId {
             .Id = transactionIds.InputId,
-            .ParentId = UserTransactionId_
+            .ParentId = UserTransactionId_,
+            .Cluster = LocalClusterName,
         };
     }
 
@@ -158,7 +231,7 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
     }
 
     std::vector<ITransactionPtr> transactions;
-    for (const auto& [i, txId] : Enumerate(transactionIds.InputIds)) {
+    for (const auto& [_, txId] : Enumerate(transactionIds.InputIds)) {
         YT_VERIFY(txId.Id != NullTransactionId);
         TTransactionAttachOptions options;
         options.Ping = true;
@@ -167,8 +240,14 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
 
         ITransactionPtr transaction;
         try {
-            transaction = Client_->AttachTransaction(txId.Id, options);
-            ParentToTransaction_[txId.ParentId] = transaction;
+            transaction = Clients_[txId.Cluster]->AttachTransaction(txId.Id, options);
+            auto parent = TRichTransactionId {
+                .Id = txId.ParentId,
+                .ParentId = NullTransactionId,
+                .Cluster = txId.Cluster,
+            };
+            YT_VERIFY(ParentToTransaction_.contains(parent) && !ParentToTransaction_[parent]);
+            ParentToTransaction_[parent] = transaction;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error attaching operation transaction (TransactionId: %v)",
                 txId.Id);
@@ -205,8 +284,8 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
         .Apply(BIND([this, this_ = MakeStrong(this)] {
             for (const auto& [parent, transaction] : ParentToTransaction_) {
                 YT_VERIFY(transaction);
-                if (parent == UserTransactionId_) {
-                    NativeInputTransaction_ = transaction;
+                if (parent.Id == UserTransactionId_) {
+                    LocalInputTransaction_ = transaction;
                 }
             }
         })
@@ -225,7 +304,7 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
 {
     std::vector<TTransactionId> transactionIds;
     for (const auto& parent : OldNonTrivialInputTransactionParents_) {
-        const auto& tx = ParentToTransaction_.at(parent);
+        const auto& tx = ParentToTransaction_.at(MakeRichTransactionId(parent));
         transactionIds.push_back(tx->GetId());
     }
 
@@ -238,35 +317,70 @@ void TInputTransactionsManager::FillSchedulerTransactionIds(
     for (const auto& [parent, tx] : ParentToTransaction_) {
         YT_VERIFY(tx);
         transactionIds->InputIds.push_back(
-            TRichTransactionId { .Id = tx->GetId(), .ParentId = parent });
+            TRichTransactionId {
+                .Id = tx->GetId(),
+                .ParentId = parent.Id,
+                .Cluster = parent.Cluster
+            });
     }
 
     // COMPAT(coteeq)
-    auto nativeId = GetNativeInputTransactionId();
-    transactionIds->InputId = nativeId;
+    auto localId = GetLocalInputTransactionId();
+    transactionIds->InputId = localId;
     transactionIds->NestedInputIds = GetCompatDuplicatedNestedTransactionIds();
 }
 
-TFuture<void> TInputTransactionsManager::Abort()
+TFuture<void> TInputTransactionsManager::Abort(IClientPtr schedulerClient)
 {
     std::vector<TFuture<void>> abortFutures;
-    for (const auto& [_, transaction] : ParentToTransaction_) {
+    for (const auto& [parent, transaction] : ParentToTransaction_) {
         if (transaction) {
-            abortFutures.push_back(SchedulerClient_->AttachTransaction(transaction->GetId())->Abort());
+            auto client = schedulerClient;
+            if (!IsLocal(parent.Cluster)) {
+                client = schedulerClient
+                    ->GetNativeConnection()
+                    ->GetClusterDirectory()
+                    ->GetConnectionOrThrow(parent.Cluster.Underlying())
+                    ->CreateNativeClient(schedulerClient->GetOptions());
+                if (!client) {
+                    auto error = TError("Failed to create scheduler client")
+                        << TErrorAttribute("cluster_name", parent.Cluster);
+                    YT_LOG_WARNING(error, "Failed to abort input transaction (TransactionId: %v)",
+                        transaction->GetId());
+                    abortFutures.push_back(MakeFuture(error));
+                    continue;
+                }
+            }
+            abortFutures.push_back(client->AttachTransaction(transaction->GetId())->Abort());
         }
     }
 
     return AllSet(abortFutures).AsVoid();
 }
 
-TTransactionId TInputTransactionsManager::GetNativeInputTransactionId() const
+TTransactionId TInputTransactionsManager::GetLocalInputTransactionId() const
 {
-    return NativeInputTransaction_ ? NativeInputTransaction_->GetId() : NullTransactionId;
+    return LocalInputTransaction_ ? LocalInputTransaction_->GetId() : NullTransactionId;
 }
 
-TTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const TRichYPath& path) const
+TClusterResolverPtr TInputTransactionsManager::GetClusterResolver() const
 {
-    return path.GetTransactionId().value_or(UserTransactionId_);
+    return ClusterResolver_;
+}
+
+TRichTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const TRichYPath& path) const
+{
+    TRichTransactionId parent;
+    parent.Cluster = ClusterResolver_->GetClusterName(path);
+    if (path.GetTransactionId().has_value()) {
+        parent.Id = *path.GetTransactionId();
+    } else {
+        parent.Id = IsLocal(parent.Cluster)
+            ? UserTransactionId_
+            : NullTransactionId;
+    }
+    parent.ParentId = NullTransactionId;
+    return parent;
 }
 
 TError TInputTransactionsManager::ValidateSchedulerTransactions(
@@ -289,6 +403,28 @@ TError TInputTransactionsManager::ValidateSchedulerTransactions(
     }
 
     return TError();
+}
+
+void TInputTransactionsManager::ValidateRemoteOperationsAllowed(
+    const NScheduler::TClusterName& clusterName,
+    const TString& authenticatedUser,
+    const NYPath::TRichYPath& path) const
+{
+    if (!IsLocal(clusterName)) {
+        const auto& disallowRemoteConfig = ControllerConfig_->DisallowRemoteOperations;
+        if (!disallowRemoteConfig->AllowedUsers.contains(authenticatedUser)) {
+            THROW_ERROR_EXCEPTION(
+                "User %v is not allowed to start operations with remote clusters",
+                authenticatedUser)
+                << TErrorAttribute("input_table_path", path);
+        }
+        if (!disallowRemoteConfig->AllowedClusters.contains(clusterName.Underlying())) {
+            THROW_ERROR_EXCEPTION(
+                "Cluster %v is not allowed to be an input remote cluster",
+                clusterName)
+                << TErrorAttribute("input_table_path", path);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

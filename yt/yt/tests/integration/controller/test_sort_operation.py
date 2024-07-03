@@ -1558,6 +1558,44 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     spec={"schema_inference_mode": schema_inference_mode},
                 )
 
+    @authors("sabdenovch")
+    def test_extra_computed_columns(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi < (24, 1) or \
+                self.Env.get_component_version("ytserver-job-proxy").abi < (24, 1):
+            pytest.skip()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "val", "type": "int64"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {"name": "eva", "type": "int64", "expression": "-2 * val + 7"},
+                    {"name": "val", "type": "int64"},
+                ]
+            },
+        )
+
+        write_table("//tmp/t_in", [{"val": i} for i in range(5)])
+
+        sort_by = [{"name": "eva", "sort_order": "ascending"}]
+        expected = [{"eva": -2 * i + 7, "val": i} for i in range(4, -1, -1)]
+
+        # Avoid simple sort.
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=sort_by, spec={"partition_count": 2})
+        assert read_table("//tmp/t_out") == expected
+
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=sort_by)
+        assert read_table("//tmp/t_out") == expected
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("schema_inference_mode", ["auto", "from_output"])
     def test_computed_column_schema_validation(self, schema_inference_mode):

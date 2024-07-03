@@ -1497,16 +1497,6 @@ private:
             operations.size());
 
         {
-            static const std::vector<TString> attributeKeys = {
-                "async_scheduler_transaction_id",
-                "input_transaction_id",
-                "output_transaction_id",
-                "debug_transaction_id",
-                "output_completion_transaction_id",
-                "debug_completion_transaction_id",
-                "nested_input_transaction_ids",
-            };
-
             auto batchReq = StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTagSentinel,
@@ -1520,7 +1510,7 @@ private:
                 // Retrieve operation attributes.
                 {
                     auto req = TYPathProxy::Get(operationAttributesPath);
-                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    ToProto(req->mutable_attributes()->mutable_keys(), TControllerTransactionIds::AttributeKeys);
                     batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
                 }
             }

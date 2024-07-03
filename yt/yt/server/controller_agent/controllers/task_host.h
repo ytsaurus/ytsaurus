@@ -112,8 +112,6 @@ struct ITaskHost
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const = 0;
-
     virtual TInputManagerPtr GetInputManager() const = 0;
 
     virtual void RegisterRecoveryInfo(

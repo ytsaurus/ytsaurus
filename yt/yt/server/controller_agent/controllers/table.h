@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/table_client/table_upload_options.h>
 #include <yt/yt/ytlib/table_client/config.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -69,6 +71,8 @@ struct TInputTable
     NTableClient::ETableSchemaMode SchemaMode;
     bool Dynamic = false;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
+
+    NScheduler::TClusterName ClusterName;
 
     //! Set to true when schema of the table is compatible with the output
     //! teleport table and when no special options set that disallow chunk

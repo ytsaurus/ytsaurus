@@ -30,6 +30,8 @@ struct IChunkSliceFetcher
         const TComparator& comparator,
         i64 sliceDataWeight,
         bool sliceByKeys) = 0;
+
+    virtual i64 GetChunkSliceCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher)
@@ -44,6 +46,10 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     NApi::NNative::IClientPtr client,
     NTableClient::TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger);
+
+IChunkSliceFetcherPtr CreateCombiningChunkSliceFetcher(
+    std::vector<IChunkSliceFetcherPtr> chunkSliceFetchers,
+    std::vector<int> tableIndexToFetcherIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

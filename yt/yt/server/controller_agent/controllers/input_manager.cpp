@@ -14,10 +14,14 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -33,7 +37,6 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -59,6 +62,8 @@ using NLogging::TLogger;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
 
+using NApi::NNative::IClientPtr;
+
 namespace {
 
 template <class TReturn, class... TArgs>
@@ -74,7 +79,16 @@ auto MakeSafe(TWeakPtr<IInputManagerHost> weakHost, TCallback<TReturn(TArgs...)>
         });
 }
 
+bool AreAllElementsEqual(auto container, auto compare)
+{
+    auto invertCompare = [&compare] (const auto& l, const auto& r) {
+        return !compare(l, r);
+    };
+    // std::adjacent_find with inverted compare function finds a pair which has different elements.
+    return std::adjacent_find(container.begin(), container.end(), invertCompare) == container.end();
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +102,12 @@ void TInputManager::TStripeDescriptor::Persist(const TPersistenceContext& contex
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int TInputManager::TInputChunkDescriptor::GetTableIndex() const
+{
+    YT_VERIFY(!InputChunks.empty());
+    return InputChunks[0]->GetTableIndex();
+}
+
 void TInputManager::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -98,30 +118,175 @@ void TInputManager::TInputChunkDescriptor::Persist(const TPersistenceContext& co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnavailableChunksWatcher::TUnavailableChunksWatcher(std::vector<IFetcherChunkScraperPtr> chunkScrapers)
+    : ChunkScrapers_(std::move(chunkScrapers))
+{ }
+
+i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
+{
+    i64 chunkCount = 0;
+    for (const auto& scraper : ChunkScrapers_) {
+        chunkCount += scraper->GetUnavailableChunkCount();
+    }
+    return chunkCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCombiningSamplesFetcher::TCombiningSamplesFetcher(
+    std::vector<TSamplesFetcherPtr> samplesFetchers)
+: SamplesFetchers_(std::move(samplesFetchers))
+{ }
+
+TFuture<void> TCombiningSamplesFetcher::Fetch() const
+{
+    std::vector<TFuture<void>> fetchFutures;
+    for (const auto& fetcher : SamplesFetchers_) {
+        fetchFutures.push_back(fetcher->Fetch());
+    }
+    return AllSucceeded(fetchFutures);
+}
+
+std::vector<TSample> TCombiningSamplesFetcher::GetSamples() const
+{
+    std::vector<TSample> samples;
+    for (const auto& fetcher : SamplesFetchers_) {
+        const auto& newSamples = fetcher->GetSamples();
+        samples.insert(
+            samples.end(),
+            newSamples.begin(),
+            newSamples.end());
+    }
+    return samples;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeDirectoryBuilderFactory::TNodeDirectoryBuilderFactory(
+    NProto::TJobSpecExt* jobSpecExt,
+    TInputManagerPtr inputManager,
+    EOperationType operationType)
+    : JobSpecExt_(jobSpecExt)
+    , InputManager_(inputManager)
+    , IsRemoteCopy_(operationType == EOperationType::RemoteCopy)
+{ }
+
+std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDirectoryBuilder(
+    const TChunkStripePtr& stripe)
+{
+    YT_VERIFY(stripe->GetTableIndex() < std::ssize(InputManager_->InputTables_));
+    auto clusterName = InputManager_->InputTables_[stripe->GetTableIndex()]->ClusterName;
+    if (!IsRemoteCopy_ && IsLocal(clusterName)) {
+        // Local node directory is filled by exe-node (see also job.proto).
+        // Except for the RemoteCopy operations.
+        return nullptr;
+    }
+
+    if (!Builders_.contains(clusterName)) {
+        auto* protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
+        if (!IsLocal(clusterName)) {
+            auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[clusterName.Underlying()]);
+            remoteClusterProto->set_name(clusterName.Underlying());
+            protoNodeDirectory = remoteClusterProto->mutable_node_directory();
+        }
+        Builders_.emplace(
+            clusterName,
+            std::make_shared<TNodeDirectoryBuilder>(
+                InputManager_->Clusters_[clusterName]->NodeDirectory(),
+                protoNodeDirectory
+            ));
+    }
+
+    return Builders_[clusterName];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInputCluster::TInputCluster(
+    TClusterName name,
+    TLogger logger)
+    : Name(name)
+    , Logger(logger.WithTag("Cluster: %v", name))
+{ }
+
+void TInputCluster::InitializeClient(IClientPtr localClient)
+{
+    if (IsLocal(Name)) {
+        Client_ = localClient;
+    } else {
+        Client_ = localClient
+            ->GetNativeConnection()
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(Name.Underlying())
+            ->CreateNativeClient(localClient->GetOptions());
+    }
+}
+
+void TInputCluster::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Name);
+    Persist(context, Logger);
+    Persist(context, NodeDirectory_);
+    Persist(context, InputTables_);
+    if (context.IsLoad()) {
+        ChunkScraper_ = nullptr;
+        Client_ = nullptr;
+    }
+    Persist(context, UnavailableInputChunkIds_);
+    Persist(context, PathToInputTables_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInputManager::TInputManager(IInputManagerHost* host, TLogger logger)
     : Host_(host)
     , Logger(logger)
 { }
 
-void TInputManager::InitializeClient(NNative::IClientPtr client)
+void TInputManager::InitializeClients(IClientPtr client)
 {
-    Client_ = client;
-}
-
-void TInputManager::InitializeStructures(TInputTransactionsManagerPtr inputTransactions)
-{
-    YT_VERIFY(inputTransactions);
-    InputTransactions_ = inputTransactions;
-    for (const auto& path : Host_->GetInputTablePaths()) {
-        auto table = New<TInputTable>(
-            path,
-            InputTransactions_->GetTransactionIdForObject(path));
-        table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
-        InputTables_.push_back(std::move(table));
+    for (auto& [_, cluster] : Clusters_) {
+        cluster->InitializeClient(client);
     }
 }
 
-void TInputManager::LockInputTables()
+void TInputManager::InitializeStructures(
+    IClientPtr client,
+    TInputTransactionsManagerPtr inputTransactionsManager)
+{
+    YT_VERIFY(inputTransactionsManager);
+    InputTables_.clear();
+    Clusters_.clear();
+    ClusterResolver_ = inputTransactionsManager->GetClusterResolver();
+
+    auto ensureCluster = [&](const auto& name) {
+        if (!Clusters_.contains(name)) {
+            Clusters_.emplace(name, New<TInputCluster>(name, Logger));
+            Clusters_[name]->InitializeClient(client);
+        }
+    };
+
+    for (const auto& path : Host_->GetInputTablePaths()) {
+        auto clusterName = ClusterResolver_->GetClusterName(path);
+        auto table = New<TInputTable>(
+            path,
+            inputTransactionsManager->GetTransactionIdForObject(path));
+        table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
+        table->ClusterName = clusterName;
+        ensureCluster(clusterName);
+
+        Clusters_[clusterName]->InputTables().push_back(table);
+        InputTables_.push_back(table);
+    }
+
+    if (inputTransactionsManager->GetLocalInputTransactionId()) {
+        ensureCluster(LocalClusterName);
+    }
+}
+
+void TInputCluster::LockTables()
 {
     //! TODO(ignat): Merge in with lock input files method.
     YT_LOG_INFO("Locking input tables");
@@ -155,7 +320,20 @@ void TInputManager::LockInputTables()
     }
 }
 
-void TInputManager::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const
+void TInputManager::LockInputTables()
+{
+    std::vector<TFuture<void>> lockFutures;
+    for (const auto& [name, cluster] : Clusters_) {
+        lockFutures.push_back(
+            BIND(&TInputCluster::LockTables, cluster)
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+    }
+    WaitFor(AllSucceeded(lockFutures))
+        .ThrowOnError();
+}
+
+void TInputCluster::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const
 {
     if (auto it = PathToInputTables_.find(outputTable->GetPath())) {
         for (const auto& inputTable : it->second) {
@@ -178,27 +356,39 @@ void TInputManager::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTab
     }
 }
 
-IFetcherChunkScraperPtr TInputManager::CreateFetcherChunkScraper() const
+void TInputManager::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const
+{
+    if (Clusters_.contains(LocalClusterName)) {
+        Clusters_.at(LocalClusterName)->ValidateOutputTableLockedCorrectly(std::move(outputTable));
+    }
+}
+
+IFetcherChunkScraperPtr TInputManager::CreateFetcherChunkScraper(const TInputClusterPtr& cluster) const
 {
     return Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Wait
         ? NChunkClient::CreateFetcherChunkScraper(
             Host_->GetConfig()->ChunkScraper,
             Host_->GetChunkScraperInvoker(),
             Host_->GetChunkLocationThrottlerManager(),
-            Client_,
-            InputNodeDirectory_,
+            cluster->Client(),
+            cluster->NodeDirectory(),
             Logger)
         : nullptr;
 }
 
-TMasterChunkSpecFetcherPtr TInputManager::MakeChunkSpecFetcher() const
+IFetcherChunkScraperPtr TInputManager::CreateFetcherChunkScraper(const TClusterName& clusterName) const
+{
+    return CreateFetcherChunkScraper(GetOrCrash(Clusters_, clusterName));
+}
+
+TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const
 {
     TPeriodicYielder yielder(PrepareYieldPeriod);
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
-        Client_,
+        cluster->Client(),
         TMasterReadOptions{},
-        InputNodeDirectory_,
+        cluster->NodeDirectory(),
         Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
         Host_->GetConfig()->MaxChunksPerFetch,
         Host_->GetConfig()->MaxChunksPerLocateRequest,
@@ -232,7 +422,12 @@ TMasterChunkSpecFetcherPtr TInputManager::MakeChunkSpecFetcher() const
     for (int tableIndex = 0; tableIndex < std::ssize(InputTables_); ++tableIndex) {
         yielder.TryYield();
 
-        auto& table = InputTables_[tableIndex];
+        const auto& table = InputTables_[tableIndex];
+        // NB(coteeq): I could've used cluster.InputTables, but I need
+        // passthrough numbering along InputTables_.
+        if (table->ClusterName != cluster->Name) {
+            continue;
+        }
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
 
         // XXX(max42): does this ever happen?
@@ -277,45 +472,62 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     TFetchInputTablesStatistics fetchStatistics;
 
-    auto chunkSliceSizeFetcher = New<TChunkSliceSizeFetcher>(
-        Host_->GetConfig()->Fetcher,
-        InputNodeDirectory_,
-        Host_->GetChunkScraperInvoker(),
-        /*chunkScraper*/ CreateFetcherChunkScraper(),
-        Client_,
-        Logger);
-
+    bool useChunkSliceStatistics = true;
     if (auto error = Host_->GetUseChunkSliceStatisticsError(); Host_->GetSpec()->UseChunkSliceStatistics && !error.IsOK()) {
         Host_->SetOperationAlert(EOperationAlertType::UseChunkSliceStatisticsDisabled, error);
-        chunkSliceSizeFetcher = nullptr;
+        useChunkSliceStatistics = false;
     }
 
-    auto chunkSpecFetcher = MakeChunkSpecFetcher();
+    THashMap<TClusterName, TColumnarStatisticsFetcherPtr> columnarStatisticsFetchers;
+    THashMap<TClusterName, TChunkSliceSizeFetcherPtr> chunkSliceSizeFetchers;
 
-    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        Host_->GetChunkScraperInvoker(),
-        Client_,
-        TColumnarStatisticsFetcher::TOptions{
-            .Config = Host_->GetConfig()->Fetcher,
-            .NodeDirectory = InputNodeDirectory_,
-            .ChunkScraper = CreateFetcherChunkScraper(),
-            .Mode = Host_->GetSpec()->InputTableColumnarStatistics->Mode,
-            .EnableEarlyFinish = Host_->GetConfig()->EnableColumnarStatisticsEarlyFinish,
-            .Logger = Logger,
-        });
+    for (auto& [clusterName, cluster] : Clusters_) {
+        columnarStatisticsFetchers[clusterName] = New<TColumnarStatisticsFetcher>(
+            Host_->GetChunkScraperInvoker(),
+            cluster->Client(),
+            TColumnarStatisticsFetcher::TOptions{
+                .Config = Host_->GetConfig()->Fetcher,
+                .NodeDirectory = cluster->NodeDirectory(),
+                .ChunkScraper = CreateFetcherChunkScraper(cluster),
+                .Mode = Host_->GetSpec()->InputTableColumnarStatistics->Mode,
+                .EnableEarlyFinish = Host_->GetConfig()->EnableColumnarStatisticsEarlyFinish,
+                .Logger = Logger,
+            });
+
+        if (useChunkSliceStatistics) {
+            chunkSliceSizeFetchers[clusterName] = New<TChunkSliceSizeFetcher>(
+                Host_->GetConfig()->Fetcher,
+                cluster->NodeDirectory(),
+                Host_->GetChunkScraperInvoker(),
+                /*chunkScraper*/ CreateFetcherChunkScraper(cluster),
+                cluster->Client(),
+                Logger);
+        }
+    }
 
     YT_LOG_INFO("Fetching input tables");
 
-    WaitFor(chunkSpecFetcher->Fetch())
+    THashMap<TClusterName, TMasterChunkSpecFetcherPtr> chunkSpecFetchers;
+    std::vector<TFuture<void>> fetchChunkSpecFutures;
+    for (const auto& [clusterName, cluster] : Clusters_) {
+        auto fetcher = CreateChunkSpecFetcher(cluster);
+        chunkSpecFetchers.emplace(clusterName, fetcher);
+        fetchChunkSpecFutures.push_back(fetcher->Fetch());
+    }
+
+    // TODO(coteeq): This is a barrier and probably deserves to be removed.
+    WaitFor(AllSucceeded(fetchChunkSpecFutures))
         .ThrowOnError();
 
     YT_LOG_INFO("Input tables fetched");
 
-    for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+    auto processChunk = [&] (const NChunkClient::NProto::TChunkSpec& chunkSpec) {
         yielder.TryYield();
 
         int tableIndex = chunkSpec.table_index();
         auto& table = InputTables_[tableIndex];
+        auto& columnarStatisticsFetcher = columnarStatisticsFetchers[table->ClusterName];
+        auto& chunkSliceSizeFetcher = chunkSliceSizeFetchers[table->ClusterName];
 
         auto inputChunk = New<TInputChunk>(
             chunkSpec,
@@ -367,7 +579,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             // We fetch columnar statistics only for the tables that have column selectors specified.
             // NB: We do not fetch columnar statistics for chunks for which chunk slice statistics are fetched
             // because chunk slice statistics already take columns into consideration.
-            auto hasColumnSelectors = table->Path.GetColumns().operator bool();
+            auto hasColumnSelectors = table->Path.GetColumns().has_value();
             if (!shouldSkipChunkInFetchers &&
                 !willFetchChunkSliceStatistics &&
                 hasColumnSelectors &&
@@ -386,28 +598,59 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 inputChunk->SetValuesPerRow(table->Schema->Columns().size());
             }
         }
+    };
+
+    for (const auto& [_, chunkSpecFetcher] : chunkSpecFetchers) {
+        for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+            processChunk(chunkSpec);
+        }
     }
 
-    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
-        YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
-            columnarStatisticsFetcher->GetChunkCount());
-        Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
-        columnarStatisticsFetcher->SetCancelableContext(Host_->GetCancelableContext());
-        WaitFor(columnarStatisticsFetcher->Fetch())
-            .ThrowOnError();
-        YT_LOG_INFO("Columnar statistics fetched");
-        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+
+    std::vector<TFuture<void>> statisticsFutures;
+    for (auto& [clusterName, fetcher] : columnarStatisticsFetchers) {
+        if (fetcher->GetChunkCount() > 0) {
+            YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (Cluster: %v, ChunkCount: %v)",
+                clusterName,
+                fetcher->GetChunkCount());
+            Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
+            fetcher->SetCancelableContext(Host_->GetCancelableContext());
+
+            auto applySelectivityFactors =
+                BIND([fetcher, Logger = Clusters_[clusterName]->Logger] {
+                    YT_LOG_INFO("Columnar statistics fetched");
+                    fetcher->ApplyColumnSelectivityFactors();
+                })
+                    .AsyncVia(GetCurrentInvoker());
+
+            statisticsFutures.push_back(
+                fetcher->Fetch().Apply(applySelectivityFactors));
+        }
     }
 
-    if (chunkSliceSizeFetcher && chunkSliceSizeFetcher->GetChunkCount() > 0) {
-        YT_LOG_INFO("Fetching input chunk slice statistics for input tables (ChunkCount: %v)",
-            chunkSliceSizeFetcher->GetChunkCount());
-        chunkSliceSizeFetcher->SetCancelableContext(Host_->GetCancelableContext());
-        WaitFor(chunkSliceSizeFetcher->Fetch())
-            .ThrowOnError();
-        YT_LOG_INFO("Input chunk slice statistics fetched");
-        chunkSliceSizeFetcher->ApplyBlockSelectivityFactors();
+    for (auto& [clusterName, fetcher] : chunkSliceSizeFetchers) {
+        if (fetcher && fetcher->GetChunkCount() > 0) {
+            YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
+                clusterName,
+                fetcher->GetChunkCount());
+            fetcher->SetCancelableContext(Host_->GetCancelableContext());
+
+            auto applySelectivityFactors =
+                BIND([fetcher, Logger = Clusters_[clusterName]->Logger] {
+                    YT_LOG_INFO("Input chunk slice statistics fetched");
+                    fetcher->ApplyBlockSelectivityFactors();
+                })
+                    .AsyncVia(GetCurrentInvoker());
+
+            statisticsFutures.push_back(
+                fetcher->Fetch().Apply(applySelectivityFactors));
+        }
     }
+
+    WaitFor(AllSucceeded(statisticsFutures))
+        .ThrowOnError();
+
+    YT_LOG_INFO("All statistics fetched from nodes");
 
     // TODO(galtsev): remove after YT-20281 is fixed
     if (AnyOf(InputTables_, IsStaticTableWithHunks)) {
@@ -451,16 +694,37 @@ void TInputManager::FetchInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
 
-    GetUserObjectBasicAttributes(
-        Client_,
-        MakeUserObjectList(InputTables_),
-        InputTransactions_->GetNativeInputTransactionId(),
-        Logger,
-        EPermission::Read,
-        TGetUserObjectBasicAttributesOptions{
-            .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
-            .PopulateSecurityTags = true
+    // NB(coteeq): Transaction id may still be NullTransactionId.
+    YT_VERIFY(
+        AllOf(
+            InputTables_,
+            [] (const auto& table) {
+                return table->TransactionId.has_value();
+            }));
+
+    std::vector<TFuture<void>> getBasicAttributesFutures;
+    for (auto& [_, cluster] : Clusters_) {
+        auto getAttributes = BIND([&] {
+            GetUserObjectBasicAttributes(
+                cluster->Client(),
+                MakeUserObjectList(cluster->InputTables()),
+                /* defaultTransactionId */ NullTransactionId,
+                Logger,
+                EPermission::Read,
+                TGetUserObjectBasicAttributesOptions{
+                    .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
+                    .PopulateSecurityTags = true
+                });
         });
+
+        getBasicAttributesFutures.push_back(
+            getAttributes
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+    }
+
+    WaitFor(AllSucceeded(getBasicAttributesFutures))
+        .ThrowOnError();
 
     Host_->ValidateInputTablesTypes();
 
@@ -487,7 +751,16 @@ void TInputManager::FetchInputTablesAttributes()
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-        auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower, externalCellTag);
+        YT_VERIFY(
+            AreAllElementsEqual(
+                tables,
+                [] (const auto& l, const auto& r) {
+                    return l->ClusterName == r->ClusterName;
+                }));
+        auto proxy = CreateObjectServiceReadProxy(
+            Clusters_[tables[0]->ClusterName]->Client(),
+            EMasterChannelKind::Follower,
+            externalCellTag);
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
@@ -539,11 +812,22 @@ void TInputManager::FetchInputTablesAttributes()
             table->SchemaId = attributes->Get<TGuid>("schema_id");
         }
 
-        FetchTableSchemas(
-            Client_,
-            InputTables_,
-            BIND([] (const TInputTablePtr& table) { return table->ExternalTransactionId; }),
-            /*fetchFromExternalCells*/ true);
+        std::vector<TFuture<void>> fetchSchemasFutures;
+        for (const auto& [_, cluster] : Clusters_) {
+            fetchSchemasFutures.push_back(
+                BIND([client = cluster->Client(), tables = cluster->InputTables()] {
+                    FetchTableSchemas(
+                        client,
+                        tables,
+                        BIND([] (const TInputTablePtr& table) { return table->ExternalTransactionId; }),
+                        /*fetchFromExternalCells*/ true);
+                })
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run());
+        }
+
+        WaitFor(AllSucceeded(fetchSchemasFutures))
+            .ThrowOnError();
     }
 
     bool haveTablesWithEnabledDynamicStoreRead = false;
@@ -635,35 +919,38 @@ void TInputManager::FetchInputTablesAttributes()
     }
 }
 
-void TInputManager::InitInputChunkScraper()
+void TInputManager::InitInputChunkScrapers()
 {
-    THashSet<TChunkId> chunkIds;
+    THashMap<TClusterName, THashSet<TChunkId>> clusterToChunkIds;
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
         if (!IsDynamicTabletStoreType(TypeFromId(chunkId))) {
-            chunkIds.insert(chunkId);
+            auto clusterName = GetClusterName(chunkDescriptor);
+            clusterToChunkIds[clusterName].insert(chunkId);
         }
     }
 
-    YT_VERIFY(!InputChunkScraper_);
-    InputChunkScraper_ = New<TChunkScraper>(
-        Host_->GetConfig()->ChunkScraper,
-        Host_->GetChunkScraperInvoker(),
-        Host_->GetChunkLocationThrottlerManager(),
-        Client_,
-        InputNodeDirectory_,
-        std::move(chunkIds),
-        MakeSafe(
-            MakeWeak(Host_),
-            BIND(&TInputManager::OnInputChunkLocated, MakeWeak(this)))
-                .Via(Host_->GetCancelableInvoker()),
-        Logger);
-
-    if (!UnavailableInputChunkIds_.empty()) {
-        YT_LOG_INFO(
-            "Waiting for unavailable input chunks (Count: %v, SampleIds: %v)",
-            UnavailableInputChunkIds_.size(),
-            MakeUnavailableInputChunksView());
-        InputChunkScraper_->Start();
+    for (auto& [clusterName, cluster] : Clusters_) {
+        YT_VERIFY(!cluster->ChunkScraper());
+        cluster->ChunkScraper() = New<TChunkScraper>(
+            Host_->GetConfig()->ChunkScraper,
+            Host_->GetChunkScraperInvoker(),
+            Host_->GetChunkLocationThrottlerManager(),
+            cluster->Client(),
+            cluster->NodeDirectory(),
+            std::move(clusterToChunkIds[clusterName]),
+            MakeSafe(
+                MakeWeak(Host_),
+                BIND(&TInputManager::OnInputChunkLocated, MakeWeak(this)))
+                    .Via(Host_->GetCancelableInvoker()),
+            Logger);
+        if (!cluster->UnavailableInputChunkIds().empty()) {
+            YT_LOG_INFO(
+                "Waiting for unavailable input chunks (Cluster: %v, Count: %v, SampleIds: %v)",
+                clusterName,
+                cluster->UnavailableInputChunkIds().size(),
+                MakeShrunkFormattableView(cluster->UnavailableInputChunkIds(), TDefaultFormatter(), SampleChunkIdCount));
+            cluster->ChunkScraper()->Start();
+        }
     }
 }
 
@@ -773,8 +1060,9 @@ void TInputManager::OnInputChunkAvailable(
 
     UnregisterUnavailableInputChunk(chunkId);
 
-    if (UnavailableInputChunkIds_.empty()) {
-        YT_UNUSED_FUTURE(InputChunkScraper_->Stop());
+    auto& cluster = Clusters_[GetClusterName(*descriptor)];
+    if (cluster->UnavailableInputChunkIds().empty()) {
+        YT_UNUSED_FUTURE(cluster->ChunkScraper()->Stop());
     }
 
     // Update replicas in place for all input chunks with current chunkId.
@@ -838,7 +1126,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
                 Host_->UpdateTask(inputStripe.Task);
             }
-            InputChunkScraper_->Start();
+            Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
             break;
         }
 
@@ -850,7 +1138,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                 }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
-            InputChunkScraper_->Start();
+            Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
             break;
         }
 
@@ -861,49 +1149,89 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
 void TInputManager::RegisterUnavailableInputChunks(bool reportIfFound)
 {
-    UnavailableInputChunkIds_.clear();
+    for (auto& [_, cluster] : Clusters_) {
+        cluster->UnavailableInputChunkIds().clear();
+    }
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             RegisterUnavailableInputChunk(chunkId);
         }
     }
 
-    if (reportIfFound && !UnavailableInputChunkIds_.empty()) {
+    if (reportIfFound && GetUnavailableInputChunkCount() > 0) {
         YT_LOG_INFO("Found unavailable input chunks (UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
-            UnavailableInputChunkIds_.size(),
+            GetUnavailableInputChunkCount(),
             MakeUnavailableInputChunksView());
     }
 
-    InitInputChunkScraper();
+    InitInputChunkScrapers();
 }
 
 void TInputManager::RegisterUnavailableInputChunk(TChunkId chunkId)
 {
-    InsertOrCrash(UnavailableInputChunkIds_, chunkId);
+    auto& cluster = Clusters_[GetClusterName(chunkId)];
+    InsertOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
     YT_LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
 }
 
 void TInputManager::UnregisterUnavailableInputChunk(TChunkId chunkId)
 {
-    EraseOrCrash(UnavailableInputChunkIds_, chunkId);
+    auto& cluster = Clusters_[GetClusterName(chunkId)];
+    EraseOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
     YT_LOG_TRACE("Input chunk is no longer unavailable (ChunkId: %v)", chunkId);
 }
 
+TClusterName TInputManager::GetClusterName(NChunkClient::TChunkId chunkId) const
+{
+    return InputTables_[GetOrCrash(InputChunkMap_, chunkId).GetTableIndex()]->ClusterName;
+}
+
+TClusterName TInputManager::GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const
+{
+    return InputTables_[chunkDescriptor.GetTableIndex()]->ClusterName;
+}
+
 void TInputManager::BuildUnavailableInputChunksYson(TFluentAny fluent) const
 {
-    fluent.Value(UnavailableInputChunkIds_);
+    fluent
+        .BeginMap()
+        .DoFor(Clusters_, [] (TFluentMap fluent, const auto& clusterNameAndCluster) {
+            const auto& [name, cluster] = clusterNameAndCluster;
+            fluent
+                .Item(Format("%v", name))
+                .DoListFor(cluster->UnavailableInputChunkIds(), [] (TFluentList fluent, const auto& chunkId) {
+                    fluent.Item().Value(chunkId);
+                });
+        })
+        .EndMap();
 }
 
 TFormattableView<THashSet<TChunkId>, TDefaultFormatter> TInputManager::MakeUnavailableInputChunksView() const
 {
-    return MakeShrunkFormattableView(UnavailableInputChunkIds_, TDefaultFormatter(), SampleChunkIdCount);
+    THashSet<TChunkId> chunkIds;
+    chunkIds.reserve(SampleChunkIdCount);
+    for (const auto& [_, cluster] : Clusters_) {
+        for (const auto& chunkId : cluster->UnavailableInputChunkIds()) {
+            if (chunkIds.size() >= SampleChunkIdCount) {
+                break;
+            }
+            chunkIds.insert(chunkId);
+        }
+    }
+    return MakeShrunkFormattableView(chunkIds, TDefaultFormatter(), SampleChunkIdCount);
 }
 
-size_t TInputManager::GetUnavailableInputChunkCount() const
+int TInputManager::GetUnavailableInputChunkCount() const
 {
-    return UnavailableInputChunkIds_.size();
+    return std::accumulate(
+        Clusters_.begin(),
+        Clusters_.end(),
+        0,
+        [] (int acc, const auto& clusterNameAndCluster) {
+            return acc + std::ssize(clusterNameAndCluster.second->UnavailableInputChunkIds());
+        });
 }
 
 bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
@@ -934,9 +1262,133 @@ void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TNodeDirectoryPtr& TInputManager::GetInputNodeDirectory() const
+
+// NB: must preserve order of chunks in the input tables, no shuffling.
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned, std::optional<TClusterName> clusterName) const
 {
-    return InputNodeDirectory_;
+    std::vector<TInputChunkPtr> result;
+    const auto& tables = clusterName ? Clusters_.at(*clusterName)->InputTables() : InputTables_;
+    for (const auto& table : tables) {
+        if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
+            for (const auto& chunk : table->Chunks) {
+                if (IsUnavailable(chunk, Host_->GetChunkAvailabilityPolicy())) {
+                    switch (Host_->GetSpec()->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
+
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
+
+                        default:
+                            YT_ABORT();
+                    }
+                }
+                result.push_back(chunk);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryUnversionedChunks() const
+{
+    return CollectPrimaryChunks(false);
+}
+
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryVersionedChunks() const
+{
+    return CollectPrimaryChunks(true);
+}
+
+std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TInputManager::CreateChunkSliceFetcher() const
+{
+    std::vector<IChunkSliceFetcherPtr> chunkSliceFetchers;
+    std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
+    THashMap<TClusterName, int> clusterOrder;
+    for (const auto& [clusterName, cluster] : Clusters_) {
+        clusterOrder[clusterName] = clusterOrder.size();
+
+        fetcherChunkScrapers.push_back(CreateFetcherChunkScraper(cluster));
+        chunkSliceFetchers.push_back(
+            NTableClient::CreateChunkSliceFetcher(
+                Host_->GetConfig()->ChunkSliceFetcher,
+                cluster->NodeDirectory(),
+                Host_->GetCancelableInvoker(),
+                fetcherChunkScrapers.back(),
+                cluster->Client(),
+                Host_->GetRowBuffer(),
+                Logger.WithTag("Cluster: %v", clusterName)));
+
+        chunkSliceFetchers.back()->SetCancelableContext(Host_->GetCancelableContext());
+    }
+
+    std::vector<int> tableIndexToFetcherIndex;
+    for (const auto& table : InputTables_) {
+        tableIndexToFetcherIndex.push_back(clusterOrder[table->ClusterName]);
+    }
+
+    return std::pair(
+        NTableClient::CreateCombiningChunkSliceFetcher(
+            std::move(chunkSliceFetchers),
+            std::move(tableIndexToFetcherIndex)),
+        New<TUnavailableChunksWatcher>(std::move(fetcherChunkScrapers)));
+}
+
+std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManager::CreateSamplesFetcher(
+    const NTableClient::TTableSchemaPtr& sampleSchema,
+    NTableClient::TRowBufferPtr rowBuffer,
+    i64 sampleCount,
+    i32 maxSampleSize) const
+{
+    std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
+    std::vector<TSamplesFetcherPtr> samplesFetchers;
+
+    for (const auto& [clusterName, cluster] : Clusters_) {
+        fetcherChunkScrapers.push_back(CreateFetcherChunkScraper(cluster));
+
+        auto samplesFetcher = New<TSamplesFetcher>(
+            Host_->GetConfig()->Fetcher,
+            ESamplingPolicy::Sorting,
+            sampleCount,
+            sampleSchema->GetColumnNames(),
+            maxSampleSize,
+            cluster->NodeDirectory(),
+            Host_->GetCancelableInvoker(),
+            rowBuffer,
+            fetcherChunkScrapers.back(),
+            cluster->Client(),
+            Logger);
+
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ false, clusterName)) {
+            if (!chunk->IsDynamicStore()) {
+                samplesFetcher->AddChunk(chunk);
+            }
+        }
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ true, clusterName)) {
+            if (!chunk->IsDynamicStore()) {
+                samplesFetcher->AddChunk(chunk);
+            }
+        }
+
+        samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
+        samplesFetchers.push_back(samplesFetcher);
+    }
+    return std::pair(
+        New<TCombiningSamplesFetcher>(std::move(samplesFetchers)),
+        New<TUnavailableChunksWatcher>(std::move(fetcherChunkScrapers)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TNodeDirectoryPtr& TInputManager::GetNodeDirectory(const TClusterName& clusterName) const
+{
+    return GetOrCrash(Clusters_, clusterName)->NodeDirectory();
+}
+
+IClientPtr TInputManager::GetClient(const TClusterName& clusterName) const
+{
+    return GetOrCrash(Clusters_, clusterName)->Client();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,17 +1401,31 @@ void TInputManager::Persist(const TPersistenceContext& context)
     Persist(context, Logger);
 
     Persist(context, InputTables_);
-    Persist(context, InputNodeDirectory_);
+    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
+        Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
+        Clusters_[LocalClusterName]->InputTables() = InputTables_;
+    }
+
+    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, Clusters_[LocalClusterName]->NodeDirectory());
+    }
     Persist(context, InputChunkMap_);
-    Persist(context, UnavailableInputChunkIds_);
+    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, Clusters_[LocalClusterName]->UnavailableInputChunkIds());
+    }
     Persist(context, InputHasStaticTableWithHunks_);
     Persist(context, InputHasOrderedDynamicStores_);
+    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, Clusters_);
+        Persist(context, ClusterResolver_);
+    }
 }
 
 void TInputManager::LoadInputNodeDirectory(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputNodeDirectory_);
+    YT_VERIFY(Clusters_.contains(LocalClusterName));
+    NYT::Persist(context, Clusters_[LocalClusterName]->NodeDirectory());
 }
 
 void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
@@ -971,13 +1437,16 @@ void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
 void TInputManager::LoadPathToInputTables(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, PathToInputTables_);
+    YT_VERIFY(Clusters_.contains(LocalClusterName));
+    NYT::Persist(context, Clusters_[LocalClusterName]->PathToInputTables());
 }
 
 void TInputManager::LoadInputTables(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
     NYT::Persist(context, InputTables_);
+    YT_VERIFY(Clusters_.contains(LocalClusterName));
+    Clusters_[LocalClusterName]->InputTables() = InputTables_;
 }
 
 void TInputManager::LoadInputHasOrderedDynamicStores(const TPersistenceContext& context)

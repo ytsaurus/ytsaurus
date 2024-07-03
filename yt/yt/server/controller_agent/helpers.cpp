@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/library/query/engine_api/expression_evaluator.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -35,6 +37,7 @@ using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NSecurityClient;
 using namespace NScheduler;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -296,12 +299,16 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<TSample>& samples,
+    const TTableSchemaPtr& sampleSchema,
+    const TTableSchemaPtr& uploadSchema,
+    const IExpressionEvaluatorCachePtr& evaluatorCache,
     int partitionCount,
-    const NTableClient::TComparator& comparator,
     const TRowBufferPtr& rowBuffer,
     const TLogger& logger)
 {
     const auto& Logger = logger;
+
+    auto comparator = uploadSchema->ToComparator();
 
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
 
@@ -316,13 +323,42 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         i64 Weight;
     };
 
+    std::vector<std::function<TUnversionedValue(TUnversionedRow)>> columnEvaluators;
+    columnEvaluators.reserve(uploadSchema->GetKeyColumnCount());
+
+    for (int keyIndex = 0; keyIndex < uploadSchema->GetKeyColumnCount(); ++keyIndex) {
+        const auto& column = uploadSchema->Columns()[keyIndex];
+
+        if (const auto& expression = column.Expression()) {
+            auto parsedSource = ParseSource(*expression, EParseMode::Expression);
+
+            columnEvaluators.push_back([
+                evaluator = evaluatorCache->Find(*parsedSource, sampleSchema),
+                rowBuffer
+            ] (TUnversionedRow sampleRow) {
+                return evaluator->Evaluate(sampleRow, rowBuffer);
+            });
+        } else {
+            int sampleColumn = sampleSchema->GetColumnIndex(column.Name());
+
+            columnEvaluators.push_back([sampleColumn] (TUnversionedRow sampleRow) {
+                return sampleRow[sampleColumn];
+            });
+        }
+    }
+
     std::vector<TComparableSample> comparableSamples;
     comparableSamples.reserve(samples.size());
     for (const auto& sample : samples) {
+        auto key = rowBuffer->AllocateUnversioned(uploadSchema->GetKeyColumnCount());
+        for (int index = 0; index < uploadSchema->GetKeyColumnCount(); ++index) {
+            key[index] = columnEvaluators[index](sample.Key);
+        }
+
         comparableSamples.emplace_back(TComparableSample{
-            .KeyBound = TKeyBound::FromRow(sample.Key, /* isInclusive */true, /* isUpper */false),
+            .KeyBound = TKeyBound::FromRow(key, /*isInclusive*/ true, /*isUpper*/ false),
             .Incomplete = sample.Incomplete,
-            .Weight = sample.Weight
+            .Weight = sample.Weight,
         });
     }
 

@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/guid.h>
@@ -18,6 +19,7 @@ using namespace NYT::NTransactionClient;
 using namespace NYT::NApi;
 using namespace NYT::NLogging;
 using namespace NYT::NYTree;
+using namespace NYT::NYson;
 using namespace NYT::NObjectClient;
 
 using NYT::FromProto;
@@ -25,10 +27,24 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRichTransactionId MakeRichTransactionId(TTransactionId id)
+{
+    return TRichTransactionId { .Id = id };
+}
+
+void FormatValue(TStringBuilderBase* builder, const TRichTransactionId& transactionId, TStringBuf /*spec*/)
+{
+    builder->AppendString(ConvertToYsonString(transactionId, EYsonFormat::Text).ToString());
+}
+
 void Deserialize(TRichTransactionId& transaction, const NYTree::INodePtr& node)
 {
     transaction.Id = node->GetValue<TTransactionId>();
     transaction.ParentId = node->Attributes().Get<TTransactionId>("parent_id");
+    auto clusterNode = node->Attributes().ToMap()->FindChild("cluster");
+    if (clusterNode && clusterNode->GetType() == ENodeType::String) {
+        transaction.Cluster = clusterNode->GetValue<TClusterName>();
+    }
 }
 
 void Serialize(const TRichTransactionId& transaction, NYson::IYsonConsumer* consumer)
@@ -36,6 +52,17 @@ void Serialize(const TRichTransactionId& transaction, NYson::IYsonConsumer* cons
     NYTree::BuildYsonFluently(consumer)
         .BeginAttributes()
             .Item("parent_id").Value(transaction.ParentId)
+            .Item("cluster").Do(
+                [&transaction] (TFluentAny fluent) {
+                    if (IsLocal(transaction.Cluster)) {
+                        fluent.Entity();
+                    } else {
+                        // NB(coteeq): Underlying is intentional here.
+                        // Value in Cypress should be raw (unformatted) string,
+                        // rather than human-intended "<local>" notation.
+                        fluent.Value(transaction.Cluster.Underlying());
+                    }
+                })
         .EndAttributes()
         .Value(transaction.Id);
 }
@@ -44,12 +71,14 @@ void ToProto(NProto::TRichTransactionId* transactionIdProto, const TRichTransact
 {
     ToProto(transactionIdProto->mutable_id(), transactionId.Id);
     ToProto(transactionIdProto->mutable_parent_id(), transactionId.ParentId);
+    ToProto(transactionIdProto->mutable_cluster(), transactionId.Cluster);
 }
 
 void FromProto(TRichTransactionId* transactionId, const NProto::TRichTransactionId& transactionIdProto)
 {
     transactionId->Id = FromProto<TTransactionId>(transactionIdProto.id());
     transactionId->ParentId = FromProto<TTransactionId>(transactionIdProto.parent_id());
+    transactionId->Cluster = FromProto<TClusterName>(transactionIdProto.cluster());
 }
 
 IAttributeDictionaryPtr TControllerTransactionIds::ToCypressAttributes() const

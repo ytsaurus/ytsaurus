@@ -3,6 +3,8 @@
 #include "public.h"
 #include "schemaless_multi_chunk_reader.h"
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NTableClient {
@@ -15,7 +17,8 @@ ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     TKeyColumns keyColumns,
-    TComparator comparator);
+    TComparator comparator,
+    NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

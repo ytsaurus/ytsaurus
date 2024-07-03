@@ -542,7 +542,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             })
 
         ca_address = ls("//sys/controller_agents/instances")[0]
-        orchid_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}/unavailable_input_chunks".format(
+        orchid_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}/unavailable_input_chunks/<local>".format(
             ca_address,
             op.id)
 

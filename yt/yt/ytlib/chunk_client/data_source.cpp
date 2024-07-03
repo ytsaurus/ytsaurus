@@ -101,6 +101,10 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     if (dataSource.GetAccount()) {
         protoDataSource->set_account(*dataSource.GetAccount());
     }
+
+    if (!IsLocal(dataSource.GetClusterName())) {
+        ToProto(protoDataSource->mutable_cluster_name(), dataSource.GetClusterName());
+    }
 }
 
 void FromProto(
@@ -166,6 +170,10 @@ void FromProto(
 
     if (protoDataSource.has_account()) {
         dataSource->SetAccount(protoDataSource.account());
+    }
+
+    if (protoDataSource.has_cluster_name()) {
+        dataSource->SetClusterName(NScheduler::TClusterName(protoDataSource.cluster_name()));
     }
 }
 

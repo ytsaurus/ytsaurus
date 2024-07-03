@@ -423,8 +423,6 @@ public:
 
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
-    const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
-
     TInputManagerPtr GetInputManager() const override;
 
     void RegisterRecoveryInfo(
@@ -602,6 +600,8 @@ protected:
     TOutputTablePtr StderrTable_;
     TOutputTablePtr CoreTable_;
 
+    NNodeTrackerClient::TNodeDirectoryPtr OutputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
@@ -661,6 +661,8 @@ protected:
         ETransactionType type,
         const NApi::NNative::IClientPtr& client,
         NTransactionClient::TTransactionId parentTransactionId = {});
+
+    TFuture<void> AbortInputTransactions() const;
 
     void RegisterTask(TTaskPtr task);
 
@@ -972,10 +974,6 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
@@ -1015,7 +1013,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors(const NTableClient::TSortColumns& sortColumns);
     void ValidateOutputSchemaOrdered() const;
-    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
+    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns = false) const;
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;

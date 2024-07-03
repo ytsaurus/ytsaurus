@@ -582,7 +582,7 @@ class TestErasure(TestErasureBase):
                 set_banned_flag(False, banned_replicas)
             else:
                 op.ensure_running()
-                wait(lambda: get("{}/controller_orchid/unavailable_input_chunks".format(op.get_path())) == [chunk_id])
+                wait(lambda: get("{}/controller_orchid/unavailable_input_chunks/<local>".format(op.get_path())) == [chunk_id])
                 set_banned_flag(False, banned_replicas)
                 op.track()
 

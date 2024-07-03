@@ -26,6 +26,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
@@ -44,6 +46,8 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/core/ytree/permission.h>
 
@@ -2655,7 +2659,7 @@ protected:
         int unversionedSlices = 0;
         int versionedSlices = 0;
         // TODO(max42): use CollectPrimaryInputDataSlices() here?
-        for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+        for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
             const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
@@ -3193,8 +3197,8 @@ private:
 
     TSortOperationSpecPtr Spec;
 
-    IFetcherChunkScraperPtr FetcherChunkScraper;
-    TSamplesFetcherPtr SamplesFetcher;
+    TUnavailableChunksWatcherPtr UnavailableChunksWatcher_;
+    TRowBufferPtr SamplesRowBuffer_;
 
     // Custom bits of preparation pipeline.
 
@@ -3238,7 +3242,7 @@ private:
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
-                    ValidateOutputSchemaCompatibility(true, true);
+                    ValidateOutputSchemaCompatibility(/*ignoreSortOrder*/ true, /*forbidExtraComputedColumns*/ false);
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
@@ -3286,7 +3290,8 @@ private:
         std::vector<TPartitionKey> partitionKeys;
 
         if (Spec->PivotKeys.empty()) {
-            auto samples = FetchSamples();
+            auto sampleSchema = GetSampleSchema();
+            auto samples = FetchSamples(sampleSchema);
 
             YT_LOG_INFO("Suggested partition count (PartitionCount: %v, SampleCount: %v)", PartitionCount, samples.size());
 
@@ -3324,11 +3329,12 @@ private:
 
             YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
                 if (!SimpleSort) {
-                    auto comparator = OutputTables_[0]->TableUploadOptions.GetUploadSchema()->ToComparator();
                     partitionKeys = BuildPartitionKeysBySamples(
                         samples,
+                        sampleSchema,
+                        OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
+                        Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
                         PartitionCount,
-                        comparator,
                         RowBuffer,
                         Logger);
                 }
@@ -3489,9 +3495,37 @@ private:
         UnorderedMergeTask->RegisterInGraph();
     }
 
-    std::vector<TSample> FetchSamples()
+    TTableSchemaPtr GetSampleSchema() const
+    {
+        THashSet<TString> uniqueColumns;
+        auto schema = OutputTables_[0]->TableUploadOptions.GetUploadSchema();
+
+        for (const auto& sortColumn : Spec->SortBy) {
+            const auto& column = schema->GetColumn(sortColumn.Name);
+
+            if (const auto& expression = column.Expression()) {
+                THashSet<TString> references;
+                NQueryClient::PrepareExpression(*expression, *schema, NQueryClient::GetBuiltinTypeInferrers(), &references);
+
+                uniqueColumns.insert(references.begin(), references.end());
+            } else {
+                uniqueColumns.insert(column.Name());
+            }
+        }
+
+        std::vector<TColumnSchema> columns;
+        columns.reserve(uniqueColumns.size());
+        for (const auto& column : uniqueColumns) {
+            columns.push_back(schema->GetColumn(column));
+        }
+
+        return New<TTableSchema>(std::move(columns));
+    }
+
+    std::vector<TSample> FetchSamples(const TTableSchemaPtr& sampleSchema)
     {
         TFuture<void> asyncSamplesResult;
+        TCombiningSamplesFetcherPtr samplesFetcher;
         YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             // TODO(gritukan): Should we do it here?
             if (EnableNewPartitionsHeuristic()) {
@@ -3501,47 +3535,26 @@ private:
             }
             i64 sampleCount = static_cast<i64>(PartitionCount) * Spec->SamplesPerPartition;
 
-            FetcherChunkScraper = InputManager->CreateFetcherChunkScraper();
-
-            auto samplesRowBuffer = New<TRowBuffer>(
+            SamplesRowBuffer_ = New<TRowBuffer>(
                 TRowBufferTag(),
                 Config->ControllerRowBufferChunkSize);
 
-            SamplesFetcher = New<TSamplesFetcher>(
-                Config->Fetcher,
-                ESamplingPolicy::Sorting,
+            std::tie(samplesFetcher, UnavailableChunksWatcher_) = InputManager->CreateSamplesFetcher(
+                sampleSchema,
+                SamplesRowBuffer_,
                 sampleCount,
-                GetColumnNames(Spec->SortBy),
-                Options->MaxSampleSize,
-                InputManager->GetInputNodeDirectory(),
-                GetCancelableInvoker(),
-                samplesRowBuffer,
-                FetcherChunkScraper,
-                Host->GetClient(),
-                Logger);
+                Options->MaxSampleSize);
 
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
-            }
-            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
-            }
-
-            SamplesFetcher->SetCancelableContext(GetCancelableContext());
-            asyncSamplesResult = SamplesFetcher->Fetch();
+            asyncSamplesResult = samplesFetcher->Fetch();
         }
 
         WaitFor(asyncSamplesResult)
             .ThrowOnError();
 
-        FetcherChunkScraper.Reset();
+        UnavailableChunksWatcher_.Reset();
 
         YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
-            return SamplesFetcher->GetSamples();
+            return samplesFetcher->GetSamples();
         }
     }
 
@@ -3811,8 +3824,8 @@ private:
 
     i64 GetUnavailableInputChunkCount() const override
     {
-        if (FetcherChunkScraper && State == EControllerState::Preparing) {
-            return FetcherChunkScraper->GetUnavailableChunkCount();
+        if (UnavailableChunksWatcher_ && State == EControllerState::Preparing) {
+            return UnavailableChunksWatcher_->GetUnavailableChunkCount();
         }
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();

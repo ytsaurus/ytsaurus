@@ -744,6 +744,22 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDisallowRemoteOperationsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    THashSet<TString> AllowedUsers;
+    THashSet<TString> AllowedClusters;
+
+    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -1198,6 +1214,8 @@ public:
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
     bool JobIdUnequalToAllocationId;
+
+    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

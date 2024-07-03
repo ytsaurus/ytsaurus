@@ -470,7 +470,7 @@ void TOperationControllerBase::InitializeClients()
     SchedulerInputClient = Client;
     SchedulerOutputClient = Client;
 
-    InputManager->InitializeClient(InputClient);
+    InputManager->InitializeClients(InputClient);
 }
 
 void TOperationControllerBase::InitializeInputTransactions()
@@ -490,14 +490,13 @@ void TOperationControllerBase::InitializeInputTransactions()
     }
 
     InputTransactions = New<TInputTransactionsManager>(
-        TInputClients {
-            .Client = InputClient,
-            .SchedulerClient = SchedulerInputClient,
-        },
+        InputClient,
+        New<TClusterResolver>(InputClient),
         OperationId,
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
+        AuthenticatedUser,
         Config,
         Logger);
 }
@@ -632,7 +631,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             // NB: Don't touch user transaction.
             scheduleAbort(outputTransaction, OutputClient);
             scheduleAbort(debugTransaction, Client);
-            asyncResults.push_back(InputTransactions->Abort());
+            asyncResults.push_back(AbortInputTransactions());
         } else {
             YT_LOG_INFO("Reusing operation transactions");
             OutputTransaction = outputTransaction;
@@ -644,7 +643,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
     }
-
 
     if (CleanStart) {
         if (HasJobUniquenessRequirements()) {
@@ -770,12 +768,12 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
 
 void TOperationControllerBase::InitializeStructures()
 {
-    DataFlowGraph_->SetNodeDirectory(InputManager->GetInputNodeDirectory());
+    InputManager->InitializeStructures(InputClient, InputTransactions);
+
+    DataFlowGraph_->SetNodeDirectory(OutputNodeDirectory_);
     DataFlowGraph_->Initialize();
 
     InitializeOrchid();
-
-    InputManager->InitializeStructures(InputTransactions);
 
     InitOutputTables();
 
@@ -817,7 +815,7 @@ void TOperationControllerBase::InitializeStructures()
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
-        BaseLayer_ = TUserFile(path, InputTransactions->GetNativeInputTransactionId(), true);
+        BaseLayer_ = TUserFile(path, InputTransactions->GetLocalInputTransactionId(), true);
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
@@ -1693,6 +1691,14 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     }));
 }
 
+TFuture<void> TOperationControllerBase::AbortInputTransactions() const
+{
+    if (InputTransactions) {
+        return InputTransactions->Abort(SchedulerClient);
+    }
+    return VoidFuture;
+}
+
 void TOperationControllerBase::PickIntermediateDataCells()
 {
     if (GetOutputTablePaths().empty()) {
@@ -1787,8 +1793,8 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         CancelableInvokerPool,
         ChunkScraperInvoker_,
         Host->GetChunkLocationThrottlerManager(),
-        InputClient,
-        InputManager->GetInputNodeDirectory(),
+        OutputClient,
+        OutputNodeDirectory_,
         BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
                 return GetAliveIntermediateChunks();
@@ -2583,7 +2589,7 @@ void TOperationControllerBase::CommitTransactions()
             YT_UNUSED_FUTURE(transaction->Abort());
         }
     };
-    YT_UNUSED_FUTURE(InputTransactions->Abort());
+    YT_UNUSED_FUTURE(AbortInputTransactions());
     abortTransaction(AsyncTransaction);
 }
 
@@ -4266,9 +4272,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     // NB: We do not abort input transactions synchronously since
     // some of them can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    if (InputTransactions) {
-        YT_UNUSED_FUTURE(InputTransactions->Abort());
-    }
+    YT_UNUSED_FUTURE(AbortInputTransactions());
 
     abortTransaction(OutputTransaction, SchedulerOutputClient);
     abortTransaction(AsyncTransaction, SchedulerClient, /*sync*/ false);
@@ -5840,7 +5844,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         IntermediateTable->LivePreviewTableName = name;
         (*LivePreviews_)[name] = New<TLivePreview>(
             New<TTableSchema>(),
-            InputManager->GetInputNodeDirectory(),
+            OutputNodeDirectory_,
             OperationId,
             name);
     }
@@ -6579,40 +6583,48 @@ void TOperationControllerBase::FetchUserFiles()
 {
     std::vector<TUserFile*> userFiles;
 
-    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
-        InputClient,
-        TMasterReadOptions{},
-        InputManager->GetInputNodeDirectory(),
-        GetCancelableInvoker(),
-        Config->MaxChunksPerFetch,
-        Config->MaxChunksPerLocateRequest,
-        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
-            const auto& file = *userFiles[fileIndex];
-            req->set_fetch_all_meta_extensions(false);
-            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
-                req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
-            }
-            if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-            }
-            if (file.Dynamic) {
-                if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
-                    req->set_omit_dynamic_stores(true);
-                }
-                if (OperationType == EOperationType::RemoteCopy) {
-                    req->set_throw_on_chunk_views(true);
-                }
-            }
-            // NB: we always fetch parity replicas since
-            // erasure reader can repair data on flight.
-            req->set_fetch_parity_replicas(true);
-            AddCellTagToSyncWith(req, file.ObjectId);
-            SetTransactionId(req, file.ExternalTransactionId);
-        },
-        Logger);
+    TMasterChunkSpecFetcherPtr chunkSpecFetcher;
 
-    auto addFileForFetching = [&userFiles, &chunkSpecFetcher] (TUserFile& file) {
+    auto initializeFetcher = [&] {
+        if (chunkSpecFetcher) {
+            return;
+        }
+        chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
+            InputManager->GetClient(LocalClusterName),
+            TMasterReadOptions{},
+            InputManager->GetNodeDirectory(LocalClusterName),
+            GetCancelableInvoker(),
+            Config->MaxChunksPerFetch,
+            Config->MaxChunksPerLocateRequest,
+            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+                const auto& file = *userFiles[fileIndex];
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
+                    req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
+                }
+                if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                }
+                if (file.Dynamic) {
+                    if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
+                        req->set_omit_dynamic_stores(true);
+                    }
+                    if (OperationType == EOperationType::RemoteCopy) {
+                        req->set_throw_on_chunk_views(true);
+                    }
+                }
+                // NB: we always fetch parity replicas since
+                // erasure reader can repair data on flight.
+                req->set_fetch_parity_replicas(true);
+                AddCellTagToSyncWith(req, file.ObjectId);
+                SetTransactionId(req, file.ExternalTransactionId);
+            },
+            Logger);
+    };
+
+    auto addFileForFetching = [&userFiles, &chunkSpecFetcher, &initializeFetcher] (TUserFile& file) {
+        initializeFetcher();
         int fileIndex = userFiles.size();
         userFiles.push_back(&file);
 
@@ -6653,6 +6665,11 @@ void TOperationControllerBase::FetchUserFiles()
         addFileForFetching(*BaseLayer_);
     }
 
+    if (!chunkSpecFetcher) {
+        YT_LOG_INFO("No user files to fetch");
+        return;
+    }
+
     YT_LOG_INFO("Fetching user files");
 
     WaitFor(chunkSpecFetcher->Fetch())
@@ -6685,13 +6702,26 @@ void TOperationControllerBase::FetchUserFiles()
 void TOperationControllerBase::ValidateUserFileSizes()
 {
     YT_LOG_INFO("Validating user file sizes");
+    bool hasFiles = false;
+    for (const auto& [_, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            YT_VERIFY(!file.Path.GetCluster().has_value());
+            hasFiles = true;
+        }
+    }
+
+    if (!hasFiles) {
+        YT_LOG_INFO("No user files");
+        return;
+    }
+
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
         ChunkScraperInvoker_,
-        InputClient,
+        InputManager->GetClient(LocalClusterName),
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config->Fetcher,
-            .NodeDirectory = InputManager->GetInputNodeDirectory(),
-            .ChunkScraper = InputManager->CreateFetcherChunkScraper(),
+            .NodeDirectory = InputManager->GetNodeDirectory(LocalClusterName),
+            .ChunkScraper = InputManager->CreateFetcherChunkScraper(LocalClusterName),
             .Mode = Spec_->UserFileColumnarStatistics->Mode,
             .EnableEarlyFinish = Config->EnableColumnarStatisticsEarlyFinish,
             .Logger = Logger,
@@ -6859,12 +6889,20 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     // XXX(babenko): refactor; in particular, request attributes from external cells
     YT_LOG_INFO("Getting user files attributes");
+    for (const auto& [_, files] : UserJobFiles_) {
+        for (const auto& file : files) {
+            if (file.Path.GetCluster().has_value()) {
+                THROW_ERROR_EXCEPTION("User file must not have \"cluster\" attribute")
+                    << TErrorAttribute("file_path", file.Path);
+            }
+        }
+    }
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         GetUserObjectBasicAttributes(
-            Client,
+            InputManager->GetClient(LocalClusterName),
             MakeUserObjectList(files),
-            InputTransactions->GetNativeInputTransactionId(),
+            InputTransactions->GetLocalInputTransactionId(),
             Logger.WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -6876,9 +6914,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
         std::vector<TUserObject*> layers(1, &*BaseLayer_);
 
         GetUserObjectBasicAttributes(
-            Client,
+            InputManager->GetClient(LocalClusterName),
             layers,
-            InputTransactions->GetNativeInputTransactionId(),
+            InputTransactions->GetLocalInputTransactionId(),
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -6912,7 +6950,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
 
-    auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
+    auto proxy = CreateObjectServiceReadProxy(InputManager->GetClient(LocalClusterName), EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& files : GetValues(UserJobFiles_)) {
@@ -7339,14 +7377,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
                 auto req = TMasterYPathProxy::CreateObject();
                 SetPrerequisites(req, TPrerequisiteOptions{
-                    .PrerequisiteTransactionIds = {InputTransactions->GetNativeInputTransactionId()},
+                    .PrerequisiteTransactionIds = {InputTransactions->GetLocalInputTransactionId()},
                 });
 
                 req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("account", account);
-                attributes->Set("transaction_id", InputTransactions->GetNativeInputTransactionId());
+                attributes->Set("transaction_id", InputTransactions->GetLocalInputTransactionId());
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 auto rsp = WaitFor(proxy.Execute(req))
@@ -7469,48 +7507,11 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-// NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool versioned) const
-{
-    std::vector<TInputChunkPtr> result;
-    for (const auto& table : InputManager->GetInputTables()) {
-        if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
-            for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy())) {
-                    switch (Spec_->UnavailableChunkStrategy) {
-                        case EUnavailableChunkAction::Skip:
-                            continue;
-
-                        case EUnavailableChunkAction::Wait:
-                            // Do nothing.
-                            break;
-
-                        default:
-                            YT_ABORT();
-                    }
-                }
-                result.push_back(chunk);
-            }
-        }
-    }
-    return result;
-}
-
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryUnversionedChunks() const
-{
-    return CollectPrimaryChunks(false);
-}
-
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChunks() const
-{
-    return CollectPrimaryChunks(true);
-}
-
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
-    auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
+    auto createScraperForFetcher = [&] (const TClusterName& clusterName) -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            auto scraper = InputManager->CreateFetcherChunkScraper();
+            auto scraper = InputManager->CreateFetcherChunkScraper(clusterName);
             DataSliceFetcherChunkScrapers.push_back(scraper);
             return scraper;
         } else {
@@ -7531,10 +7532,10 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             // because the latter protects RowBuffer.
             auto fetcher = CreateChunkSliceFetcher(
                 Config->ChunkSliceFetcher,
-                InputManager->GetInputNodeDirectory(),
+                InputManager->GetNodeDirectory(table->ClusterName),
                 GetCancelableInvoker(),
-                createScraperForFetcher(),
-                Host->GetClient(),
+                createScraperForFetcher(table->ClusterName),
+                InputManager->GetClient(table->ClusterName),
                 RowBuffer,
                 Logger);
 
@@ -7618,7 +7619,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager->GetInputTables().size());
-    for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+    for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
@@ -7629,7 +7630,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     }
 
     if (OperationType == EOperationType::RemoteCopy) {
-        for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+        for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
@@ -7983,7 +7984,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
-        New<TLivePreview>(std::move(schema), InputManager->GetInputNodeDirectory(), OperationId, name, table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -8789,7 +8790,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             }))
             .Item("build_time").Value(TInstant::Now())
             .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
-            .Item("input_transaction_id").Value(InputTransactions->GetNativeInputTransactionId())
+            .Item("input_transaction_id").Value(InputTransactions->GetLocalInputTransactionId())
             .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }
 }
@@ -9309,11 +9310,6 @@ const std::optional<TJobResources>& TOperationControllerBase::CachedMaxAvailable
     return CachedMaxAvailableExecNodeResources_;
 }
 
-const TNodeDirectoryPtr& TOperationControllerBase::InputNodeDirectory() const
-{
-    return InputManager->GetInputNodeDirectory();
-}
-
 TInputManagerPtr TOperationControllerBase::GetInputManager() const
 {
     return InputManager;
@@ -9544,7 +9540,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
     ToProto(
         jobSpec->mutable_input_transaction_id(),
-        InputTransactions->GetNativeInputTransactionId());
+        InputTransactions->GetLocalInputTransactionId());
 
     jobSpec->set_memory_reserve(joblet->UserJobMemoryReserve);
     jobSpec->set_job_proxy_memory_reserve(
@@ -9916,7 +9912,7 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
-void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns) const
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns) const
 {
     YT_VERIFY(OutputTables_.size() == 1);
 
@@ -9927,13 +9923,14 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
             const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                 *inputTable->Schema->Filter(inputTable->Path.GetColumns()),
                 *OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                ignoreSortOrder);
+                ignoreSortOrder,
+                forbidExtraComputedColumns);
             if (compatibility < ESchemaCompatibility::RequireValidation) {
                 // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
                 // check is performed during operation.
                 THROW_ERROR_EXCEPTION(error);
             }
-        } else if (hasComputedColumn && validateComputedColumns) {
+        } else if (hasComputedColumn && forbidExtraComputedColumns) {
             // Input table has weak schema, so we cannot check if all
             // computed columns were already computed. At least this is weird.
             THROW_ERROR_EXCEPTION("Output table cannot have computed "
@@ -9990,16 +9987,28 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::InputManagerIntroduction) {
         Persist(context, InputManager);
     }
-    InputManager->InitializeClient(InputClient);
+    if (context.IsLoad()) {
+        InputManager->InitializeClients(InputClient);
+    }
     if (context.GetVersion() < ESnapshotVersion::InputManagerIntroduction) {
         YT_VERIFY(context.IsLoad());
         InputManager->LoadInputNodeDirectory(context);
+        OutputNodeDirectory_ = InputManager->GetNodeDirectory(LocalClusterName);
         InputManager->LoadInputTables(context);
+    }
+    if (context.GetVersion() < ESnapshotVersion::OutputNodeDirectory) {
+        YT_VERIFY(context.IsLoad());
+        OutputNodeDirectory_ = InputManager->GetNodeDirectory(LocalClusterName);
+    } else {
+        Persist(context, OutputNodeDirectory_);
     }
     Persist(context, InputStreamDirectory_);
     Persist(context, OutputTables_);
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);
+    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
+        Persist(context, OutputNodeDirectory_);
+    }
     Persist(context, IntermediateTable);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, UserJobFiles_);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);
@@ -10832,7 +10841,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
     auto replicas = GetReplicasFromChunkSpec(chunkSpec);
     for (auto replica : replicas) {
         auto nodeId = replica.GetNodeId();
-        if (InputManager->GetInputNodeDirectory()->FindDescriptor(nodeId)) {
+        if (OutputNodeDirectory_->FindDescriptor(nodeId)) {
             continue;
         }
 
@@ -10845,7 +10854,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
             return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::UnresolvedNodeId);
         }
 
-        InputManager->GetInputNodeDirectory()->AddDescriptor(nodeId, *descriptor);
+        OutputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
     }
 
     return nullptr;

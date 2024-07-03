@@ -209,15 +209,6 @@ public:
 
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
 
-        UserJobReadController_ = CreateUserJobReadController(
-            Host_->GetJobSpecHelper(),
-            Host_->GetChunkReaderHost(),
-            PipeIOPool_->GetInvoker(),
-            BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
-            GetSandboxRelPath(ESandboxKind::Udf),
-            ChunkReadOptions_,
-            Host_->GetLocalHostName());
-
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::BlinkInputPipe, MakeWeak(this)),
@@ -270,6 +261,20 @@ public:
                 chunkList,
                 schemaId);
         }
+    }
+
+    void Initialize() override
+    {
+        TJob::Initialize();
+
+        UserJobReadController_ = CreateUserJobReadController(
+            Host_->GetJobSpecHelper(),
+            Host_->GetChunkReaderHost(),
+            PipeIOPool_->GetInvoker(),
+            BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
+            GetSandboxRelPath(ESandboxKind::Udf),
+            ChunkReadOptions_,
+            Host_->GetLocalHostName());
     }
 
     TJobResult Run() override
