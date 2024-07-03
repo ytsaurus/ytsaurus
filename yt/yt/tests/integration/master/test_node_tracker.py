@@ -458,26 +458,36 @@ class TestRackDataCenter(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+    rack_set = "testracktest"
+    data_center_set = "testdctest"
     DELTA_NODE_CONFIG = {
-         "rack": "testracktest",
-         "data_center": "testdctest",
+         "rack": rack_set,
+         "data_center": data_center_set,
     }
 
     @authors("gritukan")
     def test_node_rack(self):
-        nodes = ls("//sys/cluster_nodes")
+        for node in ls("//sys/cluster_nodes"):
+            rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
+            assert self.rack_set == rack_get
+            data_center_get = get("//sys/racks/{0}/@data_center".format(rack_get))
+            assert self.data_center_set == data_center_get
 
 class TestRack(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+    rack_set = "testrackwithoutdc"
     DELTA_NODE_CONFIG = {
-         "rack": "testrackwithoutdc",
+         "rack": rack_set,
     }
 
     @authors("gritukan")
     def test_node_rack(self):
         nodes = ls("//sys/cluster_nodes")
+        for node in ls("//sys/cluster_nodes"):
+            rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
+            assert self.rack_set == rack_get
 
 class TestRackCells(TestRack):
      NUM_SECONDARY_MASTER_CELLS = 2
