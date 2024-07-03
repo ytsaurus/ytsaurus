@@ -83,6 +83,14 @@ The main types of structured logs:
 - `scheduler_event_log` — scheduler event log, written by the scheduler (`SchedulerEventLog` category)
 - `controller_event_log` — log of controller agent events, written on the controller agent (`ControllerEventLog` category)
 
+### Table access log { #access_log }
+
+{% include [About table access log](access-log-details.md) %}
+
+#### Notes
+
+{% include [Notes](access-log-note.md) %}
+
 ## Configuring log rotation { #log_rotation }
 For debug and structured logs written to a file, you can configure the built-in rotation mechanism (the `rotationPolicy` field). The rotation settings are detailed in the table. If the `useTimestampSuffix` option isn't enabled, an index number is appended to the file names of old segments on rotation.
 
