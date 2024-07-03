@@ -108,6 +108,9 @@ class MonitoringExpr(Taggable):
     def bottom_min(self, k):
         return self.func("bottom_min", k, self)
 
+    def diff(self):
+        return self.func("diff", self)
+
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)
 
