@@ -1064,8 +1064,16 @@ private:
             rack = node->GetRack();
         }
         if (options.Rack.has_value()) {
+            rack = FindRackByName(options.Rack.value());
+
             TDataCenter* dataCenter = nullptr;
             if (options.DataCenter.has_value()) {
+                if (IsObjectAlive(rack)) {
+                    if (options.DataCenter.value() != rack->GetDataCenter()->GetName()) {
+                        THROW_ERROR_EXCEPTION("Datacenter %Qv for rack %Qv differs from current datacenter %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
+                    }
+                }
+
                 dataCenter = FindDataCenterByName(options.DataCenter.value());
                 if (!IsObjectAlive(dataCenter)) {
                     CreateDataCenterObject(node, options.DataCenter.value());
@@ -1076,14 +1084,7 @@ private:
                 }
             }
 
-            rack = FindRackByName(options.Rack.value());
-            if (IsObjectAlive(rack)) {
-                if (dataCenter) {
-                    if (dataCenter->GetId() != rack->GetDataCenter()->GetId()) {
-                        THROW_ERROR_EXCEPTION("Datacenter %Qv for rack %Qv differs from current datacenter %Qv", dataCenter->GetName(), rack->GetName(), rack->GetDataCenter()->GetName());
-                    }
-                }
-            } else {
+            if (!IsObjectAlive(rack)) {
                 CreateRackObject(node, options.Rack.value(), dataCenter);
                 rack = FindRackByName(options.Rack.value());
                 if (!rack) {
