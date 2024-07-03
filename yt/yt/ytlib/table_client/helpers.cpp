@@ -812,9 +812,6 @@ void ToProto(
     ToProto(protoStatisticsExt->mutable_column_max_values(), statistics.ColumnMaxValues);
     ToProto(protoStatisticsExt->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
 
-    ToProto(protoStatisticsExt->mutable_column_hyperloglog_digests(),
-        statistics.ColumnHyperLogLogDigests);
-
     if (statistics.ChunkRowCount) {
         protoStatisticsExt->set_chunk_row_count(*statistics.ChunkRowCount);
     }
@@ -837,7 +834,6 @@ void FromProto(
     FromProto(&statistics->ColumnMinValues, protoStatisticsExt.column_min_values());
     FromProto(&statistics->ColumnMaxValues, protoStatisticsExt.column_max_values());
     FromProto(&statistics->ColumnNonNullValueCounts, protoStatisticsExt.column_non_null_value_counts());
-    FromProto(&statistics->ColumnHyperLogLogDigests, protoStatisticsExt.column_hyperloglog_digests());
 
     // COMPAT(dakovalkov): Value statistics in chunks written by 23.2+ may be incorrectly merged
     // by 23.1 version. Ignore value statistics from such chunks, because it doesn't make sense.
