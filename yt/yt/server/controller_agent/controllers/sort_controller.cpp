@@ -1238,13 +1238,18 @@ protected:
                     stripe->PartitionTag = joblet->InputStripeList->PartitionTag;
                 }
 
+                std::optional<TMD5Hash> outputDigest;
+                if (!jobResultExt.output_digests().empty()) {
+                    FromProto(&outputDigest, jobResultExt.output_digests()[0]);
+                }
+
                 RegisterStripe(
                     stripe,
                     OutputStreamDescriptors_[0],
                     joblet,
                     NChunkPools::TChunkStripeKey(),
                     /*processEmptyStripes*/ false,
-                    FromProto<std::optional<TMD5Hash>>(jobResultExt.output_digests()[0])
+                    outputDigest
                 );
             }
 
