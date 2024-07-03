@@ -2,18 +2,12 @@ package jupyt
 
 import (
 	"context"
-	"fmt"
-
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
-)
-
-const (
-	JupytPort = 27042
 )
 
 type Config struct {
@@ -45,12 +39,10 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
-	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
 
-	cmd := fmt.Sprintf(
-		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
+	cmd := "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
 	jupyterEnv := map[string]string{
 		"NB_GID":  "0",
 		"NB_UID":  "0",
