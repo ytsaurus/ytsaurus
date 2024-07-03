@@ -350,6 +350,11 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("rack", &TThis::Rack)
+        .Default();
+    registrar.Parameter("data_center", &TThis::DataCenter)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
@@ -424,6 +429,10 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
 
         if (!config->TcpDispatcher->NetworkBandwidth) {
             config->TcpDispatcher->NetworkBandwidth = config->NetworkBandwidth;
+        }
+
+        if (!config->Rack.has_value() && config->DataCenter.has_value()) {
+            THROW_ERROR_EXCEPTION("\'data_center\' should be defined with \'rack\'");
         }
     });
 }

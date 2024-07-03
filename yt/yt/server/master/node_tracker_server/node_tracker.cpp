@@ -987,6 +987,8 @@ private:
         TString HostName;
         std::optional<TYsonString> CypressAnnotations;
         std::optional<TString> BuildVersion;
+        std::optional<TString> Rack;
+        std::optional<TString> DataCenter;
     };
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1053,18 +1055,46 @@ private:
             }
         }
 
-        TRack* oldNodeRack = nullptr;
+        TRack* rack = nullptr;
 
         auto* node = FindNodeByAddress(options.DefaultAddress);
         auto isNodeNew = !IsObjectAlive(node);
         if (!isNodeNew) {
             KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
-            oldNodeRack = node->GetRack();
+            rack = node->GetRack();
+        }
+        if (options.Rack.has_value()) {
+            TDataCenter* dataCenter = nullptr;
+            if (options.DataCenter.has_value()) {
+                dataCenter = FindDataCenterByName(options.DataCenter.value());
+                if (!IsObjectAlive(dataCenter)) {
+                    CreateDataCenterObject(node, options.DataCenter.value());
+                    dataCenter = FindDataCenterByName(options.DataCenter.value());
+                    if (!dataCenter) {
+                        YT_LOG_FATAL("Cant find created datacenter %Qv", options.DataCenter.value());
+                    }
+                }
+            }
+
+            rack = FindRackByName(options.Rack.value());
+            if (IsObjectAlive(rack)) {
+                if (dataCenter) {
+                    if (dataCenter->GetId() != rack->GetDataCenter()->GetId()) {
+                        THROW_ERROR_EXCEPTION("Datacenter %Qv for rack %Qv differs from current datacenter %Qv", dataCenter->GetName(), rack->GetName(), rack->GetDataCenter()->GetName());
+                    }
+                }
+            } else {
+                CreateRackObject(node, options.Rack.value(), dataCenter);
+                rack = FindRackByName(options.Rack.value());
+                if (!rack) {
+                    YT_LOG_FATAL("Cant find created rack %Qv", options.Rack.value());
+                }
+            }
         }
 
         auto* host = FindHostByName(options.HostName);
         if (!IsObjectAlive(host)) {
-            CreateHostObject(node, options.HostName, oldNodeRack);
+            CreateHostObject(node, options.HostName, rack);
             host = GetHostByName(options.HostName);
         }
 
@@ -1170,6 +1200,61 @@ private:
         }
     }
 
+    void CreateDataCenterObject(TNode* node, const TString& Name)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(static_cast<int>(EObjectType::DataCenter));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", Name);
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        try {
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to create data_center for a node");
+
+            if (IsObjectAlive(node)) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(node);
+            }
+            throw;
+        }
+    }
+
+    void CreateRackObject(TNode* node, const TString& name, TDataCenter* dataCenter)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(static_cast<int>(EObjectType::Rack));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", name);
+        if (dataCenter) {
+            attributes->Set("data_center", dataCenter->GetName());
+        }
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        try {
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to create rack for a node");
+
+            if (IsObjectAlive(node)) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(node);
+            }
+            throw;
+        }
+    }
+
     void HydraRegisterNode(
         const TCtxRegisterNodePtr& context,
         TReqRegisterNode* request,
@@ -1209,6 +1294,8 @@ private:
                 ? std::make_optional(TYsonString(request->cypress_annotations(), EYsonType::Node))
                 : std::nullopt,
             .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
+            .Rack = request->has_rack() ? std::make_optional(request->rack()) : std::nullopt,
+            .DataCenter = request->has_data_center() ? std::make_optional(request->data_center()) : std::nullopt,
         };
 
         EnsureNodeObjectCreated(options);
@@ -1306,6 +1393,8 @@ private:
             .HostName = request->host_name(),
             .CypressAnnotations = TYsonString(request->cypress_annotations(), EYsonType::Node),
             .BuildVersion = request->build_version(),
+            .Rack = std::nullopt,
+            .DataCenter = std::nullopt,
         };
 
         EnsureNodeObjectCreated(options);

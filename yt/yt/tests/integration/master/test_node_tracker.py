@@ -449,3 +449,39 @@ class TestReregisterNode(YTEnvSetup):
         wait(lambda: get_online_node_count() == 1)
         sleep(5)
         assert get_online_node_count() == 1
+
+
+################################################################################
+
+
+class TestRackDataCenter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+         "rack": "testracktest",
+         "data_center": "testdctest",
+    }
+
+    @authors("gritukan")
+    def test_node_rack(self):
+        nodes = ls("//sys/cluster_nodes")
+
+class TestRack(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+         "rack": "testrackwithoutdc",
+    }
+
+    @authors("gritukan")
+    def test_node_rack(self):
+        nodes = ls("//sys/cluster_nodes")
+
+class TestRackCells(TestRack):
+     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestRackDataCenterCells(TestRackDataCenter):
+     NUM_SECONDARY_MASTER_CELLS = 2
+

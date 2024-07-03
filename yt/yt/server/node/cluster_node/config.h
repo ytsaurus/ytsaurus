@@ -376,6 +376,9 @@ public:
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
+    std::optional<TString> Rack;
+    std::optional<TString> DataCenter;
+
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
     REGISTER_YSON_STRUCT(TClusterNodeConfig);
