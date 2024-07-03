@@ -129,15 +129,51 @@ struct TPeerQueueEntry
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkProber;
+class TRequestBatcher;
 class TSessionBase;
 class TReadBlockSetSession;
 class TReadBlockRangeSession;
 class TGetMetaSession;
 class TLookupRowsSession;
 
-DECLARE_REFCOUNTED_CLASS(TChunkProber)
+DECLARE_REFCOUNTED_CLASS(TRequestBatcher)
 DECLARE_REFCOUNTED_CLASS(TReplicationReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IRequestBatcher
+    : public TRefCounted
+{
+    using TPeerResponsePtr = TDataNodeServiceProxy::TRspProbeBlockSetPtr;
+    using TGetBlocksResponsePtr = TDataNodeServiceProxy::TRspGetBlockSetPtr;
+
+    struct TRequest
+    {
+        TString Address;
+        IChannelPtr Channel;
+        std::vector<int> BlockIndexes;
+        TIntrusivePtr<TSessionBase> Session;
+
+        std::vector<NProto::TP2PBarrier> Barriers;
+        TPeerList Peers;
+    };
+
+    struct TGetBlocksResult
+    {
+        std::vector<int> RequestedBlocks;
+        TErrorOr<TGetBlocksResponsePtr> Response;
+    };
+
+    virtual TFuture<TPeerResponsePtr> ProbeBlockSet(const TRequest& request) = 0;
+
+    virtual TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIntrusivePtr<IRequestBatcher> CreateRequestBatcher(TWeakPtr<TReplicationReader> reader);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader
     : public IChunkReaderAllowingRepair
@@ -167,7 +203,7 @@ public:
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v",
             ChunkId_))
-        , ChunkProber_(New<TChunkProber>(this))
+        , RequestBatcher_(CreateRequestBatcher(MakeWeak(this)))
         , InitialSeeds_(std::move(seedReplicas))
     {
         YT_VERIFY(NodeDirectory_);
@@ -241,7 +277,7 @@ public:
     }
 
 private:
-    friend class TChunkProber;
+    friend class TRequestBatcher;
     friend class TSessionBase;
     friend class TReadBlockSetSession;
     friend class TReadBlockRangeSession;
@@ -263,9 +299,10 @@ private:
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
+
     const NLogging::TLogger Logger;
 
-    const TChunkProberPtr ChunkProber_;
+    const TIntrusivePtr<IRequestBatcher> RequestBatcher_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
@@ -396,214 +433,6 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkProber
-    : public TRefCounted
-{
-public:
-    using TPeerResponsePtr = TDataNodeServiceProxy::TRspProbeBlockSetPtr;
-
-    struct TProbeRequest
-    {
-        TString Address;
-        IChannelPtr Channel;
-        std::vector<int> BlockIndexes;
-        TWorkloadDescriptor WorkloadDescriptor;
-        NHydra::TRevision Revision;
-        IInvokerPtr Invoker;
-    };
-
-    explicit TChunkProber(TReplicationReader* reader)
-        : ReaderConfig_(reader->Config_)
-        , ReaderOptions_(reader->Options_)
-        , ChunkId_(reader->ChunkId_)
-        , Logger(reader->Logger)
-    { }
-
-    TFuture<TPeerResponsePtr> ProbeBlockSet(const TProbeRequest& request)
-    {
-        if (!ReaderConfig_->UseChunkProber) {
-            auto batch = BuildProbeBatchForRequest(request);
-            return ExecuteProbeBlockSet(batch);
-        }
-
-        auto guard = Guard(Lock_);
-        auto& state = States_[request.Address];
-
-        YT_VERIFY(state.Current.RequestIsInitialized || !state.Next.RequestIsInitialized);
-
-        if (state.Current.RequestIsInitialized) {
-            if (CurrentBatchContainsBlocks(state, request.BlockIndexes)) {
-                return state.Current.GetRequestResultFuture();
-            } else {
-                AddBlocks(request, state.Next);
-                return state.Next.GetRequestResultFuture();
-            }
-        } else {
-            state.Current = ExecuteNewRequest(request);
-            auto result = state.Current.GetRequestResultFuture();
-            return result;
-        }
-    }
-
-private:
-    struct TProbeBatch
-    {
-        IChannelPtr Channel;
-        THashSet<int> BlockIds;
-        TWorkloadDescriptor WorkloadDescriptor;
-        NHydra::TRevision Revision;
-        IInvokerPtr Invoker;
-
-        bool RequestIsInitialized = false;
-        TPromise<TPeerResponsePtr> RequestResult;
-
-        TFuture<TPeerResponsePtr> GetRequestResultFuture()
-        {
-            return RequestResult.ToFuture();
-        }
-    };
-
-    struct TProbeNodeState
-    {
-        TProbeBatch Current;
-        TProbeBatch Next;
-    };
-
-    const TReplicationReaderConfigPtr ReaderConfig_;
-    const TRemoteReaderOptionsPtr ReaderOptions_;
-    const TChunkId ChunkId_;
-    const NLogging::TLogger Logger;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-
-    THashMap<TString, TProbeNodeState> States_;
-
-    TProbeBatch BuildProbeBatchForRequest(const TProbeRequest& request)
-    {
-        TProbeBatch batch;
-        batch.RequestIsInitialized = true;
-        batch.Channel = request.Channel;
-        batch.Revision = request.Revision;
-        batch.RequestResult = NewPromise<TPeerResponsePtr>();
-        batch.WorkloadDescriptor = request.WorkloadDescriptor;
-        batch.Invoker = request.Invoker;
-
-        for (auto index : request.BlockIndexes) {
-            batch.BlockIds.insert(index);
-        }
-
-        return batch;
-    }
-
-    TProbeBatch ExecuteNewRequest(const TProbeRequest& request)
-    {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
-
-        YT_LOG_DEBUG(
-            "Start new probing request (Address: %v, BlockIds: %v, BlockCount: %v)",
-            request.Address,
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
-
-        auto batch = BuildProbeBatchForRequest(request);
-
-        auto requestFuture = ExecuteProbeBlockSet(batch);
-        batch.RequestResult.SetFrom(requestFuture);
-        requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), request.Address)
-            .Via(batch.Invoker));
-
-        return batch;
-    }
-
-    void AddBlocks(
-        const TProbeRequest& request,
-        TProbeBatch& nextBatch)
-    {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
-
-        YT_LOG_DEBUG(
-            "Add blocks to next probing request (Address: %v, BlockIds: %v, BlockCount: %v)",
-            request.Address,
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
-
-        nextBatch.Channel = request.Channel;
-        nextBatch.Revision = request.Revision;
-        nextBatch.WorkloadDescriptor = request.WorkloadDescriptor;
-        nextBatch.Invoker = request.Invoker;
-
-        if (!nextBatch.RequestIsInitialized) {
-            nextBatch.RequestResult = NewPromise<TPeerResponsePtr>();
-            nextBatch.RequestIsInitialized = true;
-        }
-
-        for (auto index : request.BlockIndexes) {
-            nextBatch.BlockIds.insert(index);
-        }
-    }
-
-    bool CurrentBatchContainsBlocks(const TProbeNodeState& probeNodeState, const std::vector<int>& blockIndexes)
-    {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
-
-        for (auto index : blockIndexes) {
-            if (!probeNodeState.Current.BlockIds.contains(index)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    TFuture<TPeerResponsePtr> ExecuteProbeBlockSet(TProbeBatch& queuedBatch)
-    {
-        TDataNodeServiceProxy proxy(queuedBatch.Channel);
-        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
-
-        auto req = proxy.ProbeBlockSet();
-        SetRequestWorkloadDescriptor(req, queuedBatch.WorkloadDescriptor);
-        req->SetResponseHeavy(true);
-        ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
-        req->SetAcknowledgementTimeout(std::nullopt);
-        req->set_ally_replicas_revision(queuedBatch.Revision);
-
-        return req->Invoke();
-    }
-
-    void OnProbeBlockSetFinished(
-        TString address,
-        const TError& /*error*/)
-    {
-        auto guard = Guard(Lock_);
-        auto& state = States_[address];
-
-        if (state.Next.RequestIsInitialized) {
-            state.Current = std::move(state.Next);
-            auto& nextBatch = state.Current;
-
-            YT_LOG_DEBUG(
-                "Start next probing request (Address: %v, BlockIds: %v, BlockCount: %v)",
-                address,
-                MakeShrunkFormattableView(nextBatch.BlockIds, TDefaultFormatter(), 3),
-                nextBatch.BlockIds.size());
-
-            auto requestFuture = ExecuteProbeBlockSet(nextBatch);
-            nextBatch.RequestResult.SetFrom(requestFuture);
-            requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), std::move(address))
-                .Via(nextBatch.Invoker));
-        } else {
-            state.Current = {};
-        }
-
-        state.Next = {};
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkProber)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSessionBase
     : public TRefCounted
 {
@@ -674,7 +503,7 @@ protected:
     const IThroughputThrottlerPtr MediumThrottler_;
     const IThroughputThrottlerPtr CombinedDataByteThrottler_;
 
-    const TChunkProberPtr ChunkProber_;
+    const TIntrusivePtr<IRequestBatcher> RequestBatcher_;
 
     NLogging::TLogger Logger;
 
@@ -737,7 +566,7 @@ protected:
         , RpsThrottler_(std::move(rpsThrottler))
         , MediumThrottler_(std::move(mediumThrottler))
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
-        , ChunkProber_(reader->ChunkProber_)
+        , RequestBatcher_(reader->RequestBatcher_)
         , Logger(ChunkClientLogger().WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
             SessionOptions_.ReadSessionId,
@@ -1375,6 +1204,8 @@ protected:
     }
 
 private:
+    friend class TRequestBatcher;
+
     //! Errors collected by the session.
     std::vector<TError> InnerErrors_;
 
@@ -1618,14 +1449,12 @@ private:
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
-        auto probeBlockSetResponseFuture = ChunkProber_->ProbeBlockSet(
-            TChunkProber::TProbeRequest{
+        auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
+            IRequestBatcher::TRequest{
                 .Address = address,
                 .Channel = channel,
                 .BlockIndexes = blockIndexes,
-                .WorkloadDescriptor = WorkloadDescriptor_,
-                .Revision = SeedReplicas_.Revision,
-                .Invoker = SessionInvoker_,
+                .Session = MakeStrong(this)
             });
 
         if (peer.NodeSuspicionMarkTime) {
@@ -1868,6 +1697,8 @@ public:
     }
 
 private:
+    friend class TRequestBatcher;
+
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
@@ -2160,7 +1991,8 @@ private:
             return true;
         }
 
-        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && EstimatedSize_)) {
+        auto primaryAddress = peers[0].Address;
+        if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
@@ -2177,27 +2009,22 @@ private:
             }
         }
 
-        TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+        auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
+            IRequestBatcher::TRequest{
+                .Address = primaryAddress,
+                .Channel = channel,
+                .BlockIndexes = blockIndexes,
+                .Session = MakeStrong(this),
+                .Barriers = FillP2PBarriers(peers, blockIndexes),
+                .Peers = peers,
+            });
 
-        auto req = proxy.GetBlockSet();
-        req->SetResponseHeavy(true);
-        req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
-        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_block_indexes(), blockIndexes);
-        req->set_populate_cache(ReaderConfig_->PopulateCache);
-        ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
-        req->set_ally_replicas_revision(SeedReplicas_.Revision);
+        SetSessionFuture(getBlockSetResponseFuture.As<void>());
+        auto result = WaitFor(getBlockSetResponseFuture);
 
-        FillP2PBarriers(req->mutable_wait_barriers(), peers, blockIndexes);
-
-        NProfiling::TWallTimer dataWaitTimer;
-        auto rspFuture = req->Invoke();
-        SetSessionFuture(rspFuture.As<void>());
-        auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
-            dataWaitTimer.GetElapsedTime());
+        auto rspOrError = result.IsOK()
+            ? result.Value().Response
+            : TErrorOr<TDataNodeServiceProxy::TRspGetBlockSetPtr>(result.Wrap());
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -2220,11 +2047,6 @@ private:
             BanPeer(peers[0].Address, false);
         }
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
-            rsp->GetTotalSize(),
-            std::memory_order::relaxed);
-        reader->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
-
         auto probeResult = ParseProbeResponse(rsp);
 
         UpdatePeerBlockMap(respondedPeer, probeResult);
@@ -2236,28 +2058,38 @@ private:
                 probeResult.DiskThrottling);
         }
 
-        if (rsp->has_chunk_reader_statistics()) {
-            HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
-        }
-
         i64 bytesReceived = 0;
         int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
-        auto response = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
+        auto responseBlocks = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
-        for (auto& block : response) {
-            block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
-        }
+        auto& requestedBlockIndexes = result.Value().RequestedBlocks;
+        auto requestedBlockIndexIt = requestedBlockIndexes.begin();
+        auto responseBlockIt = responseBlocks.begin();
 
-        for (int index = 0; index < std::ssize(response); ++index) {
-            const auto& block = response[index];
+        for (int index = 0; index < std::ssize(blockIndexes); ++index) {
+            int blockIndex = blockIndexes[index];
+            auto blockId = TBlockId(ChunkId_, blockIndex);
+
+            while(*requestedBlockIndexIt != blockIndex &&
+                requestedBlockIndexIt != requestedBlockIndexes.end() &&
+                responseBlockIt != responseBlocks.end())
+            {
+                ++requestedBlockIndexIt;
+                ++responseBlockIt;
+            }
+
+            if (responseBlockIt == responseBlocks.end()) {
+                break;
+            }
+
+            auto& block = *responseBlockIt;
             if (!block) {
                 continue;
             }
 
-            int blockIndex = req->block_indexes(index);
-            auto blockId = TBlockId(ChunkId_, blockIndex);
+            block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
 
             if (auto error = block.ValidateChecksum(); !error.IsOK()) {
                 RegisterError(
@@ -2324,14 +2156,14 @@ private:
         return true;
     }
 
-    void FillP2PBarriers(
-        google::protobuf::RepeatedPtrField<NProto::TP2PBarrier>* barriers,
+    std::vector<NProto::TP2PBarrier> FillP2PBarriers(
         const TPeerList& peerList,
         const std::vector<int>& blockIndexes)
     {
         // We need a way of sending two separate requests to the two different nodes.
         // And there is no way of doing this with hedging channel.
         // So we send all barriers to both nodes, and filter them in data node service.
+        std::vector<NProto::TP2PBarrier> barriers;
 
         for (const auto& peer : peerList) {
             auto blockBarriers = P2PDeliveryBarrier_.find(peer.Replica.GetNodeId());
@@ -2351,13 +2183,17 @@ private:
             }
 
             for (const auto& [sessionId, iteration] : maxBarrier) {
-                auto wait = barriers->Add();
+                NProto::TP2PBarrier wait;
 
-                ToProto(wait->mutable_session_id(), sessionId);
-                wait->set_iteration(iteration);
-                wait->set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
+                ToProto(wait.mutable_session_id(), sessionId);
+                wait.set_iteration(iteration);
+                wait.set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
+
+                barriers.push_back(wait);
             }
         }
+
+        return barriers;
     }
 
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
@@ -3515,6 +3351,347 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverriddenThrottlers)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestBatcher
+    : public IRequestBatcher
+{
+public:
+    explicit TRequestBatcher(TIntrusivePtr<TReplicationReader> reader)
+        : Reader_(MakeWeak(reader))
+        , ReaderConfig_(reader->Config_)
+        , ReaderOptions_(reader->Options_)
+        , ChunkId_(reader->ChunkId_)
+        , Logger(reader->Logger)
+    { }
+
+    TFuture<TPeerResponsePtr> ProbeBlockSet(const TRequest& request) override
+    {
+        if (!ReaderConfig_->UseChunkProber) {
+            auto batch = BuildRequestBatch<TPeerResponsePtr>(request);
+            return ExecuteBatchRequest<TPeerResponsePtr>(batch);
+        } else {
+            return ExecuteRequest<TPeerResponsePtr>(request);
+        }
+    }
+
+    TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request) override
+    {
+        if (!ReaderConfig_->UseReadBlocksBatcher) {
+            auto batch = BuildRequestBatch<TGetBlocksResult>(request);
+            return ExecuteBatchRequest<TGetBlocksResult>(batch);
+        } else {
+            return ExecuteRequest<TGetBlocksResult>(request);
+        }
+    }
+
+private:
+    template <class TResponse>
+    struct TRequestBatch
+    {
+        IChannelPtr Channel;
+        THashSet<int> BlockIds;
+        TIntrusivePtr<TSessionBase> Session;
+
+        std::vector<NProto::TP2PBarrier> Barriers;
+        TPeerList Peers;
+
+        bool RequestIsInitialized = false;
+        TPromise<TResponse> RequestResult;
+
+        int RequestCount;
+
+        TFuture<TResponse> GetRequestResultFuture()
+        {
+            return RequestResult.ToFuture();
+        }
+    };
+
+    template <class TResponse>
+    struct TNodeState
+    {
+        TRequestBatch<TResponse> Current;
+        TRequestBatch<TResponse> Next;
+    };
+
+    const TWeakPtr<TReplicationReader> Reader_;
+    const TReplicationReaderConfigPtr ReaderConfig_;
+    const TRemoteReaderOptionsPtr ReaderOptions_;
+    const TChunkId ChunkId_;
+    const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+
+    THashMap<TString, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
+    THashMap<TString, TNodeState<TGetBlocksResult>> GetBlocksStates_;
+
+    template <class TResponse>
+    TRequestBatch<TResponse> BuildRequestBatch(const TRequest& request)
+    {
+        TRequestBatch<TResponse> batch;
+        batch.RequestIsInitialized = true;
+        batch.Channel = request.Channel;
+        batch.RequestResult = NewPromise<TResponse>();
+        batch.Session = request.Session;
+        batch.Barriers = request.Barriers;
+        batch.Peers = request.Peers;
+        batch.RequestCount = 1;
+
+        for (auto index : request.BlockIndexes) {
+            batch.BlockIds.insert(index);
+        }
+
+        return batch;
+    }
+
+    template<class TResponse>
+    THashMap<TString, TNodeState<TResponse>>& GetNodeStates()
+    {
+        if constexpr (std::is_same_v<TResponse, TPeerResponsePtr>) {
+            return ProbeBlocksStates_;
+        } else if constexpr (std::is_same_v<TResponse, TGetBlocksResult>) {
+            return GetBlocksStates_;
+        } else {
+            static_assert(TDependentFalse<TResponse>);
+        }
+    }
+
+    template<class TResponse>
+    TString GetRequestLogName()
+    {
+        if constexpr (std::is_same_v<TResponse, TPeerResponsePtr>) {
+            return "ProbeBlockSet";
+        } else if constexpr (std::is_same_v<TResponse, TGetBlocksResult>) {
+            return "GetBlockSet";
+        } else {
+            static_assert(TDependentFalse<TResponse>);
+        }
+    }
+
+    TGetBlocksResult HandleGetBlockSetResponse(
+        TIntrusivePtr<TSessionBase> session,
+        TPeerList peers,
+        std::vector<int> blockIndexes,
+        NProfiling::TWallTimer dataWaitTimer,
+        TErrorOr<TGetBlocksResponsePtr>&& rspOrError)
+    {
+        auto chunkReaderStatistics = session->SessionOptions_.ChunkReaderStatistics;
+        chunkReaderStatistics->RecordDataWaitTime(
+            dataWaitTimer.GetElapsedTime());
+
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION(rspOrError);
+        } else {
+            auto&& rsp = rspOrError.Value();
+            bool backup = IsBackup(rspOrError);
+            const auto& respondedPeer = backup ? peers[1] : peers[0];
+
+            chunkReaderStatistics->DataBytesTransmitted.fetch_add(
+                rsp->GetTotalSize(),
+                std::memory_order::relaxed);
+            Reader_.Lock()->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
+
+            if (rsp->has_chunk_reader_statistics()) {
+                session->HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
+            }
+
+            return TGetBlocksResult{
+                .RequestedBlocks = std::move(blockIndexes),
+                .Response = std::move(rsp),
+            };
+        }
+    }
+
+    template<class TResponse>
+    TFuture<TResponse> ExecuteBatchRequest(const TRequestBatch<TResponse>& queuedBatch);
+
+    template<>
+    TFuture<TPeerResponsePtr> ExecuteBatchRequest(const TRequestBatch<TPeerResponsePtr>& queuedBatch)
+    {
+        TDataNodeServiceProxy proxy(queuedBatch.Channel);
+        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
+
+        auto req = proxy.ProbeBlockSet();
+        SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+        req->SetResponseHeavy(true);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
+        ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
+        req->SetAcknowledgementTimeout(std::nullopt);
+        req->set_ally_replicas_revision(queuedBatch.Session->SeedReplicas_.Revision);
+
+        return req->Invoke();
+    }
+
+    template<>
+    TFuture<TGetBlocksResult> ExecuteBatchRequest(const TRequestBatch<TGetBlocksResult>& queuedBatch)
+    {
+        TDataNodeServiceProxy proxy(queuedBatch.Channel);
+        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
+
+        auto req = proxy.GetBlockSet();
+        req->SetResponseHeavy(true);
+        req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
+        SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
+
+        auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
+        std::sort(blockIndexes.begin(), blockIndexes.end());
+
+        ToProto(req->mutable_block_indexes(), blockIndexes);
+        req->set_populate_cache(ReaderConfig_->PopulateCache);
+        ToProto(req->mutable_read_session_id(), queuedBatch.Session->SessionOptions_.ReadSessionId);
+
+        for (const auto& barrier : queuedBatch.Barriers) {
+            auto* waitBarrier = req->add_wait_barriers();
+            waitBarrier->CopyFrom(barrier);
+        }
+
+        NProfiling::TWallTimer dataWaitTimer;
+        return req->Invoke()
+            .ApplyUnique(BIND(
+                &TRequestBatcher::HandleGetBlockSetResponse,
+                MakeStrong(this),
+                queuedBatch.Session,
+                queuedBatch.Peers,
+                Passed(std::move(blockIndexes)),
+                Passed(std::move(dataWaitTimer))));
+    }
+
+    template <class TResponse>
+    TFuture<TResponse> ExecuteRequest(const TRequest& request)
+    {
+        auto guard = Guard(Lock_);
+        auto& state = GetNodeStates<TResponse>()[request.Address];
+
+        YT_VERIFY(state.Current.RequestIsInitialized || !state.Next.RequestIsInitialized);
+
+        if (state.Current.RequestIsInitialized) {
+            if (CurrentBatchContainsBlocks(state, request.BlockIndexes)) {
+                return state.Current.GetRequestResultFuture();
+            } else {
+                AddBlocksToBatchRequest(request, state.Next);
+                return state.Next.GetRequestResultFuture();
+            }
+        } else {
+            state.Current = ExecuteNewRequest<TResponse>(request);
+            auto result = state.Current.GetRequestResultFuture();
+            return result;
+        }
+    }
+
+    template <class TResponse>
+    TRequestBatch<TResponse> ExecuteNewRequest(const TRequest& request)
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        YT_LOG_DEBUG(
+            "Start new batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            request.Address,
+            GetRequestLogName<TResponse>(),
+            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
+            request.BlockIndexes.size());
+
+        auto batch = BuildRequestBatch<TResponse>(request);
+
+        auto requestFuture = ExecuteBatchRequest(batch);
+        batch.RequestResult.SetFrom(requestFuture);
+        requestFuture.Subscribe(BIND(
+            &TRequestBatcher::OnBatchRequestFinished<TResponse>,
+            MakeStrong(this),
+            request.Address)
+            .Via(batch.Session->SessionInvoker_));
+
+        return batch;
+    }
+
+    template <class TResponse>
+    void AddBlocksToBatchRequest(
+        const TRequest& request,
+        TRequestBatch<TResponse>& nextBatch)
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        YT_LOG_DEBUG(
+            "Add blocks to next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            request.Address,
+            GetRequestLogName<TResponse>(),
+            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
+            request.BlockIndexes.size());
+
+        nextBatch.Channel = request.Channel;
+        nextBatch.Session = request.Session;
+        nextBatch.Peers = request.Peers;
+        nextBatch.Barriers = request.Barriers;
+        nextBatch.RequestCount++;
+
+        if (!nextBatch.RequestIsInitialized) {
+            nextBatch.RequestResult = NewPromise<TResponse>();
+            nextBatch.RequestIsInitialized = true;
+        }
+
+        for (auto index : request.BlockIndexes) {
+            nextBatch.BlockIds.insert(index);
+        }
+    }
+
+    template <class TState>
+    bool CurrentBatchContainsBlocks(const TState& probeNodeState, const std::vector<int>& blockIndexes)
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        for (auto index : blockIndexes) {
+            if (!probeNodeState.Current.BlockIds.contains(index)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    template <class TResponse>
+    void OnBatchRequestFinished(
+        TString address,
+        const TError& /*error*/)
+    {
+        auto guard = Guard(Lock_);
+        auto& state = GetNodeStates<TResponse>()[address];
+
+        if (state.Next.RequestIsInitialized) {
+            state.Current = std::move(state.Next);
+            auto& nextBatch = state.Current;
+
+            YT_LOG_DEBUG(
+                "Start next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v, RequestCount: %v)",
+                address,
+                GetRequestLogName<TResponse>(),
+                MakeShrunkFormattableView(nextBatch.BlockIds, TDefaultFormatter(), 3),
+                nextBatch.BlockIds.size(),
+                nextBatch.RequestCount);
+
+            auto requestFuture = ExecuteBatchRequest(nextBatch);
+            nextBatch.RequestResult.SetFrom(requestFuture);
+            requestFuture.Subscribe(BIND(
+                &TRequestBatcher::OnBatchRequestFinished<TResponse>,
+                MakeStrong(this),
+                std::move(address))
+                .Via(nextBatch.Session->SessionInvoker_));
+        } else {
+            state.Current = {};
+        }
+
+        state.Next = {};
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRequestBatcher)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIntrusivePtr<IRequestBatcher> CreateRequestBatcher(TWeakPtr<TReplicationReader> reader)
+{
+    return New<TRequestBatcher>(reader.Lock());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
