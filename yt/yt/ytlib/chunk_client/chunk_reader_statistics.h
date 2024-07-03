@@ -20,6 +20,7 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesTransmitted = 0;
     std::atomic<i64> DataBytesReadFromCache = 0;
     std::atomic<i64> MetaBytesReadFromDisk = 0;
+    std::atomic<i64> MetaIORequests = 0;
     // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 
@@ -95,6 +96,7 @@ private:
     NProfiling::TCounter WastedDataBytesReadFromCache_;
 
     NProfiling::TCounter MetaBytesReadFromDisk_;
+    NProfiling::TCounter MetaIORequests_;
     NProfiling::TCounter WastedMetaBytesReadFromDisk_;
 
     NProfiling::TCounter OmittedSuspiciousNodeCount_;

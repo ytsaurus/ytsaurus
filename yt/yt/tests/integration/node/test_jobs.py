@@ -5,7 +5,7 @@ from yt_commands import (
     wait_breakpoint, release_breakpoint, vanilla,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
-    set_node_banned)
+    set_node_banned, write_table, map, create, extract_statistic_v2)
 
 from yt_helpers import JobCountProfiler, profiler_factory
 
@@ -220,3 +220,31 @@ class TestJobProxyCallFailed(YTEnvSetup):
         })
 
         op.track()
+
+
+class TestJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("ngc224")
+    def test_io_statistics(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=True,
+        )
+
+        statistics = op.get_statistics()
+        chunk_reader_statistics = statistics["chunk_reader_statistics"]
+
+        assert extract_statistic_v2(chunk_reader_statistics, "data_bytes_read_from_disk") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_read_from_disk", summary_type="count") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "meta_io_requests", summary_type="count") > 0

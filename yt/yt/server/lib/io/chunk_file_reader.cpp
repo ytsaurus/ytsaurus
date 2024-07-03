@@ -278,6 +278,11 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
         buffer.Size(),
         std::memory_order::relaxed);
+    options.ChunkReaderStatistics->DataIORequests.fetch_add(
+        readResponse.IORequests,
+        std::memory_order::relaxed
+    );
+
     const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
 
     std::vector<TBlock> blocks;
@@ -397,8 +402,11 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     const TString& metaFileName,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
-    const TSharedRef& metaFileBlob)
+    const IIOEngine::TReadResponse& readResponse)
 {
+    YT_VERIFY(readResponse.OutputBuffers.size() == 1);
+    const auto& metaFileBlob = readResponse.OutputBuffers[0];
+
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
         metaFileName);
 
@@ -412,6 +420,9 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
 
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
         metaFileBlob.Size(),
+        std::memory_order::relaxed);
+    chunkReaderStatistics->MetaIORequests.fetch_add(
+        readResponse.IORequests,
         std::memory_order::relaxed);
 
     TChunkMetaHeader_2 metaHeader;

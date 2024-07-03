@@ -175,11 +175,12 @@ TEST_P(TIOEngineTest, ReadAll)
 
     WriteFile(fileName, data);
 
-    auto readData = engine->ReadAll(fileName)
+    auto result = engine->ReadAll(fileName)
         .Get()
         .ValueOrThrow();
 
-    EXPECT_TRUE(TRef::AreBitwiseEqual(readData, data));
+    EXPECT_TRUE(result.OutputBuffers.size() == 1);
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data));
 }
 
 TEST_P(TIOEngineTest, DirectIO)
