@@ -107,6 +107,11 @@ class Rowset(Taggable):
         self.begin_values = []
         self.end_values = []
         self.rows = []
+        self.cell_per_row = None
+
+    def set_cell_per_row(self, value):
+        self.cell_per_row = value
+        return self
 
     def value(self, key, value):
         if self.rows:
@@ -148,6 +153,7 @@ class Dashboard(Taggable):
         self.name = None
         self.title = None
         self.description = None
+        self.cell_per_row = None
         self.parameters = None
         self.serializer_options = {}
 
@@ -162,12 +168,14 @@ class Dashboard(Taggable):
             "Tags can be added to the dashboard only at the end"
         while type(rowset) is not Rowset:
             rowset = rowset.owner
+        if rowset.cell_per_row is None:
+            rowset.set_cell_per_row(self.cell_per_row)
         self.rowsets.append(rowset)
 
     def rowset(self):
         assert not self.has_set_values, \
             "Tags can be added to the dashboard only at the end"
-        self.rowsets.append(Rowset())
+        self.rowsets.append(Rowset(cell_per_row=self.cell_per_row))
         return self.rowsets[-1]
 
     def serialize(self, serializer):
@@ -196,6 +204,9 @@ class Dashboard(Taggable):
 
     def set_description(self, description):
         self.description = description
+
+    def set_cell_per_row(self, cell_per_row):
+        self.cell_per_row = cell_per_row
 
     def add_parameter(self, name, title, *args, backends=[]):
         if self.parameters is None:
