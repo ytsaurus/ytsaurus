@@ -447,7 +447,6 @@
   "contrib/restricted/wavm/CMakeLists.txt":"",
   "contrib/restricted/wavm/Lib/CMakeLists.txt":"",
   "contrib/tools/CMakeLists.txt":"",
-  "contrib/tools/flatc/CMakeLists.txt":"",
   "contrib/tools/protoc/CMakeLists.txt":"",
   "contrib/tools/protoc/bin/CMakeLists.txt":"",
   "contrib/tools/protoc/plugins/CMakeLists.txt":"",
