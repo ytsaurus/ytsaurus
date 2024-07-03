@@ -31,13 +31,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IInputManagerHost
-    : public virtual TRefCounted
+struct IInputManagerHost
     // XXX(coteeq): ITaskHost has many methods, that IInputManagerHost also needs.
     // I hope there is a nicer way of doing this, other than just inheriting ITaskHost.
-    , public virtual ITaskHost
+    : public virtual ITaskHost
 {
-public:
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
 
