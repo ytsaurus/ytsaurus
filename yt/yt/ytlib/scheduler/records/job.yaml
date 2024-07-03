@@ -176,3 +176,8 @@ types:
         cpp_type: TString
         column_name: job_type
         column_type: String
+
+      - cpp_name: ArchiveFeatures
+        cpp_type: NYson::TYsonString
+        column_name: archive_features
+        column_type: Any

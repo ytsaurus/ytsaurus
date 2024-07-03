@@ -33,6 +33,7 @@ public:
     TNodeJobReport TreeId(TString treeId);
     TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);
     TNodeJobReport Address(std::optional<TString> address);
+    TNodeJobReport ArchiveFeatures(const NYson::TYsonString& archiveFeatures);
 
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetStartTime(TInstant startTime);

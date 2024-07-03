@@ -148,6 +148,10 @@ public:
         if (archiveVersion >= 48) {
             record.ControllerState = Report_.ControllerState();
         }
+        // COMPAT(omgronny)
+        if (archiveVersion >= 51 && Report_.ArchiveFeatures()) {
+            record.ArchiveFeatures = TYsonString(*Report_.ArchiveFeatures());
+        }
 
         return FromRecord(record);
     }
