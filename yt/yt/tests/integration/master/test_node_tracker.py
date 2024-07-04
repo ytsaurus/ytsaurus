@@ -465,7 +465,7 @@ class TestRackDataCenter(YTEnvSetup):
          "data_center": data_center_set,
     }
 
-    @authors("gritukan")
+    @authors("proller")
     def test_node_rack(self):
         for node in ls("//sys/cluster_nodes"):
             rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))

@@ -1063,32 +1063,32 @@ private:
             KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
             rack = node->GetRack();
         }
-        if (options.Rack.has_value()) {
-            rack = FindRackByName(options.Rack.value());
+        if (options.Rack) {
+            rack = FindRackByName(*options.Rack);
 
             TDataCenter* dataCenter = nullptr;
-            if (options.DataCenter.has_value()) {
+            if (options.DataCenter) {
                 if (IsObjectAlive(rack)) {
-                    if (options.DataCenter.value() != rack->GetDataCenter()->GetName()) {
-                        THROW_ERROR_EXCEPTION("Datacenter %Qv for rack %Qv differs from current datacenter %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
+                    if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
+                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current datacenter %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
                     }
                 }
 
-                dataCenter = FindDataCenterByName(options.DataCenter.value());
+                dataCenter = FindDataCenterByName(*options.DataCenter);
                 if (!IsObjectAlive(dataCenter)) {
-                    CreateDataCenterObject(node, options.DataCenter.value());
-                    dataCenter = FindDataCenterByName(options.DataCenter.value());
+                    CreateDataCenterObject(node, *options.DataCenter);
+                    dataCenter = FindDataCenterByName(*options.DataCenter);
                     if (!dataCenter) {
-                        YT_LOG_FATAL("Cant find created datacenter %Qv", options.DataCenter.value());
+                        YT_LOG_FATAL("Cannot find created data center %Qv", *options.DataCenter);
                     }
                 }
             }
 
             if (!IsObjectAlive(rack)) {
-                CreateRackObject(node, options.Rack.value(), dataCenter);
-                rack = FindRackByName(options.Rack.value());
+                CreateRackObject(node, *options.Rack, dataCenter);
+                rack = FindRackByName(*options.Rack);
                 if (!rack) {
-                    YT_LOG_FATAL("Cant find created rack %Qv", options.Rack.value());
+                    YT_LOG_FATAL("Cannot find created rack %Qv", options.Rack);
                 }
             }
         }
