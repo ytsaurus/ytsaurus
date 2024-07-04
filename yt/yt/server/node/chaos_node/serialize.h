@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
-#include <yt/yt/server/lib/lease_server/serialize.h>
-
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +37,7 @@ static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not mo
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
-    : public NLeaseServer::TSaveContext
+    : public NHydra::TSaveContext
 {
 public:
     TSaveContext(
@@ -52,10 +50,10 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NLeaseServer::TLoadContext
+    : public NHydra::TLoadContext
 {
 public:
-    using NLeaseServer::TLoadContext::TLoadContext;
+    using NHydra::TLoadContext::TLoadContext;
 
     EChaosReign GetVersion() const;
 };

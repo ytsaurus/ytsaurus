@@ -10,8 +10,6 @@
 #include <yt/yt/server/lib/hydra/serialize.h>
 #include <yt/yt/server/lib/hydra/checkpointable_stream.h>
 
-#include <yt/yt/server/lib/lease_server/serialize.h>
-
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
@@ -225,7 +223,7 @@ static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
-    : public NLeaseServer::TSaveContext
+    : public NHydra::TSaveContext
 {
 public:
     TSaveContext(
@@ -250,7 +248,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NLeaseServer::TLoadContext
+    : public NHydra::TLoadContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
