@@ -65,7 +65,9 @@ struct TParameterizedReassignSolverConfig
     double MinRelativeMetricImprovement = 0;
     TString Metric;
 
-    TParameterizedReassignSolverConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
+    TParameterizedReassignSolverConfig MergeWith(
+        const TParameterizedBalancingConfigPtr& groupConfig,
+        std::optional<int> maxMoveActionHardLimit = std::nullopt) const;
 };
 
 struct TParameterizedResharderConfig
