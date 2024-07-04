@@ -249,6 +249,26 @@ public:
         return false;
     }
 
+    i64 GetInFlightReadRequestCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetReadRequestLimit() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
+    i64 GetInFlightWriteRequestCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetWriteRequestLimit() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const IThreadPoolPtr ThreadPool_;
