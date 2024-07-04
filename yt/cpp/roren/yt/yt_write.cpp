@@ -21,7 +21,11 @@ TYtWriteTransform YtSortedWrite(
         column.ResetSortOrder();
     }
 
-    return TYtWriteTransform{path, unsortedSchema, columnsToSort};
+    bool uniqueKeys = schema.UniqueKeys();
+    unsortedSchema.UniqueKeys(false);
+
+    auto transform = TYtWriteTransform{path, unsortedSchema, columnsToSort, uniqueKeys};
+    return transform;
 }
 
 TYtWriteTransform YtSortedWrite(

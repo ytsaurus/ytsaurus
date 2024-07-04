@@ -2758,13 +2758,17 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 spec.AddInput(table->GetPath());
                 materializeIfIntermediateTable(table);
             }
+
+            auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
             Y_ABORT_UNLESS(std::ssize(operation->OutputTables) == 1);
             for (const auto &[_, table] : operation->OutputTables) {
-                spec.Output(table->GetPath());
+                auto path = table->GetPath();
+                rawYtSortedWrite->FillSchema(*path.Schema_);
+
+                spec.Output(std::move(path));
                 materializeIfIntermediateTable(table);
             }
 
-            auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
             spec.SortBy(rawYtSortedWrite->GetColumnsToSort());
             spec.Title(operation->GetFirstName());
             spec.Pool(Config_.GetPool());
