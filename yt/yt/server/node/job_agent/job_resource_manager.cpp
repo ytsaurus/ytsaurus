@@ -1518,11 +1518,12 @@ TResourceOwner::TResourceOwner(
         resourceConsumerType,
         jobResources))
 {
-    ResourceHolder_->ResetOwner(MakeStrong(this));
+    ResourceHolder_->ResetOwner(MakeWeak(this));
 }
 
-void TResourceOwner::ReleaseResources()
+void TResourceOwner::OnResourcesTransferred()
 {
+
     ResourceHolder_->ResetOwner({});
     ResourceHolder_.Reset();
 }
@@ -1806,11 +1807,11 @@ TResourceOwnerPtr TResourceHolder::GetOwner() const noexcept
     return Owner_.Lock();
 }
 
-void TResourceHolder::ResetOwner(const TResourceOwnerPtr& owner)
+void TResourceHolder::ResetOwner(TWeakPtr<TResourceOwner> owner)
 {
     auto guard = ReaderGuard(ResourcesLock_);
 
-    Owner_ = owner;
+    Owner_ = std::move(owner);
 }
 
 void TResourceHolder::PrepareResourcesRelease() noexcept

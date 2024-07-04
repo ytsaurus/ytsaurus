@@ -321,7 +321,7 @@ void TAllocation::Preempt(
 
 bool TAllocation::IsResourceUsageOverdraftOccurred() const
 {
-    return ResourceHolder_->GetResourceUsage().UserMemory > GetRequestedMemory();
+    return GetResourceUsage().UserMemory > GetRequestedMemory();
 }
 
 bool TAllocation::IsEmpty() const noexcept
@@ -498,7 +498,9 @@ void TAllocation::TransferResourcesToJob()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    ResourceHolder_.Reset();
+    YT_VERIFY(Job_);
+
+    OnResourcesTransferred();
 }
 
 void TAllocation::PrepareAllocationFromAttributes(

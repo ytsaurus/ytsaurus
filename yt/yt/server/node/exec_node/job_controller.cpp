@@ -873,6 +873,14 @@ private:
                     resourceHolder->GetId());
             }
         } else {
+            // It is a rare situation. For example:
+            // 1) JP sends OnResourcesUpdated
+            // 2) Concurrenty node aborts job
+            // 3) Allocation evicts job and JP is killed
+            // 4) Node receives OnResourcesUpdated and overdraft occured.
+
+            // It looks dangerous to just ignore this overdraft, so we abort some other job.
+
             YT_LOG_INFO(
                 "Resources overdraft happened for the resource holder with no owner (ResourceHolderId: %v)",
                 resourceHolder->GetId());
