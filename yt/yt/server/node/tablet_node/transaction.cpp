@@ -1,14 +1,11 @@
 #include "transaction.h"
 
-#include "automaton.h"
-#include "sorted_dynamic_store.h"
-#include "tablet.h"
-#include "tablet_manager.h"
-#include "tablet_slot.h"
 #include "hunks_serialization.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
+
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
@@ -118,7 +115,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, AuthenticationIdentity_.UserTag);
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
-    Save(context, PersistentLeaseGuards_);
+    Save(context, PersistentLeaseIds_);
     Save(context, ExternalizerTabletId_);
 }
 
@@ -167,7 +164,7 @@ void TTransaction::Load(TLoadContext& context)
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
-        Load(context, PersistentLeaseGuards_);
+        Load(context, PersistentLeaseIds_);
     }
 
     // COMPAT(kvk1920)

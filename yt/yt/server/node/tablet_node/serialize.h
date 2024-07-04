@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
-#include <yt/yt/server/lib/lease_server/serialize.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +68,7 @@ static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
-    : public NLeaseServer::TSaveContext
+    : public NHydra::TSaveContext
 {
 public:
     TSaveContext(
@@ -83,10 +81,10 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NLeaseServer::TLoadContext
+    : public NHydra::TLoadContext
 {
 public:
-    using NLeaseServer::TLoadContext::TLoadContext;
+    using NHydra::TLoadContext::TLoadContext;
 
     ETabletReign GetVersion() const;
 };
