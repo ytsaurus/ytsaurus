@@ -22,4 +22,5 @@ types:
         column_type: String
 
     verbatim: |
+        static constexpr auto Queue = EGroundUpdateQueue::Sequoia;
         static constexpr auto Table = ESequoiaTable::PathToNodeId;

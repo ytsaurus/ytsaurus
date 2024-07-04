@@ -442,6 +442,12 @@ class TestSequoiaQueues(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
     }
 
+    def _pause_sequoia_queue(self):
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+    def _resume_sequoia_queue(self):
+        remove("//sys/@config/ground_update_queue_manager/queues/sequoia")
+
     @authors("aleksandra-zh")
     def test_link(self):
         create("map_node", "//tmp/m1")
@@ -461,7 +467,7 @@ class TestSequoiaQueues(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_restart(self):
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+        self._pause_sequoia_queue()
 
         create("map_node", "//tmp/m1")
         link("//tmp/m1", "//tmp/m2")
@@ -471,14 +477,14 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+        self._resume_sequoia_queue()
 
         def get_row(path):
             return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
         wait(lambda: len(get_row('//tmp/m2')) == 1)
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+        self._pause_sequoia_queue()
 
         remove("//tmp/m2")
 
@@ -487,7 +493,7 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+        self._resume_sequoia_queue()
 
         wait(lambda: len(get_row('//tmp/m2')) == 0)
 

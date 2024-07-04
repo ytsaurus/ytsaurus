@@ -2,10 +2,11 @@ package NYT.NSequoiaServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFlushQueue
+message TReqFlushGroundUpdateQueue
 {
-    required int64 start_sequence_number = 1;
-    required int64 end_sequence_number = 2;
+    required int32 queue = 1; // EGroundUpdateQueue
+    required int64 start_sequence_number = 2;
+    required int64 end_sequence_number = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

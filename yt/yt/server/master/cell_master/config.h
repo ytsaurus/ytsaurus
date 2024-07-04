@@ -397,6 +397,7 @@ public:
     NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
+    NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
     NIncumbentServer::TIncumbentManagerConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;

@@ -1,7 +1,7 @@
-#ifndef SEQUOIA_QUEUE_MANAGER_INL_H_
-#error "Direct inclusion of this file is not allowed, include transaction.h"
+#ifndef GROUND_UPDATE_QUEUE_MANAGER_INL_H_
+#error "Direct inclusion of this file is not allowed, include ground_update_queue_manager.h"
 // For the sake of sane code completion.
-#include "sequoia_queue_manager.h"
+#include "ground_update_queue_manager.h"
 #endif
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -18,29 +18,31 @@ namespace NYT::NSequoiaServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRecord>
-void ISequoiaQueueManager::EnqueueWrite(const TRecord& record)
+void IGroundUpdateQueueManager::EnqueueWrite(const TRecord& record)
 {
     YT_VERIFY(NHydra::HasMutationContext());
 
     EnqueueRow(
+        TRecord::Queue,
         TRecord::Table,
         NTableClient::TUnversionedOwningRow(NTableClient::FromRecord(
             record,
             New<NTableClient::TRowBuffer>())),
-        ESequoiaRecordAction::Write);
+        EGroundUpdateAction::Write);
 }
 
 template <typename TRecordKey>
-void ISequoiaQueueManager::EnqueueDelete(const TRecordKey& recordKey)
+void IGroundUpdateQueueManager::EnqueueDelete(const TRecordKey& recordKey)
 {
     YT_VERIFY(NHydra::HasMutationContext());
 
     EnqueueRow(
+        TRecordKey::Queue,
         TRecordKey::Table,
         NTableClient::TUnversionedOwningRow(NTableClient::FromRecordKey(
             recordKey,
             New<NTableClient::TRowBuffer>())),
-        ESequoiaRecordAction::Delete);
+        EGroundUpdateAction::Delete);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

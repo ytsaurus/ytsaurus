@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/master/object_server/path_resolver.h>
 
-#include <yt/yt/server/master/sequoia_server/sequoia_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 
@@ -260,18 +260,18 @@ private:
             NYPath::DirNameAndBaseName(originalLinkPath).second,
             originalLinkPath);
 
-        const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
-        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId {
+        const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
+        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId{
             .Key = {.Path = sequoiaLinkPath},
             .NodeId = id.ObjectId,
             .RedirectPath = originalTargetPath,
         };
-        sequoiaQueueManager->EnqueueWrite(pathToNodeIdRecord);
-        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath {
+        queueManager->EnqueueWrite(pathToNodeIdRecord);
+        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath{
             .Key = {.NodeId = id.ObjectId},
             .Path = originalLinkPath,
         };
-        sequoiaQueueManager->EnqueueWrite(nodeIdToPathRecord);
+        queueManager->EnqueueWrite(nodeIdToPathRecord);
 
         YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
             id,
@@ -286,15 +286,15 @@ private:
         if (node->IsTrunk()) {
             const auto& cypressManager = GetBootstrap()->GetCypressManager();
             auto path = cypressManager->GetNodePath(node, {});
-            const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
+            const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
             auto pathToNodeIdRecordKey = NSequoiaClient::NRecords::TPathToNodeIdKey{
                 .Path = MangleSequoiaPath(path),
             };
-            sequoiaQueueManager->EnqueueDelete(pathToNodeIdRecordKey);
+            queueManager->EnqueueDelete(pathToNodeIdRecordKey);
             auto nodeIdToPathRecordKey = NSequoiaClient::NRecords::TNodeIdToPathKey{
                 .NodeId = node->GetId(),
             };
-            sequoiaQueueManager->EnqueueDelete(nodeIdToPathRecordKey);
+            queueManager->EnqueueDelete(nodeIdToPathRecordKey);
         }
         TBase::DoDestroy(node);
     }
