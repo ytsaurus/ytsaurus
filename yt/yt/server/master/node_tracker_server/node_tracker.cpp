@@ -1070,7 +1070,7 @@ private:
             if (options.DataCenter) {
                 if (IsObjectAlive(rack)) {
                     if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
-                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
+                        THROW_ERROR_EXCEPTION("Data center for rack differs from current data center (Rack: %v, Current %v, New: %v)", rack->GetName(), rack->GetDataCenter()->GetName(), *options.DataCenter);
                     }
                 }
 
@@ -1079,7 +1079,7 @@ private:
                     CreateDataCenterObject(node, *options.DataCenter);
                     dataCenter = FindDataCenterByName(*options.DataCenter);
                     if (!dataCenter) {
-                        YT_LOG_FATAL("Cannot find created data center %Qv", *options.DataCenter);
+                        YT_LOG_FATAL("Cannot find created data center (Datacenter: %v)", *options.DataCenter);
                     }
                 }
             }
@@ -1088,7 +1088,7 @@ private:
                 CreateRackObject(node, *options.Rack, dataCenter);
                 rack = FindRackByName(*options.Rack);
                 if (!rack) {
-                    YT_LOG_FATAL("Cannot find created rack %Qv", options.Rack);
+                    YT_LOG_FATAL("Cannot find created rack (Rack: %v)", options.Rack);
                 }
             }
         }
@@ -1217,7 +1217,7 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create data center for a node");
+            YT_LOG_ALERT(ex, "Failed to create data center for a node (Datacenter: %v)", name);
 
             if (IsObjectAlive(node)) {
                 const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1246,7 +1246,7 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create rack for a node");
+            YT_LOG_ALERT(ex, "Failed to create rack for a node (Rack: %v)", name);
 
             if (IsObjectAlive(node)) {
                 const auto& objectManager = Bootstrap_->GetObjectManager();

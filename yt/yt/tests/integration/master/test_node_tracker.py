@@ -482,7 +482,7 @@ class TestRack(YTEnvSetup):
          "rack": rack_set,
     }
 
-    @authors("gritukan")
+    @authors("proller")
     def test_node_rack(self):
         nodes = ls("//sys/cluster_nodes")
         for node in ls("//sys/cluster_nodes"):

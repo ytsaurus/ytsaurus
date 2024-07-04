@@ -583,7 +583,7 @@ private:
             req->set_rack(Bootstrap_->GetConfig()->Rack);
         }
         if (Bootstrap_->GetConfig()->DataCenter) {
-            req->set_data_center(Bootstrap_->GetConfig()->DataCenter);
+            req->set_data_center(*Bootstrap_->GetConfig()->DataCenter);
         }
 
         req->set_chunk_locations_supported(true);
