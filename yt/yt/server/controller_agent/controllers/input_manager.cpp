@@ -222,6 +222,16 @@ void TInputCluster::InitializeClient(IClientPtr localClient)
     }
 }
 
+void TInputCluster::ReportIfHasUnavailableChunks() const
+{
+    if (!UnavailableInputChunkIds_.empty()) {
+        YT_LOG_INFO(
+            "Have pending unavailable input chunks (Cluster: %v, SampleChunkIds: %v)",
+            Name,
+            MakeShrunkFormattableView(UnavailableInputChunkIds_, TDefaultFormatter(), SampleChunkIdCount));
+    }
+}
+
 void TInputCluster::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -1028,10 +1038,13 @@ void TInputManager::OnInputChunkLocated(
     ++ChunkLocatedCallCount_;
     if (ChunkLocatedCallCount_ >= Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest) {
         ChunkLocatedCallCount_ = 0;
-        YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
-            Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest,
-            GetUnavailableInputChunkCount(),
-            MakeUnavailableInputChunksView());
+        YT_LOG_DEBUG(
+            "Located another batch of chunks (Count: %v)",
+            Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest);
+
+        for (const auto& [_, cluster] : Clusters_) {
+            cluster->ReportIfHasUnavailableChunks();
+        }
     }
 
     auto& descriptor = GetOrCrash(InputChunkMap_, chunkId);
@@ -1158,10 +1171,10 @@ void TInputManager::RegisterUnavailableInputChunks(bool reportIfFound)
         }
     }
 
-    if (reportIfFound && GetUnavailableInputChunkCount() > 0) {
-        YT_LOG_INFO("Found unavailable input chunks (UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
-            GetUnavailableInputChunkCount(),
-            MakeUnavailableInputChunksView());
+    if (reportIfFound) {
+        for (const auto& [_, cluster] : Clusters_) {
+            cluster->ReportIfHasUnavailableChunks();
+        }
     }
 
     InitInputChunkScrapers();
@@ -1206,21 +1219,6 @@ void TInputManager::BuildUnavailableInputChunksYson(TFluentAny fluent) const
                 });
         })
         .EndMap();
-}
-
-TFormattableView<THashSet<TChunkId>, TDefaultFormatter> TInputManager::MakeUnavailableInputChunksView() const
-{
-    THashSet<TChunkId> chunkIds;
-    chunkIds.reserve(SampleChunkIdCount);
-    for (const auto& [_, cluster] : Clusters_) {
-        for (const auto& chunkId : cluster->UnavailableInputChunkIds()) {
-            if (chunkIds.size() >= SampleChunkIdCount) {
-                break;
-            }
-            chunkIds.insert(chunkId);
-        }
-    }
-    return MakeShrunkFormattableView(chunkIds, TDefaultFormatter(), SampleChunkIdCount);
 }
 
 int TInputManager::GetUnavailableInputChunkCount() const

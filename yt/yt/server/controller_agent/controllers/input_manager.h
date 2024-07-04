@@ -135,6 +135,8 @@ public:
     void LockTables();
     void ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const;
 
+    void ReportIfHasUnavailableChunks() const;
+
     // NB: Note that this is local client, not <this cluster's client>.
     void InitializeClient(NApi::NNative::IClientPtr localClient);
 
@@ -278,8 +280,6 @@ private:
 
     NScheduler::TClusterName GetClusterName(NChunkClient::TChunkId chunkId) const;
     NScheduler::TClusterName GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const;
-
-    TFormattableView<THashSet<NChunkClient::TChunkId>, TDefaultFormatter> MakeUnavailableInputChunksView() const;
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const;
 };
