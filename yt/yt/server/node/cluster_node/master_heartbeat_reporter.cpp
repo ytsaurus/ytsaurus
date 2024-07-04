@@ -41,7 +41,7 @@ public:
         if (ReportHeartbeatsToAllSecondaryMasters_) {
             MasterCellTags_ = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector()->GetMasterCellTags();
         } else {
-            MasterCellTags_ = {PrimaryMasterCellTagSentinel};
+            MasterCellTags_ = {CellTagFromId(Bootstrap_->GetClusterNodeBootstrap()->GetCellId())};
         }
 
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
