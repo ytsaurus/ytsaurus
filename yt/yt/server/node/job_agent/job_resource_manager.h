@@ -116,7 +116,7 @@ public:
         EResourcesConsumerType resourceConsumerType,
         const NClusterNode::TJobResources& jobResources);
 
-    void ReleaseResources();
+    void OnResourcesTransferred();
 
 protected:
     TResourceHolderPtr ResourceHolder_;
@@ -176,7 +176,7 @@ public:
     const NLogging::TLogger& GetLogger() const noexcept;
 
     TResourceOwnerPtr GetOwner() const noexcept;
-    void ResetOwner(const TResourceOwnerPtr& owner);
+    void ResetOwner(TWeakPtr<TResourceOwner> owner);
 
     void PrepareResourcesRelease() noexcept;
 
