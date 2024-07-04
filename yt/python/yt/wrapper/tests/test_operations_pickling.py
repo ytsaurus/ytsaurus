@@ -215,6 +215,8 @@ if __name__ == "__main__":
         first_script = """\
 from __future__ import print_function
 
+import sys
+
 import yt.wrapper as yt
 
 
@@ -223,10 +225,13 @@ def mapper(rec):
 
 yt.config["proxy"]["url"] = "{0}"
 yt.config["pickling"]["enable_tmpfs_archive"] = False
+yt.config["pickling"]["python_binary"] = sys.executable
 print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         second_script = """\
 from __future__ import print_function
+
+import sys
 
 import yt.wrapper as yt
 
@@ -238,6 +243,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
+    yt.config["pickling"]["python_binary"] = sys.executable
     print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         table = TEST_DIR + "/table"
