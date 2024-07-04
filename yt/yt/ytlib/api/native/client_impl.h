@@ -1227,7 +1227,7 @@ private:
     // Operation info
     //
 
-    int DoGetOperationsArchiveVersion();
+    std::optional<int> TryGetOperationsArchiveVersion();
 
     struct TGetOperationFromCypressResult
     {
@@ -1342,6 +1342,7 @@ private:
 
     // Get statistics for jobs.
     TFuture<TListJobsStatistics> ListJobsStatisticsFromArchiveAsync(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);
@@ -1350,6 +1351,7 @@ private:
     // 1) Filtered finished jobs (with limit).
     // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
     TFuture<std::vector<TJob>> DoListJobsFromArchiveAsync(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);
@@ -1361,6 +1363,7 @@ private:
         const TListJobsOptions& options);
 
     std::optional<TJob> DoGetJobFromArchive(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
