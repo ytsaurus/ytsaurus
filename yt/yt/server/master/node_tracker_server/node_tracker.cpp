@@ -1070,7 +1070,7 @@ private:
             if (options.DataCenter) {
                 if (IsObjectAlive(rack)) {
                     if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
-                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current datacenter %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
+                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv", options.DataCenter.value(), rack->GetName(), rack->GetDataCenter()->GetName());
                     }
                 }
 
@@ -1201,7 +1201,7 @@ private:
         }
     }
 
-    void CreateDataCenterObject(TNode* node, const TString& Name)
+    void CreateDataCenterObject(TNode* node, const TString& name)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1210,7 +1210,7 @@ private:
         req->set_type(static_cast<int>(EObjectType::DataCenter));
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("name", Name);
+        attributes->Set("name", name);
         ToProto(req->mutable_object_attributes(), *attributes);
 
         const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
