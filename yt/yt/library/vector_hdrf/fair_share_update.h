@@ -205,6 +205,9 @@ public:
 
     virtual bool ShouldComputePromisedGuaranteeFairShare() const = 0;
 
+    virtual bool IsPriorityStrongGuaranteeAdjustmentEnabled() const = 0;
+    virtual bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const = 0;
+
 private:
     using TChildSuggestions = std::vector<double>;
 
@@ -217,8 +220,6 @@ private:
 
     void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
-    virtual bool IsPriorityStrongGuaranteeAdjustmentEnabled() const = 0;
-    virtual bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const = 0;
     void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context) override;
     void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
     void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context) override;

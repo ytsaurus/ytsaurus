@@ -4157,15 +4157,30 @@ class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
 
         self._check(pools, [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
 
+        wait(lambda: not get(scheduler_orchid_pool_path("root") + "/priority_strong_guarantee_adjustment_donorship_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("poolA") + "/priority_strong_guarantee_adjustment_enabled"))
+
         set("//sys/pool_trees/default/root/@enable_priority_strong_guarantee_adjustment_donorship", True)
         set("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment", True)
 
+        wait(lambda: get(scheduler_orchid_pool_path("root") + "/priority_strong_guarantee_adjustment_donorship_enabled"))
+        wait(lambda: get(scheduler_orchid_pool_path("poolA") + "/priority_strong_guarantee_adjustment_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("poolB") + "/priority_strong_guarantee_adjustment_enabled"))
+
         self._check(pools, [0.5, 0.25, 0.25])
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("root") + "/strong_guarantee_share_by_tier/regular_pools/cpu"), 1.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("root") + "/strong_guarantee_share_by_tier/priority_pools/cpu"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("poolA") + "/strong_guarantee_share_by_tier/priority_pools/cpu"), 0.5))
 
         self._remove_node(nodes[1])
         wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 10.0))
 
         self._check(pools, [1.0, 0.0, 0.0])
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("root") + "/strong_guarantee_share_by_tier/regular_pools/cpu"), 1.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("root") + "/strong_guarantee_share_by_tier/priority_pools/cpu"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("poolA") + "/strong_guarantee_share_by_tier/priority_pools/cpu"), 1.0))
 
     @authors("eshcherbin")
     def test_two_priority_pools_same_root(self):

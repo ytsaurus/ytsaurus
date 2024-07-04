@@ -3007,6 +3007,8 @@ private:
                 element->GetEffectiveUsePoolSatisfactionForScheduling())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_operations_enabled", element->AreLightweightOperationsEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_lightweight_operations_enabled", element->GetEffectiveLightweightOperationsEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_enabled", element->IsPriorityStrongGuaranteeAdjustmentEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_donorship_enabled", element->IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled())
             .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
     }
 
@@ -3305,6 +3307,7 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share_by_tier", attributes.StrongGuaranteeShareByTier)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_resources", element->GetSpecifiedStrongGuaranteeResources())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_resources", element->GetSpecifiedStrongGuaranteeResources())
