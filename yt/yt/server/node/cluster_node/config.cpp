@@ -431,7 +431,7 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
             config->TcpDispatcher->NetworkBandwidth = config->NetworkBandwidth;
         }
 
-        if (!config->Rack.has_value() && config->DataCenter.has_value()) {
+        if (!config->Rack && config->DataCenter) {
             THROW_ERROR_EXCEPTION("\'data_center\' should be defined with \'rack\'");
         }
     });

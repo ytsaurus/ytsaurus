@@ -1217,7 +1217,7 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create data_center for a node");
+            YT_LOG_ALERT(ex, "Failed to create data center for a node");
 
             if (IsObjectAlive(node)) {
                 const auto& objectManager = Bootstrap_->GetObjectManager();
