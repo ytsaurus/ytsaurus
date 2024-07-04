@@ -18,11 +18,12 @@ type GetEndpointResult struct {
 }
 
 func getEndpointPortByJob(ctx context.Context, job yt.JobStatus, ytc yt.Client) (port int, err error) {
-	path := ypath.Path("//sys/exec_nodes").
-		Child(job.Address).
-		Child("/orchid/exec_node/job_controller/active_jobs/").
-		Child(job.ID.String()).
-		Child("job_ports")
+	path := ypath.Path("//sys/exec_nodes").JoinChild(
+		job.Address,
+		"orchid/exec_node/job_controller/active_jobs",
+		job.ID.String(),
+		"job_ports",
+	)
 
 	var ports []int
 
