@@ -514,13 +514,22 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
         auto maxAvailableStrongGuaranteeShare = Attributes().StrongGuaranteeShare - totalFixedChildrenStrongGuaranteeShare;
         if (!Dominates(maxAvailableStrongGuaranteeShare, currentTierTotalChildrenStrongGuaranteeShare)) {
+            YT_LOG_DEBUG(
+                "Adjusting strong guarantee shares "
+                "(StrongGuaranteeShare: %v, TotalFixedChildrenStrongGuaranteeShare: %v, "
+                "CurrentTierTotalChildrenStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
+                Attributes().StrongGuaranteeShare,
+                totalFixedChildrenStrongGuaranteeShare,
+                currentTierTotalChildrenStrongGuaranteeShare,
+                tier);
+
             // Use binary search instead of division to avoid problems with precision.
             ComputeByFitting(
                 /*getter*/ [&] (double fitFactor, const TElement* child) -> TResourceVector {
                     return child->Attributes().StrongGuaranteeShareByTier[tier] * fitFactor;
                 },
                 /*setter*/ [&] (TElement* child, const TResourceVector& value) {
-                    YT_LOG_DEBUG("Adjusting strong guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
+                    YT_LOG_DEBUG("Adjusting child strong guarantee share (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
                         child->GetId(),
                         child->Attributes().StrongGuaranteeShareByTier[tier],
                         value,
