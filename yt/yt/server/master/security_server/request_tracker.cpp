@@ -172,7 +172,8 @@ void TRequestTracker::ReconfigureUserRequestRateThrottlers(TUser* user)
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-        auto requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);
+        // Conversion to double is needed due to potential division below.
+        std::optional<double> requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);
         // If there're three or more peers, divide user limits by the number of
         // followers (because it's they who handle read requests).
         // If there're two peers, there's only one follower - no division necessary.
