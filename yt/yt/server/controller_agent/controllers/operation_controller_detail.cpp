@@ -8572,7 +8572,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
     if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation &&
         !GetOrDefault(Config->UserJobMonitoring->EnableExtendedMaxMonitoredUserJobsPerOperation, OperationType))
     {
-        // NB(omgronny): It's ok to reach default max monitored jobs, so we don't set alert here.
+        // NB(omgronny): It's OK to reach default max monitored jobs, so we don't set alert here.
         YT_LOG_DEBUG("Limit of monitored user jobs per operation reached "
             "(OperationType: %v, LimitPerOperation: %v)",
             OperationType,
