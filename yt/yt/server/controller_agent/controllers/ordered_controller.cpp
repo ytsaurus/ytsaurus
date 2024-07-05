@@ -637,7 +637,10 @@ private:
                 } else {
                     ValidateOutputSchemaOrdered();
                     if (!Spec_->InputQuery) {
-                        ValidateOutputSchemaCompatibility({.IgnoreSortOrder=false, .ForbidExtraComputedColumns=false});
+                        ValidateOutputSchemaCompatibility({
+                            .IgnoreSortOrder=false,
+                            .ForbidExtraComputedColumns=false,
+                            .IgnoreStableNamesDifference=true});
                     }
                 }
                 break;
@@ -1043,7 +1046,11 @@ private:
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                             *InputManager->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
-                            {.IgnoreSortOrder=false});
+                            {
+                                .IgnoreSortOrder=false,
+                                .IgnoreStableNamesDifference=true
+                            });
+
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {
                             THROW_ERROR_EXCEPTION(error);
                         }

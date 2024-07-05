@@ -257,6 +257,47 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("create_output_schema", [False, True])
+    def test_simple_with_rename_columns(self, optimize_for, create_output_schema):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+                "optimize_for": optimize_for,
+            },
+        )
+        write_table("//tmp/t_in", [{"a": 40}, {"a": 45}])
+
+        if create_output_schema:
+            create(
+                "table",
+                "//tmp/t_out",
+                attributes={
+                    "schema": [{"name": "b", "type": "int64"}],
+                    "optimize_for": optimize_for,
+                },
+            )
+        else:
+            create(
+                "table",
+                "//tmp/t_out",
+                attributes={
+                    "optimize_for": optimize_for,
+                },
+            )
+
+        sort(in_="<rename_columns={a=b}>//tmp/t_in", out="//tmp/t_out", sort_by="b")
+
+        assert read_table("//tmp/t_out") == [{"b": 40}, {"b": 45}]
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") == ["b"]
+
     @authors("psushin")
     def test_megalomaniac_protection(self):
         v1 = {"key": "aaa"}
