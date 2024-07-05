@@ -121,15 +121,15 @@ private:
         void RemoveNode(TNodeId nodeId);
         bool Contains(TNodeId nodeId) const;
         [[nodiscard]] bool Empty() const;
-        ui64 Size() const;
+        i64 Size() const;
 
         //NB: Here we can rely on the fact that allocation sessions cannot overlap and not use any synchronization primitives.
-        TAllocationSession StartAllocationSession(ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
+        TAllocationSession StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
     private:
         //NB: This may change the order of the elements in Values_!
-        TNodeId PickRandomNode(ui32 nodesChecked);
-        void SwapNodes(ui32 firstIndex, ui32 secondIndex);
+        TNodeId PickRandomNode(int nodesChecked);
+        void SwapNodes(int firstIndex, int secondIndex);
 
         std::vector<std::pair<TNodeId, double>> Values_;
         THashMap<TNodeId, i64> NodeToIndex_;
@@ -152,11 +152,11 @@ private:
     private:
         TAllocationSession(
             TNodeToLoadFactorMap* associatedMap,
-            ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
+            int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
         TNodeToLoadFactorMap* AssociatedMap_;
-        ui32 NodesToCheckBeforeFailing_;
-        ui32 NodesChecked_ = 0;
+        int NodesToCheckBeforeFailing_;
+        int NodesChecked_ = 0;
     };
 
 
