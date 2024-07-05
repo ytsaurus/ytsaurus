@@ -1,6 +1,6 @@
 #pragma once
 
-#include "timestamped_schema_utils.h"
+#include "timestamped_schema_helpers.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>

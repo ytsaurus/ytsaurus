@@ -1,4 +1,4 @@
-#include "timestamped_schema_utils.h"
+#include "timestamped_schema_helpers.h"
 
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
