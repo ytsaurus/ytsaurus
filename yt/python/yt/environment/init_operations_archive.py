@@ -234,7 +234,6 @@ INITIAL_TABLE_INFOS = {
             ("controller_features", "any"),
             ("alert_events", "any"),
         ],
-        in_memory=True,
         get_pivot_keys=get_default_pivots,
         default_lock="operations_cleaner",
         attributes={
@@ -257,7 +256,6 @@ INITIAL_TABLE_INFOS = {
             ("acl", "any"),
             ("pool_tree_to_pool", "any"),
         ],
-        in_memory=True,
         default_lock="operations_cleaner",
         attributes={
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
@@ -271,7 +269,6 @@ INITIAL_TABLE_INFOS = {
             ("operation_id_hi", "uint64"),
             ("operation_id_lo", "uint64"),
         ],
-        in_memory=True,
         get_pivot_keys=get_default_pivots,
         attributes={
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
