@@ -794,7 +794,7 @@ SHORTCUTS = {
 
 
 def update_config_from_env(config, config_profile=None):
-    # type: (yt.wrapper.mappings.VerifiedDict) -> yt.wrapper.mappings.VerifiedDict
+    # type: (yt.wrapper.mappings.VerifiedDict, str | None) -> yt.wrapper.mappings.VerifiedDict
     """Patch config from envs and the config file."""
 
     _update_from_env_patch(config)
