@@ -199,12 +199,12 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
     if (token == NYPath::ListBeginToken) {
         return TIndexParseResult{
             .Index = 0,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else if (token == NYPath::ListEndToken) {
         return TIndexParseResult{
             .Index = count,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else if (token.StartsWith(NYPath::ListBeforeToken) || token.StartsWith(NYPath::ListAfterToken)) {
         auto index = parseAbsoluteIndex(NYPath::ExtractListIndex(token));
@@ -214,12 +214,12 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
         }
         return TIndexParseResult{
             .Index = index,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else {
         return TIndexParseResult{
             .Index = parseAbsoluteIndex(token),
-            .IndexType = EListIndexType::Absolute
+            .IndexType = EListIndexType::Absolute,
         };
     }
 }
