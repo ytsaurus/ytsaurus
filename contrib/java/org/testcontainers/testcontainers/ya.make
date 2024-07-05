@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/org/testcontainers/testcontainers/1.19.3
+    contrib/java/org/testcontainers/testcontainers/1.19.8
 )
 
 END()
@@ -24,4 +24,5 @@ RECURSE(
     1.19.1
     1.17.2
     1.19.3
+    1.19.8
 )

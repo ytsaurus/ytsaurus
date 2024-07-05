@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.22.1
+    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.23.1
 )
 
 END()
@@ -32,4 +32,5 @@ RECURSE(
     2.21.1
     2.22.1
     2.22.0
+    2.23.1
 )
