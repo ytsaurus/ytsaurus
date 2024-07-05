@@ -1858,7 +1858,7 @@ class TestChaos(ChaosTestBase):
                 try:
                     return lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts)
                 except YtError as err:
-                    if err.contains_text("No in-sync replicas found for table //tmp/crt"):
+                    if err.is_no_in_sync_replicas():
                         return []
                     raise err
             wait(lambda: _insistent_lookup_rows() == values)
@@ -3929,7 +3929,7 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.contains_text("No in-sync replicas found for table") or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
+                        if err.is_no_in_sync_replicas() or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
                             return False
                         else:
                             raise err
