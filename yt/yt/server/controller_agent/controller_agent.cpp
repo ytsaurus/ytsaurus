@@ -1881,7 +1881,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto allocationEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
+        auto allocationEventsPerOperationIdOrError = WaitFor(BIND([this, this_ = MakeStrong(this), rsp] {
                 struct TOperationAllocationEvents
                 {
                     std::vector<TFinishedAllocationSummary> FinishedAllocations;

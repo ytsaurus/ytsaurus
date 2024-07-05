@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/misc/helpers.h>
+
 #include <util/generic/noncopyable.h>
 
 namespace NYT::NControllerAgent {
@@ -150,7 +152,7 @@ private:
     struct TFinishedJobInfo { };
 
     class TAllocationInfo
-        : NNonCopyable::TMoveOnly
+        : private NNonCopyable::TMoveOnly
     {
     public:
         const TOperationId OperationId;
@@ -188,7 +190,7 @@ private:
         template <class TEventType>
         TEventType ConsumePostponedEventOrCrash();
         template <class TEvent>
-        static TEvent& GetEventOrCrash(TSchedulerToAgentAllocationEvent& event);
+        static TEvent& GetEventOrCrash(TNonNullPtr<TSchedulerToAgentAllocationEvent> event);
 
     private:
         std::optional<TRunningJobInfo> RunningJob_;
@@ -296,6 +298,7 @@ private:
     struct THeartbeatProcessingResult
     {
         THeartbeatCounters Counters;
+        // We pass all context to destroy in heavy thread pool.
         THeartbeatProcessingContext Context;
     };
 
@@ -319,71 +322,71 @@ private:
     THeartbeatProcessingResult DoProcessHeartbeat(
         THeartbeatProcessingContext heartbeatProcessingContext);
     void DoProcessUnconfirmedJobsInHeartbeat(
-        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-        TNodeInfo& nodeInfo,
-        THeartbeatProcessingContext& heartbeatProcessingContext,
-        THeartbeatProcessingResult& heartbeatProcessingResult);
+        TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+        TNonNullPtr<TNodeInfo> nodeInfo,
+        TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+        TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult);
     //! Returns ids of jobs that should not be processed in current heartbeat.
     THashSet<TJobId> DoProcessAbortedAndReleasedJobsInHeartbeat(
-        TNodeInfo& nodeInfo,
-        THeartbeatProcessingContext& heartbeatProcessingContext,
-        THeartbeatProcessingResult& heartbeatProcessingResult);
+        TNonNullPtr<TNodeInfo> nodeInfo,
+        TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+        TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult);
     void DoProcessJobInfosInHeartbeat(
-        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-        TNodeInfo& nodeInfo,
-        THeartbeatProcessingContext& heartbeatProcessingContext,
-        THeartbeatProcessingResult& heartbeatProcessingResult);
+        TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+        TNonNullPtr<TNodeInfo> nodeInfo,
+        TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+        TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult);
     void DoProcessAllocationsInHeartbeat(
-        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-        TNodeInfo& nodeInfo,
-        THeartbeatProcessingContext& heartbeatProcessingContext,
-        THeartbeatProcessingResult& heartbeatProcessingResult);
+        TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+        TNonNullPtr<TNodeInfo> nodeInfo,
+        TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+        TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult);
     TOperationUpdatesProcessingContext& AddOperationUpdatesProcessingContext(
-        THashMap<TOperationId, TOperationUpdatesProcessingContext>& contexts,
-        THeartbeatProcessingContext& heartbeatProcessingContext,
-        THeartbeatProcessingResult& heartbeatProcessingResult,
+        TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> contexts,
+        TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+        TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult,
         TOperationId operationId);
 
     // Returns |true| iff job event was handled (not throttled).
     bool HandleJobInfo(
         TNodeJobs::TAllocationIterator allocationIt,
         EJobStage currentJobStage,
-        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
-        TCtxHeartbeat::TTypedResponse* response,
-        std::unique_ptr<TJobSummary>& jobSummary,
+        TNonNullPtr<TOperationUpdatesProcessingContext> operationUpdatesProcessingContext,
+        TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+        TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters,
+        TNonNullPtr<THeartbeatCounters> heartbeatCounters,
         bool shouldSkipRunningJobEvents = false);
 
     bool HandleRunningJobInfo(
         TNodeJobs::TAllocationIterator allocationIt,
-        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
-        TCtxHeartbeat::TTypedResponse* response,
-        std::unique_ptr<TJobSummary>& jobSummary,
+        TNonNullPtr<TOperationUpdatesProcessingContext> operationUpdatesProcessingContext,
+        TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+        TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters,
+        TNonNullPtr<THeartbeatCounters> heartbeatCounters,
         bool shouldSkipRunningJobEvents);
     bool HandleFinishedJobInfo(
         TNodeJobs::TAllocationIterator allocationIt,
-        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
-        TCtxHeartbeat::TTypedResponse* response,
-        std::unique_ptr<TJobSummary>& jobSummary,
+        TNonNullPtr<TOperationUpdatesProcessingContext> operationUpdatesProcessingContext,
+        TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+        TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters);
+        TNonNullPtr<THeartbeatCounters> heartbeatCounters);
 
     void ProcessInterruptionRequest(
-        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        TNonNullPtr<TJobTracker::TCtxHeartbeat::TTypedResponse> response,
         const TInterruptionRequestOptions& requestOptions,
         TJobId jobId,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters);
+        TNonNullPtr<THeartbeatCounters> heartbeatCounters);
 
     void ProcessGracefulAbortRequest(
-        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        TNonNullPtr<TJobTracker::TCtxHeartbeat::TTypedResponse> response,
         const TGracefulAbortRequestOptions& requestOptions,
         TJobId jobId,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters);
+        TNonNullPtr<THeartbeatCounters> heartbeatCounters);
 
     void DoRegisterOperation(
         TOperationId operationId,

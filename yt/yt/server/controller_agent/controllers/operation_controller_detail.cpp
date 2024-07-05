@@ -5321,9 +5321,9 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
     bool hasJobsToFail = false;
     // NB: job abort will remove allocation from map invalidating iterator.
-    auto AllocationMap_Copy = AllocationMap_;
+    auto allocationMapCopy = AllocationMap_;
 
-    for (const auto& [_, allocation] : AllocationMap_Copy) {
+    for (const auto& [_, allocation] : allocationMapCopy) {
         if (!allocation.Joblet) {
             continue;
         }
@@ -5945,8 +5945,6 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
 
         OnJobStarted(joblet);
     }
-
-
 
     switch (jobSummary->State) {
         case EJobState::Waiting:
@@ -9011,7 +9009,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     std::vector<TJobletPtr> suspiciousJoblets;
     for (const auto& [_, allocation] : AllocationMap_) {
         if (allocation.Joblet && allocation.Joblet->Suspicious) {
-            suspiciousJoblets.emplace_back(allocation.Joblet);
+            suspiciousJoblets.push_back(allocation.Joblet);
         }
     }
 

@@ -60,13 +60,13 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
 {
     if (ControllerAgentConnectorPool_->MasterConnected_) {
         HeartbeatExecutor_->Start();
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
             ControllerAgentDescriptor_.Address,
             ControllerAgentDescriptor_.IncarnationId,
             *GetConfig());
     } else {
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
             ControllerAgentDescriptor_.Address,
             ControllerAgentDescriptor_.IncarnationId,
@@ -482,8 +482,7 @@ void TControllerAgentConnectorPool::Initialize()
 }
 
 void TControllerAgentConnectorPool::Start()
-{
-}
+{ }
 
 void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
 {
