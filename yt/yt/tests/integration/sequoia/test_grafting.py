@@ -7,7 +7,7 @@ from yt_commands import (
 )
 
 from yt_sequoia_helpers import (
-    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground, select_paths_from_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -41,6 +41,8 @@ class TestGrafting(YTEnvSetup):
     def test_create_rootstock(self, rootstock_cell_tag):
         rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get("//tmp/r&/@scion_id")
+
+        assert select_paths_from_ground() == ["//tmp/r/"]
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"
         assert get(f"#{rootstock_id}&/@scion_id") == scion_id

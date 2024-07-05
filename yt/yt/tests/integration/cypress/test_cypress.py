@@ -4850,7 +4850,7 @@ class TestSequoia(TestCypressMulticell):
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 12
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},

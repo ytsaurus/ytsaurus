@@ -4,6 +4,8 @@
 #include "action.h"
 #endif
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NTransactionClient {

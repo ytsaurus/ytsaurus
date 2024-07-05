@@ -43,25 +43,22 @@ void WriteSequoiaNodeRows(
     const TWriteSequoiaNodeRowsOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
-    {
-        auto record = NRecords::TPathToNodeId{
-            .Key = {.Path = path.ToMangledSequoiaPath()},
-            .NodeId = id,
-        };
+    transaction->WriteRow(NRecords::TPathToNodeId{
+        .Key = {.Path = path.ToMangledSequoiaPath()},
+        .NodeId = id,
+    });
 
-        if (options.RedirectPath) {
-            YT_VERIFY(TypeFromId(id) == EObjectType::SequoiaLink);
+    auto record = NRecords::TNodeIdToPath{
+        .Key = {.NodeId = id},
+        .Path = path.ToRawYPath().Underlying(),
+    };
 
-            record.RedirectPath = options.RedirectPath->ToString();
-        }
-
-        transaction->WriteRow(record);
+    if (options.RedirectPath) {
+        YT_VERIFY(TypeFromId(id) == EObjectType::SequoiaLink);
+        record.TargetPath = options.RedirectPath->Underlying();
     }
 
-    transaction->WriteRow(NRecords::TNodeIdToPath{
-        .Key = {.NodeId = id},
-        .Path = path.ToString(),
-    });
+    transaction->WriteRow(record);
 }
 
 void DeleteSequoiaNodeRows(
@@ -118,13 +115,13 @@ void CreateNode(
     NCypressServer::NProto::TReqCreateNode createNodeRequest;
     createNodeRequest.set_type(ToProto<int>(type));
     ToProto(createNodeRequest.mutable_node_id(), id);
-    createNodeRequest.set_path(path.ToString());
+    createNodeRequest.set_path(path.ToRawYPath().Underlying());
     ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);
     transaction->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
 }
 
 TNodeId CopyNode(
-    const NRecords::TPathToNodeId& sourceNode,
+    const NRecords::TNodeIdToPath& sourceNode,
     TAbsoluteYPathBuf destinationNodePath,
     const TCopyOptions& options,
     const ISequoiaTransactionPtr& transaction)
@@ -132,7 +129,7 @@ TNodeId CopyNode(
     // TypeFromId here might break everything for Cypress->Sequoia copy.
     // Add exception somewhere to not crash all the time.
     // TODO(h0pless): Do that.
-    auto sourceNodeId = sourceNode.NodeId;
+    auto sourceNodeId = sourceNode.Key.NodeId;
     auto sourceNodeType = TypeFromId(sourceNodeId);
     YT_VERIFY(
         sourceNodeType != EObjectType::Rootstock &&
@@ -143,7 +140,8 @@ TNodeId CopyNode(
     {
         TWriteSequoiaNodeRowsOptions options;
         if (sourceNodeType == EObjectType::SequoiaLink) {
-            options.RedirectPath = TAbsoluteYPath(sourceNode.RedirectPath);
+            YT_VERIFY(!sourceNode.TargetPath.Empty());
+            options.RedirectPath = TAbsoluteYPath(sourceNode.TargetPath);
         }
         WriteSequoiaNodeRows(destinationNodeId, destinationNodePath, options, transaction);
     }
@@ -151,7 +149,7 @@ TNodeId CopyNode(
     NCypressServer::NProto::TReqCloneNode cloneNodeRequest;
     ToProto(cloneNodeRequest.mutable_src_id(), sourceNodeId);
     ToProto(cloneNodeRequest.mutable_dst_id(), destinationNodeId);
-    cloneNodeRequest.set_dst_path(destinationNodePath.ToString());
+    cloneNodeRequest.set_dst_path(destinationNodePath.ToRawYPath().Underlying());
     ToProto(cloneNodeRequest.mutable_options(), options);
     // TODO(h0pless): Add cypress transaction id here.
 
@@ -213,15 +211,12 @@ void DetachChild(
         MakeTransactionActionData(reqDetachChild));
 }
 
-void LockRowInPathToIdTable(
-    TAbsoluteYPathBuf path,
+void LockRowInNodeIdToPathTable(
+    TNodeId nodeId,
     const ISequoiaTransactionPtr& transaction,
     ELockType lockType)
 {
-    NRecords::TPathToNodeIdKey nodeKey{
-        .Path = path.ToMangledSequoiaPath(),
-    };
-    transaction->LockRow(nodeKey, lockType);
+    transaction->LockRow(NRecords::TNodeIdToPathKey{.NodeId = nodeId}, lockType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

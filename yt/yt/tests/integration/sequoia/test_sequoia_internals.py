@@ -18,13 +18,13 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 import yt.yson as yson
-from yt.common import YtError
 
 import pytest
-import builtins
 
-from time import sleep
+import builtins
 from datetime import datetime, timedelta
+import functools
+from time import sleep
 
 
 ##################################################################
@@ -52,6 +52,18 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 
 
 ##################################################################
+
+
+def with_cypress_dir(test_case):
+    @functools.wraps(test_case)
+    def wrapped(*args, **kwargs):
+        create("map_node", "//cypress")
+        try:
+            test_case(*args, **kwargs)
+        finally:
+            remove("//cypress", recursive=True, force=True)
+
+    return wrapped
 
 
 class TestSequoiaInternals(YTEnvSetup):
@@ -83,6 +95,12 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("h0pless")
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)
+        assert select_paths_from_ground() == [
+            "//tmp/",
+            "//tmp/some_dir/",
+            "//tmp/some_dir/table/",
+        ]
+
         assert get("//tmp") == {"some_dir": {"table": yson.YsonEntity()}}
         write_table("//tmp/some_dir/table", [{"x": "hello"}])
 
@@ -126,7 +144,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
         remove("//tmp/some_node")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //tmp has no child with key \"some_node\""):
             get("//tmp/some_node")
         assert ls("//tmp") == []
 
@@ -183,29 +201,29 @@ class TestSequoiaInternals(YTEnvSetup):
         create("string_node", "//tmp/strings/s2")
 
         COMMON_ROWS = [
-            {'path': '//tmp/'},
-            {'path': '//tmp/other/'},
-            {'path': '//tmp/other/s1/'},
-            {'path': '//tmp/other/s2/'},
+            "//tmp/",
+            "//tmp/other/",
+            "//tmp/other/s1/",
+            "//tmp/other/s2/",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                {'path': '//tmp/strings/'},
-                {'path': '//tmp/strings/s1/'},
-                {'path': '//tmp/strings/s2/'},
+                "//tmp/strings/",
+                "//tmp/strings/s1/",
+                "//tmp/strings/s2/",
             ]
 
             # Let's do it twice for good measure.
             copy("//tmp/strings", "//tmp/other_other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                {'path': '//tmp/other_other/'},
-                {'path': '//tmp/other_other/s1/'},
-                {'path': '//tmp/other_other/s2/'},
-                {'path': '//tmp/strings/'},
-                {'path': '//tmp/strings/s1/'},
-                {'path': '//tmp/strings/s2/'},
+                "//tmp/other_other/",
+                "//tmp/other_other/s1/",
+                "//tmp/other_other/s2/",
+                "//tmp/strings/",
+                "//tmp/strings/s1/",
+                "//tmp/strings/s2/",
             ]
         else:
             move("//tmp/strings", "//tmp/other")
@@ -219,24 +237,24 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            {'path': '//tmp/'},
-            {'path': '//tmp/d/'},
-            {'path': '//tmp/d/s/'},
-            {'path': '//tmp/d/s/t/'},
-            {'path': '//tmp/d/s/t/a/'},
-            {'path': '//tmp/d/s/t/a/b/'},
-            {'path': '//tmp/d/s/t/a/c/'},
-            {'path': '//tmp/d/s/t/d/'},
+            "//tmp/",
+            "//tmp/d/",
+            "//tmp/d/s/",
+            "//tmp/d/s/t/",
+            "//tmp/d/s/t/a/",
+            "//tmp/d/s/t/a/b/",
+            "//tmp/d/s/t/a/c/",
+            "//tmp/d/s/t/d/",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                {'path': '//tmp/src/'},
-                {'path': '//tmp/src/a/'},
-                {'path': '//tmp/src/a/b/'},
-                {'path': '//tmp/src/a/c/'},
-                {'path': '//tmp/src/d/'},
+                "//tmp/src/",
+                "//tmp/src/a/",
+                "//tmp/src/a/b/",
+                "//tmp/src/a/c/",
+                "//tmp/src/d/",
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
@@ -251,12 +269,12 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            {'path': '//tmp/'},
-            {'path': '//tmp/dst/'},
-            {'path': '//tmp/dst/a/'},
-            {'path': '//tmp/dst/a/b/'},
-            {'path': '//tmp/dst/a/c/'},
-            {'path': '//tmp/dst/d/'},
+            "//tmp/",
+            "//tmp/dst/",
+            "//tmp/dst/a/",
+            "//tmp/dst/a/b/",
+            "//tmp/dst/a/c/",
+            "//tmp/dst/d/",
         ]
 
         if not is_excessive:
@@ -265,11 +283,11 @@ class TestSequoiaInternals(YTEnvSetup):
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                {'path': '//tmp/src/'},
-                {'path': '//tmp/src/a/'},
-                {'path': '//tmp/src/a/b/'},
-                {'path': '//tmp/src/a/c/'},
-                {'path': '//tmp/src/d/'},
+                "//tmp/src/",
+                "//tmp/src/a/",
+                "//tmp/src/a/b/",
+                "//tmp/src/a/c/",
+                "//tmp/src/d/",
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
@@ -288,12 +306,12 @@ class TestSequoiaInternals(YTEnvSetup):
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
         assert select_paths_from_ground() == [
-            {'path': '//tmp/'},
-            {'path': '//tmp/dst/'},
-            {'path': '//tmp/dst/a/'},
-            {'path': '//tmp/dst/a/b/'},
-            {'path': '//tmp/dst/a/c/'},
-            {'path': '//tmp/dst/d/'},
+            "//tmp/",
+            "//tmp/dst/",
+            "//tmp/dst/a/",
+            "//tmp/dst/a/b/",
+            "//tmp/dst/a/c/",
+            "//tmp/dst/d/",
         ]
 
     @authors("h0pless")
@@ -311,7 +329,7 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("danilalexeev")
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //tmp has no child with key \"a\""):
             create("map_node", "//tmp/a/b")
 
     @authors("danilalexeev")
@@ -338,7 +356,7 @@ class TestSequoiaInternals(YTEnvSetup):
         assert get("//tmp/d") == 0.5
         set("//tmp/b", False)
         assert not get("//tmp/b")
-        with pytest.raises(YtError, match="List nodes cannot be created inside Sequoia"):
+        with raises_yt_error("List nodes cannot be created inside Sequoia"):
             set("//tmp/l", [])
 
     @authors("danilalexeev")
@@ -355,7 +373,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_set_map_force(self):
         create("map_node", "//tmp/m/m", recursive=True)
         node_id = get("//tmp/m/@id")
-        with raises_yt_error("forbidden"):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
             set("//tmp/m", {"a": 0})
         set("//tmp/m", {"a": 0}, force=True)
         assert ls("//tmp/m") == ["a"]
@@ -380,7 +398,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_escaped_symbols(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unexpected token \"{\" of type Left-brace"):
             create("map_node", "//tmp/special@&*[{symbols")
         path = r"//tmp/special\\\/\@\&\*\[\{symbols"
         create("map_node", path + "/m", recursive=True)
@@ -390,42 +408,44 @@ class TestSequoiaInternals(YTEnvSetup):
         assert get(r"//tmp/m\@1/@id") == child_id
 
     @authors("danilalexeev")
+    @with_cypress_dir
     def test_link_through_sequoia(self):
-        id1 = create("table", "//home/t1", recursive=True)
-        link("//home/t1", "//tmp/l1")
+        id1 = create("table", "//cypress/t1")
+        link("//cypress/t1", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
-        link("//tmp/l2", "//home/l3")
-        wait(lambda: len(self.lookup_path_to_node_id('//home/l3')) == 1)
-        link("//home/l3", "//home/l4")
-        wait(lambda: len(self.lookup_path_to_node_id('//home/l4')) == 1)
+        link("//tmp/l2", "//cypress/l3")
+        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l3')) == 1)
+        link("//cypress/l3", "//cypress/l4")
+        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l4')) == 1)
         assert get("//tmp/l1/@id") == id1
         assert get("//tmp/l2/@id") == id1
-        assert get("//home/l3/@id") == id1
-        assert get("//home/l4/@id") == id1
-        remove("//home", force=True, recursive=True)
+        assert get("//cypress/l3/@id") == id1
+        assert get("//cypress/l4/@id") == id1
 
     @authors("danilalexeev")
+    @with_cypress_dir
     def test_cyclic_link_through_sequoia(self):
-        link("//home/l2", "//tmp/l1", force=True)
-        link("//tmp/l3", "//home/l2", force=True, recursive=True)
-        wait(lambda: len(self.lookup_path_to_node_id('//home/l2')) == 1)
+        link("//cypress/l2", "//tmp/l1", force=True)
+        link("//tmp/l3", "//cypress/l2", force=True, recursive=True)
+        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l2')) == 1)
         with raises_yt_error("Failed to create link: link is cyclic"):
             link("//tmp/l1", "//tmp/l3", force=True)
-        remove("//home", force=True, recursive=True)
+        remove("//cypress", force=True, recursive=True)
 
     @authors("danilalexeev")
+    @with_cypress_dir
     def test_broken_links(self):
         set("//tmp/t1", 1)
-        set("//home/t2", 2, recursive=True)
-        link("//home/t2", "//tmp/l1")
-        link("//tmp/t1", "//home/l2")
+        set("//cypress/t2", 2, recursive=True)
+        link("//cypress/t2", "//tmp/l1")
+        link("//tmp/t1", "//cypress/l2")
         assert not get("//tmp/l1&/@broken")
-        assert not get("//home/l2&/@broken")
+        assert not get("//cypress/l2&/@broken")
         remove("//tmp/t1")
-        remove("//home/t2")
+        remove("//cypress/t2")
         assert get("//tmp/l1&/@broken")
-        assert get("//home/l2&/@broken")
-        remove("//home", force=True, recursive=True)
+        assert get("//cypress/l2&/@broken")
+        remove("//cypress", force=True, recursive=True)
 
     @authors("kvk1920", "gritukan")
     def test_create_map_node(self):

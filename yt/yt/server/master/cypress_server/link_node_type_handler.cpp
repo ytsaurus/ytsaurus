@@ -261,17 +261,15 @@ private:
             originalLinkPath);
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
-        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId{
+        queueManager->EnqueueWrite(NRecords::TPathToNodeId{
             .Key = {.Path = sequoiaLinkPath},
             .NodeId = id.ObjectId,
-            .RedirectPath = originalTargetPath,
-        };
-        queueManager->EnqueueWrite(pathToNodeIdRecord);
-        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath{
+        });
+        queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
             .Key = {.NodeId = id.ObjectId},
             .Path = originalLinkPath,
-        };
-        queueManager->EnqueueWrite(nodeIdToPathRecord);
+            .TargetPath = originalTargetPath,
+        });
 
         YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
             id,
@@ -287,14 +285,12 @@ private:
             const auto& cypressManager = GetBootstrap()->GetCypressManager();
             auto path = cypressManager->GetNodePath(node, {});
             const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
-            auto pathToNodeIdRecordKey = NSequoiaClient::NRecords::TPathToNodeIdKey{
+            queueManager->EnqueueDelete(NRecords::TPathToNodeIdKey{
                 .Path = MangleSequoiaPath(path),
-            };
-            queueManager->EnqueueDelete(pathToNodeIdRecordKey);
-            auto nodeIdToPathRecordKey = NSequoiaClient::NRecords::TNodeIdToPathKey{
+            });
+            queueManager->EnqueueDelete(NRecords::TNodeIdToPathKey{
                 .NodeId = node->GetId(),
-            };
-            queueManager->EnqueueDelete(nodeIdToPathRecordKey);
+            });
         }
         TBase::DoDestroy(node);
     }
