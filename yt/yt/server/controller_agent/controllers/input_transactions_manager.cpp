@@ -184,27 +184,31 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
     }
 
     for (int i = 0; i < std::ssize(OldNonTrivialInputTransactionParents_); ++i) {
-        auto txId = transactionIds.NestedInputIds[i];
+        auto transactionId = transactionIds.NestedInputIds[i];
         auto oldParentId = OldNonTrivialInputTransactionParents_[i];
-        auto& flatTxId = flatTransactionIds[parentToIndex[MakeRichTransactionId(oldParentId)]];
-        auto richTxId = TRichTransactionId { .Id = txId, .ParentId = oldParentId, .Cluster = LocalClusterName };
-        bool firstTimeSeen = flatTxId.Id == NullTransactionId;
+        auto& flatTransactionId = flatTransactionIds[parentToIndex[MakeRichTransactionId(oldParentId)]];
+        auto richTransactionId = TRichTransactionId {
+            .Id = transactionId,
+            .ParentId = oldParentId,
+            .Cluster = LocalClusterName
+        };
+        bool firstTimeSeen = flatTransactionId.Id == NullTransactionId;
         if (firstTimeSeen) {
-            flatTxId = richTxId;
+            flatTransactionId = richTransactionId;
         } else {
-            if (flatTxId != richTxId) {
+            if (flatTransactionId != richTransactionId) {
                 THROW_ERROR_EXCEPTION("Expected transactions with same parent to be equal")
                     << TErrorAttribute("index", i)
-                    << TErrorAttribute("transaction_id_left", flatTxId)
-                    << TErrorAttribute("transaction_id_right", richTxId);
+                    << TErrorAttribute("transaction_id_left", flatTransactionId)
+                    << TErrorAttribute("transaction_id_right", richTransactionId);
             }
         }
     }
 
-    auto inputTxParent = MakeRichTransactionId(UserTransactionId_);
-    if (ParentToTransaction_.contains(inputTxParent)) {
-        YT_VERIFY(flatTransactionIds[parentToIndex[inputTxParent]].Id == NullTransactionId);
-        flatTransactionIds[parentToIndex[inputTxParent]] = TRichTransactionId {
+    auto inputTransactionParent = MakeRichTransactionId(UserTransactionId_);
+    if (ParentToTransaction_.contains(inputTransactionParent)) {
+        YT_VERIFY(flatTransactionIds[parentToIndex[inputTransactionParent]].Id == NullTransactionId);
+        flatTransactionIds[parentToIndex[inputTransactionParent]] = TRichTransactionId {
             .Id = transactionIds.InputId,
             .ParentId = UserTransactionId_,
             .Cluster = LocalClusterName,
@@ -222,7 +226,9 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
         try {
             transactionIds.InputIds = RestoreFromNestedTransactions(transactionIds);
         } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex).Wrap("Failed to restore transactions from old format"));
+            return MakeFuture(
+                TError("Failed to restore transactions from old format")
+                    << ex);
         }
     }
 
@@ -231,8 +237,8 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
     }
 
     std::vector<ITransactionPtr> transactions;
-    for (const auto& [_, txId] : Enumerate(transactionIds.InputIds)) {
-        YT_VERIFY(txId.Id != NullTransactionId);
+    for (const auto& [_, transactionId] : Enumerate(transactionIds.InputIds)) {
+        YT_VERIFY(transactionId.Id != NullTransactionId);
         TTransactionAttachOptions options;
         options.Ping = true;
         options.PingAncestors = false;
@@ -240,17 +246,17 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
 
         ITransactionPtr transaction;
         try {
-            transaction = Clients_[txId.Cluster]->AttachTransaction(txId.Id, options);
+            transaction = Clients_[transactionId.Cluster]->AttachTransaction(transactionId.Id, options);
             auto parent = TRichTransactionId {
-                .Id = txId.ParentId,
+                .Id = transactionId.ParentId,
                 .ParentId = NullTransactionId,
-                .Cluster = txId.Cluster,
+                .Cluster = transactionId.Cluster,
             };
             YT_VERIFY(ParentToTransaction_.contains(parent) && !ParentToTransaction_[parent]);
             ParentToTransaction_[parent] = transaction;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error attaching operation transaction (TransactionId: %v)",
-                txId.Id);
+                transactionId.Id);
         }
         transactions.push_back(transaction);
     }
@@ -270,10 +276,11 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
         } else {
             pingFutures.push_back(
                 transaction->Ping()
-                    .Apply(BIND([txId = transaction->GetId()] (const TError& error) {
+                    .Apply(BIND([transactionId = transaction->GetId()] (const TError& error) {
                         if (!error.IsOK()) {
-                            THROW_ERROR TError("Failed to ping transaction").Wrap(error)
-                                << TErrorAttribute("transaction_id", txId);
+                            THROW_ERROR TError("Failed to ping transaction")
+                                << error
+                                << TErrorAttribute("transaction_id", transactionId);
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -304,8 +311,8 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
 {
     std::vector<TTransactionId> transactionIds;
     for (const auto& parent : OldNonTrivialInputTransactionParents_) {
-        const auto& tx = ParentToTransaction_.at(MakeRichTransactionId(parent));
-        transactionIds.push_back(tx->GetId());
+        const auto& transaction = ParentToTransaction_.at(MakeRichTransactionId(parent));
+        transactionIds.push_back(transaction->GetId());
     }
 
     return transactionIds;
@@ -314,11 +321,11 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
 void TInputTransactionsManager::FillSchedulerTransactionIds(
     TControllerTransactionIds* transactionIds) const
 {
-    for (const auto& [parent, tx] : ParentToTransaction_) {
-        YT_VERIFY(tx);
+    for (const auto& [parent, transaction] : ParentToTransaction_) {
+        YT_VERIFY(transaction);
         transactionIds->InputIds.push_back(
             TRichTransactionId {
-                .Id = tx->GetId(),
+                .Id = transaction->GetId(),
                 .ParentId = parent.Id,
                 .Cluster = parent.Cluster
             });
@@ -392,12 +399,12 @@ TError TInputTransactionsManager::ValidateSchedulerTransactions(
                 << TErrorAttribute("controller_transactions_count", ParentToTransaction_.size());
     }
 
-    for (const auto& [i, txId] : Enumerate(transactionIds.InputIds)) {
-        if (!txId.Id) {
+    for (const auto& [i, transactionId] : Enumerate(transactionIds.InputIds)) {
+        if (!transactionId.Id) {
             return TError(
                 "Found null transaction coming from scheduler, considering all transactions to be lost")
-                << TErrorAttribute("transaction_id", txId.Id)
-                << TErrorAttribute("parent_transaction_id", txId.ParentId)
+                << TErrorAttribute("transaction_id", transactionId.Id)
+                << TErrorAttribute("parent_transaction_id", transactionId.ParentId)
                 << TErrorAttribute("transaction_index", i);
         }
     }
