@@ -2344,7 +2344,7 @@ private:
                     auto checkResult = CheckTableSchemaCompatibility(
                         *chunkSchema,
                         *TableUploadOptions_.TableSchema.Get(),
-                        {.IgnoreSortOrder=false, .IgnoreStableNamesDifference=false});
+                        {.IgnoreSortOrder=false});
                     if (!checkResult.second.IsOK()) {
                         YT_LOG_FATAL(
                             checkResult.second,

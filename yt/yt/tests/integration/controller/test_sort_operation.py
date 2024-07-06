@@ -274,26 +274,18 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         write_table("//tmp/t_in", [{"a": 40}, {"a": 45}])
 
-        if create_output_schema:
-            create(
-                "table",
-                "//tmp/t_out",
-                attributes={
-                    "schema": [{"name": "b", "type": "int64"}],
-                    "optimize_for": optimize_for,
-                },
-            )
-        else:
-            create(
-                "table",
-                "//tmp/t_out",
-                attributes={
-                    "optimize_for": optimize_for,
-                },
-            )
+        # Create //tmp/t_out
+        attributes = {"optimize_for": optimize_for}
 
+        if create_output_schema:
+            attributes["schema"] = [{"name": "b", "type": "int64"}]
+
+        create("table", "//tmp/t_out", attributes=attributes)
+
+        # Sort //tmp/t_in by b into //tmp/t_out
         sort(in_="<rename_columns={a=b}>//tmp/t_in", out="//tmp/t_out", sort_by="b")
 
+        # Check that //tmp/t_out is sorted properly
         assert read_table("//tmp/t_out") == [{"b": 40}, {"b": 45}]
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["b"]
