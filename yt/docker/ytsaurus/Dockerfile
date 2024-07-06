@@ -39,6 +39,8 @@ RUN for package in client yson local native_driver; \
 
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
+RUN rm -rf /tmp/ytsaurus_python
+
 ##########################################################################################
 
 FROM base_ytsaurus_python_packages AS base_exec
