@@ -173,7 +173,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
                 std::move(entry));
             if (!inserted) {
                 // Strictly speaking, this is allowed by protobuf, but not by yson.
-                return TError(EErrorCode::InvalidMap, "Map has equal keys");
+                return TError(EErrorCode::InvalidData, "Map has equal keys");
             }
         }
 
