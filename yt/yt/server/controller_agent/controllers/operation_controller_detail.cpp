@@ -5998,6 +5998,23 @@ EObjectType TOperationControllerBase::GetOutputTableDesiredType() const
     return EObjectType::Table;
 }
 
+void TOperationControllerBase::ValidateOutputDynamicTablesAllowed() const
+{
+    if (Config->EnableBulkInsertForEveryone ||
+        OperationType == EOperationType::RemoteCopy ||
+        Spec_->AllowOutputDynamicTables ||
+        IsBulkInsertAllowedForUser(AuthenticatedUser, OutputClient))
+    {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Dynamic output table detected. Please read the \"Bulk insert\" "
+        "article in the documenation before running the operation. In the "
+        "article you will find a flag to suppress this error and several "
+        "hints about operations with dynamic output tables.");
+}
+
 void TOperationControllerBase::GetOutputTablesSchema()
 {
     YT_LOG_INFO("Getting output tables schema");
@@ -6083,22 +6100,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     << TErrorAttribute("table_path", path);
             }
 
-            // Check if bulk insert is enabled for a certain user.
-            if (!Config->EnableBulkInsertForEveryone && OperationType != EOperationType::RemoteCopy) {
-                TGetNodeOptions options;
-                options.ReadFrom = EMasterChannelKind::Cache;
-                options.Attributes = {"enable_bulk_insert"};
-
-                auto path = "//sys/users/" + ToYPathLiteral(AuthenticatedUser);
-                auto rspOrError = WaitFor(OutputClient->GetNode(path, options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
-                auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
-                const auto& attributes = rsp->Attributes();
-                if (!attributes.Get<bool>("enable_bulk_insert", false)) {
-                    THROW_ERROR_EXCEPTION("Bulk insert is disabled for user %Qv, contact yt-admin@ for enabling",
-                        AuthenticatedUser);
-                }
-            }
+            ValidateOutputDynamicTablesAllowed();
         }
 
         if (path.GetOutputTimestamp()) {

@@ -730,6 +730,7 @@ protected:
     void ValidateInputTablesTypes() const override;
     virtual void ValidateUpdatingTablesTypes() const;
     virtual NObjectClient::EObjectType GetOutputTableDesiredType() const;
+    void ValidateOutputDynamicTablesAllowed() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
