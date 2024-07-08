@@ -354,8 +354,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
 
-constexpr int MaxRowsPerTransactionHardLimit = 1000000000;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper over INodePtr to provide access both to static and dynamic parts of cluster connection config.
