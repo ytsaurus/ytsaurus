@@ -135,7 +135,7 @@ i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
 
 TCombiningSamplesFetcher::TCombiningSamplesFetcher(
     std::vector<TSamplesFetcherPtr> samplesFetchers)
-: SamplesFetchers_(std::move(samplesFetchers))
+    : SamplesFetchers_(std::move(samplesFetchers))
 { }
 
 TFuture<void> TCombiningSamplesFetcher::Fetch() const
@@ -1336,7 +1336,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     const NTableClient::TTableSchemaPtr& sampleSchema,
     NTableClient::TRowBufferPtr rowBuffer,
     i64 sampleCount,
-    i32 maxSampleSize) const
+    int maxSampleSize) const
 {
     std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
     std::vector<TSamplesFetcherPtr> samplesFetchers;
