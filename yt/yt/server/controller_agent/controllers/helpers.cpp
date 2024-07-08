@@ -473,4 +473,21 @@ template void FetchTableSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsBulkInsertAllowedForUser(
+    TStringBuf authenticatedUser,
+    const IClientPtr& client)
+{
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    options.Attributes = {"enable_bulk_insert"};
+
+    auto path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
+    auto rspOrError = WaitFor(client->GetNode(path, options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
+    auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
+    return rsp->Attributes().Get<bool>("enable_bulk_insert", false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

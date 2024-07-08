@@ -764,6 +764,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("lock_output_dynamic_tables", &TThis::LockOutputDynamicTables)
         .Default();
 
+    registrar.Parameter("allow_output_dynamic_tables", &TThis::AllowOutputDynamicTables)
+        .Default();
+
     registrar.Parameter("job_cpu_monitor", &TThis::JobCpuMonitor)
         .DefaultNew();
 

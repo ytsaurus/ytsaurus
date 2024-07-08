@@ -1076,6 +1076,9 @@ public:
     //! on their atomicity.
     std::optional<bool> LockOutputDynamicTables;
 
+    //! Allows writing to dynamic tables for users without explicit permit.
+    bool AllowOutputDynamicTables;
+
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 
     //! If explicitly false, then data from dynamic stores of dynamic tables should not be read.
