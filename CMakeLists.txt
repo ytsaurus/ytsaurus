@@ -13,7 +13,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-
 cmake_minimum_required(VERSION 3.15)
 if (POLICY CMP0132)
   cmake_policy(SET CMP0132 NEW)
@@ -42,7 +41,7 @@ include(cmake/global_vars.cmake)
 include(cmake/archive.cmake)
 include(cmake/bison.cmake)
 include(cmake/common.cmake)
-include(cmake/conan.cmake)
+include(cmake/conan1_deprecated.cmake)
 include(cmake/fbs.cmake)
 include(cmake/llvm-tools.cmake)
 include(cmake/protobuf.cmake)
@@ -58,10 +57,11 @@ else()
     BUILD missing
     REMOTE conancenter
     SETTINGS ${settings}
-      ENV "CONAN_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
-      CONF "tools.cmake.cmaketoolchain:generator=${CMAKE_GENERATOR}"
+    ENV "CONAN_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+    CONF "tools.cmake.cmaketoolchain:generator=${CMAKE_GENERATOR}"
   )
 endif()
+
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
   include(CMakeLists.linux-x86_64.txt)
