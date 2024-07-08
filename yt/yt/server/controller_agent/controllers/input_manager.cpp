@@ -126,7 +126,10 @@ i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
 {
     i64 chunkCount = 0;
     for (const auto& scraper : ChunkScrapers_) {
-        chunkCount += scraper->GetUnavailableChunkCount();
+        // NB(coteeq): Can be null if UnavailableChunkStrategy != EUnavailableChunkAction::Wait.
+        if (scraper) {
+            chunkCount += scraper->GetUnavailableChunkCount();
+        }
     }
     return chunkCount;
 }
