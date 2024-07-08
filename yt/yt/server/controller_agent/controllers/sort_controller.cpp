@@ -3251,9 +3251,9 @@ private:
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
                     ValidateOutputSchemaCompatibility({
-                        .IgnoreSortOrder=true,
-                        .ForbidExtraComputedColumns=false,
-                        .IgnoreStableNamesDifference=true});
+                        .IgnoreSortOrder = true,
+                        .ForbidExtraComputedColumns = false,
+                        .IgnoreStableNamesDifference = true});
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
