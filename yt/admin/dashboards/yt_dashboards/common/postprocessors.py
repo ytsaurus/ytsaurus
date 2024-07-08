@@ -71,7 +71,7 @@ class SortingTagPostprocessor(TagPostprocessorBase):
             return 0
         x = self._key(x)
         y = self._key(y)
-        if type(x) == type(y):
+        if type(x) is type(y):
             return 1 if x > y else -1
         if type(x) is int:
             return -1
