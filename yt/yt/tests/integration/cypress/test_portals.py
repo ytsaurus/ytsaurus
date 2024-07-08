@@ -454,6 +454,22 @@ class TestPortals(YTEnvSetup):
         assert not exists("//tmp/p/t")
         assert exists("//tmp/p/t2")
 
+    @authors("h0pless")
+    def test_cross_cell_copy_banned_for_list_nodes(self):
+        create_account("a")
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        create("map_node", "//tmp/p1/m", attributes={"account": "a"})
+        create("list_node", "//tmp/p1/m/l")
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True)
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")
+
     @authors("babenko")
     @pytest.mark.parametrize("in_tx", [False, True])
     def test_cross_cell_copy(self, in_tx):
@@ -463,15 +479,6 @@ class TestPortals(YTEnvSetup):
 
         create("map_node", "//tmp/p1/m", attributes={"account": "a"})
         create("document", "//tmp/p1/m/d", attributes={"value": {"hello": "world"}})
-        create("list_node", "//tmp/p1/m/l")
-        create("int64_node", "//tmp/p1/m/l/end")
-        set("//tmp/p1/m/l/-1", 123)
-        create("uint64_node", "//tmp/p1/m/l/end")
-        set("//tmp/p1/m/l/-1", 345)
-        create("double_node", "//tmp/p1/m/l/end")
-        set("//tmp/p1/m/l/-1", 3.14)
-        create("string_node", "//tmp/p1/m/l/end")
-        set("//tmp/p1/m/l/-1", "test")
 
         create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 13})
         assert get("//tmp/p1/m/f/@account") == "a"
@@ -537,8 +544,6 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p2/m/@account", tx=tx) == "a"
         assert get("//tmp/p2/m/d/@type", tx=tx) == "document"
         assert get("//tmp/p2/m/d", tx=tx) == {"hello": "world"}
-        assert get("//tmp/p2/m/l/@type", tx=tx) == "list_node"
-        assert get("//tmp/p2/m/l", tx=tx) == [123, 345, 3.14, "test"]
 
         assert get("//tmp/p2/m/f/@type", tx=tx) == "file"
         assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get("//tmp/p1/m/f/@resource_usage")
@@ -1740,3 +1745,6 @@ class TestResolveCache(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         with pytest.raises(YtError):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 12})
+
+
+################################################################################

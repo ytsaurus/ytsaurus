@@ -30,6 +30,8 @@ using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;
 
+static const auto& Logger = CypressServerLogger();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBeginCopyContext::TBeginCopyContext(
@@ -50,36 +52,57 @@ std::vector<TSharedRef> TBeginCopyContext::Finish()
     return Stream_.Finish();
 }
 
-TCellTagList TBeginCopyContext::GetExternalCellTags()
+void TBeginCopyContext::RegisterSchema(TMasterTableSchemaId schemaId)
 {
-    SortUnique(ExternalCellTags_);
-    return TCellTagList(ExternalCellTags_.begin(), ExternalCellTags_.end());
-}
-
-void TBeginCopyContext::RegisterPortalRootId(TNodeId portalRootId)
-{
-    PortalRootIds_.push_back(portalRootId);
-}
-
-void TBeginCopyContext::RegisterOpaqueChildPath(const NYPath::TYPath& opaqueChildPath)
-{
-    OpaqueChildPaths_.push_back(opaqueChildPath);
+    YT_ASSERT(!SchemaId_);
+    SchemaId_ = schemaId;
 }
 
 void TBeginCopyContext::RegisterExternalCellTag(TCellTag cellTag)
 {
-    ExternalCellTags_.push_back(cellTag);
+    YT_ASSERT(!ExternalCellTag_);
+    ExternalCellTag_ = cellTag;
 }
 
-TEntitySerializationKey TBeginCopyContext::RegisterSchema(TMasterTableSchema* schema)
+void TBeginCopyContext::RegisterPortalRoot(TNodeId portalRootId)
 {
-    YT_VERIFY(IsObjectAlive(schema));
-    return SchemaRegistry_.RegisterObject(schema);
+    PortalRootId_ = portalRootId;
 }
 
-const THashMap<TMasterTableSchema*, TEntitySerializationKey>& TBeginCopyContext::GetRegisteredSchemas() const
+void TBeginCopyContext::RegisterAsOpaque(const NYPath::TYPath& path)
 {
-    return SchemaRegistry_.RegisteredObjects();
+    YT_ASSERT(!Path_ && !path.empty());
+    Path_ = path;
+}
+
+void TBeginCopyContext::RegisterChild(TCypressNode* child)
+{
+    Children_.push_back(child);
+}
+
+std::optional<NTableServer::TMasterTableSchemaId> TBeginCopyContext::GetSchemaId() const
+{
+    return SchemaId_;
+}
+
+std::optional<NObjectClient::TCellTag> TBeginCopyContext::GetExternalCellTag() const
+{
+    return ExternalCellTag_;
+}
+
+std::optional<NCypressClient::TNodeId> TBeginCopyContext::GetPortalRootId() const
+{
+    return PortalRootId_;
+}
+
+std::optional<NYPath::TYPath> TBeginCopyContext::GetPathIfOpaque() const
+{
+    return Path_;
+}
+
+const std::vector<TCypressNode*>& TBeginCopyContext::GetChildren() const
+{
+    return Children_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,10 +110,12 @@ const THashMap<TMasterTableSchema*, TEntitySerializationKey>& TBeginCopyContext:
 TEndCopyContext::TEndCopyContext(
     TBootstrap* bootstrap,
     ENodeCloneMode mode,
-    TRef data)
+    TRef data,
+    const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& schemaIdToSchema)
     : TEntityStreamLoadContext(&Stream_)
     , Mode_(mode)
     , Bootstrap_(bootstrap)
+    , SchemaIdToSchema_(schemaIdToSchema)
     , Stream_(data.Begin(), data.Size())
 { }
 
@@ -131,24 +156,24 @@ const TSecurityTagsRegistryPtr& TEndCopyContext::GetInternRegistry() const
     return securityManager->GetSecurityTagsRegistry();
 }
 
-void TEndCopyContext::RegisterSchema(TEntitySerializationKey key, TMasterTableSchema* schema)
+TMasterTableSchema* TEndCopyContext::GetSchema(TMasterTableSchemaId schemaId) const
 {
-    SchemaRegistry_.RegisterObject(key, schema);
+    return GetOrCrash(SchemaIdToSchema_, schemaId);
 }
 
-TMasterTableSchema* TEndCopyContext::GetSchemaOrThrow(TEntitySerializationKey key)
+void TEndCopyContext::RegisterChild(TString key, TNodeId childId)
 {
-    return SchemaRegistry_.GetObjectOrThrow(key);
+    Children_.push_back(std::pair(key, childId));
 }
 
-bool TEndCopyContext::IsOpaqueChild() const
+bool TEndCopyContext::HasChildren() const
 {
-    return OpaqueChild_;
+    return !Children_.empty();
 }
 
-void TEndCopyContext::SetOpaqueChild(bool opaqueChild)
+std::vector<std::pair<TString, TNodeId>> TEndCopyContext::GetChildren() const
 {
-    OpaqueChild_ = opaqueChild;
+    return Children_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
