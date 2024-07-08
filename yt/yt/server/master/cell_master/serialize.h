@@ -216,7 +216,8 @@ DEFINE_ENUM(EMasterReign,
     ((InheritChunkMergerModeWhenCopy)                               (2622))  // cherepashka
     ((ForbiddenCompressionCodecsOptionRefactoring)                  (2623))  // abogutskiy
     ((MultipleTableUpdateQueues)                                    (2624))  // babenko
-    ((RackDataCenter)                                               (2625))  // proller
+    ((RefactorCrossCellCopyInPreparationForSequoia)                 (2625))  // h0pless
+    ((RackDataCenter)                                               (2626))  // proller
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

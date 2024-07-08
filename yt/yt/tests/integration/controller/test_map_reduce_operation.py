@@ -4162,7 +4162,10 @@ fi
         assert tasks[2]["task_name"] == "sorted_reduce"
         assert tasks[2]["received_output_digest_count"] == 0
 
-        assert sorted(ls(op.get_path() + "/@alerts")) == ["job_is_not_deterministic", "lost_intermediate_chunks"]
+        alerts = ls(op.get_path() + "/@alerts")
+        # NB: There may be another alert: "invalidated_job_found"
+        assert "job_is_not_deterministic" in alerts
+        assert "lost_intermediate_chunks" in alerts
 
         assert get(op.get_path() + "/@progress/partition_map/total") == 1
         assert get(op.get_path() + "/@progress/partition_map/lost") == 1

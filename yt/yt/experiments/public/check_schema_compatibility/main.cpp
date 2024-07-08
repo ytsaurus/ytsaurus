@@ -39,7 +39,7 @@ int main(int argc, const char** argv)
     auto oldSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(oldSchemaText));
     auto newSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(newSchemaText));
 
-    const auto& [result, error] = CheckTableSchemaCompatibility(*oldSchema, *newSchema, {.IgnoreSortOrder=false});
+    const auto& [result, error] = CheckTableSchemaCompatibility(*oldSchema, *newSchema, {.IgnoreSortOrder = false});
     Cout << ToString(result) << Endl;
     if (!error.IsOK()) {
         Cout << ToString(error) << Endl;

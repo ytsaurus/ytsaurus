@@ -663,12 +663,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     const auto* resolvedSource = std::get_if<TSequoiaResolveResult>(&sourceResolveResult);
     if (!resolvedSource) {
+        // Initiate cross-cell copy here.
         // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
         THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet",
             originalSourcePath);
     }
 
     // TODO(h0pless): This might not be the best solution in a long run, but it'll work for now.
+    // Clarification: we need to convert scion into sequioa map node, currently we can't do that.
     if (TypeFromId(resolvedSource->Id) == EObjectType::Scion) {
         THROW_ERROR_EXCEPTION("Scion cannot be cloned");
     }

@@ -7,6 +7,8 @@
 #include <yt/cpp/roren/interface/execution_context.h>
 #include <yt/cpp/roren/interface/roren.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <util/generic/iterator_range.h>
 #include <util/generic/overloaded.h>
 
@@ -137,35 +139,18 @@ public:
 
     TString GetDebugDescription() const override
     {
-        std::map<TString, int> Names_;
+        NYT::TStringBuilder builder;
+        builder.AppendString("TParDoTree=[\n");
         for (const auto& node : ParDoNodes_) {
-            if (const TString* name = NPrivate::GetAttribute(*node.ParDo, TransformNameTag)) {
-                Names_[*name] += 1;
-            } else {
-                Names_[{}] += 1;
-            }
+            const auto name = NPrivate::GetAttributeOrDefault(*node.ParDo, TransformNameTag, TString{"<unknown>"});
+            builder.AppendFormat(
+                "    {name=%Qv; input=%v; outputs=%v};\n",
+                name,
+                node.Input,
+                NYT::NYson::ConvertToYsonString(node.Outputs, NYT::NYson::EYsonFormat::Text));
         }
-
-        TStringStream out;
-        bool first = true;
-        out << "TParDoTree{";
-        for (const auto& [name, count] : Names_) {
-            if (first) {
-                first = false;
-            } else {
-                out << ", ";
-            }
-            if (name.empty()) {
-                out << "<unknown>";
-            } else {
-                out << name;
-            }
-            if (count != 1) {
-                out << " * " << count;
-            }
-        }
-        out << "}";
-        return out.Str();
+        builder.AppendString("]\n");
+        return builder.Flush();
     }
 
     void PrintDebugDescription() const

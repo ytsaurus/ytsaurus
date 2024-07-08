@@ -132,6 +132,154 @@ bool CheckItemReadPermissions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::TBeginCopySubtreeSession(
+    NTransactionServer::TTransaction* transaction,
+    ENodeCloneMode mode,
+    TCypressNode* rootNode,
+    const ICypressManagerPtr& cypressManager)
+    : Transaction_(transaction)
+    , Mode_(mode)
+    , SubtreeRootNode_(rootNode)
+    , CypressManager_(cypressManager)
+{
+    NodesToCopy_.push(rootNode);
+}
+
+void TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::Run()
+{
+    while (!NodesToCopy_.empty()) {
+        auto* node = NodesToCopy_.front();
+        NodesToCopy_.pop();
+
+        TBeginCopyContext nodeLocalContext(Transaction_, Mode_, SubtreeRootNode_);
+        const auto& handler = CypressManager_->GetHandler(node->GetTrunkNode());
+        handler->BeginCopy(node, &nodeLocalContext);
+        FinishNodeCopy(nodeLocalContext, node);
+    }
+}
+
+std::vector<NTableServer::TMasterTableSchemaId> TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::GetSchemaIds()
+{
+    SortUnique(SchemaIds_);
+    return SchemaIds_;
+}
+
+TCellTagList TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::GetExternalCellTags()
+{
+    SortUnique(ExternalCellTags_);
+    return TCellTagList(ExternalCellTags_.begin(), ExternalCellTags_.end());
+}
+
+const std::vector<std::pair<TCypressNode*, TSharedRef>>& TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::Finish()
+{
+    return NodeToData_;
+}
+
+void TNontemplateCypressNodeProxyBase::TBeginCopySubtreeSession::FinishNodeCopy(TBeginCopyContext& nodeLocalContext, TCypressNode* node)
+{
+    auto resultingData = nodeLocalContext.Finish();
+    auto mergedData = resultingData.size() == 1
+        ? resultingData[0]
+        : MergeRefsToRef<TDefaultBlobTag>(resultingData);
+
+    NodeToData_.emplace_back(node, mergedData);
+
+    if (auto schemaId = nodeLocalContext.GetSchemaId()) {
+        SchemaIds_.push_back(*schemaId);
+    }
+
+    if (auto cellTag = nodeLocalContext.GetExternalCellTag()) {
+        ExternalCellTags_.push_back(*cellTag);
+    }
+
+    if (auto portalRootId = nodeLocalContext.GetPortalRootId()) {
+        PortalRootIds_.push_back(*portalRootId);
+    }
+
+    if (auto path = nodeLocalContext.GetPathIfOpaque()) {
+        OpaqueChildPaths_.push_back(*path);
+    }
+
+    for (auto* child : nodeLocalContext.GetChildren()) {
+        NodesToCopy_.push(child);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::TEndCopySubtreeSession(
+    NCellMaster::TBootstrap* bootstrap,
+    TTransaction* transaction,
+    ENodeCloneMode mode,
+    NHydra::TReign version,
+    std::vector<std::pair<TNodeId, TRef>> nodeIdToData,
+    THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*> schemaIdToSchema)
+    : Mode_(mode)
+    , Bootstrap_(bootstrap)
+    , Transaction_(transaction)
+    , Version_(version)
+    , NodeIdToData_(std::move(nodeIdToData))
+    , SchemaIdToSchema_(std::move(schemaIdToSchema))
+{ }
+
+TCypressNode* TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::Run(
+    ICypressNodeFactory* factory,
+    TCypressNode* existingNode,
+    IAttributeDictionary* inheritedAttributes)
+{
+    auto rootNodeId = NodeIdToData_[0].first;
+
+    for (const auto& [nodeId, data] : NodeIdToData_) {
+        TEndCopyContext nodeLocalContext(Bootstrap_, Mode_, data, SchemaIdToSchema_);
+
+        TCypressNode* clonedNode;
+        if (rootNodeId == nodeId) {
+            SubtreeRootNode_ = existingNode
+                ? factory->EndCopyNodeInplace(existingNode, inheritedAttributes, &nodeLocalContext)
+                : factory->EndCopyNode(inheritedAttributes, &nodeLocalContext);
+            clonedNode = SubtreeRootNode_;
+        } else {
+            clonedNode = factory->EndCopyNode(inheritedAttributes, &nodeLocalContext);
+        }
+
+        FinishNodeCopy(nodeLocalContext, clonedNode->GetTrunkNode(), nodeId);
+    }
+
+    AssembleTree();
+    return SubtreeRootNode_;
+}
+
+void TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::FinishNodeCopy(
+    TEndCopyContext& nodeLocalContext,
+    TCypressNode* clonedNode,
+    TNodeId oldNodeId)
+{
+    OldIdToNode_[oldNodeId] = clonedNode;
+
+    if (!nodeLocalContext.HasChildren()) {
+        return;
+    }
+
+    EmplaceOrCrash(NodeToChildren_, clonedNode, nodeLocalContext.GetChildren());
+}
+
+void TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::AssembleTree()
+{
+    for (auto& [node, children] : NodeToChildren_) {
+        auto* trunkParentNode = node->GetTrunkNode()->As<TCypressMapNode>();
+        auto& attachedChildren = trunkParentNode->MutableChildren();
+
+        for (const auto& [key, id] : children) {
+            auto* childNode = GetOrCrash(OldIdToNode_, id);
+            AttachChild(trunkParentNode->GetTrunkNode(), childNode);
+            attachedChildren.Insert(key, childNode->GetTrunkNode());
+            ++trunkParentNode->ChildCountDelta();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::TCustomAttributeDictionary(
     TNontemplateCypressNodeProxyBase* proxy)
     : Proxy_(proxy)
@@ -1773,56 +1921,41 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     context->SetRequestInfo("Mode: %v",
         mode);
 
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    const auto& handler = cypressManager->GetHandler(TrunkNode_);
-
     auto* node = GetThisImpl();
 
     ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::FullRead);
 
-    TBeginCopyContext copyContext(
+    TBeginCopySubtreeSession copySession(
         Transaction_,
         mode,
-        node);
-    handler->BeginCopy(node, &copyContext);
+        node,
+        Bootstrap_->GetCypressManager());
+    copySession.Run();
 
-    const auto& schemaMap = copyContext.GetRegisteredSchemas();
-    std::vector<std::pair<TMasterTableSchema*, TEntitySerializationKey>> schemas{
-        schemaMap.begin(),
-        schemaMap.end()
-    };
+    response->set_version(GetCurrentReign());
+    const auto& nodeToData = copySession.Finish();
+    for (const auto& [node, data] : nodeToData) {
+        auto* currentSerializedNode = response->add_serialized_nodes();
+        ToProto(currentSerializedNode->mutable_node_id(), node->GetId());
 
-    SortBy(schemas, [] (const auto& pair) {
-        return pair.first->GetId();
-    });
+        currentSerializedNode->set_data(data.begin(), data.size());
 
-    for (auto [schema, key] : schemas) {
-        auto* entry = response->add_schemas();
-        entry->set_key(key.Underlying());
-        ToProto(entry->mutable_schema(), *schema->AsTableSchema());
+        if (node->IsExternal()) {
+            auto cellTag = static_cast<ui16>(node->GetExternalCellTag());
+            currentSerializedNode->set_external_cell_tag(cellTag);
+        }
     }
 
-    ToProto(response->mutable_portal_child_ids(), copyContext.PortalRootIds());
-    ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
+    ToProto(response->mutable_schema_ids(), copySession.GetSchemaIds());
+    ToProto(response->mutable_portal_child_ids(), copySession.PortalRootIds());
+    ToProto(response->mutable_external_cell_tags(), copySession.GetExternalCellTags());
+    ToProto(response->mutable_opaque_child_paths(), copySession.OpaqueChildPaths());
 
-    auto uncompressedData = copyContext.Finish();
-    auto codecId = GetDynamicCypressManagerConfig()->TreeSerializationCodec;
-    auto* codec = NCompression::GetCodec(codecId);
-    auto compressedData = codec->Compress(uncompressedData);
+    context->SetResponseInfo("NodeCount: %v, SchemaIdCount: %v, ExternalCellTagsCount: %v",
+        response->serialized_nodes_size(),
+        response->schema_ids_size(),
+        response->external_cell_tags_size());
 
-    auto* serializedTree = response->mutable_serialized_tree();
-    serializedTree->set_version(copyContext.GetVersion());
-    serializedTree->set_data(compressedData.begin(), compressedData.size());
-    serializedTree->set_codec_id(static_cast<int>(codecId));
-
-    ToProto(response->mutable_node_id(), GetId());
-    ToProto(response->mutable_opaque_child_paths(), copyContext.OpaqueChildPaths());
-
-    context->SetResponseInfo("Codec: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ExternalCellTags: %v",
-        codecId,
-        GetByteSize(uncompressedData),
-        compressedData.Size(),
-        response->external_cell_tags());
     context->Reply();
 }
 
@@ -1831,59 +1964,72 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
     DeclareMutating();
     ValidateTransaction();
 
-    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
-    bool inplace = request->inplace();
-    const auto& serializedTree = request->serialized_tree();
-    const auto& compressedData = serializedTree.data();
-    auto codecId = CheckedEnumCast<NCompression::ECodec>(serializedTree.codec_id());
-
-    if (serializedTree.version() != NCellMaster::GetCurrentReign()) {
+    auto version = request->version();
+    if (version != NCellMaster::GetCurrentReign()) {
         THROW_ERROR_EXCEPTION("Invalid tree format version: expected %v, actual %v",
             NCellMaster::GetCurrentReign(),
-            serializedTree.version());
+            version);
     }
 
-    context->SetIncrementalRequestInfo("Codec: %v, CompressedDataSize: %v, Mode: %v, Inplace: %v",
-        codecId,
-        compressedData.size(),
+    const auto& serializedNodes = request->serialized_nodes();
+    auto dataSize = std::accumulate(
+        serializedNodes.begin(),
+        serializedNodes.end(),
+        i64(0),
+        [] (i64 size, const NCypressClient::NProto::TSerializedNode& value) {
+            return size + std::ssize(value.data());
+        });
+
+    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+    bool inplace = request->inplace();
+    context->SetIncrementalRequestInfo("DataSize: %v, Mode: %v, Inplace: %v",
+        dataSize,
         mode,
         inplace);
 
-    auto* codec = NCompression::GetCodec(codecId);
-    auto uncompressedData = codec->Decompress(TSharedRef::FromString(compressedData));
-
-    TEndCopyContext copyContext(
-        Bootstrap_,
-        mode,
-        uncompressedData);
-    copyContext.SetVersion(serializedTree.version());
+    std::vector<std::pair<TNodeId, TRef>> nodeIdToData(serializedNodes.size());
+    std::transform(
+        serializedNodes.begin(),
+        serializedNodes.end(),
+        nodeIdToData.begin(),
+        [] (const auto& serializedNode) {
+            auto nodeId = FromProto<TNodeId>(serializedNode.node_id());
+            return std::pair(nodeId, TRef::FromString(serializedNode.data()));
+        });
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    for (const auto& registeredSchema : request->schemas()) {
-        auto key = TEntitySerializationKey(registeredSchema.key());
-        auto tableSchema = FromProto<TTableSchema>(registeredSchema.schema());
+    THashMap<TMasterTableSchemaId, TMasterTableSchema*> schemaIdToSchemaMapping(request->schema_id_to_schema_size());
+    for (const auto& schemaIdToSchema : request->schema_id_to_schema()) {
+        auto schemaId = FromProto<TMasterTableSchemaId>(schemaIdToSchema.schema_id());
+        auto tableSchema = FromProto<TTableSchema>(schemaIdToSchema.schema());
         auto* schema = tableManager->GetOrCreateNativeMasterTableSchema(tableSchema, Transaction_);
-        copyContext.RegisterSchema(key, schema);
+        EmplaceOrCrash(schemaIdToSchemaMapping, schemaId, schema);
     }
 
-    TNodeId clonedTrunkNodeId;
+    TEndCopySubtreeSession copySession(
+        Bootstrap_,
+        Transaction_,
+        mode,
+        version,
+        std::move(nodeIdToData),
+        std::move(schemaIdToSchemaMapping));
+
+    TNodeId clonedNodeId;
     CopyCore(
         context,
         inplace,
         [&] (ICypressNodeFactory* factory, IAttributeDictionary* inheritedAttributes) {
-            auto* clonedNode = inplace
-                ? factory->EndCopyNodeInplace(TrunkNode_, inheritedAttributes, &copyContext)
-                : factory->EndCopyNode(inheritedAttributes, &copyContext);
-            auto* clonedTrunkNode = clonedNode->GetTrunkNode();
-            clonedTrunkNodeId = clonedTrunkNode->GetId();
+            auto* existingNode = inplace ? TrunkNode_ : nullptr;
+            auto* clonedNode = copySession.Run(factory, existingNode, inheritedAttributes);
+            clonedNodeId = clonedNode->GetId();
             return clonedNode;
         });
 
-    auto clonedNodeType = TypeFromId(clonedTrunkNodeId);
+    auto clonedNodeType = TypeFromId(clonedNodeId);
     YT_LOG_ACCESS_IF(
         IsAccessLoggedType(clonedNodeType),
         context,
-        clonedTrunkNodeId,
+        clonedNodeId,
         GetPath(),
         Transaction_);
 

@@ -221,15 +221,16 @@ struct TMasterTableSchemaRefSerializer
     {
         YT_VERIFY(object);
 
-        auto serializationKey = context.RegisterSchema(object);
-        NYT::Save(context, serializationKey);
+        auto id = object->GetId();
+        context.RegisterSchema(id);
+        NYT::Save(context, id);
     }
 
     template <class T>
     static void Load(NCypressServer::TEndCopyContext& context, T& object)
     {
-        auto serializationKey = NYT::Load<TEntitySerializationKey>(context);
-        object = context.GetSchemaOrThrow(serializationKey);
+        auto schemaId = NYT::Load<NTableServer::TMasterTableSchemaId>(context);
+        object = context.GetSchema(schemaId);
     }
 };
 

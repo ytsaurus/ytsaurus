@@ -582,7 +582,7 @@ protected:
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema.Get(),
-                        {.IgnoreSortOrder=false}).first == ESchemaCompatibility::FullyCompatible;
+                        {.IgnoreSortOrder = false}).first == ESchemaCompatibility::FullyCompatible;
 
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
@@ -899,9 +899,9 @@ public:
                 } else {
                     prepareOutputSortColumns();
                     ValidateOutputSchemaCompatibility({
-                        .IgnoreSortOrder=true,
-                        .ForbidExtraComputedColumns=false,
-                        .IgnoreStableNamesDifference=true});
+                        .IgnoreSortOrder = true,
+                        .ForbidExtraComputedColumns = false,
+                        .IgnoreStableNamesDifference = true});
                 }
                 break;
 

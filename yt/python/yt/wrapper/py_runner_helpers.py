@@ -280,7 +280,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     def process_frozen_dict(rows):
         for row in rows:
-            if type(row) == FrozenDict:
+            if type(row) is FrozenDict:
                 yield row.as_dict()
             else:
                 yield row

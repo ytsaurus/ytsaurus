@@ -355,6 +355,8 @@ private:
             // User authentication is done on proxy only. We do not need to send the token to the clique.
             // Instead, we send the authenticated username via "X-Clickhouse-User" header.
             ProxiedRequestHeaders_->Remove("Authorization");
+            ProxiedRequestHeaders_->Remove("X-Clickhouse-Key");
+
             ProxiedRequestHeaders_->Set("X-Clickhouse-User", User_);
             // In rare cases the request can be sent to an instance from another clique.
             // Setting 'expected clique id' helps to detect these situations and reject the request.
@@ -512,10 +514,18 @@ private:
     {
         try {
             const auto* authorization = Request_->GetHeaders()->Find("Authorization");
+            const auto* xClickHouseKey = Request_->GetHeaders()->Find("X-ClickHouse-Key");
+
             if (authorization && !authorization->empty()) {
                 if (!ParseTokenFromAuthorizationHeader(*authorization)) {
                     return false;
                 }
+                if (!Token_.empty()) {
+                    AllowGetRequests_ = true;
+                }
+            } else if (xClickHouseKey && !xClickHouseKey->empty()) {
+                // store header value as-is
+                Token_ = *xClickHouseKey;
                 if (!Token_.empty()) {
                     AllowGetRequests_ = true;
                 }
@@ -559,8 +569,13 @@ private:
     {
         if (Config_->IgnoreMissingCredentials) {
             if (User_.empty()) {
-                YT_LOG_DEBUG("Authentication is disabled and user was not specified; assuming root");
-                User_ = "root";
+                if (!Token_.empty()) {
+                    YT_LOG_DEBUG("Authentication is disabled and user is specified via token's value");
+                    User_ = Token_;
+                } else {
+                    YT_LOG_DEBUG("Authentication is disabled and user was not specified; assuming root");
+                    User_ = "root";
+                }
             } else {
                 YT_LOG_DEBUG("Authentication is disabled and user is specified via X-Yt-User header (User: %v)", User_);
             }
