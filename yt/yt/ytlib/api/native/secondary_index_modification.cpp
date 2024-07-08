@@ -145,7 +145,7 @@ TFuture<void> TSecondaryIndexModifier::LookupRows(ITransaction* transaction)
         NameTable_,
         MakeSharedRange(std::move(lookupKeys), RowBuffer_),
         options)
-        .Apply(BIND([&] (TUnversionedLookupRowsResult result) {
+        .Apply(BIND([&] (const TUnversionedLookupRowsResult& result) {
             SetInitialAndResultingRows(result.Rowset->GetRows());
         }));
 }
