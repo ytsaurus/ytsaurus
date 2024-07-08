@@ -60,6 +60,7 @@ bool IsTableMovable(TTableId tableId);
 struct TParameterizedReassignSolverConfig
 {
     int MaxMoveActionCount = 0;
+    int BoundedPriorityQueueSize = 0;
     double NodeDeviationThreshold = 0;
     double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;

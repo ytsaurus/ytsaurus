@@ -15,6 +15,9 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)
         .Default()
         .GreaterThanOrEqual(0);
+    registrar.Parameter("bounded_priority_queue_size", &TThis::BoundedPriorityQueueSize)
+        .Default(10000)
+        .GreaterThan(0);
     registrar.Parameter("node_deviation_threshold", &TThis::NodeDeviationThreshold)
         .Default()
         .GreaterThanOrEqual(0);

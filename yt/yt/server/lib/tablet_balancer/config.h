@@ -21,6 +21,7 @@ public:
     TString Metric;
     std::optional<bool> EnableReshard;
     std::optional<int> MaxActionCount;
+    std::optional<int> BoundedPriorityQueueSize;
     std::optional<double> NodeDeviationThreshold;
     std::optional<double> CellDeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;
