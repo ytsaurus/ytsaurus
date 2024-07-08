@@ -1099,7 +1099,7 @@ private:
 
             rack = FindRackByName(*options.Rack);
             if (!IsObjectAlive(rack)) {
-                CreateRackObject(*options.Rack, dataCenter);
+                CreateRackObject(*options.Rack, options.DataCenter);
                 rack = GetRackByName(*options.Rack);
             }
         }
@@ -1233,7 +1233,7 @@ private:
         }
     }
 
-    void CreateRackObject(const TString& name, TDataCenter* dataCenter)
+    void CreateRackObject(const TString& name, const std::optional<TString>& dataCenter)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1244,7 +1244,7 @@ private:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
         if (dataCenter) {
-            attributes->Set("data_center", dataCenter->GetName());
+            attributes->Set("data_center", *dataCenter);
         }
         ToProto(req->mutable_object_attributes(), *attributes);
 
