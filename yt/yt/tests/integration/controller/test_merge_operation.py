@@ -200,7 +200,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("dakovalkov")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_rename_columns(self, merge_mode, sort_order):
+    @pytest.mark.parametrize("create_output_schema", [True, False])
+    def test_rename_columns(self, merge_mode, sort_order, create_output_schema):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
@@ -228,7 +232,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             rows = rows[::-1]
         write_table("//tmp/t2", rows)
 
-        create("table", "//tmp/t_out")
+        if create_output_schema:
+            create(
+                "table",
+                "//tmp/t_out",
+                attributes={
+                    "schema": [{"name": "a", "type": "int64"}],
+                }
+            )
+        else:
+            create("table", "//tmp/t_out")
+
         merge(
             mode=merge_mode,
             in_=["//tmp/t1", "<rename_columns={a2=a}>//tmp/t2"],
@@ -331,6 +345,52 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"c": 3},
             {"c": 4},
         ]
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_merge_with_append_after_alter_table(self, merge_mode):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        sort_order = None
+        if merge_mode == "sorted":
+            sort_order = "ascending"
+
+        if sort_order is not None:
+            schema1 = make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])
+        else:
+            schema1 = make_schema([{"name": "a", "type": "int64"}])
+
+        create("table", "//tmp/t1", attributes={"schema": schema1})
+
+        write_table("//tmp/t1", {"a": 1})
+
+        if sort_order is not None:
+            schema2 = make_schema([{"name": "a_new", "stable_name": "a", "type": "int64", "sort_order": sort_order}])
+        else:
+            schema2 = make_schema([{"name": "a_new", "stable_name": "a", "type": "int64"}])
+
+        alter_table("//tmp/t1", schema=schema2)
+
+        write_table("<append=%true>//tmp/t1", {"a_new": 2})
+        assert read_table("//tmp/t1") == [{"a_new": 1}, {"a_new": 2}]
+
+        write_table("<append=%true>//tmp/t1", {"a_new": 3})
+        assert read_table("//tmp/t1") == [{"a_new": 1}, {"a_new": 2}, {"a_new": 3}]
+
+        if sort_order is not None:
+            schema3 = make_schema([{"name": "a_new", "type": "int64", "sort_order": sort_order}])
+        else:
+            schema3 = make_schema([{"name": "a_new", "type": "int64"}])
+
+        create("table", "//tmp/t2", attributes={"schema": schema3})
+
+        write_table("//tmp/t2", {"a_new": 100})
+
+        op = merge(mode=merge_mode, in_=["//tmp/t2"], out="<append=%true>//tmp/t1")
+        op.track()
+
+        assert read_table("//tmp/t1") == [{"a_new": 1}, {"a_new": 2}, {"a_new": 3}, {"a_new": 100}]
 
     @authors("panin", "ignat")
     def test_ordered(self):
