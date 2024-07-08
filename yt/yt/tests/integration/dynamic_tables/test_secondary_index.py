@@ -441,6 +441,23 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
                            "group by key")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
 
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
+    @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
+    def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
+        self._create_table("//tmp/table", table_schema)
+        self._create_table("//tmp/index_table", index_table_schema)
+        self._mount("//tmp/table", "//tmp/index_table")
+
+        table_rows = [{"keyA": 1, "keyB": "alpha"}]
+        insert_rows("//tmp/table", table_rows)
+        insert_rows("//tmp/index_table", table_rows)
+
+        assert_items_equal(
+            sorted_dicts(select_rows("keyA, keyB from [//tmp/table]")),
+            sorted_dicts(select_rows("keyA, keyB from [//tmp/table] with index [//tmp/index_table]")),
+        )
+
 
 ##################################################################
 

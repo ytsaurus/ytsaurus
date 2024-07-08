@@ -335,8 +335,8 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
 
-    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Primary];
-    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
+    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
     const auto& indices = tableInfo->Indices;
 
     const TColumnSchema* unfoldedColumn{};
