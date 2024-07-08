@@ -6,9 +6,9 @@
  Below is a list of packages that need to be installed before building YTsaurus. 'How to Build' section contains step by step instructions to obtain these packages.
 
  - cmake 3.22+
- - clang-14
- - lld-14
- - lldb-14
+ - clang-16
+ - lld-16
+ - lldb-16
  - conan 1.57.0
  - git 2.20+
  - python 3.8+
@@ -28,7 +28,7 @@
     ```
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add
     curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-14 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-16 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
     echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
     sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 
@@ -54,7 +54,7 @@
  1. Install dependencies.
 
     ```
-    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-14 lld-14 cmake unzip
+    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-16 lld-16 cmake unzip
     sudo python3 -m pip install PyYAML==6.0 conan==1.57.0 dacite
     ```
  1. Install protoc.
