@@ -19,7 +19,6 @@ struct IMasterConnector
     : public TRefCounted
 {
     DECLARE_INTERFACE_SIGNAL(void(), MasterConnected);
-
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
 
     //! Initialize master connector.

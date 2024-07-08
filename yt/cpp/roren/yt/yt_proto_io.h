@@ -264,8 +264,8 @@ class TRawYtProtoSortedWrite
     : public IRawYtSortedWrite
 {
 public:
-    TRawYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
-        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort))
+    TRawYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
+        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort)), UniqueKeys_(uniqueKeys)
     {
         NPrivate::SetAttribute(
             *this,
@@ -294,6 +294,11 @@ public:
         return ColumnsToSort_;
     }
 
+    void FillSchema(NYT::TTableSchema& schema) const override
+    {
+        FillSchemaFromSortColumns(schema, ColumnsToSort_, UniqueKeys_);
+    }
+
     IYtJobOutputPtr CreateJobOutput(int) const override
     {
         // Not supposed to be used since job output is depricated.
@@ -316,7 +321,8 @@ public:
             return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(
                 NYT::TRichYPath{},
                 NYT::TTableSchema{},
-                NYT::TSortColumns{}
+                NYT::TSortColumns{},
+                false
             );
         };
     }
@@ -333,6 +339,7 @@ public:
 
 private:
     NYT::TSortColumns ColumnsToSort_;
+    bool UniqueKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,9 +413,9 @@ IRawYtWritePtr MakeYtProtoWrite(NYT::TRichYPath path, NYT::TTableSchema tableSch
 }
 
 template <class TMessage>
-IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
+IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
 {
-    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema), std::move(columnsToSort));
+    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema), std::move(columnsToSort), uniqueKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

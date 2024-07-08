@@ -13,12 +13,23 @@
 
 #include <library/cpp/yt/yson_string/string.h>
 
+// NB: almost always these helpers should not be called directly since they
+// don't take into account transactions and branches. Moreover, in the future
+// tx action ordering should be moved from Sequoia tx to |TSequoiaSession| which
+// means that _all_ interactions with Cypress should be done via
+// |TSequoiaSession|.
+// TODO(kvk1920 or someone else): place all these helpers inside
+// |TSequoiaSession| and make them private.
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(kvk1920, danilalexeev): get rid of it in favor of passing to function
+// directly.
 struct TWriteSequoiaNodeRowsOptions
 {
+    // TODO(danilalexeev): rename to TargetPath.
     std::optional<NSequoiaClient::TAbsoluteYPath> RedirectPath;
 };
 
@@ -61,11 +72,12 @@ void CreateNode(
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 NCypressClient::TNodeId CopyNode(
-    const NSequoiaClient::NRecords::TPathToNodeId& sourceNode,
+    const NSequoiaClient::NRecords::TNodeIdToPath& sourceNode,
     NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
+//! Removes node but not detaches it from its parent.
 void RemoveNode(
     NCypressClient::TNodeId id,
     const NSequoiaClient::TMangledSequoiaPath& path,
@@ -83,10 +95,10 @@ void DetachChild(
     const TString& childKey,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
-void LockRowInPathToIdTable(
-    NSequoiaClient::TAbsoluteYPathBuf path,
+void LockRowInNodeIdToPathTable(
+    NCypressClient::TNodeId nodeId,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    NTableClient::ELockType lockType = NTableClient::ELockType::SharedStrong);
+    NTableClient::ELockType lockType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

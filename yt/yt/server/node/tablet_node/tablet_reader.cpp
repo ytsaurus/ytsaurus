@@ -18,7 +18,7 @@
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_merger.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 

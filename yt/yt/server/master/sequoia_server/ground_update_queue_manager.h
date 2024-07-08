@@ -10,14 +10,7 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESequoiaRecordAction,
-    ((Write)              (0))
-    ((Delete)             (1))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ISequoiaQueueManager
+struct IGroundUpdateQueueManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
@@ -27,23 +20,23 @@ struct ISequoiaQueueManager
     template <typename TRecordKey>
     void EnqueueDelete(const TRecordKey& recordKey);
 
-protected:
     virtual void EnqueueRow(
+        NSequoiaClient::EGroundUpdateQueue queue,
         NSequoiaClient::ESequoiaTable table,
         NTableClient::TUnversionedOwningRow row,
-        ESequoiaRecordAction action) = 0;
+        EGroundUpdateAction action) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISequoiaQueueManager)
+DEFINE_REFCOUNTED_TYPE(IGroundUpdateQueueManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaQueueManagerPtr CreateSequoiaQueueManager(NCellMaster::TBootstrap* bootstrap);
+IGroundUpdateQueueManagerPtr CreateGroundUpdateQueueManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaServer
 
-#define SEQUOIA_QUEUE_MANAGER_INL_H_
-#include "sequoia_queue_manager-inl.h"
-#undef SEQUOIA_QUEUE_MANAGER_INL_H_
+#define GROUND_UPDATE_QUEUE_MANAGER_INL_H_
+#include "ground_update_queue_manager-inl.h"
+#undef GROUND_UPDATE_QUEUE_MANAGER_INL_H_

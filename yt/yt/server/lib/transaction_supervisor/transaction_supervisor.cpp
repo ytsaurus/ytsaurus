@@ -1283,9 +1283,7 @@ private:
             return commit->GetAsyncResponseMessage();
         }
 
-        bool distributed =
-            force2PC ||
-            !participantCellIds.empty();
+        bool distributed = force2PC || !participantCellIds.empty();
         commit = CreateTransientCommit(
             transactionId,
             mutationId,

@@ -113,6 +113,11 @@ public:
         return Transaction_->GetStartTimestamp();
     }
 
+    bool CouldGenerateId(NObjectClient::TObjectId id) const noexcept override
+    {
+        return IsSequoiaId(id) && GetStartTimestamp() == TimestampFromId(id);
+    }
+
     TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();

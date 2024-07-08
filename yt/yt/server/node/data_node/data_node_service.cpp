@@ -426,6 +426,7 @@ private:
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
+        i64 cumulativeBlockSize = request->cumulative_block_size();
 
         ValidateOnline();
 
@@ -434,18 +435,17 @@ private:
         const auto& location = session->GetStoreLocation();
         auto options = session->GetSessionOptions();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v, CumulativeBlockSize: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
             flushBlocks,
             location->GetMediumName(),
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            cumulativeBlockSize);
 
-        if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
-        }
+        location->CheckWriteThrottling(session->GetWorkloadDescriptor());
 
         TWallTimer timer;
 
@@ -455,6 +455,7 @@ private:
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
+            cumulativeBlockSize,
             populateCache);
 
         // Flush blocks if needed.
@@ -505,19 +506,21 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
+        i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
+            cumulativeBlockSize,
             targetDescriptor);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
+        session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
             .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
                 if (errorOrRsp.IsOK()) {
                     response->set_close_demanded(errorOrRsp.Value()->close_demanded());

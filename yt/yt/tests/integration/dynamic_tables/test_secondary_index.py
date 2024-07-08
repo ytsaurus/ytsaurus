@@ -770,7 +770,14 @@ class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
             self._create_secondary_index()
 
     @authors("sabdenovch")
-    def test_secondary_index_forbid_portal(self):
+    def test_secondary_index_forbid_create_beyond_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        with raises_yt_error("Table and index table native cell tags differ"):
+            self._create_basic_tables(
+                index_table_path="//tmp/p/index_table")
+
+    @authors("sabdenovch")
+    def test_secondary_index_forbid_move_beyond_portal(self):
         self._create_basic_tables()
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
         with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):

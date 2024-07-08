@@ -12,64 +12,21 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TResolveStep
-{
-    NSequoiaClient::TAbsoluteYPath ResolvedPrefix;
-    NCypressClient::TNodeId ResolvedPrefixNodeId;
-
-    NSequoiaClient::TYPath UnresolvedSuffix;
-
-    NSequoiaClient::NRecords::TPathToNodeId Payload{};
-};
-
-using TSequoiaResolveResult = TResolveStep;
-
-struct TCypressResolveResult
-{
-    NSequoiaClient::TRawYPath Path;
-};
-
-using TResolveResult = std::variant<
-    TCypressResolveResult,
-    TSequoiaResolveResult
->;
-
 struct ISequoiaServiceContext
     : public virtual NRpc::IServiceContext
-{
-    virtual void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) = 0;
+{ };
 
-    virtual const NSequoiaClient::ISequoiaTransactionPtr& GetSequoiaTransaction() const = 0;
-
-    virtual const TResolveResult& GetResolveResultOrThrow() const = 0;
-
-    virtual TRange<TResolveStep> GetResolveHistory() const = 0;
-
-    virtual std::optional<TResolveStep> TryGetLastResolveStep() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISequoiaServiceContext);
+DEFINE_REFCOUNTED_TYPE(ISequoiaServiceContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(kvk1920): do we actually want a separate type for Sequoia context?
 class TSequoiaServiceContextWrapper
     : public NRpc::TServiceContextWrapper
     , public ISequoiaServiceContext
 {
 public:
     explicit TSequoiaServiceContextWrapper(ISequoiaServiceContextPtr underlyingContext);
-
-    void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) override;
-
-    const NSequoiaClient::ISequoiaTransactionPtr& GetSequoiaTransaction() const override;
-
-    const TResolveResult& GetResolveResultOrThrow() const override;
-
-    TRange<TResolveStep> GetResolveHistory() const override;
-
-    std::optional<TResolveStep> TryGetLastResolveStep() const override;
-
-    const ISequoiaServiceContextPtr& GetUnderlyingContext() const;
 
 private:
     const ISequoiaServiceContextPtr UnderlyingContext_;
@@ -79,11 +36,37 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaServiceContextWrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISequoiaServiceContextPtr CreateSequoiaServiceContext(TSharedRefArray requestMessage);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISequoiaService
-    : public virtual TRefCounted
+    : public TRefCounted
 {
-    //! Executes a given request.
-    virtual void Invoke(const ISequoiaServiceContextPtr& context) = 0;
+    enum EInvokeResult
+    {
+        Executed,
+        ForwardToMaster,
+    };
+
+    //! Either executes request in Sequoia or forwards it to master.
+    /*!
+     *  There are 2 special cases which are resolved as Cypress but still have
+     *  to be handled (partially or not) by Sequoia.
+     *
+     *  Link node creation:
+     *      Since link can point at Sequoia node, all cyclicity check have to be
+     *      done with Sequoia tables. We do it right before redirecting request
+     *      to master.
+     *
+     *  Rootstock / scion creation:
+     *      Obviously, there is no way to resolve it as Sequoia request, but it
+     *      is a Sequoia request.
+     */
+    virtual EInvokeResult TryInvoke(
+        const ISequoiaServiceContextPtr& context,
+        const TSequoiaSessionPtr& sequoiaSession,
+        const TResolveResult& resolveResult) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaService);

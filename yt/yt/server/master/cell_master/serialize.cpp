@@ -53,7 +53,7 @@ TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger,
     NConcurrency::IThreadPoolPtr backgroundThreadPool)
-    : NLeaseServer::TSaveContext(
+    : NHydra::TSaveContext(
         output,
         std::move(logger),
         GetCurrentReign(),
@@ -63,7 +63,7 @@ TSaveContext::TSaveContext(
 TSaveContext::TSaveContext(
     IZeroCopyOutput* output,
     const TSaveContext* parentContext)
-    : NLeaseServer::TSaveContext(output, parentContext)
+    : NHydra::TSaveContext(output, parentContext)
     , ParentContext_(parentContext)
 { }
 
@@ -94,14 +94,14 @@ TLoadContext::TLoadContext(
     TBootstrap* bootstrap,
     ICheckpointableInputStream* input,
     NConcurrency::IThreadPoolPtr backgroundThreadPool)
-    : NLeaseServer::TLoadContext(input, std::move(backgroundThreadPool))
+    : NHydra::TLoadContext(input, std::move(backgroundThreadPool))
     , Bootstrap_(bootstrap)
 { }
 
 TLoadContext::TLoadContext(
     IZeroCopyInput* input,
     const TLoadContext* parentContext)
-    : NLeaseServer::TLoadContext(input, parentContext)
+    : NHydra::TLoadContext(input, parentContext)
 { }
 
 TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const

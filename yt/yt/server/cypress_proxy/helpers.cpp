@@ -1,10 +1,10 @@
-#include "private.h"
 #include "helpers.h"
+
+#include "private.h"
+
 #include "action_helpers.h"
 #include "path_resolver.h"
-#include "sequoia_service_detail.h"
-
-#include <yt/yt/server/lib/misc/interned_attributes.h>
+#include "sequoia_service.h"
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -38,6 +39,7 @@ using namespace NYTree;
 using NYT::FromProto;
 
 using TYPath = NSequoiaClient::TYPath;
+using TYPathBuf = NSequoiaClient::TYPathBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,114 +100,65 @@ bool IsLinkType(NCypressClient::EObjectType type)
     return type == EObjectType::Link || type == EObjectType::SequoiaLink;
 }
 
-void ValidateLinkNodeCreation(
-    const ISequoiaServiceContextPtr& context,
-    const NCypressClient::NProto::TReqCreate& request)
+namespace {
+
+TYPathBuf SkipAmpersand(TYPathBuf pathSuffix)
 {
-    auto explicitAttributes = request.has_node_attributes()
-        ? NYTree::FromProto(request.node_attributes())
-        : CreateEphemeralAttributes();
-    // TODO(danilalexeev): In case of a master-object designator the following resolve will not produce
-    // a meaningful result. Such YPath has to be resolved by master first.
-    auto originalTargetPath = explicitAttributes->GetAndRemove<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern());
+    TTokenizer tokenizer(pathSuffix.Underlying());
+    tokenizer.Advance();
+    tokenizer.Skip(ETokenType::Ampersand);
+    return TYPathBuf(tokenizer.GetInput());
+}
 
-    auto getCanonicalYPathView = [] (const TResolveResult& result) {
-        return Visit(result,
-            [&] (const TSequoiaResolveResult& result) {
-                TTokenizer tokenizer(result.UnresolvedSuffix.Underlying());
-                tokenizer.Advance();
-                tokenizer.Skip(ETokenType::Ampersand);
-                return result.ResolvedPrefix + TYPath(tokenizer.GetInput());
-            },
-            [&] (const TCypressResolveResult& result) {
-                return TAbsoluteYPath(result.Path);
-            });
-    };
-    auto linkPath = getCanonicalYPathView(context->GetResolveResultOrThrow());
+TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
+{
+    return Visit(resolveResult,
+        [] (const TCypressResolveResult& resolveResult) -> TAbsoluteYPath {
+            // NB: Cypress resolve result doesn't contain unresolved symlinks.
+            return TAbsoluteYPath(resolveResult.Path);
+        },
+        [] (const TSequoiaResolveResult& resolveResult) -> TAbsoluteYPath {
+            // We don't want to distinguish "//tmp/a&/my-link" from
+            // "//tmp/a/my-link".
+            return resolveResult.Path + SkipAmpersand(resolveResult.UnresolvedSuffix);
+        });
+}
 
-    auto checkAcyclicity = [&] (const TRawYPath& pathToResolve, const TAbsoluteYPath& forbiddenPrefix) {
-        // TODO(danilalexeev): rewrite this once resolve context is seperated from rpc context.
-        auto resolveContext = CreateSequoiaContext(
-            context->GetRequestMessage(),
-            context->GetSequoiaTransaction());
+} // namespace
 
-        ResolvePath(
-            resolveContext.Get(),
-            /*method*/ {},
-            pathToResolve);
-        const auto& resolveResult = resolveContext->GetResolveResultOrThrow();
+void ValidateLinkNodeCreation(
+    const TSequoiaSessionPtr& session,
+    TRawYPath targetPath,
+    const TResolveResult& resolveResult)
+{
+    // TODO(danilalexeev): In case of a master-object designator the following
+    // resolve will not produce a meaningful result. Such YPath has to be
+    // resolved by master first.
+    // TODO(kvk1920): probably works (since symlinks are stored in both resolve
+    // tables now), but has to be tested.
+    auto linkPath = GetCanonicalYPath(resolveResult);
 
-        for (const auto& resolveStep : resolveContext->GetResolveHistory()) {
-            if (IsLinkType(TypeFromId(resolveStep.ResolvedPrefixNodeId)) &&
-                resolveStep.ResolvedPrefix == forbiddenPrefix)
-            {
+    auto checkAcyclicity = [&] (
+        TRawYPath pathToResolve,
+        const TAbsoluteYPath& forbiddenPrefix)
+    {
+        std::vector<TSequoiaResolveIterationResult> history;
+        auto resolveResult = ResolvePath(session, std::move(pathToResolve), /*method*/ {}, &history);
+
+        for (const auto& [id, path] : history) {
+            if (IsLinkType(TypeFromId(id)) && path == forbiddenPrefix) {
                 return false;
             }
         }
 
-        return getCanonicalYPathView(resolveResult) != forbiddenPrefix;
+        return GetCanonicalYPath(resolveResult) != forbiddenPrefix;
     };
 
-    if (!checkAcyclicity(originalTargetPath, linkPath)) {
+    if (!checkAcyclicity(targetPath, linkPath)) {
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-            << TErrorAttribute("target_path", originalTargetPath)
+            << TErrorAttribute("target_path", targetPath.Underlying())
             << TErrorAttribute("path", linkPath);
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TSharedRefArray> ExecuteVerb(
-    const ISequoiaServicePtr& service,
-    TSharedRefArray* requestMessage,
-    const ISequoiaClientPtr& client,
-    NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel)
-{
-    YT_VERIFY(requestMessage);
-
-    TIntrusivePtr<TSequoiaServiceContext> context;
-    try {
-        auto transaction = WaitFor(StartCypressProxyTransaction(client))
-            .ValueOrThrow();
-
-        context = CreateSequoiaContext(
-            *requestMessage,
-            transaction,
-            std::move(logger),
-            logLevel);
-        ResolvePath(
-            context.Get(),
-            context->GetMethod(),
-            TRawYPath(GetRequestTargetYPath(context->GetRequestHeader())));
-    } catch (const std::exception& ex) {
-        return MakeFuture(CreateErrorResponseMessage(ex));
-    }
-
-    // Resolve history is not empty iff we have encountered a symlink or a scion during
-    // the resolving process, target path must be modified accordingly.
-    if (auto resolveStep = context->TryGetLastResolveStep()) {
-        auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
-        if (!ParseRequestHeader(*requestMessage, requestHeader.get())) {
-            THROW_ERROR_EXCEPTION("Error parsing request header");
-        }
-        auto newTargetPath = Visit(context->GetResolveResultOrThrow(),
-            [&] (const TSequoiaResolveResult& result) {
-                return TRawYPath(result.UnresolvedSuffix.ToString());
-            },
-            [&] (const TCypressResolveResult& result) {
-                return result.Path;
-            });
-        SetRequestTargetYPath(requestHeader.get(), newTargetPath.Underlying());
-        context->SetRequestHeader(std::move(requestHeader));
-        *requestMessage = context->GetRequestMessage();
-    }
-
-    auto asyncResponseMessage = context->GetAsyncResponseMessage();
-
-    service->Invoke(context);
-
-    return asyncResponseMessage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,20 +246,18 @@ void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(h0pless): Change this to TFuture<std::vector>.
-std::vector<NRecords::TPathToNodeId> SelectSubtree(
+TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     const TAbsoluteYPath& path,
     const ISequoiaTransactionPtr& transaction)
 {
     auto mangledPath = path.ToMangledSequoiaPath();
-    return WaitFor(transaction->SelectRows<NRecords::TPathToNodeIdKey>({
+    return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
         .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),
             Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
         },
         .OrderBy = {"path"}
-    }))
-        .ValueOrThrow();
+    });
 }
 
 TNodeId LookupNodeId(
@@ -334,27 +285,25 @@ TNodeId LookupNodeId(
 TNodeId CreateIntermediateNodes(
     const TAbsoluteYPath& parentPath,
     TNodeId parentId,
-    const std::vector<TString>& nodeKeys,
+    TRange<TString> nodeKeys,
     const ISequoiaTransactionPtr& transaction)
 {
     auto currentNodePath = parentPath;
-    auto prevNodeId = parentId;
-    for (auto key : nodeKeys) {
-        // TODO(h0pless): Maybe use a different function here? This doesn't seem terribly efficient.
-        // Replace this with something better once TYPath will be refactored.
-        currentNodePath = JoinNestedNodesToPath(currentNodePath, {key});
-        auto currentNodeId = transaction->GenerateObjectId(EObjectType::SequoiaMapNode);
+    auto currentNodeId = parentId;
+    for (const auto& key : nodeKeys) {
+        currentNodePath.Append(key);
+        auto newNodeId = transaction->GenerateObjectId(EObjectType::SequoiaMapNode);
 
         CreateNode(
             EObjectType::SequoiaMapNode,
-            currentNodeId,
+            newNodeId,
             currentNodePath,
             /*explicitAttributes*/ nullptr,
             transaction);
-        AttachChild(prevNodeId, currentNodeId, key, transaction);
-        prevNodeId = currentNodeId;
+        AttachChild(currentNodeId, newNodeId, key, transaction);
+        currentNodeId = newNodeId;
     }
-    return prevNodeId;
+    return currentNodeId;
 }
 
 TNodeId CopySubtree(
@@ -362,18 +311,32 @@ TNodeId CopySubtree(
     const TAbsoluteYPath& sourceRootPath,
     const TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
+    const THashMap<TNodeId, NYPath::TYPath>& subtreeLinks,
     const ISequoiaTransactionPtr& transaction)
 {
     THashMap<TAbsoluteYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
+    nodePathToChildren.reserve(sourceNodes.size());
     TNodeId destinationNodeId;
     for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
         TAbsoluteYPath destinationNodePath(it->Key.Path);
-        destinationNodePath.Underlying().replace(
+        destinationNodePath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
             destinationRootPath.Underlying());
+
+        NRecords::TNodeIdToPath record{
+            .Key = {.NodeId = it->NodeId},
+            .Path = DemangleSequoiaPath(it->Key.Path),
+        };
+
+        if (IsLinkType(TypeFromId(it->NodeId))) {
+            record.TargetPath = GetOrCrash(subtreeLinks, it->NodeId);
+        }
+
+        // NB: due to the reverse order of subtree traversing we naturally get
+        // subtree root after the end of loop.
         destinationNodeId = CopyNode(
-            *it,
+            record,
             destinationNodePath,
             options,
             transaction);
@@ -399,9 +362,14 @@ void RemoveSelectedSubtree(
     const std::vector<NRecords::TPathToNodeId>& subtreeNodes,
     const ISequoiaTransactionPtr& transaction,
     bool removeRoot,
-    TNodeId subtreeParentIdHint)
+    TNodeId subtreeParentId)
 {
     YT_VERIFY(!subtreeNodes.empty());
+    // For root removal we need to know its parent (excluding scion removal).
+    YT_VERIFY(
+        !removeRoot ||
+        subtreeParentId ||
+        TypeFromId(subtreeNodes.front().NodeId) == EObjectType::Scion);
 
     THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
     pathToNodeId.reserve(subtreeNodes.size());
@@ -426,38 +394,37 @@ void RemoveSelectedSubtree(
     }
 
     TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Key.Path);
-    if (!subtreeParentIdHint) {
-        subtreeParentIdHint = LookupNodeId(subtreeRootPath.GetDirPath(), transaction);
-    }
-    DetachChild(subtreeParentIdHint, subtreeRootPath.GetBaseName(), transaction);
+    DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), transaction);
 }
 
-TFuture<void> RemoveSubtree(
-    const TAbsoluteYPath& path,
-    const ISequoiaTransactionPtr& transaction,
-    bool removeRoot,
-    TNodeId subtreeParentIdHint)
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr context)
 {
-    if (!subtreeParentIdHint && removeRoot) {
-        auto subtreeParentPath = removeRoot ? TAbsoluteYPath(path.GetDirPath()) : path;
-        subtreeParentIdHint = LookupNodeId(subtreeParentPath, transaction);
+    YT_VERIFY(context->GetRequestHeader().method() == "Create");
+
+    auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(
+        std::move(context),
+        THandlerInvocationOptions{});
+
+    // NB: this replies to underlying context on error.
+    if (!typedContext->DeserializeRequest()) {
+        return std::nullopt;
     }
 
-    auto mangledPath = path.ToMangledSequoiaPath();
-    return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
-        .WhereConjuncts = {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
-        },
-        .OrderBy = {"path"}
-    }).Apply(
-        BIND([transaction, removeRoot, subtreeParentIdHint] (const std::vector<NRecords::TPathToNodeId>& nodesToRemove) {
-            RemoveSelectedSubtree(
-                nodesToRemove,
-                transaction,
-                removeRoot,
-                subtreeParentIdHint);
-        }));
+    const auto& request = typedContext->Request();
+
+    try {
+        return TParsedReqCreate{
+            .Type = CheckedEnumCast<EObjectType>(request.type()),
+            .ExplicitAttributes = request.has_node_attributes()
+                ? NYTree::FromProto(request.node_attributes())
+                : CreateEphemeralAttributes(),
+        };
+    } catch (const std::exception& ex) {
+        typedContext->Reply(ex);
+        return std::nullopt;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

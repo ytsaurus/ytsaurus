@@ -2543,10 +2543,10 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->RunningAllocations.clear();
         nodeState->RunningAllocations.reserve(schedulingContext->RunningAllocations().size());
         for (const auto& allocation : schedulingContext->RunningAllocations()) {
-            TFairShareTreeAllocationSchedulerAllocationState fairShareTreeAllocationSchedulerAllocationState;
-            fairShareTreeAllocationSchedulerAllocationState.OperationId = allocation->GetOperationId();
-            fairShareTreeAllocationSchedulerAllocationState.ResourceLimits = allocation->ResourceLimits();
-            EmplaceOrCrash(nodeState->RunningAllocations, allocation->GetId(), std::move(fairShareTreeAllocationSchedulerAllocationState));
+            TFairShareTreeAllocationSchedulerAllocationState allocationState;
+            allocationState.OperationId = allocation->GetOperationId();
+            allocationState.ResourceLimits = allocation->ResourceLimits();
+            EmplaceOrCrash(nodeState->RunningAllocations, allocation->GetId(), std::move(allocationState));
         }
     }
 

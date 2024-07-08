@@ -72,8 +72,6 @@
     "parameterized" = {
         "max_action_count" = 100;
         "metric" = "double([/statistics/memory_size])";
-        "node_deviation_threshold" = 0.1;
-        "cell_deviation_threshold" = 0.1;
     };
 };
 ```

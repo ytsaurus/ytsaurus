@@ -20,13 +20,9 @@ DEFINE_ENUM(ELeaseState,
 
 struct ILease;
 
-DECLARE_REFCOUNTED_STRUCT(ILeaseGuard)
 DECLARE_REFCOUNTED_STRUCT(ILeaseManager)
 
 DECLARE_REFCOUNTED_CLASS(TLeaseManagerConfig)
-
-class TLoadContext;
-class TSaveContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,6 +23,10 @@ template <bool Absolute, class TUnderlying>
 class TYPathBase
 {
 public:
+    // TODO(kvk1920): add constructors without validation.
+    // Rationale: NYPath::TTokenizer operates with raw TStringBuf and can return
+    // already validated its suffix. We don't need to run validation twice.
+
     explicit TYPathBase(TStringBuf path);
     explicit TYPathBase(const char* path);
     explicit TYPathBase(const TString& path);
@@ -31,9 +35,10 @@ public:
     //! Returns the last path segment.
     TString GetBaseName() const;
 
-    //! Returns formatted path with escaping of special characters.
-    TString ToString() const;
     TMangledSequoiaPath ToMangledSequoiaPath() const;
+
+    TRawYPath ToRawYPath() const &;
+    TRawYPath ToRawYPath() &&;
 
     //! Compares paths lexicographically according to their 'String' representation.
     template <class T>
@@ -41,8 +46,8 @@ public:
     template <class T>
     bool operator==(const TYPathBase<Absolute, T>& rhs) const noexcept;
 
-    TUnderlying& Underlying();
-    const TUnderlying& Underlying() const;
+    const TUnderlying& Underlying() const &;
+    TUnderlying&& Underlying() &&;
 
     static constexpr TStringBuf Separator = "/";
 
@@ -51,6 +56,7 @@ protected:
 
     void Validate() const;
     ptrdiff_t FindLastSegment() const;
+    TUnderlying* UnsafeMutableUnderlying() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +146,12 @@ public:
 
     //! Appends literal to the path with introducing a directory separator.
     void Append(TString literal);
+
+    //! Allows to modify underlying string. Absolutely unsafe since there are no
+    //! validations.
+    // TODO(kvk1920): provide some sane methods like Rebase() or ReplacePrefix()
+    // instead of accessing internal representation directly.
+    using TBase::UnsafeMutableUnderlying;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

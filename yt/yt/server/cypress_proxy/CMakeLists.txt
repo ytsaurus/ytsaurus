@@ -40,12 +40,13 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/rootstock_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_tree_visitor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/user_directory.cpp

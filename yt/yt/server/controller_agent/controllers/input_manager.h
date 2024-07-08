@@ -79,14 +79,14 @@ class TUnavailableChunksWatcher
     : public TRefCounted
 {
 public:
-    TUnavailableChunksWatcher(std::vector<NChunkClient::IFetcherChunkScraperPtr> chunkScrapers);
+    explicit TUnavailableChunksWatcher(
+        std::vector<NChunkClient::IFetcherChunkScraperPtr> chunkScrapers);
     i64 GetUnavailableChunkCount() const;
 
 private:
-    std::vector<NChunkClient::IFetcherChunkScraperPtr> ChunkScrapers_;
+    const std::vector<NChunkClient::IFetcherChunkScraperPtr> ChunkScrapers_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TUnavailableChunksWatcher)
 DEFINE_REFCOUNTED_TYPE(TUnavailableChunksWatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,15 +96,15 @@ class TCombiningSamplesFetcher
 {
 public:
     TCombiningSamplesFetcher() = default;
-    TCombiningSamplesFetcher(std::vector<NTableClient::TSamplesFetcherPtr>);
+    explicit TCombiningSamplesFetcher(
+        std::vector<NTableClient::TSamplesFetcherPtr> samplesFetchers);
     TFuture<void> Fetch() const;
     std::vector<NTableClient::TSample> GetSamples() const;
 
 private:
-    std::vector<NTableClient::TSamplesFetcherPtr> SamplesFetchers_;
+    const std::vector<NTableClient::TSamplesFetcherPtr> SamplesFetchers_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TCombiningSamplesFetcher)
 DEFINE_REFCOUNTED_TYPE(TCombiningSamplesFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +132,8 @@ public:
 
     void LockTables();
     void ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const;
+
+    void ReportIfHasUnavailableChunks() const;
 
     // NB: Note that this is local client, not <this cluster's client>.
     void InitializeClient(NApi::NNative::IClientPtr localClient);
@@ -213,7 +215,7 @@ public:
         const NTableClient::TTableSchemaPtr& sampleSchema,
         NTableClient::TRowBufferPtr rowBuffer,
         i64 sampleCount,
-        i32 maxSampleSize) const;
+        int maxSampleSize) const;
 
 private:
     // NB: InputManager does not outlive its host.
@@ -276,8 +278,6 @@ private:
 
     NScheduler::TClusterName GetClusterName(NChunkClient::TChunkId chunkId) const;
     NScheduler::TClusterName GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const;
-
-    TFormattableView<THashSet<NChunkClient::TChunkId>, TDefaultFormatter> MakeUnavailableInputChunksView() const;
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const;
 };

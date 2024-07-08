@@ -524,7 +524,7 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 void FormatValue(TStringBuilderBase* builder, const THeartbeatReporterDynamicConfigBase& config, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
-        "{NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v}",
+        "{Period: %v, Splay: %v, MinBackoff: %v, MaxBackoff: %v, BackoffMultiplier: %v}",
         config.HeartbeatExecutor.Period,
         config.HeartbeatExecutor.Splay,
         config.HeartbeatExecutor.MinBackoff,

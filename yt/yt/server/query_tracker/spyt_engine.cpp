@@ -317,6 +317,7 @@ private:
         }
         // Dirty hack for absent scheme.
         sparkConf.emplace("spark.hadoop.fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem");
+        sparkConf.emplace("spark.yt.log.enabled", "false");
         YT_LOG_DEBUG("Session spark conf prepared (Data: %v)", sparkConf);
         // Token insertion after data logging.
         if (Token_) {

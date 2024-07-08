@@ -2,17 +2,13 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
-
-#include <yt/yt/core/ytree/public.h>
-
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateRootstockProxy(
+TNodeProxyBasePtr CreateRootstockProxy(
     IBootstrap* bootstrap,
-    NSequoiaClient::ISequoiaTransactionPtr transaction,
+    TSequoiaSessionPtr sequoiaSession,
     NSequoiaClient::TAbsoluteYPath resolvedPath);
 
 ////////////////////////////////////////////////////////////////////////////////

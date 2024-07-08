@@ -122,9 +122,6 @@ public:
 
     TDuration ProfilingPeriod;
 
-    // COMPAT(gritukan): Drop it after 22.3.
-    bool UseResourceStatisticsFromClusterNodeHeartbeat;
-
     // COMPAT(kvk1920)
     bool EnableRealChunkLocations;
 

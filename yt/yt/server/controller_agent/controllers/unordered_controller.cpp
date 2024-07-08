@@ -849,7 +849,10 @@ private:
                     validateOutputNotSorted();
 
                     if (!Spec->InputQuery) {
-                        ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
+                        ValidateOutputSchemaCompatibility({
+                            .IgnoreSortOrder=true,
+                            .ForbidExtraComputedColumns=false,
+                            .IgnoreStableNamesDifference=true});
                     }
                 }
                 break;

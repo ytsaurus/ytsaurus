@@ -20,19 +20,9 @@ namespace NYT::NCypressProxy {
 bool IsLinkType(NCypressClient::EObjectType type);
 
 void ValidateLinkNodeCreation(
-    const ISequoiaServiceContextPtr& context,
-    const NCypressClient::NProto::TReqCreate& request);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Executes a given request at Sequoia. The target path might be altered after the
-//! resolving process for it to be correctly handled by master in case of forwarding.
-TFuture<TSharedRefArray> ExecuteVerb(
-    const ISequoiaServicePtr& service,
-    TSharedRefArray* requestMessage,
-    const NSequoiaClient::ISequoiaClientPtr& client,
-    NLogging::TLogger logger = NLogging::TLogger(),
-    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
+    const TSequoiaSessionPtr& session,
+    NSequoiaClient::TRawYPath targetPath,
+    const TResolveResult& resolveResult);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +44,9 @@ TFuture<TSharedRefArray> ExecuteVerb(
                  under the same Sequoia tx)
       4. Write (the typical use case: delete old row and then write new one)
  */
+// TODO(kvk1920): from now we could sort transaction actions in
+// |TSequoiaSession| instead of Sequoia transaction internals. Move all action
+// sorting to |TSequoiaSession| and get rid of this function.
 TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     const NApi::TTransactionStartOptions& options = {});
@@ -75,7 +68,7 @@ void ThrowNoSuchChild(const NSequoiaClient::TAbsoluteYPath& existingPath, TStrin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NSequoiaClient::NRecords::TPathToNodeId> SelectSubtree(
+TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
     const NSequoiaClient::TAbsoluteYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -83,33 +76,49 @@ NCypressClient::TNodeId LookupNodeId(
     NSequoiaClient::TAbsoluteYPathBuf path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
-//! Returns bottommost created node ID.
+//! Returns bottommost node ID (created or not).
+/*!
+ *  NB: in case of empty #nodeKeys this function just returns #parentId.
+ */
 NCypressClient::TNodeId CreateIntermediateNodes(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
     NCypressClient::TNodeId parentId,
-    const std::vector<TString>& nodeKeys,
+    TRange<TString> nodeKeys,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
+//! Copies subtree.
+/*!
+ *  NB: all symlinks in subtree have to be passed in this function via
+ *  #subtreeLinks in order to copy their target paths.
+ */
 NCypressClient::TNodeId CopySubtree(
     const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& sourceNodes,
     const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
     const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
+    const THashMap<NCypressClient::TNodeId, NYPath::TYPath>& subtreeLinks,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
-//! Select subtree and remove it. #subtreeParentIdHint is only used when #removeRoot is set to true.
-TFuture<void> RemoveSubtree(
-    const NSequoiaClient::TAbsoluteYPath& path,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    bool removeRoot = true,
-    NCypressClient::TNodeId subtreeParentIdHint = {});
-
-//! Same as RemoveSubtree, but does not provoke an additional select.
+//! Removes previously selected subtree. If root removal is requested then
+//! #subtreeParent has to be provided (it's needed to detach removed root from
+//! its parent).
 void RemoveSelectedSubtree(
     const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& nodesToRemove,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     bool removeRoot = true,
-    NCypressClient::TNodeId subtreeParentIdHint = {});
+    NCypressClient::TNodeId subtreeParentId = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TParsedReqCreate
+{
+    NObjectClient::EObjectType Type;
+    NYTree::IAttributeDictionaryPtr ExplicitAttributes;
+};
+
+//! On parse error replies it to underlying context and returns |nullopt|.
+std::optional<TParsedReqCreate> TryParseReqCreate(
+    ISequoiaServiceContextPtr context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

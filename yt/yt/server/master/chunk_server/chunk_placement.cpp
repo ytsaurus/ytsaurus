@@ -74,13 +74,13 @@ bool TChunkPlacement::TNodeToLoadFactorMap::Empty() const
     return Values_.empty();
 }
 
-ui64 TChunkPlacement::TNodeToLoadFactorMap::Size() const
+i64 TChunkPlacement::TNodeToLoadFactorMap::Size() const
 {
     YT_VERIFY(NodeToIndex_.size() == Values_.size());
     return Values_.size();
 }
 
-TNodeId TChunkPlacement::TNodeToLoadFactorMap::PickRandomNode(ui32 nodesChecked)
+TNodeId TChunkPlacement::TNodeToLoadFactorMap::PickRandomNode(int nodesChecked)
 {
     // NB: It's ok if the same node is picked twice.
     // The chance of having the worst outcome in such case is 1 / 2(n^2), which is not noticeable on big clusters,
@@ -99,7 +99,7 @@ TNodeId TChunkPlacement::TNodeToLoadFactorMap::PickRandomNode(ui32 nodesChecked)
     return resultingNodeId;
 }
 
-void TChunkPlacement::TNodeToLoadFactorMap::SwapNodes(ui32 firstIndex, ui32 secondIndex)
+void TChunkPlacement::TNodeToLoadFactorMap::SwapNodes(int firstIndex, int secondIndex)
 {
     auto firstElemIt = Values_.begin() + firstIndex;
     auto secondElemIt = Values_.begin() + secondIndex;
@@ -110,16 +110,16 @@ void TChunkPlacement::TNodeToLoadFactorMap::SwapNodes(ui32 firstIndex, ui32 seco
     std::iter_swap(firstElemIt, secondElemIt);
 }
 
-TChunkPlacement::TAllocationSession TChunkPlacement::TNodeToLoadFactorMap::StartAllocationSession(ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+TChunkPlacement::TAllocationSession TChunkPlacement::TNodeToLoadFactorMap::StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
 {
     return TAllocationSession(
         this,
-        std::min<ui32>(nodesToCheckBeforeGivingUpOnWriteTargetAllocation, Values_.size()));
+        std::min<int>(nodesToCheckBeforeGivingUpOnWriteTargetAllocation, Values_.size()));
 }
 
 TChunkPlacement::TAllocationSession::TAllocationSession(
     TNodeToLoadFactorMap* associatedMap,
-    ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+    int nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
     : AssociatedMap_(associatedMap)
     , NodesToCheckBeforeFailing_(nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
 { }

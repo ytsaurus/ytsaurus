@@ -27,6 +27,10 @@ DEFINE_ENUM(ESequoiaTable,
     (DependentTransactions)
 );
 
+DEFINE_ENUM(EGroundUpdateQueue,
+    ((Sequoia)            (0))
+);
+
 namespace NRecords {
 
 struct TPathToNodeId;

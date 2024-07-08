@@ -194,11 +194,16 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation"
           STRIP_VALUE=no
+          BUILD_TYPE=profile
           if [ "${{ matrix.build-type }}" == "release" ]
           then
             STRIP_VALUE=yes
+            BUILD_TYPE=release
           fi
+          BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+          echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
           echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
 
       - name: Create build directories
@@ -220,9 +225,10 @@ jobs:
           build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
           cd ${build_dir}
 
-          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-          ../ytsaurus/ytsaurus/ya make --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes"
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
           cd ../ytsaurus
 
@@ -234,9 +240,10 @@ jobs:
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          ../ytsaurus/ytsaurus/ya make --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
-          ../ytsaurus/ytsaurus/ya make --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -245,11 +252,12 @@ jobs:
 
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          ../ytsaurus/ytsaurus/ya make -T --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+          ../ytsaurus/ytsaurus/ya make -T ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --build=${{ matrix.build-type }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}  --ignore-recurses --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS}  --ignore-recurses --output=."
 
           for path in "ydb/library/yql/tools/mrjob" \
                       "ydb/library/yql/yt/dynamic" \

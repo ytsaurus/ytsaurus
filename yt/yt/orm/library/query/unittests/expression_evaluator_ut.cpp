@@ -57,7 +57,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
                 /*attributePaths*/ {
                     TTypedAttributePath{
                         .Path = "/meta/type",
-                        .Type = type
+                        .Type = type,
                     },
                 }),
             Format("Attribute type %Qlv is not supported", type));

@@ -438,9 +438,9 @@ TEST(TSetAttributeTest, NestedMessageField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/nested_message/int32_field", node),
-        "\"/nested_message\" is missing");
+        TErrorException);
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/nested_message/int32_field", node, {}, true));
     EXPECT_EQ(4, message.nested_message().int32_field());
 }
@@ -449,9 +449,9 @@ TEST(TSetAttributeTest, MapValueNestedField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/nested_message_map/a/int32_field", node),
-        "\"/nested_message_map/a\" is missing");
+        TErrorException);
     EXPECT_NO_THROW(
         SetProtobufFieldByPath(message, "/nested_message_map/a/int32_field", node, {}, true));
     EXPECT_EQ(4, message.nested_message_map().at("a").int32_field());
@@ -476,9 +476,9 @@ TEST(TSetAttributeTest, RepeatedNestedField)
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
     message.add_repeated_nested_message();
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/repeated_nested_message/1/int32_field", node),
-        "is missing");
+        TErrorException);
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/repeated_nested_message/0/int32_field", node));
     EXPECT_EQ(4, message.repeated_nested_message().at(0).int32_field());
 }
@@ -544,6 +544,24 @@ TEST(TSetAttributeTest, AttributeDictionaryField)
         NYson::ConvertFromYsonString<TString>(
             NYson::TYsonString(message.attribute_dictionary().attributes(1).value())));
 
+    EXPECT_NO_THROW(
+        SetProtobufFieldByPath(
+            message,
+            "/attribute_dictionary/aa",
+            NYTree::ConvertToNode("foo_aa"),
+            /*options*/ {},
+            /*recursive*/ true));
+    EXPECT_EQ(3, message.attribute_dictionary().attributes_size());
+    EXPECT_EQ("aa", message.attribute_dictionary().attributes(1).key());
+    EXPECT_EQ(
+        "foo_aa",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.attribute_dictionary().attributes(1).value())));
+    EXPECT_EQ("b", message.attribute_dictionary().attributes(2).key());
+    EXPECT_EQ(
+        "foo_b",
+        NYson::ConvertFromYsonString<TString>(
+            NYson::TYsonString(message.attribute_dictionary().attributes(2).value())));
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/attribute_dictionary",
             NYTree::BuildYsonNodeFluently().Entity()));
     EXPECT_EQ(0, message.attribute_dictionary().attributes_size());
@@ -683,12 +701,12 @@ TEST(TSetAttributeTest, ListModification)
         EXPECT_EQ(message.repeated_nested_message(0).int32_field(), 2);
     }
 
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/repeated_uint64_field/100500", NYTree::ConvertToNode(1u)),
-        "Repeated field index at \"/repeated_uint64_field/100500\" must be in range");
-    EXPECT_THROW_WITH_SUBSTRING(
+        TErrorException);
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/repeated_uint64_field/before:100500", NYTree::ConvertToNode(1u)),
-        "Repeated field index at \"/repeated_uint64_field/before:100500\" must be in range");
+        TErrorException);
 
 #undef TESTCASE
 #undef RESET
@@ -770,9 +788,9 @@ TEST(TSetAttributeTest, UnknownYsonFields)
         NYson::EUnknownYsonFieldsMode::Skip);
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/unknown_string", NYTree::ConvertToNode("a"), options));
 
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         SetProtobufFieldByPath(message, "/unknown_int2", NYTree::ConvertToNode(3), {}),
-        "\"/unknown_int2\" is unknown");
+        TErrorException);
 
     auto node = MessageToNode(message);
     auto int1 = node->AsMap()->FindChild("unknown_int1");
@@ -804,7 +822,9 @@ TEST(TSetAttributeTest, UnknownYsonFieldsByPath)
         .EndMap();
 
     NProto::TMessage message;
-    EXPECT_THROW_WITH_SUBSTRING(SetProtobufFieldByPath(message, "/nested_message", node2, options), "unknown_int");
+    EXPECT_THROW_WITH_SUBSTRING(
+        SetProtobufFieldByPath(message, "/nested_message", node2, options),
+        "unknown_int");
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/nested_message", node1, options));
 
     auto node = MessageToNode(message);

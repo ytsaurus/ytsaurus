@@ -43,7 +43,6 @@ class TMasterConnector
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
-
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
 
 public:
@@ -136,6 +135,8 @@ private:
 
     void OnMasterDisconnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         MasterDisconnected_.Fire();
     }
 

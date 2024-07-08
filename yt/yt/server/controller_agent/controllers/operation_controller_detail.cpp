@@ -5165,7 +5165,7 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
 
     State = EControllerState::Completed;
 
-    YT_UNUSED_FUTURE(
+    GetCancelableInvoker()->Invoke(
         BIND([this, this_ = MakeStrong(this)] {
             try {
                 AbortAllJoblets(EAbortReason::OperationCompleted, /*honestly*/ true);
@@ -5180,9 +5180,7 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
                 // NB(coteeq): Nothing we can do about it. Agent should've been disconnected from master.
                 YT_LOG_WARNING(ex, "Failed to complete operation");
             }
-        })
-            .AsyncVia(GetCancelableInvoker())
-            .Run());
+        }));
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
@@ -5321,9 +5319,9 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
     bool hasJobsToFail = false;
     // NB: job abort will remove allocation from map invalidating iterator.
-    auto AllocationMap_Copy = AllocationMap_;
+    auto allocationMapCopy = AllocationMap_;
 
-    for (const auto& [_, allocation] : AllocationMap_Copy) {
+    for (const auto& [_, allocation] : allocationMapCopy) {
         if (!allocation.Joblet) {
             continue;
         }
@@ -5946,8 +5944,6 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         OnJobStarted(joblet);
     }
 
-
-
     switch (jobSummary->State) {
         case EJobState::Waiting:
             break;
@@ -5998,6 +5994,23 @@ void TOperationControllerBase::ValidateUpdatingTablesTypes() const
 EObjectType TOperationControllerBase::GetOutputTableDesiredType() const
 {
     return EObjectType::Table;
+}
+
+void TOperationControllerBase::ValidateOutputDynamicTablesAllowed() const
+{
+    if (Config->EnableBulkInsertForEveryone ||
+        OperationType == EOperationType::RemoteCopy ||
+        Spec_->AllowOutputDynamicTables ||
+        IsBulkInsertAllowedForUser(AuthenticatedUser, OutputClient))
+    {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Dynamic output table detected. Please read the \"Bulk insert\" "
+        "article in the documenation before running the operation. In the "
+        "article you will find a flag to suppress this error and several "
+        "hints about operations with dynamic output tables.");
 }
 
 void TOperationControllerBase::GetOutputTablesSchema()
@@ -6085,22 +6098,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     << TErrorAttribute("table_path", path);
             }
 
-            // Check if bulk insert is enabled for a certain user.
-            if (!Config->EnableBulkInsertForEveryone && OperationType != EOperationType::RemoteCopy) {
-                TGetNodeOptions options;
-                options.ReadFrom = EMasterChannelKind::Cache;
-                options.Attributes = {"enable_bulk_insert"};
-
-                auto path = "//sys/users/" + ToYPathLiteral(AuthenticatedUser);
-                auto rspOrError = WaitFor(OutputClient->GetNode(path, options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
-                auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
-                const auto& attributes = rsp->Attributes();
-                if (!attributes.Get<bool>("enable_bulk_insert", false)) {
-                    THROW_ERROR_EXCEPTION("Bulk insert is disabled for user %Qv, contact yt-admin@ for enabling",
-                        AuthenticatedUser);
-                }
-            }
+            ValidateOutputDynamicTablesAllowed();
         }
 
         if (path.GetOutputTimestamp()) {
@@ -8572,7 +8570,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
     if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation &&
         !GetOrDefault(Config->UserJobMonitoring->EnableExtendedMaxMonitoredUserJobsPerOperation, OperationType))
     {
-        // NB(omgronny): It's ok to reach default max monitored jobs, so we don't set alert here.
+        // NB(omgronny): It's OK to reach default max monitored jobs, so we don't set alert here.
         YT_LOG_DEBUG("Limit of monitored user jobs per operation reached "
             "(OperationType: %v, LimitPerOperation: %v)",
             OperationType,
@@ -9011,7 +9009,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     std::vector<TJobletPtr> suspiciousJoblets;
     for (const auto& [_, allocation] : AllocationMap_) {
         if (allocation.Joblet && allocation.Joblet->Suspicious) {
-            suspiciousJoblets.emplace_back(allocation.Joblet);
+            suspiciousJoblets.push_back(allocation.Joblet);
         }
     }
 

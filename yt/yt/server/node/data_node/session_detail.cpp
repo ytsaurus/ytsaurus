@@ -218,6 +218,7 @@ TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
 TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
+    i64 cumulativeBlockSize,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -234,7 +235,7 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
             ValidateActive();
             Ping();
 
-            return DoPutBlocks(startBlockIndex, std::move(blocks), enableCaching);
+            return DoPutBlocks(startBlockIndex, std::move(blocks), cumulativeBlockSize, enableCaching);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
@@ -243,6 +244,7 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
+    i64 cumulativeBlockSize,
     const TNodeDescriptor& targetDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -254,7 +256,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, targetDescriptor);
+            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

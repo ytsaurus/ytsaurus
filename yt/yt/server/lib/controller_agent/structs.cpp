@@ -414,7 +414,7 @@ void FormatValue(
 {
     std::visit(
         [&] (const auto& event) {
-            FormatValue(builder, event, "");
+            FormatValue(builder, event, "v");
         },
         allocationEvent.EventSummary);
 }

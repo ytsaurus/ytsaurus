@@ -107,7 +107,8 @@ public:
         if (Report_.Error()) {
             record.Error = TYsonString(*Report_.Error());
         }
-        if (Report_.InterruptionInfo()) {
+        // COMPAT(omgronny)
+        if (archiveVersion >= 50 && Report_.InterruptionInfo()) {
             record.InterruptionInfo = TYsonString(*Report_.InterruptionInfo());
         }
         if (Report_.Statistics()) {
