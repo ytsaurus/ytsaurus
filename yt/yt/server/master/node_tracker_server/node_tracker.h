@@ -225,6 +225,9 @@ public:
     //! Returns a rack with a given name (throws if none).
     virtual TRack* GetRackByNameOrThrow(const TString& name) = 0;
 
+    //! Returns a rack with a given name (fails if none).
+    virtual TRack* GetRackByName(const TString& name) = 0;
+
     //! Sets the data center and notifies the subscribers.
     virtual void SetRackDataCenter(TRack* rack, TDataCenter* dc) = 0;
 
@@ -237,6 +240,9 @@ public:
 
     //! Returns a data center with a given name (throws if none).
     virtual TDataCenter* GetDataCenterByNameOrThrow(const TString& name) = 0;
+
+    //! Returns a data center with a given name (fails if none).
+    virtual TDataCenter* GetDataCenterByName(const TString& name) = 0;
 
 
     //! Returns the total cluster statistics, aggregated over all nodes.

@@ -458,8 +458,8 @@ class TestRackDataCenter(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    rack_set = "testracktest"
-    data_center_set = "testdctest"
+    rack_set = "rack"
+    data_center_set = "data_center"
     DELTA_NODE_CONFIG = {
          "rack": rack_set,
          "data_center": data_center_set,
@@ -477,7 +477,7 @@ class TestRack(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    rack_set = "testrackwithoutdc"
+    rack_set = "rack"
     DELTA_NODE_CONFIG = {
          "rack": rack_set,
     }

@@ -691,6 +691,13 @@ public:
         return rack;
     }
 
+    TRack* GetRackByName(const TString& name) override
+    {
+        TRack* rack = FindRackByName(name);
+        YT_VERIFY(rack);
+        return rack;
+    }
+
     void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter) override
     {
         if (rack->GetDataCenter() != dataCenter) {
@@ -812,6 +819,12 @@ public:
         return dc;
     }
 
+    TDataCenter* GetDataCenterByName(const TString& name) override
+    {
+        auto dc = FindDataCenterByName(name);
+        YT_VERIFY(dc);
+        return dc;
+    }
 
     TAggregatedNodeStatistics GetAggregatedNodeStatistics() override
     {
@@ -1070,26 +1083,24 @@ private:
             if (options.DataCenter) {
                 if (IsObjectAlive(rack)) {
                     if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
-                        THROW_ERROR_EXCEPTION("Data center for rack differs from current data center (Rack: %v, Current %v, New: %v)", rack->GetName(), rack->GetDataCenter()->GetName(), *options.DataCenter);
+                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv",
+                            rack->GetDataCenter()->GetName(), 
+                            rack->GetName(),
+                            *options.DataCenter);
                     }
                 }
 
                 dataCenter = FindDataCenterByName(*options.DataCenter);
                 if (!IsObjectAlive(dataCenter)) {
-                    CreateDataCenterObject(node, *options.DataCenter);
-                    dataCenter = FindDataCenterByName(*options.DataCenter);
-                    if (!dataCenter) {
-                        YT_LOG_FATAL("Cannot find created data center (Datacenter: %v)", *options.DataCenter);
-                    }
+                    CreateDataCenterObject(*options.DataCenter);
+                    dataCenter = GetDataCenterByName(*options.DataCenter);
                 }
             }
 
+            rack = FindRackByName(*options.Rack);
             if (!IsObjectAlive(rack)) {
-                CreateRackObject(node, *options.Rack, dataCenter);
-                rack = FindRackByName(*options.Rack);
-                if (!rack) {
-                    YT_LOG_FATAL("Cannot find created rack (Rack: %v)", options.Rack);
-                }
+                CreateRackObject(*options.Rack, dataCenter);
+                rack = GetRackByName(*options.Rack);
             }
         }
 
@@ -1178,7 +1189,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::Host));
+        req->set_type(ToProto<int>(EObjectType::Host));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", hostName);
@@ -1201,13 +1212,13 @@ private:
         }
     }
 
-    void CreateDataCenterObject(TNode* node, const TString& name)
+    void CreateDataCenterObject(const TString& name)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::DataCenter));
+        req->set_type(ToProto<int>(EObjectType::DataCenter));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
@@ -1217,23 +1228,18 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create data center for a node (Datacenter: %v)", name);
-
-            if (IsObjectAlive(node)) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(node);
-            }
+            YT_LOG_ALERT(ex, "Failed to create data center for a node (DatacenterName: %v)", name);
             throw;
         }
     }
 
-    void CreateRackObject(TNode* node, const TString& name, TDataCenter* dataCenter)
+    void CreateRackObject(const TString& name, TDataCenter* dataCenter)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::Rack));
+        req->set_type(ToProto<int>(EObjectType::Rack));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
@@ -1247,11 +1253,6 @@ private:
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Failed to create rack for a node (Rack: %v)", name);
-
-            if (IsObjectAlive(node)) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(node);
-            }
             throw;
         }
     }
