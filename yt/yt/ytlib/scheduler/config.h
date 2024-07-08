@@ -678,8 +678,8 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESingleChunkTeleportStrategy,
-    (Disabled)
-    (Enabled)
+    ((Disabled) (0))
+    ((Enabled)  (1))
 );
 
 class TAutoMergeConfig
