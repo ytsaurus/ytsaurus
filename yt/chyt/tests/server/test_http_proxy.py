@@ -485,3 +485,22 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
             assert response.status_code == 403
             assert "X-ClickHouse-Server-Display-Name" in response.headers
+
+    @authors("barykinni")
+    def test_http_proxy_authorization_via_x_click_house_key_header(self):
+        username = "simple-dimple"
+        create_user(username)
+
+        allowance = {"subjects": [username], "action": "allow", "permissions": ["read"]}
+
+        with Clique(1, spec={"acl": [allowance]}) as clique:
+            # we expect token to be used as a username
+
+            correct_auth_response = clique.make_query_via_proxy(
+                "select currentUser()", headers={"x-ClickHouse-Key": username})
+
+            assert correct_auth_response == [{"currentUser()": username}]
+
+            invalid_key = "mismatched"
+            with raises_yt_error(900):  # user "mismatched" doesn't exist
+                clique.make_query_via_proxy("select currentUser()", headers={"x-ClickHouse-Key": invalid_key})
