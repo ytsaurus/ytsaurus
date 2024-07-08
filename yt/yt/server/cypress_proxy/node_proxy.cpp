@@ -684,8 +684,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
 
-    // NB: from now all symlinks are resolved and all paths don't contain
-    // symlinks so we can just compare paths here.
+    // NB: from now on, all symlinks are resolved and no path contains symlinks
+    // so we can just compare paths here.
     if (Path_ == sourceRootPath) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
     }

@@ -314,6 +314,20 @@ class TestSequoiaInternals(YTEnvSetup):
             "//tmp/dst/d/",
         ]
 
+    @authors("kvk1920")
+    @pytest.mark.parametrize("copy_mode", ["copy", "move"])
+    def test_copy_force_overlapping_2(self, copy_mode):
+        create("map_node", "//tmp/src/dst/a/b", recursive=True)
+        create("map_node", "//tmp/src/dst/a/c")
+        create("map_node", "//tmp/src/dst/d")
+
+        action = copy if copy_mode == "copy" else move
+
+        with raises_yt_error("Cannot copy or move a node to its descendant"):
+            action("//tmp/src", "//tmp/src/dst", force=True)
+        with raises_yt_error("Cannot copy or move a node to itself"):
+            action("//tmp/src", "//tmp/src/nonexistent", force=True)
+
     @authors("h0pless")
     def test_copy_ignore_existing(self):
         create("map_node", "//tmp/src/a/b", recursive=True)
