@@ -1560,7 +1560,7 @@ private:
             auto schemasCompatibility = CheckTableSchemaCompatibility(
                 inputTableSchema,
                 *OutputTableSchema_,
-                /* ignoreSortOrder */false);
+                {.IgnoreSortOrder = false});
             if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
                 YT_LOG_DEBUG(schemasCompatibility.second,
                     "Input table schema and output table schema are incompatible; "

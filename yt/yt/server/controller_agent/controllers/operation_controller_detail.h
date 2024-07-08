@@ -58,6 +58,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
@@ -1013,7 +1014,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors(const NTableClient::TSortColumns& sortColumns);
     void ValidateOutputSchemaOrdered() const;
-    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns = false) const;
+    void ValidateOutputSchemaCompatibility(NTableClient::TTableSchemaCompatibilityOptions options) const;
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;

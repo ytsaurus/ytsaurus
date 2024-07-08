@@ -9912,29 +9912,21 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
-void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns) const
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(TTableSchemaCompatibilityOptions options) const
 {
     YT_VERIFY(OutputTables_.size() == 1);
-
-    auto hasComputedColumn = OutputTables_[0]->TableUploadOptions.TableSchema->HasComputedColumns();
 
     for (const auto& inputTable : InputManager->GetInputTables()) {
         if (inputTable->SchemaMode == ETableSchemaMode::Strong) {
             const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                 *inputTable->Schema->Filter(inputTable->Path.GetColumns()),
                 *OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                ignoreSortOrder,
-                forbidExtraComputedColumns);
+                options);
             if (compatibility < ESchemaCompatibility::RequireValidation) {
                 // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
                 // check is performed during operation.
                 THROW_ERROR_EXCEPTION(error);
             }
-        } else if (hasComputedColumn && forbidExtraComputedColumns) {
-            // Input table has weak schema, so we cannot check if all
-            // computed columns were already computed. At least this is weird.
-            THROW_ERROR_EXCEPTION("Output table cannot have computed "
-                "columns, which are not present in all input tables");
         }
     }
 }

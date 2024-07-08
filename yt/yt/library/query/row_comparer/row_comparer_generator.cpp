@@ -552,6 +552,8 @@ void TComparerBuilder::BuildMainLoop(
 
 TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 {
+    ValidateDynamicTableKeyColumnCount(keyColumnTypes.Size());
+
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnTypes);
     auto ddComparerName = TString("DDCompare");
@@ -577,6 +579,8 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 
 TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType> keyColumnTypes)
 {
+    ValidateDynamicTableKeyColumnCount(keyColumnTypes.Size());
+
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnTypes);
 

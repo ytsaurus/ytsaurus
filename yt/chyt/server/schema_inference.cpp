@@ -334,7 +334,7 @@ TTableSchemaPtr InferCommonTableSchema(
     //     auto [compatibility, error] = CheckTableSchemaCompatibility(
     //         *table->Schema,
     //         *commonSchema,
-    //         /*ignoreSortOrder*/ false);
+    //         {.IgnoreSortOrder=false});
 
     //     if (compatibility != ESchemaCompatibility::FullyCompatible) {
     //         THROW_ERROR_EXCEPTION("Common schema validation failed; it is a bug; "

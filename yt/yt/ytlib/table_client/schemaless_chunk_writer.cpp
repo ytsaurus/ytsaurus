@@ -2284,7 +2284,10 @@ private:
                 ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema.Get());
                 // Only time this can be true is when RichPath_ has extra chunk sort columns.
                 if (chunkSchema != TableUploadOptions_.TableSchema.Get()) {
-                    auto checkResult = CheckTableSchemaCompatibility(*chunkSchema, *TableUploadOptions_.TableSchema.Get(), false);
+                    auto checkResult = CheckTableSchemaCompatibility(
+                        *chunkSchema,
+                        *TableUploadOptions_.TableSchema.Get(),
+                        {.IgnoreSortOrder = false});
                     if (!checkResult.second.IsOK()) {
                         YT_LOG_FATAL(
                             checkResult.second,
