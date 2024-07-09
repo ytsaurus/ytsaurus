@@ -2870,6 +2870,15 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
     return hllAtHost->EstimateCardinality();
 }
 
+ui64 HyperLogLogGetFingerprint(TValue* value)
+{
+    auto valueAtHost = *ConvertPointerFromWasmToHost(value);
+    if (IsStringLikeType(valueAtHost.Type)) {
+        valueAtHost.Data.String = ConvertPointerFromWasmToHost(valueAtHost.Data.String);
+    }
+    return NTableClient::GetFarmFingerprint(valueAtHost);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReplica
@@ -3805,6 +3814,7 @@ REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);
