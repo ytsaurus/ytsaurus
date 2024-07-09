@@ -73,12 +73,18 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "events",
     "memory_usage",
     "suspended",
+    "scheduling_attributes_per_pool_tree",
+    // COMPAT(omgronny)
     "slot_index_per_pool_tree",
     "alerts",
     "task_names",
     "controller_features",
     "alert_events",
     "has_failed_jobs",
+};
+
+static const THashMap<TString, int> CompatOperationAttributesToArchiveVersion = {
+    {"scheduling_attributes_per_pool_tree", 52},
 };
 
 static const THashSet<TString> ArchiveOnlyAttributes = {
@@ -340,6 +346,16 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     return result;
 }
 
+static THashSet<TString> MakeIgnoredArchiveAttributes(THashSet<TString> ignoredAttributes, int archiveVersion)
+{
+    for (const auto& [attribute, version] : CompatOperationAttributesToArchiveVersion) {
+        if (version > archiveVersion) {
+            ignoredAttributes.insert(attribute);
+        }
+    }
+    return ignoredAttributes;
+}
+
 static THashSet<TString> DeduceActualAttributes(
     const std::optional<THashSet<TString>>& originalAttributes,
     const THashSet<TString>& requiredAttributes,
@@ -361,8 +377,15 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
 {
     THashMap<TOperationId, TOperation> operations;
 
+    auto archiveVersion = TryGetOperationsArchiveVersion();
+    if (!archiveVersion) {
+        return {};
+    }
+
     try {
-        THashSet<TString> ignoredAttributes = {"suspended", "memory_usage", "has_failed_jobs"};
+        THashSet<TString> ignoredAttributes = MakeIgnoredArchiveAttributes(
+            /*ignoredAttributes*/ {"suspended", "memory_usage", "has_failed_jobs"},
+            *archiveVersion);
 
         auto attributes = DeduceActualAttributes(
             options.Attributes,
@@ -957,6 +980,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto runtimeParametersIndex = columnFilter.FindPosition(tableIndex.RuntimeParameters);
     auto eventsIndex = columnFilter.FindPosition(tableIndex.Events);
     auto resultIndex = columnFilter.FindPosition(tableIndex.Result);
+    auto schedulingAttributesPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SchedulingAttributesPerPoolTree);
     auto slotIndexPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree);
     auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
     auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
@@ -1001,6 +1025,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         TryFromUnversionedValue(operation.RuntimeParameters, row, runtimeParametersIndex);
         TryFromUnversionedValue(operation.Events, row, eventsIndex);
         TryFromUnversionedValue(operation.Result, row, resultIndex);
+        TryFromUnversionedValue(operation.SchedulingAttributesPerPoolTree, row, schedulingAttributesPerPoolTreeIndex);
         TryFromUnversionedValue(operation.SlotIndexPerPoolTree, row, slotIndexPerPoolTreeIndex);
         TryFromUnversionedValue(operation.Alerts, row, alertsIndex);
         TryFromUnversionedValue(operation.TaskNames, row, taskNamesIndex);
@@ -1024,6 +1049,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
+    int archiveVersion,
     const TLogger& Logger)
 {
     if (!options.FromTime) {
@@ -1224,7 +1250,9 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         "state",
         "type",
     };
-    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
+    const THashSet<TString> IgnoredAttributes = MakeIgnoredArchiveAttributes(
+        /*ignoredAttributes*/ {"suspended", "memory_usage"},
+        archiveVersion);
 
     auto attributes = DeduceActualAttributes(
         options.Attributes,
@@ -1288,11 +1316,13 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     TListOperationsCountingFilter countingFilter(options);
 
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
-    if (options.IncludeArchive && DoesOperationsArchiveExist()) {
+    auto archiveVersion = TryGetOperationsArchiveVersion();
+    if (options.IncludeArchive && archiveVersion) {
         idToOperation = DoListOperationsFromArchive(
             deadline,
             countingFilter,
             options,
+            *archiveVersion,
             Logger);
     }
 
