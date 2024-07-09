@@ -3899,7 +3899,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent
@@ -4839,7 +4839,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent

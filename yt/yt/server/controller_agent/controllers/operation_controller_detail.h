@@ -326,7 +326,9 @@ public:
 
     void Cancel() override;
 
-    virtual void BuildProgress(NYTree::TFluentMap fluent) const;
+    // BuildProgress can set alerts, so it can't be const.
+    virtual void BuildProgress(NYTree::TFluentMap fluent);
+
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;

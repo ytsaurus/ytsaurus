@@ -8782,7 +8782,7 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }
 
-void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
+void TOperationControllerBase::BuildProgress(TFluentMap fluent)
 {
     if (!IsPrepared()) {
         return;
@@ -8790,9 +8790,15 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
 
     AccountExternalScheduleAllocationFailures();
 
-    auto fullJobStatistics = MergeJobStatistics(
-        AggregatedFinishedJobStatistics_,
-        AggregatedRunningJobStatistics_);
+    TAggregatedJobStatistics fullJobStatistics;
+    try {
+        fullJobStatistics = MergeJobStatistics(
+            AggregatedFinishedJobStatistics_,
+            AggregatedRunningJobStatistics_);
+    } catch (const std::exception& ex) {
+        SetOperationAlert(EOperationAlertType::IncompatibleStatistics, ex);
+        // TODO(pavook): fail the operation after setting this alert.
+    }
 
     fluent
         .Item("state").Value(State.load())
@@ -9211,7 +9217,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
     }
 
     // NB: this routine will be done in a separate thread pool.
-    auto buildAggregatedStatisticsHeavy = [snapshots = std::move(snapshots), statisticsLimit, Logger = this->Logger] {
+    auto buildAggregatedStatisticsHeavy = [this, snapshots = std::move(snapshots), statisticsLimit, Logger = this->Logger] {
         TAggregatedJobStatistics runningJobStatistics;
         bool isLimitExceeded = false;
 
@@ -9222,7 +9228,8 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
         TPeriodicYielder yielder(AggregationYieldPeriod);
 
         for (const auto& [jobStatistics, controllerStatistics, tags] : snapshots) {
-            UpdateAggregatedJobStatistics(
+            SafeUpdateAggregatedJobStatistics(
+                this,
                 runningJobStatistics,
                 tags,
                 *jobStatistics,
@@ -9337,7 +9344,8 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
     i64 statisticsLimit = Options->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
-    UpdateAggregatedJobStatistics(
+    SafeUpdateAggregatedJobStatistics(
+        this,
         AggregatedFinishedJobStatistics_,
         joblet->GetAggregationTags(jobSummary.State),
         *joblet->JobStatistics,

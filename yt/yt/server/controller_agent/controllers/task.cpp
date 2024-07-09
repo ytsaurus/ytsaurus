@@ -2443,7 +2443,8 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     i64 statisticsLimit = TaskHost_->GetOptions()->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
-    UpdateAggregatedJobStatistics(
+    SafeUpdateAggregatedJobStatistics(
+        TaskHost_,
         AggregatedFinishedJobStatistics_,
         joblet->GetAggregationTags(jobSummary.State),
         *joblet->JobStatistics,
