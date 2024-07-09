@@ -4087,48 +4087,54 @@ private:
     void OnIncumbencyStarted(int shardIndex) override
     {
         TShardedIncumbentBase::OnIncumbencyStarted(shardIndex);
-        StartAccountsProfiling();
+        MaybeToggleAccountsProfiling();
     }
 
     void OnIncumbencyFinished(int shardIndex) override
     {
         TShardedIncumbentBase::OnIncumbencyFinished(shardIndex);
-        StopAccountsProfiling();
+        MaybeToggleAccountsProfiling();
+    }
+
+    bool NeedsAccountProfiling() const
+    {
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            return false;
+        }
+
+        if (!GetDynamicConfig()->EnableAccountsProfiling) {
+            return false;
+        }
+
+        return GetActiveShardCount() > 0;
+    }
+
+    void MaybeToggleAccountsProfiling()
+    {
+        if (NeedsAccountProfiling()) {
+            StartAccountsProfiling();
+        } else {
+            StopAccountsProfiling();
+        }
     }
 
     void StartAccountsProfiling()
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
-            return;
-        }
-
-        const auto& dynamicConfig = GetDynamicConfig();
-        if (!dynamicConfig->EnableAccountsProfiling) {
-            return;
-        }
-
-        if (AccountsProfilingExecutor_) {
-            // Already started.
-            return;
+        if (!AccountsProfilingExecutor_) {
+            AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
+                GetDynamicConfig()->AccountsProfilingPeriod);
+            AccountsProfilingExecutor_->Start();
         }
 
         for (const auto& producer : AccountProfilingProducers_) {
             producer->SetEnabled(true);
         }
-
-        AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
-            dynamicConfig->AccountsProfilingPeriod);
-        AccountsProfilingExecutor_->Start();
     }
 
     void StopAccountsProfiling()
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
-            return;
-        }
-
         if (AccountsProfilingExecutor_) {
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
             AccountsProfilingExecutor_.Reset();
@@ -4875,16 +4881,12 @@ private:
             AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(newConfig->AccountMasterMemoryUsageUpdatePeriod);
         }
 
-        if (newConfig->EnableAccountsProfiling) {
-            StartAccountsProfiling();
+        MaybeToggleAccountsProfiling();
 
-            if (newConfig->AccountsProfilingPeriod != oldConfig->AccountsProfilingPeriod &&
-                AccountsProfilingExecutor_)
-            {
-                AccountsProfilingExecutor_->SetPeriod(newConfig->AccountsProfilingPeriod);
-            }
-        } else {
-            StopAccountsProfiling();
+        if (newConfig->AccountsProfilingPeriod != oldConfig->AccountsProfilingPeriod &&
+            AccountsProfilingExecutor_)
+        {
+            AccountsProfilingExecutor_->SetPeriod(newConfig->AccountsProfilingPeriod);
         }
 
         if (HasMutationContext()) {
