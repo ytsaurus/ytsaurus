@@ -353,6 +353,7 @@ IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
 
     auto erasureReaderConfig = New<TErasureReaderConfig>();
     erasureReaderConfig->EnableAutoRepair = true;
+    erasureReaderConfig->UseChunkProber = true;
 
     return CreateRemoteReader(
         *spec,
