@@ -50,6 +50,14 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 {
     YT_VERIFY(TableMountInfo_->Indices.size() == IndexInfos_.size());
 
+    YT_LOG_DEBUG("Building secondary index modifications (TablePath: %v, Indices: [%v])",
+        TableMountInfo_->Path,
+        MakeFormattableView(
+            TableMountInfo_->Indices,
+            [] (auto* builder, const auto& indexInfo) {
+                builder->AppendFormat("(%v: %Qlv)", indexInfo.TableId, indexInfo.Kind);
+            }));
+
     for (const auto& keyColumn : TableMountInfo_->Schemas[ETableSchemaKind::Primary]->Columns()) {
         if (!keyColumn.SortOrder()) {
             break;
@@ -179,10 +187,9 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClie
                 if (!alteredRow) {
                     alteredRow = RowBuffer_->AllocateUnversioned(PositionToIdMapping_.size());
                     for (int index = 0; index < std::ssize(PositionToIdMapping_); ++index) {
-                        alteredRow[index] = {
-                            .Id=static_cast<ui16>(PositionToIdMapping_[index]),
-                            .Type=EValueType::Null,
-                        };
+                        alteredRow[index] = MakeUnversionedSentinelValue(
+                            EValueType::Null,
+                            PositionToIdMapping_[index]);
                     }
                 }
 
