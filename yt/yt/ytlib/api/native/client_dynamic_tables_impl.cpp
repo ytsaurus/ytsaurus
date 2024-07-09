@@ -466,7 +466,7 @@ class TQueryPreparer
 {
 public:
     TQueryPreparer(
-        const TStickyTableMountInfoCachePtr& tableMountCache,
+        TStickyTableMountInfoCachePtr tableMountCache,
         IInvokerPtr invoker,
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
         TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {},
@@ -487,7 +487,7 @@ public:
     }
 
 private:
-    const TStickyTableMountInfoCachePtr& TableMountCache_;
+    const TStickyTableMountInfoCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
     const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
