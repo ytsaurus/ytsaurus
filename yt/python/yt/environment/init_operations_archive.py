@@ -505,6 +505,16 @@ TRANSFORMS[51] = [
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 
+def are_hunks_enabled(client):
+    hunks_path = "//sys/@config/tablet_manager/enable_hunks"
+    return client.exists(hunks_path) and client.get(hunks_path)
+
+
+def check_operations_archive_version(client, target_version):
+    if not are_hunks_enabled(client) and target_version >= 48:
+        raise Exception("Unable to init operations archive: hunks are not enabled")
+
+
 def prepare_migration(client, archive_path):
     if not client.exists(archive_path):
         create_operations_archive_account(client)
@@ -586,11 +596,15 @@ def build_arguments_parser():
 
 
 def run(client, archive_path, target_version, shard_count, latest, force):
+    check_operations_archive_version(client, target_version)
+
     migration = prepare_migration(client, archive_path)
 
     target_version = target_version
     if latest:
         target_version = migration.get_latest_version()
+
+    check_operations_archive_version(client, target_version)
 
     migration.run(
         client=client,
