@@ -132,6 +132,10 @@ jobs:
           cd ${build_dir}
           ninja yson_lib driver_lib driver_rpc_lib
 
+          strip yt/yt/python/yson_shared/libyson_lib.so
+          strip yt/yt/python/driver/native_shared/libdriver_lib.so
+          strip yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
+
           cd ../ytsaurus
 
           source ../venv/bin/activate
