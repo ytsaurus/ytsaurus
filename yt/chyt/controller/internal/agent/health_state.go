@@ -29,7 +29,7 @@ func makeProcessHealthState(name string, timeout time.Duration) processHealthSta
 		name:              name,
 		expirationTimeout: timeout,
 
-		error:                    yterrors.Err("health state is not set"),
+		error:                    yterrors.Err("health state is not set", yterrors.Attr("process_name", name)),
 		lastModificationTime:     now,
 		previousModificationTime: now,
 	}
