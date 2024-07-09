@@ -138,6 +138,8 @@ YT_DEFINE_ERROR_ENUM(
     ((IncarnationMismatch)                        (4417))
     ((AgentDisconnected)                          (4418))
     ((NoSuchJob)                                  (4419))
+    ((NoJobToSettle)                              (4420))
+    ((OperationIsNotRunning)                      (4421))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

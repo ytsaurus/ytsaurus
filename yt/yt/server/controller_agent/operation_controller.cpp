@@ -400,10 +400,9 @@ public:
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TSchedulingContext& context,
-        const TJobResources& allocationLimits,
         const TString& treeId) override
     {
-        return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, allocationLimits, treeId);
+        return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, treeId);
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config) override
@@ -436,9 +435,9 @@ public:
         return DoExecuteGuarded(&IOperationController::GetBriefProgress);
     }
 
-    TJobStartInfo SettleJob(TAllocationId allocationId) override
+    TJobStartInfo SettleJob(TAllocationId allocationId, std::optional<TJobId> lastJobId) override
     {
-        return DoExecuteGuarded(&IOperationController::SettleJob, std::move(allocationId));
+        return DoExecuteGuarded(&IOperationController::SettleJob, allocationId, lastJobId);
     }
 
     TOperationJobMetrics PullJobMetricsDelta(bool force) override

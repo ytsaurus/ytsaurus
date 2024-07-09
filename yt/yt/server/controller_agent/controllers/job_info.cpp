@@ -40,6 +40,14 @@ void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAllocation::TLastJobInfo::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, JobId);
+    Persist(context, CompetitionType);
+}
+
 void TAllocation::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -47,7 +55,23 @@ void TAllocation::Persist(const TPersistenceContext& context)
     Persist(context, Id);
 
     Persist(context, Joblet);
-    Persist(context, LastJobId);
+    if (context.GetVersion() < ESnapshotVersion::MultipleJobsInAllocation) {
+        TJobId lastJobId;
+        Persist(context, lastJobId);
+
+        LastJobInfo.JobId = lastJobId;
+        if (Joblet) {
+            LastJobInfo.CompetitionType = Joblet->CompetitionType;
+        }
+    } else {
+        Persist(context, NodeDescriptor);
+        Persist(context, Resources);
+        Persist(context, TreeId);
+        Persist(context, PoolPath);
+        Persist(context, Task);
+
+        Persist(context, LastJobInfo);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -59,7 +59,10 @@ public:
         using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
         using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
-        TFuture<TJobStartInfo> SettleJob(TOperationId operationId, TAllocationId allocationId);
+        TFuture<TJobStartInfo> SettleJob(
+            TOperationId operationId,
+            TAllocationId allocationId,
+            std::optional<TJobId> lastJobId);
 
     private:
         friend class TControllerAgentConnectorPool;

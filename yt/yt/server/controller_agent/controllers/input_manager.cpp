@@ -1095,7 +1095,7 @@ void TInputManager::OnInputChunkAvailable(
 
         const auto& task = inputStripe.Task;
         task->GetChunkPoolInput()->Resume(inputStripe.Cookie);
-        Host_->UpdateTask(task);
+        Host_->UpdateTask(task.Get());
     }
 }
 
@@ -1139,7 +1139,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     inputStripe.Task->GetChunkMapping()->OnChunkDisappeared(chunk);
                 }
 
-                Host_->UpdateTask(inputStripe.Task);
+                Host_->UpdateTask(inputStripe.Task.Get());
             }
             Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
             break;

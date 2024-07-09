@@ -740,6 +740,14 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAllocationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_multiple_jobs", &TThis::EnableMultipleJobs)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
@@ -808,6 +816,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
         .Default();
+
+    registrar.Parameter("allocation", &TThis::Allocation)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

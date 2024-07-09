@@ -116,7 +116,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJob
 TFuture<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>
 TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
     TOperationId operationId,
-    TAllocationId allocationId)
+    TAllocationId allocationId,
+    std::optional<TJobId> lastJobId)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
@@ -145,6 +146,9 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
 
     ToProto(settleJobRequest->mutable_allocation_id(), allocationId);
     ToProto(settleJobRequest->mutable_operation_id(), operationId);
+    if (lastJobId) {
+        ToProto(settleJobRequest->mutable_last_job_id(), *lastJobId);
+    }
 
     return settleJobRequest->Invoke().ApplyUnique(BIND([
             this,

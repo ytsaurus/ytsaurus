@@ -6,6 +6,7 @@
 #include "data_flow_graph.h"
 #include "experiment_job_manager.h"
 #include "extended_job_resources.h"
+#include "job_info.h"
 #include "job_splitter.h"
 #include "helpers.h"
 #include "probing_job_manager.h"
@@ -40,6 +41,8 @@
 #include <yt/yt/core/logging/serializable_logger.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <expected>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -149,13 +152,22 @@ public:
 
     virtual bool ValidateChunkCount(int chunkCount);
 
-    void ScheduleJob(
+    struct TOutputCookieInfo
+    {
+        std::optional<EJobCompetitionType> CompetitionType;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
+    };
+
+    std::expected<TOutputCookieInfo, EScheduleFailReason>
+    GetOutputCookieInfoForFirstJob(const TAllocation& allocation);
+    std::expected<TOutputCookieInfo, EScheduleFailReason>
+    GetOutputCookieInfoForNextJob(const TAllocation& allocation);
+
+    std::optional<EScheduleFailReason> TryScheduleJob(
+        TAllocation& allocation,
         const TSchedulingContext& context,
-        const NScheduler::TJobResources& jobLimits,
-        const TString& treeId,
-        bool treeIsTentative,
-        bool treeIsProbing,
-        NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult);
+        std::optional<TJobId> previousJobId,
+        bool treeIsTentative);
 
     bool TryRegisterSpeculativeJob(const TJobletPtr& joblet);
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet);
@@ -218,7 +230,7 @@ public:
 
     void LogTentativeTreeStatistics() const;
 
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec);
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec);
 
     //! Checks if jobs can be interrupted. Subclasses should call the base method
     //! but may add extra restrictions.
@@ -250,6 +262,12 @@ public:
 
     //! Modifies the job spec so the job will use the experimental setup if required.
     void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
+
+    NScheduler::TAllocationStartDescriptor CreateAllocationStartDescriptor(
+        const TAllocation& allocation,
+        bool allowIdleCpuPolicy,
+        // COMPAT(pogorelov)
+        const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
 protected:
     NLogging::TSerializableLogger Logger;
@@ -462,8 +480,16 @@ private:
     std::optional<double> UserJobMemoryMultiplier_;
     std::optional<double> JobProxyMemoryMultiplier_;
 
+    std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(
+        TAllocation& allocation,
+        const TSchedulingContext& context,
+        TJobId jobId,
+        bool treeIsTentative,
+        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+        std::optional<EJobCompetitionType> competitionType);
+
     std::optional<TDuration> InferWaitingForResourcesTimeout(
-        const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec);
+        const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,
@@ -497,6 +523,8 @@ private:
     TDuration GetExhaustTime() const;
 
     NYTree::INodePtr BuildStatisticsNode() const;
+
+    void CheckAndProcessOperationCompletedInScheduleJob();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

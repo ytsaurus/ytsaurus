@@ -50,12 +50,6 @@ DECLARE_REFCOUNTED_CLASS(TDockerRegistryConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDisallowRemoteOperationsConfig)
 
-struct TSettleJobRequest
-{
-    TOperationId OperationId;
-    TAllocationId AllocationId;
-};
-
 struct TJobStartInfo
 {
     TJobId JobId;

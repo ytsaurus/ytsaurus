@@ -960,6 +960,10 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto nodeId = FromProto<TNodeId>(request->node_id());
     auto allocationId = FromProto<TAllocationId>(request->allocation_id());
     auto operationId = FromProto<TOperationId>(request->operation_id());
+    std::optional<TJobId> lastJobId;
+    if (request->has_last_job_id()) {
+        lastJobId = FromProto<TJobId>(request->last_job_id());
+    }
 
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION(
@@ -972,11 +976,12 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         "Controller agent disconnected");
 
     auto Logger = NControllerAgent::Logger().WithTag(
-        "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v",
+        "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, LastJobId: %v",
         nodeId,
         nodeDescriptor.GetDefaultAddress(),
         operationId,
-        allocationId);
+        allocationId,
+        lastJobId);
 
     SwitchTo(GetCancelableInvokerOrThrow());
 
@@ -1039,7 +1044,8 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto asyncJobInfo = BIND(
         &IOperationController::SettleJob,
         operationController,
-        allocationId)
+        allocationId,
+        lastJobId)
         .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
         .Run();
 

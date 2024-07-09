@@ -1796,17 +1796,21 @@ private:
                             return;
                         }
 
-                        auto allocationLimits = FromProto<TJobResources>(protoRequest->allocation_resource_limits());
                         const auto& treeId = protoRequest->tree_id();
 
                         TAgentToSchedulerScheduleAllocationResponse response;
-                        const TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
+                        const TAllocationSchedulingContext context(
+                            FromProto<TAllocationId>(protoRequest->allocation_id()),
+                            FromProto<TJobResources>(protoRequest->allocation_resource_limits()),
+                            FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
+                            descriptorIt->second,
+                            YT_PROTO_OPTIONAL(*protoRequest, pool_path),
+                            protoRequest->spec());
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;
                         response.Result = controller->ScheduleAllocation(
                             context,
-                            allocationLimits,
                             treeId);
                         auto scheduleAllocationFinishInstant = TInstant::Now();
                         YT_LOG_DEBUG(

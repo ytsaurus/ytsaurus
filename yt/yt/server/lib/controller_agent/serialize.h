@@ -50,6 +50,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OutputNodeDirectory)                  (301510))
     ((RemoteInputForOperations)             (301511))
     ((JobDeterminismValidation)             (301512))
+    ((MultipleJobsInAllocation)             (301513))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
