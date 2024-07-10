@@ -5406,6 +5406,12 @@ private:
             return;
         }
 
+
+        if (ChunksBeingPurged_) {
+            YT_LOG_DEBUG("Chunks are still being purged");
+            return;
+        }
+
         auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
         for (const auto& replica : replicasOrError.Value()) {
             ToProto(request->add_replicas(), replica);
