@@ -3872,6 +3872,9 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
+        .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
+            fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
+        })
         .DoIf(joblet->PredecessorType != EPredecessorType::None, [&] (TFluentMap fluent) {
             fluent
                 .Item("predecessor_type").Value(joblet->PredecessorType)

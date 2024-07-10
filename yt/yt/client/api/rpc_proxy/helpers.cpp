@@ -950,6 +950,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.ArchiveFeatures) {
         protoJob->set_archive_features(job.ArchiveFeatures.ToString());
     }
+    if (job.MonitoringDescriptor) {
+        protoJob->set_monitoring_descriptor(*job.MonitoringDescriptor);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -1093,6 +1096,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->ArchiveFeatures = TYsonString(protoJob.archive_features());
     } else {
         job->ArchiveFeatures = TYsonString();
+    }
+    if (protoJob.has_monitoring_descriptor()) {
+        job->MonitoringDescriptor = protoJob.monitoring_descriptor();
+    } else {
+        job->MonitoringDescriptor.reset();
     }
 }
 
