@@ -584,7 +584,7 @@ func TestHTTPAPIStartStopUntracked(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	op := getOp(t, env, alias)
+	op := waitOp(t, env, alias)
 	require.NotNil(t, op)
 	require.False(t, op.State.IsFinished())
 	require.Equal(t, "default", op.RuntimeParameters.Annotations["controller_parameter"])
@@ -594,8 +594,10 @@ func TestHTTPAPIStartStopUntracked(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
-	op = getOp(t, env, alias)
-	require.True(t, op == nil || op.State.IsFinished())
+	helpers.Wait(t, func() bool {
+		op = getOp(t, env, alias)
+		return op == nil || op.State.IsFinished()
+	})
 
 	err := env.YT.SetNode(env.Ctx, env.StrawberryRoot.Attr("controller_parameter"), "custom", nil)
 	require.NoError(t, err)
@@ -608,7 +610,12 @@ func TestHTTPAPIStartStopUntracked(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
 
+	helpers.Wait(t, func() bool {
+		op = getOp(t, env, alias)
+		return op != nil && !op.State.IsFinished()
+	})
 	op = getOp(t, env, alias)
+	require.NotNil(t, op)
 	require.False(t, op.State.IsFinished())
 	require.Equal(t, "custom", op.RuntimeParameters.Annotations["controller_parameter"])
 
