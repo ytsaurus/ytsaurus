@@ -32,9 +32,8 @@ struct ISequoiaTransaction
         ESequoiaTable table,
         const TSelectRowsQuery& query) = 0;
 
-    template <class TRecordKey>
-    TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
-        const TSelectRowsQuery& query);
+    template <class TRecord>
+    TFuture<std::vector<TRecord>> SelectRows(const TSelectRowsQuery& query);
 
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,

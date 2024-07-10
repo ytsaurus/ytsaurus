@@ -57,4 +57,19 @@ using TResolveResult = std::variant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCopyOptions
+{
+    NCypressClient::ENodeCloneMode Mode = NCypressClient::ENodeCloneMode::Copy;
+    bool PreserveAcl = false;
+    bool PreserveAccount = false;
+    bool PreserveOwner = false;
+    bool PreserveCreationTime = false;
+    bool PreserveModificationTime = false;
+    bool PreserveExpirationTime = false;
+    bool PreserveExpirationTimeout = false;
+    bool PessimisticQuotaCheck = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

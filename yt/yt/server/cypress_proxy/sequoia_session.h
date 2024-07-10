@@ -2,21 +2,13 @@
 
 #include "public.h"
 
-// TODO(kvk1920): move |TCopyOptions| to somewhere to not include such a
-// low-level header.
-#include "action_helpers.h"
-
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 
-#include <yt/yt/ytlib/transaction_client/action.h>
-
 #include <yt/yt/client/table_client/schema.h>
-
-#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NCypressProxy {
 
