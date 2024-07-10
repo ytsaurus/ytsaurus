@@ -230,9 +230,9 @@ public:
         return Underlying_->GetChunkInfo();
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        return Underlying_->GetWrittenChunkReplicas();
+        return Underlying_->GetWrittenChunkReplicasInfo();
     }
 
     TChunkId GetChunkId() const override

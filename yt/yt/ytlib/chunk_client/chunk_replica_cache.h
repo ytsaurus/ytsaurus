@@ -35,10 +35,6 @@ public:
         TChunkId chunkId,
         const TAllyReplicasInfo& replicas) = 0;
 
-    virtual void RegisterReplicas(
-        TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas) = 0;
-
     virtual void Reconfigure(TChunkReplicaCacheConfigPtr config) = 0;
 };
 

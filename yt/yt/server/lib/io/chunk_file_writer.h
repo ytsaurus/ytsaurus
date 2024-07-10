@@ -58,7 +58,7 @@ public:
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
-    NChunkClient::TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override;
+    NChunkClient::TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override;
 
     NChunkClient::TChunkId GetChunkId() const override;
 

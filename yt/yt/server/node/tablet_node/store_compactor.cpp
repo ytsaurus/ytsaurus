@@ -403,25 +403,28 @@ private:
 
         if (TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
             const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
-            auto registerReplicas = [&] (TChunkId chunkId, const auto& writtenReplicas) {
+            auto registerReplicas = [&] (TChunkId chunkId, const auto& replicasInfo) {
                 // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-                TChunkReplicaWithMediumList replicas;
-                replicas.reserve(writtenReplicas.size());
-                for (auto replica : writtenReplicas) {
-                    replicas.push_back(replica);
+                NChunkClient::TAllyReplicasInfo newReplicas;
+                newReplicas.Revision = replicasInfo.ConfirmationRevision;
+                newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
+                for (auto replica : replicasInfo.Replicas) {
+                    newReplicas.Replicas.push_back(replica);
                 }
 
-                chunkReplicaCache->RegisterReplicas(chunkId, replicas);
+                chunkReplicaCache->UpdateReplicas(chunkId, newReplicas);
             };
 
             for (const auto& writer : Writers_) {
-                for (const auto& [chunkId, replicas] : writer->GetWrittenChunkWithReplicasList()) {
-                    registerReplicas(chunkId, replicas);
+                for (const auto& [chunkId, replicasInfo] : writer->GetWrittenChunkReplicasInfos()) {
+                    registerReplicas(chunkId, replicasInfo);
                 }
             }
 
             if (HunkChunkPayloadWriter_->HasHunks()) {
-                registerReplicas(HunkChunkWriter_->GetChunkId(), HunkChunkWriter_->GetWrittenChunkReplicas());
+                registerReplicas(
+                    HunkChunkWriter_->GetChunkId(),
+                    HunkChunkWriter_->GetWrittenChunkReplicasInfo());
             }
         }
 
