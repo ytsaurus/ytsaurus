@@ -34,6 +34,18 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationPoolTreeAttributes
+    : public NYTree::TYsonStructLite
+{
+    std::optional<int> SlotIndex;
+
+    REGISTER_YSON_STRUCT_LITE(TOperationPoolTreeAttributes);
+
+    static void Register(TRegistrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOperationEvent
 {
     TInstant Time;
@@ -328,7 +340,8 @@ public:
     std::optional<int> FindSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
     void ReleaseSlotIndex(const TString& treeId) override;
-    const THashMap<TString, int>& GetSlotIndices() const;
+    THashMap<TString, int> GetSlotIndices() const;
+    const THashMap<TString, TOperationPoolTreeAttributes>& GetSchedulingAttributesPerPoolTree() const;
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
@@ -423,7 +436,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    THashMap<TString, int> TreeIdToSlotIndex_;
+    THashMap<TString, TOperationPoolTreeAttributes> SchedulingAttributesPerPoolTree_;
 
     TOperationRuntimeParametersPtr RuntimeParameters_;
 

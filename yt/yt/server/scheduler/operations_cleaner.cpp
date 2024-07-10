@@ -92,6 +92,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     BriefSpec = operation->BriefSpecString();
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
     Alias = operation->Alias();
+    SchedulingAttributesPerPoolTree = ConvertToYsonString(operation->GetSchedulingAttributesPerPoolTree(), EYsonFormat::Binary);
     SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
     TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
     ExperimentAssignments = ConvertToYsonString(operation->ExperimentAssignments(), EYsonFormat::Binary);
@@ -128,6 +129,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "runtime_parameters",
         "heavy_runtime_parameters",
         "alias",
+        "scheduling_attributes_per_pool_tree",
         "slot_index_per_pool_tree",
         "task_names",
         "experiment_assignments",
@@ -193,6 +195,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
         RuntimeParameters = attributes.FindYson("runtime_parameters");
     }
     Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
+    SchedulingAttributesPerPoolTree = attributes.FindYson("scheduling_attributes_per_pool_tree");
     SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
     TaskNames = attributes.FindYson("task_names");
     ControllerFeatures = attributes.FindYson("controller_features");
@@ -421,6 +424,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (request.RuntimeParameters) {
         builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.AsStringBuf(), index.RuntimeParameters));
+    }
+
+    if (version >= 51 && request.SchedulingAttributesPerPoolTree) {
+        builder.AddValue(MakeUnversionedAnyValue(request.SchedulingAttributesPerPoolTree.AsStringBuf(), index.SchedulingAttributesPerPoolTree));
     }
 
     if (request.SlotIndexPerPoolTree) {

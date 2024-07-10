@@ -1077,6 +1077,7 @@ private:
                 "start_time",
                 "state",
                 "events",
+                "scheduling_attributes_per_pool_tree",
                 "slot_index_per_pool_tree",
                 "runtime_parameters",
                 "heavy_runtime_parameters",
@@ -1310,8 +1311,15 @@ private:
 
             operation->SetShouldFlushAcl(true);
 
-            auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
-            if (slotIndexMap) {
+            auto schedulingAttributesMap = attributes.Find<THashMap<TString, TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
+            if (schedulingAttributesMap) {
+                for (const auto& [treeId, schedulingInfo] : *schedulingAttributesMap) {
+                    if (auto slotIndex = schedulingInfo.SlotIndex) {
+                        operation->SetSlotIndex(treeId, *slotIndex);
+                    }
+                }
+            // COMPAT(omgronny)
+            } else if (auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree")) {
                 for (const auto& [treeId, slotIndex] : *slotIndexMap) {
                     operation->SetSlotIndex(treeId, slotIndex);
                 }
@@ -1824,7 +1832,14 @@ private:
                 req->set_value(ConvertToYsonStringNestingLimited(operation->BuildAlertsString()).ToString());
             }
 
-            // Set slot index per pool tree.
+            // Set scheduling attributes per pool tree.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_attribute("scheduling_attributes_per_pool_tree");
+                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSchedulingAttributesPerPoolTree()).ToString());
+            }
+
+            // COMPAT(omgronny): Set slot index per pool tree.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("slot_index_per_pool_tree");

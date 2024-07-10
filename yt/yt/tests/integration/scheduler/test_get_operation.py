@@ -133,6 +133,7 @@ class TestGetOperation(YTEnvSetup):
                 "spec",
                 "unrecognized_spec",
                 "full_spec",
+                "scheduling_attributes_per_pool_tree",
                 "slot_index_per_pool_tree",
                 "alerts",
                 "controller_features",
@@ -314,6 +315,7 @@ class TestGetOperation(YTEnvSetup):
         requesting_attributes = [
             "progress",
             "runtime_parameters",
+            "scheduling_attributes_per_pool_tree",
             "slot_index_per_pool_tree",
             "state",
         ]
@@ -326,6 +328,7 @@ class TestGetOperation(YTEnvSetup):
         )
         assert res_get_operations_archive["runtime_parameters"]["annotations"] == annotations
         assert res_get_operations_archive["slot_index_per_pool_tree"]["default"] == 0
+        assert res_get_operations_archive["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0
 
         with raises_yt_error(yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
@@ -545,6 +548,30 @@ class TestGetOperation(YTEnvSetup):
         wait(lambda: get_operation_from_archive_success_counter.get_delta() == 1)
         assert get_operation_from_archive_timeout_counter.get_delta() == 0
         assert get_operation_from_archive_failure_counter.get_delta() == 0
+
+    @authors("omgronny")
+    def test_get_scheduling_attributes_per_pool_tree(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            track=False,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
+        wait_breakpoint()
+
+        wait(lambda: _get_operation_from_archive(op.id))
+        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"] == {"default": {"slot_index": 0}}
+
+        release_breakpoint()
+        clean_operations()
+
+        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"] == {"default": {"slot_index": 0}}
 
 
 ##################################################################

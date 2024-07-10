@@ -277,6 +277,11 @@ public:
         TransferAndGetYson("result", Operation_.Result, cursor);
     }
 
+    void OnSchedulingAttributesPerPoolTree(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("scheduling_attributes_per_pool_tree", Operation_.SchedulingAttributesPerPoolTree, cursor);
+    }
+
     void OnSlotIndexPerPoolTree(TYsonPullParserCursor* cursor)
     {
         TransferAndGetYson("slot_index_per_pool_tree", Operation_.SlotIndexPerPoolTree, cursor);
@@ -402,6 +407,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("result")) {
             cursor->Next();
             consumer->OnResult(cursor);
+        } else if (key == TStringBuf("scheduling_attributes_per_pool_tree")) {
+            cursor->Next();
+            consumer->OnSchedulingAttributesPerPoolTree(cursor);
         } else if (key == TStringBuf("slot_index_per_pool_tree")) {
             cursor->Next();
             consumer->OnSlotIndexPerPoolTree(cursor);
@@ -644,6 +652,11 @@ public:
     }
 
     void OnResult(TYsonPullParserCursor* cursor)
+    {
+        cursor->SkipComplexValue();
+    }
+
+    void OnSchedulingAttributesPerPoolTree(TYsonPullParserCursor* cursor)
     {
         cursor->SkipComplexValue();
     }
