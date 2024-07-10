@@ -82,7 +82,7 @@ public:
 
     void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config) override;
 
-    bool IsBlockCacheMemoryLimitExceeded();
+    bool IsBlockCacheMemoryLimitExceeded() override;
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
