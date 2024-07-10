@@ -389,15 +389,9 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     for (const auto& tableColumn : tableSchema.Columns()) {
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
-        if (indexColumn && *indexColumn->LogicalType() == *tableColumn.LogicalType()) {
-            replacedColumns.insert(indexColumn->Name());
-        }
-
-        if (!tableColumn.SortOrder()) {
+        if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
             continue;
         }
-
-        YT_ASSERT(indexColumn && indexColumn->SortOrder());
 
         auto* indexReference = head->New<NAst::TReferenceExpression>(
             NullSourceLocation,
@@ -411,6 +405,11 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         indexJoinColumns.push_back(indexReference);
         tableJoinColumns.push_back(tableReference);
     }
+
+    THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
+        "Misuse of operator WITH INDEX, tables %v and %v have no shared columns",
+        query.Table.Path,
+        index.Path);
 
     query.WherePredicate = NAst::TTableReferenceReplacer(
         head,
