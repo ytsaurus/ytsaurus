@@ -8,7 +8,7 @@ For this purpose, an HTTP-based stateless service will be developed on top of a 
 Technologies and tools used:
 
 - Service source code in Python 3.4 and higher.
-- [Replicated dynamic {{product-name}} tables](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) in synchronous replication mode will be used as a repository. Work with dynamic tables is implemented via the RPC proxy.
+- [Replicated dynamic {{product-name}} tables](../../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) in synchronous replication mode will be used as a repository. Work with dynamic tables is implemented via the RPC proxy.
 - The [Flask](http://flask.pocoo.org/) framework will be used as the basis for the HTTP API.
 
 {% note info "Note" %}
@@ -18,7 +18,7 @@ The described example is intended primarily as an introduction to the use and ca
 
 {% endnote %}
 
-<!-- Todo: Чтобы скачать примеры кода, перейдите по [ссылке](yt/examples/comment_service). -->
+Click [here](https://github.com/ytsaurus/ytsaurus/tree/main/yt/examples/comment_service) to download code examples.
 
 ## Designing { #designing }
 
@@ -232,14 +232,20 @@ Create a dedicated tablet_cell_bundle and an account with an SSD quota. To ensur
 
 ## Developing service code { #development }
 
-### Installing the required packages: [Flask](http://flask.pocoo.org/) and [WTForms](https://wtforms.readthedocs.io). WTForms will be used to validate parameters. Installation commands:
+### Installing the required packages
+
+Install [Flask](http://flask.pocoo.org/) and [WTForms](https://wtforms.readthedocs.io). WTForms will be used to validate parameters.
+
+Installation commands:
 
 ```bash
 sudo pip install flask
 sudo pip install wtforms
 ```
 
-### Defining the required functions. Environment variables will be used to pass parameters to the program. This approach will then enable the application to be easily moved from the testing environment to the production environment.
+### Defining the required functions
+
+Environment variables will be used to pass parameters to the program. This approach will then enable the application to be easily moved from the testing environment to the production environment.
 
 The required environment variables:
 
@@ -325,7 +331,7 @@ from datetime import datetime
 
 
 # Auxiliary function to get the number of comments in a topic from the topic_id table
-# If there is no specified topic, None returns
+# If the specified topic can't be found in the table, returns None
 def get_topic_size(client, table_path, topic_id):
     topic_info = list(client.lookup_rows(
         "{}/topics".format(table_path), [{"topic_id": topic_id}],
@@ -337,10 +343,10 @@ def get_topic_size(client, table_path, topic_id):
 
 
 def post_comment(client, table_path, user, content, topic_id=None, parent_id=None):
-    # The YtResponseError exception that occurs if the operation fails must be processed
+    # Handle the YtResponseError exception that occurs if the operation fails
     try:
-        # Adding a comment includes several queries of different types
-        # and they need to be assembled into a single transaction to ensure atomicity
+        # Adding a comment involves executing several queries of different types,
+        # so they need to be assembled into a single transaction to ensure atomicity
         with client.Transaction(type="tablet"):
             new_topic = not topic_id
             if new_topic:
@@ -349,7 +355,7 @@ def post_comment(client, table_path, user, content, topic_id=None, parent_id=Non
                 parent_id = 0
                 parent_path = "0"
             else:
-                # The comment_id field is set equal to the sequence number of the comment in the topic
+                # The comment_id field is assigned the comment's order in the topic as its value
                 # This number matches the current size of the topic
                 comment_id = get_topic_size(topic_id)
                 if not comment_id:
@@ -380,7 +386,7 @@ def post_comment(client, table_path, user, content, topic_id=None, parent_id=Non
                 result["topic_id"] = topic_id
             return json.dumps(result)
     except yt.YtResponseError as error:
-        # yt.YtResponseError the __str__ method that returns a detailed error message is defined
+        # yt.YtResponseError defines the __str__ method, which returns a detailed error message
         json.dumps({"error" : str(error)})
 ```
 
@@ -424,11 +430,7 @@ Running the application. The application is created via [Blueprint application f
 
 A separate {{product-name}} client must be created for each query so that it is possible to process queries concurrently in the future. An individual driver version is created for each client, which wastes additional resources. To avoid this problem, one common driver object is created at application initialization and then this object is connected to each created client by specifying the corresponding option in the client.
 
-<!-- TODO: Код инициализации и запуска приложения доступен по [ссылке](yt/examples/comment_service/tutorial/fragments/app.py). -->
-
 WTForms forms are used to validate query parameters. For each method, you need to create a separate class form that specifies the query parameters, their type, and other issues.
-<!-- TODO: Новая версия метода `post_comment` выглядит [следующим образом](/yt/examples/comment_service/tutorial/fragments/post_comment.py).
-TODO: Код метода `user_comments` доступен по [ссылке](/yt/examples/comment_service/tutorial/fragments/user_comments.py). -->
 
 It is assumed that the code is saved in the `run_application.py` file.
 
