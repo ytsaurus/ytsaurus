@@ -4334,7 +4334,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int nonMatchingFilterNodeCount = 0;
-    THashMap<TString, THashMap<TString, i64>> matchingButInsufficientResourcesNodeCountPerTask;
+    THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> matchingButInsufficientResourcesNodeCountPerTask;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
 
@@ -4360,9 +4360,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
             const auto& neededResources = task->GetMinNeededResources();
             bool taskHasEnoughResources = true;
-            TEnumIndexedArray<EJobResourceType, bool> taskHasEnoughResourcesPerResource;
+            TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool> taskHasEnoughResourcesPerResource;
 
-            auto processJobResourceType = [&] (auto resourceLimit, auto resource, EJobResourceType type) {
+            auto processJobResourceType = [&] (auto resourceLimit, auto resource, EJobResourceWithDiskQuotaType type) {
                 if (resource > resourceLimit) {
                     taskHasEnoughResources = false;
                 } else {
@@ -4373,22 +4373,24 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             #define XX(name, Name) processJobResourceType( \
                 descriptor->ResourceLimits.Get##Name(), \
                 neededResources.ToJobResources().Get##Name(), \
-                EJobResourceType::Name);
+                EJobResourceWithDiskQuotaType::Name);
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
 
-            bool taskCanSatisfyDiskQuotaRequest = CanSatisfyDiskQuotaRequest(descriptor->DiskResources, neededResources.DiskQuota(), /*considerUsage*/ false);
-            hasEnoughResources |= taskHasEnoughResources && taskCanSatisfyDiskQuotaRequest;
+            taskHasEnoughResourcesPerResource[EJobResourceWithDiskQuotaType::DiskQuota]
+                = CanSatisfyDiskQuotaRequest(descriptor->DiskResources, neededResources.DiskQuota(), /*considerUsage*/ false);
+
+            taskHasEnoughResources &= taskHasEnoughResourcesPerResource[EJobResourceWithDiskQuotaType::DiskQuota];
+            hasEnoughResources |= taskHasEnoughResources;
 
             if (hasEnoughResources) {
                 break;
             }
 
-            for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-                matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()][FormatEnum(resourceType)] +=
+            for (auto resourceType : TEnumTraits<EJobResourceWithDiskQuotaType>::GetDomainValues()) {
+                matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()][resourceType] +=
                     !taskHasEnoughResourcesPerResource[resourceType];
             }
-            matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()]["disk_space"] += !taskCanSatisfyDiskQuotaRequest;
         }
         if (hasNonTrivialTasks && !hasEnoughResources) {
             continue;
