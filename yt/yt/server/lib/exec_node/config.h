@@ -484,6 +484,8 @@ public:
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
 
+    i64 SummaryBlockSizeInFlight;
+
     double FallbackTimeoutFraction;
 
     REGISTER_YSON_STRUCT(TJobInputCacheDynamicConfig);
