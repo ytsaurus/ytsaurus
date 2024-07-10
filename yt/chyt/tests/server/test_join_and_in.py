@@ -9,6 +9,8 @@ import pytest
 
 
 class TestJoinAndIn(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("max42")
     def test_global_join(self):
         create(
@@ -198,136 +200,6 @@ class TestJoinAndIn(ClickHouseTestBase):
                 )
                 == expected_full
             )
-
-    @authors("max42")
-    @pytest.mark.timeout(150)
-    def test_sorted_join_stress(self):
-        create(
-            "table",
-            "//tmp/t1",
-            attributes={
-                "schema": [
-                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
-                    {"name": "lhs", "type": "string", "required": True},
-                ]
-            },
-        )
-        create(
-            "table",
-            "//tmp/t2",
-            attributes={
-                "schema": [
-                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
-                    {"name": "rhs", "type": "string", "required": True},
-                ]
-            },
-        )
-        rnd = random.Random(x=42)
-
-        # Small values (uncomment for debugging):
-        # row_count, key_range, chunk_count = 5, 7, 2
-        # Large values:
-        row_count, key_range, chunk_count = 200, 400, 10
-
-        def generate_rows(row_count, key_range, chunk_count, payload_column_name, payload_value):
-            keys = [rnd.randint(0, key_range - 1) for _ in range(row_count)]
-            keys = sorted(keys)
-            delimiters = [0] + sorted([rnd.randint(0, row_count) for _ in range(chunk_count - 1)]) + [row_count]
-            rows = []
-            for i in range(chunk_count):
-                rows.append(
-                    [
-                        {"key": key, payload_column_name: "%s%03d" % (payload_value, key)}
-                        for key in keys[delimiters[i]:delimiters[i + 1]]
-                    ]
-                )
-            return rows
-
-        def write_multiple_chunks(path, row_batches):
-            for row_batch in row_batches:
-                write_table("<append=%true>" + path, row_batch)
-            print_debug("Table {}".format(path))
-            chunk_ids = get(path + "/@chunk_ids", verbose=False)
-            for chunk_id in chunk_ids:
-                attrs = get("#" + chunk_id + "/@", attributes=["min_key", "max_key", "row_count"], verbose=False)
-                print_debug(
-                    "{}: rc = {}, bk = ({}, {})".format(
-                        chunk_id, attrs["row_count"], attrs["min_key"], attrs["max_key"]
-                    )
-                )
-
-        lhs_rows = generate_rows(row_count, key_range, chunk_count, "lhs", "foo")
-        rhs_rows = generate_rows(row_count, key_range, chunk_count, "rhs", "bar")
-
-        write_multiple_chunks("//tmp/t1", lhs_rows)
-        write_multiple_chunks("//tmp/t2", rhs_rows)
-
-        lhs_rows = sum(lhs_rows, [])
-        rhs_rows = sum(rhs_rows, [])
-
-        def expected_result(kind, key_range, lhs_rows, rhs_rows):
-            it_lhs = 0
-            it_rhs = 0
-            result = []
-            for key in range(key_range):
-                start_lhs = it_lhs
-                while it_lhs < len(lhs_rows) and lhs_rows[it_lhs]["key"] == key:
-                    it_lhs += 1
-                finish_lhs = it_lhs
-                start_rhs = it_rhs
-                while it_rhs < len(rhs_rows) and rhs_rows[it_rhs]["key"] == key:
-                    it_rhs += 1
-                finish_rhs = it_rhs
-                maybe_lhs_null = []
-                maybe_rhs_null = []
-                if start_lhs == finish_lhs and start_rhs == finish_rhs:
-                    continue
-                if kind in ("right", "full") and start_lhs == finish_lhs:
-                    maybe_lhs_null.append({"key": key, "lhs": None})
-                if kind in ("left", "full") and start_rhs == finish_rhs:
-                    maybe_rhs_null.append({"key": key, "rhs": None})
-                for lhs_row in lhs_rows[start_lhs:finish_lhs] + maybe_lhs_null:
-                    for rhs_row in rhs_rows[start_rhs:finish_rhs] + maybe_rhs_null:
-                        result.append({"key": key, "lhs": lhs_row["lhs"], "rhs": rhs_row["rhs"]})
-            return result
-
-        expected_results = {}
-        for kind in ("inner", "left", "right", "full"):
-            expected_results[kind] = expected_result(kind, key_range, lhs_rows, rhs_rows)
-
-        index = 0
-        for instance_count in range(1, 5):
-            with Clique(instance_count) as clique:
-                # TODO(max42): CHYT-390.
-                for lhs_arg in ('"//tmp/t1"', '(select * from "//tmp/t1")'):
-                    for rhs_arg in ('"//tmp/t2"', '(select * from "//tmp/t2")'):
-                        for globalness in ("", "global"):
-                            for kind in ("inner", "left", "right", "full"):
-                                query = (
-                                    "select key, lhs, rhs from {lhs_arg} l {globalness} {kind} join {rhs_arg} r "
-                                    "using key order by key, lhs, rhs nulls first".format(**locals())
-                                )
-                                result = list(clique.make_query(query, verbose=False))
-
-                                expected = expected_results[kind]
-                                print_debug(
-                                    "Query #{}: '{}' produced {} rows, expected {} rows".format(
-                                        index, query, len(result), len(expected)
-                                    )
-                                )
-                                index += 1
-                                result = list(map(str, result))
-                                expected = list(map(str, expected))
-                                if result != expected:
-                                    print_debug("Produced:")
-                                    for row in result:
-                                        char = "+" if row not in expected else " "
-                                        print_debug(char + " " + row)
-                                    print_debug("Expected:")
-                                    for row in expected:
-                                        char = "-" if row not in result else " "
-                                        print_debug(char + " " + row)
-                                    assert False
 
     @authors("max42")
     def test_tricky_join(self):
@@ -880,3 +752,135 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"a": 1, "b": 4},
                 {"a": 2, "b": 3},
                 {"a": 2, "b": 4}]
+
+
+class TestJoinAndInStress(ClickHouseTestBase):
+    @authors("max42")
+    @pytest.mark.timeout(300)
+    def test_sorted_join_stress(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "lhs", "type": "string", "required": True},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "rhs", "type": "string", "required": True},
+                ]
+            },
+        )
+        rnd = random.Random(x=42)
+
+        # Small values (uncomment for debugging):
+        # row_count, key_range, chunk_count = 5, 7, 2
+        # Large values:
+        row_count, key_range, chunk_count = 200, 400, 10
+
+        def generate_rows(row_count, key_range, chunk_count, payload_column_name, payload_value):
+            keys = [rnd.randint(0, key_range - 1) for _ in range(row_count)]
+            keys = sorted(keys)
+            delimiters = [0] + sorted([rnd.randint(0, row_count) for _ in range(chunk_count - 1)]) + [row_count]
+            rows = []
+            for i in range(chunk_count):
+                rows.append(
+                    [
+                        {"key": key, payload_column_name: "%s%03d" % (payload_value, key)}
+                        for key in keys[delimiters[i]:delimiters[i + 1]]
+                    ]
+                )
+            return rows
+
+        def write_multiple_chunks(path, row_batches):
+            for row_batch in row_batches:
+                write_table("<append=%true>" + path, row_batch)
+            print_debug("Table {}".format(path))
+            chunk_ids = get(path + "/@chunk_ids", verbose=False)
+            for chunk_id in chunk_ids:
+                attrs = get("#" + chunk_id + "/@", attributes=["min_key", "max_key", "row_count"], verbose=False)
+                print_debug(
+                    "{}: rc = {}, bk = ({}, {})".format(
+                        chunk_id, attrs["row_count"], attrs["min_key"], attrs["max_key"]
+                    )
+                )
+
+        lhs_rows = generate_rows(row_count, key_range, chunk_count, "lhs", "foo")
+        rhs_rows = generate_rows(row_count, key_range, chunk_count, "rhs", "bar")
+
+        write_multiple_chunks("//tmp/t1", lhs_rows)
+        write_multiple_chunks("//tmp/t2", rhs_rows)
+
+        lhs_rows = sum(lhs_rows, [])
+        rhs_rows = sum(rhs_rows, [])
+
+        def expected_result(kind, key_range, lhs_rows, rhs_rows):
+            it_lhs = 0
+            it_rhs = 0
+            result = []
+            for key in range(key_range):
+                start_lhs = it_lhs
+                while it_lhs < len(lhs_rows) and lhs_rows[it_lhs]["key"] == key:
+                    it_lhs += 1
+                finish_lhs = it_lhs
+                start_rhs = it_rhs
+                while it_rhs < len(rhs_rows) and rhs_rows[it_rhs]["key"] == key:
+                    it_rhs += 1
+                finish_rhs = it_rhs
+                maybe_lhs_null = []
+                maybe_rhs_null = []
+                if start_lhs == finish_lhs and start_rhs == finish_rhs:
+                    continue
+                if kind in ("right", "full") and start_lhs == finish_lhs:
+                    maybe_lhs_null.append({"key": key, "lhs": None})
+                if kind in ("left", "full") and start_rhs == finish_rhs:
+                    maybe_rhs_null.append({"key": key, "rhs": None})
+                for lhs_row in lhs_rows[start_lhs:finish_lhs] + maybe_lhs_null:
+                    for rhs_row in rhs_rows[start_rhs:finish_rhs] + maybe_rhs_null:
+                        result.append({"key": key, "lhs": lhs_row["lhs"], "rhs": rhs_row["rhs"]})
+            return result
+
+        expected_results = {}
+        for kind in ("inner", "left", "right", "full"):
+            expected_results[kind] = expected_result(kind, key_range, lhs_rows, rhs_rows)
+
+        index = 0
+        for instance_count in range(1, 5):
+            with Clique(instance_count) as clique:
+                # TODO(max42): CHYT-390.
+                for lhs_arg in ('"//tmp/t1"', '(select * from "//tmp/t1")'):
+                    for rhs_arg in ('"//tmp/t2"', '(select * from "//tmp/t2")'):
+                        for globalness in ("", "global"):
+                            for kind in ("inner", "left", "right", "full"):
+                                query = (
+                                    "select key, lhs, rhs from {lhs_arg} l {globalness} {kind} join {rhs_arg} r "
+                                    "using key order by key, lhs, rhs nulls first".format(**locals())
+                                )
+                                result = list(clique.make_query(query, verbose=False))
+
+                                expected = expected_results[kind]
+                                print_debug(
+                                    "Query #{}: '{}' produced {} rows, expected {} rows".format(
+                                        index, query, len(result), len(expected)
+                                    )
+                                )
+                                index += 1
+                                result = list(map(str, result))
+                                expected = list(map(str, expected))
+                                if result != expected:
+                                    print_debug("Produced:")
+                                    for row in result:
+                                        char = "+" if row not in expected else " "
+                                        print_debug(char + " " + row)
+                                    print_debug("Expected:")
+                                    for row in expected:
+                                        char = "-" if row not in result else " "
+                                        print_debug(char + " " + row)
+                                    assert False
