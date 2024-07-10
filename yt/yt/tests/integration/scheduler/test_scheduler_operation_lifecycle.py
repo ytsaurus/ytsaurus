@@ -324,12 +324,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         wait(lambda: get(op.get_path() + "/@suspended"), iter=100, sleep_backoff=0.6)
 
-        time.sleep(0.5)
-
         assert op.get_state() == "running"
 
-        alerts = get(op.get_path() + "/@alerts")
-        assert list(alerts) == ["operation_suspended"]
+        wait(lambda: len(get(op.get_path() + "/@alerts")) > 0)
+        assert list(get(op.get_path() + "/@alerts")) == ["operation_suspended"]
 
         set("//sys/accounts/limited/@resource_limits/chunk_count", 10)
         op.resume()
