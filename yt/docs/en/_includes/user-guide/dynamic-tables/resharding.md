@@ -137,7 +137,7 @@ A list of available table settings (`//path/to/table/@tablet_balancer_config`) i
 | desired_tablet_count | int | - | Desired number of tablets |
 | min_tablet_count | int | - | Minimum number of tablets (see explanation in the text) |
 
-{% cut  "Устаревшие атрибуты таблицы" %}
+{% cut  "Outdated table attributes" %}
 
 Previously, instead of `//path/to/table/@tablet_balancer_config`, the balancer settings were set directly on the table. The following attributes could be found in the table:
 
