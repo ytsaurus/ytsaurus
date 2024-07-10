@@ -2072,8 +2072,8 @@ private:
             int blockIndex = blockIndexes[index];
             auto blockId = TBlockId(ChunkId_, blockIndex);
 
-            while(*requestedBlockIndexIt != blockIndex &&
-                requestedBlockIndexIt != requestedBlockIndexes.end() &&
+            while(requestedBlockIndexIt != requestedBlockIndexes.end() &&
+                *requestedBlockIndexIt != blockIndex &&
                 responseBlockIt != responseBlocks.end())
             {
                 ++requestedBlockIndexIt;
