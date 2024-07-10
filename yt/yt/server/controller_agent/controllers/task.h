@@ -230,7 +230,7 @@ public:
 
     void LogTentativeTreeStatistics() const;
 
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec);
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec);
 
     //! Checks if jobs can be interrupted. Subclasses should call the base method
     //! but may add extra restrictions.

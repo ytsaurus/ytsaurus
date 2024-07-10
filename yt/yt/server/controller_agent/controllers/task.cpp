@@ -893,7 +893,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
-        scheduleAllocationSpec = context.GetScheduleAllocationSpec(),
+        scheduleAllocationSpec = context.GetScheduleAllocationSpec()
+            ? std::make_optional(*context.GetScheduleAllocationSpec())
+            : std::nullopt,
         discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
         Logger = Logger
     ] {
@@ -1911,7 +1913,7 @@ bool TTask::IsInputDataWeightHistogramSupported() const
     return true;
 }
 
-TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec)
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 

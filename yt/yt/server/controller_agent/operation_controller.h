@@ -446,7 +446,7 @@ struct IOperationController
      *  \note Invoker affinity: cancelable controller invoker
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const TSchedulingContext& context,
+        const TAllocationSchedulingContext& context,
         const TString& treeId) = 0;
 
     //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().

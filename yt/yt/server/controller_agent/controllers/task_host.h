@@ -146,7 +146,7 @@ struct ITaskHost
 
     virtual TSharedRef BuildJobSpecProto(
         const TJobletPtr& joblet,
-        const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec) = 0;
+        const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec) = 0;
 
     virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 

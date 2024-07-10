@@ -4468,7 +4468,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 }
 
 TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAllocation(
-    const TSchedulingContext& context,
+    const TAllocationSchedulingContext& context,
     const TString& treeId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->ScheduleAllocationControllerQueue));
@@ -4752,7 +4752,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 
 void TOperationControllerBase::DoScheduleAllocation(
     TAllocation& allocation,
-    const TSchedulingContext& context,
+    const TAllocationSchedulingContext& context,
     const TString& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult)
 {
@@ -4786,7 +4786,7 @@ void TOperationControllerBase::DoScheduleAllocation(
 
 void TOperationControllerBase::TryScheduleFirstJob(
     TAllocation& allocation,
-    const TSchedulingContext& context,
+    const TAllocationSchedulingContext& context,
     TControllerScheduleAllocationResult* scheduleAllocationResult,
     bool scheduleLocalJob)
 {
@@ -9013,7 +9013,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
 
 TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(
     const TJobletPtr& joblet,
-    const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec)
+    const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec)
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 

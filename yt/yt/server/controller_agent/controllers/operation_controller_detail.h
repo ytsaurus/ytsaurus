@@ -208,7 +208,7 @@ private: \
         public,
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (const TSchedulingContext& context, const TString& treeId),
+        (const TAllocationSchedulingContext& context, const TString& treeId),
         (context, treeId),
         true)
 
@@ -245,7 +245,7 @@ private: \
         public,
         TSharedRef,
         BuildJobSpecProto,
-        (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleAllocationSpec* scheduleAllocationSpec),
+        (const TJobletPtr& joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec),
         (joblet, scheduleAllocationSpec),
         false)
 
@@ -695,13 +695,13 @@ protected:
 
     void DoScheduleAllocation(
         TAllocation& allocation,
-        const TSchedulingContext& context,
+        const TAllocationSchedulingContext& context,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
     void TryScheduleFirstJob(
         TAllocation& allocation,
-        const TSchedulingContext& context,
+        const TAllocationSchedulingContext& context,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
         bool scheduleLocalJob);
 
