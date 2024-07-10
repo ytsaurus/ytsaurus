@@ -216,7 +216,7 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
 
 class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     @authors("sabdenovch")
-    def test_secondary_index_create_index(self):
+    def test_create_index(self):
         table_id, index_table_id, index_id, _ = self._create_basic_tables()
 
         assert get("#{}/@kind".format(index_id)) == "full_sync"
@@ -239,7 +239,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         }
 
     @authors("sabdenovch")
-    def test_secondary_index_delete_index(self):
+    def test_delete_index(self):
         _, _, index_id, _ = self._create_basic_tables()
 
         remove(f"#{index_id}")
@@ -249,7 +249,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
-    def test_secondary_index_delete_primary_table(self):
+    def test_delete_primary_table(self):
         _, _, index_id, _ = self._create_basic_tables()
 
         remove("//tmp/table")
@@ -259,7 +259,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
-    def test_secondary_index_delete_index_table(self):
+    def test_delete_index_table(self):
         _, _, index_id, _ = self._create_basic_tables()
 
         remove("//tmp/index_table")
@@ -269,7 +269,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
-    def test_secondary_index_illegal_create_on_mounted(self):
+    def test_illegal_create_on_mounted(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
 
@@ -300,7 +300,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             {"name": "valueB", "type": "boolean", "lock": "B"},
         ], INDEX_ON_VALUE_SCHEMA)
     ))
-    def test_secondary_index_illegal_schema_combinations(self, schema_pair):
+    def test_illegal_schema_combinations(self, schema_pair):
         self._create_table("//tmp/table", schema_pair[0])
         self._create_table("//tmp/index", schema_pair[1])
 
@@ -308,7 +308,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             create_secondary_index("//tmp/table", "//tmp/index", "full_sync")
 
     @authors("sabdenovch")
-    def test_secondary_index_predicate_and_locks(self):
+    def test_predicate_and_locks(self):
         self._create_table(
             "//tmp/table",
             PRIMARY_SCHEMA + [{"name": "predicatedValue", "type": "int64", "lock": "someLock"}])
@@ -318,7 +318,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             create_secondary_index("//tmp/table", "//tmp/index", "full_sync", predicate="predicatedValue >= 0")
 
     @authors("sabdenovch")
-    def test_secondary_index_alter_extra_key_order(self):
+    def test_alter_extra_key_order(self):
         self._create_basic_tables()
 
         with raises_yt_error():
@@ -334,7 +334,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
 
     @authors("sabdenovch")
-    def test_secondary_index_alter_extra_value_order(self):
+    def test_alter_extra_value_order(self):
         self._create_basic_tables()
 
         with raises_yt_error():
@@ -349,7 +349,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
 class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     @authors("sabdenovch")
-    def test_secondary_index_select_simple(self):
+    def test_simple(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
         self._mount("//tmp/table", "//tmp/index_table")
@@ -371,7 +371,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert_items_equal(rows, filtered)
 
     @authors("sabdenovch")
-    def test_secondary_index_select_with_alias(self):
+    def test_with_alias(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
         self._mount("//tmp/table", "//tmp/index_table")
@@ -391,7 +391,21 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
 
     @authors("sabdenovch")
-    def test_secondary_index_select_unfolding(self):
+    def test_join_on_all_shared_columns(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._mount("//tmp/table", "//tmp/index_table")
+
+        table_rows = [{"keyA": 0, "keyB": "alpha", "valueA": 100}]
+        insert_rows("//tmp/table", table_rows)
+        insert_rows("//tmp/index_table", table_rows + [{"keyA": 0, "keyB": "alpha", "valueA": 200}])
+
+        expected = list(select_rows("keyA, keyB, valueA from [//tmp/table]"))
+        actual = list(select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]"))
+        assert actual == expected
+
+    @authors("sabdenovch")
+    def test_unfolding(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA_WITH_LIST)
         self._create_table("//tmp/index_table", UNFOLDING_INDEX_SCHEMA)
         self._mount("//tmp/table", "//tmp/index_table")
@@ -474,7 +488,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         assert_items_equal(sorted_dicts(actual), sorted_dicts(expected))
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_simple(self):
+    def test_simple(self):
         self._create_basic_tables(mount=True)
 
         rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
@@ -483,7 +497,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index(rows)
 
     @authors("sabdenovch")
-    def test_secondary_index_utility_column(self):
+    def test_utility_column(self):
         self._create_basic_tables(index_schema=INDEX_ON_KEY_SCHEMA, mount=True)
 
         rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
@@ -492,7 +506,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([{"keyB": "key", "keyA": 0, EMPTY_COLUMN_NAME: None}])
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_same_key_twice(self):
+    def test_same_key_twice(self):
         self._create_basic_tables(mount=True)
 
         self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}])
@@ -502,7 +516,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index(update)
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_same_key_twice_in_one_transaction(self):
+    def test_same_key_twice_in_one_transaction(self):
         self._create_basic_tables(mount=True)
 
         self._insert_rows([
@@ -513,7 +527,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": False}])
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_multiple(self):
+    def test_multiple(self):
         self._create_basic_tables(mount=True)
 
         rows = []
@@ -525,7 +539,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index(rows)
 
     @authors("sabdenovch")
-    def test_secondary_index_update_partial(self):
+    def test_update_partial(self):
         self._create_basic_tables(mount=True)
 
         self._insert_rows([{"keyA": 0, "keyB": "keyB", "valueA": 123, "valueB": False}])
@@ -534,7 +548,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([{"valueA": 123, "keyA": 0, "keyB": "keyB", "valueB": True}])
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_missing_index_key(self):
+    def test_missing_index_key(self):
         self._create_basic_tables(mount=True)
 
         self._insert_rows([
@@ -548,7 +562,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ])
 
     @authors("sabdenovch")
-    def test_secondary_index_delete_rows(self):
+    def test_delete_rows(self):
         self._create_basic_tables(mount=True)
 
         N = 8
@@ -566,7 +580,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i) for i in remaining])
 
     @authors("sabdenovch")
-    def test_secondary_index_update_nonkey(self):
+    def test_update_nonkey(self):
         self._create_basic_tables(mount=True)
 
         N = 8
@@ -580,7 +594,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i, N // 4 <= i and i < N - N // 4) for i in range(N)])
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_update_index_key(self):
+    def test_update_index_key(self):
         self._create_basic_tables(mount=True)
 
         N = 8
@@ -594,7 +608,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i, i % 3 if N // 4 <= i and i < N - N // 4 else i % 2) for i in range(N)])
 
     @authors("sabdenovch")
-    def test_secondary_index_insert_drop_index_key(self):
+    def test_drop_index_key(self):
         self._create_basic_tables(mount=True)
 
         N = 8
@@ -608,7 +622,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i, None if N // 4 <= i and i < N - N // 4 else i % 3) for i in range(N)])
 
     @authors("sabdenovch")
-    def test_secondary_index_multiple_indices(self):
+    def test_multiple_indices(self):
         self._create_basic_tables()
         self._create_table("//tmp/index_table_auxiliary", INDEX_ON_KEY_SCHEMA)
         if self.NUM_REMOTE_CLUSTERS:
@@ -633,7 +647,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
 
     @authors("sabdenovch")
-    def test_secondary_index_unfolding_modifications(self):
+    def test_unfolding_modifications(self):
         self._create_basic_tables(
             table_schema=PRIMARY_SCHEMA_WITH_LIST,
             index_schema=UNFOLDING_INDEX_SCHEMA,
@@ -695,7 +709,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     @authors("sabdenovch")
     @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
     @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
-    def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
+    def test_different_evaluated_columns(self, table_schema, index_table_schema):
         self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
         index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
         if index_table_schema == INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION:
@@ -704,7 +718,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([index_row])
 
     @authors("sabdenovch")
-    def test_secondary_index_predicate(self):
+    def test_predicate(self):
         self._create_basic_tables(
             mount=True,
             table_schema=[
@@ -745,7 +759,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ])
 
     @authors("sabdenovch")
-    def test_secondary_index_consequtive_inserts_under_transaction(self):
+    def test_consequtive_inserts_under_transaction(self):
         self._create_basic_tables(mount=True)
         tx = start_transaction(type="tablet")
         self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 123}], tx=tx)
@@ -754,7 +768,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 456, "valueB": None}])
 
     @authors("sabdenovch")
-    def test_secondary_index_forbid_shared_write_locks(self):
+    def test_forbid_shared_write_locks(self):
         index_schema = deepcopy(INDEX_ON_VALUE_SCHEMA[:3]) + [{"name": EMPTY_COLUMN_NAME, "type": "int64"}]
         table_schema = deepcopy(PRIMARY_SCHEMA)
         table_schema[2]["lock"] = "alpha"
@@ -780,14 +794,21 @@ class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("sabdenovch")
-    def test_secondary_index_different_cell_tags(self):
+    def test_different_cell_tags(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
         with raises_yt_error("Table and index table external cell tags differ"):
             self._create_secondary_index()
 
     @authors("sabdenovch")
-    def test_secondary_index_forbid_portal(self):
+    def test_forbid_create_beyond_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        with raises_yt_error("Table and index table native cell tags differ"):
+            self._create_basic_tables(
+                index_table_path="//tmp/p/index_table")
+
+    @authors("sabdenovch")
+    def test_forbid_move_beyond_portal(self):
         self._create_basic_tables()
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
         with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
@@ -801,7 +822,7 @@ class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
 
 class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
     @authors("sabdenovch")
-    def test_secondary_index_holds_collocation(self):
+    def test_holds_collocation(self):
         _ = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
         _ = self._create_table("//tmp/table", PRIMARY_SCHEMA)
         _ = self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
@@ -828,7 +849,7 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
 
 class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestSecondaryIndexSelect):
     @authors("sabdenovch")
-    def test_secondary_index_select_picks_sync_replicas(self):
+    def test_picks_sync_replicas(self):
         table_path = "//tmp/table"
         index_table_path = "//tmp/index_table"
 
