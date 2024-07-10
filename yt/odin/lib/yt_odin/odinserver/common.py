@@ -74,7 +74,7 @@ class BoundProcess(Process):
         def safe_run(*args, **kwargs):
             prctl.set_pdeathsig(pdeathsig)
             if name:
-                prctl.set_name(name)
+                prctl.set_name(name[:15])
 
             try:
                 target(*args, **kwargs)
