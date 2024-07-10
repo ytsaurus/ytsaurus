@@ -660,8 +660,8 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
         assert insufficient_resources_result["task_a"]["network"] == 0
         assert insufficient_resources_result["task_b"]["network"] == 0
 
-        assert insufficient_resources_result["task_a"]["disk_space"] == 0
-        assert insufficient_resources_result["task_b"]["disk_space"] == 0
+        assert insufficient_resources_result["task_a"]["disk_quota"] == 0
+        assert insufficient_resources_result["task_b"]["disk_quota"] == 0
 
         assert insufficient_resources_result["task_a"]["user_slots"] == 0
         assert insufficient_resources_result["task_b"]["user_slots"] == 0
