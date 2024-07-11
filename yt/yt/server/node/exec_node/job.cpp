@@ -1275,6 +1275,7 @@ std::optional<TPagedLog> TJob::GetStderr(const TPagedLogReq& request)
             } else {
                 str = str.substr(first, request.Limit ? first + request.Limit : str.npos);
             }
+        }
         return {{
             .Data = str,
             .TotalSize = static_cast<i64>(Stderr_->size()),
