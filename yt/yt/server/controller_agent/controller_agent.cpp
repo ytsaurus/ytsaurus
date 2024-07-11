@@ -257,7 +257,8 @@ public:
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
-            ControllerAgentLogger))
+            ControllerAgentLogger,
+            ControllerAgentProfiler.WithPrefix("/chunk_location_throttler")))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
