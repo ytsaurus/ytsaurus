@@ -693,7 +693,7 @@ public:
 
     TRack* GetRackByName(const TString& name) override
     {
-        TRack* rack = FindRackByName(name);
+        auto* rack = FindRackByName(name);
         YT_VERIFY(rack);
         return rack;
     }
@@ -821,7 +821,7 @@ public:
 
     TDataCenter* GetDataCenterByName(const TString& name) override
     {
-        auto dc = FindDataCenterByName(name);
+        auto* dc = FindDataCenterByName(name);
         YT_VERIFY(dc);
         return dc;
     }
@@ -1079,7 +1079,6 @@ private:
         if (options.Rack) {
             rack = FindRackByName(*options.Rack);
 
-            TDataCenter* dataCenter = nullptr;
             if (options.DataCenter) {
                 if (IsObjectAlive(rack)) {
                     if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
@@ -1090,7 +1089,7 @@ private:
                     }
                 }
 
-                dataCenter = FindDataCenterByName(*options.DataCenter);
+                auto* dataCenter = FindDataCenterByName(*options.DataCenter);
                 if (!IsObjectAlive(dataCenter)) {
                     CreateDataCenterObject(*options.DataCenter);
                     dataCenter = GetDataCenterByName(*options.DataCenter);
@@ -1228,7 +1227,7 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create data center for a node (DatacenterName: %v)", name);
+            YT_LOG_ALERT(ex, "Failed to create data center for a node (DataCenterName: %v)", name);
             throw;
         }
     }
@@ -1252,7 +1251,7 @@ private:
         try {
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to create rack for a node (Rack: %v)", name);
+            YT_LOG_ALERT(ex, "Failed to create rack for a node (RackName: %v)", name);
             throw;
         }
     }

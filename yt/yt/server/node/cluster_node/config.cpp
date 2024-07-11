@@ -432,7 +432,7 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         }
 
         if (!config->Rack && config->DataCenter) {
-            THROW_ERROR_EXCEPTION("\'data_center\' should be defined with \'rack\'");
+            THROW_ERROR_EXCEPTION("\"data_center\" should be defined with \"rack\"");
         }
     });
 }
