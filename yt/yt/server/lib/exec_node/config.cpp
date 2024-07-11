@@ -590,7 +590,7 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("meta_cache", &TThis::MetaCache)
         .DefaultNew();
     registrar.Parameter("summary_block_size_in_flight", &TThis::SummaryBlockSizeInFlight)
-        .Default(1_GB);
+        .Default(0);
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .InRange(0.0, 1.0)
         .Default(0.8);
