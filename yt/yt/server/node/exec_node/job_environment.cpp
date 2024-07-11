@@ -252,7 +252,7 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    virtual void DoInit(int /*slotCount*/, double /*cpuLimit*/, double /*idleCpuFraction*/) 
+    virtual void DoInit(int /*slotCount*/, double /*cpuLimit*/, double /*idleCpuFraction*/)
     {
     }
 
@@ -787,8 +787,9 @@ private:
                         "idle"))
                         .ThrowOnError();
                 }
-                CleanProcesses(slotIndex, slotType);
             }
+            CleanProcesses(slotIndex, ESlotType::Common);
+            CleanProcesses(slotIndex, ESlotType::Idle);
         })
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run();

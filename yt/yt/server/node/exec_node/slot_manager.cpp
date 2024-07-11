@@ -253,6 +253,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 if (error.IsOK()) {
                     FreeSlots_.push(slotIndex);
                 } else {
+                    FreeSlots_.clear();
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
                     JobEnvironment_->Disable(std::move(wrappedError));
                 }
