@@ -314,6 +314,8 @@ items:
                    href: user-guide/data-processing/spyt/read-transaction.md
                  - name: Write options
                    href: user-guide/data-processing/spyt/thesaurus/write-options.md
+                 - name: GPU usage
+                   href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
              - name: Best practices
                href: user-guide/data-processing/spyt/best-practices.md
          - name: YQL
