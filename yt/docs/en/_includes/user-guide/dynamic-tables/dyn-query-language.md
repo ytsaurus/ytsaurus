@@ -14,7 +14,7 @@ An SQL language dialect is not a full-fledged implementation of the SQL language
 
 {% note warning "Attention!" %}
 
-The feature is not a replacement of MapReduce operations. The query execution engine has no scheduler and specifying a heavy query with full scan can cause cluster degradation. The {{product-name}} service team is working to add more reliability when processing large queries, but there are no plans to develop the described SQL language dialect to replace MapReduce.
+The feature is not a replacement of MapReduce operations. The query execution engine has no scheduler, and specifying a heavy query with full scan can lead to cluster degradation. The {{product-name}} service team is working to improve the reliability of processing large queries, but there are no plans to develop the described SQL language dialect as a replacement for MapReduce.
 
 {% endnote %}
 
@@ -36,7 +36,7 @@ yt select-rows "item_id FROM [//mytable] WHERE (user_id, order_id) IN ((1, 1), (
 
 ## Query syntax
 
-```bash
+```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
 FROM [//path/to/table] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
 [WHERE <predicate-expr>]
@@ -46,29 +46,30 @@ FROM [//path/to/table] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
 [LIMIT <m>]
 ```
 
-In general, the row order in the query output is not defined, but in cases of ORDER BY and LIMIT, such guarantees are given.
+In general, the row order in the query output is not defined; however such guarantees are provided for [ORDER BY](#order_by) and [LIMIT](#limit).
 
 ### SELECT section { #select }
 SELECT syntax:
-```bash
+```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
 ```
 Defines the query output columns. If an asterisk (`*`) is specified, all input columns of the main table will be used as output columns. Alternatively, you can specify random expressions for the calculation. For queries without grouping, all columns of the source tables can be in the expression. In case of queries with grouping, only the key columns used for grouping or aggregates can be in the expression.
 
 ### FROM section ... JOIN { #from_join }
 FROM syntax ... JOIN:
-```bash
+```sql
 FROM [//path/to/table] [[AS] <table-alias>] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
 ```
 
 Defines the query data sources. The table immediately following FROM is considered the master table and is used when coordinating query execution. It is also allowable to specify auxiliary reference tables in the JOIN section. The reference tables are connected to the main table if the specified key matches exactly. Without specifying the LEFT keyword, INNER JOIN will be executed. You can additionally specify an expression for reference table filtering which will be executed when reading data before join with the main table is executed.
+
 To combine tables across multiple columns, a tuple must be written in the ON condition.
 
-```bash
+```sql
 FROM [//x] AS x JOIN [//y] AS y ON (x.a, x.b) = (y.a, y.b)
 ```
 It is allowed to write expressions in the JOIN condition:
-```bash
+```sql
 ON (if(is_null(x.a), 0, x.a), x.b) = (y.a, y.b)
 ```
 
@@ -76,21 +77,21 @@ For more information about JOINS, their features, and limitations, see the [JOIN
 
 ### WHERE section { #where }
 WHERE syntax:
-```bash
+```sql
 WHERE <predicate-expr>
 ```
 Defines the primary data filter.
 
 ### GROUP BY section { #group_by }
 GROUP BY syntax:
-```bash
+```sql
 GROUP BY <group-by-expr-1> [AS <group-by-alias-1>], <group-by-expr-2> [AS <group-by-alias-2], ...
 ```
 Defines data grouping by key.
 
 ### HAVING section { #having }
 HAVING syntax:
-```bash
+```sql
 HAVING <predicate-expr>
 ```
 Defines the filtering condition after grouping.
@@ -100,7 +101,7 @@ Defines the filtering condition after grouping.
 Used in conjunction with grouping and adds an extra row to the result, with `NULL` values in the grouping keys and total aggregates by grouped data in the values. The row added by the summary aggregate is not processed in ORDER BY ... LIMIT. When the HAVING section is used, the final aggregates can be counted both before and after filtering. The order in which the rows with the resulting aggregates are arranged in the resulting row set is unspecified. The added row can be either the first or the last one. It can be distinguished by a `NULL` key.
 
 WITH TOTALS syntax:
-```bash
+```sql
 GROUP BY ... WITH TOTALS
 GROUP BY ... WITH TOTALS HAVING ...
 GROUP BY ... HAVING ... WITH TOTALS
@@ -108,44 +109,46 @@ GROUP BY ... HAVING ... WITH TOTALS
 
 ### ORDER BY section { #order_by }
 ORDER BY syntax:
-```bash
+```sql
 ORDER BY <order-by-expr-1> [ASC|DESC], <order-by-expr-2> [ASC|DESC], ...
 ```
 Defines the ordering of the output row set by the specified expressions. The default sorting order is ascending (ASC). The DESC keyword is specified for descending sorting. Sorting is applied after grouping, so only the key grouping columns or the counted aggregates can be in the expressions. The sorting is partial, i.e. only N smallest rows are returned as a result (the N parameter is specified in the LIMIT section).
 
 ### OFFSET section { #offset }
 OFFSET syntax:
-```bash
+```sql
 OFFSET <n>
 ```
 Specifies the number of skipped rows from the output set of rows.
+
 There can be no effective implementation of OFFSET in the query language under the current data storage schema. The OFFSET N LIMIT M query will read N + M rows. To implement this effectively, there must be an index from the row number to the key.
-The proper way to perform paginated output is to make LIMIT queries, but instead of using OFFSET, remember the values of the last_key = (key_column1, key_column2, ...) key of the current query result and send the next query with the where (key_column1, key_column2, ...) > last_key condition.
+The proper way to perform paginated output is to make LIMIT queries, but instead of using OFFSET, remember the last key values ("last_key = (key_column1, key_column2, ...)") of the current query result and send the next query with the condition "where (key_column1, key_column2, ...) > last_key".
 
 ### LIMIT section { #limit }
 LIMIT syntax
-```bash
+```sql
 LIMIT <m>
 ```
-Defines the size of the output row set. If there is an ORDER BY section, it sets a limit on the size of the heap. Otherwise, it sets a limit on the order and amount of scanned data. The LIMIT query scans the data sequentially by the primary key until the target size is reached. In this case, the order of output rows is defined unambiguously.
+Defines the size of the output row set. If there is an ORDER BY section, it sets a limit on the size of the heap. Otherwise, it sets a limit on the order and amount of scanned data. If the query has a LIMIT section, the data is scanned sequentially by the primary key until the target size is reached. In this case, the order of output rows is defined unambiguously.
 
 {% note info "Note" %}
 
 When using grouping with a limit (without ORDER BY), the data will be read in the order of the primary table key.
-If there are no aggregate columns, the query will end once the required set of grouped rows is accumulated.
-If there are aggregate columns, extra grouping will be performed for the keys accumulated in the number specified in LIMIT.
+
+If there are no aggregate columns, the query will end once the required set of grouped rows is accumulated. If there are aggregate columns, extra grouping will be performed for the keys accumulated in the number specified in LIMIT.
+
 When using LIMIT without ORDER BY, please note that LIMIT will be applied to the previous operator. For example, if you use GROUP BY ... WITH TOTALS and LIMIT, then the final aggregates will be calculated from the data that fits within the limit. Data above the limit will not even be read. If ORDER BY is added, LIMIT will affect it and GROUP BY will process all read data. Respectively, TOTALS will be calculated from the larger data set.
 
 {% endnote %}
 
 ## Expression syntax { #expression_syntax }
 
-```bash
+```sql
 <literal>
 <identifier>
 ```
 Arithmetic operators:
-```bash
+```sql
 <expr> + <expr>
 <expr> - <expr>
 <expr> * <expr>
@@ -153,20 +156,20 @@ Arithmetic operators:
 <expr> % <expr>
 ```
 Bitwise operators:
-```bash
+```sql
 <expr> | <expr>
 <expr> & <expr>
 <expr> >> <expr>
 <expr> << <expr>
 ```
 Logical operators:
-```bash
+```sql
 <expr> AND <expr>
 <expr> OR <expr>
 NOT <expr>
 ```
 Comparison operators:
-```bash
+```sql
 <expr> = <expr>
 <expr> != <expr>
 <expr> < <expr>
@@ -177,11 +180,11 @@ Comparison operators:
 <expr> BETWEEN (<literal> AND <literal>, ...)
 ```
 IN operator:
-```bash
+```sql
 <expr> IN (<literal>, ...)
 ```
 Functions:
-```bash
+```sql
 FN(<expr>, ...)
 ```
 
@@ -208,7 +211,7 @@ Logical operators take and return values of the `boolean` type.
 Comparison operators, IN and BETWEEN operators take values of the same type as input and return values of the `boolean` type. They also allow the use of tuples.
 
 Tuple usage example:
-```bash
+```sql
 (a, b) >= (valA, valB)
 (a, b) IN ((valA0, valB0), (valA1, valB1), ...)
 (a, b) BETWEEN ((16202224, 1) AND (16202224, 3), (2011740432, 6) AND (2011740432), (591141536) AND (591141536, 2), ...)
@@ -217,6 +220,7 @@ Functions in expressions can be of two types: scalar applied to a tuple of value
 
 ### IDs { #identifiers }
 Column names containing special characters must be wrapped in square brackets.
+
 **Examples**: `t.[a.b], t.[c-1], t.[[d]] from [//path] as t` where `a.b`, `c-1`, and `[d]` are column names.
 In the resulting schema, the square brackets in the column names will be omitted wherever possible.
 For the `[my.column-1], [my+column-2] from ...` query, the schema will be `"my.column-1", "my+column-2"`.
@@ -227,6 +231,7 @@ For the `[my.column-1] + x, [my+column-2] from ...` query, the schema will be `"
 Expressions can be named using the AS keyword. Synonym support is implemented similarly to [ClickHouse](https://clickhouse.yandex). Unlike standard SQL, synonyms can be declared not only at the top level of expressions: `((1 as x) + x) as y`. In addition, synonyms can be used in all query sections. **For example**: `a from [...] group by x % 2 as a`.
 
 This behavior is compatible with standard SQL as long as no synonyms are used that overlap the column names of the source tables.
+
 The table shows an example of using synonyms for a table with the `UpdateTime` column.
 
 Synonym usage example:
@@ -281,32 +286,48 @@ Checks whether the `p` string is the `t` prefix.
 `lower(s) :: string -> string`
 Converts the `s` string to the lower case.
 
-#### Working with YSON
+#### Accessing containers
 
-To extract data from values containing [YSON](../../../user-guide/storage/formats.md#yson), a set of functions exists:
+If a table column has the `Composite` data type, you can use the following syntax to access that column's fields:
+- To access `struct` fields, use a dot.
+- To access `tuple` fields, use a dot. Indexing is **zero-based**.
+- To access `dict` fields, use square brackets.
+- To access `list` fields, use square brackets. Indexing is **zero-based**.
 
-- `try_get_int64`;
-- `get_int64`;
-- `try_get_uint64`;
-- `get_uint64`;
-- `try_get_double`;
-- `get_double`;
-- `try_get_boolean`;
-- `get_boolean`;
-- `try_get_string`;
-- `get_string`;
-- `try_get_any`;
-- `get_any`.
+The correctness of accessing struct and tuple fields is checked **before starting** the query's execution. The correctness of accessing map and list fields is checked **during** the query's execution.
 
-Functions take two arguments: ` (yson, path)` where `yson` is a value of the `any` type containing YSON and `path` is the path to the desired field in YPATH format.
+To enable this syntax, make sure to set `syntax_version=2` in the query parameters. Starting with this version of the syntax, strings are escaped with `backticks`.
 
-The version with the `try_` prefix returns `NULL` if there is no field of the desired type in the specified path. The version without `try_` returns an error if there is no field.
+To access containers, you need to specify the full column name, including the table alias.
 
-Example:
-For the table row `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` will return the `7u` value.
+Usage examples:
+```sql
+t.struct.member,
+t.tuple.0,
+t.dict["key"],
+t.list[1+1]
+from `//tmp/test` as t;
+```
 
-`any_to_yson_string(yson) :: any -> string`
-Converts a value of the `any` type into a string containing its binary-YSON representation.
+```bash
+$ yt create table '//tmp/test' --attributes '{dynamic=true; schema=<"unique_keys"=%true;"strict"=%true;>[{name=a;sort_order=ascending;type=int64;};{name=b;type_v3={type_name=struct;members=[{name=c;type={type_name=list;item=int64}}]}}]}'
+$ yt mount-table --path '//tmp/test'
+$ echo '{a=0;b={c=[]}}' | yt insert-rows --table '//tmp/test' --format yson
+$ echo '{a=1;b={c=[1;2;3]}}' | yt insert-rows --table '//tmp/test' --format yson
+$ echo '{a=2;b={c=[4]}}' | yt insert-rows --table '//tmp/test' --format yson
+
+$ yt select-rows 't.b.c from `//tmp/test` as t' --syntax-version 2 --format json
+{"t.b.c":[]}
+{"t.b.c":[1,2,3]}
+{"t.b.c":[4]}
+
+$ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format json
+{"t.b.c[0]":null}
+{"t.b.c[0]":1}
+{"t.b.c[0]":4}
+```
+
+#### Working with [YSON](../../../user-guide/storage/formats.md#yson)
 
 {% note warning "Attention!" %}
 
@@ -314,8 +335,32 @@ A fixed key order in dictionaries is not guaranteed, so comparisons and grouping
 
 {% endnote %}
 
-`list_contains(list, value) :: any -> (string | int64 | uint64| boolean) -> boolean`
-Searches for `value` in the `list` YSON list of the `any` type, the `value` value of the scalar type. The list does not have to be homogeneous (i.e. it can contain values of different types), the comparison is performed taking the type into account.
+##### Extracting data
+
+The query language provides a set of functions for extracting data:
+
+1. `try_get_int64`, `get_int64`, `try_get_uint64`, `get_uint64`, `try_get_double`, `get_double`, `try_get_boolean`, `get_boolean`, `try_get_string`, `get_string`, `try_get_any`, `get_any`
+   These functions take two arguments, `(yson, path)`, where:
+   - `yson` is a value of the `any` type that contains YSON.
+   - `path` is a string representing the path to the desired field in [YPATH](../../../user-guide/storage/ypath.md) format.
+
+   The version with the `try_` prefix returns `NULL` if there is no field of the desired type at the specified path. The version without `try_` returns an error if the field is missing.
+
+   Example: For the table row `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` returns `7u`.
+2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
+   Searches for `value` in the `list` YSON list of the `any` type. The searched `value` must have a scalar type. The list does not have to be homogeneous, meaning that it can contain values of different types. The comparison is type-sensitive.
+3. `list_has_intersection(list, list) :: any -> any -> boolean`
+   Takes two YSON lists as input and returns `true` if they contain at least one common element. The lists must be homogeneous.
+4. `any_to_yson_string(yson) :: any -> string`
+   Converts a value of the `any` type into a string containing its binary [YSON](../../../user-guide/storage/yson.md) representation.
+5. `yson_length(yson) :: any -> int64`
+   Calculates the number of elements in a list or map.
+
+##### Generating YSON
+
+1. `make_entity()`. Example: `make_entity() -> #`
+2. `make_map(args...)`. Example: `make_map("a", 1, "b", 2) -> {a=1;b=2}`
+3. `make_list(args...)`. Example: `make_list("a", 1, 2, 3) -> [a;1;2;3]`
 
 #### Working with regular expressions
 The [Google RE2](https://github.com/google/re2) library is used to work with regular expressions. The library operates in UTF-8 mode. The syntax of regular expressions is described on a separate [page](https://github.com/google/re2/wiki/Syntax).
@@ -392,23 +437,25 @@ The following aggregation functions are supported in the query language:
 
 ## Executing a query { #query_execution }
 
-The query is executed on the cluster in a distributed way. The query execution process is conventionally divided into two phases: coordination and execution. During coordination, multiple cluster nodes are defined to execute the query, and during execution, the data is processed directly. A typical scenario: a user-defined query is decomposed into multiple execution fragments processed by cluster nodes, the final result is generated on the client as a result of merging intermediate results received from cluster nodes.
+![](../../../../images/query_execution.png)
+
+The query is executed on the cluster in a distributed way. The query execution process is conventionally divided into two phases: coordination and execution. During coordination, multiple cluster nodes are defined to execute the query, and during execution, the data is processed directly. A typical scenario involves a user-defined query being decomposed into multiple _execution fragments_ that are processed by cluster nodes. The final result is generated on the client by merging intermediate results received from cluster nodes.
 
 There is an [`explain_query`](#explain_query) command to display information about the query plan.
 
 ### Coordination
-The process of splitting a query into multiple parallel _execution fragments_ in order to distribute the load is called coordination. The query coordination occurs both on the client and on the cluster nodes. The coordination process itself consists of the following steps:
+The process of splitting a query into multiple parallel execution fragments in order to distribute the load is called _coordination_. Query coordination occurs both on the client and on the cluster nodes. The coordination process itself consists of the following steps:
 
-1. Define the ranges of the source data.
+1. Defining the ranges of the source data.
 2. Splitting the query to process parts of the input data independently.
 
 The input data for the query and its splitting options are determined by the structure of the main table specified in the query and the filtering predicate. Execution of queries on top of **[dynamic](../../../user-guide/dynamic-tables/overview.md)** (sorted and ordered) tables is currently supported.
 
 When working with sorted dynamic tables, the data splitting is two-level: the table is initially split into _tablets_ and the query is sent to the machines serving the selected tablets, and then on each machine the tablet is further split into partitions to ensure concurrent execution within each machine. For more information about tablets, see [Dynamic tables](../../../user-guide/dynamic-tables/overview.md).
 
-In the process of coordination, the cluster nodes that contain the data needed to execute the query are selected. The initial query is split into _execution fragments_ and sent to the selected nodes. On each node, query execution can be additionally paralleled if a large enough amount of data is affected. Concurrency of query execution on a single node is limited by the `max_subqueries` query parameter and the number of threads allocated to query execution in the cluster node configuration.
+In the process of coordination, the cluster nodes that contain the data needed to execute the query are selected. The initial query is split into execution fragments and sent to the selected nodes. On each node, query execution can be additionally paralleled if a large enough amount of data is affected. Concurrency of query execution on a single node is limited by the `max_subqueries` query parameter and the number of threads allocated to query execution in the cluster node configuration.
 
-When the query is split for concurrent execution, the calculation of the (`WHERE`) predicates, (`GROUP BY`) groupings, and (`ORDER BY`) sortings is moved as close as possible to reading the data and only the minimum necessary operators remain on the coordinator. For example, if the splitting of the input data results in exactly one part, then the entire filtering and grouping will be performed by the subordinate node and the coordinator will do nothing with the data.
+When the query is split for parallel execution, the calculation of predicates (`WHERE`), groupings (`GROUP BY`), and sortings (`ORDER BY`) shifts to occur as close as possible to the data read operation. Only a minimal number of essential operators remain on the coordinator. For example, if the splitting of the input data results in exactly one part, then the entire filtering and grouping will be performed by the subordinate node and the coordinator will do nothing with the data.
 
 ### Cutting off input data { #input_data_cut }
 
@@ -481,9 +528,9 @@ You can also specify additional reference tables in the query to compute the fin
 
 In the query itself, this means that the condition for JOIN must contain such a set of key columns of the reference table that the ranges for reading the data can be derived from the limit on these columns. If JOIN cannot be executed using the reference table index, the "Foreign table key is not used in the join clause" error will be returned. To disable such behavior, use the `allow_join_without_index` parameter.
 
-In general, JOIN is executed as follows. On each cluster node, the data is read from the main table shard, accumulated in memory, and multiple JOIN keys for the reference table are computed. This is followed by a query to the reference table with the read ranges and optional predicate obtained based on the JOIN keys. Then JOIN is executed in memory and execution continues as usual.
+In general, JOIN is executed as follows. On each cluster node, the data is read from the main table shard, accumulated in memory, and multiple JOIN keys for the reference table are computed. This is followed by a query to the reference table with the read ranges and optional predicate obtained based on the JOIN keys. Then JOIN is executed in memory, and execution continues as usual.
 
-When using multiple JOINs in a query, it would take a lot of time to execute them consecutively. Individual JOINs are therefore grouped into sets that can be executed concurrently. So when a JOIN group is executed while reading data from the main table, a set of JOIN keys is built for each reference in the group. Next, queries to read data from references are sent concurrently and once the data is received, JOIN is executed which generates the resulting rows. The complete resulting set of rows is not materialized in memory, but as JOIN is executed, the rows are passed to the next operator (for example, grouping).
+When using multiple JOINs in a query, it would take a lot of time to execute them consecutively. Individual JOINs are therefore grouped into sets that can be executed concurrently. So when a JOIN group is executed while reading data from the main table, a set of JOIN keys is built for each reference in the group. Next, parallel queries are initiated to read data from reference tables. Once the data is received, the JOIN operation is executed, producing the resulting rows. The complete resulting set of rows is not materialized in memory, but as JOIN is executed, the rows are passed to the next operator (for example, grouping).
 
 JOIN is executed in a special way when the master table and the reference table share a common key prefix to within a JOIN condition. In that case, the ranges for reading the reference table are already known before reading the main table during the coordination phase of the query. Therefore, the query to read the reference table is sent immediately after coordination.
 
@@ -545,16 +592,16 @@ You can specify the `--print-statistics` option in the CLI. The statistics will 
 The statistics have a hierarchical structure and correspond to the query execution structure.
 - The first level is aggregation on the coordinator (http or rpc proxy).
 - The second level is aggregation on nodes.
-- The third level is executing a part of the subquery to the thread pool on nodes.
+- The third level is node-level execution of a part of the subquery to the thread pool.
 
 - `rows_read`: Number of rows read.
 - `data_weight_read`: The amount of read data in bytes in uncompressed form.
-- `codegen_time`: Code generation time. After the first code generation, the query template (query without literals) gets into the cache.
+- `codegen_time`: Code generation time. After the first code generation, the query template (query without literals) is cached.
 - `execute_time`: Query execution time excluding read time (decoding data from the chunk format).
 - `rows_read`: Number of rows read.
 - `read_time`: Synchronous read time.
 - `wait_on_ready_event_time`: Reader data waiting time.
-- `async_time`: Total waiting time. If it is very different from wait_on_ready_event_time, this means that it is waiting for the CPU to allocate time in the fair_share scheduler.
+- `async_time`: Total waiting time. If it differs significantly from "wait_on_ready_event_time", this means that the query is waiting for the CPU to allocate time in the fair share scheduler.
 
 ### The explain-query command { #explain_query }
 The explain rows command can be used to debug a query. The command outputs the result in a structured form.
@@ -588,16 +635,16 @@ Example:
 
 ```
 
-- `where_expression`: Syntactic representation of the where condition from which read ranges are derived (`ranges`).
+- `where_expression`: Syntactic representation of the "where" condition from which read ranges are derived (`ranges`).
 - `is_ordered_scan`: Defines whether the order of the table rows will be retained when reading the data. This mode may be needed when implementing pagination. If you need to read the entire set of rows that meet the WHERE condition (no LIMIT), it is faster to read concurrently without preserving the order of rows in the table.
 - `joins`: Contains a list of join groups. Join within a group is executed concurrently for multiple tables.
 - `lookup_type`: The way of specifying read ranges when executing join. Possible options: source ranges, prefix ranges, and IN clause. The source ranges mode is the most optimal one. In prefix ranges mode, join keys are copied. This occurs if the join condition contains expressions or table fields that are not a secondary table key prefix. In IN clause mode, join is executed as a subquery with an IN expression. This mode is used if the read ranges of the secondary table cannot be derived from the join condition. If there is an additional AND condition in join, an attempt is made to output the read ranges using both the join condition and the additional AND condition.
-- `common_key_prefix`: The size of the common key prefix of the primary table and the secondary table.
-- `foreign_key_prefix` The size of the secondary table key prefix that is derived from the join condition.
-- `common_prefix_with_primary_key`: The size of the table primary key prefix contained in the grouping condition. This enables you not to make a common hash table for all keys (grouping keys with different prefixes cannot match). When using group by and order by concurrently, a non-zero common prefix with the primary key enables order by + limit computation to be transferred to the nodes and reduces the amount of data transferred to the proxy (coordinator).
-- `ranges`: A list of table read ranges obtained from the where condition.
-- `key_trie`: An intermediate representation of the key column limits generated from the where condition. The read ranges (`ranges`) are then derived from the key trie.
-- `top_query`, `subqueries`: Parts of the query running on different cluster nodes. For more information about executing a query, see [Executing a query](#query_execution).
+- `common_key_prefix`: The size of the common key prefix of the main and reference tables.
+- `foreign_key_prefix` The size of the reference table's key prefix that is derived from the join condition.
+- `common_prefix_with_primary_key`: The size of the table's primary key prefix contained in the grouping condition. This enables you not to make a common hash table for all keys (grouping keys with different prefixes cannot match). When using group by and order by concurrently, a non-zero common prefix with the primary key enables order by + limit computation to be transferred to the nodes and reduces the amount of data transferred to the proxy (coordinator).
+- `ranges`: A list of table read ranges obtained from the "where" condition.
+- `key_trie`: An intermediate representation of the key column limits generated from the "where" condition. The read ranges (`ranges`) are then derived from the key trie.
+- `top_query`, `subqueries`: Parts of the query running on different cluster nodes. To learn more, see [Executing a query](#query_execution).
 
 ## Extensions and settings
 
@@ -613,6 +660,27 @@ Options of individual queries:
 - `fail_on_incomplete_result`: Defines the behavior in case of exceeding `input_row_limit` or `output_row_limit`.
 - `memory_limit_per_node`: The limit on the amount of memory available to a query on one cluster node.
 
+### Named parameters
+
+You can use parameter placeholders in the query. Example:
+
+```sql
+a from `//t` where b = {first} and (c, d) > {second}
+```
+
+The `first` and `second` parameters are set using a YSON map that can be specified in the `placeholder_values` query parameter:
+
+```python
+client.select_rows(
+  "a from `//t` where b = {first} and (c, d) > {second}",
+  placeholder_values={'first': 1, 'second': [2, 'b']},
+)
+```
+
+### Distributing resources between queries
+Queries are executed using a fair share CPU scheduler. Query scheduling is handled independently for each node. By default, an equal amount of CPU resources is allocated to all queries that are executed on the same node. This ensures that a node executing multiple heavy queries can perform a light query in a short and predictable amount of time. However, this does not protect you from scenarios where a cluster node gets overloaded with queries. In this case, the execution speed decreases proportionally to the number of concurrently executed queries. For example, a system user might initiate a large number of queries that will consume the bulk of the CPU. To address this scenario, the system supports a two-level fair share mechanism: besides distributing CPU resources between individual queries, it allows you to group queries together and distribute resources between these groups. You can group queries (for example, by user) by specifying a compute pool in the `execution_pool` query parameter. Queries that share the same `execution_pool` are grouped together. Each group is allocated its own share of resources. A group's resources are allocated between all individual queries within that group.
+By default, each pool is assigned a weight of 1. To assign a different weight value, create a node with the pool's name in the `//sys/ql_pools` directory, add the `@weight` attribute for this node, and specify the `use` permission for the group (user) in the ACL.
+By default, queries are executed in the `default` pool.
 
 <!---
 

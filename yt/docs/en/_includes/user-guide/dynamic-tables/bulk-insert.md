@@ -1,19 +1,19 @@
 # Inserting from operations into dynamic tables
 
-## General information { #common }
-
-{{product-name}} enables you to specify [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md) as output tables of [operations](../../../user-guide/dynamic-tables/operations.md) (bulk insert).
+{{product-name}} enables you to specify [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md) as output tables of map-reduce operations (the so-called bulk insert).
 
 Application:
 - Data delivery to tables.
 - `DELETE WHERE` client implementation.
 - Background process of cleaning up rows with a non-trivial TTL.
 
+{% if audience == "internal" %}
 {% note warning %}
 
-If you run the operation carelessly, it can easily cause a dynamic table to become inoperative and it cannot be rescued without administrative intervention. Before running the operation on production clusters, view the relevant [section](#prod).
+If you run the operation carelessly, it can easily cause a dynamic table to become inoperative, and it cannot be rescued without administrative intervention. Bulk insert is available to all users on test clusters. Before running it on production clusters, please see the relevant [section](#prod).
 
 {% endnote %}
+{% endif %}
 
 ## Features { #features }
 
@@ -21,7 +21,7 @@ Operations that contain dynamic output tables have a number of features.
 * The operation cannot be run under a user transaction.
 * Only sorted dynamic tables can be output.
 * A dynamic table can be written to either in "append" or "overwrite" mode. This is regulated by the `<append=%true>` attribute on the path. Unlike sorted static tables, adding data to a dynamic table takes a shared lock on it, so multiple operations can write to the table at the same time. Note that writing in "append" mode is actually upsert, not append (data does not have to be written to the end of the table).
-* You can only write to a mounted or frozen dynamic table. Writing to a frozen table is strongly not recommended, because compaction does not work in frozen tables. Without it, reading soon becomes inefficient and writing is ([locked](#compaction)).
+* You can only write to a mounted or frozen dynamic table. Writing to a frozen table is strongly discouraged, because compaction does not work in frozen tables. Without it, reading quickly becomes inefficient, and writing is [blocked](#compaction).
 * Only sorted data with `unique_keys=%true` can be written to a dynamic table. If user jobs do not have this feature, use an intermediate static table, which can then be sorted into a dynamic one using the sort operation.
 * An operation transaction is not like classic tablet transactions. In particular, you can write to the output table using `insert_rows` while the operation is running, and if the operation affects the same rows, they will be overwritten.
 * Data can be written from the operation in extended format that enables you to delete rows and specify "aggregate" mode.
@@ -34,7 +34,7 @@ While the operation is being committed, all dynamic tables in which the insertio
 
 Bulk insert only conflicts with those tablet transactions that affect the moment of commit (locking). If a tablet transaction started before locking, it will not be able to commit afterwards. There will either (most likely) be an abort, or the operation commit will wait for the transaction commit.
 
-Several bulk insert operations with ``<append=%true>`` can run and even be committed in parallel. There are no row-by-row locks: the system enables different operations to edit the same row.
+Several bulk insert operations with `<append=%true>` can run and even be committed in parallel. There are no row-by-row locks: the system enables different operations to edit the same row.
 
 
 ## Deletions and extended write format
@@ -43,20 +43,18 @@ The extended format enables you to delete rows from the table, set "aggregate" (
 
 * Key columns remain unchanged.
 * A mandatory column with the `$change_type` name is added, indicating whether the row is a write or a deletion.
-* Each column with a value `name` is replaced by two columns: `$value:name` and `$flags:name`. The first one will contain the value and the second one will manage "aggregate" and "overwrite" modes.
+* Each non-key column with the name `name` is replaced by two columns: `$value:name` and `$flags:name`. The first one will contain the value and the second one will manage "aggregate" and "overwrite" modes.
 
-The service column names can be taken from the [api](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt/client/api/public.h?rev=r6838179#L112).
+You can take the service column names from the [api]({% if audience == "internal" %}https://nda.ya.ru/t/PoQnlPdO6nAyyw{% else %}https://github.com/ytsaurus/ytsaurus/blob/879946a82c766da78612ab4fe3637f7ea4da8292/yt/yt/client/tablet_client/public.h#L152{% endif %}).
 
-`$change_type` takes values from the [ERowModificationType](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt/client/api/public.h?rev=r7538031#L42) enum. Only `Write` and `Delete` values are allowed.
-
+`$change_type` accepts values from the [ERowModificationType]({% if audience == "internal" %}https://nda.ya.ru/t/w70tYmFy6nAyzY{% else %}https://github.com/ytsaurus/ytsaurus/blob/879946a82c766da78612ab4fe3637f7ea4da8292/yt/yt/client/api/public.h#L53{% endif %}) enum. Only `Write` and `Delete` values are allowed.
 
 Name | Value
 :- | :-
 `ERowModificationType::Write`| 0|
 `ERowModificationType::Delete`| 1|
 
-The value flags take the bit mask of enum values [EUnversionedUpdateDataFlags](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt/client/tablet_client/public.h
-?rev=r6838179#L102). The `missing | aggregate` combination makes no sense, but it is acceptable. If no flags are specified for a column, they are considered equal to 0.
+The value flags accept the bit mask of values of the [EUnversionedUpdateDataFlags]({% if audience == "internal" %}https://nda.ya.ru/t/GWHhIHSu6nAzJT{% else %}https://github.com/ytsaurus/ytsaurus/blob/879946a82c766da78612ab4fe3637f7ea4da8292/yt/yt/client/tablet_client/public.h#L142{% endif %}) enum. The `missing | aggregate` combination makes no sense, but it is acceptable. If no flags are specified for a column, they are considered equal to 0.
 
 Name | Value | Clarification
 :- | :- | :-
@@ -98,7 +96,8 @@ And to update the balance (and maintain the age), you need the following write
 
 {% endcut %}
 
-In extended format, you can also create intermediate static tables which will then be inserted into dynamic tables using sort or merge. This may be needed very rarely.
+In extended format, you can also create intermediate static tables which will then be inserted into dynamic tables using sort or merge, but this is very situational.{% if audience == "internal" %} If you believe that this approach is necessary for you, write to yt@. Please specify what task you want to solve with this and what exactly you need to do. The service team will contact you and suggest the next steps.{% endif %}
+
 
 ### DELETE WHERE via input query
 
@@ -130,12 +129,12 @@ For regular deletions, in most scenarios compaction will run automatically, but 
 
 The operation specification may contain the same fields as usual, with a few exceptions.
 
-* To specify the [table writer](../../../user-guide/storage/io-configuration#table_writer) configuration, use the `dynamic_table_writer` option indicated in the same place as the ordinary `table_writer` (in `*_job_io`). Chunks and blocks of dynamic tables must be smaller than chunks of static tables. The default value is `{desired_chunk_size=100MB; block_size=256KB}`.
+* To specify the [table writer](../../../user-guide/storage/io-configuration#table_writer) config, use the `dynamic_table_writer` option indicated in the same place as the ordinary `table_writer` (in `*_job_io`). Chunks and blocks of dynamic tables must be smaller than chunks of static tables. The default value is `{desired_chunk_size=100MB; block_size=256KB}`.
 
 ## Compaction features { #compaction }
-This section describes the use of bulk insert for large amounts of data.
+_This section describes the implementation details. If you want to use bulk insert for large amounts of data, we recommend reading it._
 
-Sorted dynamic tables resemble an [LSM tree](https://en.wikipedia.org/wiki/Log-structured_merge-tree). The used data structure is designed to maintain an even, albeit quite large, flow of writes. Written data is compacted in background mode and stacked in chunks in a predictable manner.
+Sorted dynamic tables resemble an [LSM tree](https://ru.wikipedia.org/wiki/LSM-%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%BE). The used data structure works efficiently with a steady, albeit quite large, stream of writes. Written data is compacted in background mode and stacked in chunks in a predictable manner.
 
 When inserted from an operation, many new chunks are added to the table, at least one per job. These chunks are not aligned to the table structure, but "piled up" in an unpredictable manner. After a few operations, access to the data will become inefficient, so it must be repaired.
 
@@ -145,3 +144,25 @@ Second, compaction heuristics are not perfect. If there are a lot of very small 
 
 Bulk insert can lead to a number of unusual scenarios. We have prepared the proper heuristics for many of them, but we have hardly taken everything into account. Therefore, a test run on real volumes is an important next step.
 
+{% if audience == "internal" %}
+## Before launching into production { #prod }
+
+Bulk insert is not used nearly as often as dynamic tables, not to mention ordinary operations. Because of this, there is a risk of corrupting your data or (less likely, but possible) crashing our cluster in the process of launching. So before launching any production process with bulk insert, you need to meet a few conditions.
+
+* Write to yt-admin@ and describe the details of your process:
+   * The desired cluster and the name of your tablet cell bundle.
+   * How often inserting is planned.
+   * The size of one portion (in rows and Mb).
+   * The size of the output dynamic table and the number of tablets in it (approximately).
+   * Whether there will be parallel writing via insert-rows.
+   * The type of writing: evenly to the entire table / to the end / approximately to one region / some other way.
+   * Whether you plan to use an extended schema.
+   * Whatever else you think we should know.
+
+   If the output table already exists, attach a link to it.
+
+* If the process is regular, use any of the test clusters to create a test environment — ideally, it should resemble your main one (can be smaller). This is mutually beneficial: we don't have to worry about your experiments crashing a large cluster, and you'll have an easier time spotting a potential regression when we roll out an update than if you were in a production environment.
+* If possible, manually run the operation once on sizes comparable to those you plan to have in production and share the results with us.
+
+If it turns out that you want to do something unusual, we may need to discuss it with you in more detail or maybe even roll out new code to the clusters.
+{% endif %}

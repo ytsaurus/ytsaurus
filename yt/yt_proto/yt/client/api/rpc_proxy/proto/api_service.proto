@@ -2992,6 +2992,7 @@ message TOperation
     optional bytes events = 18; // YSON
     optional bytes result = 19; // YSON
 
+    optional bytes scheduling_attributes_per_pool_tree = 28; // YSON
     optional bytes slot_index_per_pool_tree = 20; // YSON
 
     optional bytes task_names = 21; // YSON
@@ -3102,6 +3103,7 @@ message TJob
     optional bool has_probing_competitors = 26;
     optional uint64 job_cookie = 27;
     optional bytes archive_features = 29; // YSON
+    optional string monitoring_descriptor = 30;
 }
 
 message TListJobsStatistics

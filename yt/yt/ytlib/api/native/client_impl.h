@@ -1285,6 +1285,7 @@ private:
         TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
+        int archiveVersion,
         const NLogging::TLogger& Logger);
 
     //

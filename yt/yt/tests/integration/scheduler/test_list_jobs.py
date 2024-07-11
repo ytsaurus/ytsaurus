@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, create_tmpdir,
-    create_pool, insert_rows, select_rows, lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla,
+    create_pool, insert_rows, select_rows, lookup_rows, write_table,
+    map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config,
     make_random_string, raises_yt_error, clear_metadata_caches, ls)
@@ -902,6 +903,35 @@ class TestListJobs(TestListJobsBase):
         clean_operations()
 
         check_task_names()
+
+    @authors("omgronny")
+    def test_list_jobs_with_monitoring_descriptor(self):
+        update_controller_agent_config(
+            "user_job_monitoring/extended_max_monitored_user_jobs_per_operation", 2)
+
+        op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                },
+            },
+        )
+
+        @wait_no_assert
+        def monitoring_descriptors_registered():
+            jobs = list_jobs(op.id)["jobs"]
+            assert len([job for job in jobs if "monitoring_descriptor" in job]) == 2
+
+        monitored_jobs = list_jobs(op.id, with_monitoring_descriptor=True)["jobs"]
+        assert len(monitored_jobs) == 2
+        for job in monitored_jobs:
+            assert "monitoring_descriptor" in job
+
+        non_monitored_jobs = list_jobs(op.id, with_monitoring_descriptor=False)["jobs"]
+        assert len(non_monitored_jobs) == 1
+        for job in non_monitored_jobs:
+            assert "monitoring_descriptor" not in job
 
 
 ##################################################################

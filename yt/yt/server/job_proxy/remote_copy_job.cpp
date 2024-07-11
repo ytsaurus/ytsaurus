@@ -491,26 +491,36 @@ private:
                 }
             }
 
+            auto attachDebugAttributes = [inputChunkId, index] (const TError& error) {
+                if (!error.IsOK()) {
+                    return error
+                        << TErrorAttribute("chunk_id", inputChunkId)
+                        << TErrorAttribute("part_index", index);
+                }
+                return error;
+            };
+
             if (reader) {
                 auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
                     .AsyncVia(cancelableInvoker)
                     .Run(reader, writer, blockSizes);
-                copyFutures.push_back(copyFuture);
+                copyFutures.push_back(copyFuture.Apply(BIND(attachDebugAttributes)));
             } else {
-                auto error = TError("Part %v is not available", index);
+                auto error = attachDebugAttributes(TError("Erasure part is not available"));
                 copyFutures.push_back(MakeFuture<void>(error));
             }
         }
 
-        YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v)",
-            repairChunk);
+        YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v, ChunkId: %v)",
+            repairChunk,
+            inputChunkId);
 
         TPartIndexList erasedPartIndices;
 
         if (repairChunk) {
             auto copyStarted = TInstant::Now();
 
-            auto waitError = WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
+            auto waitError = WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures, inputChunkId);
             if (!waitError.IsOK()) {
                 FailedChunkIds_.push_back(inputChunkId);
             }
@@ -590,7 +600,7 @@ private:
                 &writers,
                 targetReplicas);
         } else {
-            YT_LOG_INFO("All parts were copied successfully");
+            YT_LOG_INFO("All parts were copied successfully (ChunkId: %v)", inputChunkId);
         }
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
@@ -603,7 +613,8 @@ private:
     //! Waits until enough parts were copied to perform repair.
     TError WaitUntilErasureChunkCanBeRepaired(
         NErasure::ICodec* erasureCodec,
-        std::vector<TFuture<void>>* copyFutures)
+        std::vector<TFuture<void>>* copyFutures,
+        TChunkId inputChunkId)
     {
         struct TContext final
         {
@@ -624,7 +635,7 @@ private:
             callbackContext->ErasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
-            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex] (const TError& error) {
+            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex, inputChunkId] (const TError& error) {
                 if (error.IsOK()) {
                     callbackContext->ErasedPartSet.reset(partIndex);
                     if (erasureCodec->CanRepair(callbackContext->ErasedPartSet)) {
@@ -636,7 +647,8 @@ private:
                     // Chunk cannot be repaired, this situation is unrecoverable.
                     if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
                         callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
-                            << callbackContext->CopyErrors);
+                            << callbackContext->CopyErrors
+                            << TErrorAttribute("chunk_id", inputChunkId));
                     }
                 }
             }));
@@ -657,14 +669,15 @@ private:
         auto repairPartIndices = *erasureCodec->GetRepairIndices(erasedPartIndices);
 
         YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair "
-            "(ErasedPartIndices: %v, RepairPartIndices: %v)",
+            "(OutputChunkId: %v, ErasedPartIndices: %v, RepairPartIndices: %v)",
+            outputSessionId.ChunkId,
             erasedPartIndices,
             repairPartIndices);
 
         TChunkReplicaWithMediumList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
-            auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
+            auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(writtenReplicas.size() == 1);
             auto writtenReplica = writtenReplicas.front();
             repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
@@ -722,7 +735,7 @@ private:
         i64 diskSpace = 0;
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
-            auto replicas = writers[index]->GetWrittenChunkReplicas();
+            auto replicas = writers[index]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(replicas.size() == 1);
             writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
@@ -779,7 +792,7 @@ private:
             .AsyncVia(GetRemoteCopyInvoker())
             .Run(reader, writer, blockSizes);
 
-        YT_LOG_INFO("Waiting for chunk data to be copied");
+        YT_LOG_INFO("Waiting for chunk data to be copied (ChunkId: %v)", inputChunkId);
 
         WaitFor(result)
             .ThrowOnError();
@@ -801,7 +814,7 @@ private:
         WaitFor(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
-        auto writtenReplicas = writer->GetWrittenChunkReplicas();
+        auto writtenReplicas = writer->GetWrittenChunkReplicasInfo().Replicas;
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
     }
 

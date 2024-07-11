@@ -58,6 +58,8 @@ struct IJobInputCache
 
     virtual bool IsEnabled() = 0;
 
+    virtual bool IsBlockCacheMemoryLimitExceeded() = 0;
+
     virtual void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config) = 0;
 };
 

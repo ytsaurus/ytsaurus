@@ -112,6 +112,7 @@ public:
 
     TJobId GetId() const noexcept;
     NScheduler::TAllocationId GetAllocationId() const;
+    bool IsEvicted() const;
 
     TOperationId GetOperationId() const;
 
@@ -215,13 +216,12 @@ public:
     void DoRequestGracefulAbort(TError error);
 
     bool GetStored() const;
-
     void SetStored();
-
     bool IsGrowingStale(TDuration maxDelay) const;
+    TFuture<void> GetStoredEvent() const;
 
-    void OnEvictedFromAllocation();
-    void PrepareResourcesRelease();
+    void OnEvictedFromAllocation() noexcept;
+    void PrepareResourcesRelease() noexcept;
 
     bool IsJobProxyCompleted() const noexcept;
 
@@ -363,6 +363,7 @@ private:
     //! True if agent asked to store this job.
     bool Stored_ = false;
     TInstant LastStoredTime_;
+    TPromise<void> StoredEvent_ = NewPromise<void>();
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 

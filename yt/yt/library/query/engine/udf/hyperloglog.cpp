@@ -1,19 +1,12 @@
-#include <yt/yt/client/table_client/unversioned_value.h>
-
 #include <yt/yt/library/query/misc/udf_cpp_abi.h>
 
 using namespace NYT::NQueryClient::NUdf;
 
-static uint64_t Hash(TUnversionedValue* v)
-{
-    auto value = (NYT::NTableClient::TUnversionedValue*)v;
-    return NYT::NTableClient::GetFarmFingerprint(*value);
-}
-
 extern "C" void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result);
 extern "C" void HyperLogLogAdd(void* hll1, uint64_t val);
 extern "C" void HyperLogLogMerge(void* hll1, void* hll2);
-extern "C" ui64 HyperLogLogEstimateCardinality(void* hll1);
+extern "C" uint64_t HyperLogLogEstimateCardinality(void* hll1);
+extern "C" uint64_t HyperLogLogGetFingerprint(TUnversionedValue* value);
 
 extern "C" void cardinality_init(
     TExpressionContext* context,
@@ -32,7 +25,7 @@ extern "C" void cardinality_update(
     result->Length = state->Length;
     result->Data.String = state->Data.String;
 
-    HyperLogLogAdd(result->Data.String, Hash(newValue));
+    HyperLogLogAdd(result->Data.String, HyperLogLogGetFingerprint(newValue));
 }
 
 extern "C" void cardinality_merge(

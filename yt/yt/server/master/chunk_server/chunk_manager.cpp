@@ -4545,8 +4545,11 @@ private:
             subrequest->chunk_meta(),
             schemaId);
 
-        if (subresponse && subrequest->request_statistics()) {
-            ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+        if (subresponse) {
+            if (subrequest->request_statistics()) {
+                ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+            }
+            subresponse->set_revision(ToProto<i64>(GetCurrentMutationContext()->GetVersion().ToRevision()));
         }
     }
 
@@ -5400,6 +5403,12 @@ private:
         auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
             YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
+            return;
+        }
+
+
+        if (ChunksBeingPurged_) {
+            YT_LOG_DEBUG("Chunks are still being purged");
             return;
         }
 

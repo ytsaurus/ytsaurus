@@ -109,6 +109,13 @@ class TestGrafting(YTEnvSetup):
         with raises_yt_error("Node //tmp has no child with key \"unexisting\""):
             create("rootstock", "//tmp/unexisting/r")
 
+    @authors("kvk1920")
+    def test_scion_properties(self):
+        create("rootstock", "//tmp/sequoia1")
+        create("rootstock", "//tmp/sequoia2")
+        with raises_yt_error("Scion cannot be cloned"):
+            copy("//tmp/sequoia1", "//tmp/sequoia2")
+
 
 ##################################################################
 

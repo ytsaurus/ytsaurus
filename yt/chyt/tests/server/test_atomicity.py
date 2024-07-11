@@ -294,7 +294,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             thread.join()
 
     @authors("gudqeit")
-    @pytest.mark.parametrize("table_read_lock_mode", ["none", "best_effort", "sync"])
+    @pytest.mark.parametrize("table_read_lock_mode", ["best_effort", "sync"])
     def test_locks_and_chunk_removing(self, table_read_lock_mode):
         create(
             "table",
@@ -346,12 +346,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             query = "select * from `//tmp/dt` order by key"
 
-            if table_read_lock_mode == "none":
-                with raises_yt_error(QueryFailedError):
-                    clique.make_query(query, settings=settings)
-
-            elif table_read_lock_mode in ["best_effort", "sync"]:
-                assert clique.make_query(query, settings=settings) == data
+            assert clique.make_query(query, settings=settings) == data
 
             thread.join()
 

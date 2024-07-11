@@ -82,10 +82,15 @@ public:
 
     void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config) override;
 
+    bool IsBlockCacheMemoryLimitExceeded() override;
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     NExecNode::IBootstrap* const Bootstrap_;
+
+    const IMemoryUsageTrackerPtr BlockMemoryTracker_;
+    const IMemoryUsageTrackerPtr MetaMemoryTracker_;
 
     const NChunkClient::IClientBlockCachePtr BlockCache_;
     const NChunkClient::IClientChunkMetaCachePtr MetaCache_;
@@ -123,14 +128,16 @@ TJobInputCache::TJobInputCache(
     NExecNode::IBootstrap* bootstrap,
     NProfiling::TProfiler profiler)
     : Bootstrap_(bootstrap)
+    , BlockMemoryTracker_(Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::JobInputBlockCache))
+    , MetaMemoryTracker_(Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::JobInputChunkMetaCache))
     , BlockCache_(CreateClientBlockCache(
         New<TBlockCacheConfig>(),
         EBlockType::CompressedData,
-        Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::JobInputBlockCache),
+        BlockMemoryTracker_,
         profiler.WithPrefix("/block_cache")))
     , MetaCache_(CreateClientChunkMetaCache(
         New<TClientChunkMetaCacheConfig>(),
-        Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::JobInputChunkMetaCache),
+        MetaMemoryTracker_,
         profiler.WithPrefix("/meta_cache")))
     , ChunkReaderHost_(New<TChunkReaderHost>(
         Bootstrap_->GetClient(),
@@ -165,6 +172,13 @@ bool TJobInputCache::IsChunkCached(TChunkId chunkId)
     return ChunkIdToJobIds_.contains(chunkId);
 }
 
+bool TJobInputCache::IsBlockCacheMemoryLimitExceeded()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return BlockMemoryTracker_->IsExceeded();
+}
+
 bool TJobInputCache::IsEnabled()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -179,6 +193,8 @@ void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
     BlockCache_->Reconfigure(config->BlockCache);
     MetaCache_->Reconfigure(config->MetaCache);
 
+    BlockMemoryTracker_->SetLimit(BlockMemoryTracker_->GetLimit() + config->SummaryBlockSizeInFlight);
+
     Config_.Store(config);
 }
 
@@ -187,6 +203,10 @@ THashSet<TChunkId> TJobInputCache::FilterHotChunkIds(const std::vector<TChunkId>
     auto guard = ReaderGuard(Lock_);
 
     THashSet<TChunkId> hotChunkIds;
+
+    if (IsBlockCacheMemoryLimitExceeded()) {
+        return {};
+    }
 
     auto threshold = Config_.Acquire()->JobCountThreshold;
 
@@ -276,6 +296,7 @@ TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
         "Proxying read via exec node (ChunkId: %v)",
         chunkId);
     options.WorkloadDescriptor.Annotations.push_back(std::move(annotation));
+    options.MemoryUsageTracker = MetaMemoryTracker_;
 
     return GetOrCreateReaderForChunk(chunkId)->GetMeta(options, partitionTag, extensionTags)
         .ToUncancelable();
@@ -295,6 +316,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
         firstBlockIndex,
         firstBlockIndex + blockCount - 1);
     options.ClientOptions.WorkloadDescriptor.Annotations.push_back(std::move(annotation));
+    options.ClientOptions.MemoryUsageTracker = BlockMemoryTracker_;
 
     return GetOrCreateReaderForChunk(chunkId)->ReadBlocks(options, firstBlockIndex, blockCount)
         .ToUncancelable();
@@ -312,6 +334,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
         chunkId,
         MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3));
     options.ClientOptions.WorkloadDescriptor.Annotations.push_back(std::move(annotation));
+    options.ClientOptions.MemoryUsageTracker = BlockMemoryTracker_;
 
     return GetOrCreateReaderForChunk(chunkId)->ReadBlocks(options, blockIndices)
         .ToUncancelable();
@@ -353,6 +376,8 @@ IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
 
     auto erasureReaderConfig = New<TErasureReaderConfig>();
     erasureReaderConfig->EnableAutoRepair = true;
+    erasureReaderConfig->UseChunkProber = true;
+    erasureReaderConfig->UseReadBlocksBatcher = true;
 
     return CreateRemoteReader(
         *spec,

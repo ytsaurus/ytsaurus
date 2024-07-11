@@ -1562,6 +1562,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
     auto needJobCookie = attributes.contains("job_cookie");
+    auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1636,6 +1637,11 @@ static void ParseJobsFromControllerAgentResponse(
                 job.JobCookie = jobMapNode->GetChildValueOrThrow<ui64>("job_cookie");
             }
         }
+        if (needMonitoringDescriptor) {
+            if (auto childNode = jobMapNode->FindChild("monitoring_descriptor")) {
+                job.MonitoringDescriptor = jobMapNode->GetChildValueOrThrow<TString>("monitoring_descriptor");
+            }
+        }
     }
 }
 
@@ -1679,6 +1685,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
+        auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
         return
             (!options.Address || options.Address == address) &&
             (!options.Type || options.Type == type) &&
@@ -1687,7 +1694,8 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
-            (!options.TaskName || options.TaskName == taskName);
+            (!options.TaskName || options.TaskName == taskName) &&
+            (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value());
     };
 
     ParseJobsFromControllerAgentResponse(

@@ -1,13 +1,12 @@
 #include "sequoia_session.h"
 
+#include "actions.h"
 #include "action_helpers.h"
 #include "helpers.h"
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -82,7 +81,7 @@ bool TSequoiaSession::IsMapNodeEmpty(TNodeId nodeId)
 {
     YT_VERIFY(IsSequoiaCompositeNodeType(TypeFromId(nodeId)));
 
-    return WaitFor(SequoiaTransaction_->SelectRows<NRecords::TChildNodeKey>({
+    return WaitFor(SequoiaTransaction_->SelectRows<NRecords::TChildNode>({
         .WhereConjuncts = {Format("parent_id = %Qv", nodeId)},
         .Limit = 1,
     }))
@@ -210,7 +209,7 @@ TNodeId TSequoiaSession::CreateNode(
     TNodeId parentId)
 {
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type);
-    NCypressProxy::CreateNode(type, createdNodeId, path, explicitAttributes, SequoiaTransaction_);
+    NCypressProxy::CreateNode(createdNodeId, path, explicitAttributes, SequoiaTransaction_);
     AttachChild(parentId, createdNodeId, path.GetBaseName(), SequoiaTransaction_);
 
     return createdNodeId;
@@ -220,7 +219,7 @@ TFuture<std::vector<NRecords::TChildNode>> TSequoiaSession::FetchChildren(TNodeI
 {
     YT_VERIFY(IsSequoiaCompositeNodeType(TypeFromId(nodeId)));
 
-    return SequoiaTransaction_->SelectRows<NRecords::TChildNodeKey>({
+    return SequoiaTransaction_->SelectRows<NRecords::TChildNode>({
         .WhereConjuncts = {Format("parent_id = %Qv", nodeId)},
         .OrderBy = {"child_key"},
     });

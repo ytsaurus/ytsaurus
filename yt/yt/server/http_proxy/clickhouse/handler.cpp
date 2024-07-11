@@ -167,7 +167,7 @@ public:
             .OptionalItem("query_id", ProxiedResponse_ && ProxiedResponse_->GetHeaders()->Find("X-ClickHouse-Query-Id") ?
                 std::make_optional(ProxiedResponse_->GetHeaders()->GetOrThrow("X-ClickHouse-Query-Id")) :
                 std::nullopt)
-            .OptionalItem("clique_alias", OperationAlias_)
+            .OptionalItem("clique_alias", CliqueAlias_)
             .OptionalItem("clique_id", OperationId_ ? std::make_optional(OperationId_) : std::nullopt)
             .OptionalItem("coordinator_id", !InstanceId_.Empty() ? std::make_optional(InstanceId_) : std::nullopt)
             .OptionalItem("coordinator_address", !InstanceHost_.Empty() ? std::make_optional(InstanceHost_) : std::nullopt)
@@ -212,9 +212,8 @@ private:
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
 
-    TOperationIdOrAlias OperationIdOrAlias_;
     TOperationId OperationId_;
-    std::optional<TString> OperationAlias_;
+    TString CliqueAlias_;
 
     TYsonString OperationAcl_;
 
@@ -375,9 +374,7 @@ private:
             YT_VERIFY(traceContext);
             traceContext->AddTag("user", User_);
             traceContext->AddTag("clique_id", OperationId_);
-            if (OperationAlias_) {
-                traceContext->AddTag("clique_alias", *OperationAlias_);
-            }
+            traceContext->AddTag("clique_alias", CliqueAlias_);
 
             if (isDatalens) {
                 if (auto tracingOverride = Config_->DatalensTracingOverride) {
@@ -625,18 +622,14 @@ private:
             Logger);
     }
 
-    TString GetOperationIdOrAliasWithoutAsterisk()
+    TString GetOperationAlias() const
     {
-        auto operationIdOrAlias = ToString(OperationIdOrAlias_);
-        if (operationIdOrAlias.StartsWith('*')) {
-            operationIdOrAlias = operationIdOrAlias.erase(0, 1);
-        }
-        return operationIdOrAlias;
+        return "*" + CliqueAlias_;
     }
 
-    TString GetDiscoveryGroupId()
+    TString GetDiscoveryGroupId() const
     {
-        return "/chyt/" + GetOperationIdOrAliasWithoutAsterisk();
+        return "/chyt/" + CliqueAlias_;
     }
 
     IDiscoveryPtr CreateDiscoveryV2()
@@ -696,7 +689,7 @@ private:
         try {
             auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", OperationIdOrAlias_);
+                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", CliqueAlias_);
 
                 auto discovery = TryChooseDiscovery();
 
@@ -706,7 +699,7 @@ private:
                     OperationId_,
                     std::move(discovery)));
 
-                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", OperationIdOrAlias_);
+                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", CliqueAlias_);
             }
 
             YT_PROFILE_TIMING("/clickhouse_proxy/query_time/find_discovery") {
@@ -754,7 +747,7 @@ private:
             }
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
-                PushError(TError("Clique %v has no running instances", OperationIdOrAlias_));
+                PushError(TError("Clique %v has no running instances", CliqueAlias_));
                 return false;
             }
 
@@ -770,17 +763,17 @@ private:
     bool TryParseDatabase()
     {
         try {
-            auto operationIdOrAliasAndInstanceCookie = CgiParameters_.Get("database");
+            auto cliqueAliasAndInstanceCookie = CgiParameters_.Get("database");
 
-            TString operationIdOrAlias;
+            TString cliqueAlias;
 
-            if (operationIdOrAliasAndInstanceCookie.Contains("@")) {
-                auto separatorIndex = operationIdOrAliasAndInstanceCookie.find_last_of("@");
-                operationIdOrAlias = operationIdOrAliasAndInstanceCookie.substr(0, separatorIndex);
+            if (cliqueAliasAndInstanceCookie.Contains("@")) {
+                auto separatorIndex = cliqueAliasAndInstanceCookie.find_last_of("@");
+                cliqueAlias = cliqueAliasAndInstanceCookie.substr(0, separatorIndex);
 
-                auto jobCookieString = operationIdOrAliasAndInstanceCookie.substr(
+                auto jobCookieString = cliqueAliasAndInstanceCookie.substr(
                     separatorIndex + 1,
-                    operationIdOrAliasAndInstanceCookie.size() - separatorIndex - 1);
+                    cliqueAliasAndInstanceCookie.size() - separatorIndex - 1);
                 size_t jobCookie = 0;
                 if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
                     ReplyWithError(
@@ -791,25 +784,23 @@ private:
                 JobCookie_ = jobCookie;
                 YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
             } else {
-                operationIdOrAlias = operationIdOrAliasAndInstanceCookie;
+                cliqueAlias = cliqueAliasAndInstanceCookie;
             }
 
-            if (operationIdOrAlias.empty()) {
+            if (cliqueAlias.StartsWith("*")) {
+                cliqueAlias.erase(0, 1);
+                YT_LOG_DEBUG("Strip asterisk from clique alias provided by user (%v)", cliqueAlias);
+            }
+
+            if (cliqueAlias.empty()) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique id or alias should be specified using the `database` CGI parameter"));
+                    TError("Clique alias should be specified using the `database` CGI parameter"));
                 return false;
             }
 
-            if (operationIdOrAlias[0] == '*') {
-                OperationAlias_ = operationIdOrAlias;
-                YT_LOG_DEBUG("Clique is defined by alias (OperationAlias: %v)", OperationAlias_);
-            } else {
-                OperationId_ = TOperationId(TGuid::FromString(operationIdOrAlias));
-                YT_LOG_DEBUG("Clique is defined by operation id (OperationId: %v)", OperationId_);
-            }
-
-            OperationIdOrAlias_ = TOperationIdOrAlias::FromString(operationIdOrAlias);
+            CliqueAlias_ = std::move(cliqueAlias);
+            YT_LOG_DEBUG("Clique is defined by alias (%v)", CliqueAlias_);
 
             return true;
         } catch (const std::exception& ex) {
@@ -823,39 +814,34 @@ private:
 
     bool TryGetOperation()
     {
-        if (OperationAlias_) {
-            auto operationId = Handler_->GetOperationId(GetOperationIdOrAliasWithoutAsterisk());
-            if (operationId) {
-                OperationId_ = operationId;
-                YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
-                    OperationAlias_,
-                    OperationId_);
-                return true;
-            }
-
-            YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
-                OperationAlias_);
+        auto operationId = Handler_->GetOperationId(CliqueAlias_);
+        if (operationId) {
+            OperationId_ = operationId;
+            YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
+                GetOperationAlias(),
+                OperationId_);
+            return true;
         }
 
-        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", OperationIdOrAlias_);
+        YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
+            CliqueAlias_);
+
+        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", CliqueAlias_);
 
         try {
-            auto operationYson = WaitFor(OperationCache_->Get(OperationIdOrAlias_))
+            // Operation-cache wants alias to start with asterisk
+            auto operationYson = WaitFor(OperationCache_->Get(GetOperationAlias()))
                 .ValueOrThrow();
 
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 
-            if (OperationAlias_) {
-                OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
-                YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", OperationAlias_, OperationId_);
-            } else {
-                YT_ASSERT(OperationId_ == operationNode->GetChildValueOrThrow<TOperationId>("id"));
-            }
+            OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
+            YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", GetOperationAlias(), OperationId_);
 
             if (auto state = operationNode->GetChildValueOrThrow<EOperationState>("state"); state != EOperationState::Running) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique %v is not running; actual state = %lv", OperationIdOrAlias_, state)
+                    TError("Clique %v is not running; actual state = %lv", CliqueAlias_, state)
                         << TErrorAttribute("operation_id", OperationId_));
                 return false;
             }
@@ -863,7 +849,7 @@ private:
             if (operationNode->GetChildValueOrThrow<bool>("suspended")) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique %v is suspended; resume it to make queries", OperationIdOrAlias_));
+                    TError("Clique %v is suspended; resume it to make queries", CliqueAlias_));
                 return false;
             }
 
@@ -874,7 +860,7 @@ private:
                 EYsonFormat::Text);
 
             YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperationAcl: %v)",
-                OperationAlias_,
+                GetOperationAlias(),
                 OperationId_,
                 OperationAcl_);
 
@@ -899,7 +885,7 @@ private:
             });
         } else {
             future = PermissionCache_->Get(TPermissionKey{
-                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", GetOperationIdOrAliasWithoutAsterisk()),
+                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
                 .User = User_,
                 .Permission = EPermission::Use,
             });
@@ -910,7 +896,7 @@ private:
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                 auto replyError = TError("User %Qv has no access to clique %v",
                     User_,
-                    OperationIdOrAlias_)
+                    CliqueAlias_)
                     << error;
                 if (OperationAcl_) {
                     replyError.MutableAttributes()->Set("operation_acl", OperationAcl_);
@@ -921,7 +907,7 @@ private:
                     EStatusCode::BadRequest,
                     TError("Failed to authorize user %Qv to clique %v",
                         User_,
-                        OperationIdOrAlias_)
+                        CliqueAlias_)
                         << error);
             }
             return false;
@@ -1040,7 +1026,7 @@ private:
     {
         Discovery_.Reset();
         DiscoveryCache_->TryRemove(OperationId_);
-        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", OperationIdOrAlias_);
+        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", CliqueAlias_);
     }
 };
 

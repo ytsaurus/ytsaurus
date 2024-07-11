@@ -72,6 +72,15 @@ void UpdateAggregatedJobStatistics(
     int customStatisticsLimit,
     bool* isLimitExceeded);
 
+void SafeUpdateAggregatedJobStatistics(
+    ITaskHost* taskHost,
+    TAggregatedJobStatistics& targetStatistics,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
+    int customStatisticsLimit,
+    bool* isLimitExceeded);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDockerImageSpec

@@ -104,6 +104,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((NewPartitionsCountIsSignificantlyLarger)     (36))
     ((UseChunkSliceStatisticsDisabled)             (37))
     ((JobIsNotDeterministic)                       (38))
+    ((IncompatibleStatistics)                      (39))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

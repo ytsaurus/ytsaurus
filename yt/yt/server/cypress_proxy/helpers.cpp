@@ -1,104 +1,33 @@
 #include "helpers.h"
 
-#include "private.h"
-
-#include "action_helpers.h"
 #include "path_resolver.h"
 #include "sequoia_service.h"
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
-#include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
-#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
-
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
+#include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/error.h>
-
-#include <yt/yt/core/ypath/helpers.h>
-#include <yt/yt/core/ypath/token.h>
-#include <yt/yt/core/ypath/tokenizer.h>
+#include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NCypressProxy {
 
-using namespace NApi;
-using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
+using namespace NCypressServer::NProto;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYPath;
-using namespace NRpc;
 using namespace NYTree;
-
-using NYT::FromProto;
 
 using TYPath = NSequoiaClient::TYPath;
 using TYPathBuf = NSequoiaClient::TYPathBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto& Logger = CypressProxyLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-struct TSequoiaTransactionActionSequencer
-    : public ISequoiaTransactionActionSequencer
-{
-    int GetActionPriority(TStringBuf actionType) const override
-    {
-        #define HANDLE_ACTION_TYPE(TAction, priority) \
-            if (actionType == NCypressServer::NProto::TAction::GetDescriptor()->full_name()) { \
-                return priority; \
-            }
-
-        HANDLE_ACTION_TYPE(TReqCloneNode, 100)
-        HANDLE_ACTION_TYPE(TReqDetachChild, 200)
-        HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
-        HANDLE_ACTION_TYPE(TReqCreateNode, 400)
-        HANDLE_ACTION_TYPE(TReqAttachChild, 500)
-        HANDLE_ACTION_TYPE(TReqSetNode, 600)
-
-        #undef HANDLE_ACTION_TYPE
-
-        YT_ABORT();
-    }
-};
-
-static const TSequoiaTransactionActionSequencer TransactionActionSequencer;
-
-static const TSequoiaTransactionSequencingOptions SequencingOptions = {
-    .TransactionActionSequencer = &TransactionActionSequencer,
-    .RequestPriorities = TSequoiaTransactionRequestPriorities{
-        .DatalessLockRow = 100,
-        .LockRow = 200,
-        .WriteRow = 400,
-        .DeleteRow = 300,
-    },
-};
-
-} // namespace
-
-TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
-    const ISequoiaClientPtr& sequoiaClient,
-    const TTransactionStartOptions& options)
-{
-    return sequoiaClient->StartTransaction(options, SequencingOptions);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsLinkType(NCypressClient::EObjectType type)
-{
-    return type == EObjectType::Link || type == EObjectType::SequoiaLink;
-}
 
 namespace {
 
@@ -131,9 +60,9 @@ void ValidateLinkNodeCreation(
     TRawYPath targetPath,
     const TResolveResult& resolveResult)
 {
-    // TODO(danilalexeev): In case of a master-object designator the following
-    // resolve will not produce a meaningful result. Such YPath has to be
-    // resolved by master first.
+    // TODO(danilalexeev): In case of a master-object root designator the
+    // following resolve will not produce a meaningful result. Such YPath has to
+    // be resolved by master first.
     // TODO(kvk1920): probably works (since symlinks are stored in both resolve
     // tables now), but has to be tested.
     auto linkPath = GetCanonicalYPath(resolveResult);
@@ -183,26 +112,6 @@ std::vector<TString> TokenizeUnresolvedSuffix(const TYPath& unresolvedSuffix)
     return pathTokens;
 }
 
-TAbsoluteYPath JoinNestedNodesToPath(
-    const TAbsoluteYPath& parentPath,
-    const std::vector<TString>& childKeys)
-{
-    TStringBuilder builder;
-
-    auto nestedLength = 0;
-    for (const auto& childKey : childKeys) {
-        nestedLength += std::ssize(childKey) + 1;
-    }
-    builder.Reserve(std::ssize(parentPath.Underlying()) + nestedLength);
-
-    builder.AppendString(parentPath.Underlying());
-    for (auto childKey : childKeys) {
-        builder.AppendChar('/');
-        AppendYPathLiteral(&builder, childKey);
-    }
-    return TAbsoluteYPath(builder.Flush());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSupportedSequoiaType(EObjectType type)
@@ -246,159 +155,6 @@ void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
-    const TAbsoluteYPath& path,
-    const ISequoiaTransactionPtr& transaction)
-{
-    auto mangledPath = path.ToMangledSequoiaPath();
-    return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
-        .WhereConjuncts = {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
-        },
-        .OrderBy = {"path"}
-    });
-}
-
-TNodeId LookupNodeId(
-    TAbsoluteYPathBuf path,
-    const ISequoiaTransactionPtr& transaction)
-{
-    NRecords::TPathToNodeIdKey nodeKey{
-        .Path = path.ToMangledSequoiaPath(),
-    };
-    auto rows = WaitFor(transaction->LookupRows<NRecords::TPathToNodeIdKey>({nodeKey}))
-        .ValueOrThrow();
-    if (rows.size() != 1) {
-        YT_LOG_ALERT("Unexpected number of rows received while looking up a node by its path "
-            "(Path: %v, RowCount: %v)",
-            path,
-            rows.size());
-    } else if (!rows[0]) {
-        YT_LOG_ALERT("Row with null value received while looking up a node by its path (Path: %v)",
-            path);
-    }
-
-    return rows[0]->NodeId;
-}
-
-TNodeId CreateIntermediateNodes(
-    const TAbsoluteYPath& parentPath,
-    TNodeId parentId,
-    TRange<TString> nodeKeys,
-    const ISequoiaTransactionPtr& transaction)
-{
-    auto currentNodePath = parentPath;
-    auto currentNodeId = parentId;
-    for (const auto& key : nodeKeys) {
-        currentNodePath.Append(key);
-        auto newNodeId = transaction->GenerateObjectId(EObjectType::SequoiaMapNode);
-
-        CreateNode(
-            EObjectType::SequoiaMapNode,
-            newNodeId,
-            currentNodePath,
-            /*explicitAttributes*/ nullptr,
-            transaction);
-        AttachChild(currentNodeId, newNodeId, key, transaction);
-        currentNodeId = newNodeId;
-    }
-    return currentNodeId;
-}
-
-TNodeId CopySubtree(
-    const std::vector<NRecords::TPathToNodeId>& sourceNodes,
-    const TAbsoluteYPath& sourceRootPath,
-    const TAbsoluteYPath& destinationRootPath,
-    const TCopyOptions& options,
-    const THashMap<TNodeId, NYPath::TYPath>& subtreeLinks,
-    const ISequoiaTransactionPtr& transaction)
-{
-    THashMap<TAbsoluteYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
-    nodePathToChildren.reserve(sourceNodes.size());
-    TNodeId destinationNodeId;
-    for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
-        TAbsoluteYPath destinationNodePath(it->Key.Path);
-        destinationNodePath.UnsafeMutableUnderlying()->replace(
-            0,
-            sourceRootPath.Underlying().size(),
-            destinationRootPath.Underlying());
-
-        NRecords::TNodeIdToPath record{
-            .Key = {.NodeId = it->NodeId},
-            .Path = DemangleSequoiaPath(it->Key.Path),
-        };
-
-        if (IsLinkType(TypeFromId(it->NodeId))) {
-            record.TargetPath = GetOrCrash(subtreeLinks, it->NodeId);
-        }
-
-        // NB: due to the reverse order of subtree traversing we naturally get
-        // subtree root after the end of loop.
-        destinationNodeId = CopyNode(
-            record,
-            destinationNodePath,
-            options,
-            transaction);
-
-        auto nodeIt = nodePathToChildren.find(destinationNodePath);
-        if (nodeIt != nodePathToChildren.end()) {
-            for (const auto& [childKey, childId] : nodeIt->second) {
-                AttachChild(destinationNodeId, childId, childKey, transaction);
-            }
-            nodePathToChildren.erase(nodeIt);
-        }
-
-        TAbsoluteYPath parentPath(destinationNodePath.GetDirPath());
-        auto childKey = destinationNodePath.GetBaseName();
-        nodePathToChildren[std::move(parentPath)].emplace_back(std::move(childKey), destinationNodeId);
-    }
-
-    YT_VERIFY(nodePathToChildren.size() == 1);
-    return destinationNodeId;
-}
-
-void RemoveSelectedSubtree(
-    const std::vector<NRecords::TPathToNodeId>& subtreeNodes,
-    const ISequoiaTransactionPtr& transaction,
-    bool removeRoot,
-    TNodeId subtreeParentId)
-{
-    YT_VERIFY(!subtreeNodes.empty());
-    // For root removal we need to know its parent (excluding scion removal).
-    YT_VERIFY(
-        !removeRoot ||
-        subtreeParentId ||
-        TypeFromId(subtreeNodes.front().NodeId) == EObjectType::Scion);
-
-    THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
-    pathToNodeId.reserve(subtreeNodes.size());
-    for (const auto& node : subtreeNodes) {
-        pathToNodeId[TAbsoluteYPath(node.Key.Path)] = node.NodeId;
-    }
-
-    for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
-        RemoveNode(nodeIt->NodeId, nodeIt->Key.Path, transaction);
-    }
-
-    for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
-        TAbsoluteYPath path(it->Key.Path);
-        if (auto parentIt = pathToNodeId.find(path.GetDirPath())) {
-            DetachChild(parentIt->second, path.GetBaseName(), transaction);
-        }
-    }
-
-    auto rootType = TypeFromId(subtreeNodes.front().NodeId);
-    if (!removeRoot || rootType == EObjectType::Scion) {
-        return;
-    }
-
-    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Key.Path);
-    DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), transaction);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr context)
 {
     YT_VERIFY(context->GetRequestHeader().method() == "Create");
@@ -425,6 +181,34 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
         typedContext->Reply(ex);
         return std::nullopt;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)
+{
+    protoOptions->set_mode(static_cast<int>(options.Mode));
+    protoOptions->set_preserve_acl(options.PreserveAcl);
+    protoOptions->set_preserve_account(options.PreserveAccount);
+    protoOptions->set_preserve_owner(options.PreserveOwner);
+    protoOptions->set_preserve_creation_time(options.PreserveCreationTime);
+    protoOptions->set_preserve_modification_time(options.PreserveModificationTime);
+    protoOptions->set_preserve_expiration_time(options.PreserveExpirationTime);
+    protoOptions->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
+    protoOptions->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
+}
+
+void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
+{
+    options->Mode = CheckedEnumCast<ENodeCloneMode>(protoOptions.mode());
+    options->PreserveAcl = protoOptions.preserve_acl();
+    options->PreserveAccount = protoOptions.preserve_account();
+    options->PreserveOwner = protoOptions.preserve_owner();
+    options->PreserveCreationTime = protoOptions.preserve_creation_time();
+    options->PreserveModificationTime = protoOptions.preserve_modification_time();
+    options->PreserveExpirationTime = protoOptions.preserve_expiration_time();
+    options->PreserveExpirationTimeout = protoOptions.preserve_expiration_timeout();
+    options->PessimisticQuotaCheck = protoOptions.pessimistic_quota_check();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

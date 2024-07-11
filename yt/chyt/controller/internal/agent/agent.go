@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
-	"go.ytsaurus.tech/yt/chyt/controller/internal/monitoring"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -30,18 +29,18 @@ type Agent struct {
 	root     ypath.Path
 
 	// nodeCh receives events of form "particular node in root has changed revision"
-	nodeCh <-chan []ypath.Path
+	nodeCh <-chan PathsOrError
 
 	// runningOpsCh periodically receives all running vanilla operations
 	// with operation namespace from controller.
-	runningOpsCh <-chan []yt.OperationStatus
+	runningOpsCh <-chan OperationsOrError
 
 	started   bool
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
 	backgroundStopCh chan struct{}
-	healthState      *HealthState
+	healthState      *agentHealthState
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
@@ -50,6 +49,7 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		l.Fatal("error getting hostname", log.Error(err))
 	}
 
+	tf := config.HealthCheckerToleranceFactorOrDefault()
 	return &Agent{
 		ytc:              ytc,
 		l:                l,
@@ -60,7 +60,10 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		root:             controller.Root(),
 		proxy:            proxy,
 		backgroundStopCh: make(chan struct{}),
-		healthState:      NewHealthState(),
+		healthState: newAgentHealthState(
+			time.Duration(tf*float64(config.PassPeriodOrDefault())),
+			time.Duration(tf*float64(config.RevisionCollectPeriodOrDefault())),
+			time.Duration(tf*float64(config.CollectOperationsPeriodOrDefault()))),
 	}
 }
 
@@ -188,12 +191,12 @@ func (a *Agent) pass() {
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 
 	if err := a.updateControllerState(); err != nil {
-		a.healthState.Store(yterrors.Err("failed to update controller's state", err))
+		a.healthState.SetPassState(yterrors.Err("failed to update controller's state", err))
 		return
 	}
 
 	if err := a.updateACLs(); err != nil {
-		a.healthState.Store(yterrors.Err("failed to update ACLs", err))
+		a.healthState.SetPassState(yterrors.Err("failed to update ACLs", err))
 		return
 	}
 
@@ -218,7 +221,7 @@ func (a *Agent) pass() {
 	}
 
 	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
-	a.healthState.Store(nil)
+	a.healthState.SetPassState(nil)
 }
 
 func (a *Agent) updateControllerState() error {
@@ -234,17 +237,67 @@ func (a *Agent) updateControllerState() error {
 	return nil
 }
 
+func (a *Agent) initializeFromCypress() error {
+	a.l.Info("initializing agent from cypress")
+
+	_, err := a.controller.UpdateState()
+	if err != nil {
+		a.l.Error("error occured during updating controller state", log.Error(err))
+		a.healthState.SetInitState(yterrors.Err("failed to update controller state", err))
+		return err
+	}
+
+	var initialAliases []string
+	err = a.ytc.ListNode(a.ctx, a.root, &initialAliases, nil)
+	if err != nil {
+		a.l.Error("error occured during initializing agent", log.Error(err))
+		a.healthState.SetInitState(yterrors.Err("failed to list aliases", err))
+		return err
+	}
+
+	// TODO(dakovalkov): we can do initialization more optimal with get on the whole directory.
+	for _, alias := range initialAliases {
+		a.registerNewOplet(alias)
+	}
+
+	a.l.Info("agent initialized", log.Int("oplet_count", len(initialAliases)))
+	a.healthState.SetInitState(nil)
+	return nil
+}
+
 func (a *Agent) background() {
 	passPeriod := time.Duration(a.config.PassPeriodOrDefault())
 	a.l.Info("starting background activity", log.Duration("period", passPeriod))
 	ticker := time.NewTicker(passPeriod)
-loop:
+
+	defer func() {
+		a.l.Info("background activity stopped")
+		a.backgroundStopCh <- struct{}{}
+	}()
+
+	// The agent initialization is done in the background because it may fail
+	// (e.g. the cluster is unavailable) and we want to retry it till we finally
+	// initialize it.
+	for a.initializeFromCypress() != nil {
+		// Back off before the next try.
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
+			continue
+		}
+	}
+
 	for {
 		select {
 		case <-a.ctx.Done():
-			break loop
-		case paths := <-a.nodeCh:
-			for _, path := range paths {
+			return
+		case event := <-a.nodeCh:
+			if event.Error != nil {
+				a.healthState.SetTrackNodesState(event.Error)
+				continue
+			}
+			for _, path := range event.Paths {
 				tokens := tokenize(path)
 				if len(tokens) >= 1 {
 					alias := tokens[0]
@@ -260,19 +313,24 @@ loop:
 					}
 				}
 			}
-		case runningOps := <-a.runningOpsCh:
+			a.healthState.SetTrackNodesState(nil)
+		case event := <-a.runningOpsCh:
+			if event.Error != nil {
+				a.healthState.SetTrackOpsState(event.Error)
+				continue
+			}
 			// Abort dangling operations. This results in filtering those
 			// which are not listed in our aliasToOp.
-			if err := a.abortDangling(runningOps); err != nil {
-				a.healthState.Store(yterrors.Err("failed to abort dangling operations", err))
-				return
+			if err := a.abortDangling(event.Operations); err != nil {
+				err = yterrors.Err("failed to abort dangling operations", err)
+				a.healthState.SetTrackOpsState(err)
+				continue
 			}
+			a.healthState.SetTrackOpsState(nil)
 		case <-ticker.C:
 			a.pass()
 		}
 	}
-	a.l.Info("background activity stopped")
-	a.backgroundStopCh <- struct{}{}
 }
 
 func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
@@ -349,17 +407,6 @@ func (a *Agent) Start() {
 		a.OperationNamespace(),
 		a.l)
 
-	var initialAliases []string
-	err := a.ytc.ListNode(a.ctx, a.root, &initialAliases, nil)
-	if err != nil {
-		panic(err)
-	}
-
-	// TODO(dakovalkov): we can do initialization more optimal with get on the whole directory.
-	for _, alias := range initialAliases {
-		a.registerNewOplet(alias)
-	}
-
 	go a.background()
 	a.l.Info("agent started")
 }
@@ -386,6 +433,6 @@ func (a *Agent) OperationNamespace() string {
 	return a.controller.Family() + ":" + a.config.Stage
 }
 
-func (a *Agent) GetHealthStatus() monitoring.HealthStatus {
-	return a.healthState.Load()
+func (a *Agent) CheckHealth() error {
+	return a.healthState.Get()
 }

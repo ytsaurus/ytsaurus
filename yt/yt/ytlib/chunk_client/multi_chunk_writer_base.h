@@ -46,7 +46,7 @@ public:
      */
     const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const override;
 
-    const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const override;
+    const TWrittenChunkReplicasInfoList& GetWrittenChunkReplicasInfos() const override;
 
     NProto::TDataStatistics GetDataStatistics() const override;
 
@@ -102,7 +102,7 @@ private:
     TCodecStatistics CodecStatistics;
 
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunkSpecs_;
-    TChunkWithReplicasList WrittenChunkWithReplicasList_;
+    TWrittenChunkReplicasInfoList WrittenChunkReplicasInfos_;
 
 
     void InitSession();

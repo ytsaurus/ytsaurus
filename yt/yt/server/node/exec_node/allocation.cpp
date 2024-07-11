@@ -3,6 +3,8 @@
 #include "controller_agent_connector.h"
 #include "job_controller.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 namespace NYT::NExecNode {
@@ -165,7 +167,7 @@ void TAllocation::Cleanup()
     YT_VERIFY(State_ == EAllocationState::Finished);
 }
 
-TJobPtr TAllocation::EvictJob()
+TJobPtr TAllocation::EvictJob() noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -331,6 +333,11 @@ bool TAllocation::IsEmpty() const noexcept
     return !Job_;
 }
 
+const TAllocationConfigPtr& TAllocation::GetConfig() const noexcept
+{
+    return Bootstrap_->GetJobController()->GetDynamicConfig()->Allocation;
+}
+
 void TAllocation::SettleJob()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -344,7 +351,7 @@ void TAllocation::SettleJob()
         "Requesting controller agent to settle new job (ControllerAgentDescriptor: %v)",
         ControllerAgentDescriptor_);
 
-    controllerAgentConnector->SettleJob(OperationId_, Id_)
+    controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
         .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
 }
@@ -430,6 +437,8 @@ void TAllocation::CreateAndSettleJob(
 
     YT_VERIFY(!std::exchange(Job_, std::move(job)));
 
+    LastJobId_ = jobId;
+
     // COMPAT(arkady-e1ppa): Non-legacy version
     // always has state == Running at this point.
     // Remove branch when sched and CA are 24.2.
@@ -490,6 +499,36 @@ void TAllocation::OnJobPrepared(TJobPtr job)
 void TAllocation::OnJobFinished(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
+        AllSucceeded(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
+            .Subscribe(BIND([
+                jobId = job->GetId(),
+                this,
+                this_ = MakeStrong(this)
+            ] (const TError& error) {
+                YT_LOG_FATAL_UNLESS(
+                    error.IsOK(),
+                    error,
+                    "Failed to store or cleanup job (JobId: %v)",
+                    jobId);
+
+                if (State_ == EAllocationState::Finished) {
+                    YT_LOG_INFO(
+                        "Controller agent requested to settle job but allocation is already finished, settling job skipped (JobId: %v)",
+                        jobId);
+                    return;
+                }
+                YT_LOG_INFO(
+                    "Job cleanup finished and job stored; evicting previous and settling new job (PreviousJobId: %v)",
+                    jobId);
+                EvictJob();
+                SettleJob();
+            })
+                .Via(Bootstrap_->GetJobInvoker()));
+    } else {
+        Complete();
+    }
 
     JobFinished_.Fire(std::move(job));
 }

@@ -16,7 +16,7 @@ INCLUDE(../YaMakeDependsBoilerplate.txt)
 # Set REQUIREMENTS after INCLUDE for proper override
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
-        cpu:26
+        cpu:38
         ram:40
     )
 ELSE()

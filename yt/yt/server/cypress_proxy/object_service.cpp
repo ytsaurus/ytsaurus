@@ -47,7 +47,6 @@ public:
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
         , Invoker_(ThreadPool_->GetInvoker())
-        , DynamicConfig_(New<TObjectServiceDynamicConfig>())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
@@ -60,7 +59,6 @@ public:
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
     {
-        DynamicConfig_.Store(config);
         ThreadPool_->Configure(config->ThreadPoolSize);
     }
 
@@ -71,7 +69,7 @@ public:
 
     TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
-        return DynamicConfig_.Acquire();
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
 
 private:
@@ -83,8 +81,6 @@ private:
 
     const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
-
-    TAtomicIntrusivePtr<TObjectServiceDynamicConfig> DynamicConfig_;
 
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;

@@ -12,19 +12,6 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TReq>
-struct TRequestTypeTraits;
-
-#define REGISTER_TABLE_REQUEST_TYPE(type, priority) \
-    template<> \
-    struct TRequestTypeTraits<type> \
-    { \
-        static constexpr const char* Name = #type; \
-        static const int Priority = priority; \
-    };
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TRecordKey>
 TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaTransaction::LookupRows(
     const std::vector<TRecordKey>& keys,
@@ -39,13 +26,13 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
     }));
 }
 
-template <class TRecordKey>
-TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> ISequoiaTransaction::SelectRows(
+template <class TRecord>
+TFuture<std::vector<TRecord>> ISequoiaTransaction::SelectRows(
     const TSelectRowsQuery& query)
 {
-    auto resultFuture = SelectRows(TRecordKey::Table, query);
+    auto resultFuture = SelectRows(TRecord::Table, query);
     return resultFuture.Apply(BIND([] (const NApi::TSelectRowsResult& result) {
-        return NTableClient::ToRecords<typename TRecordKey::TRecordDescriptor::TRecord>(result.Rowset);
+        return NTableClient::ToRecords<TRecord>(result.Rowset);
     }));
 }
 

@@ -393,17 +393,17 @@ public:
         YT_ABORT();
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TChunkReplicaWithLocationList chunkReplicas;
+        TWrittenChunkReplicasInfo result;
         for (const auto& node : Nodes_) {
             if (node->IsAlive() && node->IsFinished()) {
-                chunkReplicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
+                result.Replicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
             }
         }
-        return chunkReplicas;
+        return result;
     }
 
     TChunkId GetChunkId() const override

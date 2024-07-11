@@ -51,7 +51,7 @@ A list of all tablets of all dynamic system tables is available at `//sys/tablet
 
 ## Boundary keys { #keys }
 
-To change a table tablet set, use the `reshard_table` command. When changing the number of tables of sorted dynamic tables, boundary keys must be specified. Tablet boundary keys are random sequences of values, not necessarily of the same length as the key columns.
+To change a table tablet set, use the `reshard_table` command. When changing the number of tablets of sorted dynamic tables, boundary keys must be specified. Tablet boundary keys are random sequences of values, not necessarily of the same length as the key columns.
 
 One of the options is to take a hash of some subsequent key components in order to distribute the data evenly across the key space. Then the boundary keys can be sequences of length 1, consisting of numbers that evenly divide the entire interval of hash function values.
 

@@ -662,7 +662,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
         YT_UNIMPLEMENTED();
     }

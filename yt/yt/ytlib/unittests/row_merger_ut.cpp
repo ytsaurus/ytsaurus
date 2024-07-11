@@ -574,7 +574,7 @@ public:
     {
         return BuildYsonStringFluently()
             .BeginMap()
-                .Item(CustomRuntimeDataWatermarkKey).Value(ConvertToNode(config))
+                .Item(CustomRuntimeDataWatermarkKey).Value(config)
             .EndMap();
     }
 

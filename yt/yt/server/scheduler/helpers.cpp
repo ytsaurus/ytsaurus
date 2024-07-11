@@ -99,6 +99,8 @@ void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->Events())
+        .Item("scheduling_attributes_per_pool_tree").Value(operation->GetSchedulingAttributesPerPoolTree())
+        // COMPAT(omgronny)
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
         .DoIf(operation->Transactions().has_value(), [&] (TFluentMap fluent) {
             auto transactionIds = operation->Transactions()->ControllerTransactionIds;

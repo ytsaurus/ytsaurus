@@ -501,8 +501,63 @@ TRANSFORMS[51] = [
             attributes={"atomicity": "none"})),
 ]
 
+TRANSFORMS[52] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo(
+            [
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any", {"lock": "controller_agent"}),
+                ("provided_spec", "any"),
+                ("spec", "any"),
+                ("full_spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any", {"lock": "controller_agent"}),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any"),
+                ("alert_events", "any"),
+                ("scheduling_attributes_per_pool_tree", "any"),
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots,
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
+
+
+def are_hunks_enabled(client):
+    hunks_path = "//sys/@config/tablet_manager/enable_hunks"
+    return client.exists(hunks_path) and client.get(hunks_path)
+
+
+def check_operations_archive_version(client, target_version):
+    if not are_hunks_enabled(client) and target_version >= 48:
+        raise Exception("Unable to init operations archive: hunks are not enabled")
 
 
 def prepare_migration(client, archive_path):
@@ -586,11 +641,15 @@ def build_arguments_parser():
 
 
 def run(client, archive_path, target_version, shard_count, latest, force):
+    check_operations_archive_version(client, target_version)
+
     migration = prepare_migration(client, archive_path)
 
     target_version = target_version
     if latest:
         target_version = migration.get_latest_version()
+
+    check_operations_archive_version(client, target_version)
 
     migration.run(
         client=client,

@@ -589,6 +589,8 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("meta_cache", &TThis::MetaCache)
         .DefaultNew();
+    registrar.Parameter("summary_block_size_in_flight", &TThis::SummaryBlockSizeInFlight)
+        .Default(1_GB);
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .InRange(0.0, 1.0)
         .Default(0.8);
@@ -740,6 +742,14 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAllocationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_multiple_jobs", &TThis::EnableMultipleJobs)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
@@ -808,6 +818,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
         .Default();
+
+    registrar.Parameter("allocation", &TThis::Allocation)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

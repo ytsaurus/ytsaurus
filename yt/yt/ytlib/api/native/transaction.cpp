@@ -1026,8 +1026,9 @@ private:
                         if (!tableInfo->Indices.empty()) {
                             for (int index = 0; index < locks.GetSize(); ++index) {
                                 THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
-                                    "Unsupported lock type %Qlv for a table with a secondary index",
-                                    ELockType::SharedWrite);
+                                    "Unsupported %Qlv lock for table %v with a secondary index",
+                                    ELockType::SharedWrite,
+                                    tableInfo->Path);
                             }
                         }
                         if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {

@@ -1,1 +1,1 @@
-{% include [Шардирование](../../_includes/user-guide/dynamic-tables/resharding.md) %}
+{% include [Resharding](../../_includes/user-guide/dynamic-tables/resharding.md) %}

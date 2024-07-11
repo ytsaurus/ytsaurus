@@ -3,6 +3,8 @@
 #include "table.h"
 #include "job_info.h"
 
+#include <yt/yt/server/controller_agent/controllers/task_host.h>
+
 #include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -262,6 +264,29 @@ void UpdateAggregatedJobStatistics(
     // NB. We need the second check of custom statistics count to ensure that the limit was not
     // violated after the update.
     *isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
+}
+
+void SafeUpdateAggregatedJobStatistics(
+    ITaskHost* taskHost,
+    TAggregatedJobStatistics& targetStatistics,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
+    int customStatisticsLimit,
+    bool* isLimitExceeded)
+{
+    try {
+        UpdateAggregatedJobStatistics(
+            targetStatistics,
+            tags,
+            jobStatistics,
+            controllerStatistics,
+            customStatisticsLimit,
+            isLimitExceeded);
+    } catch (const std::exception& ex) {
+        taskHost->SetOperationAlert(EOperationAlertType::IncompatibleStatistics, ex);
+        // TODO(pavook): fail the operation after setting this alert.
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,7 +37,7 @@ public:
     //! Unimplemented.
     const NProto::TDataStatistics& GetDataStatistics() const override;
     //! Unimplemented.
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override;
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override;
     //! Returns #NullChunkId.
     TChunkId GetChunkId() const override;
     NErasure::ECodec GetErasureCodecId() const override;

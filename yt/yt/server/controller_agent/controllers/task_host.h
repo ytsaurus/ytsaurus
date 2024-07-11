@@ -42,7 +42,7 @@ struct ITaskHost
     //! Called to extract `enable_cuda_gpu_core_dump' from the spec.
     virtual bool GetEnableCudaGpuCoreDump() const = 0;
 
-    virtual void UpdateTask(const TTaskPtr& task) = 0;
+    virtual void UpdateTask(TTask* task) = 0;
 
     //! Account currently building job specs. This is used to implement ShouldSkipScheduleAllocationRequest() controller method.
     /*!
@@ -106,7 +106,7 @@ struct ITaskHost
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
-    virtual TJobId GenerateJobId(NScheduler::TAllocationId allocationId) = 0;
+    virtual TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) = 0;
 
     virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) = 0;
 
@@ -146,7 +146,7 @@ struct ITaskHost
 
     virtual TSharedRef BuildJobSpecProto(
         const TJobletPtr& joblet,
-        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec) = 0;
+        const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec) = 0;
 
     virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 
@@ -176,6 +176,8 @@ struct ITaskHost
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;
 
     virtual bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const = 0;
+
+    virtual bool IsTreeProbing(const TString& treeId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

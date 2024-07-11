@@ -3798,6 +3798,7 @@ class TestJobInputCache(YTEnvSetup):
             },
             "exec_node": {
                 "job_input_cache": {
+                    "summary_block_size_in_flight": 0,
                     "enabled": True,
                     "block_cache": {
                         "compressed_data": {

@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "actions.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "node_proxy_base.h"
@@ -97,12 +98,13 @@ IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     {
         context->SetRequestInfo();
         // An empty stream indicates that the object exists. Paths that end up
-        // being resolved here and must return a positive resoponse are usually
+        // being resolved here and must return a positive response are usually
         // those with a trailing '&'. Note that "&" is already skipped somewhere
         // inside these macros.
+        // NB: ExistsAttribute() case is already handled somewhere in these
+        // macros.
         Reply(context, /*exists*/ tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
     })
-
 
 void TSupportsExists::ExistsAttribute(
     const NYPath::TYPath& /*path*/,
@@ -684,8 +686,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
 
-    // NB: from now all symlinks are resolved and all paths don't contain
-    // symlinks so we can just compare paths here.
+    // NB: from now on, all symlinks are resolved and no path contains symlinks
+    // so we can just compare paths here.
     if (Path_ == sourceRootPath) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
     }
