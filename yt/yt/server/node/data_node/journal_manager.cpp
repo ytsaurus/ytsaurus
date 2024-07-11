@@ -381,10 +381,9 @@ private:
         if (it == SplitMap_.end()) {
             auto changelog = Callbacks_->OpenSplitChangelog(chunkId);
             if (!changelog) {
-                if (!AbsentChunkIds_.contains(chunkId)) {
-                    YT_LOG_INFO("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
+                if (AbsentChunkIds_.insert(chunkId).second) {
+                    YT_LOG_INFO("Journal chunk is missing but has relevant records in the multiplexed changelog (ChunkId: %v)",
                         chunkId);
-                    AbsentChunkIds_.insert(chunkId);
                 }
                 return;
             }
@@ -488,9 +487,7 @@ private:
                 chunkId);
         }
 
-        if (AbsentChunkIds_.contains(chunkId)) {
-            AbsentChunkIds_.erase(chunkId);
-
+        if (AbsentChunkIds_.erase(chunkId)) {
             YT_LOG_INFO("Replay removed absent journal chunk (ChunkId: %v)",
                 chunkId);
         }
