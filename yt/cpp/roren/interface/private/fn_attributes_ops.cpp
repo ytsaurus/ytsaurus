@@ -8,7 +8,7 @@ namespace NRoren::NPrivate {
 
 void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& source)
 {
-    destination.IsPure_ &= source.IsPure_;
+    destination.IsPure_ |= source.IsPure_;
 
     for (const auto& resourceFile : source.ResourceFileList_) {
         destination.ResourceFileList_.push_back(resourceFile);
