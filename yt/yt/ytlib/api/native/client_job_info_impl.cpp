@@ -905,7 +905,8 @@ auto RetryJobIsNotRunning(
 
 std::optional<TPagedLog> TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
-    TJobId jobId)
+    TJobId jobId,
+    const TGetJobStderrOptions& options)
 {
     auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
     if (!nodeChannelOrError.IsOK()) {
