@@ -152,11 +152,21 @@ void TGetJobStderrCommand::Register(TRegistrar registrar)
         .Optional(/*init*/ true);
 }
 
+bool TGetJobStderrCommand::HasResponseParameters() const
+{
+    return true;
+}
+
 void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->GetJobStderr(OperationIdOrAlias, JobId, Options))
         .ValueOrThrow();
 
+    ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
+        BuildYsonMapFragmentFluently(consumer)
+            .Item("end_offset").Value(result.EndOffset)
+            .Item("total_size").Value(result.TotalSize);
+    });
     auto output = context->Request().OutputStream;
     WaitFor(output->Write(TSharedRef::FromString(result.Data)))
         .ThrowOnError();
