@@ -780,15 +780,16 @@ private:
 
         if (tabletSnapshot->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
             // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-            auto writtenReplicas = chunkWriter->GetWrittenChunkReplicas();
-            TChunkReplicaWithMediumList replicas;
-            replicas.reserve(writtenReplicas.size());
-            for (auto replica : writtenReplicas) {
-                replicas.push_back(replica);
+            auto replicasInfo = chunkWriter->GetWrittenChunkReplicasInfo();
+            TAllyReplicasInfo newReplicas;
+            newReplicas.Revision = replicasInfo.ConfirmationRevision;
+            newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
+            for (auto replica : replicasInfo.Replicas) {
+                newReplicas.Replicas.push_back(replica);
             }
 
             const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
-            chunkReplicaCache->RegisterReplicas(chunkWriter->GetChunkId(), replicas);
+            chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), newReplicas);
         }
 
         YT_LOG_DEBUG("Compression dictionary builder finished writing dictionary hunk chunk "

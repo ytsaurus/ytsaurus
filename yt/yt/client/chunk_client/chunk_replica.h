@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/client/node_tracker_client/public.h>
 
 namespace NYT::NChunkClient {
@@ -87,6 +89,15 @@ private:
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithLocation replica, TStringBuf spec);
 TString ToString(TChunkReplicaWithLocation replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWrittenChunkReplicasInfo
+{
+    TChunkReplicaWithLocationList Replicas;
+    // Revision upon confirmation of the chunk. Not every writer is expected to set this field.
+    NHydra::TRevision ConfirmationRevision = NHydra::NullRevision;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

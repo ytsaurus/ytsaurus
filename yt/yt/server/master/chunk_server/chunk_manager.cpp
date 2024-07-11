@@ -4541,8 +4541,11 @@ private:
             subrequest->chunk_meta(),
             schemaId);
 
-        if (subresponse && subrequest->request_statistics()) {
-            ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+        if (subresponse) {
+            if (subrequest->request_statistics()) {
+                ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+            }
+            subresponse->set_revision(ToProto<i64>(GetCurrentMutationContext()->GetVersion().ToRevision()));
         }
     }
 

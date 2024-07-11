@@ -140,6 +140,8 @@ using TChunkReplicaWithMediumList = TCompactVector<TChunkReplicaWithMedium, Typi
 class TChunkReplicaWithLocation;
 using TChunkReplicaWithLocationList = TCompactVector<TChunkReplicaWithLocation, TypicalReplicaCount>;
 
+struct TWrittenChunkReplicasInfo;
+
 class TChunkReplica;
 using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 

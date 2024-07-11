@@ -132,12 +132,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        TChunkReplicaWithLocationList replicas;
-        replicas.reserve(Writers_.size());
+        TWrittenChunkReplicasInfo result;
+        result.Replicas.reserve(Writers_.size());
         for (int index = 0; index < std::ssize(Writers_); ++index) {
-            auto partReplicas = Writers_[index]->GetWrittenChunkReplicas();
+            auto partReplicas = Writers_[index]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(std::size(partReplicas) == 1);
             auto replica = partReplicas.front();
             replica = TChunkReplicaWithLocation(
@@ -145,10 +145,10 @@ public:
                 /*replicaIndex*/ index,
                 replica.GetMediumIndex(),
                 replica.GetChunkLocationUuid());
-            replicas.push_back(replica);
+            result.Replicas.push_back(replica);
         }
 
-        return replicas;
+        return result;
     }
 
     TChunkId GetChunkId() const override

@@ -13,7 +13,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TChunkWithReplicasList = std::vector<std::pair<TChunkId, TChunkReplicaWithLocationList>>;
+using TWrittenChunkReplicasInfoList = std::vector<std::pair<TChunkId, TWrittenChunkReplicasInfo>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ struct IMultiChunkWriter
     : public virtual IWriterBase
 {
     virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const = 0;
-    virtual const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const = 0;
+    virtual const TWrittenChunkReplicasInfoList& GetWrittenChunkReplicasInfos() const = 0;
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
     virtual TCodecStatistics GetCompressionStatistics() const = 0;

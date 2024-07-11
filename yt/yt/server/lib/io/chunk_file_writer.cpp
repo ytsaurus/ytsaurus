@@ -343,7 +343,7 @@ const TRefCountedChunkMetaPtr& TChunkFileWriter::GetChunkMeta() const
     return ChunkMeta_;
 }
 
-TChunkReplicaWithLocationList TChunkFileWriter::GetWrittenChunkReplicas() const
+TWrittenChunkReplicasInfo TChunkFileWriter::GetWrittenChunkReplicasInfo() const
 {
     YT_UNIMPLEMENTED();
 }

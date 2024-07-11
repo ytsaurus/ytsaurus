@@ -666,7 +666,7 @@ private:
         TChunkReplicaWithMediumList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
-            auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
+            auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(writtenReplicas.size() == 1);
             auto writtenReplica = writtenReplicas.front();
             repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
@@ -724,7 +724,7 @@ private:
         i64 diskSpace = 0;
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
-            auto replicas = writers[index]->GetWrittenChunkReplicas();
+            auto replicas = writers[index]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(replicas.size() == 1);
             writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
@@ -802,7 +802,7 @@ private:
         WaitFor(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
-        auto writtenReplicas = writer->GetWrittenChunkReplicas();
+        auto writtenReplicas = writer->GetWrittenChunkReplicasInfo().Replicas;
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
     }
 
