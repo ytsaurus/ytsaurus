@@ -134,7 +134,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "jupyter_docker_image",
 					Type:         strawberry.TypeString,
 					CurrentValue: speclet.JupyterDockerImage,
-					Description:  "A docker image containing jupyt and required stuff",
+					Description:  "A docker image containing jupyt and required stuff.",
 				},
 			},
 		},
