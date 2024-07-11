@@ -35,6 +35,7 @@ target_link_options(unittester-core-concurrency PRIVATE
 target_sources(unittester-core-concurrency PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_barrier_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_rw_lock_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_semaphore_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_stream_pipe_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_stream_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_yson_writer_ut.cpp
