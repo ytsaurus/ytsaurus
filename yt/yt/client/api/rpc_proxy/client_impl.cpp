@@ -1263,7 +1263,7 @@ TFuture<TYsonString> TClient::GetJobSpec(
     }));
 }
 
-TFuture<TSharedRef> TClient::GetJobStderr(
+TFuture<TPagedLog> TClient::GetJobStderr(
     const TOperationIdOrAlias& operationIdOrAlias,
     NJobTrackerClient::TJobId jobId,
     const TGetJobStderrOptions& options)
@@ -1275,10 +1275,17 @@ TFuture<TSharedRef> TClient::GetJobStderr(
 
     NScheduler::ToProto(req, operationIdOrAlias);
     ToProto(req->mutable_job_id(), jobId);
+    req->set_limit(options.Limit);
+    req->set_offset(options.Offset);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
         YT_VERIFY(rsp->Attachments().size() == 1);
-        return rsp->Attachments().front();
+        const auto str = rsp->Attachments().front().ToStringBuf();
+        return TPagedLog{
+            .Data = TString{str.begin(), str.end()},
+            .TotalSize = rsp->total_size(),
+            .EndOffset = rsp->end_offset(),
+        };
     }));
 }
 

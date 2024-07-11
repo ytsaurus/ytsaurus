@@ -136,6 +136,20 @@ void TGetJobSpecCommand::DoExecute(ICommandContextPtr context)
 void TGetJobStderrCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
+
+    registrar.ParameterWithUniversalAccessor<i64>(
+        "limit",
+        [] (TThis* command) -> auto& {
+            return command->Options.Limit;
+        })
+        .Optional(/*init*/ true);
+
+    registrar.ParameterWithUniversalAccessor<i64>(
+        "offset",
+        [] (TThis* command) -> auto& {
+            return command->Options.Offset;
+        })
+        .Optional(/*init*/ true);
 }
 
 void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
@@ -144,7 +158,7 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    WaitFor(output->Write(result))
+    WaitFor(output->Write(TSharedRef::FromString(result.Data)))
         .ThrowOnError();
 }
 

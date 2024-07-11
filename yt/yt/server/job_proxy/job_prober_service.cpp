@@ -69,8 +69,10 @@ private:
     {
         context->SetRequestInfo();
 
-        auto stderrData = GetJobProxy()->GetStderr();
-        response->set_stderr_data(stderrData);
+        const auto stderrData = GetJobProxy()->GetStderr({.Limit = context->Request().limit(), .Offset = context->Request().offset()});
+        response->set_stderr_data(stderrData.Data);
+        response->set_end_offset(stderrData.EndOffset);
+        response->set_total_size(stderrData.TotalSize);
 
         context->Reply();
     }

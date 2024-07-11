@@ -1262,12 +1262,24 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
     }
 }
 
-std::optional<TString> TJob::GetStderr()
+std::optional<TPagedLog> TJob::GetStderr(const TPagedLogReq& request)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
-        return *Stderr_;
+        auto str = *Stderr_;
+        if (request.Offset || request.Limit) {
+            const size_t first = request.Offset >= 0 ? request.Offset : -request.Offset > static_cast<i64>(str.size()) ? 0 : str.size() + request.Offset;
+            if (first >= str.size()) {
+                str = "";
+            } else {
+                str = str.substr(first, request.Limit ? first + request.Limit : str.npos);
+            }
+        return {{
+            .Data = str,
+            .TotalSize = static_cast<i64>(Stderr_->size()),
+            .EndOffset = static_cast<i64>(Stderr_->size())},
+        };
     }
 
     if (!UserJobSpec_) {
@@ -1276,7 +1288,7 @@ std::optional<TString> TJob::GetStderr()
 
     if (JobPhase_ == EJobPhase::Running) {
         try {
-            return GetJobProbeOrThrow()->GetStderr();
+            return GetJobProbeOrThrow()->GetStderr(request);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
@@ -1370,12 +1382,12 @@ void TJob::ReportStderr()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto maybeStderr = GetStderr();
+    auto maybeStderr = GetStderr({});
     if (!maybeStderr) {
         return;
     }
     HandleJobReport(TNodeJobReport()
-        .Stderr(std::move(*maybeStderr)));
+        .Stderr(std::move(maybeStderr->Data)));
 }
 
 void TJob::ReportFailContext()

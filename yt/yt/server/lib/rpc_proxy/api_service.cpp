@@ -3186,9 +3186,12 @@ private:
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
             operationIdOrAlias,
-            jobId);
+            jobId,
+            options.Limit,
+            options.Offset
+        );
 
         ExecuteCall(
             context,
@@ -3197,7 +3200,10 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->Attachments().push_back(std::move(result));
+                context->SetResponseInfo("Size: %v, TotalSize: %v, EndOffset: %v", result.Data.size(), result.TotalSize, result.EndOffset);
+                response->set_total_size(result.TotalSize);
+                response->set_end_offset(result.EndOffset);
+                response->Attachments().push_back(TSharedRef::FromString(result.Data));
             });
     }
 

@@ -590,7 +590,7 @@ public: \
         NScheduler::TJobId jobId,
         const TGetJobSpecOptions& options),
         (jobId, options))
-    IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
+    IMPLEMENT_METHOD(TPagedLog, GetJobStderr, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options),
@@ -1338,9 +1338,10 @@ private:
         NApi::EJobSpecSource specSource,
         NYTree::EPermissionSet requiredPermissions);
 
-    TSharedRef DoGetJobStderrFromNode(
+    std::optional<TPagedLog> DoGetJobStderrFromNode(
         NScheduler::TOperationId operationId,
-        NScheduler::TJobId jobId);
+        NScheduler::TJobId jobId,
+        const TGetJobStderrOptions& options);
     TSharedRef DoGetJobStderrFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);

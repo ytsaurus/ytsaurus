@@ -84,7 +84,10 @@ struct TGetJobSpecOptions
 struct TGetJobStderrOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
-{ };
+{
+    i64 Limit = 0;
+    i64 Offset = 0;
+};
 
 struct TGetJobFailContextOptions
     : public TTimeoutOptions
@@ -360,6 +363,20 @@ struct TListJobsResult
     std::vector<TError> Errors;
 };
 
+struct TPagedLogReq
+{
+    i64 Limit = 0;
+    i64 Offset = 0;
+};
+
+struct TPagedLog
+{
+    TString Data;
+    i64 TotalSize = 0;
+    i64 EndOffset = 0;
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationClient
@@ -413,7 +430,7 @@ struct IOperationClient
         NJobTrackerClient::TJobId jobId,
         const TGetJobSpecOptions& options = {}) = 0;
 
-    virtual TFuture<TSharedRef> GetJobStderr(
+    virtual TFuture<TPagedLog> GetJobStderr(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options = {}) = 0;

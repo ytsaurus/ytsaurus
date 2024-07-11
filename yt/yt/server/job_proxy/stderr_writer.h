@@ -48,16 +48,17 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler);
 
     size_t GetCurrentSize() const;
-    TString GetCurrentData() const;
+    NApi::TPagedLog GetCurrentData(const NApi::TPagedLogReq& request) const;
 
 private:
     void DoWrite(const void* buf, size_t len) override;
 
-    void SaveCurrentDataTo(IOutputStream* output) const;
+    void SaveCurrentDataTo(IOutputStream* output, bool continuous = false) const;
 
 private:
     // Limit for the head or for the tail part.
     const size_t PartLimit_;
+    i64 TotalSize_ = 0;
 
     TBlobOutput Head_;
     std::optional<TTailBuffer> Tail_;

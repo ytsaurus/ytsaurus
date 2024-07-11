@@ -903,13 +903,13 @@ auto RetryJobIsNotRunning(
     return rspOrError;
 }
 
-TSharedRef TClient::DoGetJobStderrFromNode(
+std::optional<TPagedLog> TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId)
 {
     auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
     if (!nodeChannelOrError.IsOK()) {
-        return TSharedRef();
+        return {};
     }
     auto nodeChannel = std::move(nodeChannelOrError).Value();
 
@@ -922,6 +922,8 @@ TSharedRef TClient::DoGetJobStderrFromNode(
             auto req = jobProberServiceProxy.GetStderr();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_job_id(), jobId);
+            req->set_limit(options.Limit);
+            req->set_offset(options.Offset);
             return WaitFor(req->Invoke());
         },
         Logger);
@@ -930,7 +932,7 @@ TSharedRef TClient::DoGetJobStderrFromNode(
         if (IsNoSuchJobOrOperationError(rspOrError) ||
             rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
         {
-            return TSharedRef();
+            return {};
         }
         THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
             << TErrorAttribute("operation_id", operationId)
@@ -938,7 +940,11 @@ TSharedRef TClient::DoGetJobStderrFromNode(
             << std::move(rspOrError);
     }
     auto rsp = rspOrError.Value();
-    return TSharedRef::FromString(rsp->stderr_data());
+    return {{
+        .Data = rsp->stderr_data(),
+        .TotalSize = rsp->total_size(),
+        .EndOffset = rsp->end_offset(),
+    }};
 }
 
 TSharedRef TClient::DoGetJobStderrFromArchive(
@@ -984,7 +990,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     }
 }
 
-TSharedRef TClient::DoGetJobStderr(
+TPagedLog TClient::DoGetJobStderr(
     const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
     const TGetJobStderrOptions& options)
@@ -1003,14 +1009,18 @@ TSharedRef TClient::DoGetJobStderr(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
-    if (stderrRef) {
-        return stderrRef;
+    auto jobStderr = DoGetJobStderrFromNode(operationId, jobId, options);
+    if (jobStderr) {
+        return *jobStderr;
     }
 
-    stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+    auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
     if (stderrRef) {
-        return stderrRef;
+        return {
+            .Data = {stderrRef.begin(), stderrRef.end()},
+            .TotalSize = static_cast<i64>(stderrRef.size()),
+            .EndOffset = static_cast<i64>(stderrRef.size()),
+        };
     }
 
     THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Job stderr is not found")

@@ -68,17 +68,22 @@ public:
         };
     }
 
-    TString GetStderr() override
+    TPagedLog GetStderr(const TPagedLogReq & request) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->GetStderr();
-
+        req->set_limit(request.Limit);
+        req->set_offset(request.Offset);
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
         const auto& rsp = rspOrError.Value();
 
-        return rsp->stderr_data();
+        return {
+            .Data = rsp->stderr_data(),
+            .TotalSize = rsp->total_size(),
+            .EndOffset = rsp->end_offset(),
+        };
     }
 
     void Interrupt() override
