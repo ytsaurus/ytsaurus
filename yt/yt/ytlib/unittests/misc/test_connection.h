@@ -183,6 +183,7 @@ public:
     MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, TString, TString), (override));
     MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
     MOCK_METHOD(void, Terminate, (), (override));
+    MOCK_METHOD(void, InitializeDiscoveryServerAddressPool, (), (override));
     MOCK_METHOD(bool, IsTerminated, (), (override));
     MOCK_METHOD(TFuture<void>, SyncHiveCellWithOthers, (const std::vector<NElection::TCellId>&, NElection::TCellId), (override));
     MOCK_METHOD(const NLogging::TLogger&, GetLogger, (), (override));
