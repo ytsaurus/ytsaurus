@@ -363,13 +363,18 @@ public:
             this,
             Profiler_.WithPrefix("/chunk_replica_cache"));
 
+        SetupTvmIdSynchronization();
+    }
+
+    void InitializeDiscoveryServerAddressPool() override
+    {
+        auto config = Config_.Acquire();
+
         if (config->DiscoveryConnection) {
             DiscoveryServerAddressPool_ = New<TServerAddressPool>(
                 Logger,
                 config->DiscoveryConnection);
         }
-
-        SetupTvmIdSynchronization();
     }
 
     // IConnection implementation.

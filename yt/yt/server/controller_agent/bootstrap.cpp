@@ -131,6 +131,7 @@ void TBootstrap::DoRun()
     connectionOptions.ConnectionInvoker = GetConnectionInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+    Connection_->InitializeDiscoveryServerAddressPool();
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
