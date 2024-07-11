@@ -12,14 +12,12 @@ import (
 )
 
 type Config struct {
-	YTAuthCookieName     *string           `yson:"yt_auth_cookie_name"`
-	ExtraEnvVars         map[string]string `yson:"extra_env_vars"`
-	PreferredDockerImage *string           `yson:"preferred_docker_image"`
+	YTAuthCookieName *string           `yson:"yt_auth_cookie_name"`
+	ExtraEnvVars     map[string]string `yson:"extra_env_vars"`
 }
 
 const (
-	DefaultYTAuthCookieName     = ""
-	DefaultPreferredDockerImage = ""
+	DefaultYTAuthCookieName = ""
 )
 
 func (c *Config) YTAuthCookieNameOrDefault() string {
@@ -27,13 +25,6 @@ func (c *Config) YTAuthCookieNameOrDefault() string {
 		return *c.YTAuthCookieName
 	}
 	return DefaultYTAuthCookieName
-}
-
-func (c *Config) PreferredDockerImageOrDefault() string {
-	if c.PreferredDockerImage != nil {
-		return *c.PreferredDockerImage
-	}
-	return DefaultPreferredDockerImage
 }
 
 type Controller struct {
@@ -143,7 +134,6 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "jupyter_docker_image",
 					Type:         strawberry.TypeString,
 					CurrentValue: speclet.JupyterDockerImage,
-					DefaultValue: c.config.PreferredDockerImageOrDefault(),
 					Description:  "A docker image containing jupyt and required stuff",
 				},
 			},
