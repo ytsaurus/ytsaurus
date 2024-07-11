@@ -653,8 +653,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 .DestinationCell = cell,
                 .Tablet = tablet,
                 .MetricDiff = newMetricDiff,
-            }
-        );
+            });
     }
 }
 
@@ -724,7 +723,8 @@ void TParameterizedReassignSolver::RecomputeInvalidatedActions()
 {
     std::array bannedNodes = {
         BestActionInfo_.SourceCell->Node,
-        BestActionInfo_.DestinationCell->Node};
+        BestActionInfo_.DestinationCell->Node,
+    };
 
     std::vector<TTabletCellInfo*> invalidatedCells;
     invalidatedCells.reserve(MaxCellPerNodeCount_);
@@ -742,7 +742,7 @@ void TParameterizedReassignSolver::RecomputeInvalidatedActions()
                 TryMoveTablet(&tablet, &cell);
             }
         } else {
-            for (auto cell : invalidatedCells) {
+            for (auto* cell : invalidatedCells) {
                 TryMoveTablet(&tablet, cell);
             }
         }
