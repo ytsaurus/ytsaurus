@@ -123,7 +123,47 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 }
 
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
-	return nil
+	speclet := parsedSpeclet.(Speclet)
+
+	return []strawberry.OptionGroupDescriptor{
+		{
+			Title: "Jupyt params",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "Docker image",
+					Name:         "jupyter_docker_image",
+					Type:         strawberry.TypeString,
+					CurrentValue: speclet.JupyterDockerImage,
+					Description:  "A docker image containing jupyt and required stuff",
+				},
+			},
+		},
+		{
+			Title: "Resources",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "CPU",
+					Name:         "cpu",
+					Type:         strawberry.TypeInt64,
+					CurrentValue: speclet.CPU,
+					DefaultValue: DefaultCPU,
+					MinValue:     1,
+					MaxValue:     100,
+					Description:  "Number of CPU cores.",
+				},
+				{
+					Title:        "Total memory",
+					Name:         "memory",
+					Type:         strawberry.TypeByteCount,
+					CurrentValue: speclet.Memory,
+					DefaultValue: DefaultMemory,
+					MinValue:     2 * gib,
+					MaxValue:     300 * gib,
+					Description:  "Amount of RAM in bytes.",
+				},
+			},
+		},
+	}
 }
 
 func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
