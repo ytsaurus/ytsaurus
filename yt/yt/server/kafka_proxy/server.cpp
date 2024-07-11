@@ -479,14 +479,19 @@ private:
             response.ErrorMessage = message;
         };
 
+        auto splitBy = [](const TString& input, const char* delimiter) -> TVector<TString> {
+            TVector<TString> parts;
+            StringSplitter(input).SplitByString(delimiter).Collect(&parts);
+            return parts;
+        };
+
         TString authBytes = request.AuthBytes;
-        TVector<TString> parts;
-        StringSplitter(authBytes).SplitByString("\x01").Collect(&parts);
+        TVector<TString> parts = splitBy(authBytes, "\x01");
         if (parts.size() < 2) {
             fillError(Format("Unexpected auth_bytes format, got %v \x01-separated parts", parts.size()));
             return response;
         }
-        StringSplitter(parts[1]).SplitByString(" ").Collect(&parts);
+        parts = splitBy(parts[1], " ");
         if (parts.size() < 2) {
             fillError(Format("Unexpected auth_bytes format, got %v space-separated parts", parts.size()));
             return response;
