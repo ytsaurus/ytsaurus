@@ -62,9 +62,9 @@ struct TCriBindMount
 };
 
 DEFINE_BIT_ENUM(ECriBindDevicePermissions,
-    (Read)   (0x01)
-    (Write)  (0x02)
-    (Create) (0x04)
+    ((Read)   (0x01))
+    ((Write)  (0x02))
+    ((Create) (0x04))
 );
 struct TCriBindDevice
 {
