@@ -6,13 +6,14 @@
 #include "private.h"
 #include "yt/yt/core/concurrency/delayed_executor.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
@@ -1136,6 +1137,15 @@ private:
                 ->DefaultNvidiaDriverCapabilities;
             spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
             spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
+
+            // If there are Infiniband devices in the system, bind them to the container.
+            for (const auto& devicePath : ListInfinibandDevices()) {
+                spec->BindDevices.push_back(NCri::TCriBindDevice{
+                    .ContainerPath = devicePath,
+                    .HostPath = devicePath,
+                    .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                })
+            }
         }
 
         spec->BindMounts.push_back(NCri::TCriBindMount{

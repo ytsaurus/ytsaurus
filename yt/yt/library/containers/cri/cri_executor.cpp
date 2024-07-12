@@ -418,6 +418,23 @@ public:
             mount->set_propagation(NProto::PROPAGATION_PRIVATE);
         }
 
+        for (const auto& deviceSpec : containerdSpec->BindDevices) {
+            auto* device = config->add_devices();
+            device->set_container_path(deviceSpec.ContainerPath);
+            device->set_host_path(deviceSpec.HostPath);
+
+            TString permissions;
+            if (Any(deviceSpec.Permissions & EDevicePermissions::Read)) {
+                permissions += "r";
+            }
+            if (Any(deviceSpec.Permissions & EDevicePermissions::Write)) {
+                permissions += "w";
+            }
+            if (Any(deviceSpec.Permissions & EDevicePermissions::Create)) {
+                permissions += "m";
+            }
+        }
+
         {
             ToProto(config->mutable_command(), containerSpec->Command);
             ToProto(config->mutable_args(), containerSpec->Arguments);

@@ -28,6 +28,7 @@ using namespace NGpu;
 static constexpr auto& Logger = NJobAgent::JobAgentServerLogger;
 
 static const TString DevNvidiaPath("/dev/nvidia");
+static const TString DevInfinibandPath("/dev/infiniband");
 static const TString DevPath("/dev");
 static const TString NvidiaDevicePrefix("nvidia");
 static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
@@ -156,6 +157,36 @@ TString GetDummyGpuDriverVersionString()
 {
     static TString version = "dummy";
     return version;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> ListInfinibandDevices()
+{
+    if (!NFS::Exists(DevInfinibandPath)) {
+        return {};
+    }
+
+    std::vector<TString> devices;
+    TDirIterator dir(DevInfinibandPath, TDirIterator::TOptions().SetMaxLevel(1));
+
+    for (auto file = dir.begin(); file != dir.end(); ++file) {
+        if (file->fts_pathlen == file->fts_namelen || file->fts_pathlen <= DevPath.length()) {
+            continue;
+        }
+
+        TStringBuf fileName(file->fts_path + DevPath.length() + 1);
+        if (fileName.empty()) {
+            continue;
+        }
+
+        YT_LOG_INFO("Infinitiband device found (DeviceName: %v)",
+            fileName);
+
+        devices.push_back(Format("%v/%v", DevInfinibandPath, fileName));
+    }
+
+    return devices;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
