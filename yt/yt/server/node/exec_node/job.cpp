@@ -1269,17 +1269,21 @@ std::optional<TPagedLog> TJob::GetStderr(const TPagedLogReq& request)
     if (Stderr_) {
         auto str = *Stderr_;
         if (request.Offset || request.Limit) {
-            const size_t first = request.Offset >= 0 ? request.Offset : -request.Offset > static_cast<i64>(str.size()) ? 0 : str.size() + request.Offset;
+            const size_t first = request.Offset >= 0             ? request.Offset
+                : -request.Offset > static_cast<i64>(str.size()) ? 0
+                                                                 : str.size() + request.Offset;
             if (first >= str.size()) {
                 str = "";
             } else {
                 str = str.substr(first, request.Limit ? request.Limit : str.npos);
             }
         }
-        return {{
-            .Data = str,
-            .TotalSize = static_cast<i64>(Stderr_->size()),
-            .EndOffset = static_cast<i64>(Stderr_->size())},
+        return {
+            {
+                .Data = str,
+                .TotalSize = static_cast<i64>(Stderr_->size()),
+                .EndOffset = static_cast<i64>(Stderr_->size()),
+            },
         };
     }
 
