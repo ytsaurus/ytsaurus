@@ -164,8 +164,8 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 
     ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
         BuildYsonMapFragmentFluently(consumer)
-            .Item("end_offset").Value(result.EndOffset)
-            .Item("total_size").Value(result.TotalSize);
+            .Item("total_size").Value(result.TotalSize)
+            .Item("end_offset").Value(result.EndOffset);
     });
     auto output = context->Request().OutputStream;
     WaitFor(output->Write(TSharedRef::FromString(result.Data)))
