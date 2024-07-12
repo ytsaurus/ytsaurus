@@ -61,6 +61,19 @@ struct TCriBindMount
     bool ReadOnly;
 };
 
+DEFINE_BIT_ENUM(ECriBindDevicePermissions,
+    (Read)   (0x01)
+    (Write)  (0x02)
+    (Create) (0x04)
+);
+struct TCriBindDevice
+{
+    TString ContainerPath;
+    TString HostPath;
+
+    ECriBindDevicePermissions Permissions;
+};
+
 struct TCriCredentials
 {
     std::optional<i64> Uid;
@@ -80,6 +93,8 @@ struct TCriContainerSpec
     bool ReadOnlyRootFS;
 
     std::vector<TCriBindMount> BindMounts;
+
+    std::vector<TCriBindDevice> BindDevices;
 
     TCriCredentials Credentials;
 
