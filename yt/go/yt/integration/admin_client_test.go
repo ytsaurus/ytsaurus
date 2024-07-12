@@ -22,6 +22,7 @@ func TestAdminClient(t *testing.T) {
 		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
 		{Name: "TransferPoolResources", Test: suite.TestTransferPoolResources, SkipRPC: true},
 		{Name: "CheckPermission", Test: suite.TestCheckPermission},
+		{Name: "CheckPermissionByACL", Test: suite.TestCheckPermissionByACL},
 		{Name: "CheckColumnPermission", Test: suite.TestCheckColumnPermission},
 		{Name: "BuildMasterSnapshots", Test: suite.TestBuildMasterSnapshots},
 		{Name: "BuildSnapshot", Test: suite.TestBuildSnapshot},
@@ -364,6 +365,33 @@ func (s *Suite) TestCheckPermission(t *testing.T, yc yt.Client) {
 			}
 		}
 	}
+}
+
+func (s *Suite) TestCheckPermissionByACL(t *testing.T, c yt.Client) {
+	user := "user-" + guid.New().String()
+	_ = s.CreateUser(t, user)
+
+	response, err := c.CheckPermissionByACL(s.Ctx, user, yt.PermissionRead, []yt.ACE{
+		{
+			Action:          yt.ActionAllow,
+			Permissions:     []yt.Permission{yt.PermissionRead},
+			Subjects:        []string{user},
+			InheritanceMode: "object_only",
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, yt.ActionAllow, response.Action)
+
+	response, err = c.CheckPermissionByACL(s.Ctx, user, yt.PermissionRead, []yt.ACE{
+		{
+			Action:          yt.ActionDeny,
+			Permissions:     []yt.Permission{yt.PermissionRead},
+			Subjects:        []string{user},
+			InheritanceMode: "object_only",
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, yt.ActionDeny, response.Action)
 }
 
 func (s *Suite) TestCheckColumnPermission(t *testing.T, yc yt.Client) {
