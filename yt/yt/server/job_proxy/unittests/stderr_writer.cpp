@@ -16,6 +16,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         writer << str;
         reference << str;
     }
+
     {
         const auto lastByte = static_cast<decltype(NApi::TPagedLog::TotalSize)>(reference.Str().size());
         {
@@ -67,16 +68,20 @@ TEST(TStderrWriterTest, TestPagedLog)
         writer << str;
         reference << str;
     }
+
     {
         const auto data = writer.GetCurrentData({});
         ASSERT_EQ(data.TotalSize, static_cast<decltype(data.TotalSize)>(reference.Str().size()));
     }
+
     for (size_t i = 1000; i <= 2000; ++i) {
         const auto str = ToString(i) + "\n";
         writer << str;
         reference << str;
     }
+
     const auto lastByte = static_cast<decltype(NApi::TPagedLog::TotalSize)>(reference.Str().size());
+
     {
         // Full log requested
         const auto data = writer.GetCurrentData({});
