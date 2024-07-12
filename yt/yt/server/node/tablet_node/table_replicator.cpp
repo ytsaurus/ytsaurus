@@ -77,6 +77,14 @@ using namespace NProfiling;
 
 static const int TabletRowsPerRead = 1000;
 
+DEFINE_ENUM(EReaderTerminationReason,
+    ((None)                       (0))
+    ((TimestampBoundViolation)    (1))
+    ((ThrottlerOverdraft)         (2))
+    ((NullBatch)                  (3))
+    ((SaturatedBatch)             (4))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReplicator::TImpl
@@ -118,6 +126,11 @@ public:
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
         , RelativeThrottler_(CreateRelativeReplicationThrottler(
             MountConfig_->RelativeReplicationThrottler))
+        , SoftErrorBackoff_(TBackoffStrategy(TExponentialBackoffOptions{
+            .MinBackoff = Config_->ReplicatorSoftBackoffTime,
+            .MaxBackoff = Config_->ReplicatorHardBackoffTime,
+            .BackoffJitter = 0.0,
+        }))
     { }
 
     void Enable()
@@ -163,6 +176,8 @@ private:
     const EWorkloadCategory WorkloadCategory_;
     const IThroughputThrottlerPtr Throttler_;
     const IRelativeReplicationThrottlerPtr RelativeThrottler_;
+
+    TBackoffStrategy SoftErrorBackoff_;
 
     TFuture<void> FiberFuture_;
 
@@ -256,16 +271,18 @@ private:
             }
 
             auto updateCountersGuard = Finally([&] {
-                auto rowCount = std::max(
+                auto lagRowCount = std::max(
                     static_cast<i64>(0),
                     tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
-                const auto& timestampProvider = LocalConnection_->GetTimestampProvider();
-                auto time = (rowCount == 0)
-                    ? TDuration::Zero()
-                    : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
 
-                counters.LagRowCount.Update(rowCount);
-                counters.LagTime.Update(time);
+                auto lagTime = TDuration::Zero();
+                if (lagRowCount != 0) {
+                    lagTime = TimestampToInstant(LocalConnection_->GetTimestampProvider()->GetLatestTimestamp()).second -
+                        TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
+                }
+
+                counters.LagRowCount.Update(lagRowCount);
+                counters.LagTime.Update(lagTime);
             });
 
             if (HintManager_->IsReplicaClusterBanned(ClusterName_)) {
@@ -353,6 +370,7 @@ private:
                     /*failed*/ std::uncaught_exception());
             });
 
+            EReaderTerminationReason readerResult = EReaderTerminationReason::None;
             {
                 TEventTimerGuard timerGuard(counters.ReplicationRowsReadTime);
                 auto readReplicationBatch = [&] {
@@ -371,7 +389,8 @@ private:
                         isVersioned);
                 };
 
-                if (!readReplicationBatch()) {
+                readerResult = readReplicationBatch();
+                if (readerResult == EReaderTerminationReason::TimestampBoundViolation) {
                     checkPrevReplicationRowIndex = false;
 
                     auto startRowIndexOrNullopt = ReplicationLogParser_->ComputeStartRowIndex(
@@ -386,18 +405,23 @@ private:
                     YT_VERIFY(startRowIndexOrNullopt);
 
                     startRowIndex = *startRowIndexOrNullopt;
-                    YT_VERIFY(readReplicationBatch());
+                    readerResult = readReplicationBatch();
+                    YT_VERIFY(readerResult != EReaderTerminationReason::TimestampBoundViolation);
                 }
 
                 RowsReadTime = timerGuard.GetElapsedTime();
             }
+            YT_VERIFY(readerResult != EReaderTerminationReason::None);
 
             RelativeThrottler_->OnReplicationBatchProcessed(newReplicationTimestamp);
 
             if (replicationRows.empty()) {
-                THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
-                    << HardErrorAttribute;
-                return;
+                if (readerResult == EReaderTerminationReason::ThrottlerOverdraft) {
+                    THROW_ERROR_EXCEPTION("Table replicator did not write any rows due to network throttler overdraft");
+                } else {
+                    THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
+                        << HardErrorAttribute;
+                }
             }
 
             {
@@ -469,6 +493,8 @@ private:
                 RowsReadTime,
                 RowsWriteTime,
                 TransactionCommitTime);
+
+            SoftErrorBackoff_.Restart();
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {
@@ -487,7 +513,7 @@ private:
         }
     }
 
-    bool ReadReplicationBatch(
+    EReaderTerminationReason ReadReplicationBatch(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
@@ -533,6 +559,7 @@ private:
         // Throttling control.
         i64 dataWeightToThrottle = 0;
         auto acquireThrottler = [&] {
+            replicaSnapshot->Counters.ReplicationBytesThrottled.Increment(dataWeightToThrottle);
             Throttler_->Acquire(dataWeightToThrottle);
             dataWeightToThrottle = 0;
         };
@@ -545,11 +572,11 @@ private:
             return true;
         };
 
-        bool tooMuch = false;
-
-        while (!tooMuch) {
+        EReaderTerminationReason result = EReaderTerminationReason::None;
+        while (result == EReaderTerminationReason::None) {
             auto batch = reader->Read();
             if (!batch) {
+                result = EReaderTerminationReason::NullBatch;
                 break;
             }
 
@@ -588,7 +615,7 @@ private:
                     YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
-                    return false;
+                    return EReaderTerminationReason::TimestampBoundViolation;
                 }
 
                 if (currentRowIndex != rowIndex) {
@@ -604,10 +631,13 @@ private:
 
                     if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
-                        isThrottlerOverdraft())
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
                     {
-                        tooMuch = true;
+                        result = EReaderTerminationReason::SaturatedBatch;
+                        break;
+                    }
+                    if (isThrottlerOverdraft()) {
+                        result = EReaderTerminationReason::ThrottlerOverdraft;
                         break;
                     }
 
@@ -626,32 +656,39 @@ private:
         }
         acquireThrottler();
 
+        YT_VERIFY(result != EReaderTerminationReason::None);
+
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;
         *batchRowCount = rowCount;
         *batchDataWeight = dataWeight;
 
         YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v, ReaderTerminationReason: %Qlv)",
             startRowIndex,
             rowCount,
             dataWeight,
             *newReplicationRowIndex,
-            *newReplicationTimestamp);
+            *newReplicationTimestamp,
+            result);
 
-        return true;
+        return result;
     }
 
 
     void DoSoftBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing soft backoff");
-        TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
+        SoftErrorBackoff_.Next();
+        auto backoffTime = SoftErrorBackoff_.GetBackoff();
+        YT_LOG_INFO(error, "Doing soft backoff for %v",
+            backoffTime);
+        TDelayedExecutor::WaitForDuration(backoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing hard backoff");
+        YT_LOG_INFO(error, "Doing hard backoff for %v",
+            Config_->ReplicatorHardBackoffTime);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
