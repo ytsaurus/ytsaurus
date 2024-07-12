@@ -644,8 +644,6 @@ def build_arguments_parser():
 
 
 def run(client, archive_path, target_version, shard_count, latest, force):
-    check_operations_archive_version(client, target_version)
-
     migration = prepare_migration(client, archive_path)
 
     target_version = target_version
