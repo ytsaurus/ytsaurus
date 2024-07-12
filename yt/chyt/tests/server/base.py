@@ -87,7 +87,7 @@ class Clique(object):
         """
         alias: str
             Alias for the database. With or without asterisk: both forms are legal.
-            It will be stored in Clique.alias with all asterisks discarded.
+            It will be stored in self.alias with all asterisks discarded.
 
             Is generated randomly if not provided.
         """
@@ -114,21 +114,21 @@ class Clique(object):
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
 
-        Clique.alias = (alias.removeprefix("*")
-                        if alias is not None
-                        else _generate_random_alias())
+        self.alias = (alias.removeprefix("*")
+                      if alias is not None
+                      else _generate_random_alias())
 
-        assert Clique.alias != ""
+        assert self.alias != ""
 
         # alias processing
-        config["yt"]["clique_alias"] = Clique.alias
+        config["yt"]["clique_alias"] = self.alias
 
-        Clique.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(Clique.alias)
+        self.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(self.alias)
         ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
-        create("map_node", Clique.sql_udf_path, recursive=True, attributes={
+        create("map_node", self.sql_udf_path, recursive=True, attributes={
             "acl": [ace],
         })
-        config["yt"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
+        config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         spec = {"pool": None}
@@ -192,7 +192,7 @@ class Clique(object):
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
 
-        self.spec["alias"] = "*" + Clique.alias
+        self.spec["alias"] = "*" + self.alias
 
         self.instance_count = instance_count
 
@@ -217,7 +217,7 @@ class Clique(object):
             return []
 
     def get_group_id(self):
-        return Clique.alias or self.get_clique_id()
+        return self.alias or self.get_clique_id()
 
     def get_active_instances_for_discovery_v2(self):
         assert len(self.discovery_servers) > 0
@@ -322,8 +322,8 @@ class Clique(object):
         try:
             self.op.complete()
 
-            if Clique.sql_udf_path:
-                remove(Clique.sql_udf_path, recursive=True, force=True)
+            if self.sql_udf_path:
+                remove(self.sql_udf_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)
@@ -507,7 +507,7 @@ class Clique(object):
         url = self.proxy_address + "/query"
 
         if database is None:
-            database = Clique.alias
+            database = self.alias
 
         params = {"database": database}
         if settings is not None:
