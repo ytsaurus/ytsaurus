@@ -6,7 +6,7 @@ from yt_commands import (
     set, remove, exists, create_tmpdir, create_user, make_ace, insert_rows, select_rows, lookup_rows,
     read_table, write_table, map, reduce, map_reduce,
     sort, list_jobs, get_job_input,
-    get_job_stderr, get_job_spec, get_job_input_paths,
+    get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
     gc_collect)
 

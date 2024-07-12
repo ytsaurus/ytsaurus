@@ -1273,7 +1273,7 @@ std::optional<TPagedLog> TJob::GetStderr(const TPagedLogReq& request)
             if (first >= str.size()) {
                 str = "";
             } else {
-                str = str.substr(first, request.Limit ? first + request.Limit : str.npos);
+                str = str.substr(first, request.Limit ? request.Limit : str.npos);
             }
         }
         return {{
