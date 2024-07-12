@@ -23,7 +23,7 @@ public:
         THeapProfilerConfigPtr config);
 
 private:
-    const NYTProf::THeapUsageProfilerPtr HeapProfiler_;
+    const NYTProf::IAllocationTagProfilerPtr AllocationTagProfiler_;
 };
 
 DEFINE_REFCOUNTED_TYPE(THttpProxyHeapUsageProfiler)

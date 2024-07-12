@@ -20,12 +20,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString UnknownProfilingTag;
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::optional<TString> GetCurrentProfilingUser();
-
 std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,17 +28,14 @@ std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& ide
 struct TMethodCounters
 {
     TMethodCounters() = default;
-
-    explicit TMethodCounters(const NProfiling::TRegistry& profiler)
-        : CpuTime(profiler.TimeCounter("/cumulative_cpu_time"))
-        , RequestCount(profiler.Counter("/request_count"))
-        , RequestDuration(profiler.Timer("/request_duration"))
-    { }
+    explicit TMethodCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TCounter RequestCount;
     NProfiling::TEventTimer RequestDuration;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TServiceProfilerGuard
 {
@@ -99,8 +91,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
-    i64 AllocationSize,
-    TDuration AllocationReleaseDelay,
+    i64 allocationSize,
+    TDuration allocationReleaseDelay,
     std::function<void()> constructCallback = [] {},
     std::function<void()> destructCallback = [] {},
     IInvokerPtr destructCallbackInvoker = nullptr,
@@ -110,7 +102,7 @@ std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
 
 void CollectHeapUsageStatistics(
     NYson::IYsonConsumer* consumer,
-    const std::vector<TString>& memoryTagsList);
+    const std::vector<TString>& memoryTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

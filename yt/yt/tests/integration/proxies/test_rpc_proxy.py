@@ -1277,7 +1277,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         assert len(rpc_proxies) == 1
         rpc_proxy_agent_orchid = f"//sys/rpc_proxies/{rpc_proxies[0]}/orchid/rpc_proxy"
 
-        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics"), user))
+        wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage"), user))
 
     @authors("ni-stoiko", "galtsev")
     @pytest.mark.timeout(120)
@@ -1290,8 +1290,8 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         assert len(rpc_proxies) == 1
 
         profiler = profiler_factory().at_rpc_proxy(rpc_proxies[0])
-        rpc_memory_usage_gauge = profiler.gauge("heap_usage/rpc")
-        user_memory_usage_gauge = profiler.gauge("heap_usage/user")
+        rpc_memory_usage_gauge = profiler.gauge("memory/heap_usage/rpc")
+        user_memory_usage_gauge = profiler.gauge("memory/heap_usage/user")
 
         def check(statistics, tag, memory=0):
             for stat in statistics:
@@ -1339,8 +1339,8 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
                     return stat["value"]
             return -1
 
-        wait(lambda: get_usage("heap_usage/rpc", {"rpc": "StartTransaction"}) > 0)
-        wait(lambda: get_usage("heap_usage/user", {"user": user}) > 0)
+        wait(lambda: get_usage("memory/heap_usage/rpc", {"rpc": "StartTransaction"}) > 0)
+        wait(lambda: get_usage("memory/heap_usage/user", {"user": user}) > 0)
 
 
 ##################################################################

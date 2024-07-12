@@ -13,11 +13,11 @@ using namespace NYTProf;
 THttpProxyHeapUsageProfiler::THttpProxyHeapUsageProfiler(
     IInvokerPtr invoker,
     THeapProfilerConfigPtr config)
-    : HeapProfiler_(
-        CreateHeapProfilerWithTags(
+    : AllocationTagProfiler_(
+        CreateAllocationTagProfiler(
             {
                 HttpProxyCommandAllocationTag,
-                HttpProxyUserAllocationTag
+                HttpProxyUserAllocationTag,
             },
             std::move(invoker),
             std::move(config->SnapshotUpdatePeriod),
