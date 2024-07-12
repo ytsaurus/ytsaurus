@@ -418,21 +418,22 @@ public:
             mount->set_propagation(NProto::PROPAGATION_PRIVATE);
         }
 
-        for (const auto& deviceSpec : containerdSpec->BindDevices) {
+        for (const auto& deviceSpec : containerSpec->BindDevices) {
             auto* device = config->add_devices();
             device->set_container_path(deviceSpec.ContainerPath);
             device->set_host_path(deviceSpec.HostPath);
 
             TString permissions;
-            if (Any(deviceSpec.Permissions & EDevicePermissions::Read)) {
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Read)) {
                 permissions += "r";
             }
-            if (Any(deviceSpec.Permissions & EDevicePermissions::Write)) {
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Write)) {
                 permissions += "w";
             }
-            if (Any(deviceSpec.Permissions & EDevicePermissions::Create)) {
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Create)) {
                 permissions += "m";
             }
+            device->set_permissions(permissions);
         }
 
         {

@@ -1144,7 +1144,7 @@ private:
                     .ContainerPath = devicePath,
                     .HostPath = devicePath,
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
-                })
+                });
             }
         }
 
