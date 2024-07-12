@@ -930,11 +930,14 @@ private:
         auto fallbackFuture = TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
             .Apply(BIND([] { return true; }));
         return AnySet<bool>({std::move(throttleFuture), std::move(fallbackFuture)})
-            .Apply(BIND([=] (bool isThrottled) {
+            .Apply(BIND([=, context = context] (bool isThrottled) {
                 if (isThrottled) {
                     response->set_net_throttling(true);
                     response->Attachments().clear();
                 }
+
+                // Directly hold current request context.
+                Y_UNUSED(context);
             }));
     }
 
