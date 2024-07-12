@@ -173,17 +173,14 @@ std::vector<TString> ListInfinibandDevices()
     TDirIterator dir(DevInfinibandPath, TDirIterator::TOptions().SetMaxLevel(1));
 
     for (auto file = dir.begin(); file != dir.end(); ++file) {
-        if (file->fts_pathlen == file->fts_namelen || file->fts_pathlen <= DevPath.length()) {
+        if (file->fts_pathlen == file->fts_namelen || file->fts_pathlen <= DevInfinibandPath.length()) {
             continue;
         }
 
-        TStringBuf fileName(file->fts_path + DevPath.length() + 1);
+        TStringBuf fileName(file->fts_path + DevInfinibandPath.length() + 1);
         if (fileName.empty()) {
             continue;
         }
-
-        YT_LOG_INFO("Infinitiband device found (DeviceName: %v)",
-            fileName);
 
         devices.push_back(Format("%v/%v", DevInfinibandPath, fileName));
     }
