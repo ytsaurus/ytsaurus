@@ -37,6 +37,13 @@ TEST(TStderrWriterTest, TestPagedLog)
         }
 
         {
+            // before start
+            const auto data = writer.GetCurrentData({.Offset = -50000});
+            ASSERT_EQ(data.Data, reference.Str());
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+
+        {
             // Requested more than have
             const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 250});
             ASSERT_EQ(data.Data.size(), size_t(44));
@@ -76,6 +83,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         ASSERT_EQ(data.TotalSize, lastByte);
         ASSERT_EQ(data.EndOffset, lastByte);
     }
+
     {
         // 0..123 requested
         // BUG/TODO to simplify logic we use only tail - but tail does not contain requested data
@@ -84,6 +92,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         ASSERT_EQ(data.EndOffset, 123);
         ASSERT_EQ(data.TotalSize, lastByte);
     }
+
     {
         // last 50 bytes requested
         const auto data = writer.GetCurrentData({.Offset = -50});
@@ -92,6 +101,15 @@ TEST(TStderrWriterTest, TestPagedLog)
         ASSERT_EQ(data.EndOffset, lastByte);
         ASSERT_EQ(data.TotalSize, lastByte);
     }
+
+    {
+        // before start
+        const auto data = writer.GetCurrentData({.Offset = -50000});
+        ASSERT_TRUE(data.Data.StartsWith("1901\n"));
+        ASSERT_TRUE(data.Data.EndsWith("2000\n"));
+        ASSERT_EQ(data.TotalSize, lastByte);
+    }
+
     {
         const auto data = writer.GetCurrentData({.Limit = 50, .Offset = 8850});
         // DUMP("d", data.Data, data.EndOffset, data.TotalSize);
@@ -100,6 +118,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         ASSERT_EQ(data.EndOffset, 8900);
         ASSERT_EQ(data.TotalSize, lastByte);
     }
+
     {
         // Requested more than have
         const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 8850});
@@ -108,6 +127,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         ASSERT_EQ(data.EndOffset, lastByte);
         ASSERT_EQ(data.TotalSize, lastByte);
     }
+
     {
         // Requested pos before tail start (8404)
         const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 8350});
