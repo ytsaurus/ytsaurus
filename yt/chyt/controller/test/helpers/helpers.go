@@ -181,13 +181,23 @@ func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
 }
 
 func abortAllOperations(t *testing.T, env *Env) {
-	// TODO(max42): introduce some unique annotation and abort only such operations. This would allow
-	// running this testsuite on real cluster.
-	ops, err := yt.ListAllOperations(env.Ctx, env.YT, &yt.ListOperationsOptions{State: &yt.StateRunning})
-	require.NoError(t, err)
-	for _, op := range ops {
-		err := env.YT.AbortOperation(env.Ctx, op.ID, &yt.AbortOperationOptions{})
+	states := []yt.OperationState{
+		yt.StateInitializing,
+		yt.StatePreparing,
+		yt.StatePending,
+		yt.StateMaterializing,
+		yt.StateRunning,
+	}
+
+	for _, state := range states {
+		// TODO(max42): introduce some unique annotation and abort only such operations. This would allow
+		// running this testsuite on real cluster.
+		ops, err := yt.ListAllOperations(env.Ctx, env.YT, &yt.ListOperationsOptions{State: &state})
 		require.NoError(t, err)
+		for _, op := range ops {
+			err := env.YT.AbortOperation(env.Ctx, op.ID, &yt.AbortOperationOptions{})
+			require.NoError(t, err)
+		}
 	}
 }
 
@@ -238,12 +248,11 @@ func PrepareMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
 	proxy := os.Getenv("YT_PROXY")
 
 	c := monitoring.HTTPMonitoringConfig{
-		Clusters:                     []string{proxy},
-		Endpoint:                     ":2223",
-		HealthStatusExpirationPeriod: time.Duration(time.Minute),
+		Clusters: []string{proxy},
+		Endpoint: ":2223",
 	}
 
-	server := monitoring.NewServer(c, env.L.Logger(), DummyLeader{}, map[string]monitoring.Healther{
+	server := monitoring.NewServer(c, env.L.Logger(), DummyLeader{}, map[string]monitoring.HealthChecker{
 		proxy: agent,
 	})
 	return env, agent, PrepareClient(t, env, proxy, server)

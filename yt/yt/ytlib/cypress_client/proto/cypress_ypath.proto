@@ -83,11 +83,7 @@ message TRspCopy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqBeginCopy
-{
-    required int32 mode = 1; // ENodeCloneMode
-}
-
+// COMPAT(h0pless): Remove when BeginCopy uses newer format.
 message TSerializedTree
 {
     required int32 version = 1;
@@ -95,20 +91,42 @@ message TSerializedTree
     optional int32 codec_id = 3; // ECodec
 }
 
+// COMPAT(h0pless): Remove when BeginCopy uses newer format.
 message TRegisteredSchema
 {
     required int32 key = 1; // TEntitySerializationKey
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
 }
 
+message TReqBeginCopy
+{
+    required int32 mode = 1; // ENodeCloneMode
+}
+
+message TSerializedNode
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required bytes data = 2;
+    // Needed to decide where this node in particular can be copied to.
+    optional uint32 external_cell_tag = 3;
+}
+
 message TRspBeginCopy
 {
+    required int32 version = 7; // EMasterReign
 
-    required TSerializedTree serialized_tree = 1;
+    repeated TSerializedNode serialized_nodes = 8;
+    repeated NYT.NProto.TGuid schema_ids = 10;
+
+    // This field is seemingly useless. Remove it later.
     repeated NYT.NProto.TGuid portal_child_ids = 2;
     repeated uint32 external_cell_tags = 3;
-    required NYT.NProto.TGuid node_id = 4;
+    // Opaques are still used when calling BeginCopy on Cypress subtree.
     repeated string opaque_child_paths = 5;
+
+    // COMPAT(h0pless)
+    optional TSerializedTree serialized_tree = 1;
+    optional NYT.NProto.TGuid node_id = 4;
     repeated TRegisteredSchema schemas = 6;
 }
 
@@ -117,6 +135,14 @@ message TRspBeginCopy
 // Cf. TReqCopy.
 message TReqEndCopy
 {
+    message TSchemaIdToSchemaMapping
+    {
+        required NYT.NProto.TGuid schema_id = 1;
+        required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    }
+
+    required int32 mode = 1; // ENodeCloneMode
+
     optional bool preserve_account = 2 [default = false];
     optional bool recursive = 4 [default = false];
     optional bool force = 5 [default = false];
@@ -131,10 +157,13 @@ message TReqEndCopy
     optional bool pessimistic_quota_check = 9 [default = true];
     optional bool enable_cross_cell_copying = 18 [default = true];
 
-    required int32 mode = 1; // ENodeCloneMode
     optional bool inplace = 12;
-    required TSerializedTree serialized_tree = 10;
+    repeated TSerializedNode serialized_nodes = 19;
+    repeated TSchemaIdToSchemaMapping schema_id_to_schema = 20;
+    required int32 version = 21; // EMasterReign
 
+    // COMPAT(h0pless): Remove when BeginCopy uses newer format.
+    required TSerializedTree serialized_tree = 10;
     repeated TRegisteredSchema schemas = 17;
 }
 

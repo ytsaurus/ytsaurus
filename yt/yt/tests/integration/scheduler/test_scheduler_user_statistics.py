@@ -227,7 +227,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 summary_type="sum")
             assert count == 2 and max == 10 and sum == 20
 
-    @authors("galtsev")
+    @authors("galtsev", "pavook")
     @pytest.mark.parametrize("crash_inside_periodic", [False, True])
     def test_incompatible_statistic_paths_should_not_crash_ca(self, crash_inside_periodic):
         command = """
@@ -238,8 +238,15 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             fi
         """
 
+        def check_alert_set(operation):
+            return "incompatible_statistics" in operation.get_alerts()
+
         if crash_inside_periodic:
             command = with_breakpoint(command + "BREAKPOINT")
-
-        with raises_yt_error('Expected "slash" in YPath but found end-of-string'):
-            run_test_vanilla(command, job_count=2, track=True)
+            op = run_test_vanilla(command, job_count=2, track=False)
+            wait(lambda: check_alert_set(op))
+            release_breakpoint()
+            op.track()
+        else:
+            op = run_test_vanilla(command, job_count=2, track=True)
+            assert check_alert_set(op)

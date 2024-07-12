@@ -1717,8 +1717,8 @@ class TestClientConfigFromCluster(object):
         with mock.patch.dict(os.environ, env_patched):
             config = yt.default_config.get_config_from_env()
 
-        assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) == yt.default_config.RemotePatchableBoolean
-        assert type(config["proxy"]["enable_proxy_discovery"]) == bool
+        assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) is yt.default_config.RemotePatchableBoolean
+        assert type(config["proxy"]["enable_proxy_discovery"]) is bool
         assert config["proxy"]["enable_proxy_discovery"]
         yt.remove(config_remote_patch_path, recursive=True, force=True)
 

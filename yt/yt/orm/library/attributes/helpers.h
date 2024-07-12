@@ -76,7 +76,7 @@ std::partial_ordering CompareScalarFields(
     const NProtoBuf::Message* rhsMessage,
     const NProtoBuf::FieldDescriptor* rhsFieldDescriptor);
 
-std::partial_ordering CompareRepeatedFieldEntries(
+std::partial_ordering CompareScalarRepeatedFieldEntries(
     const NProtoBuf::Message* lhsMessage,
     const NProtoBuf::FieldDescriptor* lhsFieldDescriptor,
     int lhsIndex,
@@ -92,6 +92,40 @@ TErrorOr<int> LocateMapEntry(
 TErrorOr<TString> MapKeyFieldToString(
     const NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* keyFieldDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError SetScalarField(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NYTree::INodePtr& value);
+
+TError SetScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    const NYTree::INodePtr& value);
+
+TError AddScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NYTree::INodePtr& value);
+
+std::pair<int, TError> FindAttributeDictionaryEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const TString& key);
+
+TErrorOr<NYson::TYsonString> GetAttributeDictionaryEntryValue(const NProtoBuf::Message* entry);
+
+TError SetAttributeDictionaryEntryValue(
+    NProtoBuf::Message* entry,
+    const NYson::TYsonString& value);
+
+TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const TString& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2205,6 +2205,51 @@ class TestQuery(DynamicTablesBase):
             with_timestamps=True,
         ) == []
 
+    @authors("sabdenovch")
+    def test_select_from_ordered_table(self):
+        sync_create_cells(1)
+
+        path = "//tmp/t"
+
+        create_dynamic_table(path, schema=[
+            make_column("value", "int64"),
+        ])
+
+        sync_mount_table(path)
+
+        insert_rows(path, [{"value": i} for i in range(10)])
+
+        # full scan
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(10)]
+        actual = select_rows(f"* from [{path}] limit 10")
+        assert expected == actual
+
+        # prefix scan
+        actual = select_rows(f"* from [{path}] where [$tablet_index] in (0) limit 10")
+        assert expected == actual
+
+        # full key scan
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(1)]
+        actual = select_rows(f"* from [{path}] where ([$tablet_index], [$row_index]) in ((0,0))")
+        assert expected == actual
+
+        # join on common key
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(10)]
+        actual = select_rows(f"* from [{path}] join [{path}] using [$tablet_index], [$row_index], value limit 10")
+        assert expected == actual
+
+        # join on common key prefix
+        expected = [{"A.value": i} for i in range(10)]
+        actual = select_rows(f"A.value from [{path}] A join [{path}] B on "
+                             "(A.[$tablet_index], A.value) = (B.[$tablet_index], B.[$row_index]) limit 10")
+        assert expected == actual
+
+        # join on foreign key prefix
+        expected = [{"A.value": i} for i in range(10)]
+        actual = select_rows(f"A.value from [{path}] A join [{path}] B on "
+                             "(0, A.value) = (B.[$tablet_index], B.[$row_index]) limit 10")
+        assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

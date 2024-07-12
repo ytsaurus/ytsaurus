@@ -28,6 +28,7 @@ import time
 import json
 import random
 import copy
+import string
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -66,6 +67,10 @@ def get_current_test_name():
     return os.environ.get('PYTEST_CURRENT_TEST').split(':')[-1].split(' ')[0]
 
 
+def _generate_random_alias():
+    return ''.join(random.choices(string.ascii_lowercase, k=10))
+
+
 class Clique(object):
     base_config = None
     clique_index = 0
@@ -79,6 +84,14 @@ class Clique(object):
     sql_udf_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
+        """
+        alias: str
+            Alias for the database. With or without asterisk: both forms are legal.
+            It will be stored in self.alias with all asterisks discarded.
+
+            Is generated randomly if not provided.
+        """
+
         discovery_patch = {
             "yt": {
                 "discovery": {
@@ -101,18 +114,22 @@ class Clique(object):
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
 
-        Clique.alias = alias
-        if Clique.alias:
-            alias_without_asterisk = Clique.alias[1:]
-            config["yt"]["clique_alias"] = alias_without_asterisk
+        self.alias = (alias.removeprefix("*")
+                      if alias is not None
+                      else _generate_random_alias())
 
-            Clique.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(alias_without_asterisk)
-            ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
-            create("map_node", Clique.sql_udf_path, recursive=True, attributes={
-                "acl": [ace],
-            })
-            config["yt"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
-            config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
+        assert self.alias != ""
+
+        # alias processing
+        config["yt"]["clique_alias"] = self.alias
+
+        self.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(self.alias)
+        ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
+        create("map_node", self.sql_udf_path, recursive=True, attributes={
+            "acl": [ace],
+        })
+        config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
+        config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -174,8 +191,9 @@ class Clique(object):
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
-        if Clique.alias:
-            self.spec["alias"] = Clique.alias
+
+        self.spec["alias"] = "*" + self.alias
+
         self.instance_count = instance_count
 
     def get_active_instances_for_discovery_v1(self):
@@ -199,8 +217,7 @@ class Clique(object):
             return []
 
     def get_group_id(self):
-        group_id = self.get_clique_id() if Clique.alias is None else Clique.alias
-        return group_id[1:] if group_id.startswith('*') else group_id
+        return self.alias or self.get_clique_id()
 
     def get_active_instances_for_discovery_v2(self):
         assert len(self.discovery_servers) > 0
@@ -305,8 +322,8 @@ class Clique(object):
         try:
             self.op.complete()
 
-            if Clique.sql_udf_path:
-                remove(Clique.sql_udf_path, recursive=True, force=True)
+            if self.sql_udf_path:
+                remove(self.sql_udf_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)
@@ -488,8 +505,10 @@ class Clique(object):
         headers["X-Yt-User"] = user
         assert self.proxy_address is not None
         url = self.proxy_address + "/query"
+
         if database is None:
-            database = self.op.id if Clique.alias is None else Clique.alias
+            database = self.alias
+
         params = {"database": database}
         if settings is not None:
             update_inplace(params, settings)

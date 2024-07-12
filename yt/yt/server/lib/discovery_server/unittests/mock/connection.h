@@ -347,6 +347,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void InitializeDiscoveryServerAddressPool() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NYson::TYsonString GetConfigYson() const override
     {
         YT_UNIMPLEMENTED();

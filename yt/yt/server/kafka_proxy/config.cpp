@@ -67,4 +67,4 @@ void TKafkaProxyDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NKafkaroxy
+} // namespace NYT::NKafkaProxy

@@ -555,9 +555,9 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_simple6a(self):
-        error_message = "Scion cannot be cloned" if self.ENABLE_TMP_ROOTSTOCK else "Cannot copy or move a node to itself"
-        with raises_yt_error(error_message):
-            copy("//tmp", "//tmp/a")
+        create("map_node", "//tmp/a")
+        with raises_yt_error("Cannot copy or move a node to itself"):
+            copy("//tmp/a", "//tmp/a/b")
 
     @authors("babenko")
     @not_implemented_in_sequoia
@@ -4850,7 +4850,7 @@ class TestSequoia(TestCypressMulticell):
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 12
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},

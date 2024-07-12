@@ -605,6 +605,11 @@ message TQueryStatistics
     repeated TQueryStatistics inner_statistics = 14;
 }
 
+message TVersionedReadOptions
+{
+    optional int32 read_mode = 1; // EVersionedIOMode
+}
+
 message TReqSelectRows
 {
     required string query = 1;
@@ -632,9 +637,11 @@ message TReqSelectRows
     optional bool merge_versioned_rows = 21;
     optional int32 syntax_version = 22 [default = 1];
     optional int32 execution_backend = 23; // EExecutionBackend
-    optional bytes versioned_read_options = 24; // YSON
+    optional TVersionedReadOptions versioned_read_options = 25;
 
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+
+    reserved 24;
 }
 
 message TRspSelectRows
@@ -2989,6 +2996,7 @@ message TOperation
     optional bytes events = 18; // YSON
     optional bytes result = 19; // YSON
 
+    optional bytes scheduling_attributes_per_pool_tree = 28; // YSON
     optional bytes slot_index_per_pool_tree = 20; // YSON
 
     optional bytes task_names = 21; // YSON
@@ -3099,6 +3107,7 @@ message TJob
     optional bool has_probing_competitors = 26;
     optional uint64 job_cookie = 27;
     optional bytes archive_features = 29; // YSON
+    optional string monitoring_descriptor = 30;
 }
 
 message TListJobsStatistics

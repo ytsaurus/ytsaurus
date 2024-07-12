@@ -112,7 +112,6 @@ class TestSequoiaReplicas(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t")
 
         desired_replica_count = 3 if erasure_codec == "none" else 16
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
@@ -141,7 +140,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -166,7 +164,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -246,7 +243,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -277,7 +273,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         desired_replica_count = 3 if erasure_codec == "none" else 16
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
@@ -310,7 +305,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 

@@ -1185,14 +1185,6 @@ private:
 
             YT_VERIFY(job->IsFinished());
             job->SetStored();
-
-            if (const auto& allocation = job->GetAllocation()) {
-                YT_LOG_INFO(
-                    "Completing allocation since job is stored (AllocationId: %v, JobId: %v)",
-                    allocation->GetId(),
-                    job->GetId());
-                allocation->Complete();
-            }
         }
 
         {
@@ -1654,6 +1646,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
         YT_VERIFY(job->GetPhase() >= EJobPhase::FinalizingJobProxy);
 
+        job->SetStored();
+
         auto jobId = job->GetId();
 
         YT_LOG_WARNING_IF(
@@ -1890,18 +1884,6 @@ private:
         jobFinalStateCounter->Increment();
 
         JobFinished_.Fire(job);
-
-        const auto& allocation = job->GetAllocation();
-
-        if (!allocation) {
-            return;
-        }
-
-        YT_LOG_INFO(
-            "Completing allocation since job is finished (AllocationId: %v, JobId: %v)",
-            allocation->GetId(),
-            job->GetId());
-        allocation->Complete();
     }
 
     void UpdateJobProxyBuildInfo()

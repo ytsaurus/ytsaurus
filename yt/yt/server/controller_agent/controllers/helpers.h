@@ -72,6 +72,15 @@ void UpdateAggregatedJobStatistics(
     int customStatisticsLimit,
     bool* isLimitExceeded);
 
+void SafeUpdateAggregatedJobStatistics(
+    ITaskHost* taskHost,
+    TAggregatedJobStatistics& targetStatistics,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
+    int customStatisticsLimit,
+    bool* isLimitExceeded);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDockerImageSpec
@@ -116,6 +125,12 @@ void FetchTableSchemas(
     const std::vector<TTablePtr>& tables,
     TCallback<NTransactionClient::TTransactionId(const TTablePtr&)> tableToTransactionId,
     bool fetchFromExternalCells);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsBulkInsertAllowedForUser(
+    TStringBuf authenticatedUser,
+    const NApi::IClientPtr& client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,1 +1,1 @@
-{% include [Реплицированные динтаблицы](../../_includes/user-guide/dynamic-tables/replicated-dynamic-tables.md) %}
+{% include [Replicated tables](../../_includes/user-guide/dynamic-tables/replicated-dynamic-tables.md) %}

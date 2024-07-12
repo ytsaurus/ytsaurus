@@ -3,6 +3,8 @@
 #include "table.h"
 #include "job_info.h"
 
+#include <yt/yt/server/controller_agent/controllers/task_host.h>
+
 #include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -264,6 +266,29 @@ void UpdateAggregatedJobStatistics(
     *isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
 }
 
+void SafeUpdateAggregatedJobStatistics(
+    ITaskHost* taskHost,
+    TAggregatedJobStatistics& targetStatistics,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
+    int customStatisticsLimit,
+    bool* isLimitExceeded)
+{
+    try {
+        UpdateAggregatedJobStatistics(
+            targetStatistics,
+            tags,
+            jobStatistics,
+            controllerStatistics,
+            customStatisticsLimit,
+            isLimitExceeded);
+    } catch (const std::exception& ex) {
+        taskHost->SetOperationAlert(EOperationAlertType::IncompatibleStatistics, ex);
+        // TODO(pavook): fail the operation after setting this alert.
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
@@ -471,6 +496,23 @@ template void FetchTableSchemas(
     const std::vector<TOutputTablePtr>& tables,
     TCallback<TTransactionId(const TOutputTablePtr&)> tableToTransactionId,
     bool fetchFromExternalCells);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsBulkInsertAllowedForUser(
+    TStringBuf authenticatedUser,
+    const IClientPtr& client)
+{
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    options.Attributes = {"enable_bulk_insert"};
+
+    auto path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
+    auto rspOrError = WaitFor(client->GetNode(path, options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
+    auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
+    return rsp->Attributes().Get<bool>("enable_bulk_insert", false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

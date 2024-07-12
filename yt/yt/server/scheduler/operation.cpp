@@ -41,6 +41,14 @@ static constexpr auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOperationPoolTreeAttributes::Register(TRegistrar registrar)
+{
+    registrar.Parameter("slot_index", &TThis::SlotIndex)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -284,23 +292,39 @@ void TOperation::SetStateAndEnqueueEvent(
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
     ShouldFlush_ = true;
-    TreeIdToSlotIndex_[treeId] = value;
+    SchedulingAttributesPerPoolTree_[treeId].SlotIndex = value;
 }
 
 void TOperation::ReleaseSlotIndex(const TString& treeId)
 {
-    EraseOrCrash(TreeIdToSlotIndex_, treeId);
+    auto& slotIndex = SchedulingAttributesPerPoolTree_[treeId].SlotIndex;
+
+    YT_VERIFY(slotIndex);
+
+    slotIndex.reset();
 }
 
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
-    auto it = TreeIdToSlotIndex_.find(treeId);
-    return it != TreeIdToSlotIndex_.end() ? std::optional(it->second) : std::nullopt;
+    auto it = SchedulingAttributesPerPoolTree_.find(treeId);
+    return it != SchedulingAttributesPerPoolTree_.end() ? it->second.SlotIndex : std::nullopt;
 }
 
-const THashMap<TString, int>& TOperation::GetSlotIndices() const
+const THashMap<TString, TOperationPoolTreeAttributes>& TOperation::GetSchedulingAttributesPerPoolTree() const
 {
-    return TreeIdToSlotIndex_;
+    return SchedulingAttributesPerPoolTree_;
+}
+
+THashMap<TString, int> TOperation::GetSlotIndices() const
+{
+    THashMap<TString, int> treeIdToSlotIndex;
+    treeIdToSlotIndex.reserve(SchedulingAttributesPerPoolTree_.size());
+    for (const auto& [treeId, schedulingInfo] : SchedulingAttributesPerPoolTree_) {
+        if (schedulingInfo.SlotIndex) {
+            EmplaceOrCrash(treeIdToSlotIndex, treeId, *schedulingInfo.SlotIndex);
+        }
+    }
+    return treeIdToSlotIndex;
 }
 
 TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const

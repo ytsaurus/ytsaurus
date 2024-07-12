@@ -15,6 +15,11 @@ type myNode struct {
 	Revision yt.Revision `yson:"revision,attr"`
 }
 
+type PathsOrError struct {
+	Paths []ypath.Path
+	Error error
+}
+
 // TrackChildren is a primitive for subscription on changes of Cypress nodes in the given subtree. It emits relative
 // paths w.r.t. root of changed nodes.
 //
@@ -22,11 +27,13 @@ type myNode struct {
 // lightweight "get with attributes" requests with given periodicity and tracks node revision change events including
 // node disappearance events. Note that each pass which did not result in any event still produces an empty slice which
 // allows building reliable logic assuming the absence of future modifications (see waitForPaths helper from tests
-// for an example)
+// for an example).
+//
+// If an error occurs during the Cypress update, the original error is emitted.
 //
 // Current implementation does not descend into opaque nodes.
-func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, ytc yt.Client, l log.Logger) <-chan []ypath.Path {
-	eventCh := make(chan []ypath.Path)
+func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, ytc yt.Client, l log.Logger) <-chan PathsOrError {
+	eventCh := make(chan PathsOrError)
 
 	l.Debug("tracking started", log.String("root", root.String()))
 
@@ -73,6 +80,8 @@ func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, y
 
 				if err != nil {
 					l.Error("error while walking", log.Error(err))
+					eventCh <- PathsOrError{Error: err}
+					continue
 				}
 
 				for path, revision := range revisions {
@@ -88,7 +97,7 @@ func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, y
 
 				l.Debug("walking nodes finished", log.Int("nodes_changed", len(toEmit)))
 
-				eventCh <- toEmit
+				eventCh <- PathsOrError{Paths: toEmit}
 			}
 		}
 	}()

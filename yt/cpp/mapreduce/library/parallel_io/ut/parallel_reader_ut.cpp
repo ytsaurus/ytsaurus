@@ -13,7 +13,7 @@ using namespace NYT::NTesting;
 
 bool operator==(const TTestMessage& left, const TTestMessage& right)
 {
-    return left.GetKey() == right.GetKey() && left.GetValue() == right.GetValue();
+    return left.key() == right.key() && left.value() == right.value();
 }
 
 template <typename T>
@@ -474,8 +474,8 @@ TEST_P(TParallelReaderTest, SimpleProtobuf)
     rows.reserve(rowCount);
     for (size_t i = 0; i != rowCount; ++i) {
         TTestMessage row;
-        row.SetKey("x");
-        row.SetValue(i);
+        row.set_key("x");
+        row.set_value(i);
         rows.push_back(std::move(row));
     }
     TestReader(

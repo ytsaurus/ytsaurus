@@ -173,6 +173,18 @@ protected:
 
         TSerializedSubtree(
             TYPath path,
+            i32 version,
+            NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> serializedNodes,
+            NProtoBuf::RepeatedPtrField<NYT::NProto::TGuid> schemaIds)
+            : Path(std::move(path))
+            , Version(version)
+            , SerializedNodes(std::move(serializedNodes))
+            , SchemaIds(std::move(schemaIds))
+        { }
+
+        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
+        TSerializedSubtree(
+            TYPath path,
             NCypressClient::NProto::TSerializedTree serializedValue,
             NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> schemas)
             : Path(std::move(path))
@@ -182,11 +194,19 @@ protected:
 
         //! Relative to tree root path to subtree root.
         TYPath Path;
+        i32 Version;
 
         //! Serialized subtree.
-        NCypressClient::NProto::TSerializedTree SerializedValue;
+        NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> SerializedNodes;
 
+        //! Schema IDs referenced in #SerializedNodes.
+        NProtoBuf::RepeatedPtrField<NYT::NProto::TGuid> SchemaIds;
+
+        //! Serialized subtree.
+        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
+        NCypressClient::NProto::TSerializedTree SerializedValue;
         //! These schemas are referenced from #SerializedValue (by serialization keys).
+        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
         NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> Schemas;
     };
 
@@ -204,6 +224,12 @@ protected:
     TNodeId DstNodeId_;
 
     std::vector<TCellTag> ExternalCellTags_;
+    std::vector<TMasterTableSchemaId> SchemaIds_;
+
+    THashMap<TMasterTableSchemaId, TTableSchema> SchemaIdToSchema_;
+
+    // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
+    bool UseNewerCrossCellCopyProtocol_ = false;
 
 
     template <class TOptions>
@@ -268,30 +294,59 @@ protected:
             auto portalChildIds = FromProto<std::vector<TNodeId>>(rsp->portal_child_ids());
             auto externalCellTags = FromProto<TCellTagList>(rsp->external_cell_tags());
             auto opaqueChildPaths = FromProto<std::vector<TYPath>>(rsp->opaque_child_paths());
-            auto nodeId = FromProto<TNodeId>(rsp->node_id());
 
-            if (!allowRootLink && subtreePath == srcPath) {
-                SrcNodeId_ = nodeId;
+            if (rsp->has_version()) {
+                // EMasterReign::RefactorCrossCellCopyInPreparationForSequoia.
+                YT_VERIFY(rsp->version() >= 2622);
+                UseNewerCrossCellCopyProtocol_ = true;
             }
 
-            YT_LOG_DEBUG("Serialized subtree received (NodeId: %v, Path: %v, FormatVersion: %v, TreeSize: %v, "
+            auto subtreeRootId = UseNewerCrossCellCopyProtocol_
+                ? FromProto<TNodeId>(rsp->serialized_nodes()[0].node_id())
+                : FromProto<TNodeId>(rsp->node_id()); // root node id
+
+            if (!allowRootLink && subtreePath == srcPath) {
+                SrcNodeId_ = subtreeRootId;
+            }
+
+            size_t dataSize = 0;
+            if (UseNewerCrossCellCopyProtocol_) {
+                for (const auto& serializedNode : rsp->serialized_nodes()) {
+                    dataSize += serializedNode.data().size();
+                }
+            } else {
+                dataSize = rsp->serialized_tree().data().size();
+            }
+            YT_LOG_DEBUG("Serialized subtree received (RootNodeId: %v, Path: %v, FormatVersion: %v, TreeSize: %v, "
                 "PortalChildIds: %v, ExternalCellTags: %v, OpaqueChildPaths: %v, RegisteredSchemaCount: %v)",
-                nodeId,
+                subtreeRootId,
                 subtreePath,
-                rsp->serialized_tree().version(),
-                rsp->serialized_tree().data().size(),
+                UseNewerCrossCellCopyProtocol_ ? rsp->version() : rsp->serialized_tree().version(),
+                dataSize,
                 portalChildIds,
                 externalCellTags,
                 opaqueChildPaths,
-                rsp->schemas_size());
+                UseNewerCrossCellCopyProtocol_ ? rsp->schema_ids_size() : rsp->schemas_size()); // update value
 
             auto relativePath = TryComputeYPathSuffix(subtreePath, ResolvedSrcNodePath_);
             YT_VERIFY(relativePath);
 
-            SerializedSubtrees_.emplace_back(
-                *relativePath,
-                std::move(*rsp->mutable_serialized_tree()),
-                std::move(*rsp->mutable_schemas()));
+            if (UseNewerCrossCellCopyProtocol_) {
+                for (auto schemaId : rsp->schema_ids()) {
+                    SchemaIds_.push_back(FromProto<TMasterTableSchemaId>(schemaId));
+                }
+
+                SerializedSubtrees_.emplace_back(
+                    *relativePath,
+                    rsp->version(),
+                    std::move(*rsp->mutable_serialized_nodes()),
+                    std::move(*rsp->mutable_schema_ids()));
+            } else {
+                SerializedSubtrees_.emplace_back(
+                    *relativePath,
+                    std::move(*rsp->mutable_serialized_tree()),
+                    std::move(*rsp->mutable_schemas()));
+            }
 
             for (auto cellTag : externalCellTags) {
                 ExternalCellTags_.push_back(cellTag);
@@ -303,6 +358,40 @@ protected:
         }
 
         SortUnique(ExternalCellTags_);
+        FetchMasterTableSchemas();
+    }
+
+    void FetchMasterTableSchemas()
+    {
+        if (SchemaIds_.empty()) {
+            return;
+        }
+
+        SortUnique(SchemaIds_);
+
+        auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
+
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& schemaId : SchemaIds_) {
+            auto serializedId = FromObjectId(schemaId);
+            auto req = TCypressYPathProxy::Get(serializedId);
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req, serializedId);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Error fetching table schemas");
+
+        const auto& batchRsp = batchRspOrError.Value();
+
+        for (const auto& schemaId: SchemaIds_) {
+            auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>(FromObjectId(schemaId));
+            auto rsp = rspOrError.Value();
+            auto schemaYson = TYsonString(rsp->value());
+
+            EmplaceOrCrash(SchemaIdToSchema_, schemaId, ConvertTo<TTableSchema>(schemaYson));
+        }
     }
 
     void ResolveSourceNode(const TYPath& srcPath)
@@ -348,8 +437,22 @@ protected:
             SetTransactionId(req, Transaction_->GetId());
             SetEndCopyNodeRequestParameters(req, options);
             req->set_inplace(inplace);
-            *req->mutable_serialized_tree() = std::move(subtree.SerializedValue);
-            *req->mutable_schemas() = std::move(subtree.Schemas);
+
+            if (UseNewerCrossCellCopyProtocol_) {
+                *req->mutable_serialized_nodes() = std::move(subtree.SerializedNodes);
+                req->set_version(subtree.Version);
+
+                req->mutable_schema_id_to_schema()->Reserve(SchemaIdToSchema_.size());
+                for (const auto& [schemaId, schema] : SchemaIdToSchema_) {
+                    auto* schemaIdToSchemaEntry = req->add_schema_id_to_schema();
+                    ToProto(schemaIdToSchemaEntry->mutable_schema_id(), schemaId);
+                    ToProto(schemaIdToSchemaEntry->mutable_schema(), schema);
+                }
+            } else {
+                // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
+                *req->mutable_serialized_tree() = std::move(subtree.SerializedValue);
+                *req->mutable_schemas() = std::move(subtree.Schemas);
+            }
             batchReq->AddRequest(req);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1560,7 +1663,7 @@ private:
             auto schemasCompatibility = CheckTableSchemaCompatibility(
                 inputTableSchema,
                 *OutputTableSchema_,
-                {.IgnoreSortOrder=false});
+                {.IgnoreSortOrder = false});
             if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
                 YT_LOG_DEBUG(schemasCompatibility.second,
                     "Input table schema and output table schema are incompatible; "

@@ -537,7 +537,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
         actual_content = []
         current_attrs = {}
         for row in yson.loads(job_input, yson_type="list_fragment"):
-            if type(row) == yson.yson_types.YsonEntity:
+            if type(row) is yson.yson_types.YsonEntity:
                 for key, value in list(row.attributes.items()):
                     # row_index is set only once per sequence of contiguous chunks,
                     # but chunks are written asynchronously, so output row_index values may vary

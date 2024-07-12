@@ -22,7 +22,7 @@ YT_DEFINE_ERROR_ENUM(
     ((MalformedPath)            (70002))
     ((MissingField)             (70004))
     ((MissingKey)               (70005))
-    ((InvalidMap)               (70006))
+    ((InvalidData)              (70006))
     ((OutOfBounds)              (70007))
     ((MismatchingDescriptors)   (70008))
     ((MismatchingPresence)      (70009))

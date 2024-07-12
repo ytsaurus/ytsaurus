@@ -106,9 +106,9 @@ const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunk
     return WrittenChunkSpecs_;
 }
 
-const TChunkWithReplicasList& TNontemplateMultiChunkWriterBase::GetWrittenChunkWithReplicasList() const
+const TWrittenChunkReplicasInfoList& TNontemplateMultiChunkWriterBase::GetWrittenChunkReplicasInfos() const
 {
-    return WrittenChunkWithReplicasList_;
+    return WrittenChunkReplicasInfos_;
 }
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
@@ -158,11 +158,11 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
 
     {
         auto chunkId = CurrentSession_.UnderlyingWriter->GetChunkId();
-        auto writtenChunkReplicas = CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas();
+        auto writtenChunkReplicasInfo = CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicasInfo();
 
         auto& chunkSpec = WrittenChunkSpecs_.emplace_back();
         ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-        for (auto replica : writtenChunkReplicas) {
+        for (auto replica : writtenChunkReplicasInfo.Replicas) {
             chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkSpec.add_replicas(ToProto<ui64>(replica));
         }
@@ -177,7 +177,7 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
         chunkSpec.set_erasure_codec(miscExt.erasure_codec());
         chunkSpec.set_striped_erasure(miscExt.striped_erasure());
 
-        WrittenChunkWithReplicasList_.emplace_back(chunkId, std::move(writtenChunkReplicas));
+        WrittenChunkReplicasInfos_.emplace_back(chunkId, std::move(writtenChunkReplicasInfo));
     }
 
     {

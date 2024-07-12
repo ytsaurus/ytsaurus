@@ -295,13 +295,13 @@ public:
         return CodecId_;
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        TChunkReplicaWithLocationList result;
+        TWrittenChunkReplicasInfo result;
         for (int i = 0; i < std::ssize(Writers_); ++i) {
-            auto replicas = Writers_[i]->GetWrittenChunkReplicas();
+            auto replicas = Writers_[i]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(replicas.size() == 1);
-            result.emplace_back(
+            result.Replicas.emplace_back(
                 replicas[0].GetNodeId(),
                 i,
                 replicas[0].GetMediumIndex(),

@@ -1,6 +1,9 @@
 #include "private.h"
+
 #include "bootstrap.h"
-#include "sequoia_service_detail.h"
+#include "node_proxy_base.h"
+#include "sequoia_service.h"
+#include "sequoia_session.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -33,26 +36,24 @@ using namespace NSequoiaClient;
 using namespace NTransactionClient;
 
 using TYPath = NYPath::TYPath;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRootstockProxy
-    : public TSequoiaServiceBase
+    : public TNodeProxyBase
 {
 public:
     TRootstockProxy(
         IBootstrap* bootstrap,
-        TAbsoluteYPath path,
-        ISequoiaTransactionPtr transaction)
-        : Bootstrap_(bootstrap)
-        , Path_(std::move(path))
-        , Transaction_(std::move(transaction))
+        TSequoiaSessionPtr sequoiaSession,
+        TAbsoluteYPath resolvedPath)
+        : TNodeProxyBase(bootstrap, std::move(sequoiaSession))
+        , Path_(std::move(resolvedPath))
     { }
 
 private:
-    IBootstrap* const Bootstrap_;
     const TAbsoluteYPath Path_;
-    const ISequoiaTransactionPtr Transaction_;
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
@@ -106,33 +107,35 @@ private:
 
         YT_VERIFY(type == EObjectType::Rootstock);
 
+        const auto& sequoiaTransaction = SequoiaSession_->SequoiaTransaction();
+
         const auto& connection = Bootstrap_->GetNativeConnection();
         const auto& rootstockCellTag = connection->GetPrimaryMasterCellTag();
         auto attributes = NYTree::FromProto(request->node_attributes());
-        auto scionCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
+        auto scionCellTag = sequoiaTransaction->GetRandomSequoiaNodeHostCellTag();
 
-        auto rootstockId = Transaction_->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
-        auto scionId = Transaction_->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);
+        auto rootstockId = sequoiaTransaction->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
+        auto scionId = sequoiaTransaction->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);
         attributes->Set("scion_id", scionId);
 
-        Transaction_->WriteRow(NRecords::TPathToNodeId{
+        sequoiaTransaction->WriteRow(NRecords::TPathToNodeId{
             .Key = {.Path = Path_.ToMangledSequoiaPath()},
             .NodeId = scionId,
         });
-        Transaction_->WriteRow(NRecords::TNodeIdToPath{
+        sequoiaTransaction->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = scionId},
-            .Path = Path_.ToString(),
+            .Path = Path_.Underlying(),
         });
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         rootstockAction.mutable_request()->CopyFrom(*request);
-        rootstockAction.set_path(Path_.ToString());
+        rootstockAction.set_path(Path_.Underlying());
 
         auto* createRootstockRequest = rootstockAction.mutable_request();
         ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
         ToProto(createRootstockRequest->mutable_node_attributes(), *attributes);
 
-        Transaction_->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
+        sequoiaTransaction->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
 
         auto rootstockCellId = connection->GetMasterCellId(rootstockCellTag);
         TTransactionCommitOptions commitOptions{
@@ -140,7 +143,7 @@ private:
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
         };
-        WaitFor(Transaction_->Commit(commitOptions))
+        WaitFor(sequoiaTransaction->Commit(commitOptions))
             .ThrowOnError();
 
         // After transaction commit, scion creation request is posted via Hive,
@@ -160,15 +163,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateRootstockProxy(
+TNodeProxyBasePtr CreateRootstockProxy(
     IBootstrap* bootstrap,
-    ISequoiaTransactionPtr transaction,
-    TAbsoluteYPath resolvedPath)
+    TSequoiaSessionPtr sequoiaSession,
+    NSequoiaClient::TAbsoluteYPath resolvedPath)
 {
-    return New<TRootstockProxy>(
-        bootstrap,
-        std::move(resolvedPath),
-        std::move(transaction));
+    return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

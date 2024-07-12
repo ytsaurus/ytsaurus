@@ -27,10 +27,10 @@ Since ordinary MapReduce operations work with chunks and dynamic tables store so
 A suitable method in most cases is to first unmount the table and then specify the `@enable_dynamic_store_read=%true` attribute on it, after which all data will be visible from operations. This is a popular approach if you want fresh data, but there are side effects:
 
 - The results of successive runs of the same operation on top of the same table (even under snapshot lock) may differ, because the second run will read more fresh rows. For this reason, caching in YQL is disabled for tables with`@enable_dynamic_store_read`. For idempotency, you must [explicitly specify a timestamp](#dyntable_mr_timestamp) or [a set of row indexes](#dyntable_mr_ordered).
-- If the `@merge_rows_on_flush` attribute is set on the table, you cannot ensure consistent read by timestamp when `@enable_dynamic_store_read` is enabled.
+- If a table has a set `@merge_rows_on_flush` attribute, it's currently impossible to ensure consistent read by timestamp when `@enable_dynamic_store_read` is enabled.
 - If one tablet is read by hundreds of jobs, there is a risk of overloading the tablet nodes.
 
-If you don't want to use this mode for any reason, there are some other ways:
+If, for whatever reason, you do not want to use this mode, there are some other ways:
 
 1. Unmount the table. When the dynamic table is unmounted, all of its data is stored in chunks.
 2. Freeze the table using the `freeze-table` command and wait until all tablets are in `frozen` state. In this state all data is written to the chunks, no new data can be written, but the table can be read using the `lookup-rows` and `select-rows` commands. You can execute MapReduce operations.
@@ -45,7 +45,7 @@ You can run operations that ignore dynamic stores and read only from chunks on t
 
 ## Running operations on the state of a sorted dynamic table at a particular point in time { #dyntable_mr_timestamp }
 
-By default, the most recent row version contained in the chunks gets into the MapReduce operation. If the table is mounted, the versions in the chunks may be inconsistent: it may be for two different rows from the same transaction that one row is already in the chunk and the other is still in RAM. As a result, the MapReduce operation will only display some of the transaction rows. If `@enable_dynamic_store_read` is enabled, inconsistency is also possible because the jobs read different parts of the table at different times, and writing may have occurred between reads. In cases where it is important to have a consistent table state in the MapReduce operation, you must specify a timestamp in the special ypath attribute: `<timestamp=123456789>//path/to/dynamic/sorted/table`.
+By default, the most recent row version contained in the chunks gets into the MapReduce operation. If the table is mounted, the versions in the chunks may be inconsistent: it may be for two different rows from the same transaction that one row is already in the chunk and the other is still in RAM. As a result, the MapReduce operation will only display some of the transaction rows. If `@enable_dynamic_store_read` is enabled, inconsistency is also possible because the jobs read different parts of the table at different times, and writing may have occurred between reads. In cases where it is important to maintain a consistent table state in the MapReduce operation, you must specify a timestamp in the special YPath attribute: `<timestamp=123456789>//path/to/dynamic/sorted/table`.
 
 There is a lower and upper limit on `timestamp`:
 - Since the data is periodically compacted, `timestamp` cannot be less than the value of the `@retained_timestamp` attribute. Compaction clears old data, but only the one preceding `@retained_timestamp`.
@@ -81,18 +81,15 @@ The effect of trim may not be immediately seen in the operation. The situation i
 
 ### Indexing
 
+The `enable_tablet_index` [control attribute](../../../user-guide/storage/io-configuration.md#control_attributes) is available in operations on ordered tables. The `enable_row_index` attribute has a different semantics than in static tables: the returned row index is counted relative to the beginning of the tablet. Row numbering within the tablet is logical, i.e. even if trim is performed, the existing row numbers will not change.
 
-The `enable_tablet_index` [control attribute](../../../user-guide/storage/io-configuration.md#control_attributes) is available in operations on ordered tables.
-
-The `enable_row_index` attribute has a different semantics than in static tables: the returned row index is counted relative to the beginning of the tablet. Row numbering within the tablet is logical, i.e. even if trim is performed, the existing row numbers will not change.
-
-You can also specify row index and tablet index in ypath ranges. Each row in the ordered table is indexed in a pair `(tablet_index, row_index)`. The `lower_limit = {tablet_index = a; row_index = b}` lower limit allows rows from the `a` tablet with numbers `b` and greater and all rows from tablets with numbers greater than `a`. The `upper_limit = {tablet_index = c; row_index = d}` upper limit allows rows from tablets with numbers less than `c` and rows from the `c` tablet with a number strictly less than `d`.
+Row and tablet indexes can also be specified in [ypath ranges](../../../user-guide/storage/ypath.md#known_attributes). Each row in the ordered table is indexed in a pair `(tablet_index, row_index)`. The `lower_limit = {tablet_index = a; row_index = b}` lower limit allows rows from tablet `a` with indexes `b` and greater and all rows from tablets with indexes greater than `a`. The `upper_limit = {tablet_index = c; row_index = d}` upper limit allows rows from tablets with indexes less than `c` and rows from tablet `c` with indexes strictly less than `d`.
 
 You can specify only `tablet_index` within the limit. The lower limit of the `{tablet_index = e}` type allows all rows of tablets with numbers not less than `e` and the upper limit of this type allows all rows of tablets with numbers strictly less than `e`.
 
 {% note warning "Attention!" %}
 
-There is a limit on the number of ranges in YPath. If you plan to specify one range per each tablet of an ordered table in the operation and the number of tablets exceeds 100, notify yt@.
+There is a limit on the number of ranges in YPath. If the number of tablets in an ordered table exceeds 100, and you plan to specify one range per each tablet of an ordered table in the operation, {% if audience == "internal" %}notify yt@{% else %}discuss it with the cluster administrators{% endif %}.
 
 {% endnote %}
 
@@ -103,7 +100,7 @@ Limits can be obtained from the `@tablets` table attribute. The value correspond
 
 Unlike timestamp, the correctness of indexes for ordered tables is __not validated__: if you specify indexes outside the specified limits, the operation will simply read less data than expected.
 
-## Converting a static table into a dynamic table
+## Converting a static table into a dynamic table { #convert_table }
 
 To convert a static table into a dynamic table, run the `alter-table` command:
 
@@ -127,7 +124,7 @@ There are a few conversion peculiarities that are worth paying attention to.
 
 - The `alter-table` command will be executed for an unsorted table as well. The result will be an [ordered dynamic table](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md). For such tables, the `insert-rows` command works differently than it does for sorted tables and the `select-rows` command will be much slower on the same queries.
 
-- All keys in a sorted dynamic table are unique, so a static table must also contain only unique keys. The system identifies this fact by the `@unique_keys` attribute in the schema. You cannot set this attribute to the schema of an existing non-empty table using the `alter-table` command. You need to specifically create a table with the specified `unique_keys=true` attribute in the schema. The uniqueness of keys will be validated when writing. If the table has already been created and all keys in it are unique, but the schema has the `unique_keys=false` attribute, you need to create a new table with the corrected schema and copy the data into it using the Merge operation.
+- All keys in a sorted dynamic table are unique, so a static table must also contain only unique keys. The system identifies this fact by the `@unique_keys` attribute in the schema. You cannot set this attribute to the schema of an existing non-empty table using the `alter-table` command. You need to specifically create a table with the specified `unique_keys=true` attribute in the schema. The uniqueness of keys will be validated when writing. If the schema of a created table has a set `unique_keys=false` attribute when all of the table keys are unique, you need to create a new table with a revised schema and copy the data into it using the [Merge](../../../user-guide/data-processing/operations/merge.md) operation.
 
 - Typical chunk and block sizes for dynamic tables are smaller than for static tables. If the table is to be converted into a dynamic table, set certain parameters in the spec of the operation generating the table:
 
@@ -135,9 +132,9 @@ There are a few conversion peculiarities that are worth paying attention to.
    "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}}
    ```
 
-   If an operation has more than one job type, the config only needs to be specified for `job_io` of the last job type in the operation (`merge_job_io` for the Sort operation, `reduce_job_io` for the MapReduce operation). If the operation uses automatic merging of chunks, a similar config must be specified in the `"automerge": {"job_io": {...}}` section.
+   If an operation has more than one job type, the config only needs to be specified for `job_io` of the last job type in the operation (`merge_job_io` for the Sort operation, `reduce_job_io` for the MapReduce operation). If the operation uses [automatic merging of chunks](../../../user-guide/data-processing/operations/automerge.md), a similar config must be specified in the `"automerge": {"job_io": {...}}` section.
 
-   For more information about `job_io` for different types of operations, see Operation settings.
+   For more information about `job_io` for different types of operations, see [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
 
 - You can check the sizes of chunks and blocks of the resulting table using the following table attributes:
    - Chunks: `@compressed_data_size` / `@chunk_count`
@@ -166,13 +163,71 @@ If the table is intended to be stored in memory (managed by the `@in_memory_mode
 
 If the dynamic table is to be read-only, it must be mounted in "frozen" state (managed by the `--freeze` flag of the `mount-table` command). This will prohibit writing, disable compaction, and reduce the table maintenance overhead costs. Do it only if the the chunk and block sizes are as recommended.
 
+### Example
+
+Below is a script example that demonstrates how to save a sorted dynamic table into a static one and then restore it back. This operation can be performed to back up dynamic tables.
+
+Please note that the script is not production-ready and is given for reference only. In particular, it saves only some table attributes and does not handle errors in any way.
+
+{% cut "Converting a dynamic table into a static table and vice versa" %}
+
+```python
+#!/usr/bin/python3
+import yt.wrapper as yt
+import argparse
+
+def dump(src, dst):
+    with yt.Transaction():
+        # Take snapshot lock for source table.
+        node_id = yt.lock(src, mode="snapshot")["node_id"]
+        # Get timestamp of flushed data
+        # (not required if @enable_dynamic_store_read is set).
+        ts = yt.get(f"#{node_id}/@unflushed_timestamp") - 1
+        # Create table and save vital attributes.
+        yt.create("table", dst, attributes={
+            "optimize_for": yt.get(f"#{node_id}/@optimize_for"),
+            "schema": yt.get(f"#{node_id}/@schema"),
+            "_yt_dump_restore_pivot_keys": yt.get(f"#{node_id}/@pivot_keys"),
+        })
+        # Dump table contents.
+        yt.run_merge(yt.TablePath(f"#{node_id}", attributes={"timestamp": ts}), dst, mode="ordered")
+
+def restore(src, dst):
+    # Create destination table.
+    yt.create("table", dst, attributes={
+        "optimize_for": yt.get(f"{src}/@optimize_for"),
+        "schema": yt.get(f"{src}/@schema"),
+    })
+    # Make blocks smaller (required for real-time lookups).
+    yt.run_merge(src, dst, mode="ordered", spec={
+        "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
+        "force_transform": True,
+    })
+    # Make table dynamic.
+    yt.alter_table(dst, dynamic=True)
+    # Restore tablet structure.
+    yt.reshard_table(dst, yt.get(f"{src}/@_yt_dump_restore_pivot_keys"), sync=True)
+
+if __name__ ==  "__main__":
+    parser = argparse.ArgumentParser(description="Dynamic tables dump-restore tool")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dump", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Dump dynamic table to static")
+    mode.add_argument("--restore", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Restore dynamic table from static")
+    args = parser.parse_args()
+    if args.dump:
+        dump(*args.dump)
+    if args.restore:
+        restore(*args.restore)
+```
+{% endcut %}
+
 ## Using computed columns
 
 To distribute the load across the cluster more evenly, dynamic tables need to be sharded (split into tablets).  To distribute the load evenly across the tablets, it may be convenient to add an extra column prior to all the key columns in which to write hash from the key part by which it makes sense to perform sharding - for example, hash from the first column. The result is a table whose keys are evenly distributed in the `[0, 2^64-1]` range.
 
-The column added in this way is a computed column. The calculation formula must be specified in the column schema in the `expression` field. Support for computed columns was added to all operations except Sort. When writing to the table, the value of such columns will be computed. To prepare a static table to be converted into a dynamic table, you must first make the table in an unsorted schema (but with computed columns), then sort it using the Sort operation.
+The column added in this way is a computed column. The calculation formula must be specified in the column schema in the `expression` field. Support for computed columns was added to all operations except [Sort](../../../user-guide/data-processing/operations/sort.md). When writing to the table, the value of such columns will be computed. To prepare a static table to be converted into a dynamic table, you must first make the table in an unsorted schema (but with computed columns), then sort it using the [Sort](../../../user-guide/data-processing/operations/sort.md) operation.
 
-Below is an example of creating a dynamic table with computed columns from a static table. Instead of `write_rows`, the table could be written to using the Map, Reduce, MapReduce, or Merge operations. In the latter case, you must specify `{'schema_inference_mode': 'from_output'}` in the specification so that the data is validated using the output table schema.
+Below is an example of creating a dynamic table with computed columns from a static table. Instead of `write_rows`, the table could be written to using the Map, Reduce, MapReduce, or Merge operations. In the latter case, you must specify `{'schema_inference_mode': 'from_output'}` in the specification so that the data is validated using the output table schema. In addition, when specifying `schema_inference_mode`, you need to create the output table of the operation manually by explicitly specifying the required schema. If you do not do this, the used API will attempt to create the output table independently using the schema inferred from the input table, which will cause errors in this case.
 
 {% cut "Creating a dynamic table with computed columns" %}
 
@@ -199,7 +254,7 @@ table = "//tmp/table"
 yt.remove(table, force=True)
 yt.create_table(table, attributes={"schema": schema})
 
-# Write rows into table. Computed columns are omitted {{product-name}} will evaluate them.
+# Write rows into table. Computed columns are omitted: {{product-name}} will evaluate them.
 yt.write_table(table, [{"key": 2, "value": "2"}, {"key": 1, "value": "1"}])
 
 # Sort table. Resulting table schema has unique_keys=True.
@@ -221,78 +276,14 @@ for row in yt.select_rows("* from [{}]".format(table)):
 
 {% endcut %}
 
-## Converting a dynamic table into a static table and vice versa { #convert_table }
-
-Below is an example of the script that demonstrates how to save a dynamic table into a static table and then restore the dynamic table back from the static table. This operation can be performed to back up dynamic tables.
-
-{% cut "Converting tables" %}
-
-```python
-#!/usr/bin/python
-import yt.wrapper as yt
-import argparse
-
-def dump(src, dst):
-    with yt.Transaction():
-        # Take snapshot lock for source table.
-        yt.lock(src, mode="snapshot")
-        # Get timestamp of flushed data.
-        ts = yt.get_attribute(src, "unflushed_timestamp") - 1
-        # Create table and save vital attributes.
-        yt.create("table", dst, attributes={
-            "optimize_for": yt.get_attribute(src, "optimize_for", default="lookup"),
-            "schema": yt.get_attribute(src, "schema"),
-            "_yt_dump_restore_pivot_keys": yt.get_attribute(src, "pivot_keys")
-        })
-        # Dump table contents.
-        yt.run_merge(yt.TablePath(src, attributes={"timestamp": ts}), dst, mode="ordered")
-
-def restore(src, dst):
-    # Create destination table.
-    yt.create("table", dst, attributes={
-        "optimize_for": yt.get_attribute(src, "optimize_for", default="lookup"),
-        "schema": yt.get_attribute(src, "schema")
-    })
-    # Make blocks smaller (required for real-time lookups).
-    yt.run_merge(src, dst, mode="ordered", spec={
-        "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
-        "force_transform": True
-    })
-    # Make table dynamic.
-    yt.alter_table(dst, dynamic=True)
-    # Restore tablet structure.
-    yt.reshard_table(dst, yt.get_attribute(src, "_yt_dump_restore_pivot_keys"), sync=True)
-
-# Compact table to make reported size closer to expected (not necessary step, really).
-def force_compact(table):
-    yt.mount_table(table, sync=True)
-    yt.set(table + "/@forced_compaction_revision", 1)
-    yt.remount_table(table)
-
-if __name__ ==  "__main__":
-    parser = argparse.ArgumentParser(description="Dynamic tables dump-restore tool (require {{product-name}} 19.4 or larger).")
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--dump", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Dump dynamic table to static")
-    mode.add_argument("--restore", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Restore dynamic table from static")
-    args = parser.parse_args()
-    if args.dump:
-        dump(*args.dump)
-    if args.restore:
-        restore(*args.restore)
-        force_compact(args.restore[1])
-```
-
-{% endcut %}
-
-
 ## Examples of running the operations
 
-
+Running a Map operation:
 ```bash
 yt map 'grep some_value' --src //path/to/dynamic/table --dst //tmp/output --spec '{pool = "project-pool"; job_count = 100; }'
 ```
 
-
+Running a Reduce operation:
 ```bash
 yt reduce 'python my_reducer.py' --src //path/to/dynamic/table --dst '<sorted_by = ["key"]>'//tmp/output
 ```

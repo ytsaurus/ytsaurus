@@ -1854,15 +1854,25 @@ class TestChaos(ChaosTestBase):
         ts = row[0].attributes["write_timestamps"][0]
 
         if mode == "async":
-            def _insistent_lookup_rows():
-                try:
-                    return lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts)
-                except YtError as err:
-                    if err.contains_text("No in-sync replicas found for table //tmp/crt"):
-                        return []
-                    raise err
-            wait(lambda: _insistent_lookup_rows() == values)
-            row = lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts, versioned=True)
+            def _insistent_lookup_rows(versioned):
+                result = None
+
+                def try_lookup_rows():
+                    try:
+                        nonlocal result
+                        result = lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts, versioned=versioned)
+                    except YtError as err:
+                        if err.is_no_in_sync_replicas():
+                            return False
+                        raise err
+                    return True
+
+                wait(try_lookup_rows)
+                return result
+
+            assert _insistent_lookup_rows(versioned=False) == values
+            # Since we have 2 proxies, the second request could be done to another proxy with older replication card
+            row = _insistent_lookup_rows(versioned=True)
         else:
             row = lookup_rows("//tmp/crt", [{"key": 0}], versioned=True)
 
@@ -3929,7 +3939,7 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.contains_text("No in-sync replicas found for table") or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
+                        if err.is_no_in_sync_replicas() or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
                             return False
                         else:
                             raise err

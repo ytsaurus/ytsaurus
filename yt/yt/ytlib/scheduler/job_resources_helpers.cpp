@@ -127,17 +127,6 @@ TString FormatResourceUsage(
         NNodeTrackerClient::ToString(diskResources, mediumDirectory));
 }
 
-TString FormatResources(const TJobResources& resources)
-{
-    return Format(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
-        resources.GetUserSlots(),
-        resources.GetCpu(),
-        resources.GetGpu(),
-        resources.GetMemory() / 1_MB,
-        resources.GetNetwork());
-}
-
 TString FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(

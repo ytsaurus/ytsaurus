@@ -904,41 +904,41 @@ private:
             blocksWithData,
             blocksSize);
 
+        if (blocksSize == 0) {
+            return VoidFuture;
+        }
+
         // NB: We throttle only heavy responses that contain a non-empty attachment
         // as we want responses containing the information about disk/net throttling
         // to be delivered immediately.
-        if (blocksSize > 0) {
-            context->SetComplete();
 
-            const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
-            auto resultFuture = netThrottler->Throttle(blocksSize);
+        context->SetComplete();
 
-            auto timeoutFraction = GetFallbackTimeoutFraction();
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
+        auto resultFuture = netThrottler->Throttle(blocksSize);
 
-            if (context->GetTimeout() && context->GetStartTime() && timeoutFraction) {
-                auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+        auto timeoutFraction = GetFallbackTimeoutFraction();
 
-                auto throttleFuture = resultFuture
-                    .Apply(BIND([] {
-                        return false;
-                    }));
-                auto fallbackFuture = TDelayedExecutor::MakeDelayed(std::max(deadline - TInstant::Now(), TDuration::Zero()))
-                    .Apply(BIND([] {
-                        return true;
-                    }));
-                return AnySet<bool>({throttleFuture, fallbackFuture})
-                    .Apply(BIND([=] (bool isThrottled) {
-                        if (isThrottled) {
-                            response->set_net_throttling(true);
-                            response->Attachments().clear();
-                        }
-                    }));
-            } else {
-                return resultFuture;
-            }
-        } else {
-            return VoidFuture;
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
+            return resultFuture;
         }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        auto throttleFuture = resultFuture
+            .Apply(BIND([] { return false; }));
+        auto fallbackFuture = TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+            .Apply(BIND([] { return true; }));
+        return AnySet<bool>({std::move(throttleFuture), std::move(fallbackFuture)})
+            .Apply(BIND([=, context = context] (bool isThrottled) {
+                if (isThrottled) {
+                    response->set_net_throttling(true);
+                    response->Attachments().clear();
+                }
+
+                // Directly hold current request context.
+                Y_UNUSED(context);
+            }));
     }
 
     template <class T, class TContext>
@@ -949,17 +949,17 @@ private:
     {
         auto timeoutFraction = GetFallbackTimeoutFraction();
 
-        if (context->GetTimeout() && context->GetStartTime() && timeoutFraction) {
-            auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
-
-            return AnySet<T>({
-                future,
-                TDelayedExecutor::MakeDelayed(std::max(deadline - TInstant::Now(), TDuration::Zero()))
-                    .Apply(fallbackValue)
-            });
-        } else {
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
             return future;
         }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        return AnySet<T>({
+            future,
+            TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+                .Apply(fallbackValue)
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
@@ -1011,7 +1011,7 @@ private:
 
         struct TReadBlocksResult
         {
-            bool ReadFromP2P;
+            bool ReadFromP2P = false;
             std::vector<TBlock> Blocks;
         };
 
@@ -1059,12 +1059,7 @@ private:
             WaitP2PBarriers(request)
                 .Apply(readBlocks),
             context,
-            BIND([] {
-                return TReadBlocksResult{
-                    .ReadFromP2P = false,
-                    .Blocks = std::vector<TBlock>(),
-                };
-            }));
+            BIND([] { return TReadBlocksResult(); }));
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
@@ -1157,9 +1152,7 @@ private:
                     blockCount,
                     options),
                 context,
-                BIND([] {
-                    return std::vector<TBlock>();
-                }))
+                BIND([] { return std::vector<TBlock>(); }))
             : MakeFuture(std::vector<TBlock>());
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,

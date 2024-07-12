@@ -80,6 +80,7 @@ message TReqSettleJob
     required NYT.NProto.TGuid controller_agent_incarnation_id = 3;
 
     required NYT.NProto.TGuid allocation_id = 4;
+    optional NYT.NProto.TGuid last_job_id = 6;
     required NYT.NProto.TGuid operation_id = 5;
 }
 

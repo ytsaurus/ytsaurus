@@ -1435,6 +1435,52 @@ func (e *Encoder) CheckPermission(
 	return
 }
 
+func (e *Encoder) CheckPermissionByACL(
+	ctx context.Context,
+	user string,
+	permission yt.Permission,
+	ACL []yt.ACE,
+	opts *yt.CheckPermissionByACLOptions,
+) (response *yt.CheckPermissionResponse, err error) {
+	if opts == nil {
+		opts = &yt.CheckPermissionByACLOptions{}
+	}
+
+	rpcPermission, err := yt.ConvertPermissionType(&permission)
+	if err != nil {
+		return nil, err
+	}
+
+	serializedACLBytes, err := yson.Marshal(ACL)
+	if err != nil {
+		return nil, err
+	}
+	serializedACLStr := string(serializedACLBytes)
+	req := &rpc_proxy.TReqCheckPermissionByAcl{
+		User:                  &user,
+		Permission:            rpcPermission,
+		Acl:                   &serializedACLStr,
+		IgnoreMissingSubjects: &opts.IgnoreMissingSubjects,
+		PrerequisiteOptions:   convertPrerequisiteOptions(opts.PrerequisiteOptions),
+		MasterReadOptions:     convertMasterReadOptions(opts.MasterReadOptions),
+	}
+
+	call := e.newCall(MethodCheckPermissionByACL, NewCheckPermissionByACLRequest(req), nil)
+
+	var rsp rpc_proxy.TRspCheckPermissionByAcl
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeCheckPermissionByACLResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
+	}
+
+	return
+}
+
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,

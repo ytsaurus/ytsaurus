@@ -2682,7 +2682,7 @@ print '{hello=world}'
         actual_content = []
         current_attrs = {}
         for row in rows:
-            if type(row) == yson.yson_types.YsonEntity:
+            if type(row) is yson.yson_types.YsonEntity:
                 for key, value in row.attributes.items():
                     current_attrs[key] = value
             else:

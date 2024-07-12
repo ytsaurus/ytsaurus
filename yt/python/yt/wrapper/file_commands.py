@@ -201,6 +201,21 @@ def _enrich_with_attributes(path, client=None):
         ))
 
 
+def _get_upload_replication_factor(desired_replication_factor: int, client):
+    # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
+    if is_local_mode(client):
+        replication_factor = 1
+    else:
+        max_replication_factor = get_config(client)["max_replication_factor"]
+        if not max_replication_factor and desired_replication_factor < 3:
+            raise YtError("File cache replication factor cannot be set less than 3")
+        replication_factor = desired_replication_factor
+        if max_replication_factor:
+            replication_factor = min(replication_factor, int(max_replication_factor))
+
+    return replication_factor
+
+
 def write_file(destination, stream,
                file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
                size_hint=None, filename_hint=None, progress_monitor=None, client=None):
@@ -237,13 +252,15 @@ def write_file(destination, stream,
     if size_hint is None:
         size_hint = stream.size
     if size_hint is not None and size_hint <= 16 * MB:
-        file_writer = update(
-            {
-                "enable_early_finish": True,
-                "upload_replication_factor": 3,
-                "min_upload_replication_factor": 2,
-            },
-            get_value(file_writer, {}))
+        replication_factor = _get_upload_replication_factor(desired_replication_factor=3, client=client)
+        if replication_factor >= 3:
+            file_writer = update(
+                {
+                    "enable_early_finish": True,
+                    "upload_replication_factor": 3,
+                    "min_upload_replication_factor": 2,
+                },
+                get_value(file_writer, {}))
 
     params = {}
     set_param(params, "file_writer", file_writer)
@@ -408,18 +425,12 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
             _get_remote_temp_files_directory(client),
             last_two_digits_of_hash,
             os.path.basename(filename))
-        # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
-        if is_local_mode(client) or get_option("_is_testing_mode", client=client):
-            replication_factor = 1
-        else:
-            if get_config(client)["file_cache"]["replication_factor"] < 3:
-                raise YtError("File cache replication factor cannot be set less than 3")
-            replication_factor = get_config(client)["file_cache"]["replication_factor"]
+
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
             "hash": hash,
             "touched": True,
-            "replication_factor": replication_factor
+            "replication_factor": _get_upload_replication_factor(get_config(client)["file_cache"]["replication_factor"], client)
         }
 
         create("file",
@@ -458,17 +469,11 @@ def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None
     if not temp_directory.endswith("/"):
         temp_directory = temp_directory + "/"
     real_destination = find_free_subpath(temp_directory, client=client)
-    if is_local_mode(client) or get_option("_is_testing_mode", client=client):
-        replication_factor = 1
-    else:
-        if get_config(client)["file_cache"]["replication_factor"] < 3:
-            raise YtError("File cache replication factor cannot be set less than 3")
-        replication_factor = get_config(client)["file_cache"]["replication_factor"]
 
     create("file",
            real_destination,
            recursive=True,
-           attributes={"replication_factor": replication_factor},
+           attributes={"replication_factor": _get_upload_replication_factor(get_config(client)["file_cache"]["replication_factor"], client)},
            client=client)
     with open(filename, "rb") as stream:
         if progress_monitor is None:

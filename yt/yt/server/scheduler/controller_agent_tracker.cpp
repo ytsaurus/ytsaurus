@@ -393,6 +393,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto traceContext = NTracing::GetOrCreateTraceContext("HandleAgentFailure");
+        auto guard = NTracing::TCurrentTraceContextGuard(std::move(traceContext));
+
         YT_LOG_WARNING(error, "Agent failed; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
@@ -764,9 +767,17 @@ public:
     }
 
     template <class TMethod, class... TArgs>
-    void DoRun(IInvokerPtr invoker, TMethod method, TArgs&&... args)
+    void DoRun(TString name, IInvokerPtr invoker, TMethod method, TArgs&&... args)
     {
-        auto callback = [this, this_ = MakeStrong(this), method] (TArgs&&... args) mutable {
+        auto callback = [
+            this,
+            this_ = MakeStrong(this),
+            method,
+            name = std::move(name)
+        ] (TArgs&&... args) mutable {
+            auto traceContext = NTracing::GetOrCreateTraceContext(std::move(name));
+            auto guard = NTracing::TCurrentTraceContextGuard(std::move(traceContext));
+
             Bootstrap_->GetScheduler()->ValidateConnected();
             return std::invoke(method, this, std::forward<TArgs>(args)...);
         };
@@ -781,6 +792,7 @@ public:
     void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
         DoRun(
+            "ProcessAgentHandshake",
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
             &TImpl::DoProcessAgentHandshake,
             context);
@@ -789,6 +801,7 @@ public:
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
         DoRun(
+            "ProcessAgentHeartbeat",
             GetHeartbeatInvoker(),
             &TImpl::DoProcessAgentHeartbeat,
             context);
@@ -797,6 +810,7 @@ public:
     void ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
     {
         DoRun(
+            "ProcessAgentScheduleAllocationHeartbeat",
             GetHeartbeatInvoker(),
             &TImpl::DoProcessAgentScheduleAllocationHeartbeat,
             context);

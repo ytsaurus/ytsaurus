@@ -402,7 +402,7 @@ class Restarter(object):
     def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
         self.yt_instance = yt_instance
         self.components = components
-        if type(self.components) == str:
+        if type(self.components) is str:
             self.components = [self.components]
         self.sync = sync
         self.kill_args = args

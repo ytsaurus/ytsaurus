@@ -16,6 +16,11 @@ types:
         column_name: path
         column_type: String
 
+      - cpp_name: TargetPath
+        cpp_type: NYPath::TYPath
+        column_name: target_path
+        column_type: String
+
     verbatim: |
         static constexpr auto Queue = EGroundUpdateQueue::Sequoia;
         static constexpr auto Table = ESequoiaTable::NodeIdToPath;

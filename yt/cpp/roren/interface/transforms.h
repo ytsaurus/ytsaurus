@@ -246,7 +246,7 @@ private:
 };
 
 template <typename F>
-auto ParDo(F func, const TFnAttributes& attributes)
+auto ParDo(F func, const TFnAttributes& attributesPatch)
 {
     using TDecayedF = std::decay_t<F>;
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
@@ -254,7 +254,7 @@ auto ParDo(F func, const TFnAttributes& attributes)
         using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
 
         auto mergedAttributes = func->GetDefaultAttributes();
-        NPrivate::TFnAttributesOps::Merge(mergedAttributes, attributes);
+        NPrivate::TFnAttributesOps::MergePatch(mergedAttributes, attributesPatch);
 
         NPrivate::IRawParDoPtr rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>(), std::move(mergedAttributes));
         return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
@@ -263,7 +263,7 @@ auto ParDo(F func, const TFnAttributes& attributes)
         if constexpr (std::invocable<TDecayedF, TInputRow>) {
             using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
             static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributesPatch);
             return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
         } else {
             using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
@@ -274,7 +274,7 @@ auto ParDo(F func, const TFnAttributes& attributes)
             } else {
                 static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
 
-                auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+                auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributesPatch);
                 return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
             }
         }

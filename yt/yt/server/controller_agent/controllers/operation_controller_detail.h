@@ -208,8 +208,8 @@ private: \
         public,
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (const TSchedulingContext& context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
-        (context, resourceLimits, treeId),
+        (const TAllocationSchedulingContext& context, const TString& treeId),
+        (context, treeId),
         true)
 
     IMPLEMENT_SAFE_METHOD(
@@ -245,7 +245,7 @@ private: \
         public,
         TSharedRef,
         BuildJobSpecProto,
-        (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec),
+        (const TJobletPtr& joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec),
         (joblet, scheduleAllocationSpec),
         false)
 
@@ -266,6 +266,15 @@ private: \
         true);
 
     IMPLEMENT_SAFE_METHOD(private, void, BuildAndSaveProgress, (), (), true);
+
+    IMPLEMENT_SAFE_METHOD_WITH_RETURN_VALUE(
+        public,
+        TJobStartInfo,
+        SettleJob,
+        (TAllocationId allocationId, std::optional<TJobId> lastJobId),
+        (allocationId, lastJobId),
+        false,
+        TJobStartInfo());
 
 #undef IMPLEMENT_SAFE_METHOD
 
@@ -317,7 +326,9 @@ public:
 
     void Cancel() override;
 
-    virtual void BuildProgress(NYTree::TFluentMap fluent) const;
+    // BuildProgress can set alerts, so it can't be const.
+    virtual void BuildProgress(NYTree::TFluentMap fluent);
+
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
@@ -328,8 +339,6 @@ public:
 
     NYson::TYsonString GetProgress() const override;
     NYson::TYsonString GetBriefProgress() const override;
-
-    TJobStartInfo SettleJob(TAllocationId allocationId) override;
 
     NYson::TYsonString GetSuspiciousJobsYson() const override;
 
@@ -505,7 +514,7 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
-    TJobId GenerateJobId(NScheduler::TAllocationId allocationId) override;
+    TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -668,7 +677,7 @@ protected:
 
     void RegisterTask(TTaskPtr task);
 
-    void UpdateTask(const TTaskPtr& task) override;
+    void UpdateTask(TTask* task) override;
 
     void UpdateAllTasks();
 
@@ -685,18 +694,27 @@ protected:
     void CheckMinNeededResourcesSanity();
 
     void DoScheduleAllocation(
-        const TSchedulingContext& context,
-        const NScheduler::TJobResources& resourceLimits,
+        TAllocation& allocation,
+        const TAllocationSchedulingContext& context,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
-    void TryScheduleJob(
-        const TSchedulingContext& context,
-        const NScheduler::TJobResources& resourceLimits,
-        const TString& treeId,
+    void TryScheduleFirstJob(
+        TAllocation& allocation,
+        const TAllocationSchedulingContext& context,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
         bool scheduleLocalJob);
 
+    std::optional<EScheduleFailReason> TryScheduleNextJob(TAllocation& allocation, TJobId lastJobId);
+
+    std::optional<EScheduleFailReason> TryScheduleJob(
+        TAllocation& allocation,
+        TTask& task,
+        const TSchedulingContext& context,
+        bool scheduleLocalJob,
+        std::optional<TJobId> previousJobId);
+
+    TAllocation* FindAllocation(TAllocationId allocationId);
     TJobletPtr FindJoblet(TAllocationId allocationId) const;
     TJobletPtr FindJoblet(TJobId jobId) const;
     TJobletPtr GetJoblet(TJobId jobId) const;
@@ -730,6 +748,7 @@ protected:
     void ValidateInputTablesTypes() const override;
     virtual void ValidateUpdatingTablesTypes() const;
     virtual NObjectClient::EObjectType GetOutputTableDesiredType() const;
+    void ValidateOutputDynamicTablesAllowed() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
@@ -1437,10 +1456,10 @@ private:
 
     bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const override;
     bool IsTreeTentative(const TString& treeId) const;
-    bool IsTreeProbing(const TString& treeId) const;
+    bool IsTreeProbing(const TString& treeId) const override;
     void MaybeBanInTentativeTree(const TString& treeId);
 
-    void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TAllocationId allocationId);
+    void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
@@ -1499,6 +1518,9 @@ private:
     void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
 
     void ClearEmptyAllocationsInRevive();
+
+    bool IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept;
+    TJobId GetLaterJobId(TJobId lhs, TJobId rhs) const noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

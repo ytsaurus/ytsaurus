@@ -1,11 +1,14 @@
 #include "object_service.h"
 
+#include "private.h"
+
 #include "bootstrap.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
-#include "private.h"
-#include "sequoia_service_detail.h"
+#include "path_resolver.h"
+#include "sequoia_service.h"
+#include "sequoia_session.h"
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
@@ -21,8 +24,10 @@ using namespace NConcurrency;
 using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NYTree;
 
 using NYT::FromProto;
+using NSequoiaClient::TRawYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +47,6 @@ public:
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
         , Invoker_(ThreadPool_->GetInvoker())
-        , DynamicConfig_(New<TObjectServiceDynamicConfig>())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
@@ -55,7 +59,6 @@ public:
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
     {
-        DynamicConfig_.Store(config);
         ThreadPool_->Configure(config->ThreadPoolSize);
     }
 
@@ -66,7 +69,7 @@ public:
 
     TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
-        return DynamicConfig_.Acquire();
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
 
 private:
@@ -79,8 +82,6 @@ private:
     const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
 
-    TAtomicIntrusivePtr<TObjectServiceDynamicConfig> DynamicConfig_;
-
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 };
@@ -90,8 +91,9 @@ using TObjectServicePtr = TIntrusivePtr<TObjectService>;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ERequestTarget,
+    (Undetermined)
+    (None) // Request is already executed or parse error occurred.
     (Master)
-    (ForcedMaster)
     (Sequoia)
 );
 
@@ -128,8 +130,9 @@ private:
     struct TSubrequest
     {
         TSharedRefArray RequestMessage;
+        std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
-        ERequestTarget Target;
+        ERequestTarget Target = ERequestTarget::Undetermined;
     };
     std::vector<TSubrequest> Subrequests_;
 
@@ -140,7 +143,7 @@ private:
         if (Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
             PredictNonSequoia();
         } else {
-            PredictSequoia();
+            PredictNonMaster();
             InvokeMasterRequests(/*firstRun*/ true);
         }
 
@@ -157,6 +160,7 @@ private:
 
         auto subrequestCount = request.part_counts_size();
         Subrequests_.resize(subrequestCount);
+
         int currentPartIndex = 0;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
@@ -167,72 +171,78 @@ private:
                 messageBuilder.Add(attachments[currentPartIndex++]);
             }
             subrequest.RequestMessage = messageBuilder.Finish();
-        }
-    }
 
-    bool PredictSequoiaForSubrequest(const TSubrequest& subrequest)
-    {
-        // If this is a rootstock creation request - don't bother master with it.
-        auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
-        if (context->GetMethod() == "Create") {
-            THandlerInvocationOptions options;
-            auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(context, options);
-            if (!typedContext->DeserializeRequest()) {
-                return false;
+            // NB: request header is parsed twice for each subrequest: first
+            // time to predict if it should be handled by master and second time
+            // on sequoia service context creation. We consider such overhead
+            // insignificant.
+            auto& header = subrequest.RequestHeader.emplace();
+            if (!ParseRequestHeader(subrequest.RequestMessage, &header)) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Could not parse subrequest header")
+                    << TErrorAttribute("subrequest_index", index);
             }
-            return FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock;
         }
-
-        // TODO(h0pless): Do something more smart when resolve cache will be implemented.
-        return false;
     }
 
-    bool PredictNonSequoiaForSubrequest(const TSubrequest& subrequest)
+    void PredictNonMaster()
     {
-        auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
-        auto method = context->GetMethod();
+        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
+            auto& subrequest = Subrequests_[index];
 
-        //! Such requests already contain the information about target cell inside the TReqExecute message.
-        if (method == "Fetch" ||
-            method == "BeginUpload" ||
-            method == "GetUploadParams" ||
-            method == "EndUpload")
-        {
-            return true;
-        }
+            YT_VERIFY(subrequest.RequestHeader);
+            YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
 
-        return false;
-    }
+            // If this is a rootstock creation request then don't bother master
+            // with it.
+            if (subrequest.RequestHeader->method() != "Create") {
+                continue;
+            }
 
-    void PredictSequoia()
-    {
-        for (auto& subrequest : Subrequests_) {
-            subrequest.Target = PredictSequoiaForSubrequest(subrequest)
-                ? ERequestTarget::Sequoia
-                : ERequestTarget::Master;
+            auto context = CreateSequoiaServiceContext(subrequest.RequestMessage);
+            auto reqCreate = TryParseReqCreate(context);
+            if (!reqCreate) {
+                // Parse failure.
+                subrequest.Target = ERequestTarget::None;
+                ReplyOnSubrequest(index, context->GetResponseMessage());
+                continue;
+            }
+
+            if (reqCreate->Type == EObjectType::Rootstock) {
+                subrequest.Target = ERequestTarget::Sequoia;
+            }
         }
     }
 
     void PredictNonSequoia()
     {
-        for (auto& subrequest : Subrequests_) {
-            subrequest.Target = PredictNonSequoiaForSubrequest(subrequest)
-                ? ERequestTarget::ForcedMaster
-                : ERequestTarget::Sequoia;
+        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
+            auto& subrequest = Subrequests_[index];
+
+            YT_VERIFY(subrequest.RequestHeader);
+            YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
+
+            const auto& method = subrequest.RequestHeader->method();
+            // Such requests already contain information about target cell
+            // inside the TReqExecute message.
+            if (method == "Fetch" ||
+                method == "BeginUpload" ||
+                method == "GetUploadParams" ||
+                method == "EndUpload")
+            {
+                subrequest.Target = ERequestTarget::Master;
+            }
         }
     }
-
     void InvokeMasterRequests(bool firstRun)
     {
         const auto& request = RpcContext_->Request();
 
-        auto subrequestFilter = firstRun
-            ? [] (const TSubrequest& subrequest) { return subrequest.Target == ERequestTarget::Master; }
-            : [] (const TSubrequest& subrequest) { return subrequest.Target == ERequestTarget::ForcedMaster; };
-
         std::vector<int> subrequestIndices;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            if (subrequestFilter(Subrequests_[index])) {
+            auto target = Subrequests_[index].Target;
+            if (target == ERequestTarget::Undetermined || target == ERequestTarget::Master) {
                 subrequestIndices.push_back(index);
             }
         }
@@ -242,47 +252,45 @@ private:
             return;
         }
 
-        auto req = MasterProxy_.Execute();
+        auto masterRequest = MasterProxy_.Execute();
 
         // Copy request.
-        req->CopyFrom(request);
+        masterRequest->CopyFrom(request);
 
         // Copy authentication identity.
-        SetAuthenticationIdentity(req, RpcContext_->GetAuthenticationIdentity());
+        SetAuthenticationIdentity(masterRequest, RpcContext_->GetAuthenticationIdentity());
 
         // Copy some header extensions.
         auto copyHeaderExtension = [&] (auto tag) {
             if (RpcContext_->RequestHeader().HasExtension(tag)) {
                 const auto& ext = RpcContext_->RequestHeader().GetExtension(tag);
-                req->Header().MutableExtension(tag)->CopyFrom(ext);
+                masterRequest->Header().MutableExtension(tag)->CopyFrom(ext);
             }
         };
         copyHeaderExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
 
         // Fill request with non-Sequoia requests.
-        req->clear_part_counts();
+        masterRequest->clear_part_counts();
 
         for (auto index : subrequestIndices) {
             const auto& subrequest = Subrequests_[index];
             const auto& requestMessage = subrequest.RequestMessage;
-            req->add_part_counts(requestMessage.size());
-            req->Attachments().insert(
-                req->Attachments().end(),
+            masterRequest->add_part_counts(requestMessage.size());
+            masterRequest->Attachments().insert(
+                masterRequest->Attachments().end(),
                 requestMessage.Begin(),
                 requestMessage.End());
         }
 
-        auto rsp = WaitFor(req->Invoke())
+        auto masterResponse = WaitFor(masterRequest->Invoke())
             .ValueOrThrow();
 
-        auto& response = RpcContext_->Response();
-
         int currentPartIndex = 0;
-        for (const auto& subresponse : rsp->subresponses()) {
+        for (const auto& subresponse : masterResponse->subresponses()) {
             auto partCount = subresponse.part_count();
             auto partsRange = TRange<TSharedRef>(
-                rsp->Attachments().begin() + currentPartIndex,
-                rsp->Attachments().begin() + currentPartIndex + partCount);
+                masterResponse->Attachments().begin() + currentPartIndex,
+                masterResponse->Attachments().begin() + currentPartIndex + partCount);
             currentPartIndex += partCount;
 
             auto index = subrequestIndices[subresponse.index()];
@@ -293,53 +301,131 @@ private:
                 continue;
             }
 
-            auto* subresponseInfo = response.add_subresponses();
-            subresponseInfo->set_index(index);
-            subresponseInfo->set_part_count(partCount);
-            response.Attachments().insert(
-                response.Attachments().end(),
-                subresponseMessage.Begin(),
-                subresponseMessage.End());
+            Subrequests_[index].Target = ERequestTarget::None;
+            ReplyOnSubrequest(index, std::move(subresponseMessage));
+        }
+    }
+
+    //! Rewrites subrequest header taking into account resolve result.
+    /*!
+     *  For Cypress resolve result we may want to rewrite target path in case of
+     *  symlink resolution since it cannot be done without Sequoia tables.
+     *
+     *  For Sequoia resolve result we have to rewrite target path because right
+     *  now method resolution in YTree relies on request header containing
+     *  unresolved suffix as target path.
+     */
+    static void MaybeRewriteSubrequestTargetPath(
+        TSubrequest* subrequest,
+        const TResolveResult& resolveResult)
+    {
+        TStringBuf newPath = Visit(resolveResult,
+            [] (const TCypressResolveResult& cypressResolveResult) -> TStringBuf {
+                return cypressResolveResult.Path.Underlying();
+            },
+            [] (const TSequoiaResolveResult& sequoiaResolveResult) -> TStringBuf {
+                return sequoiaResolveResult.UnresolvedSuffix.Underlying();
+            });
+
+
+        auto* ypathExt = subrequest
+            ->RequestHeader
+            ->MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (newPath == ypathExt->target_path()) {
+            // Nothing changed.
+            return;
+        }
+
+        if (!ypathExt->has_original_target_path()) {
+            ypathExt->set_original_target_path(ypathExt->target_path());
+        }
+
+        ypathExt->set_target_path(TString(newPath));
+
+        subrequest->RequestMessage = SetRequestHeader(
+            subrequest->RequestMessage,
+            *subrequest->RequestHeader);
+    }
+
+    //! Either executes subrequest in Sequoia or marks it as non-Sequoia. May
+    //! alter subrequest message due to symlinks resolution.
+    std::optional<TSharedRefArray> ExecuteSequoiaSubrequest(TSubrequest* subrequest)
+    {
+        YT_VERIFY(
+            subrequest->Target == ERequestTarget::Undetermined ||
+            subrequest->Target == ERequestTarget::Sequoia);
+
+        auto client = Owner_->Bootstrap_->GetSequoiaClient();
+        auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
+
+        TSequoiaSessionPtr session;
+        TResolveResult resolveResult;
+        try {
+            session = TSequoiaSession::Start(client);
+            resolveResult = ResolvePath(
+                session,
+                originalTargetPath,
+                subrequest->RequestHeader->method());
+        } catch (const std::exception& ex) {
+            return CreateErrorResponseMessage(ex);
+        }
+
+        MaybeRewriteSubrequestTargetPath(subrequest, resolveResult);
+
+        // NB: this can crash on invalid request header but it has been already
+        // parsed before in order to predict if subrequest should be handled by
+        // master.
+        auto context = CreateSequoiaServiceContext(subrequest->RequestMessage);
+        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
+            ->TryInvoke(context, session, resolveResult);
+        switch (invokeResult) {
+            case ISequoiaService::Executed:
+                return context->GetResponseMessage();
+            case ISequoiaService::ForwardToMaster:
+                subrequest->Target = ERequestTarget::Master;
+                return std::nullopt;
+            default:
+                YT_ABORT();
         }
     }
 
     void InvokeSequoiaRequests()
     {
-        auto& response = RpcContext_->Response();
         auto client = Owner_->Bootstrap_->GetSequoiaClient();
 
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
-            if (subrequest.Target != ERequestTarget::Sequoia) {
+            auto target = subrequest.Target;
+            if (target != ERequestTarget::Undetermined && target != ERequestTarget::Sequoia) {
                 continue;
             }
 
-            const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
-            auto rspFuture = ExecuteVerb(
-                sequoiaService,
-                &subrequest.RequestMessage,
-                client,
-                CypressProxyLogger());
-            auto rsp = WaitFor(rspFuture)
-                .ValueOrThrow();
-            if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
-                subrequest.Target = ERequestTarget::ForcedMaster;
-                continue;
+            if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
+                subrequest.Target = ERequestTarget::None;
+                ReplyOnSubrequest(index, std::move(*subresponse));
             }
-
-            auto* subresponseInfo = response.add_subresponses();
-            subresponseInfo->set_index(index);
-            subresponseInfo->set_part_count(rsp.size());
-            response.Attachments().insert(
-                response.Attachments().end(),
-                rsp.Begin(),
-                rsp.End());
         }
     }
 
     void Reply(const TError& error = {})
     {
         RpcContext_->Reply(error);
+    }
+
+    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    {
+        // Caller is responsible for marking subrequest as executed.
+        YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
+
+        auto& response = RpcContext_->Response();
+
+        auto* subresponseInfo = response.add_subresponses();
+        subresponseInfo->set_index(subrequestIndex);
+        subresponseInfo->set_part_count(subresponseMessage.Size());
+        response.Attachments().insert(
+            response.Attachments().end(),
+            subresponseMessage.Begin(),
+            subresponseMessage.End());
     }
 
     bool CheckSubresponseError(const TSharedRefArray& message, TErrorCode errorCode)
@@ -349,7 +435,7 @@ private:
             subresponse->Deserialize(message);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            return static_cast<bool>(error.FindMatching(errorCode));
+            return error.FindMatching(errorCode).has_value();
         }
 
         return false;

@@ -271,6 +271,9 @@ message TRspConfirmChunk
 {
     optional NYT.NProto.TError error = 1;
     optional TDataStatistics statistics = 2;
+
+    // COMPAT(akozhikhov): Default is set to 1 for compatibility purposes.
+    optional uint64 revision = 3 [default = 1];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

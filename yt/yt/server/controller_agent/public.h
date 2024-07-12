@@ -86,6 +86,7 @@ struct TOperationControllerReviveResult;
 struct TOperationControllerPrepareResult;
 
 class TSchedulingContext;
+class TAllocationSchedulingContext;
 
 class TMasterConnector;
 class TBootstrap;

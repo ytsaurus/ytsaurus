@@ -288,8 +288,8 @@ void TParameterizedReassignSolver::Initialize()
     auto cells = Bundle_->GetAliveCells();
 
     if (cells.empty()) {
-        // Therefore nodes list will be empty and balancing will not be triggered
-        YT_LOG_WARNING("There is no alive cells");
+        // Therefore nodes list will be empty and balancing will not be triggered.
+        YT_LOG_WARNING("There are no alive cells");
         return;
     }
 
@@ -554,7 +554,7 @@ void TParameterizedReassignSolver::CalculateModifyingFactors()
     CellFactor_ = cellCount / totalMetric;
     NodeFactor_ = nodeCount / totalMetric;
 
-    //  Per-cell dispersion is less important than per-node so we decrease its absolute value
+    //  Per-cell dispersion is less important than per-node so we decrease its absolute value.
     CellFactor_ *= nodeCount / cellCount;
 
     YT_LOG_DEBUG(
@@ -653,8 +653,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 .DestinationCell = cell,
                 .Tablet = tablet,
                 .MetricDiff = newMetricDiff,
-            }
-        );
+            });
     }
 }
 
@@ -724,7 +723,8 @@ void TParameterizedReassignSolver::RecomputeInvalidatedActions()
 {
     std::array bannedNodes = {
         BestActionInfo_.SourceCell->Node,
-        BestActionInfo_.DestinationCell->Node};
+        BestActionInfo_.DestinationCell->Node,
+    };
 
     std::vector<TTabletCellInfo*> invalidatedCells;
     invalidatedCells.reserve(MaxCellPerNodeCount_);
@@ -742,7 +742,7 @@ void TParameterizedReassignSolver::RecomputeInvalidatedActions()
                 TryMoveTablet(&tablet, &cell);
             }
         } else {
-            for (auto cell : invalidatedCells) {
+            for (auto* cell : invalidatedCells) {
                 TryMoveTablet(&tablet, cell);
             }
         }

@@ -7,17 +7,19 @@
 #include "helpers.h"
 #include "proto_visitor_traits.h"
 
+#include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> value) const
+TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> errorOrValue) const
 {
-    if (value.IsOK()) {
-        return std::move(value).Value();
+    if (errorOrValue.IsOK()) {
+        return std::move(errorOrValue).Value();
     } else {
-        Throw(value);
+        Throw(errorOrValue);
     }
 }
 
@@ -26,8 +28,7 @@ template <typename... Args>
 {
     THROW_ERROR TError(std::forward<Args>(args)...)
         << TErrorAttribute("path", Tokenizer_.GetPath())
-        << TErrorAttribute("position", Tokenizer_.GetPrefixPlusToken())
-        << TErrorAttribute("stack", Stack_.GetPath());
+        << TErrorAttribute("position", CurrentPath_.GetPath());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +88,7 @@ void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam messageVector, EVis
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        Tokenizer_.Advance();
+        CheckAsterisk();
         VisitWholeVector(messageVector, EVisitReason::Asterisk);
     } else {
         int size = messageVector.size();
@@ -100,8 +101,8 @@ void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam messageVector, EVis
                 std::move(errorOrIndexParseResult));
             return;
         }
-        Tokenizer_.Advance();
         auto& indexParseResult = errorOrIndexParseResult.Value();
+        AdvanceOver(int(indexParseResult.Index));
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
                 VisitScalar(messageVector[indexParseResult.Index], EVisitReason::Path);
@@ -123,16 +124,10 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeVector(
     TVisitParam messageVector,
     EVisitReason reason)
 {
-    if (!AllowAsterisk_ && reason == EVisitReason::Asterisk) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in vector traversals");
-    }
-
     int size = messageVector.size();
     for (int index = 0; !StopIteration_ && index < size; ++index) {
-        NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
-        Stack_.Push(index);
+        auto checkpoint = CheckpointBranchedTraversal(index);
         VisitScalar(messageVector[index], reason);
-        Stack_.Pop();
     }
 }
 
@@ -156,13 +151,13 @@ void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam messageMap, EVisitReas
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        Tokenizer_.Advance();
+        CheckAsterisk();
         VisitWholeMap(messageMap, EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
 
         TString key = Tokenizer_.GetLiteralValue();
-        Tokenizer_.Advance();
+        AdvanceOver(key);
 
         auto it = messageMap.end();
         if constexpr (std::is_same_v<TString, typename TContainerTraits::TMapKey>) {
@@ -194,20 +189,41 @@ template <typename TWrappedMessage>
 template <typename TVisitParam>
 void TProtoVisitor<TWrappedMessage>::VisitWholeMap(TVisitParam messageMap, EVisitReason reason)
 {
-    if (!AllowAsterisk_ && reason == EVisitReason::Asterisk) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in map traversals");
-    }
-
     for (auto& [key, entry] : messageMap) {
-        NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
-        Stack_.Push(key);
+        auto checkpoint = CheckpointBranchedTraversal(key);
         VisitScalar(entry, reason);
-        Stack_.Pop();
     }
 }
 
 template <typename TWrappedMessage>
 void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitReason reason)
+{
+    auto errorOrDescriptor = TTraits::GetDescriptor(message);
+    if (!errorOrDescriptor.IsOK()) {
+        OnDescriptorError(message, reason, std::move(errorOrDescriptor));
+        return;
+    }
+    const auto* descriptor = errorOrDescriptor.Value();
+
+    if (ProcessAttributeDictionary_
+        && descriptor->options().GetExtension(NYson::NProto::attribute_dictionary))
+    {
+        const auto* fieldDescriptor = descriptor->FindFieldByName("attributes");
+        if (!fieldDescriptor) {
+            Throw(EErrorCode::InvalidData, "Misplaced attribute_dictionary option");
+        }
+        VisitAttributeDictionary(message, fieldDescriptor, reason);
+        return;
+    }
+
+    VisitRegularMessage(message, descriptor, reason);
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::VisitRegularMessage(
+    TMessageParam message,
+    const NProtoBuf::Descriptor* descriptor,
+    EVisitReason reason)
 {
     if (PathComplete()) {
         if (VisitEverythingAfterPath_) {
@@ -221,25 +237,17 @@ void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitR
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        Tokenizer_.Advance();
+        CheckAsterisk();
         VisitWholeMessage(message, EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
 
-        auto errorOrDescriptor = TTraits::GetDescriptor(message);
-        if (!errorOrDescriptor.IsOK()) {
-            OnDescriptorError(message, reason, std::move(errorOrDescriptor));
-            return;
-        }
-        const auto* descriptor = errorOrDescriptor.Value();
-
-        const auto* fieldDescriptor = descriptor->FindFieldByName(Tokenizer_.GetLiteralValue());
+        TString name = Tokenizer_.GetLiteralValue();
+        AdvanceOver(name);
+        const auto* fieldDescriptor = descriptor->FindFieldByName(name);
         if (fieldDescriptor) {
-            Tokenizer_.Advance();
             VisitField(message, fieldDescriptor, EVisitReason::Path);
         } else {
-            TString name = Tokenizer_.GetLiteralValue();
-            Tokenizer_.Advance();
             VisitUnrecognizedField(message, descriptor, std::move(name), reason);
         }
     }
@@ -248,11 +256,6 @@ void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitR
 template <typename TWrappedMessage>
 void TProtoVisitor<TWrappedMessage>::VisitWholeMessage(TMessageParam message, EVisitReason reason)
 {
-    if (!AllowAsterisk_ && reason == EVisitReason::Asterisk) {
-        YT_ABORT();
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in message traversals");
-    }
-
     auto errorOrDescriptor = TTraits::GetDescriptor(message);
     if (!errorOrDescriptor.IsOK()) {
         OnDescriptorError(message, reason, std::move(errorOrDescriptor));
@@ -261,11 +264,9 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMessage(TMessageParam message, EV
     const auto* descriptor = errorOrDescriptor.Value();
 
     for (int i = 0; !StopIteration_ && i < descriptor->field_count(); ++i) {
-        NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
         auto* fieldDescriptor = descriptor->field(i);
-        Stack_.Push(fieldDescriptor->name());
+        auto checkpoint = CheckpointBranchedTraversal(fieldDescriptor->name());
         VisitField(message, fieldDescriptor, reason);
-        Stack_.Pop();
     }
 }
 
@@ -297,6 +298,19 @@ void TProtoVisitor<TWrappedMessage>::OnDescriptorError(
     Y_UNUSED(reason);
 
     Throw(std::move(error));
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::VisitAttributeDictionary(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Throw(EErrorCode::Unimplemented, "Cannot handle whole attribute dictionaries");
 }
 
 template <typename TWrappedMessage>
@@ -334,13 +348,13 @@ void TProtoVisitor<TWrappedMessage>::VisitMapField(
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        Tokenizer_.Advance();
+        CheckAsterisk();
         VisitWholeMapField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
 
         TString key = Tokenizer_.GetLiteralValue();
-        Tokenizer_.Advance();
+        AdvanceOver(key);
 
         auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key);
         auto errorOrEntry = TTraits::GetMessageFromMapFieldEntry(
@@ -373,10 +387,6 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMapField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
-    if (!AllowAsterisk_ && reason == EVisitReason::Asterisk) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in map traversals");
-    }
-
     auto errorOrEntries = TTraits::GetMessagesFromWholeMapField(message, fieldDescriptor);
     if (!errorOrEntries.IsOK()) {
         OnKeyError(
@@ -391,10 +401,8 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMapField(
     auto& entries = errorOrEntries.Value();
 
     for (auto& [key, entry] : entries) {
-        NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
-        Stack_.Push(key);
+        auto checkpoint = CheckpointBranchedTraversal(key);
         VisitMapFieldEntry(message, fieldDescriptor, entry, key, reason);
-        Stack_.Pop();
     }
 }
 
@@ -455,7 +463,7 @@ void TProtoVisitor<TWrappedMessage>::VisitRepeatedField(
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        Tokenizer_.Advance();
+        CheckAsterisk();
         VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
         auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
@@ -468,8 +476,9 @@ void TProtoVisitor<TWrappedMessage>::VisitRepeatedField(
             OnIndexError(message, fieldDescriptor, reason, std::move(errorOrIndexParseResult));
             return;
         }
-        Tokenizer_.Advance();
         auto& indexParseResult = errorOrIndexParseResult.Value();
+        AdvanceOver(int(indexParseResult.Index));
+
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
                 VisitRepeatedFieldEntry(
@@ -497,10 +506,6 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeRepeatedField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
-    if (!AllowAsterisk_ && reason == EVisitReason::Asterisk) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in repeated field traversals");
-    }
-
     auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
     if (!errorOrSize.IsOK()) {
         OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
@@ -508,10 +513,8 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeRepeatedField(
     }
 
     for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
-        NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
-        Stack_.Push(index);
+        auto checkpoint = CheckpointBranchedTraversal(index);
         VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
-        Stack_.Pop();
     }
 }
 

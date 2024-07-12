@@ -44,7 +44,7 @@ public:
     void Start();
     void Cleanup();
 
-    TJobPtr EvictJob();
+    TJobPtr EvictJob() noexcept;
     const TJobPtr& GetJob() const;
 
     void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescriptor);
@@ -91,10 +91,14 @@ private:
 
     EAllocationState State_ = EAllocationState::Waiting;
 
+    std::optional<TJobId> LastJobId_;
+
     TJobPtr Job_;
 
     bool Preempted_ = false;
     TError FinishError_;
+
+    const TAllocationConfigPtr& GetConfig() const noexcept;
 
     void SettleJob();
 

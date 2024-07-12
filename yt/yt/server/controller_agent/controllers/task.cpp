@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -490,78 +492,212 @@ bool TTask::ValidateChunkCount(int /*chunkCount*/)
     return true;
 }
 
-void TTask::ScheduleJob(
-    const TSchedulingContext& context,
-    const TJobResources& jobLimits,
-    const TString& treeId,
-    bool treeIsTentative,
-    bool treeIsProbing,
-    TControllerScheduleAllocationResult* scheduleAllocationResult)
+NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
+    const TAllocation& allocation,
+    bool allowIdleCpuPolicy,
+    // COMPAT(pogorelov)
+    const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const
 {
-    if (auto failReason = GetScheduleFailReason(context)) {
-        scheduleAllocationResult->RecordFail(*failReason);
-        return;
+    TAllocationStartDescriptor startDescriptor{
+        .Id = allocation.Id,
+        .ResourceLimits = allocation.Resources,
+        .AllocationAttributes = TAllocationAttributes{
+            .WaitingForResourcesOnNodeTimeout = InferWaitingForResourcesTimeout(
+                allocationSpec),
+            .AllowIdleCpuPolicy = allowIdleCpuPolicy,
+        },
+    };
+
+    if (auto userJobSpec = GetUserJobSpec()) {
+        auto& attributes = startDescriptor.AllocationAttributes;
+
+        attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
+        if (auto& diskRequest = userJobSpec->DiskRequest) {
+            attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
+            attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
+            attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+        }
+        attributes.PortCount = userJobSpec->PortCount;
     }
 
-    if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
-        scheduleAllocationResult->RecordFail(EScheduleFailReason::TentativeTreeDeclined);
-        return;
+    return startDescriptor;
+}
+
+void TTask::CheckAndProcessOperationCompletedInScheduleJob()
+{
+    if (TaskHost_->IsCompleted()) {
+        TaskHost_->OnOperationCompleted(/*interrupted*/ false);
+        YT_LOG_DEBUG("Completed operation while trying to schedule a job");
+    }
+}
+
+std::expected<TTask::TOutputCookieInfo, EScheduleFailReason>
+TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
+{
+    auto chunkPoolOutput = GetChunkPoolOutput();
+    bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
+
+    auto nodeId = NodeIdFromAllocationId(allocation.Id);
+
+    TOutputCookieInfo result;
+
+    if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
+        result.CompetitionType = EJobCompetitionType::Probing;
+        result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
+    } else if (ExperimentJobManager_.IsTreatmentReady()) {
+        result.CompetitionType = EJobCompetitionType::Experiment;
+        result.OutputCookie = ExperimentJobManager_.PeekJobCandidate();
+    } else if (speculative) {
+        result.CompetitionType = EJobCompetitionType::Speculative;
+        result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
+    } else {
+        result.CompetitionType = std::nullopt;
+        auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
+        result.OutputCookie = ExtractCookie(localityNodeId);
+        if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
+            YT_LOG_DEBUG("Job input is empty");
+
+            CheckAndProcessOperationCompletedInScheduleJob();
+
+            return std::unexpected(EScheduleFailReason::EmptyInput);
+        }
+    }
+
+    return result;
+}
+
+std::expected<TTask::TOutputCookieInfo, EScheduleFailReason>
+TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
+{
+    const auto& chunkPoolOutput = GetChunkPoolOutput();
+    bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
+
+    auto nodeId = NodeIdFromAllocationId(allocation.Id);
+
+    TOutputCookieInfo result;
+
+    if (auto competitionType = allocation.LastJobInfo.CompetitionType.value_or(EJobCompetitionType::Speculative);
+        competitionType == EJobCompetitionType::Probing)
+    {
+        result.CompetitionType = EJobCompetitionType::Probing;
+        result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
+    } else if (competitionType == EJobCompetitionType::Experiment) {
+        if (!ExperimentJobManager_.IsTreatmentReady()) {
+            return std::unexpected(EScheduleFailReason::NoPendingJobs);
+        }
+
+        result.CompetitionType = EJobCompetitionType::Experiment;
+        result.OutputCookie = ExperimentJobManager_.PeekJobCandidate();
+    } else {
+        YT_VERIFY(competitionType == EJobCompetitionType::Speculative);
+
+        if (speculative) {
+            result.CompetitionType = EJobCompetitionType::Speculative;
+            result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
+        } else {
+            result.CompetitionType = std::nullopt;
+            auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
+            result.OutputCookie = ExtractCookie(localityNodeId);
+            if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
+                YT_LOG_DEBUG("Job input is empty");
+
+                if (!allocation.LastJobInfo.CompetitionType) {
+                    CheckAndProcessOperationCompletedInScheduleJob();
+                }
+
+                return std::unexpected(EScheduleFailReason::EmptyInput);
+            }
+        }
+    }
+
+    return result;
+}
+
+std::optional<EScheduleFailReason> TTask::TryScheduleJob(
+    TAllocation& allocation,
+    const TSchedulingContext& context,
+    std::optional<TJobId> previousJobId,
+    bool treeIsTentative)
+{
+    auto Logger = this->Logger.WithTag("AllocationId: %v", context.GetAllocationId());
+    if (auto failReason = GetScheduleFailReason(context)) {
+        return *failReason;
+    }
+
+    auto cookieInfoOrError = previousJobId
+        ? GetOutputCookieInfoForNextJob(allocation)
+        : GetOutputCookieInfoForFirstJob(allocation);
+    if (!cookieInfoOrError) {
+        return cookieInfoOrError.error();
+    }
+
+    auto cookieInfo = std::move(cookieInfoOrError.value());
+
+    auto result =  TryScheduleJob(
+        allocation,
+        context,
+        TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId())),
+        treeIsTentative,
+        cookieInfo.OutputCookie,
+        cookieInfo.CompetitionType);
+
+    if (result) {
+        if (!previousJobId) {
+            const auto& joblet = allocation.Joblet;
+
+            allocation.LastJobInfo.CompetitionType = joblet->CompetitionType;
+            allocation.PoolPath = joblet->PoolPath;
+            allocation.Task = this;
+            allocation.NodeDescriptor = joblet->NodeDescriptor;
+            allocation.Resources = result.value();
+        }
+
+        return std::nullopt;
+    } else {
+        return result.error();
+    }
+}
+
+std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::TryScheduleJob(
+    TAllocation& allocation,
+    const TSchedulingContext& context,
+    TJobId jobId,
+    bool treeIsTentative,
+    NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+    std::optional<EJobCompetitionType> competitionType)
+{
+    auto abortJob = [&] (EAbortReason abortReason) {
+        if (!competitionType) {
+            auto chunkPoolOutput = GetChunkPoolOutput();
+            chunkPoolOutput->Aborted(outputCookie, abortReason);
+        }
+    };
+
+    if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
+        abortJob(EAbortReason::Other);
+        return std::unexpected(EScheduleFailReason::TentativeTreeDeclined);
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
-        scheduleAllocationResult->RecordFail(EScheduleFailReason::TentativeSpeculativeForbidden);
-        return;
+        abortJob(EAbortReason::Other);
+        return std::unexpected(EScheduleFailReason::TentativeSpeculativeForbidden);
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
     int taskJobIndex = TaskJobIndexGenerator_.Next();
-    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId, treeIsTentative);
+    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, allocation.TreeId, treeIsTentative);
     joblet->StartTime = TInstant::Now();
     joblet->PoolPath = context.GetPoolPath();
 
-    auto nodeId = context.GetNodeDescriptor()->Id;
-    const auto& address = context.GetNodeDescriptor()->Address;
-
-    if (treeIsProbing) {
-        joblet->CompetitionType = EJobCompetitionType::Probing;
-        joblet->OutputCookie = ProbingJobManager_.PeekJobCandidate();
-    } else if (ExperimentJobManager_.IsTreatmentReady()) {
-        joblet->CompetitionType = EJobCompetitionType::Experiment;
-        joblet->OutputCookie = ExperimentJobManager_.PeekJobCandidate();
-    } else if (speculative) {
-        joblet->CompetitionType = EJobCompetitionType::Speculative;
-        joblet->OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
-    } else {
-        joblet->CompetitionType = std::nullopt;
-        auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
-        joblet->OutputCookie = ExtractCookie(localityNodeId);
-        if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-            YT_LOG_DEBUG("Job input is empty");
-
-            if (TaskHost_->IsCompleted()) {
-                TaskHost_->OnOperationCompleted(/*interrupted*/ false);
-                YT_LOG_DEBUG("Completed operation while trying to schedule a job");
-            }
-
-            scheduleAllocationResult->RecordFail(EScheduleFailReason::EmptyInput);
-            return;
-        }
-    }
-
-    auto abortJob = [&] (EScheduleFailReason allocationFailReason, EAbortReason abortReason) {
-        if (!joblet->CompetitionType) {
-            chunkPoolOutput->Aborted(joblet->OutputCookie, abortReason);
-        }
-        scheduleAllocationResult->RecordFail(allocationFailReason);
-    };
+    joblet->OutputCookie = outputCookie;
+    joblet->CompetitionType = competitionType;
 
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
-
     if (!ValidateChunkCount(sliceCount)) {
-        abortJob(EScheduleFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
-        return;
+        abortJob(EAbortReason::IntermediateChunkLimitExceeded);
+        return std::unexpected(EScheduleFailReason::IntermediateChunkLimitExceeded);
     }
 
     const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
@@ -570,8 +706,8 @@ void TTask::ScheduleJob(
             YT_LOG_DEBUG(
                 "Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
-            abortJob(EScheduleFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
-            return;
+            abortJob(EAbortReason::SchedulingJobSpecThrottling);
+            return std::unexpected(EScheduleFailReason::JobSpecThrottling);
         }
     } else {
         jobSpecSliceThrottler->Acquire(sliceCount);
@@ -579,6 +715,7 @@ void TTask::ScheduleJob(
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
+    // TODO(pogorelov): Think about changes in chunk pools for better working with allocations with several jobs.
     auto findIt = ResourceOverdraftedOutputCookieToState_.find(joblet->OutputCookie);
     if (findIt != ResourceOverdraftedOutputCookieToState_.end()) {
         const auto& state = findIt->second;
@@ -635,22 +772,20 @@ void TTask::ScheduleJob(
     }
 
     // Check the usage against the limits. This is the last chance to give up.
-    if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
-        !CanSatisfyDiskQuotaRequests(context.DiskResources(), {neededResources.DiskQuota()}))
+    if (!context.CanSatisfyDemand(neededResources))
     {
         YT_LOG_DEBUG(
-            "Actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
-            jobLimits,
-            NScheduler::ToString(context.DiskResources(), TaskHost_->GetMediumDirectory()),
+            "Actual resource demand is not met (AvailableResources: %v, NeededResources: %v)",
+            context.GetResourcesString(TaskHost_->GetMediumDirectory()),
             FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
-        abortJob(EScheduleFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
+        abortJob(EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
-        return;
+        return std::unexpected(EScheduleFailReason::NotEnoughResources);
     }
 
-    joblet->JobId = TaskHost_->GenerateJobId(context.GetAllocationId());
+    joblet->JobId = jobId;
 
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobScheduled(joblet);
@@ -676,30 +811,6 @@ void TTask::ScheduleJob(
     AddJobTypeToJoblet(joblet);
 
     joblet->JobInterruptible = IsJobInterruptible();
-
-    TAllocationStartDescriptor startDescriptor{
-        .Id = AllocationIdFromJobId(joblet->JobId),
-        .ResourceLimits = neededResources,
-        .AllocationAttributes = TAllocationAttributes{
-            .WaitingForResourcesOnNodeTimeout = InferWaitingForResourcesTimeout(
-                context.GetScheduleAllocationSpec()),
-        },
-    };
-
-    if (userJobSpec) {
-        auto& attributes = startDescriptor.AllocationAttributes;
-
-        attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
-        if (auto& diskRequest = userJobSpec->DiskRequest) {
-            attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
-            attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
-            attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
-        }
-        attributes.PortCount = userJobSpec->PortCount;
-    }
-
-    scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
-
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
@@ -727,7 +838,7 @@ void TTask::ScheduleJob(
         "Interruptible: %v)",
         joblet->JobId,
         joblet->JobType,
-        address,
+        context.GetNodeDescriptor().Address,
         jobIndex,
         joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
@@ -782,7 +893,9 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
-        scheduleAllocationSpec = context.GetScheduleAllocationSpec(),
+        scheduleAllocationSpec = context.GetScheduleAllocationSpec()
+            ? std::make_optional(*context.GetScheduleAllocationSpec())
+            : std::nullopt,
         discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
         Logger = Logger
     ] {
@@ -809,6 +922,8 @@ void TTask::ScheduleJob(
         // Start timers explicitly, because when the first job starts, StartTime_ is not set.
         OnPendingJobCountUpdated();
     }
+
+    return neededResources;
 }
 
 bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
@@ -1644,7 +1759,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
 }
 
 std::optional<TDuration> TTask::InferWaitingForResourcesTimeout(
-    const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec)
+    const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const
 {
     if (TaskHost_->GetSpec()->WaitingJobTimeout && allocationSpec.has_waiting_for_resources_on_node_timeout()) {
         return std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout()));
@@ -1798,7 +1913,7 @@ bool TTask::IsInputDataWeightHistogramSupported() const
     return true;
 }
 
-TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1819,8 +1934,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
         jobSpecExt->set_is_traced(true);
     }
 
-    if (auto waitingJobTimeout = InferWaitingForResourcesTimeout(scheduleAllocationSpec)) {
-        jobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
+    if (scheduleAllocationSpec) {
+        if (auto waitingJobTimeout = InferWaitingForResourcesTimeout(*scheduleAllocationSpec)) {
+            jobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
+        }
     }
 
     // Adjust sizes if approximation flag is set.
@@ -2328,7 +2445,8 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     i64 statisticsLimit = TaskHost_->GetOptions()->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
-    UpdateAggregatedJobStatistics(
+    SafeUpdateAggregatedJobStatistics(
+        TaskHost_,
         AggregatedFinishedJobStatistics_,
         joblet->GetAggregationTags(jobSummary.State),
         *joblet->JobStatistics,

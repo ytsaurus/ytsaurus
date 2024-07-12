@@ -126,7 +126,10 @@ i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
 {
     i64 chunkCount = 0;
     for (const auto& scraper : ChunkScrapers_) {
-        chunkCount += scraper->GetUnavailableChunkCount();
+        // NB(coteeq): Can be null if UnavailableChunkStrategy != EUnavailableChunkAction::Wait.
+        if (scraper) {
+            chunkCount += scraper->GetUnavailableChunkCount();
+        }
     }
     return chunkCount;
 }
@@ -135,7 +138,7 @@ i64 TUnavailableChunksWatcher::GetUnavailableChunkCount() const
 
 TCombiningSamplesFetcher::TCombiningSamplesFetcher(
     std::vector<TSamplesFetcherPtr> samplesFetchers)
-: SamplesFetchers_(std::move(samplesFetchers))
+    : SamplesFetchers_(std::move(samplesFetchers))
 { }
 
 TFuture<void> TCombiningSamplesFetcher::Fetch() const
@@ -1092,7 +1095,7 @@ void TInputManager::OnInputChunkAvailable(
 
         const auto& task = inputStripe.Task;
         task->GetChunkPoolInput()->Resume(inputStripe.Cookie);
-        Host_->UpdateTask(task);
+        Host_->UpdateTask(task.Get());
     }
 }
 
@@ -1136,7 +1139,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     inputStripe.Task->GetChunkMapping()->OnChunkDisappeared(chunk);
                 }
 
-                Host_->UpdateTask(inputStripe.Task);
+                Host_->UpdateTask(inputStripe.Task.Get());
             }
             Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
             break;
@@ -1336,7 +1339,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     const NTableClient::TTableSchemaPtr& sampleSchema,
     NTableClient::TRowBufferPtr rowBuffer,
     i64 sampleCount,
-    i32 maxSampleSize) const
+    int maxSampleSize) const
 {
     std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
     std::vector<TSamplesFetcherPtr> samplesFetchers;

@@ -2,7 +2,6 @@ package jupyt
 
 import (
 	"context"
-	"fmt"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
@@ -10,10 +9,6 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
-)
-
-const (
-	JupytPort = 27042
 )
 
 type Config struct {
@@ -45,12 +40,10 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
-	// TODO(max): take port from YT_PORT_0.
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
 
-	cmd := fmt.Sprintf(
-		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
+	cmd := "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
 	jupyterEnv := map[string]string{
 		"NB_GID":  "0",
 		"NB_UID":  "0",
@@ -130,7 +123,47 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 }
 
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
-	return nil
+	speclet := parsedSpeclet.(Speclet)
+
+	return []strawberry.OptionGroupDescriptor{
+		{
+			Title: "Jupyt params",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "Docker image",
+					Name:         "jupyter_docker_image",
+					Type:         strawberry.TypeString,
+					CurrentValue: speclet.JupyterDockerImage,
+					Description:  "A docker image containing jupyt and required stuff.",
+				},
+			},
+		},
+		{
+			Title: "Resources",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "CPU",
+					Name:         "cpu",
+					Type:         strawberry.TypeInt64,
+					CurrentValue: speclet.CPU,
+					DefaultValue: DefaultCPU,
+					MinValue:     1,
+					MaxValue:     100,
+					Description:  "Number of CPU cores.",
+				},
+				{
+					Title:        "Total memory",
+					Name:         "memory",
+					Type:         strawberry.TypeByteCount,
+					CurrentValue: speclet.Memory,
+					DefaultValue: DefaultMemory,
+					MinValue:     2 * gib,
+					MaxValue:     300 * gib,
+					Description:  "Amount of RAM in bytes.",
+				},
+			},
+		},
+	}
 }
 
 func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {

@@ -440,7 +440,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->dst_id());
-        // TODO(h0pless): Add cypress transaction id here.
+        // TODO(kvk1920): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
         auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId);

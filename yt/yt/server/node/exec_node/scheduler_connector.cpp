@@ -78,8 +78,7 @@ void TSchedulerConnector::Initialize()
 }
 
 void TSchedulerConnector::Start()
-{
-}
+{ }
 
 void TSchedulerConnector::OnDynamicConfigChanged(
     const TSchedulerConnectorDynamicConfigPtr& /*oldConfig*/,
@@ -271,6 +270,8 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
 void TSchedulerConnector::OnMasterConnected()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_INFO("Starting heartbeats to scheduler");
 
     HeartbeatExecutor_->Start();
@@ -278,6 +279,8 @@ void TSchedulerConnector::OnMasterConnected()
 
 void TSchedulerConnector::OnMasterDisconnected()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_INFO("Stopping heartbeats to scheduler");
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());

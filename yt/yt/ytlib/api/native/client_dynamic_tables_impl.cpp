@@ -56,7 +56,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -335,8 +335,8 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
 
-    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Primary];
-    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
+    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
     const auto& indices = tableInfo->Indices;
 
     const TColumnSchema* unfoldedColumn{};
@@ -389,15 +389,9 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     for (const auto& tableColumn : tableSchema.Columns()) {
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
-        if (indexColumn && *indexColumn->LogicalType() == *tableColumn.LogicalType()) {
-            replacedColumns.insert(indexColumn->Name());
-        }
-
-        if (!tableColumn.SortOrder()) {
+        if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
             continue;
         }
-
-        YT_ASSERT(indexColumn && indexColumn->SortOrder());
 
         auto* indexReference = head->New<NAst::TReferenceExpression>(
             NullSourceLocation,
@@ -411,6 +405,11 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         indexJoinColumns.push_back(indexReference);
         tableJoinColumns.push_back(tableReference);
     }
+
+    THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
+        "Misuse of operator WITH INDEX, tables %v and %v have no shared columns",
+        query.Table.Path,
+        index.Path);
 
     query.WherePredicate = NAst::TTableReferenceReplacer(
         head,
@@ -540,7 +539,7 @@ private:
         auto tableSchema = GetTableSchema(path, tableInfo);
         return TDataSplit{
             .ObjectId = tableInfo->TableId,
-            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIoMode::LatestTimestamp
+            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIOMode::LatestTimestamp
                 ? ToLatestTimestampSchema(tableSchema)
                 : std::move(tableSchema),
             .MountRevision = tableInfo->PrimaryRevision,

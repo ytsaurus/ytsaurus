@@ -35,6 +35,7 @@ static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
     "/dev/nvidia-uvm"
 };
+static const TString DummyGpuDriverVersion = "dummy";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +120,11 @@ void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
 TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)
 {
     std::vector<int> result;
+
+    if (driverVersionString == DummyGpuDriverVersion) {
+        return {result};
+    }
+
     auto components = StringSplitter(driverVersionString).Split('.');
 
     try {

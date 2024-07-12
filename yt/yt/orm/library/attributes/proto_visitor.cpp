@@ -2,6 +2,8 @@
 
 #include "helpers.h"
 
+#include <library/cpp/yt/misc/variant.h>
+
 #include <util/string/cast.h>
 
 namespace NYT::NOrm::NAttributes {
@@ -24,6 +26,47 @@ void TProtoVisitorBase::SkipSlash()
     Throw(EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
 }
 
+void TProtoVisitorBase::AdvanceOver(TToken token)
+{
+    if (!PathComplete()) {
+        Tokenizer_.Advance();
+    }
+    Visit(token,
+        [this] (int index) { CurrentPath_.Push(index); },
+        [this] (TStringBuf key) { CurrentPath_.Push(key); });
+}
+
+TProtoVisitorBase::TCheckpoint::TCheckpoint(NYPath::TTokenizer& tokenizer)
+    : TokenizerCheckpoint_(tokenizer)
+{ }
+
+TProtoVisitorBase::TCheckpoint::~TCheckpoint()
+{
+    if (Defer_) {
+        Defer_();
+    }
+}
+
+void TProtoVisitorBase::TCheckpoint::Defer(std::function<void()> defer)
+{
+    if (Defer_) {
+        Defer_ = [oldDefer = std::move(Defer_), defer = std::move(defer)] () {
+            oldDefer();
+            defer();
+        };
+    } else {
+        Defer_ = defer;
+    }
+}
+
+TProtoVisitorBase::TCheckpoint TProtoVisitorBase::CheckpointBranchedTraversal(TToken token)
+{
+    TCheckpoint result(Tokenizer_);
+    AdvanceOver(token);
+    result.Defer([this] () { CurrentPath_.Pop(); });
+    return result;
+}
+
 void TProtoVisitorBase::Expect(NYPath::ETokenType type) const
 {
     if (Tokenizer_.GetType() == type) {
@@ -42,6 +85,13 @@ void TProtoVisitorBase::Expect(NYPath::ETokenType type) const
     Throw(error);
 }
 
+void TProtoVisitorBase::CheckAsterisk() const
+{
+    if (!AllowAsterisk_) {
+        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks");
+    }
+}
+
 bool TProtoVisitorBase::PathComplete() const
 {
     return Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
@@ -51,7 +101,7 @@ void TProtoVisitorBase::Reset(NYPath::TYPathBuf path)
 {
     Tokenizer_.Reset(path);
     Tokenizer_.Advance();
-    Stack_.Reset();
+    CurrentPath_.Reset();
     StopIteration_ = false;
 }
 
@@ -127,13 +177,20 @@ std::unique_ptr<Message> TProtoVisitorBase::MakeMapKeyMessage(
             break;
         }
         default: {
-            Throw(EErrorCode::InvalidMap,
+            Throw(EErrorCode::InvalidData,
                 "Fields of type %v are not supported as map keys",
                 keyFieldDescriptor->type_name());
         }
     }
 
     return result;
+}
+
+void TProtoVisitorBase::ThrowOnError(TError error) const
+{
+    if (!error.IsOK()) {
+        Throw(error);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

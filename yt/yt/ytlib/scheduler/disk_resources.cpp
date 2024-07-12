@@ -67,7 +67,8 @@ void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResource
     builder->AppendFormat(
         "{Locations: [%v], DefaultMediumIndex: %v}",
         MakeFormattableView(diskResources.DiskLocationResources, [] (TStringBuilderBase* builder, const TDiskResources::TDiskLocationResources& locationResources) {
-            builder->AppendFormat("{Usage: %v, Limit: %v, MediumIndex: %v}",
+            builder->AppendFormat(
+                "{Usage: %v, Limit: %v, MediumIndex: %v}",
                 locationResources.Usage,
                 locationResources.Limit,
                 locationResources.MediumIndex);

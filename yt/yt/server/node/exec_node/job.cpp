@@ -1609,6 +1609,7 @@ void TJob::SetStored()
 
     Stored_ = true;
     LastStoredTime_ = TInstant::Now();
+    StoredEvent_.TrySet();
 }
 
 bool TJob::IsGrowingStale(TDuration maxDelay) const
@@ -1620,7 +1621,14 @@ bool TJob::IsGrowingStale(TDuration maxDelay) const
     return LastStoredTime_ + maxDelay <= TInstant::Now();
 }
 
-void TJob::OnEvictedFromAllocation()
+TFuture<void> TJob::GetStoredEvent() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StoredEvent_;
+}
+
+void TJob::OnEvictedFromAllocation() noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1628,7 +1636,7 @@ void TJob::OnEvictedFromAllocation()
     PrepareResourcesRelease();
 }
 
-void TJob::PrepareResourcesRelease()
+void TJob::PrepareResourcesRelease() noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -2374,7 +2382,6 @@ TFuture<void> TJob::StopJobProxy()
     return slot->CleanProcesses();
 }
 
-// Finalization.
 void TJob::Cleanup()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -2425,7 +2432,7 @@ void TJob::Cleanup()
     // Release resources.
     GpuStatistics_.clear();
 
-    if (IsStarted() && !Allocation_) {
+    if (IsStarted() && IsEvicted()) {
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
@@ -2458,7 +2465,7 @@ void TJob::Cleanup()
         }
     }
 
-    if (!Allocation_) {
+    if (IsEvicted()) {
         ResourceHolder_->ReleaseBaseResources();
     }
 
@@ -2508,6 +2515,11 @@ TFuture<void> TJob::GetCleanupFinishedEvent()
 const TAllocationPtr& TJob::GetAllocation() const noexcept
 {
     return Allocation_;
+}
+
+bool TJob::IsEvicted() const
+{
+    return !GetAllocation();
 }
 
 // Preparation.

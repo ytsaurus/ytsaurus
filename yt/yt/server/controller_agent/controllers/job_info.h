@@ -44,7 +44,23 @@ struct TAllocation
     TAllocationId Id;
 
     TJobletPtr Joblet;
-    TJobId LastJobId;
+
+    NScheduler::TJobResourcesWithQuota Resources;
+    TString TreeId;
+    std::optional<TString> PoolPath;
+    TJobNodeDescriptor NodeDescriptor;
+
+    TTask* Task = nullptr;
+
+    struct TLastJobInfo
+    {
+        TJobId JobId;
+        std::optional<EJobCompetitionType> CompetitionType;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    TLastJobInfo LastJobInfo;
 
     void Persist(const TPersistenceContext& context);
 };

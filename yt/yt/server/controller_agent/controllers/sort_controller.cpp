@@ -886,13 +886,13 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             if (IsIntermediate()) {
-                Controller_->UpdateTask(GetNextPartitionTask());
+                Controller_->UpdateTask(GetNextPartitionTask().Get());
             } else if (Controller_->SimpleSort) {
-                Controller_->UpdateTask(Controller_->SimpleSortTask);
+                Controller_->UpdateTask(Controller_->SimpleSortTask.Get());
             } else {
-                Controller_->UpdateTask(Controller_->UnorderedMergeTask);
-                Controller_->UpdateTask(Controller_->IntermediateSortTask);
-                Controller_->UpdateTask(Controller_->FinalSortTask);
+                Controller_->UpdateTask(Controller_->UnorderedMergeTask.Get());
+                Controller_->UpdateTask(Controller_->IntermediateSortTask.Get());
+                Controller_->UpdateTask(Controller_->FinalSortTask.Get());
             }
 
             auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
@@ -977,7 +977,7 @@ protected:
             if (IsIntermediate()) {
                 const auto& nextPartitionTask = GetNextPartitionTask();
                 nextPartitionTask->FinishInput();
-                Controller_->UpdateTask(nextPartitionTask);
+                Controller_->UpdateTask(nextPartitionTask.Get());
             } else {
                 if (Controller_->FinalSortTask) {
                     Controller_->FinalSortTask->Finalize();
@@ -1256,7 +1256,7 @@ protected:
             Controller_->CheckMergeStartThreshold();
 
             if (!IsFinalSort_) {
-                Controller_->UpdateTask(Controller_->SortedMergeTask);
+                Controller_->UpdateTask(Controller_->SortedMergeTask.Get());
             }
 
             return result;
@@ -1268,7 +1268,7 @@ protected:
 
             Controller_->UpdateTask(this);
             if (!Controller_->SimpleSort) {
-                Controller_->UpdateTask(Controller_->GetFinalPartitionTask());
+                Controller_->UpdateTask(Controller_->GetFinalPartitionTask().Get());
             }
         }
 
@@ -2285,7 +2285,7 @@ protected:
                 task = FinalSortTask;
             }
 
-            UpdateTask(task);
+            UpdateTask(task.Get());
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataWeight += partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
@@ -2584,15 +2584,15 @@ protected:
 
     void UpdateSortTasks()
     {
-        UpdateTask(SimpleSortTask);
-        UpdateTask(IntermediateSortTask);
-        UpdateTask(FinalSortTask);
+        UpdateTask(SimpleSortTask.Get());
+        UpdateTask(IntermediateSortTask.Get());
+        UpdateTask(FinalSortTask.Get());
     }
 
     void UpdateMergeTasks()
     {
-        UpdateTask(UnorderedMergeTask);
-        UpdateTask(SortedMergeTask);
+        UpdateTask(UnorderedMergeTask.Get());
+        UpdateTask(SortedMergeTask.Get());
     }
 
     std::optional<TLocalityEntry> GetLocalityEntry(TNodeId nodeId) const
@@ -3250,7 +3250,10 @@ private:
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
-                    ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
+                    ValidateOutputSchemaCompatibility({
+                        .IgnoreSortOrder = true,
+                        .ForbidExtraComputedColumns = false,
+                        .IgnoreStableNamesDifference = true});
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
@@ -3896,7 +3899,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent
@@ -4836,7 +4839,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent

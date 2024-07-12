@@ -29,7 +29,7 @@ bool CompTOwningYaMRRow(const NTest::TOwningYaMRRow& x, const NTest::TOwningYaMR
 
 bool CompTEmailRecord(const TEmailRecord& x, const TEmailRecord& y)
 {
-    return x.GetName() < y.GetName();
+    return x.name() < y.name();
 }
 
 } // namespace
@@ -259,14 +259,14 @@ TEST(TParallelUnorderedWriterTest, ProtoTest)
 {
     TVector<TEmailRecord> write;
     TEmailRecord emailRecord;
-    emailRecord.SetName("name");
-    emailRecord.SetEmail("mail");
+    emailRecord.set_name("name");
+    emailRecord.set_email("mail");
     write.push_back(emailRecord);
-    emailRecord.SetName("name2");
-    emailRecord.SetEmail("mail2");
+    emailRecord.set_name("name2");
+    emailRecord.set_email("mail2");
     write.push_back(emailRecord);
-    emailRecord.SetName("name3");
-    emailRecord.SetEmail("mail3");
+    emailRecord.set_name("name3");
+    emailRecord.set_email("mail3");
     write.push_back(emailRecord);
     TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -286,8 +286,8 @@ TEST(TParallelUnorderedWriterTest, ProtoTest)
     Sort(read.begin(), read.end(), CompTEmailRecord);
     EXPECT_EQ(read.size(), write.size());
     for (size_t i = 0; i < read.size(); ++i) {
-        EXPECT_EQ(read[i].GetName(), write[i].GetName());
-        EXPECT_EQ(read[i].GetEmail(), write[i].GetEmail());
+        EXPECT_EQ(read[i].name(), write[i].name());
+        EXPECT_EQ(read[i].email(), write[i].email());
     }
 }
 
