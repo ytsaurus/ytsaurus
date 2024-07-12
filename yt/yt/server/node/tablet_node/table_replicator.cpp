@@ -198,10 +198,10 @@ private:
                     << HardErrorAttribute;
             }
 
-
             const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-            const auto& counters = replicaSnapshot->Counters;
+            auto& counters = replicaSnapshot->Counters;
+
             auto countError = Finally([&] {
                 if (std::uncaught_exception()) {
                     counters.ReplicationErrorCount.Increment();
@@ -342,11 +342,16 @@ private:
             i64 batchRowCount;
             i64 batchDataWeight;
 
-            // TODO(savrus): profile chunk reader statistics.
             TClientChunkReadOptions chunkReadOptions{
                 .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
-                .ReadSessionId = TReadSessionId::Create()
+                .ReadSessionId = TReadSessionId::Create(),
             };
+
+            auto updateChunkReaderStatisticsGuard = Finally([&] {
+                counters.ChunkReaderStatisticsCounters.Increment(
+                    chunkReadOptions.ChunkReaderStatistics,
+                    /*failed*/ std::uncaught_exception());
+            });
 
             {
                 TEventTimerGuard timerGuard(counters.ReplicationRowsReadTime);
@@ -453,6 +458,7 @@ private:
             counters.ReplicationBatchDataWeight.Record(batchDataWeight);
             counters.ReplicationRowCount.Increment(batchRowCount);
             counters.ReplicationDataWeight.Increment(batchDataWeight);
+
             YT_LOG_DEBUG("Rows replicated (RowCount: %v, DataWeight: %v, ThrottleTime: %v, RelativeThrottleTime: %v, "
                 "TransactionStartTime: %v, RowsReadTime: %v, RowsWriteTime: %v, TransactionCommitTime: %v)",
                 batchRowCount,

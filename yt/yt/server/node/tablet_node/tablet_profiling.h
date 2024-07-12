@@ -265,6 +265,8 @@ struct TReplicaCounters
     NProfiling::TCounter ReplicationRowCount;
     NProfiling::TCounter ReplicationDataWeight;
     NProfiling::TCounter ReplicationErrorCount;
+
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
