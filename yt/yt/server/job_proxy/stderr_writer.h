@@ -34,8 +34,7 @@ class TStderrWriter
     : public IOutputStream
 {
 public:
-    explicit TStderrWriter(
-        size_t sizeLimit = std::numeric_limits<size_t>::max());
+    explicit TStderrWriter(size_t sizeLimit);
 
     // COMPAT(ignat)
     NChunkClient::TChunkId GetChunkId() const;

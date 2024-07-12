@@ -150,6 +150,7 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
     stringStream.Reserve(GetCurrentSize());
     SaveCurrentDataTo(&stringStream, request.Offset || request.Limit);
     auto str = stringStream.Str();
+    i64 endOffset = TotalSize_;
     const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(str.size()) ? TotalSize_ - str.size() : 0;
     size_t first;
     i64 limit = request.Limit;
@@ -161,7 +162,7 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
             if (request.Limit > 0) {
                 limit = request.Limit - (currentFirstAbsolutePos - request.Offset);
                 if (limit < 0) {
-                    return {.Data = "", .TotalSize = TotalSize_, .EndOffset = request.Offset};
+                    return {.Data = "", .TotalSize = TotalSize_, .EndOffset = request.Offset + request.Limit};
                 }
             }
         }
@@ -170,12 +171,18 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
             first = 0;
         } else {
             first = str.size() + request.Offset;
+        }
+    }
     if (request.Offset || request.Limit) {
         if (first >= str.size()) {
             str = "";
+            endOffset = 0;
         } else {
-            str = str.substr(first, limit ? first + limit : str.npos);
-    return {.Data = str, .TotalSize = TotalSize_, .EndOffset = TotalSize_};
+            str = str.substr(first, limit ? limit : str.npos);
+            endOffset = currentFirstAbsolutePos + first + str.size();
+        }
+    }
+    return {.Data = str, .TotalSize = TotalSize_, .EndOffset = endOffset};
 }
 
 size_t TStderrWriter::GetCurrentSize() const
