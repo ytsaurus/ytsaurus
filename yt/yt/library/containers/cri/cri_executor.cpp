@@ -467,6 +467,11 @@ public:
                 security->mutable_run_as_group()->set_value(*containerSpec->Credentials.Gid);
             }
             ToProto(security->mutable_supplemental_groups(), containerSpec->Credentials.Groups);
+
+            auto* capabilities = security->mutable_capabilities();
+            for (const auto& capability : containerSpec->CapabilitiesToAdd) {
+                capabilities->add_add_capabilities(capability);
+            }
         }
 
         FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);

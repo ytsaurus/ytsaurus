@@ -111,6 +111,9 @@ struct TCriContainerSpec
 
     //! Environment variable to set in the container.
     THashMap<TString, TString> Environment;
+
+    //! Capabilities to add to the container.
+    std::vector<TString> CapabilitiesToAdd;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriContainerSpec)

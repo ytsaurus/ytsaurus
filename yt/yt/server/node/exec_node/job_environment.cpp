@@ -1138,13 +1138,25 @@ private:
             spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
             spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
 
-            // If there are Infiniband devices in the system, bind them to the container.
-            for (const auto& devicePath : ListInfinibandDevices()) {
+            // If there are InfiniBand devices in the system, bind them to the container.
+            auto infinibandDevices = ListInfinibandDevices();
+            for (const auto& devicePath : infinibandDevices) {
                 spec->BindDevices.push_back(NCri::TCriBindDevice{
                     .ContainerPath = devicePath,
                     .HostPath = devicePath,
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                 });
+            }
+
+            YT_LOG_DEBUG_UNLESS(
+                infinibandDevices.empty(),
+                "Binding InfiniBand devices to job container (Devices: %v)",
+                infinibandDevices);
+
+            // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+            // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+            if (!infinibandDevices.empty()) {
+                spec->CapabilitiesToAdd.push_back("IPC_LOCK");
             }
         }
 
