@@ -66,6 +66,7 @@ DEFINE_BIT_ENUM(ECriBindDevicePermissions,
     ((Write)  (0x02))
     ((Create) (0x04))
 );
+
 struct TCriBindDevice
 {
     TString ContainerPath;
