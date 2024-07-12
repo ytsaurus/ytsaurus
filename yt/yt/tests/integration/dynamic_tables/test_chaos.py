@@ -3374,12 +3374,18 @@ class TestChaos(ChaosTestBase):
         crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
         crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
 
+        for crt in [crt1, crt2]:
+            assert get("{0}/@collocated_replication_card_ids".format(crt)) == []
+
         collocation_id = create("replication_card_collocation", None, attributes={
             "type": "replication",
             "table_paths": [crt1, crt2]
         })
+
+        cards = sorted([card1, card2])
         for crt in [crt1, crt2]:
             assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
+            assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
 
         def _get_orchid(cell_id, path):
             address = get("#{0}/@peers/0/address".format(cell_id))

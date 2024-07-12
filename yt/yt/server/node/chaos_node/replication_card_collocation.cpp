@@ -47,6 +47,7 @@ void TReplicationCardCollocation::ValidateNotMigrating() const
 std::vector<TReplicationCardId> TReplicationCardCollocation::GetReplicationCardIds() const
 {
     std::vector<TReplicationCardId> result;
+    result.reserve(ReplicationCards_.size());
     for (auto* replicationCard : ReplicationCards_) {
         result.push_back(replicationCard->GetId());
     }
