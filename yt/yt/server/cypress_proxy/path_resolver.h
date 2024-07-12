@@ -30,7 +30,7 @@ struct TCypressResolveResult
 
 //! Resolves path via Sequoia tables. If path is not resolved returns
 //! |TCypressResolveResult|. Takes optional output parameter #history. History
-//! consists of encountered symlinks.
+//! consists of encountered links.
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
     NSequoiaClient::TRawYPath rawPath,

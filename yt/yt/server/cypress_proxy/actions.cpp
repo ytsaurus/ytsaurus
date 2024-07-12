@@ -8,9 +8,9 @@
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
-#include <yt/ytlib/sequoia_client/records/child_node.record.h>
-#include <yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-#include <yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -27,7 +27,6 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 
-using namespace NCypressClient::NProto;
 using namespace NCypressServer::NProto;
 
 using NYT::FromProto;
@@ -40,10 +39,10 @@ namespace {
 void WriteSequoiaNodeRows(
     TNodeId id,
     TAbsoluteYPathBuf path,
-    const std::optional<TAbsoluteYPath>& symlinkTargetPath,
+    const std::optional<TAbsoluteYPath>& linkTargetPath,
     const ISequoiaTransactionPtr& transaction)
 {
-    YT_VERIFY(IsLinkType(TypeFromId(id)) == symlinkTargetPath.has_value());
+    YT_VERIFY(IsLinkType(TypeFromId(id)) == linkTargetPath.has_value());
 
     transaction->WriteRow(NRecords::TPathToNodeId{
         .Key = {.Path = path.ToMangledSequoiaPath()},
@@ -53,7 +52,7 @@ void WriteSequoiaNodeRows(
     auto record = NRecords::TNodeIdToPath{
         .Key = {.NodeId = id},
         .Path = path.ToRawYPath().Underlying(),
-        .TargetPath = NYPath::TYPath(symlinkTargetPath ? symlinkTargetPath->Underlying() : ""),
+        .TargetPath = NYPath::TYPath(linkTargetPath ? linkTargetPath->Underlying() : ""),
     };
 
     transaction->WriteRow(record);
@@ -219,6 +218,21 @@ void LockRowInNodeIdToPathTable(
     ELockType lockType)
 {
     transaction->LockRow(NRecords::TNodeIdToPathKey{.NodeId = nodeId}, lockType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)
+{
+    protoOptions->set_mode(static_cast<int>(options.Mode));
+    protoOptions->set_preserve_acl(options.PreserveAcl);
+    protoOptions->set_preserve_account(options.PreserveAccount);
+    protoOptions->set_preserve_owner(options.PreserveOwner);
+    protoOptions->set_preserve_creation_time(options.PreserveCreationTime);
+    protoOptions->set_preserve_modification_time(options.PreserveModificationTime);
+    protoOptions->set_preserve_expiration_time(options.PreserveExpirationTime);
+    protoOptions->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
+    protoOptions->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

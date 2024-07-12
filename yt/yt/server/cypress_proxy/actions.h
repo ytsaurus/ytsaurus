@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
-
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
@@ -71,9 +69,6 @@ void LockRowInNodeIdToPathTable(
 void ToProto(
     NCypressServer::NProto::TReqCloneNode::TCloneOptions* protoOptions,
     const TCopyOptions& options);
-void FromProto(
-    TCopyOptions* options,
-    const NCypressClient::NProto::TReqCopy& protoOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

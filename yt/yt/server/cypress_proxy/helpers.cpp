@@ -5,8 +5,6 @@
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
-#include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
-
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -17,7 +15,6 @@ namespace NYT::NCypressProxy {
 
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
-using namespace NCypressServer::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
@@ -43,7 +40,7 @@ TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
 {
     return Visit(resolveResult,
         [] (const TCypressResolveResult& resolveResult) -> TAbsoluteYPath {
-            // NB: Cypress resolve result doesn't contain unresolved symlinks.
+            // NB: Cypress resolve result doesn't contain unresolved links.
             return TAbsoluteYPath(resolveResult.Path);
         },
         [] (const TSequoiaResolveResult& resolveResult) -> TAbsoluteYPath {
@@ -63,7 +60,7 @@ void ValidateLinkNodeCreation(
     // TODO(danilalexeev): In case of a master-object root designator the
     // following resolve will not produce a meaningful result. Such YPath has to
     // be resolved by master first.
-    // TODO(kvk1920): probably works (since symlinks are stored in both resolve
+    // TODO(kvk1920): probably works (since links are stored in both resolve
     // tables now), but has to be tested.
     auto linkPath = GetCanonicalYPath(resolveResult);
 
@@ -184,19 +181,6 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)
-{
-    protoOptions->set_mode(static_cast<int>(options.Mode));
-    protoOptions->set_preserve_acl(options.PreserveAcl);
-    protoOptions->set_preserve_account(options.PreserveAccount);
-    protoOptions->set_preserve_owner(options.PreserveOwner);
-    protoOptions->set_preserve_creation_time(options.PreserveCreationTime);
-    protoOptions->set_preserve_modification_time(options.PreserveModificationTime);
-    protoOptions->set_preserve_expiration_time(options.PreserveExpirationTime);
-    protoOptions->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
-    protoOptions->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
-}
 
 void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
 {

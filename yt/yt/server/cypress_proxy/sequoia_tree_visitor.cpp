@@ -1,7 +1,5 @@
 #include "sequoia_tree_visitor.h"
 
-#include "private.h"
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/producer.h>
@@ -26,9 +24,9 @@ public:
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
         int maxAllowedNodeDepth,
-        const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
+        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
         const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
-        : Consumer(consumer)
+        : Consumer_(consumer)
         , AttributeFilter_(attributeFilter)
         , MaxAllowedNodeDepth_(maxAllowedNodeDepth)
         , NodeIdToChildren_(std::move(nodeIdToChildren))
@@ -41,10 +39,10 @@ public:
     }
 
 private:
-    NYson::IAsyncYsonConsumer* const Consumer;
+    NYson::IAsyncYsonConsumer* const Consumer_;
     const TAttributeFilter AttributeFilter_;
     const int MaxAllowedNodeDepth_;
-    const THashMap<TNodeId, std::vector<NRecords::TChildNode>> NodeIdToChildren_;
+    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>> NodeIdToChildren_;
     const THashMap<TNodeId, TYPathProxy::TRspGetPtr> NodeIdToMasterResponse_;
 
     void VisitAny(TNodeId nodeId, int currentNodeDepth)
@@ -54,7 +52,7 @@ private:
         if (AttributeFilter_) {
             auto masterResponse = GetOrCrash(NodeIdToMasterResponse_, nodeId)->value();
             auto node = ConvertToNode(NYson::TYsonString(masterResponse));
-            node->WriteAttributes(Consumer, AttributeFilter_, /*stable*/ true);
+            node->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
         }
 
         auto nodeType = TypeFromId(nodeId);
@@ -85,23 +83,23 @@ private:
         auto node = ConvertToNode(NYson::TYsonString(masterResponse));
         switch (nodeType) {
             case EObjectType::StringNode:
-                Consumer->OnStringScalar(node->AsString()->GetValue());
+                Consumer_->OnStringScalar(node->AsString()->GetValue());
                 break;
 
             case EObjectType::Int64Node:
-                Consumer->OnInt64Scalar(node->AsInt64()->GetValue());
+                Consumer_->OnInt64Scalar(node->AsInt64()->GetValue());
                 break;
 
             case EObjectType::Uint64Node:
-                Consumer->OnUint64Scalar(node->AsUint64()->GetValue());
+                Consumer_->OnUint64Scalar(node->AsUint64()->GetValue());
                 break;
 
             case EObjectType::DoubleNode:
-                Consumer->OnDoubleScalar(node->AsDouble()->GetValue());
+                Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());
                 break;
 
             case EObjectType::BooleanNode:
-                Consumer->OnBooleanScalar(node->AsBoolean()->GetValue());
+                Consumer_->OnBooleanScalar(node->AsBoolean()->GetValue());
                 break;
 
             default:
@@ -111,7 +109,7 @@ private:
 
     void VisitEntity(TNodeId /*nodeId*/)
     {
-        Consumer->OnEntity();
+        Consumer_->OnEntity();
     }
 
     void VisitMap(TNodeId nodeId, int currentNodeDepth)
@@ -121,16 +119,16 @@ private:
         // since returning entity could result in an extra request from user.
         // TODO(h0pless): Think about adding other heuristics from opaque setter script.
         if (currentNodeDepth == MaxAllowedNodeDepth_ && !children.empty()) {
-            Consumer->OnEntity();
+            Consumer_->OnEntity();
             return;
         }
 
-        Consumer->OnBeginMap();
-        for (const auto& [key, child] : children) {
-            Consumer->OnKeyedItem(key.ChildKey);
-            VisitAny(child, currentNodeDepth);
+        Consumer_->OnBeginMap();
+        for (const auto& childDescriptor : children) {
+            Consumer_->OnKeyedItem(childDescriptor.ChildKey);
+            VisitAny(childDescriptor.ChildId, currentNodeDepth);
         }
-        Consumer->OnEndMap();
+        Consumer_->OnEndMap();
     }
 };
 
@@ -141,7 +139,7 @@ void VisitSequoiaTree(
     int maxAllowedNodeDepth,
     NYson::IYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
-    const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
+    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
     const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
 {
     NYson::TAsyncYsonConsumerAdapter adapter(consumer);
@@ -159,7 +157,7 @@ void VisitSequoiaTree(
     int maxAllowedNodeDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
-    const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
+    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
     const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
 {
     TSequoiaTreeVisitor treeVisitor(

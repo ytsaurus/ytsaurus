@@ -309,7 +309,7 @@ private:
     //! Rewrites subrequest header taking into account resolve result.
     /*!
      *  For Cypress resolve result we may want to rewrite target path in case of
-     *  symlink resolution since it cannot be done without Sequoia tables.
+     *  link resolution since it cannot be done without Sequoia tables.
      *
      *  For Sequoia resolve result we have to rewrite target path because right
      *  now method resolution in YTree relies on request header containing
@@ -348,7 +348,7 @@ private:
     }
 
     //! Either executes subrequest in Sequoia or marks it as non-Sequoia. May
-    //! alter subrequest message due to symlinks resolution.
+    //! alter subrequest message due to links resolution.
     std::optional<TSharedRefArray> ExecuteSequoiaSubrequest(TSubrequest* subrequest)
     {
         YT_VERIFY(

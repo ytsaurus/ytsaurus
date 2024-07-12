@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/sequoia_client/records/child_node.record.h>
+#include "public.h"
 
 #include<yt/yt/client/cypress_client/public.h>
 
@@ -18,7 +18,7 @@ void VisitSequoiaTree(
     int maxDepth,
     NYson::IYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
-    const THashMap<NCypressClient::TNodeId, std::vector<NSequoiaClient::NRecords::TChildNode>>& nodeIdToChildren,
+    const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
     const THashMap<NCypressClient::TNodeId, NYTree::TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse);
 
 // NB: Same as the above, but using async consumer instead of a sync one.
@@ -27,7 +27,7 @@ void VisitSequoiaTree(
     int maxDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
-    const THashMap<NCypressClient::TNodeId, std::vector<NSequoiaClient::NRecords::TChildNode>>& nodeIdToChildren,
+    const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
     const THashMap<NCypressClient::TNodeId, NYTree::TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse);
 
 ////////////////////////////////////////////////////////////////////////////////
