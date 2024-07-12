@@ -243,6 +243,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         GetIdleCpuFraction());
 
     auto slotInitTimeout = DynamicConfig_.Acquire()->SlotInitTimeout;
+    FreeSlots_.clear();
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
             .WithTimeout(slotInitTimeout);
@@ -253,7 +254,6 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 if (error.IsOK()) {
                     FreeSlots_.push(slotIndex);
                 } else {
-                    FreeSlots_.clear();
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
                     JobEnvironment_->Disable(std::move(wrappedError));
                 }
