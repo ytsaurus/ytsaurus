@@ -12,7 +12,7 @@ from yt.packages import requests
 from yt.test_helpers import wait, get_tests_sandbox
 from yt.test_helpers.job_events import JobEvents
 
-from yt.testlib import (yatest_common, authors, check_rows_equality, set_config_option, set_config_options)  # noqa
+from yt.testlib import (yatest_common, authors, check_rows_equality, set_config_option, set_config_options, set_cypress_attribute)  # noqa
 
 import yt.logger as logger
 import yt.yson as yson

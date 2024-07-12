@@ -3,7 +3,7 @@ from __future__ import print_function
 from typing import Optional, Tuple
 
 from . import common
-from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, _validate_operation_link_pattern  # noqa
+from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, RemotePatchableInteger, _validate_operation_link_pattern  # noqa
 from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
 from .errors import YtConfigError
 from .mappings import VerifiedDict
@@ -422,6 +422,12 @@ default_config = {
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
+    # Maximum replication factor which is used by client for uploading different files and tables (like cache, for example).
+    # If `replication_factor` passed explicitly, this option will be ignored.
+    # If |None|, replication factor will not be limited and default values will be used.
+    # NB: this option can be overridden with settings from cluster.
+    "max_replication_factor": RemotePatchableInteger(None, "max_replication_factor"),
+
     "file_cache": {
         "replication_factor": 10,
     },
@@ -735,6 +741,8 @@ SHORTCUTS = {
 
     "USE_HOSTS": "proxy/enable_proxy_discovery",
     "HOSTS": "proxy/proxy_discovery_url",
+
+    "MAX_REPLICATION_FACTOR": "max_replication_factor",
 
     "ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE": "yamr_mode/always_set_executable_flag_on_files",
     "USE_MAPREDUCE_STYLE_DESTINATION_FDS": "yamr_mode/use_yamr_style_destination_fds",

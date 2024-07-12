@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option, inject_http_error
+from .helpers import TEST_DIR, set_config_option, inject_http_error, get_tests_sandbox, set_cypress_attribute
 
 import yt.json_wrapper as json
 import yt.yson as yson
@@ -13,11 +13,14 @@ import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
 
+from yt.wrapper.file_commands import upload_file_to_cache
+
 import yt.type_info as typing
 
 from flaky import flaky
 
 import copy
+import os
 import sys
 import time
 import pytest
@@ -960,3 +963,48 @@ class TestCypressCommandsMulticell(object):
 
         assert yt.row_count(table_beyond_portal) == 2
         assert yt.row_count(table_no_portal) == 2
+
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestCypressCommandsWithReplication(object):
+
+    @authors("nadya73")
+    def test_write_file(self):
+        with set_config_option("is_local_mode", False):
+            default_file_replication_factor_path = "//sys/@config/cypress_manager/default_file_replication_factor"
+            with set_cypress_attribute(default_file_replication_factor_path, 1):
+                yt.write_file("//tmp/a", b"Hello a")
+                assert yt.get("//tmp/a/@replication_factor") == 1
+
+            with set_cypress_attribute(default_file_replication_factor_path, 3):
+                yt.write_file("//tmp/b", b"Hello b")
+                assert yt.get("//tmp/b/@replication_factor") == 3
+
+    @authors("nadya73")
+    def test_upload_file_to_cache(self):
+        filepath = os.path.join(get_tests_sandbox(), "my_file.txt")
+
+        with set_cypress_attribute("//sys/@config/cypress_manager/default_file_replication_factor", 3):
+            config = copy.deepcopy(yt.config.config)
+            config["is_local_mode"] = False
+
+            config["max_replication_factor"] = None
+            with open(filepath, "w") as f:
+                f.write("2")
+                f.flush()
+                path = upload_file_to_cache(filepath, client=yt.YtClient(config=config))
+                assert yt.get(f"{path}/@replication_factor") == config["file_cache"]["replication_factor"]
+
+            config["max_replication_factor"] = 2
+            with open(filepath, "w") as f:
+                f.write("3")
+                f.flush()
+                path = upload_file_to_cache(filepath, client=yt.YtClient(config=config))
+                assert yt.get(f"{path}/@replication_factor") == 2
+
+            config["max_replication_factor"] = 3
+            with open(filepath, "w") as f:
+                f.write("4")
+                f.flush()
+                path = upload_file_to_cache(filepath, client=yt.YtClient(config=config))
+                assert yt.get(f"{path}/@replication_factor") == 3

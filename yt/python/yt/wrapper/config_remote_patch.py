@@ -202,6 +202,25 @@ class RemotePatchableBoolean(RemotePatchableValueBase):
         return [bool, yson.YsonBoolean]
 
 
+class RemotePatchableInteger(RemotePatchableValueBase):
+    def __eq__(self, other):
+        if self.value is None or other.value is None:
+            return self.value is None and other.value is None
+        return int(self) == int(other)
+
+    def __ne__(self, other):
+        return not (self.value is None and other.value is None) and int(self) != int(other)
+
+    def to_yson_type(self):
+        if self.value is None:
+            return yson.YsonEntity()
+        return yson.YsonInt64(int(self))
+
+    @staticmethod
+    def _allowed_remote_type():
+        return [int, yson.YsonInteger]
+
+
 def _validate_operation_link_pattern(local_value, remote_value):
     ret = remote_value.replace("{operation_id}", "{id}").replace("{cluster_ui_host}", "{proxy}")
     try:
