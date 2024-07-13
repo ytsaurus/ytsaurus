@@ -547,7 +547,28 @@ private:
         }
     }
 
-    TQueryStatistics DoCoordinateAndExecute(std::vector<std::vector<TDataSource>> groupedDataSplits)
+    static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)
+    {
+        size_t minKeyWidth = std::numeric_limits<size_t>::max();
+        for (const auto& split : dataSources) {
+            for (const auto& range : split.Ranges) {
+                minKeyWidth = std::min({
+                    minKeyWidth,
+                    GetSignificantWidth(range.first),
+                    GetSignificantWidth(range.second)});
+            }
+
+            for (const auto& key : split.Keys) {
+                minKeyWidth = std::min(
+                    minKeyWidth,
+                    static_cast<size_t>(key.GetCount()));
+            }
+        }
+
+        return minKeyWidth;
+    }
+
+    TQueryStatistics DoCoordinateAndExecute(std::vector<std::vector<TDataSource>> groupedDataSplits, size_t minKeyWidth)
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -609,28 +630,13 @@ private:
                     remoteExecutor,
                     dataSplits,
                     orderedExecution,
+                    minKeyWidth,
                     this,
                     this_ = MakeStrong(this)
                 ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
                     auto remoteOptions = QueryOptions_;
                     remoteOptions.MaxSubqueries = 1;
                     remoteOptions.MergeVersionedRows = true;
-
-                    size_t minKeyWidth = std::numeric_limits<size_t>::max();
-                    for (const auto& split : dataSplits) {
-                        for (const auto& range : split.Ranges) {
-                            minKeyWidth = std::min({
-                                minKeyWidth,
-                                GetSignificantWidth(range.first),
-                                GetSignificantWidth(range.second)});
-                        }
-
-                        for (const auto& key : split.Keys) {
-                            minKeyWidth = std::min(
-                                minKeyWidth,
-                                static_cast<size_t>(key.GetCount()));
-                        }
-                    }
 
                     YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v)",
                         joinClause->CommonKeyPrefix,
@@ -871,6 +877,8 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
         auto classifiedDataSources = GetClassifiedDataSources(rowBuffer);
 
+        auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
+
         auto splits = CoordinateDataSources(classifiedDataSources, rowBuffer);
 
         std::vector<std::vector<TDataSource>> groupedDataSplits;
@@ -927,7 +935,7 @@ private:
 
         YT_VERIFY(splitOffset == splitCount);
 
-        return DoCoordinateAndExecute(std::move(groupedDataSplits));
+        return DoCoordinateAndExecute(std::move(groupedDataSplits), minKeyWidth);
     }
 
     std::vector<TDataSource> GetClassifiedDataSources(const TRowBufferPtr& rowBuffer)
