@@ -47,7 +47,7 @@ std::vector<TUnversionedRow> CopyAndConvertFromPI(
     NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues = true);
 
-TPIValueRange CaptureUnversionedValueRange(
+TMutablePIValueRange CaptureUnversionedValueRange(
     TExpressionContext* context,
     TRange<TValue> range);
 
