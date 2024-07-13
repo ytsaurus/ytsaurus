@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/async_looper.h>
 
 #include <yt/yt/core/misc/finally.h>
 
@@ -56,6 +57,22 @@ public:
     , Proxy_(masterChannel)
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
+        Looper_ = New<TAsyncLooper>(
+            Invoker_,
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this), strongThis = MakeStrong(this)] (bool cleanStart) {
+                if (auto strongThis = weakThis.Lock()) {
+                    return strongThis->LocateChunksAsync(cleanStart);
+                }
+                // Break loop.
+                return TFuture<void>();
+            }),
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (bool cleanStart) {
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->LocateChunksSync(cleanStart);
+                }
+            }),
+            "ScraperTask",
+            Logger);
     }
 
     //! Starts periodic polling.
@@ -64,24 +81,16 @@ public:
         YT_LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
-        LocateFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
-            if (!Started_) {
-                Started_ = true;
-                NextChunkIndex_ = 0;
-
-                LocateChunks();
-            }
-        }).Via(Invoker_));
+        Looper_->Start();
     }
 
     //! Stops periodic polling.
-    TFuture<void> Stop()
+    void Stop()
     {
         YT_LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
-        Started_ = false;
-        return LocateFuture_;
+        Looper_->Stop();
     }
 
 private:
@@ -92,7 +101,7 @@ private:
     const TChunkLocatedHandler OnChunkLocated_;
     const IInvokerPtr Invoker_;
 
-    TFuture<void> LocateFuture_ = VoidFuture;
+    TAsyncLooperPtr Looper_;
 
     //! Non-const since we would like to shuffle it, to avoid scraping the same chunks
     //! on every restart.
@@ -102,38 +111,31 @@ private:
 
     TChunkServiceProxy Proxy_;
 
-    std::atomic<bool> Started_ = { false };
     int NextChunkIndex_ = 0;
 
 
-    void LocateChunks()
+    TFuture<void> LocateChunksAsync(bool /*cleanStart*/)
     {
-        if (!Started_.load() || ChunkIds_.empty()) {
-            return;
-        }
-
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
-        LocateFuture_ = Throttler_->Throttle(chunkCount)
-            .Apply(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
-                .AsyncVia(Invoker_));
+        if (chunkCount == 0) {
+            return TFuture<void>(); // Break loop.
+        }
+
+        return Throttler_->Throttle(chunkCount);
     }
 
-    void DoLocateChunks(const TError& error)
+    void LocateChunksSync(bool cleanStart)
     {
-        if (!Started_) {
-            return;
+        if (cleanStart) {
+            NextChunkIndex_ = 0;
         }
 
-        auto finallyGuard = Finally([&] () {
-            LocateChunks();
-        });
+        DoLocateChunks();
+    }
 
-        if (!error.IsOK()) {
-            YT_LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
-            return;
-        }
-
+    void DoLocateChunks()
+    {
         if (NextChunkIndex_ >= std::ssize(ChunkIds_)) {
             NextChunkIndex_ = 0;
         }
@@ -234,11 +236,10 @@ void TChunkScraper::Start()
 
 TFuture<void> TChunkScraper::Stop()
 {
-    std::vector<TFuture<void>> futures;
     for (const auto& task : ScraperTasks_) {
-        futures.push_back(task->Stop());
+        task->Stop();
     }
-    return AllSucceeded(futures);
+    return VoidFuture;
 }
 
 void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
