@@ -44,4 +44,5 @@ target_sources(library-query-engine_api PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/top_collector.cpp
 )

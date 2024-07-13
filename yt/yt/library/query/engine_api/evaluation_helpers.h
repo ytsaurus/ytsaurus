@@ -109,11 +109,6 @@ using TJoinLookup = google::dense_hash_map<
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
-using TJoinLookupRows = std::unordered_multiset<
-    const TPIValue*,
-    NDetail::TGroupHasher,
-    NDetail::TRowComparer>;
-
 struct TLookupRowInRowsetWebAssemblyContext
 {
     std::unique_ptr<TLookupRows> LookupTable;
@@ -243,59 +238,6 @@ struct TExecutionContext
         Y_UNUSED(context);
         CHECK_STACK();
     }
-};
-
-class TTopCollector
-{
-public:
-    TTopCollector(
-        i64 limit,
-        NWebAssembly::TCompartmentFunction<TComparerFunction> comparer,
-        size_t rowSize,
-        IMemoryChunkProviderPtr memoryChunkProvider);
-
-    std::vector<const TPIValue*> GetRows() const;
-
-    void AddRow(const TPIValue* row);
-
-private:
-    // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
-    size_t TotalMemorySize_ = 0;
-    size_t AllocatedMemorySize_ = 0;
-    size_t GarbageMemorySize_ = 0;
-
-    class TComparer
-    {
-    public:
-        explicit TComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer)
-            : Comparer_(comparer)
-        { }
-
-        bool operator() (const std::pair<const TPIValue*, int>& lhs, const std::pair<const TPIValue*, int>& rhs) const
-        {
-            return (*this)(lhs.first, rhs.first);
-        }
-
-        bool operator () (const TPIValue* a, const TPIValue* b) const
-        {
-            return Comparer_(a, b);
-        }
-
-    private:
-        NWebAssembly::TCompartmentFunction<TComparerFunction> const Comparer_;
-    };
-
-    TComparer Comparer_;
-    size_t RowSize_;
-    IMemoryChunkProviderPtr MemoryChunkProvider_;
-
-    std::vector<TExpressionContext> Contexts_;
-    std::vector<int> EmptyContextIds_;
-    std::vector<std::pair<const TPIValue*, int>> Rows_;
-
-    std::pair<const TPIValue*, int> Capture(const TPIValue* row);
-
-    void AccountGarbage(const TPIValue* row);
 };
 
 struct TRowSchemaInformation
