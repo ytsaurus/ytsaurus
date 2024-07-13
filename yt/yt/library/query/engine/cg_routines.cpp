@@ -677,13 +677,7 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    auto asPositionIndependent = InplaceConvertToPI(row);
-                    auto captured = CapturePIValueRange(
-                        &closure.Context,
-                        MakeRange(asPositionIndependent.Begin(), asPositionIndependent.Size()),
-                        NWebAssembly::EAddressSpace::Host,
-                        NWebAssembly::EAddressSpace::WebAssembly,
-                        /*captureValues*/ true);
+                    auto captured = CaptureUnversionedValueRange(&closure.Context, row.Elements());
                     foreignValues.push_back(captured.Begin());
                 }
 
