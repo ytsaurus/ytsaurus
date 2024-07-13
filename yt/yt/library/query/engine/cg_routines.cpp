@@ -117,7 +117,7 @@ using THLL = NYT::THyperLogLog<14>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(30);
 
 class TYielder
     : public TWallTimer
@@ -547,6 +547,8 @@ void MultiJoinOpHelper(
             TForeignExecutorBufferTag(),
             context->MemoryChunkProvider);
 
+        TYielder yielder;
+
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
@@ -566,6 +568,8 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
+            yielder.Checkpoint(closure.Items[joinId].OrderedKeys.size());
+
             auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
             SaveAndRestoreCurrentCompartment([&] {
                 auto reader = parameters->Items[joinId].ExecuteForeign(
@@ -577,8 +581,6 @@ void MultiJoinOpHelper(
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
         }
-
-        TYielder yielder;
 
         std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
