@@ -418,7 +418,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(3);
 
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
