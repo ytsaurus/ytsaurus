@@ -1731,7 +1731,9 @@ class TestQuery(DynamicTablesBase):
 
         _check_query(rows[0:1], "(a) between (1) and (2)", 0)
         _check_query(rows[0:1], "(a, b) between ((1) and (1, 2))", 1)
-        _check_query([], "(a, b) between (1, 2) and (2, 1)", 1)
+
+        # No common prefix in ranges inferred in following query.
+        _check_query([], "(a, b) between (1, 2) and (2, 1)", 0)
         _check_query([], "(a, b) between ((2) and (2, 1))", 1)
         _check_query([rows[1], rows[2]], """(a, b, c) between (
                      (3, 3, 2) and (3, 3, 4),
