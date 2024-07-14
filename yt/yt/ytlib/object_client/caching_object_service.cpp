@@ -126,7 +126,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }
 
         TRequestHeader subrequestHeader;
-        if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
+        if (!TryParseRequestHeader(subrequestMessage, &subrequestHeader)) {
             THROW_ERROR_EXCEPTION("Malformed subrequest message: failed to parse header");
         }
 

@@ -177,7 +177,7 @@ private:
             // on sequoia service context creation. We consider such overhead
             // insignificant.
             auto& header = subrequest.RequestHeader.emplace();
-            if (!ParseRequestHeader(subrequest.RequestMessage, &header)) {
+            if (!TryParseRequestHeader(subrequest.RequestMessage, &header)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Could not parse subrequest header")

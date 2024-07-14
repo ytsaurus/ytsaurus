@@ -44,7 +44,7 @@ private:
         auto requestMessage = TSharedRefArray(request->Attachments(), TSharedRefArray::TCopyParts{});
 
         TRequestHeader requestHeader;
-        if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+        if (!TryParseRequestHeader(requestMessage, &requestHeader)) {
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
 
