@@ -18,12 +18,3 @@ void FormatValue(TStringBuilderBase* builder, const TClusterName& name, TStringB
 } // namespace NYT::NScheduler
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct THash<NYT::NScheduler::TClusterName>
-{
-    size_t operator()(const NYT::NScheduler::TClusterName& name) const
-    {
-        return THash<TString>()(name.Underlying());
-    }
-};
