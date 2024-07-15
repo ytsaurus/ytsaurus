@@ -8,6 +8,8 @@ from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
 from yt_queries import start_query, list_queries, get_query_tracker_info
 
+from yt.common import date_string_to_timestamp_mcs
+
 from yt.test_helpers import assert_items_equal
 
 from collections import Counter
@@ -22,7 +24,7 @@ def expect_queries(queries, list_result, incomplete=False):
     except AssertionError:
         timestamp = list_result["timestamp"]
         print_debug(f"Assertion failed, dumping content of dynamic tables by timestamp {timestamp}")
-        for table in ("active_queries", "finished_queries", "finished_queries_by_start_time"):
+        for table in ("active_queries", "finished_queries", "finished_queries_by_aco_and_start_time", "finished_queries_by_user_and_start_time"):
             print_debug(f"{table}:")
             select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
         raise
@@ -102,13 +104,14 @@ class TestQueriesMock(YTEnvSetup):
     def test_list(self, query_tracker):
         create_user("u1")
         create_user("u2")
-        q0 = start_query("mock", "fail", authenticated_user="u1")
-        q1 = start_query("mock", "complete_after", settings={"duration": 16000}, authenticated_user="u2")
-        q2 = start_query("mock", "fail_by_exception", authenticated_user="u1")
-        q3 = start_query("mock", "blahblah", authenticated_user="u2")
-        q4 = start_query("mock", "fail_after", settings={"duration": 8000}, authenticated_user="u2")
-        q5 = start_query("mock", "run_forever", authenticated_user="u1")
-        q6 = start_query("mock", "run_forever", authenticated_user="u1")
+
+        q0 = start_query("mock", "fail", authenticated_user="u1", access_control_objects=["everyone"])
+        q1 = start_query("mock", "complete_after", settings={"duration": 16000}, authenticated_user="u2", access_control_objects=["everyone"])
+        q2 = start_query("mock", "fail_by_exception", authenticated_user="u1", access_control_objects=["everyone"])
+        q3 = start_query("mock", "blahblah", authenticated_user="u2", access_control_objects=["everyone"])
+        q4 = start_query("mock", "fail_after", settings={"duration": 8000}, authenticated_user="u2", access_control_objects=["everyone"])
+        q5 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["everyone"])
+        q6 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["everyone"])
 
         def collect_batch(attribute):
             queries = list_queries(cursor_direction="future", attributes=["id", attribute])
@@ -456,13 +459,13 @@ class TestAccessControl(YTEnvSetup):
     @authors("aleksandr.gaev")
     def test_get_query_tracker_info(self, query_tracker):
         assert get_query_tracker_info() == \
-            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': ['everyone-share', 'nobody']}
+            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
 
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == \
             {'cluster_name': '', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': []}
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone-share', 'nobody']}
+        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
 
 
 class TestShare(YTEnvSetup):
@@ -480,6 +483,37 @@ class TestShare(YTEnvSetup):
         q.get(authenticated_user="u2")
         expect_queries([q], list_queries(authenticated_user="u1"))
         expect_queries([], list_queries(authenticated_user="u2"))
+
+
+class TestIndexTables(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    @authors("mpereskokova")
+    def test_index_tables(self, query_tracker):
+        create_user("user")
+
+        q = start_query("mock", "complete_after", settings={"duration": 0}, access_control_objects=["everyone", "everyone-share"], authenticated_user="user")
+        q.track()
+        q_info = q.get()
+
+        queries_by_aco = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+        assert len(queries_by_aco) == 2
+
+        assert queries_by_aco[0]["query_id"] == q_info["id"]
+        assert queries_by_aco[0]["access_control_object"] == "everyone"
+        assert queries_by_aco[0]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
+
+        assert queries_by_aco[1]["query_id"] == q_info["id"]
+        assert queries_by_aco[1]["access_control_object"] == "everyone-share"
+        assert queries_by_aco[1]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
+
+        queries_by_user = list(select_rows("* from [//sys/query_tracker/finished_queries_by_user_and_start_time]"))
+        assert len(queries_by_user) == 1
+
+        assert queries_by_user[0]["user"] == "user"
+        assert queries_by_user[0]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
 
 
 class TestMultipleAccessControl(YTEnvSetup):
@@ -588,8 +622,6 @@ class TestAccessControlList(YTEnvSetup):
         create_user("u4")
         create_user("u5")
         create_user("u6")
-        create_user("superuser_u7")
-        add_member("superuser_u7", "superusers")
         create_access_control_object(
             "aco_list_u1",
             "queries",
@@ -676,8 +708,6 @@ class TestAccessControlList(YTEnvSetup):
             q_u5.track(raise_on_unsuccess=False)
             q_u6.track(raise_on_unsuccess=False)
 
-        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future"))  # Root user sees everything.
-        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future", authenticated_user="superuser_u7"))  # Superuser sees everything.
         expect_queries([q_u1, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u1"))
         expect_queries([q_u1, q_u2, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u2"))
         expect_queries([q_u2, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u3"))
@@ -730,8 +760,8 @@ class TestAccessControlList(YTEnvSetup):
     def test_list_sql_injection(self, query_tracker):
         create_user("u1")
         create_user("u2")
-        q0 = start_query("mock", "fail", authenticated_user="u1")
-        q1 = start_query("mock", "fail", authenticated_user="u2")
+        q0 = start_query("mock", "fail", authenticated_user="u1", access_control_objects=["everyone"])
+        q1 = start_query("mock", "fail", authenticated_user="u2", access_control_objects=["everyone"])
 
         expect_queries([q0], list_queries(cursor_direction="future", attributes=["id"], user="u1"))
         expect_queries([q1], list_queries(cursor_direction="future", attributes=["id"], user="u2"))

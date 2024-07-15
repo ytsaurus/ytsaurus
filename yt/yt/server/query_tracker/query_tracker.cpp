@@ -559,7 +559,8 @@ private:
 
             {
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
-                // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time table).
+                // (which do not matter for finished query) and filter factors field (which goes to
+                // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
                 static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
@@ -587,23 +588,46 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
-                TFinishedQueryByStartTime newRecord{
-                    .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
+                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
+                TFinishedQueryByUserAndStartTime newRecord{
+                    .Key = TFinishedQueryByUserAndStartTimeKey{.User = activeQueryRecord->User, .MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
-                    .User = activeQueryRecord->User,
-                    .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
                     .State = finalState,
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };
                 std::vector newRows = {
-                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
                 };
                 transaction->WriteRows(
-                    StateRoot_ + "/finished_queries_by_start_time",
-                    TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                    StateRoot_ + "/finished_queries_by_user_and_start_time",
+                    TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(newRows), rowBuffer));
             }
+
+            {
+                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
+
+                auto accessControlObjects = activeQueryRecord->AccessControlObjects ? ConvertTo<std::vector<TString>>(activeQueryRecord->AccessControlObjects) : std::vector<TString>{};
+                if (!accessControlObjects.empty()) {
+                    std::vector<TUnversionedRow> newRows;
+                    newRows.reserve(accessControlObjects.size());
+                    for (const auto& aco : accessControlObjects) {
+                        TFinishedQueryByAcoAndStartTime newRecord{
+                            .Key = TFinishedQueryByAcoAndStartTimeKey{.AccessControlObject = aco, .MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
+                            .Engine = activeQueryRecord->Engine,
+                            .User = activeQueryRecord->User,
+                            .State = finalState,
+                            .FilterFactors = activeQueryRecord->FilterFactors,
+                        };
+                        newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
+                    }
+                    transaction->WriteRows(
+                        StateRoot_ + "/finished_queries_by_aco_and_start_time",
+                        TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetNameTable(),
+                        MakeSharedRange(std::move(newRows), rowBuffer));
+                }
+            }
+
             auto commitResultOrError = WaitFor(transaction->Commit());
             if (!commitResultOrError.IsOK()) {
                 YT_LOG_ERROR(commitResultOrError, "Failed to finish query, backing off");

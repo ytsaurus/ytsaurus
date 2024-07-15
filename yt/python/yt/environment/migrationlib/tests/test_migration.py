@@ -3,7 +3,7 @@ from yt.test_helpers import assert_items_equal
 from yt.environment.migrationlib import TableInfo, Conversion, Migration
 
 from yt.wrapper.ypath import ypath_split
-from yt_commands import (authors, get, insert_rows, ls, print_debug, set,
+from yt_commands import (authors, get, insert_rows, ls, print_debug, set, exists,
                          read_table, create_tablet_cell_bundle, sync_create_cells)
 
 from yt_env_setup import YTEnvSetup
@@ -57,6 +57,12 @@ class TestMigration(YTEnvSetup):
                 use_default_mapper=True,
             )
         ],
+        3: [
+            Conversion(
+                "test_table2",
+                remove_table=True,
+            )
+        ],
     }
     DATA = {
         0 : [{"id": 1, "field": "a"}, {"id": 2, "field": "b"}],
@@ -100,7 +106,7 @@ class TestMigration(YTEnvSetup):
         self.MIGRATION.run(
             client=client,
             tables_path="//tmp/test_migration_path",
-            target_version=self.MIGRATION.get_latest_version(),
+            target_version=2,
             shard_count=1,
             force=True,
         )
@@ -108,15 +114,24 @@ class TestMigration(YTEnvSetup):
         check_table_schema(table, self.TRANSFORMS[2][0].table_info)
         check_table_rows(table, self.DATA[2])
 
+        self.MIGRATION.run(
+            client=client,
+            tables_path="//tmp/test_migration_path",
+            target_version=self.MIGRATION.get_latest_version(),
+            shard_count=1,
+            force=True,
+        )
+        assert not exists("//tmp/test_migration_path/test_table2")
+
     @authors("apachee")
     def test_get_schemas(self):
-        def _check_schema(schema_mapping, table, table_info):
-            assert schema_mapping == {table: table_info.schema}
+        def _check_schema(schema_mapping, expected_schema_mapping):
+            assert schema_mapping == expected_schema_mapping
 
-        _check_schema(self.MIGRATION.get_schemas(self.INITIAL_VERSION), "test_table", self.INITIAL_TABLE_INFOS["test_table"])
-        _check_schema(self.MIGRATION.get_schemas(1), "test_table", self.TRANSFORMS[1][0].table_info)
-        _check_schema(self.MIGRATION.get_schemas(2), "test_table2", self.TRANSFORMS[2][0].table_info)
-        _check_schema(self.MIGRATION.get_schemas(), "test_table2", self.TRANSFORMS[2][0].table_info)
+        _check_schema(self.MIGRATION.get_schemas(self.INITIAL_VERSION), {"test_table": self.INITIAL_TABLE_INFOS["test_table"].schema})
+        _check_schema(self.MIGRATION.get_schemas(1), {"test_table": self.TRANSFORMS[1][0].table_info.schema})
+        _check_schema(self.MIGRATION.get_schemas(2), {"test_table2": self.TRANSFORMS[2][0].table_info.schema, "test_table": self.TRANSFORMS[1][0].table_info.schema})
+        _check_schema(self.MIGRATION.get_schemas(), {"test_table": self.TRANSFORMS[1][0].table_info.schema})
 
 
 class TestConversionFilterCallback(YTEnvSetup):

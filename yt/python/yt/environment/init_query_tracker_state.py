@@ -578,6 +578,81 @@ TRANSFORMS[8] = [
     ),
 ]
 
+
+def finished_queries_table_by_user_and_start_time_mapper(row):
+    column_names = FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9.user_columns
+
+    result = dict([(key, row.get(key)) for key in column_names])
+    result["minus_start_time"] = -row.get("start_time")
+    yield result
+
+
+def finished_queries_table_by_aco_and_start_time_mapper(row):
+    column_names = FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V9.user_columns
+
+    result = dict([(key, row.get(key)) for key in column_names])
+    result["minus_start_time"] = -row.get("start_time")
+
+    acos = yson.YsonList(row.get("access_control_objects"))
+    for aco in acos:
+        result["access_control_object"] = aco
+        yield result
+
+
+FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V9 = TableInfo(
+    [
+        ("access_control_object", "string"),
+        ("minus_start_time", "int64"),
+        ("query_id", "string")
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9 = TableInfo(
+    [
+        ("user", "string"),
+        ("minus_start_time", "int64"),
+        ("query_id", "string")
+    ],
+    [
+        ("engine", "string"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+TRANSFORMS[9] = [
+    Conversion(
+        "finished_queries_by_aco_and_start_time",
+        source="finished_queries_by_start_time",
+        table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V9,
+        mapper=finished_queries_table_by_aco_and_start_time_mapper
+    ),
+    Conversion(
+        "finished_queries_by_user_and_start_time",
+        source="finished_queries_by_start_time",
+        table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9,
+        mapper=finished_queries_table_by_user_and_start_time_mapper
+    ),
+    Conversion(
+        "finished_queries_by_start_time",
+        remove_table=True,
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
