@@ -127,7 +127,13 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 }
 
 func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
-	return nil
+	speclet := parsedSpeclet.(Speclet)
+
+	return map[string]any{
+		"cpu":          speclet.CPUOrDefault(),
+		"memory":       speclet.MemoryOrDefault(),
+		"docker_image": speclet.JupyterDockerImage,
+	}
 }
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
