@@ -437,7 +437,7 @@ std::optional<std::vector<TString>> ValidateAccessControlObjects(const std::opti
     }
 
     if (accessControlObjects && accessControlObject) {
-        THROW_ERROR_EXCEPTION("Only one of access_control_objects, access_control_object should be specified.");
+        THROW_ERROR_EXCEPTION("Only one of \"access_control_objects\", \"access_control_object\" should be specified");
     }
 
     if (accessControlObject) {

@@ -1423,7 +1423,7 @@ type StartQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// deprecated
+	// COMPAT
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
@@ -1475,7 +1475,7 @@ type AlterQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// deprecated
+	// COMPAT
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
