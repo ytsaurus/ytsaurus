@@ -339,7 +339,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
 {
     const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
     auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
-    auto mainResourceType = context->MainResource;
+    auto mainResourceType = context->Options.MainResource;
     auto parentMainResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, mainResourceType);
     auto doDetermineImplicitGuarantees = [&] (const auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         if (resourceType == mainResourceType) {
@@ -1154,7 +1154,7 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
     auto& integralResourcesState = IntegralResourcesState();
 
     auto oldVolume = integralResourcesState.AccumulatedVolume;
-    auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->IntegralPoolCapacitySaturationPeriod);
+    auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->Options.IntegralPoolCapacitySaturationPeriod);
 
     auto zero = TResourceVolume();
     integralResourcesState.AccumulatedVolume +=
@@ -1412,16 +1412,12 @@ void TOperationElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdate
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareUpdateContext::TFairShareUpdateContext(
+    const TFairShareUpdateOptions& options,
     const TJobResources totalResourceLimits,
-    const EJobResourceType mainResource,
-    const TDuration integralPoolCapacitySaturationPeriod,
-    const TDuration integralSmoothPeriod,
     const TInstant now,
     const std::optional<TInstant> previousUpdateTime)
-    : TotalResourceLimits(totalResourceLimits)
-    , MainResource(mainResource)
-    , IntegralPoolCapacitySaturationPeriod(integralPoolCapacitySaturationPeriod)
-    , IntegralSmoothPeriod(integralSmoothPeriod)
+    : Options(options)
+    , TotalResourceLimits(totalResourceLimits)
     , Now(now)
     , PreviousUpdateTime(previousUpdateTime)
 { }
@@ -1681,7 +1677,7 @@ double TFairShareUpdateExecutor::GetIntegralShareRatioByVolume(const TPool* pool
 {
     const auto& accumulatedVolume = pool->IntegralResourcesState().AccumulatedVolume;
     return accumulatedVolume.GetMinResourceRatio(Context_->TotalResourceLimits) /
-        Context_->IntegralSmoothPeriod.SecondsFloat();
+        Context_->Options.IntegralSmoothPeriod.SecondsFloat();
 }
 
 TResourceVector TFairShareUpdateExecutor::GetHierarchicalAvailableLimitsShare(const TElement* element) const

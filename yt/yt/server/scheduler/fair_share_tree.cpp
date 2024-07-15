@@ -57,6 +57,7 @@ using namespace NProfiling;
 using namespace NControllerAgent;
 
 using NVectorHdrf::TFairShareUpdateExecutor;
+using NVectorHdrf::TFairShareUpdateOptions;
 using NVectorHdrf::TFairShareUpdateContext;
 using NVectorHdrf::SerializeDominant;
 using NVectorHdrf::RatioComparisonPrecision;
@@ -1635,10 +1636,12 @@ private:
             resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
             resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
             fairShareUpdateContext.emplace(
+                TFairShareUpdateOptions{
+                    .MainResource = Config_->MainResource,
+                    .IntegralPoolCapacitySaturationPeriod = Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                    .IntegralSmoothPeriod = Config_->IntegralGuarantees->SmoothPeriod,
+                },
                 *resourceLimits,
-                Config_->MainResource,
-                Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                Config_->IntegralGuarantees->SmoothPeriod,
                 now,
                 LastFairShareUpdateTime_);
         }
@@ -1673,10 +1676,12 @@ private:
                         resourceLimitsByTagFilter = fairSharePreUpdateContext.ResourceLimitsByTagFilter;
 
                         fairShareUpdateContext.emplace(
+                            TFairShareUpdateOptions{
+                                .MainResource = config->MainResource,
+                                .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                                .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
+                            },
                             *resourceLimits,
-                            config->MainResource,
-                            config->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                            config->IntegralGuarantees->SmoothPeriod,
                             now,
                             lastFairShareUpdateTime);
                     }

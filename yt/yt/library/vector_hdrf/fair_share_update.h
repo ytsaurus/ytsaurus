@@ -346,22 +346,27 @@ DEFINE_REFCOUNTED_TYPE(TOperationElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareUpdateOptions
+{
+    EJobResourceType MainResource = EJobResourceType::Cpu;
+
+    TDuration IntegralPoolCapacitySaturationPeriod;
+    TDuration IntegralSmoothPeriod;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFairShareUpdateContext
 {
-    // TODO(eshcherbin): Create a separate fair share update config instead of passing all options in context.
     TFairShareUpdateContext(
+        const TFairShareUpdateOptions& options,
         const TJobResources totalResourceLimits,
-        const EJobResourceType mainResource,
-        const TDuration integralPoolCapacitySaturationPeriod,
-        const TDuration integralSmoothPeriod,
         const TInstant now,
         const std::optional<TInstant> previousUpdateTime);
 
-    const TJobResources TotalResourceLimits;
+    const TFairShareUpdateOptions Options;
 
-    const EJobResourceType MainResource;
-    const TDuration IntegralPoolCapacitySaturationPeriod;
-    const TDuration IntegralSmoothPeriod;
+    const TJobResources TotalResourceLimits;
 
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
