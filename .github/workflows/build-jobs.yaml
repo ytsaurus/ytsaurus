@@ -229,6 +229,8 @@ jobs:
           build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
           cd ${build_dir}
 
+          yum install -y python3-devel
+
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3-config -DPYTHON_BIN=python3"
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
