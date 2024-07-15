@@ -1426,10 +1426,16 @@ TFairShareUpdateContext::TFairShareUpdateContext(
 
 TFairShareUpdateExecutor::TFairShareUpdateExecutor(
     const TRootElementPtr& rootElement,
-    TFairShareUpdateContext* context)
+    TFairShareUpdateContext* context,
+    const std::optional<TString>& loggingTag)
     : RootElement_(rootElement)
+    , Logger(FairShareLogger)
     , Context_(context)
-{ }
+{
+    if (loggingTag) {
+        Logger.AddRawTag(*loggingTag);
+    }
+}
 
 /// Steps of fair share update:
 ///
@@ -1458,8 +1464,6 @@ TFairShareUpdateExecutor::TFairShareUpdateExecutor(
 ///   The weight proportional component emerges here.
 void TFairShareUpdateExecutor::Run()
 {
-    const auto& Logger = FairShareLogger;
-
     TWallTimer timer;
 
     RootElement_->ValidatePoolConfigs(Context_);
@@ -1507,8 +1511,6 @@ void TFairShareUpdateExecutor::Run()
 
 void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
 {
-    const auto& Logger = FairShareLogger;
-
     for (auto& burstPool : Context_->BurstPools) {
         auto integralRatio = std::min(burstPool->Attributes().BurstRatio, GetIntegralShareRatioByVolume(burstPool));
         auto proposedIntegralShare = TResourceVector::Min(
@@ -1544,8 +1546,6 @@ void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
 
 void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
 {
-    const auto& Logger = FairShareLogger;
-
     if (Context_->RelaxedPools.empty()) {
         return;
     }

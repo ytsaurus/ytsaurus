@@ -399,12 +399,15 @@ public:
     TFairShareUpdateExecutor(
         const TRootElementPtr& rootElement,
         // TODO(ignat): split context on input and output parts.
-        TFairShareUpdateContext* context);
+        TFairShareUpdateContext* context,
+        const std::optional<TString>& loggingTag = {});
 
     void Run();
 
 private:
     const TRootElementPtr RootElement_;
+
+    NLogging::TLogger Logger;
 
     void ConsumeAndRefillIntegralPools();
     void UpdateBurstPoolIntegralShares();

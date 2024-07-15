@@ -1661,7 +1661,8 @@ private:
 
         // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
         TJobResourcesByTagFilter resourceLimitsByTagFilter;
-        auto asyncUpdate = BIND([&, config = Config_, lastFairShareUpdateTime = LastFairShareUpdateTime_]
+        // TODO(eshcherbin): This capture by reference is currently thread-unsafe. We need to fix it.
+        auto asyncUpdate = BIND([&, treeId = TreeId_, config = Config_, lastFairShareUpdateTime = LastFairShareUpdateTime_]
             {
                 TForbidContextSwitchGuard contextSwitchGuard;
                 {
@@ -1686,7 +1687,10 @@ private:
                             lastFairShareUpdateTime);
                     }
 
-                    TFairShareUpdateExecutor updateExecutor(rootElement, &*fairShareUpdateContext);
+                    TFairShareUpdateExecutor updateExecutor(
+                        rootElement,
+                        &*fairShareUpdateContext,
+                        /*loggingTag*/ Format("TreeId: %v", treeId));
                     updateExecutor.Run();
 
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
@@ -2841,8 +2845,12 @@ private:
 
     void UpdateResourceUsages() override
     {
+        YT_LOG_DEBUG("Building resource usage snapshot");
+
         auto treeSnapshot = GetAtomicTreeSnapshot();
         auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
+
+        YT_LOG_DEBUG("Updating accumulated resource usage");
 
         AccumulatedPoolResourceUsageForMetering_.Update(treeSnapshot, resourceUsageSnapshot);
         AccumulatedOperationsResourceUsageForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
@@ -2852,7 +2860,7 @@ private:
             resourceUsageSnapshot = nullptr;
             YT_LOG_DEBUG("Resource usage snapshot is disabled");
         } else {
-            YT_LOG_DEBUG("Updating resources usage snapshot");
+            YT_LOG_DEBUG("Updating resource usage snapshot");
         }
 
         TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
