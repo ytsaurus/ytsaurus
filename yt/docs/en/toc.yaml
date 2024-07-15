@@ -432,6 +432,8 @@ items:
          href: admin-guide/node-tags.md
        - name: Possible problems
          href: admin-guide/problems.md
+       - name: Users and groups synchronization
+         href: admin-guide/identity-sync.md
    - name: Releases
      href: admin-guide/releases.md
    - name: FAQ
