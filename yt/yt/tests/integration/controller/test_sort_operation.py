@@ -13,6 +13,7 @@ from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 import pytest
+import math
 
 import random
 import builtins
@@ -1163,18 +1164,18 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t",
-            attributes={"schema": [{"name": "key", "type": "string"}]},
+            attributes={"schema": [{"name": "string_column", "type": "string"}, {"name": "double_column", "type": "double"}]},
         )
-        write_table("//tmp/t", [{"key": "b"}, {"key": "a"}])
+        write_table("//tmp/t", [{"string_column": "s", "double_column": 0.1}, {"string_column": "s", "double_column": float('nan')}, {"double_column": 0.2}, {"string_column": "t"}])
 
-        spec = {}
+        spec = {"max_failed_job_count": 1}
         if comparator == "codegen":
-            spec = {"enable_codegen_comparator": True}
+            spec["enable_codegen_comparator"] = True
 
         sort(
             in_="//tmp/t",
             out="//tmp/t",
-            sort_by=[{"name": "key", "sort_order": sort_order}],
+            sort_by=[{"name": "double_column", "sort_order": sort_order}],
             spec=spec,
         )
 
@@ -1182,19 +1183,60 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert normalize_schema(get("//tmp/t/@schema")) == make_schema(
             [
                 {
-                    "name": "key",
-                    "type": "string",
+                    "name": "double_column",
+                    "type": "double",
                     "required": False,
                     "sort_order": sort_order,
+                },
+                {
+                    'name': 'string_column',
+                    'type': 'string',
+                    "required": False,
                 }
             ],
             strict=True,
             unique_keys=False,
         )
-        expected = [{"key": "a"}, {"key": "b"}]
+
+        null = yson.YsonEntity()
+        expected = [
+            {'double_column': null, 'string_column': 't'},
+            {'double_column': 0.1, 'string_column': 's'},
+            {'double_column': 0.2, 'string_column': null},
+            {'double_column': float('nan'), 'string_column': 's'}
+        ]
+
         if sort_order == "descending":
             expected = expected[::-1]
-        assert read_table("//tmp/t") == expected
+
+        def equal_results(actual, expected):
+            if len(actual) != len(expected):
+                return False
+
+            def is_nan(num):
+                if isinstance(num, float):
+                    return math.isnan(num)
+                else:
+                    return False
+
+            for a, e in zip(actual, expected):
+                if len(a) != len(e):
+                    return False
+
+                if a['string_column'] != e['string_column']:
+                    return False
+
+                if is_nan(a['double_column']) != is_nan(e['double_column']):
+                    return False
+                if is_nan(a['double_column']):
+                    # Both are nans.
+                    continue
+                if a != e:
+                    return False
+
+            return True
+
+        assert equal_results(read_table("//tmp/t"), expected)
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
