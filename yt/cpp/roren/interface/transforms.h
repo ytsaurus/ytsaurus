@@ -76,6 +76,11 @@ namespace NRoren {
 ///  @param attributes contains attributes of a function, they will be merged with
 /// attributes provided by `func' (values from `attributes' have higher precedence).
 template <typename F>
+    requires NPrivate::CIntrusivePtr<std::decay_t<F>>
+auto ParDo(F func);
+
+template <typename F>
+    requires (!NPrivate::CIntrusivePtr<std::decay_t<F>>)
 auto ParDo(F func, const TFnAttributes& attributes = {});
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,39 +251,42 @@ private:
 };
 
 template <typename F>
-auto ParDo(F func, const TFnAttributes& attributesPatch)
+    requires NPrivate::CIntrusivePtr<std::decay_t<F>>
+auto ParDo(F func)
 {
     using TDecayedF = std::decay_t<F>;
-    if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
-        using TInputRow = typename TDecayedF::TValueType::TInputRow;
-        using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
+    using TInputRow = typename TDecayedF::TValueType::TInputRow;
+    using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
+    NPrivate::IRawParDoPtr rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>(), func->GetDefaultAttributes());
+    return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
 
-        auto mergedAttributes = func->GetDefaultAttributes();
-        NPrivate::TFnAttributesOps::MergePatch(mergedAttributes, attributesPatch);
+}
 
-        NPrivate::IRawParDoPtr rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>(), std::move(mergedAttributes));
+template <typename F>
+    requires (!NPrivate::CIntrusivePtr<std::decay_t<F>>)
+auto ParDo(F func, const TFnAttributes& attributes)
+{
+    using TDecayedF = std::decay_t<F>;
+    using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
+    if constexpr (std::invocable<TDecayedF, TInputRow>) {
+        using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
+        static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
+        auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
         return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
     } else {
-        using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
-        if constexpr (std::invocable<TDecayedF, TInputRow>) {
-            using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
-            static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributesPatch);
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
+        using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
+        using TOutputRow = typename TArg2::TRowType;
+
+        if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
+            static_assert(TDependentFalse<F>, "Creating ParDo with multiple outputs is not supported, create class implementing IDoFn<TInputRow, TMultiRow>");
         } else {
-            using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
-            using TOutputRow = typename TArg2::TRowType;
+            static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
 
-            if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
-                static_assert(TDependentFalse<F>, "Creating ParDo with multiple outputs is not supported, create class implementing IDoFn<TInputRow, TMultiRow>");
-            } else {
-                static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
-
-                auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributesPatch);
-                return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
-            }
+            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
         }
     }
+
 }
 
 template <typename F, typename... Args>
