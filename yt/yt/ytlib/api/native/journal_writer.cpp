@@ -1470,7 +1470,7 @@ private:
 
             auto req = node->HeavyProxy.PutBlocks();
             req->SetResponseHeavy(true);
-            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            req->SetMultiplexingBand(EMultiplexingBand::Journal);
             ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentChunkSession_, node));
             req->set_flush_blocks(true);
 
