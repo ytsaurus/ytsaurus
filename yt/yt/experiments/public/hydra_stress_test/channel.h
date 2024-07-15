@@ -37,6 +37,8 @@ public:
 
     int GetInflightRequestCount() override;
 
+    IMemoryUsageTrackerPtr GetChannelMemoryTracker() override;
+
 private:
     NRpc::IChannelPtr Underlying_;
     std::atomic<bool> Broken_ = false;
