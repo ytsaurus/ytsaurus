@@ -776,6 +776,56 @@ class TestGetJobStderr(YTEnvSetup):
     def test_get_job_stderr(self):
         self.do_test_get_job_stderr()
 
+    def do_test_get_job_stderr_limit_offset(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            track=False,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                "for (( i=0; i<10; i+=1 )); do echo current cycle is $i >&2; sleep 0.1; done ; echo STDERR-FINISH >&2 ; BREAKPOINT ; cat"
+            ),
+            spec={"mapper": {"input_format": "json", "output_format": "json", "max_stderr_size": 1000}},
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        test = get_job_stderr_paged(op.id, job_id, limit=0, offset=200000000)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 204
+        assert test['data'] == b''
+        wait(
+            lambda: retry(lambda: get_job_stderr_paged(op.id, job_id, limit=0, offset=-50))["data"].endswith(
+                b"STDERR-FINISH\n"
+            )
+        )
+        release_breakpoint()
+        op.track()
+        p = get_job_stderr_paged(op.id, job_id, limit=10, offset=0)
+        res = p["data"]
+        p = get_job_stderr_paged(op.id, job_id, limit=10, offset=10)
+        res += p["data"]
+        p = get_job_stderr_paged(op.id, job_id, limit=10, offset=20)
+        res += p["data"]
+
+        assert res == b'current cycle is 0\ncurrent cyc'
+
+        p = get_job_stderr_paged(op.id, job_id, offset=-20)
+        res += p["data"]
+        assert res.endswith(b"STDERR-FINISH\n")
+
+        clean_operations()
+
+        wait(lambda: get_job_stderr_paged(op.id, job_id)["data"].endswith(b"STDERR-FINISH\n"))
+
+    @authors("proller")
+    def test_get_job_stderr_limit_offset(self):
+        self.do_test_get_job_stderr_limit_offset()
+
     @authors("ignat")
     def test_get_job_stderr_without_cypress(self):
         set(
