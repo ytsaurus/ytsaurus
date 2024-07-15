@@ -88,7 +88,7 @@ public:
             config->HealthCheckPeriod))
     {
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Ql] = CreateQlEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
@@ -109,7 +109,7 @@ public:
         Config_ = config;
         AcquisitionExecutor_->SetPeriod(config->ActiveQueryAcquisitionPeriod);
         Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine);
-        Engines_[EQueryEngine::Ql]->Reconfigure(config->QlEngine);
+        Engines_[EQueryEngine::Ql]->Reconfigure(config->QLEngine);
         Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine);
         Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine);
         Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
