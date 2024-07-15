@@ -254,6 +254,10 @@ jobs:
         run: |
           shopt -s expand_aliases
 
+          sudo add-apt-repository ppa:deadsnakes/ppa
+          sudo apt-get update
+          sudo apt-get -y install libpython3.8 libpython3.9 libpython3.10 libpython3.11 libpython3.12
+
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
@@ -298,4 +302,15 @@ jobs:
                           yson2
           do
             ydb-ya-make  ${udfs_prefix}/${udf_name}
+          done
+
+          systempython_udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common/python/system_python"
+          for udf_name in python3_8 \
+                          python3_9 \
+                          python3_10 \
+                          python3_11 \
+                          python3_12
+          do
+            python_name=$(echo "$udf_name" | tr _ .)
+            ydb-ya-make -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON=yes -DOS_SDK=local -DPYTHON_BIN=${python_name} -DPYTHON_CONFIG=${python_name}-config ${systempython_udfs_prefix}/${udf_name}
           done
