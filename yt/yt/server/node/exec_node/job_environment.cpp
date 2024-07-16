@@ -6,13 +6,14 @@
 #include "private.h"
 #include "yt/yt/core/concurrency/delayed_executor.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
@@ -1147,6 +1148,27 @@ private:
                 ->DefaultNvidiaDriverCapabilities;
             spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
             spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
+
+            // If there are InfiniBand devices in the system, bind them to the container.
+            auto infinibandDevices = ListInfinibandDevices();
+            for (const auto& devicePath : infinibandDevices) {
+                spec->BindDevices.push_back(NCri::TCriBindDevice{
+                    .ContainerPath = devicePath,
+                    .HostPath = devicePath,
+                    .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                });
+            }
+
+            YT_LOG_DEBUG_UNLESS(
+                infinibandDevices.empty(),
+                "Binding InfiniBand devices to job container (Devices: %v)",
+                infinibandDevices);
+
+            // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+            // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+            if (!infinibandDevices.empty()) {
+                spec->CapabilitiesToAdd.push_back("IPC_LOCK");
+            }
         }
 
         spec->BindMounts.push_back(NCri::TCriBindMount{
