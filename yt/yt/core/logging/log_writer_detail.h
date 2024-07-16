@@ -60,7 +60,7 @@ private:
 //! System log events are always allowed to pass through.
 //! Requires an underlying Write implementation to be provided upon construction.
 //!
-//! NB(achulkov2): The writeImpl solution is a bit sad, but I see no other way to work
+//! NB(achulkov2): The WriteImpl solution is a bit sad, but I see no other way to work
 //! around the dynamically interpreted ILogWriter/IFileLogWriter interface. Ideally, we
 //! need to get rid of dynamic casts in TLogManager by abstracting the file-writer related
 //! logic. Then we could switch to a wrapper-like solution, similar to our channels.
@@ -70,7 +70,6 @@ class TRateLimitingLogWriterBase
 public:
     //! The return value of the callback corresponds to the number of bytes logged by writing this event.
     TRateLimitingLogWriterBase(
-        TCallback<i64(const TLogEvent&)> writeImpl,
         TString name,
         TLogWriterConfigPtr config);
 
@@ -85,7 +84,6 @@ public:
     void SetCategoryRateLimits(const THashMap<TString, i64>& categoryRateLimits) override;
 
 private:
-    const TCallback<i64(const TLogEvent&)> WriteImpl_;
     const TString Name_;
     const TLogWriterConfigPtr Config_;
     const TLoggingCategory* SystemCategory_ = nullptr;
@@ -94,6 +92,8 @@ private:
     // log manager's Initialize call, so the lack of synchronization should be fine.
     TRateLimitCounter RateLimit_;
     THashMap<TStringBuf, TRateLimitCounter> CategoryToRateLimit_;
+
+    virtual i64 WriteImpl(const TLogEvent& event) = 0;
 
     void WriteLogSkippedEvent(i64 eventsSkipped, TStringBuf skippedBy);
 
@@ -123,7 +123,7 @@ protected:
     const std::unique_ptr<ILogFormatter> Formatter_;
 
 private:
-    i64 WriteImpl(const TLogEvent& event);
+    i64 WriteImpl(const TLogEvent& event) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

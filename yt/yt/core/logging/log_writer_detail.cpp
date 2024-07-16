@@ -91,9 +91,8 @@ void TSegmentSizeReporter::ResetSegmentSize(i64 size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRateLimitingLogWriterBase::TRateLimitingLogWriterBase(TCallback<i64(const TLogEvent&)> writeImpl, TString name, TLogWriterConfigPtr config)
-    : WriteImpl_(writeImpl)
-    , Name_(std::move(name))
+TRateLimitingLogWriterBase::TRateLimitingLogWriterBase(TString name, TLogWriterConfigPtr config)
+    : Name_(std::move(name))
     , Config_(std::move(config))
     , RateLimit_(
         std::nullopt,
@@ -121,7 +120,7 @@ void TRateLimitingLogWriterBase::Write(const TLogEvent& event)
 
     // We always let system events pass through without affecting rate limits.
     if (isSystemEvent || (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached())) {
-        auto bytesWritten = WriteImpl_(event);
+        auto bytesWritten = WriteImpl(event);
 
         if (!isSystemEvent) {
             RateLimit_.UpdateCounter(bytesWritten);
@@ -146,7 +145,7 @@ void TRateLimitingLogWriterBase::SetCategoryRateLimits(const THashMap<TString, i
 void TRateLimitingLogWriterBase::WriteLogSkippedEvent(i64 eventsSkipped, TStringBuf skippedBy)
 {
     if (eventsSkipped > 0 && Config_->AreSystemMessagesEnabled()) {
-        WriteImpl_(GetSkippedLogEvent(Config_->GetSystemMessageFamily(), eventsSkipped, skippedBy));
+        WriteImpl(GetSkippedLogEvent(Config_->GetSystemMessageFamily(), eventsSkipped, skippedBy));
     }
 }
 
@@ -174,7 +173,7 @@ TStreamLogWriterBase::TStreamLogWriterBase(
     std::unique_ptr<ILogFormatter> formatter,
     const TString& name,
     TLogWriterConfigPtr config)
-    : TRateLimitingLogWriterBase(BIND(&TStreamLogWriterBase::WriteImpl, Unretained(this)), name, std::move(config))
+    : TRateLimitingLogWriterBase(name, std::move(config))
     , TSegmentSizeReporter(name)
     , Formatter_(std::move(formatter))
 { }

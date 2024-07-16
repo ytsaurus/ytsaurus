@@ -74,7 +74,6 @@ public:
         const TString& name,
         IInvokerPtr invoker)
         : TRateLimitingLogWriterBase(
-            BIND(&TDynamicTableLogWriter::WriteImpl, Unretained(this)),
             name,
             config)
         , TSegmentSizeReporter(name)
@@ -168,7 +167,7 @@ private:
     // Moreover, the current log manager is not designed for handling asynchronous event
     // writers. All write/flush calls are made consecutively and are considered successful
     // at once. Changing this would require modifying the logging event pipeline significantly.
-    i64 WriteImpl(const TLogEvent& event)
+    i64 WriteImpl(const TLogEvent& event) override
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
