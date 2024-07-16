@@ -3892,10 +3892,12 @@ class TestChaos(ChaosTestBase):
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
         self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
         self._sync_replication_era(card_id)
-        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
 
-        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id))
-        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id))
+        sync_unmount_table("//tmp/rqs", driver=remote_driver0)
+        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
+        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id, replication_progress=progress))
+        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id, replication_progress=progress))
+        sync_mount_table("//tmp/rqs", driver=remote_driver0)
         self._create_replica_tables(replicas[4:], replica_ids[4:], schema=schema1, pivot_keys=_create_pivots(schema1), replication_progress=progress)
         self._sync_replication_era(card_id)
 
