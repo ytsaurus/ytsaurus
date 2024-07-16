@@ -13,7 +13,10 @@ from yt_commands import (
     create, ls, get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, start_transaction, map, vanilla, run_test_vanilla, suspend_op,
     get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
-    update_scheduler_config, update_controller_agent_config)
+    update_scheduler_config, update_controller_agent_config, update_nodes_dynamic_config,
+)
+
+from yt_scheduler_helpers import scheduler_orchid_operation_path
 
 from yt_helpers import get_current_time, parse_yt_time
 
@@ -412,6 +415,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
+            "static_orchid_cache_update_period": 100,
+            "missing_allocations_check_period": 100,
             "testing_options": {
                 "finish_operation_transition_delay": {
                     "duration": 2000,
@@ -592,6 +597,50 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
         op.abort()
         self._wait_for_state(op, "aborted")
+
+    @authors("eshcherbin")
+    def test_finished_allocation_update_is_postponed_until_operation_is_enabled(self):
+        update_scheduler_config("fair_share_update_period", 5000)
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,
+                    }
+                },
+            },
+        })
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "break": {
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "job_count": 1,
+                    },
+                    "sleep": {
+                        "command": "sleep 1000",
+                        "job_count": 1,
+                    },
+                },
+                "testing": {
+                    "delay_inside_materialize_scheduler": {
+                        "duration": 5000,
+                        "type": "async",
+                    },
+                },
+            },
+            track=False,
+        )
+
+        wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            release_breakpoint()
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/enabled"))
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 1)
 
 
 @authors("levysotsky")
