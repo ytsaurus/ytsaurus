@@ -903,7 +903,7 @@ void TCompositeElement::TruncateFairShareInFifoPools(EFairShareType fairShareTyp
     THashSet<TElement*> truncatedChildren;
     if (GetMode() == ESchedulingMode::Fifo && IsFairShareTruncationInFifoPoolEnabled()) {
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-            auto *childOperation = SortedChildren_[childIndex]->AsOperation();
+            auto* childOperation = SortedChildren_[childIndex]->AsOperation();
 
             YT_VERIFY(childOperation);
 

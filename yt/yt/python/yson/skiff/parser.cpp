@@ -84,7 +84,7 @@ Py::Object LoadSkiff(Py::Tuple& args, Py::Dict& kwargs)
         Py::Callable classType(TSkiffRawIterator::type());
         Py::PythonClassObject<TSkiffRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
-        auto *iter = pythonIter.getCxxObject();
+        auto* iter = pythonIter.getCxxObject();
         iter->Initialize(
             inputStream,
             std::move(inputStreamHolder),
@@ -96,7 +96,7 @@ Py::Object LoadSkiff(Py::Tuple& args, Py::Dict& kwargs)
         Py::Callable classType(TSkiffIterator::type());
         Py::PythonClassObject<TSkiffIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
-        auto *iter = pythonIter.getCxxObject();
+        auto* iter = pythonIter.getCxxObject();
         iter->Initialize(
             inputStream,
             std::move(inputStreamHolder),

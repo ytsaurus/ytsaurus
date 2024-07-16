@@ -3904,7 +3904,7 @@ private:
                 ToProto(response->mutable_replication_progress(), result.ReplicationProgress);
 
                 for (auto [tabletId, rowIndex] : result.EndReplicationRowIndexes) {
-                    auto *protoReplicationRowIndex = response->add_end_replication_row_indexes();
+                    auto* protoReplicationRowIndex = response->add_end_replication_row_indexes();
                     ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
                     protoReplicationRowIndex->set_row_index(rowIndex);
                 }

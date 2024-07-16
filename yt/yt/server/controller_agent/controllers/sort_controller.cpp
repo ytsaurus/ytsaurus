@@ -1249,8 +1249,7 @@ protected:
                     joblet,
                     NChunkPools::TChunkStripeKey(),
                     /*processEmptyStripes*/ false,
-                    outputDigest
-                );
+                    outputDigest);
             }
 
             Controller_->CheckMergeStartThreshold();
