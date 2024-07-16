@@ -4883,9 +4883,7 @@ private:
 
         MaybeToggleAccountsProfiling();
 
-        if (newConfig->AccountsProfilingPeriod != oldConfig->AccountsProfilingPeriod &&
-            AccountsProfilingExecutor_)
-        {
+        if (AccountsProfilingExecutor_) {
             AccountsProfilingExecutor_->SetPeriod(newConfig->AccountsProfilingPeriod);
         }
 
