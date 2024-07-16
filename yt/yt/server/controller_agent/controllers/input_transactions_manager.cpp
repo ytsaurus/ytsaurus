@@ -309,7 +309,7 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
 {
     std::vector<TTransactionId> transactionIds;
     for (const auto& parent : OldNonTrivialInputTransactionParents_) {
-        const auto& transaction = ParentToTransaction_.at(MakeRichTransactionId(parent));
+        const auto& transaction = GetOrCrash(ParentToTransaction_, MakeRichTransactionId(parent));
         transactionIds.push_back(transaction->GetId());
     }
 
