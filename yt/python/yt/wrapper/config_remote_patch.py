@@ -203,13 +203,22 @@ class RemotePatchableBoolean(RemotePatchableValueBase):
 
 
 class RemotePatchableInteger(RemotePatchableValueBase):
+    def _get_nullable_value(self, value=None):
+        if value is None:
+            self._call_back()
+            value = self
+        if isinstance(value, RemotePatchableValueBase):
+            return int(value.value) if value.value is not None else None
+        elif value is None:
+            return None
+        else:
+            return int(value)
+
     def __eq__(self, other):
-        if self.value is None or other.value is None:
-            return self.value is None and other.value is None
-        return int(self) == int(other)
+        return self._get_nullable_value() == self._get_nullable_value(other)
 
     def __ne__(self, other):
-        return not (self.value is None and other.value is None) and int(self) != int(other)
+        return self._get_nullable_value() != self._get_nullable_value(other)
 
     def to_yson_type(self):
         if self.value is None:
@@ -218,7 +227,7 @@ class RemotePatchableInteger(RemotePatchableValueBase):
 
     @staticmethod
     def _allowed_remote_type():
-        return [int, yson.YsonInteger]
+        return [int, yson.YsonInt64, yson.YsonUint64]
 
 
 def _validate_operation_link_pattern(local_value, remote_value):
