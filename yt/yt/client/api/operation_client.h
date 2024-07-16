@@ -372,12 +372,11 @@ struct TPagedLogReq
 
 struct TPagedLog
 {
-    //TString Data;
     TSharedRef Data;
     i64 TotalSize = 0;
     i64 EndOffset = 0;
 
-    static TPagedLog PagedLogFromReq(const TPagedLogReq& req, const TString& str);
+    static TPagedLog PagedLogFromReq(const TPagedLogReq& req, const TSharedRef& data);
 };
 
 

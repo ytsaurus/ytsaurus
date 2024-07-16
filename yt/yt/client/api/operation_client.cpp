@@ -227,14 +227,14 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TString& data)
+TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TSharedRef& data)
 {
     const i64 totalSize = data.size();
     i64 endOffset = totalSize;
 
     if (!request.Offset && !request.Limit) {
         return {
-            .Data{TSharedRef::FromString(data)},
+            .Data{data},
             .TotalSize = totalSize,
             .EndOffset = endOffset,
         };
@@ -251,7 +251,7 @@ TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TString&
         };
     } else {
         return {
-            .Data{TSharedRef::FromString(data.substr(firstPos, request.Limit ? request.Limit : data.npos))},
+            .Data{TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, request.Limit ? request.Limit : TStringBuf::npos)})},
             .TotalSize = totalSize,
             .EndOffset = endOffset,
         };
