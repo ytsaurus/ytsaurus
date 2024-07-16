@@ -99,7 +99,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::CheckPacking(
         packingConfig);
 }
 
-TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocationResourceUsage(
+std::optional<TJobResources> TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocationResourceUsage(
     TAllocationId allocationId,
     const TJobResources& resources)
 {
@@ -144,7 +144,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationStarted(
     return true;
 }
 
-void TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationFinished(
+bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationFinished(
     TSchedulerOperationElement* operationElement,
     TAllocationId allocationId)
 {
@@ -153,7 +153,10 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationFinished
     if (auto delta = RemoveAllocation(allocationId)) {
         operationElement->IncreaseHierarchicalResourceUsage(-(*delta));
         UpdatePreemptibleAllocationsList(operationElement);
+        return true;
     }
+
+    return false;
 }
 
 void TFairShareTreeAllocationSchedulerOperationSharedState::UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element)

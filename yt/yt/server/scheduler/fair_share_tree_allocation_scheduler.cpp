@@ -1336,9 +1336,10 @@ void TScheduleAllocationsContext::PreemptAllocation(
     allocation->ResourceUsage() = TJobResources();
 
     const auto& operationSharedState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
-    auto delta = operationSharedState->SetAllocationResourceUsage(allocation->GetId(), TJobResources());
-    element->IncreaseHierarchicalResourceUsage(delta);
-    operationSharedState->UpdatePreemptibleAllocationsList(element);
+    if (auto delta = operationSharedState->SetAllocationResourceUsage(allocation->GetId(), TJobResources())) {
+        element->IncreaseHierarchicalResourceUsage(*delta);
+        operationSharedState->UpdatePreemptibleAllocationsList(element);
+    }
 
     SchedulingContext_->PreemptAllocation(allocation, treeConfig->AllocationPreemptionTimeout, preemptionReason);
 }
@@ -2779,7 +2780,7 @@ void TFairShareTreeAllocationScheduler::RegisterAllocationsFromRevivedOperation(
     }
 }
 
-void TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
+bool TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     TSchedulerOperationElement* element,
     TAllocationId allocationId,
@@ -2792,7 +2793,12 @@ void TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
 
     auto delta = operationSharedState->SetAllocationResourceUsage(allocationId, allocationResources);
-    element->IncreaseHierarchicalResourceUsage(delta);
+    if (!delta) {
+        // Operation is disabled.
+        return false;
+    }
+
+    element->IncreaseHierarchicalResourceUsage(*delta);
     operationSharedState->UpdatePreemptibleAllocationsList(element);
 
     const auto& operationSchedulingSegment = operationState->SchedulingSegment;
@@ -2815,15 +2821,17 @@ void TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
                 allocationModule);
         }
     }
+
+    return true;
 }
 
-void TFairShareTreeAllocationScheduler::ProcessFinishedAllocation(
+bool TFairShareTreeAllocationScheduler::ProcessFinishedAllocation(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     TSchedulerOperationElement* element,
     TAllocationId allocationId) const
 {
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
-    operationSharedState->OnAllocationFinished(element, allocationId);
+    return operationSharedState->OnAllocationFinished(element, allocationId);
 }
 
 void TFairShareTreeAllocationScheduler::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const
@@ -2994,10 +3002,12 @@ void TFairShareTreeAllocationScheduler::BuildElementYson(
     const TFieldsFilter& filter,
     TFluentMap fluent)
 {
-    const auto& attributes = treeSnapshot->IsElementEnabled(element)
+    bool enabled = treeSnapshot->IsElementEnabled(element);
+    const auto& attributes = enabled
         ? treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element)
         : TStaticAttributes{};
     fluent
+        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "enabled", enabled)
         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_preemption_allowed", IsAggressivePreemptionAllowed(element))
         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
             filter,
@@ -3219,7 +3229,8 @@ void TFairShareTreeAllocationScheduler::ProcessUpdatedAllocationInTest(
 {
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
     auto delta = operationSharedState->SetAllocationResourceUsage(allocationId, allocationResources);
-    element->IncreaseHierarchicalResourceUsage(delta);
+    YT_VERIFY(delta);
+    element->IncreaseHierarchicalResourceUsage(*delta);
     operationSharedState->UpdatePreemptibleAllocationsList(element);
 }
 

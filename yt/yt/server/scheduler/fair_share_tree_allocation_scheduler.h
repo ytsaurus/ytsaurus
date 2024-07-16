@@ -622,7 +622,7 @@ public:
     void RegisterAllocationsFromRevivedOperation(
         TSchedulerOperationElement* element,
         std::vector<TAllocationPtr> allocations) const;
-    void ProcessUpdatedAllocation(
+    bool ProcessUpdatedAllocation(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TSchedulerOperationElement* element,
         TAllocationId allocationId,
@@ -630,7 +630,7 @@ public:
         const std::optional<TString>& allocationDataCenter,
         const std::optional<TString>& allocationInfinibandCluster,
         std::optional<EAbortReason>* maybeAbortReason) const;
-    void ProcessFinishedAllocation(
+    bool ProcessFinishedAllocation(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TSchedulerOperationElement* element,
         TAllocationId allocationId) const;

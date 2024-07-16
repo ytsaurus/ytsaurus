@@ -2510,84 +2510,65 @@ private:
         YT_VERIFY(treeSnapshot);
 
         for (const auto& allocationUpdate : allocationUpdates) {
-            switch (allocationUpdate.Status) {
-                case EAllocationUpdateStatus::Running: {
-                    std::optional<EAbortReason> maybeAbortReason;
-                    ProcessUpdatedAllocation(
-                        treeSnapshot,
-                        allocationUpdate.OperationId,
-                        allocationUpdate.AllocationId,
-                        allocationUpdate.AllocationResources,
-                        allocationUpdate.AllocationDataCenter,
-                        allocationUpdate.AllocationInfinibandCluster,
-                        &maybeAbortReason);
+            std::optional<EAbortReason> maybeAbortReason;
+            bool updateSuccessful = ProcessAllocationUpdate(treeSnapshot, allocationUpdate, &maybeAbortReason);
 
-                    if (maybeAbortReason) {
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
-                        // NB(eshcherbin): We want the node shard to send us a allocation finished update,
-                        // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
-                        // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
-                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
-                    }
+            if (!updateSuccessful) {
+                YT_LOG_DEBUG(
+                    "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId);
 
-                    break;
-                }
-                case EAllocationUpdateStatus::Finished: {
-                    if (!ProcessFinishedAllocation(treeSnapshot, allocationUpdate.OperationId, allocationUpdate.AllocationId)) {
-                        YT_LOG_DEBUG(
-                            "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
-                            allocationUpdate.OperationId,
-                            allocationUpdate.AllocationId);
-
-                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
-                    }
-                    break;
-                }
-                default:
-                    YT_ABORT();
+                allocationsToPostpone->insert(allocationUpdate.AllocationId);
+            } else if (maybeAbortReason) {
+                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
+                // NB(eshcherbin): We want the node shard to send us an allocation finished update,
+                // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
+                // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
+                allocationsToPostpone->insert(allocationUpdate.AllocationId);
             }
         }
     }
 
-    void ProcessUpdatedAllocation(
+    bool ProcessAllocationUpdate(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TOperationId operationId,
-        TAllocationId allocationId,
-        const TJobResources& allocationResources,
-        const std::optional<TString>& allocationDataCenter,
-        const std::optional<TString>& allocationInfinibandCluster,
+        const TAllocationUpdate& allocationUpdate,
         std::optional<EAbortReason>* maybeAbortReason)
     {
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG(
-            "Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
-            operationId,
-            allocationId,
-            allocationResources);
-
-        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessUpdatedAllocation(
-                treeSnapshot,
-                operationElement,
-                allocationId,
-                allocationResources,
-                allocationDataCenter,
-                allocationInfinibandCluster,
-                maybeAbortReason);
-        }
-    }
-
-    bool ProcessFinishedAllocation(const TFairShareTreeSnapshotPtr& treeSnapshot, TOperationId operationId, TAllocationId allocationId)
-    {
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)", operationId, allocationId);
-
-        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessFinishedAllocation(treeSnapshot, operationElement, allocationId);
-            return true;
+        auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+        if (!operationElement) {
+            return false;
         }
 
-        return false;
+        switch (allocationUpdate.Status) {
+            case EAllocationUpdateStatus::Running: {
+                // NB: Should be filtered out on large clusters.
+                YT_LOG_DEBUG("Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId,
+                    allocationUpdate.AllocationResources);
+
+                return TreeScheduler_->ProcessUpdatedAllocation(
+                    treeSnapshot,
+                    operationElement,
+                    allocationUpdate.AllocationId,
+                    allocationUpdate.AllocationResources,
+                    allocationUpdate.AllocationDataCenter,
+                    allocationUpdate.AllocationInfinibandCluster,
+                    maybeAbortReason);
+            }
+            case EAllocationUpdateStatus::Finished: {
+                // NB: Should be filtered out on large clusters.
+                YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId);
+
+                return TreeScheduler_->ProcessFinishedAllocation(
+                    treeSnapshot,
+                    operationElement,
+                    allocationUpdate.AllocationId);
+            }
+        }
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override

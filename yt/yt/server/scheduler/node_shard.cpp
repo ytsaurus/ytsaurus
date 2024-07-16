@@ -2194,6 +2194,7 @@ void TNodeShard::SubmitAllocationsToStrategy()
                 AbortAllocation(allocationId, error, abortReason);
             }
 
+            // TODO(eshcherbin): Remove |allocationsToRemove| and inline allocation removal in this loop?
             std::vector<std::pair<TOperationId, TAllocationId>> allocationsToRemove;
             for (const auto& allocation : allocationUpdates) {
                 if (!allocationsToPostpone.contains(allocation.AllocationId)) {
