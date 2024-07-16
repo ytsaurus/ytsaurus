@@ -9986,6 +9986,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::InputManagerIntroduction) {
         Persist(context, InputManager);
     }
+    if (context.GetVersion() < ESnapshotVersion::InputManagerIntroduction) {
+        InputManager->PrepareToBeLoadedFromAncientVersion();
+    }
     if (context.IsLoad()) {
         InputManager->InitializeClients(InputClient);
     }

@@ -177,6 +177,7 @@ public:
 
     void Persist(const TPersistenceContext& context);
     // COMPAT(coteeq)
+    void PrepareToBeLoadedFromAncientVersion();
     void LoadInputNodeDirectory(const TPersistenceContext& context);
     void LoadInputChunkMap(const TPersistenceContext& context);
     void LoadPathToInputTables(const TPersistenceContext& context);
