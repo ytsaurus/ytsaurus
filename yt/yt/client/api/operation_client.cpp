@@ -227,5 +227,38 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TString& data)
+{
+    const i64 totalSize = data.size();
+    i64 endOffset = totalSize;
+
+    if (!request.Offset && !request.Limit) {
+        return {
+            .Data{data},
+            .TotalSize = totalSize,
+            .EndOffset = endOffset,
+        };
+    };
+
+    const size_t firstPos = request.Offset >= 0           ? request.Offset
+        : -request.Offset > static_cast<i64>(data.size()) ? 0
+                                                          : data.size() + request.Offset;
+    if (firstPos >= data.size()) {
+        return {
+            .Data{},
+            .TotalSize = totalSize,
+            .EndOffset = 0,
+        };
+    } else {
+        return {
+            .Data{data.substr(firstPos, request.Limit ? request.Limit : data.npos)},
+            .TotalSize = totalSize,
+            .EndOffset = endOffset,
+        };
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi
 

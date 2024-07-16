@@ -1278,14 +1278,10 @@ TFuture<TPagedLog> TClient::GetJobStderr(
     req->set_limit(options.Limit);
     req->set_offset(options.Offset);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
+    return req->Invoke().Apply(BIND([req=req] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
         YT_VERIFY(rsp->Attachments().size() == 1);
-        const auto str = rsp->Attachments().front().ToStringBuf();
-        return TPagedLog{
-            .Data = TString{str.begin(), str.end()},
-            .TotalSize = rsp->total_size(),
-            .EndOffset = rsp->end_offset(),
-        };
+        TPagedLogReq request{.Limit = req->limit(), .Offset = req->offset()};
+        return TPagedLog::PagedLogFromReq(request, TString{rsp->Attachments().front().ToStringBuf()});
     }));
 }
 

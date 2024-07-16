@@ -149,9 +149,9 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());
     SaveCurrentDataTo(&stringStream, request.Offset || request.Limit);
-    auto str = stringStream.Str();
+    auto data = stringStream.Str();
     i64 endOffset = TotalSize_;
-    const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(str.size()) ? TotalSize_ - str.size() : 0;
+    const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
     size_t first;
     i64 limit = request.Limit;
     if (request.Offset >= 0) {
@@ -162,27 +162,31 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
             if (request.Limit > 0) {
                 limit = request.Limit - (currentFirstAbsolutePos - request.Offset);
                 if (limit < 0) {
-                    return {.Data = "", .TotalSize = TotalSize_, .EndOffset = request.Offset + request.Limit};
+                    return {.Data {}, .TotalSize = TotalSize_, .EndOffset = request.Offset + request.Limit};
                 }
             }
         }
     } else {
-        if (-request.Offset >= static_cast<i64>(str.size())) {
+        if (-request.Offset >= static_cast<i64>(data.size())) {
             first = 0;
         } else {
-            first = str.size() + request.Offset;
+            first = data.size() + request.Offset;
         }
     }
     if (request.Offset || request.Limit) {
-        if (first >= str.size()) {
-            str = "";
+        if (first >= data.size()) {
+            data = "";
             endOffset = 0;
         } else {
-            str = str.substr(first, limit ? limit : str.npos);
-            endOffset = currentFirstAbsolutePos + first + str.size();
+            data = data.substr(first, limit ? limit : data.npos);
+            endOffset = currentFirstAbsolutePos + first + data.size();
         }
     }
-    return {.Data = str, .TotalSize = TotalSize_, .EndOffset = endOffset};
+    return {
+        .Data = data,
+        .TotalSize = TotalSize_,
+        .EndOffset = endOffset,
+        };
 }
 
 size_t TStderrWriter::GetCurrentSize() const

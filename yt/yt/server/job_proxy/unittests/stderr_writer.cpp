@@ -144,6 +144,61 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 }
 
+TEST(TStderrWriterTest, TestPagedLogOneBuffer)
+{
+    TStringStream reference;
+
+    for (size_t i = 0; i <= 100; ++i) {
+        const auto str = ToString(i) + "\n";
+        reference << str;
+    }
+
+    {
+        const auto lastByte = static_cast<decltype(NApi::TPagedLog::TotalSize)>(reference.Str().size());
+        {
+            const auto data = NApi::TPagedLog::PagedLogFromReq({}, reference.Str());
+            ASSERT_EQ(data.Data, reference.Str());
+            ASSERT_EQ(data.TotalSize, static_cast<decltype(data.TotalSize)>(reference.Str().size()));
+        }
+
+        {
+            const auto data = NApi::TPagedLog::PagedLogFromReq({.Limit = 123}, reference.Str());
+            ASSERT_EQ(data.Data, reference.Str().substr(0, 123));
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+
+        {
+            const auto data = NApi::TPagedLog::PagedLogFromReq({.Offset = -50}, reference.Str());
+            ASSERT_EQ(data.Data, reference.Str().substr(reference.Str().size() - 50, 50));
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+
+        {
+            // before start
+            const auto data = NApi::TPagedLog::PagedLogFromReq({.Offset = -50000}, reference.Str());
+            ASSERT_EQ(data.Data, reference.Str());
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+
+        {
+            // Requested more than have
+            const auto data = NApi::TPagedLog::PagedLogFromReq({.Limit = 100, .Offset = 250}, reference.Str());
+            ASSERT_EQ(data.Data.size(), size_t(44));
+            ASSERT_TRUE(data.Data.EndsWith("100\n"));
+            ASSERT_EQ(data.EndOffset, lastByte);
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+
+        {
+            // Range after end
+            const auto data = NApi::TPagedLog::PagedLogFromReq({.Limit = 123, .Offset = 300}, reference.Str());
+            ASSERT_EQ(data.Data, "");
+            ASSERT_EQ(data.EndOffset, 0);
+            ASSERT_EQ(data.TotalSize, lastByte);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -375,6 +375,8 @@ struct TPagedLog
     TString Data;
     i64 TotalSize = 0;
     i64 EndOffset = 0;
+
+    static TPagedLog PagedLogFromReq(const TPagedLogReq& req, const TString& str);
 };
 
 

@@ -794,9 +794,9 @@ class TestGetJobStderr(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        test = get_job_stderr_paged(op.id, job_id, limit=0, offset=200000000)
+        test = get_job_stderr_paged(op.id, job_id, limit=0, offset=200000001)
         assert test['total_size'] == 204
-        assert test['end_offset'] == 204
+        assert test['end_offset'] == 0
         assert test['data'] == b''
         wait(
             lambda: retry(lambda: get_job_stderr_paged(op.id, job_id, limit=0, offset=-50))["data"].endswith(
