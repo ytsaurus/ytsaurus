@@ -1601,14 +1601,14 @@ private:
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-                TFuture<void> automatonThrottlerFuture = VoidFuture;
+                auto automatonThrottlerFuture = VoidFuture;
                 if (subrequestType == EExecutionSessionSubrequestType::LocalWrite && User_.Get() != securityManager->GetRootUser()) {
                     automatonThrottlerFuture = Owner_->LocalWriteRequestThrottler_->Throttle(1);
                 }
 
                 // NB: This callback may be executed in an arbitrary thread.
                 auto throttlingResult = automatonThrottlerFuture.Apply(
-                    BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), user = User_.Get()] () {
+                    BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), user = User_.Get()] {
                         const auto& securityManager = Bootstrap_->GetSecurityManager();
                         return securityManager->ThrottleUser(user, 1, workloadType);
                     }));
