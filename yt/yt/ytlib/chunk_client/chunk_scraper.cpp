@@ -59,7 +59,7 @@ public:
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
         Looper_ = New<TAsyncLooper>(
             Invoker_,
-            BIND_NO_PROPAGATE([weakThis = MakeWeak(this), strongThis = MakeStrong(this)] (bool cleanStart) {
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (bool cleanStart) {
                 if (auto strongThis = weakThis.Lock()) {
                     return strongThis->LocateChunksAsync(cleanStart);
                 }
