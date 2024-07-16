@@ -101,6 +101,7 @@
     XX(ChunkWriter, chunk_writer) \
     XX(ClusterConnection, cluster_connection) \
     XX(ClusterName, cluster_name) \
+    XX(CollocatedReplicationCardIds, collocated_replication_card_ids) \
     XX(CommitOrdering, commit_ordering) \
     XX(CommittedResourceUsage, committed_resource_usage) \
     XX(CompressedDataSize, compressed_data_size) \

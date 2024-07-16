@@ -171,3 +171,15 @@ message TRspCreateReplicationCardCollocation
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetReplicationCardCollocation
+{
+    required NYT.NProto.TGuid replication_card_collocation_id = 1;
+}
+
+message TRspGetReplicationCardCollocation
+{
+    repeated NYT.NProto.TGuid collocation_replication_card_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -284,6 +284,13 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    std::vector<TReplicationCardId> GetReplicationCardCollocationCardsIds(
+        const TReplicationCardCollocationId& replicationCardCollocationId) override
+    {
+        const auto* collocation = GetReplicationCardCollocationOrThrow(replicationCardCollocationId);
+        return collocation->GetReplicationCardIds();
+    }
+
     const std::vector<TCellId>& CoordinatorCellIds() override
     {
         return CoordinatorCellIds_;
