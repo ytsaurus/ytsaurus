@@ -1412,6 +1412,11 @@ void TInputManager::Persist(const TPersistenceContext& context)
     }
 }
 
+void TInputManager::PrepareToBeLoadedFromAncientVersion()
+{
+    Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
+}
+
 void TInputManager::LoadInputNodeDirectory(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
