@@ -901,7 +901,8 @@ public:
                     ValidateOutputSchemaCompatibility({
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
-                        .IgnoreStableNamesDifference = true});
+                        .IgnoreStableNamesDifference = true,
+                    });
                 }
                 break;
 
