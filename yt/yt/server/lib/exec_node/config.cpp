@@ -230,6 +230,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
+    registrar.Parameter("slot_init_timeout", &TThis::SlotInitTimeout)
+        .Default(TDuration::Minutes(10));
+
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
