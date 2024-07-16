@@ -578,6 +578,7 @@
     XX(Version, version) \
     XX(VersionedResourceUsage, versioned_resource_usage) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
+    XX(Virtual, virtual) \
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \
     XX(Weight, weight) \

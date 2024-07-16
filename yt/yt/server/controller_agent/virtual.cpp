@@ -150,6 +150,7 @@ void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>
         descriptors->push_back(EInternedAttributeKey::Annotation);
     }
     descriptors->push_back(EInternedAttributeKey::Dynamic);
+    descriptors->push_back(EInternedAttributeKey::Virtual);
     descriptors->push_back(EInternedAttributeKey::Type);
 }
 
@@ -247,6 +248,10 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         case EInternedAttributeKey::Dynamic:
             BuildYsonFluently(consumer)
                 .Value(false);
+            return true;
+        case EInternedAttributeKey::Virtual:
+            BuildYsonFluently(consumer)
+                .Value(true);
             return true;
         case EInternedAttributeKey::Type:
             BuildYsonFluently(consumer)
