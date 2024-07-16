@@ -11,10 +11,10 @@ TEST(TStderrWriterTest, TestPagedLog)
     TStderrWriter writer(1000);
     TStringStream reference;
 
-    for (size_t i = 0; i <= 100; ++i) {
-        const auto str = ToString(i) + "\n";
-        writer << str;
-        reference << str;
+    for (int i = 0; i <= 100; ++i) {
+        const auto number = ToString(i) + "\n";
+        writer << number;
+        reference << number;
     }
 
     {
@@ -64,9 +64,9 @@ TEST(TStderrWriterTest, TestPagedLog)
 
     // Reach ..skipped..
     for (size_t i = 100; i <= 1000; ++i) {
-        const auto str = ToString(i) + "\n";
-        writer << str;
-        reference << str;
+        const auto number = ToString(i) + "\n";
+        writer << number;
+        reference << number;
     }
 
     {
@@ -75,9 +75,9 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     for (size_t i = 1000; i <= 2000; ++i) {
-        const auto str = ToString(i) + "\n";
-        writer << str;
-        reference << str;
+        const auto number = ToString(i) + "\n";
+        writer << number;
+        reference << number;
     }
 
     const auto lastByte = static_cast<decltype(NApi::TPagedLog::TotalSize)>(reference.Str().size());
@@ -148,9 +148,9 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
 {
     TStringStream reference;
 
-    for (size_t i = 0; i <= 100; ++i) {
-        const auto str = ToString(i) + "\n";
-        reference << str;
+    for (int i = 0; i <= 100; ++i) {
+        const auto number = ToString(i) + "\n";
+        reference << number;
     }
 
     {

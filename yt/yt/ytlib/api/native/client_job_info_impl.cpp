@@ -1010,13 +1010,11 @@ TPagedLog TClient::DoGetJobStderr(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    auto jobStderr = DoGetJobStderrFromNode(operationId, jobId, options);
-    if (jobStderr) {
+    if (auto jobStderr = DoGetJobStderrFromNode(operationId, jobId, options)) {
         return *jobStderr;
     }
 
-    auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
-    if (stderrRef) {
+    if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId)) {
         return {
             .Data = {stderrRef.begin(), stderrRef.end()},
             .TotalSize = static_cast<i64>(stderrRef.size()),
