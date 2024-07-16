@@ -44,13 +44,13 @@ private:
 class TSegmentSizeReporter
 {
 public:
-    TSegmentSizeReporter(TString logWriterName);
+    explicit TSegmentSizeReporter(TString logWriterName);
 
     void IncrementSegmentSize(i64 size);
     void ResetSegmentSize(i64 size);
 
 private:
-    std::atomic<i64> CurrentSegmentSize_{0};
+    std::atomic<i64> CurrentSegmentSize_ = 0;
     NProfiling::TGauge CurrentSegmentSizeGauge_;
 };
 
@@ -113,8 +113,6 @@ public:
         const TString& name,
         TLogWriterConfigPtr config);
 
-    i64 WriteImpl(const TLogEvent& event);
-
     void Flush() override;
     void Reload() override;
 
@@ -123,6 +121,9 @@ protected:
     virtual void OnException(const std::exception& ex);
 
     const std::unique_ptr<ILogFormatter> Formatter_;
+
+private:
+    i64 WriteImpl(const TLogEvent& event);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

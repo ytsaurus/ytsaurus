@@ -20,7 +20,7 @@ void TDynamicTableLogWriterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_batch_row_count", &TThis::MaxBatchRowCount)
         .GreaterThanOrEqual(0)
-        .Default(50000);
+        .Default(50'000);
     registrar.Parameter("max_batch_weight", &TThis::MaxBatchWeight)
         .GreaterThanOrEqual(0)
         .Default(2_MB);

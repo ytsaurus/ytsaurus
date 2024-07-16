@@ -23,7 +23,7 @@ class TestDynamicTableLogger(YTEnvSetup):
                 {
                     "family": "plain_text",
                     "min_level": "debug",
-                    "exclude_categories": ["Bus", "Concurrency"],
+                    "exclude_categories": ["Bus"],
                     "writers": ["debug_dynamic_table"],
                 },
                 {
@@ -62,8 +62,8 @@ class TestDynamicTableLogger(YTEnvSetup):
             },
             # This is specified to test rate limits.
             "category_rate_limits": {
-                # No sequoia logs for you!
-                "SequoiaServer": 0,
+                # No concurrency logs for you!
+                "Concurrency": 0,
             },
         }
     }
@@ -160,7 +160,7 @@ class TestDynamicTableLogger(YTEnvSetup):
         time.sleep(3)
 
         rows = list(select_rows(f"* from [{self.DEBUG_LOG_TABLE}]", verbose=False))
-        log_event = self._find_log_event(rows, ["SkippedBy: SequoiaServer"])
+        log_event = self._find_log_event(rows, ["SkippedBy: Concurrency"])
         assert log_event is not None
         assert log_event["category"] == "Logging"
         assert log_event["level"] == "info"

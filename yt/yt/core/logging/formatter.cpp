@@ -118,7 +118,7 @@ TLogEvent GetSkippedLogEvent(ELogFamily family, i64 count, TStringBuf skippedBy)
 ////////////////////////////////////////////////////////////////////////////////
 
 TPlainTextLogFormatter::TPlainTextLogFormatter(bool enableSourceLocation)
-    : TLogFormatterBase( enableSourceLocation)
+    : TLogFormatterBase(enableSourceLocation)
     , EventFormatter_(enableSourceLocation)
 { }
 
