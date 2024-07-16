@@ -155,7 +155,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: true 
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
