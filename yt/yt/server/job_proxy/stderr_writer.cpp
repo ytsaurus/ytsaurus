@@ -183,7 +183,7 @@ NApi::TPagedLog TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request)
         }
     }
     return {
-        .Data = data,
+        .Data = TSharedRef::FromString(data),
         .TotalSize = TotalSize_,
         .EndOffset = endOffset,
         };

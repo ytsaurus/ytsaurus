@@ -80,7 +80,7 @@ public:
         const auto& rsp = rspOrError.Value();
 
         return {
-            .Data = rsp->stderr_data(),
+            .Data = TSharedRef::FromString(rsp->stderr_data()),
             .TotalSize = rsp->total_size(),
             .EndOffset = rsp->end_offset(),
         };

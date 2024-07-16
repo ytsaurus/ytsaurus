@@ -3203,7 +3203,7 @@ private:
                 context->SetResponseInfo("Size: %v, TotalSize: %v, EndOffset: %v", result.Data.size(), result.TotalSize, result.EndOffset);
                 response->set_total_size(result.TotalSize);
                 response->set_end_offset(result.EndOffset);
-                response->Attachments().push_back(TSharedRef::FromString(result.Data));
+                response->Attachments().push_back(result.Data);
             });
     }
 

@@ -168,7 +168,7 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
             .Item("end_offset").Value(result.EndOffset);
     });
     auto output = context->Request().OutputStream;
-    WaitFor(output->Write(TSharedRef::FromString(result.Data)))
+    WaitFor(output->Write(result.Data))
         .ThrowOnError();
 }
 

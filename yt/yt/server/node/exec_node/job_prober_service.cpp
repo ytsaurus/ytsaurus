@@ -85,7 +85,7 @@ private:
         }
 
         auto stderrResp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()}).value_or(NApi::TPagedLog{});
-        response->set_stderr_data(stderrResp.Data);
+        response->set_stderr_data(TString{stderrResp.Data.ToStringBuf()});
         response->set_total_size(stderrResp.TotalSize);
         response->set_end_offset(stderrResp.EndOffset);
         context->Reply();

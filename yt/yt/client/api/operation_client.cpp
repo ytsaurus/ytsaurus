@@ -234,7 +234,7 @@ TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TString&
 
     if (!request.Offset && !request.Limit) {
         return {
-            .Data{data},
+            .Data{TSharedRef::FromString(data)},
             .TotalSize = totalSize,
             .EndOffset = endOffset,
         };
@@ -251,7 +251,7 @@ TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TString&
         };
     } else {
         return {
-            .Data{data.substr(firstPos, request.Limit ? request.Limit : data.npos)},
+            .Data{TSharedRef::FromString(data.substr(firstPos, request.Limit ? request.Limit : data.npos))},
             .TotalSize = totalSize,
             .EndOffset = endOffset,
         };

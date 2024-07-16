@@ -977,7 +977,7 @@ void TJobProxy::ReportResult(
                 const auto& jobResultExt = result.GetExtension(TJobResultExt::job_result_ext);
                 YT_VERIFY(jobResultExt.has_stderr());
             }
-            req->set_job_stderr(std::move(stderr.Data));
+            req->set_job_stderr(TString{stderr.Data.ToStringBuf()});
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job stderr on teardown");
         }

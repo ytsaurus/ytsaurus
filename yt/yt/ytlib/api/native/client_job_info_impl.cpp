@@ -942,7 +942,7 @@ std::optional<TPagedLog> TClient::DoGetJobStderrFromNode(
     }
     auto rsp = rspOrError.Value();
     return {{
-        .Data = rsp->stderr_data(),
+        .Data = TSharedRef::FromString(rsp->stderr_data()),
         .TotalSize = rsp->total_size(),
         .EndOffset = rsp->end_offset(),
     }};
@@ -1016,7 +1016,8 @@ TPagedLog TClient::DoGetJobStderr(
 
     if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId)) {
         return {
-            .Data = {stderrRef.begin(), stderrRef.end()},
+            //.Data = {stderrRef.begin(), stderrRef.end()},
+            .Data = stderrRef,
             .TotalSize = static_cast<i64>(stderrRef.size()),
             .EndOffset = static_cast<i64>(stderrRef.size()),
         };

@@ -372,7 +372,8 @@ struct TPagedLogReq
 
 struct TPagedLog
 {
-    TString Data;
+    //TString Data;
+    TSharedRef Data;
     i64 TotalSize = 0;
     i64 EndOffset = 0;
 
