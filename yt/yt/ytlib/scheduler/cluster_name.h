@@ -15,6 +15,6 @@ const TClusterName LocalClusterName{};
 bool IsLocal(const TClusterName& clusterName);
 void FormatValue(TStringBuilderBase* builder, const TClusterName& name, TStringBuf spec);
 
-} // namespace NYT::NScheduler
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NScheduler
