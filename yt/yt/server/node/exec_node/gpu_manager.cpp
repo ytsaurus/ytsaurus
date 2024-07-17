@@ -336,8 +336,8 @@ void TGpuManager::OnHealthCheck()
 
             for (auto& gpuInfo : gpuInfos) {
                 if (!GpuDeviceIndices_.contains(gpuInfo.Index)) {
-                    YT_LOG_WARNING("Found unknown GPU device (DeviceName: %v)",
-                        GetGpuDeviceName(gpuInfo.Index));
+                    YT_LOG_WARNING("Found unknown GPU device (DeviceIndex: %v)",
+                        gpuInfo.Index);
                     unknownDeviceIndices.push_back(gpuInfo.Index);
                     continue;
                 }
@@ -348,8 +348,7 @@ void TGpuManager::OnHealthCheck()
 
             for (auto index : FreeSlots_) {
                 if (!HealthyGpuInfoMap_.contains(index)) {
-                    YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                        GetGpuDeviceName(index));
+                    YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)", index);
                 } else {
                     freeDeviceIndices.push_back(index);
                     newFreeSlotIndices.emplace_back(std::move(index));
@@ -504,15 +503,15 @@ std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 {
-    YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceIndex));
+    YT_LOG_DEBUG("Released GPU slot (DeviceIndex: %v)",
+        deviceIndex);
 
     auto guard = Guard(SpinLock_);
 
     if (AcquiredGpuDeviceIndices_.erase(deviceIndex) > 0) {
         if (!HealthyGpuInfoMap_.contains(deviceIndex)) {
             LostGpuDeviceIndices_.insert(deviceIndex);
-            YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
+            YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)",
                 deviceIndex);
         } else {
             FreeSlots_.push_back(deviceIndex);
@@ -553,8 +552,8 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 
     InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
 
-    YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceIndex));
+    YT_LOG_DEBUG("Acquired GPU slot (DeviceIndex: %v)",
+        deviceIndex);
     return New<TGpuSlot>(MakeStrong(this), deviceIndex);
 }
 
