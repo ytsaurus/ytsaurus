@@ -1664,14 +1664,16 @@ private:
             auto* table = GetTable(tableId);
 
             auto formattedParameters = Format(
-                "TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, TablePath: %v, ContentType: %v",
+                "TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, "
+                "TablePath: %v, ContentType: %v, TrackingEnabled: %v",
                 tableId,
                 replicaId,
                 data.Mode,
                 data.Enabled,
                 data.ClusterName,
                 data.TablePath,
-                data.ContentType);
+                data.ContentType,
+                data.TrackingEnabled);
 
             auto it = IdToReplica_.find(replicaId);
             if (it == IdToReplica_.end()) {

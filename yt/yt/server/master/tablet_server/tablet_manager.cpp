@@ -659,6 +659,7 @@ public:
 
         if (enableReplicatedTableTracker) {
             replica->SetEnableReplicatedTableTracker(*enableReplicatedTableTracker);
+            FireUponTableReplicaUpdate(replica);
         }
 
         if (enabled) {
