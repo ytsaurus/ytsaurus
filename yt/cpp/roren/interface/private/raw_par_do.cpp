@@ -21,18 +21,26 @@ TLambda1RawParDo::TLambda1RawParDo(
     , FnAttributes_(std::move(fnAttributes))
 { }
 
-void TLambda1RawParDo::Start(const IExecutionContextPtr&, const std::vector<IRawOutputPtr>& outputs)
+void TLambda1RawParDo::Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs)
 {
-    if (WrapperType_ == EWrapperType::MultiOutputWrapper) {
-        MultiOutput_.emplace(OutputTags_, outputs);
-    } else if (WrapperType_ == EWrapperType::WrapperType1 || WrapperType_ == EWrapperType::WrapperType2) {
-        if (outputs.size() > 0) {
-            Y_ABORT_UNLESS(outputs.size() == 1);
+    ExecutionContext_ = context;
+    switch (WrapperType_) {
+        case EWrapperType::MultiOutputWrapper: {
+            MultiOutput_.emplace(OutputTags_, outputs);
+            break;
+        }
+        case EWrapperType::ReturnOutputWrapper:
+        case EWrapperType::ArgumentOutputWrapper:
+        case EWrapperType::ParDoArgsWrapper: {
+            if (outputs.size() > 0) {
+                Y_ABORT_UNLESS(outputs.size() == 1);
 
-            SingleOutput_ = outputs[0];
-            if (WrapperType_ == EWrapperType::WrapperType1) {
-                RowHolder_ = TRawRowHolder(OutputTags_[0].GetRowVtable());
+                SingleOutput_ = outputs[0];
+                if (WrapperType_ == EWrapperType::ReturnOutputWrapper) {
+                    RowHolder_ = TRawRowHolder(OutputTags_[0].GetRowVtable());
+                }
             }
+            break;
         }
     }
 }

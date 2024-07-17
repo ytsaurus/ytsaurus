@@ -309,4 +309,30 @@ class IStatefulTimerDoFn
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <typename TInputRow_, typename TOutputRow_>
+struct TParDoArgs
+{
+    using TInputRow = TInputRow_;
+    using TOutputRow = TOutputRow_;
+
+    TParDoArgs(const TInputRow& inputRow, TOutput<TOutputRow>& output, IExecutionContext& context)
+        : InputRow(inputRow)
+        , Output(output)
+        , ExecutionContext(context)
+    { }
+
+    TParDoArgs(const TParDoArgs&) = default;
+    TParDoArgs(TParDoArgs&&) = default;
+
+    TParDoArgs& operator=(const TParDoArgs&) = delete;
+    TParDoArgs& operator=(TParDoArgs&&) = delete;
+
+    const TInputRow& InputRow;
+    TOutput<TOutputRow>& Output;
+    IExecutionContext& ExecutionContext;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren

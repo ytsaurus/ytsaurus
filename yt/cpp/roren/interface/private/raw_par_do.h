@@ -150,18 +150,22 @@ class TLambda1RawParDo
 {
 public:
     enum class EWrapperType : ui8 {
-        WrapperType1,
-        WrapperType2,
+        ReturnOutputWrapper,
+        ArgumentOutputWrapper,
+        ParDoArgsWrapper,
         MultiOutputWrapper,
     };
 
     using TWrapperFunctionPtr = void (*)(TLambda1RawParDo*, const void*, int);
 
     template <typename TInputRow, typename TOutputRow>
-    using TRawFunction1 = TOutputRow (*)(const TInputRow&);
+    using TReturnOutputFunction = TOutputRow (*)(const TInputRow&);
 
     template <typename TInputRow, typename TOutputRow>
-    using TRawFunction2 = void (*)(const TInputRow&, TOutput<TOutputRow>&);
+    using TArgumentOutputFunction = void (*)(const TInputRow&, TOutput<TOutputRow>&);
+
+    template <CParDoArgs TParDoArgs>
+    using TParDoArgsFunction = void (*)(TParDoArgs args);
 
 public:
     TLambda1RawParDo() = default;
@@ -174,12 +178,12 @@ public:
         TFnAttributes fnAttributes);
 
     template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction1<TInput, TOutput> function, TFnAttributes fnAttributes)
+    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TReturnOutputFunction<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
         fnAttributes.SetIsPure();
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper1Func<TInput, TOutput>,
-            EWrapperType::WrapperType1,
+            EWrapperType::ReturnOutputWrapper,
             reinterpret_cast<void*>(function),
             MakeRowVtable<TInput>(),
             MakeTags<TOutput>(),
@@ -188,12 +192,28 @@ public:
     }
 
     template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction2<TInput, TOutput> function, TFnAttributes fnAttributes)
+    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TArgumentOutputFunction<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
         fnAttributes.SetIsPure();
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper2Func<TInput, TOutput>,
-            EWrapperType::WrapperType2,
+            EWrapperType::ArgumentOutputWrapper,
+            reinterpret_cast<void*>(function),
+            MakeRowVtable<TInput>(),
+            MakeTags<TOutput>(),
+            std::move(fnAttributes)
+        );
+    }
+
+    template <CParDoArgs TParDoArgs>
+    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TParDoArgsFunction<TParDoArgs> function, TFnAttributes fnAttributes)
+    {
+        using TInput = typename TParDoArgs::TInputRow;
+        using TOutput = typename TParDoArgs::TOutputRow;
+        fnAttributes.SetIsPure();
+        return ::MakeIntrusive<TLambda1RawParDo>(
+            &RawWrapper3Func<TParDoArgs>,
+            EWrapperType::ParDoArgsWrapper,
             reinterpret_cast<void*>(function),
             MakeRowVtable<TInput>(),
             MakeTags<TOutput>(),
@@ -203,7 +223,7 @@ public:
 
     template <typename TInput>
     static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(
-        TRawFunction2<TInput, TMultiRow> function,
+        TArgumentOutputFunction<TInput, TMultiRow> function,
         std::vector<TDynamicTypeTag> tags,
         TFnAttributes fnAttributes)
     {
@@ -232,7 +252,7 @@ private:
     static void RawWrapper1Func(TLambda1RawParDo* pThis, const void* rows, int count)
     {
         auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        auto underlyingFunction = reinterpret_cast<TRawFunction1<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
+        auto underlyingFunction = reinterpret_cast<TReturnOutputFunction<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
 
         for (const auto& row : span) {
             if constexpr (std::is_same_v<TOutputRow, void>) {
@@ -254,10 +274,29 @@ private:
         } else {
             upcastedOutput = pThis->SingleOutput_->Upcast<TOutputRow>();
         }
-        auto underlyingFunction = reinterpret_cast<TRawFunction2<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
+        auto underlyingFunction = reinterpret_cast<TArgumentOutputFunction<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
 
         for (const auto& row : span) {
             underlyingFunction(row, *upcastedOutput);
+        }
+    }
+
+    template <CParDoArgs TParDoArgs>
+    static void RawWrapper3Func(TLambda1RawParDo* pThis, const void* rows, int count)
+    {
+        using TInputRow = TParDoArgs::TInputRow;
+        using TOutputRow = TParDoArgs::TOutputRow;
+        auto span = std::span(static_cast<const TInputRow*>(rows), count);
+        TOutput<TOutputRow>* upcastedOutput;
+        if constexpr (std::is_same_v<TOutputRow, void>) {
+            upcastedOutput = &VoidOutput;
+        } else {
+            upcastedOutput = pThis->SingleOutput_->Upcast<TOutputRow>();
+        }
+        auto underlyingFunction = reinterpret_cast<TParDoArgsFunction<TParDoArgs>>(pThis->UnderlyingFunction_);
+
+        for (const auto& row : span) {
+            underlyingFunction(TParDoArgs(row, *upcastedOutput, *pThis->ExecutionContext_));
         }
     }
 
@@ -265,7 +304,7 @@ private:
     static void RawWrapperMultiOutputFunc(TLambda1RawParDo* pThis, const void* rows, int count)
     {
         auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        auto underlyingFunction = reinterpret_cast<TRawFunction2<TInputRow, TMultiRow>>(pThis->UnderlyingFunction_);
+        auto underlyingFunction = reinterpret_cast<TArgumentOutputFunction<TInputRow, TMultiRow>>(pThis->UnderlyingFunction_);
 
         for (const auto& row : span) {
             underlyingFunction(row, *pThis->MultiOutput_);
@@ -290,6 +329,7 @@ private:
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
     TFnAttributes FnAttributes_;
+    IExecutionContextPtr ExecutionContext_;
 
     Y_SAVELOAD_DEFINE_OVERRIDE(
         SaveLoadablePointer(WrapperFunction_),
@@ -302,8 +342,8 @@ private:
 
     // Initialization of fields depends on the WrapperType_:
     // * MultiOutput_ is initialized for MultiOutputWrapper;
-    // * SingleOutput_ is initialized for WrapperType1 and WrapperType2;
-    // * RowHolder_ is initialized for WrapperType1;
+    // * SingleOutput_ is initialized for ReturnOutputWrapper and ArgumentOutputWrapper;
+    // * RowHolder_ is initialized for ReturnOutputWrapper;
     std::optional<TMultiOutput> MultiOutput_;
     IRawOutputPtr SingleOutput_;
     TRawRowHolder RowHolder_;

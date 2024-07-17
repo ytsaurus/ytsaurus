@@ -267,13 +267,23 @@ template <typename F>
 auto ParDo(F func, const TFnAttributes& attributes)
 {
     using TDecayedF = std::decay_t<F>;
-    using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
-    if constexpr (std::invocable<TDecayedF, TInputRow>) {
-        using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
-        static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
-        auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
-        return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
+    using TFirstArg = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
+    if constexpr (std::invocable<TDecayedF, TFirstArg>) {
+        if constexpr (NPrivate::CParDoArgs<TFirstArg>) {
+            using TInputRow = typename TFirstArg::TInputRow;
+            using TOutputRow = typename TFirstArg::TOutputRow;
+            static_assert(std::is_convertible_v<F, void(*)(TFirstArg)>);
+            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TFirstArg>(func, attributes);
+            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
+        } else {
+            using TInputRow = TFirstArg;
+            using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
+            static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
+            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
+        }
     } else {
+        using TInputRow = TFirstArg;
         using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
         using TOutputRow = typename TArg2::TRowType;
 
