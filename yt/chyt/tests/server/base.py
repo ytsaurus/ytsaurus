@@ -373,13 +373,13 @@ class Clique(object):
         query_type = query.strip().split(" ", 1)[0]
         if query.endswith(";"):
             query = query[:-1]
-        output_present = query_type in QUERY_TYPES_WITH_OUTPUT
+        output_present = query_type.lower() in QUERY_TYPES_WITH_OUTPUT
         if output_present:
             query = query + " format " + format
 
         params["output_format_json_quote_64bit_integers"] = 0
 
-        result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout)
+        result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout, verify=False)
 
         inner_errors = []
 
@@ -489,22 +489,41 @@ class Clique(object):
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors, code=InstanceUnavailableCode)
 
     def make_query_via_proxy(
-            self,
-            query,
-            format="JSON",
-            settings=None,
-            verbose=True,
-            only_rows=True,
-            full_response=False,
-            headers=None,
-            database=None,
-            user="root",
+        self,
+        query,
+        format="JSON",
+        settings=None,
+        verbose=True,
+        only_rows=True,
+        full_response=False,
+        headers=None,
+        database=None,
+        user="root",
+        endpoint="/chyt",
+        chyt_proxy=False,
+        https_proxy=False,
     ):
+        """
+        chyt_proxy:
+            Use special chyt-proxy instead of regular one.
+            Note: at this moment the only valid for chyt-proxy endpoint is "/".
+        https_proxy:
+            Use https proxy instead of http one.
+        """
+
         if headers is None:
             headers = {}
         headers["X-Yt-User"] = user
-        assert self.proxy_address is not None
-        url = self.proxy_address + "/query"
+
+        if chyt_proxy:
+            address = (self.chyt_https_address if https_proxy
+                       else self.chyt_http_address)
+        else:
+            address = (self.proxy_https_address if https_proxy
+                       else self.proxy_address)
+
+        assert address is not None
+        url = address + endpoint
 
         if database is None:
             database = self.alias
@@ -624,20 +643,7 @@ class ClickHouseTestBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     ENABLE_HTTP_PROXY = True
-
-    DELTA_PROXY_CONFIG = {
-        "clickhouse": {
-            "discovery_cache": {
-                "soft_age_threshold": 500,
-                "hard_age_threshold": 1500,
-                "master_cache_expire_time": 500,
-            },
-            "operation_cache": {
-                "expire_after_successful_update_time": 0,
-                "refresh_time": yson.YsonEntity(),
-            },
-        },
-    }
+    ENABLE_CHYT_HTTP_PROXIES = True
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -654,9 +660,35 @@ class ClickHouseTestBase(YTEnvSetup):
         }
     }
 
+    DELTA_PROXY_CONFIG = {
+        "clickhouse": {
+            "discovery_cache": {
+                "soft_age_threshold": 500,
+                "hard_age_threshold": 1500,
+                "master_cache_expire_time": 500,
+            },
+            "operation_cache": {
+                "expire_after_successful_update_time": 0,
+                "refresh_time": yson.YsonEntity(),
+            },
+        },
+    }
+
     @classmethod
     def _get_proxy_address(cls):
         return "http://" + cls.Env.get_http_proxy_address()
+
+    @classmethod
+    def _get_proxy_https_address(cls):
+        return "https://" + cls.Env.get_http_proxy_address(https=True)
+
+    @classmethod
+    def _get_chyt_http_address(cls):
+        return "http://" + cls.Env.get_http_proxy_address(chyt=True)
+
+    @classmethod
+    def _get_chyt_https_address(cls):
+        return "https://" + cls.Env.get_http_proxy_address(chyt=True, https=True)
 
     @staticmethod
     def _signal_instance(pid, signal_number):
@@ -691,7 +723,9 @@ class ClickHouseTestBase(YTEnvSetup):
             }
             Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_dst_map")
             Clique.tvm_secret = Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_self_secret")
+
         Clique.proxy_address = cls._get_proxy_address()
+        Clique.chyt_http_address = cls._get_chyt_http_address()
 
     def setup_method(self, method):
         super().setup_method(method)

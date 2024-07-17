@@ -238,6 +238,8 @@ class YTEnvSetup(object):
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
+    ENABLE_CHYT_HTTP_PROXIES = False
+    ENABLE_CHYT_HTTPS_PROXIES = False
     NUM_HTTP_PROXIES = 1
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
@@ -567,6 +569,8 @@ class YTEnvSetup(object):
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
+            enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
+            enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
