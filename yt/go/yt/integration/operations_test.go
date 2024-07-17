@@ -20,8 +20,6 @@ import (
 )
 
 func TestOperation(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 
 	env := yttest.New(t)
@@ -80,8 +78,6 @@ func TestOperation(t *testing.T) {
 }
 
 func TestOperationWithStderr(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 
 	env := yttest.New(t)
@@ -132,8 +128,6 @@ func TestOperationWithStderr(t *testing.T) {
 }
 
 func TestListOperations(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 
 	env := yttest.New(t)
@@ -186,8 +180,6 @@ func TestListOperations(t *testing.T) {
 }
 
 func TestListAllOperations(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 
 	env := yttest.New(t)
@@ -230,8 +222,6 @@ func TestListAllOperations(t *testing.T) {
 }
 
 func TestListAllJobs(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 
 	env := yttest.New(t)
