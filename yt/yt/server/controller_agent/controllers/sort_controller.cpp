@@ -3308,6 +3308,18 @@ private:
 
             // Don't create more partitions than we have samples (plus one).
             PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
+            if (PartitionCount == 1 && !Config->SortOperationOptions->EnableSimpleSortForEvaluatedOutput) {
+                for (const auto& outputColumn : OutputTables_[0]->TableUploadOptions.TableSchema->Columns()) {
+                    if (outputColumn.Expression()) {
+                        PartitionCount = 2;
+                        YT_LOG_INFO(
+                            "Force increased partition count due to "
+                            "evaluated columns in output (PartitionCount: %v)",
+                            PartitionCount);
+                    }
+                }
+            }
+
             SimpleSort = (PartitionCount == 1);
 
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
