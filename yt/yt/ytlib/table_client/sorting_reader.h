@@ -16,7 +16,7 @@ namespace NYT::NTableClient {
 ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    TKeyColumns keyColumns,
+    const std::vector<TString>& outputColumns,
     TComparator comparator,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 

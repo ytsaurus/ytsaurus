@@ -749,7 +749,7 @@ bool TTableSchema::IsEmpty() const
     return Columns().empty();
 }
 
-bool TTableSchema::IsCGCompatarorApplicable() const
+bool TTableSchema::IsCGComparatorApplicable() const
 {
     return GetKeyColumnCount() <= MaxKeyColumnCountInDynamicTable;
 }

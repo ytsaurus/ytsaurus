@@ -38,18 +38,15 @@ public:
     TSortingReader(
         ISchemalessMultiChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        TKeyColumns keyColumns,
+        const std::vector<TString>& outputColumns,
         TComparator comparator,
         TColumnEvaluatorPtr evaluator)
         : UnderlyingReader_(std::move(underlyingReader))
-        , KeyColumns_(std::move(keyColumns))
         , Comparator_(std::move(comparator))
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
         , Evaluator_(std::move(evaluator))
-        , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
+        , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, outputColumns)
     {
-        YT_VERIFY(std::ssize(KeyColumns_) == Comparator_.GetLength());
-
         SetReadyEvent(BIND(&TSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run());
@@ -150,7 +147,6 @@ public:
 
 private:
     const ISchemalessMultiChunkReaderPtr UnderlyingReader_;
-    const TKeyColumns KeyColumns_;
     const TComparator Comparator_;
 
     const TRowBufferPtr RowBuffer_;
@@ -182,8 +178,8 @@ private:
             Rows_.end(),
             [&] (auto lhsRow, auto rhsRow) {
                 // Value types validation is disabled for performance reasons.
-                auto lhsKey = TKey::FromRowUnchecked(lhsRow, KeyColumns_.size());
-                auto rhsKey = TKey::FromRowUnchecked(rhsRow, KeyColumns_.size());
+                auto lhsKey = TKey::FromRowUnchecked(lhsRow, Comparator_.GetLength());
+                auto rhsKey = TKey::FromRowUnchecked(rhsRow, Comparator_.GetLength());
                 return Comparator_.CompareKeys(lhsKey, rhsKey) < 0;
             });
     }
@@ -194,14 +190,14 @@ private:
 ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    TKeyColumns keyColumns,
+    const std::vector<TString>& outputColumns,
     TComparator comparator,
     TColumnEvaluatorPtr evaluator)
 {
     return New<TSortingReader>(
         std::move(underlyingReader),
         std::move(nameTable),
-        std::move(keyColumns),
+        outputColumns,
         std::move(comparator),
         std::move(evaluator));
 }
