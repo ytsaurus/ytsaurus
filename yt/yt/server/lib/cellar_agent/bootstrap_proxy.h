@@ -38,6 +38,8 @@ struct ICellarBootstrapProxy
 
     virtual NRpc::IAuthenticatorPtr GetNativeAuthenticator() const = 0;
 
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetChangelogOutThrottler() const = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 };
 

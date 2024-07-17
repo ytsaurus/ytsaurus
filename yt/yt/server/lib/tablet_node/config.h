@@ -960,6 +960,11 @@ public:
 
     TMediumThrottlersConfigPtr MediumThrottlers;
 
+    TSlruCacheDynamicConfigPtr CompressionDictionaryCache;
+
+    bool EnableChangelogNetworkUsageAccounting;
+    bool EnableCollocatedDatNodeThrottling;
+
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

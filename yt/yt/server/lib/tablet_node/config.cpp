@@ -947,6 +947,15 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("medium_throttlers", &TThis::MediumThrottlers)
         .DefaultNew();
+
+    registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
+        .DefaultNew();
+
+    registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
+        .Default(false);
+
+    registrar.Parameter("enable_collocated_dat_node_throttling", &TThis::EnableCollocatedDatNodeThrottling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

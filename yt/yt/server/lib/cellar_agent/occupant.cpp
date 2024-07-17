@@ -66,6 +66,7 @@
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -105,28 +106,33 @@ static const auto& Profiler = CellarAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogMediumUsageTracker
+class TJournalWritesObserver
     : public IJournalWritesObserver
 {
 public:
-    explicit TChangelogMediumUsageTracker(NProfiling::TProfiler profiler)
-        : Profiler(profiler.WithPrefix("/changelog_medium_usage"))
+    TJournalWritesObserver(IThroughputThrottlerPtr changelogOutThrottler, NProfiling::TProfiler profiler)
+        : ChangelogOutThrottler_(std::move(changelogOutThrottler))
+        , Profiler(profiler.WithPrefix("/changelog_medium_usage"))
         , PayloadWrittenBytesCounter_(profiler.Counter("/payload_written_bytes_counter"))
         , MediaWrittenBytesCounter_(profiler.Counter("/media_written_bytes_counter"))
         , EstimatedInBytesCounter_(profiler.Counter("/estimated_in_bytes_counter"))
         , EstimatedOutBytesCounter_(profiler.Counter("/estimated_out_bytes_counter"))
     { }
 
-    void RegisterPayloadWrite(int payload) override
+    void RegisterPayloadWrite(i64 payload) override
     {
         PayloadWrittenBytes_.fetch_add(payload, std::memory_order::relaxed);
         PayloadWrittenBytesCounter_.Increment(payload);
     }
 
-    void RegisterJournalWrite(int /*journalWrittenBytes*/, int mediaWrittenBytes) override
+    void RegisterJournalWrite(i64 journalWrittenBytes, i64 mediaWrittenBytes) override
     {
         MediaWrittenBytes_.fetch_add(mediaWrittenBytes, std::memory_order::relaxed);
         MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
+
+        if (ChangelogOutThrottler_ && EnableChangelogNetworkUsageAccounting_.load(std::memory_order::relaxed)) {
+            ChangelogOutThrottler_->Acquire(journalWrittenBytes);
+        }
     }
 
     int EstimateMediaBytes(int payloadBytes) const
@@ -148,7 +154,15 @@ public:
         return results;
     }
 
+    void Reconfigure(const NHydra::TDynamicDistributedHydraManagerConfigPtr& dynamicConfig)
+    {
+        EnableChangelogNetworkUsageAccounting_.store(
+            dynamicConfig->EnableChangelogNetworkUsageAccounting.value_or(false),
+            std::memory_order::relaxed);
+    }
+
 private:
+    const IThroughputThrottlerPtr ChangelogOutThrottler_;
     NProfiling::TProfiler Profiler;
     NProfiling::TCounter PayloadWrittenBytesCounter_;
     NProfiling::TCounter MediaWrittenBytesCounter_;
@@ -158,9 +172,11 @@ private:
 
     std::atomic<i64> PayloadWrittenBytes_ = 0;
     std::atomic<i64> MediaWrittenBytes_ = 0;
+
+    std::atomic<bool> EnableChangelogNetworkUsageAccounting_ = false;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChangelogMediumUsageTracker);
+DEFINE_REFCOUNTED_TYPE(TJournalWritesObserver);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,7 +199,9 @@ public:
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(MakeLogger())
-        , ChangelogMediumUsageTracker_(New<TChangelogMediumUsageTracker>(Occupier_.Acquire()->GetProfiler()))
+        , JournalWritesObserver_(New<TJournalWritesObserver>(
+            bootstrap->GetChangelogOutThrottler(),
+            Occupier_.Acquire()->GetProfiler()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
@@ -326,7 +344,6 @@ public:
         YT_LOG_INFO("Cellar occupant initialized");
     }
 
-
     bool CanConfigure() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -447,7 +464,7 @@ public:
 
         auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
-        performanceCounters.JournalWritesObserver = ChangelogMediumUsageTracker_;
+        performanceCounters.JournalWritesObserver = JournalWritesObserver_;
 
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
@@ -667,6 +684,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        JournalWritesObserver_->Reconfigure(dynamicConfig);
+
         if (CanConfigure()) {
             HydraManager_.Acquire()->Reconfigure(dynamicConfig);
         }
@@ -726,7 +745,7 @@ public:
 
     int EstimateChangelogMediumBytes(int payload) const override
     {
-        return ChangelogMediumUsageTracker_->EstimateMediaBytes(payload);
+        return JournalWritesObserver_->EstimateMediaBytes(payload);
     }
 
 private:
@@ -786,7 +805,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    const TIntrusivePtr<TChangelogMediumUsageTracker> ChangelogMediumUsageTracker_;
+    const TIntrusivePtr<TJournalWritesObserver> JournalWritesObserver_;
 
 
     TYPath GetStoresPath()

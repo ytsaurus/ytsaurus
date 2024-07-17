@@ -20,6 +20,7 @@
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -91,8 +92,9 @@ public:
         , Client_(std::move(client))
         , LocalNodeDescriptor_(std::move(localNodeDescriptor))
         , ChunkRegistry_(std::move(chunkRegistry))
-        , ReaderConfig_(std::move(readerConfig))
-    { }
+    {
+        SetReaderConfig(readerConfig);
+    }
 
     TBackendReaders GetBackendReaders(
         TChunkStoreBase* owner,
@@ -325,7 +327,7 @@ public:
         CachedWeakChunk_.Reset();
 
         if (config) {
-            ReaderConfig_ = config;
+            SetReaderConfig(config);
         }
     }
 
@@ -351,6 +353,12 @@ private:
     TWeakPtr<IChunk> CachedWeakChunk_;
     TTabletStoreReaderConfigPtr ReaderConfig_;
 
+    void SetReaderConfig(const TTabletStoreReaderConfigPtr& readerConfig)
+    {
+        ReaderConfig_ = CloneYsonStruct(readerConfig);
+        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetDynamicConfigManager()
+            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+    }
 
     static bool IsLocalChunkValid(const IChunkPtr& chunk)
     {

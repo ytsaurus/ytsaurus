@@ -240,6 +240,8 @@ public:
 
     std::optional<bool> AlertOnSnapshotFailure;
 
+    std::optional<bool> EnableChangelogNetworkUsageAccounting;
+
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 
     static void Register(TRegistrar registrar);
