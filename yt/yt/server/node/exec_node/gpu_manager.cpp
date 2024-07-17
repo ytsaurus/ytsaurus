@@ -188,6 +188,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     auto now = TInstant::Now();
     for (const auto& descriptor : descriptors) {
         GpuDevices_.push_back(descriptor.DeviceName);
+        InsertOrCrash(GpuDeviceIndices_, descriptor.DeviceIndex);
+
         FreeSlots_.emplace_back(descriptor.DeviceIndex);
 
         EmplaceOrCrash(
@@ -295,6 +297,7 @@ void TGpuManager::OnHealthCheck()
         }
 
         std::vector<int> freeDeviceIndices;
+        std::vector<int> unknownDeviceIndices;
 
         YT_LOG_DEBUG("Updating healthy GPU devices (DeviceIndices: %v)",
             deviceIndices);
@@ -332,6 +335,13 @@ void TGpuManager::OnHealthCheck()
             }
 
             for (auto& gpuInfo : gpuInfos) {
+                if (!GpuDeviceIndices_.contains(gpuInfo.Index)) {
+                    YT_LOG_WARNING("Found unknown GPU device (DeviceName: %v)",
+                        GetGpuDeviceName(gpuInfo.Index));
+                    unknownDeviceIndices.push_back(gpuInfo.Index);
+                    continue;
+                }
+
                 gpuInfo.UpdateTime = now;
                 HealthyGpuInfoMap_[gpuInfo.Index] = gpuInfo;
             }
@@ -362,9 +372,11 @@ void TGpuManager::OnHealthCheck()
 
         YT_LOG_DEBUG(
             "List of healthy GPU devices updated "
-            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
+            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, UnknownDeviceIndices: %v, "
+            "AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
             deviceIndices,
             freeDeviceIndices,
+            unknownDeviceIndices,
             AcquiredGpuDeviceIndices_,
             LostGpuDeviceIndices_);
     } catch (const std::exception& ex) {
@@ -595,7 +607,7 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 
     std::vector<TGpuSlotPtr> resultSlots;
     std::vector<int> remainingSlotIndices;
-    for (   auto index : FreeSlots_) {
+    for (auto index : FreeSlots_) {
         if (resultDeviceIndices.contains(index)) {
             resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), index));
         } else {

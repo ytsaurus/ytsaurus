@@ -36,7 +36,7 @@ static const TString NvidiaDevicePrefix("nvidia");
 static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
 static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
-    "/dev/nvidia-uvm"
+    "/dev/nvidia-uvm",
 };
 static const TString DummyGpuDriverVersion = "dummy";
 
@@ -91,7 +91,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices()
 
     if (foundMetaDeviceCount < std::ssize(MetaGpuDevices)) {
         if (!result.empty()) {
-            THROW_ERROR_EXCEPTION("Too few Nvidia meta GPU devices found, but nvidia devices presented");
+            THROW_ERROR_EXCEPTION("Too few Nvidia meta GPU devices found, but Nvidia devices presented");
         }
         YT_LOG_INFO("Too few Nvidia meta GPU devices found; assuming no device is present (Found: %v, Needed: %v)",
             foundMetaDeviceCount,
