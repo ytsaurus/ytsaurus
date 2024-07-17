@@ -11,6 +11,7 @@ IF (NOT OPENSOURCE)
         blob/tools/file-yt
         blob/tools/file-yt/tests
         blob_table
+        get_gpu_cluster
         cypress_path
         lazy_sort
         lambda
