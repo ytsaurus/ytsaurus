@@ -455,6 +455,7 @@ class Migration(object):
         assert target_version == self.initial_version or target_version in self.transforms
         assert target_version >= self.initial_version
 
+        current_version = None
         if client.exists(tables_path):
             current_version = client.get("{0}/@".format(tables_path)).get("version")
 
