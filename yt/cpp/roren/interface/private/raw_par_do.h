@@ -284,8 +284,8 @@ private:
     template <CParDoArgs TParDoArgs>
     static void RawWrapper3Func(TLambda1RawParDo* pThis, const void* rows, int count)
     {
-        using TInputRow = TParDoArgs::TInputRow;
-        using TOutputRow = TParDoArgs::TOutputRow;
+        using TInputRow = typename TParDoArgs::TInputRow;
+        using TOutputRow = typename TParDoArgs::TOutputRow;
         auto span = std::span(static_cast<const TInputRow*>(rows), count);
         TOutput<TOutputRow>* upcastedOutput;
         if constexpr (std::is_same_v<TOutputRow, void>) {
