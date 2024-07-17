@@ -293,8 +293,8 @@ private:
         }
 
         if (Config_->EnableAggressiveReconnect || Deadline_) {
-            const auto deadline = Min(
-                Deadline_ ? *Deadline_ : TInstant::Max(),
+            auto deadline = Min(
+                Deadline_.value_or(TInstant::Max()),
                 Config_->EnableAggressiveReconnect ? Timeout_.ToDeadLine() : TInstant::Max());
 
             TimeoutCookie_ = TDelayedExecutor::Submit(
@@ -369,8 +369,8 @@ private:
         }
 
         if (Deadline_ && TInstant::Now() >= *Deadline_) {
-            auto error = TError(NRpc::EErrorCode::TransportError, "Connect timed out")
-                << TErrorAttribute("Timeout", Config_->ConnectTimeout);
+            auto error = TError(NRpc::EErrorCode::TransportError, "Connect timeout")
+                << TErrorAttribute("timeout", Config_->ConnectTimeout);
             YT_LOG_ERROR(error);
             Finished_ = true;
             guard.Release();
