@@ -7,7 +7,8 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
 from yt_helpers import skip_if_no_descending
-from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type
+from yt_type_helpers import (
+    make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -1633,43 +1634,55 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     spec={"schema_inference_mode": schema_inference_mode},
                 )
 
+    @pytest.mark.parametrize("simple_sort", [True, False])
     @authors("sabdenovch")
-    def test_extra_computed_columns(self):
+    def test_extra_computed_columns(self, simple_sort):
         if self.Env.get_component_version("ytserver-controller-agent").abi < (24, 1) or \
                 self.Env.get_component_version("ytserver-job-proxy").abi < (24, 1):
             pytest.skip()
 
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={
-                "schema": [
-                    {"name": "val", "type": "int64"},
-                ]
-            },
-        )
-        create(
-            "table",
-            "//tmp/t_out",
-            attributes={
-                "schema": [
-                    {"name": "eva", "type": "int64", "expression": "-2 * val + 7"},
-                    {"name": "val", "type": "int64"},
-                ]
-            },
-        )
+        create("table", "//tmp/t_in", attributes={"schema": [make_column("val", "int64")]})
+        create("table", "//tmp/t_out", attributes={"schema": [
+            make_sorted_column("eva", optional_type("int64"), expression="-2 * val + 7"),
+            make_column("val", optional_type("int64")),
+        ]})
 
         write_table("//tmp/t_in", [{"val": i} for i in range(5)])
 
-        sort_by = [{"name": "eva", "sort_order": "ascending"}]
-        expected = [{"eva": -2 * i + 7, "val": i} for i in range(4, -1, -1)]
+        spec = {} if simple_sort else {"partition_count": 2}
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=["eva"], spec=spec)
+        assert read_table("//tmp/t_out") == [{"eva": -2 * i + 7, "val": i} for i in range(4, -1, -1)]
 
-        # Avoid simple sort.
-        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=sort_by, spec={"partition_count": 2})
-        assert read_table("//tmp/t_out") == expected
+    @pytest.mark.parametrize("simple_sort", [True, False])
+    @authors("sabdenovch")
+    def test_reorder_computed_columns(self, simple_sort):
+        create("table", "//tmp/t_in", attributes={"schema": [
+            make_sorted_column("ui_id", optional_type("uint32")),
+            make_sorted_column("string_id", optional_type("string")),
+            make_sorted_column("hash", optional_type("uint64"), expression="farm_hash(ui_id, string_id) % 100"),
+            make_column("float", optional_type("double")),
+            make_column("alias", optional_type("string"), expression="string_id"),
+        ]})
+        create("table", "//tmp/t_out", attributes={"schema": [
+            make_sorted_column("alias", optional_type("string"), expression="string_id"),
+            make_sorted_column("string_id", optional_type("string")),
+            make_column("float", optional_type("double")),
+            make_column("hash", optional_type("uint64"), expression="farm_hash(ui_id, string_id) % 100"),
+            make_column("ui_id", optional_type("uint32")),
+        ]})
 
-        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=sort_by)
-        assert read_table("//tmp/t_out") == expected
+        rowset = [{
+            "ui_id": i,
+            "string_id": str(i),
+            "float": math.sin(i),
+        } for i in range(100)]
+
+        write_table("//tmp/t_in", rowset)
+
+        sort_by = ["string_id"]
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=sort_by, spec={} if simple_sort else {"partition_count": 2})
+        rowset = sorted(rowset, key=lambda row : row["string_id"])
+        assert read_table("<columns=[ui_id; string_id; float]>//tmp/t_out") == rowset
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("schema_inference_mode", ["auto", "from_output"])
