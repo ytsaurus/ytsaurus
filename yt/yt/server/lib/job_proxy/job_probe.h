@@ -26,7 +26,7 @@ struct IJobProbe
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) = 0;
 
-    virtual NApi::TGetJobStderrResponse GetStderr(const NApi::TPagedLogReq& request) = 0;
+    virtual NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& request) = 0;
 
     virtual void Interrupt() = 0;
 

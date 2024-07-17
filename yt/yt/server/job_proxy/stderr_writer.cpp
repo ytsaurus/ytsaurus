@@ -144,7 +144,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     Tail_->Write(buf, len);
 }
 
-NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TPagedLogReq& request) const
+NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStderrOptions& request) const
 {
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());

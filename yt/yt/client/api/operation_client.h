@@ -364,19 +364,13 @@ struct TListJobsResult
     std::vector<TError> Errors;
 };
 
-struct TPagedLogReq
-{
-    i64 Limit = 0;
-    i64 Offset = 0;
-};
-
 struct TGetJobStderrResponse
 {
     TSharedRef Data;
     i64 TotalSize = 0;
     i64 EndOffset = 0;
 
-    static TGetJobStderrResponse PagedLogFromReq(const TPagedLogReq& req, const TSharedRef& data);
+    static TGetJobStderrResponse PagedLogFromReq(const TGetJobStderrOptions& req, const TSharedRef& data);
 };
 
 

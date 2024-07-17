@@ -1262,7 +1262,7 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
     }
 }
 
-std::optional<TGetJobStderrResponse> TJob::GetStderr(const TPagedLogReq& request)
+std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& request)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

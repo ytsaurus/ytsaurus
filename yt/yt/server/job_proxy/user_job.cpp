@@ -839,7 +839,7 @@ private:
         return FailContext_;
     }
 
-    TGetJobStderrResponse GetStderr(const TPagedLogReq& request) override
+    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& request) override
     {
         ValidatePrepared();
 
