@@ -68,7 +68,7 @@ public:
         };
     }
 
-    TPagedLog GetStderr(const TPagedLogReq & request) override
+    TGetJobStderrResponse GetStderr(const TPagedLogReq & request) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 

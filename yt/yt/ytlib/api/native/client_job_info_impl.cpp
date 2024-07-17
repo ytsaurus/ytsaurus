@@ -903,7 +903,7 @@ auto RetryJobIsNotRunning(
     return rspOrError;
 }
 
-std::optional<TPagedLog> TClient::DoGetJobStderrFromNode(
+std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId,
     const TGetJobStderrOptions& options)
@@ -991,7 +991,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     }
 }
 
-TPagedLog TClient::DoGetJobStderr(
+TGetJobStderrResponse TClient::DoGetJobStderr(
     const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
     const TGetJobStderrOptions& options)

@@ -227,7 +227,7 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPagedLog TPagedLog::PagedLogFromReq(const TPagedLogReq& request, const TSharedRef& data)
+TGetJobStderrResponse TGetJobStderrResponse::PagedLogFromReq(const TPagedLogReq& request, const TSharedRef& data)
 {
     const i64 totalSize = data.size();
     i64 endOffset = totalSize;

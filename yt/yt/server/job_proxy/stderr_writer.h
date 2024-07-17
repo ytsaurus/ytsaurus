@@ -47,7 +47,7 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler);
 
     size_t GetCurrentSize() const;
-    NApi::TPagedLog GetCurrentData(const NApi::TPagedLogReq& request) const;
+    NApi::TGetJobStderrResponse GetCurrentData(const NApi::TPagedLogReq& request) const;
 
 private:
     void DoWrite(const void* buf, size_t len) override;

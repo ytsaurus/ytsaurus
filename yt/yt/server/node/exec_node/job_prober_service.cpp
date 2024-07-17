@@ -84,7 +84,7 @@ private:
             job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         }
 
-        auto stderrResp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()}).value_or(NApi::TPagedLog{});
+        auto stderrResp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()}).value_or(NApi::TGetJobStderrResponse{});
         response->set_stderr_data(TString{stderrResp.Data.ToStringBuf()});
         response->set_total_size(stderrResp.TotalSize);
         response->set_end_offset(stderrResp.EndOffset);

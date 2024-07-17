@@ -214,7 +214,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId t
     return job->DumpInputContext(transactionId);
 }
 
-TPagedLog TJobProxy::GetStderr(const TPagedLogReq& request)
+TGetJobStderrResponse TJobProxy::GetStderr(const TPagedLogReq& request)
 {
     auto job = GetJobOrThrow();
     return job->GetStderr(request);

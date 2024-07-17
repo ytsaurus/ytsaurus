@@ -370,13 +370,13 @@ struct TPagedLogReq
     i64 Offset = 0;
 };
 
-struct TPagedLog
+struct TGetJobStderrResponse
 {
     TSharedRef Data;
     i64 TotalSize = 0;
     i64 EndOffset = 0;
 
-    static TPagedLog PagedLogFromReq(const TPagedLogReq& req, const TSharedRef& data);
+    static TGetJobStderrResponse PagedLogFromReq(const TPagedLogReq& req, const TSharedRef& data);
 };
 
 
@@ -433,7 +433,7 @@ struct IOperationClient
         NJobTrackerClient::TJobId jobId,
         const TGetJobSpecOptions& options = {}) = 0;
 
-    virtual TFuture<TPagedLog> GetJobStderr(
+    virtual TFuture<TGetJobStderrResponse> GetJobStderr(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options = {}) = 0;
