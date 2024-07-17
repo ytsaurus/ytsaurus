@@ -270,19 +270,29 @@ private:
                 return;
             }
 
+            TTimestamp currentBatchFirstTimestamp = NullTimestamp;
+
             auto updateCountersGuard = Finally([&] {
                 auto lagRowCount = std::max(
                     static_cast<i64>(0),
                     tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
-
-                auto lagTime = TDuration::Zero();
-                if (lagRowCount != 0) {
-                    lagTime = TimestampToInstant(LocalConnection_->GetTimestampProvider()->GetLatestTimestamp()).second -
-                        TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
-                }
-
                 counters.LagRowCount.Update(lagRowCount);
-                counters.LagTime.Update(lagTime);
+
+                if (lagRowCount == 0) {
+                    counters.LagTime.Update(TDuration::Zero());
+                } else {
+                    auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
+                    if (lastReplicationTimestamp == NullTimestamp) {
+                        lastReplicationTimestamp = currentBatchFirstTimestamp;
+                    }
+
+                    // Do not post infinite lag time if actual last replication timestamp cannot be deduced.
+                    if (lastReplicationTimestamp != NullTimestamp) {
+                        auto latestTimestamp = LocalConnection_->GetTimestampProvider()->GetLatestTimestamp();
+                        counters.LagTime.Update(
+                            TimestampToInstant(latestTimestamp).second - TimestampToInstant(lastReplicationTimestamp).first);
+                    }
+                }
             });
 
             if (HintManager_->IsReplicaClusterBanned(ClusterName_)) {
@@ -384,6 +394,7 @@ private:
                         &rowBuffer,
                         &newReplicationRowIndex,
                         &newReplicationTimestamp,
+                        &currentBatchFirstTimestamp,
                         &batchRowCount,
                         &batchDataWeight,
                         isVersioned);
@@ -523,6 +534,7 @@ private:
         TRowBufferPtr* rowBuffer,
         i64* newReplicationRowIndex,
         TTimestamp* newReplicationTimestamp,
+        TTimestamp* firstBatchTimestamp,
         i64* batchRowCount,
         i64* batchDataWeight,
         bool isVersioned)
@@ -624,6 +636,10 @@ private:
                         currentRowIndex,
                         rowIndex)
                         << HardErrorAttribute;
+                }
+
+                if (*firstBatchTimestamp == NullTimestamp) {
+                    *firstBatchTimestamp = timestamp;
                 }
 
                 if (timestamp != prevTimestamp) {
