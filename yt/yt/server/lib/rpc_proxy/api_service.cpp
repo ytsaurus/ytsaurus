@@ -635,11 +635,11 @@ public:
             config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
+        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
-        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -848,6 +848,7 @@ private:
     const NNative::TClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -857,7 +858,6 @@ private:
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
 
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
     struct TDetailedProfilingCountersKey
     {

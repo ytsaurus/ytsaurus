@@ -101,7 +101,8 @@ public:
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         EWorkloadCategory workloadCategory,
-        IThroughputThrottlerPtr nodeOutThrottler)
+        IThroughputThrottlerPtr nodeOutThrottler,
+        IMemoryUsageTrackerPtr memoryTracker)
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
@@ -126,6 +127,7 @@ public:
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
         , RelativeThrottler_(CreateRelativeReplicationThrottler(
             MountConfig_->RelativeReplicationThrottler))
+        , MemoryTracker_(std::move(memoryTracker))
         , SoftErrorBackoff_(TBackoffStrategy(TExponentialBackoffOptions{
             .MinBackoff = Config_->ReplicatorSoftBackoffTime,
             .MaxBackoff = Config_->ReplicatorHardBackoffTime,
@@ -176,6 +178,7 @@ private:
     const EWorkloadCategory WorkloadCategory_;
     const IThroughputThrottlerPtr Throttler_;
     const IRelativeReplicationThrottlerPtr RelativeThrottler_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 
     TBackoffStrategy SoftErrorBackoff_;
 
@@ -232,7 +235,9 @@ private:
 
             {
                 auto throttleFuture = Throttler_->Throttle(1);
-                if (!throttleFuture.IsSet()) {
+                if (throttleFuture.IsSet()) {
+                    throttleFuture.Get().ThrowOnError();
+                } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for replication throttling");
                     WaitFor(throttleFuture)
@@ -244,7 +249,9 @@ private:
 
             {
                 auto throttleFuture = RelativeThrottler_->Throttle();
-                if (!throttleFuture.IsSet()) {
+                if (throttleFuture.IsSet()) {
+                    throttleFuture.Get().ThrowOnError();
+                } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");
                     WaitFor(throttleFuture)
@@ -547,7 +554,13 @@ private:
         i64 currentRowIndex = startRowIndex;
         i64 dataWeight = 0;
 
-        *rowBuffer = New<TRowBuffer>();
+        struct TTableReplicatorReaderTag
+        { };
+
+        *rowBuffer = New<TRowBuffer>(
+            TTableReplicatorReaderTag{},
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            /*tracker*/ MemoryTracker_);
         replicationRows->clear();
 
         std::vector<TUnversionedRow> readerRows;
@@ -612,7 +625,8 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
-                    YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
+                    YT_LOG_INFO("Replication log row violates timestamp bound "
+                        "(StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return EReaderTerminationReason::TimestampBoundViolation;
@@ -712,7 +726,8 @@ TTableReplicator::TTableReplicator(
     IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
     EWorkloadCategory workloadCategory,
-    IThroughputThrottlerPtr nodeOutThrottler)
+    IThroughputThrottlerPtr nodeOutThrottler,
+    IMemoryUsageTrackerPtr memoryTracker)
     : Impl_(New<TImpl>(
         std::move(config),
         tablet,
@@ -723,7 +738,8 @@ TTableReplicator::TTableReplicator(
         std::move(hintManager),
         std::move(workerInvoker),
         workloadCategory,
-        std::move(nodeOutThrottler)))
+        std::move(nodeOutThrottler),
+        std::move(memoryTracker)))
 { }
 
 TTableReplicator::~TTableReplicator() = default;

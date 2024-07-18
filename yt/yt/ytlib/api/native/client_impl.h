@@ -902,6 +902,10 @@ private:
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
+    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
+
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
     TEnumIndexedArray<EMasterChannelKind, TChannels> MasterChannels_;
@@ -916,9 +920,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
-    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
-    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     struct TReplicaClient final
     {

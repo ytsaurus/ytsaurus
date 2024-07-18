@@ -155,7 +155,7 @@ void TBootstrap::DoRun()
     Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         std::move(connectionOptions),
-        {},
+        /*clusterDirectoryOverride*/ {},
         MemoryUsageTracker_);
 
     Connection_->GetClusterDirectorySynchronizer()->Start();

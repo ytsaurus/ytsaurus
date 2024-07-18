@@ -137,7 +137,7 @@ void TProxyConfig::Register(TRegistrar registrar)
     });
 
     registrar.Preprocessor([] (TThis* config) {
-        // Setting sane total memory limit for rpc proxy.
+        // Setting sane total memory limit for RPC proxy.
         config->MemoryLimits->Total = 20_GB;
     });
 }
