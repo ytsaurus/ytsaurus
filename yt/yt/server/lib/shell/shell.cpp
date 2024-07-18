@@ -49,11 +49,11 @@ static const i64 InputOffsetWarningLevel = 65536;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class TBaseShell
+class TShellBase
     : public IShell
 {
 public:
-    TBaseShell(
+    TShellBase(
         std::unique_ptr<TShellOptions> options)
         : Options_(std::move(options))
         , Id_(Options_->Id)
@@ -67,7 +67,6 @@ public:
 
         Logger.AddTag("ShellId: %v, ShellIndex: %v", Id_, Index_);
     }
-
 
     void ResizeWindow(int height, int width) override
     {
@@ -119,6 +118,7 @@ public:
     {
         return TerminatedPromise_.IsSet();
     }
+
 protected:
     const std::unique_ptr<TShellOptions> Options_;
     const TShellId Id_;
@@ -153,13 +153,13 @@ protected:
 };
 
 class TPortoShell
-    : public TBaseShell
+    : public TShellBase
 {
 public:
     TPortoShell(
         IPortoExecutorPtr portoExecutor,
         std::unique_ptr<TShellOptions> options)
-        : TBaseShell(std::move(options))
+        : TShellBase(std::move(options))
         , PortoExecutor_(std::move(portoExecutor))
     { }
 

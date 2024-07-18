@@ -78,11 +78,11 @@ static const char* Bashrc =
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class TBaseShellManager 
+class TShellManagerBase 
     : public IShellManager
 {
 public:
-    TBaseShellManager(
+    TShellManagerBase(
         const TShellManagerConfig& config,
         IInstancePtr rootInstance)
         : RootInstance_(std::move(rootInstance))
@@ -95,12 +95,12 @@ public:
         , Environment_(config.Environment)
     { }
 
- 
     void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Shell manager is terminating");
+
         Terminated_ = true;
         for (auto& shell : IdToShell_) {
             shell.second->Terminate(error);
@@ -114,6 +114,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Shell manager is shutting down");
+
         std::vector<TFuture<void>> futures;
         for (auto& shell : IdToShell_) {
             futures.push_back(shell.second->Shutdown(error));
@@ -187,14 +188,14 @@ protected:
 };
 
 class TPortoShellManager
-    : public TBaseShellManager
+    : public TShellManagerBase
 {
 public:
     TPortoShellManager(
         const TShellManagerConfig& config,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance)
-        : TBaseShellManager(config, std::move(rootInstance))
+        : TShellManagerBase(config, std::move(rootInstance))
         , PortoExecutor_(std::move(portoExecutor))
     { }
 

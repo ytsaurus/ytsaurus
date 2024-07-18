@@ -641,46 +641,50 @@ private:
 
     void InitShellManager()
     {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
 #ifdef _linux_
-            auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-            auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
-
-            std::vector<TString> shellEnvironment;
-            shellEnvironment.reserve(Environment_.size());
-            std::vector<TString> visibleEnvironment;
-            visibleEnvironment.reserve(Environment_.size());
-
-            for (const auto& variable : Environment_) {
-                if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
-                    !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
-                {
-                    continue;
-                }
-                if (variable.StartsWith("YT_")) {
-                    shellEnvironment.push_back(variable);
-                }
-                visibleEnvironment.push_back(variable);
+        switch (JobEnvironmentType_) {
+            case EJobEnvironmentType::Testing:
+            case EJobEnvironmentType::Simple: 
+                // No shell support
+                break;
+            case EJobEnvironmentType::Cri: {
+                // TODO: create specific shell manager  
+                break;
             }
+            case EJobEnvironmentType::Porto: {
+                auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+                auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
 
-            auto shellManagerUid = UserId_;
-            if (Config_->TestPollJobShell) {
-                shellManagerUid = std::nullopt;
-                shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
-            }
+                std::vector<TString> shellEnvironment;
+                shellEnvironment.reserve(Environment_.size());
+                std::vector<TString> visibleEnvironment;
+                visibleEnvironment.reserve(Environment_.size());
 
-            std::optional<int> shellManagerGid;
-            // YT-13790.
-            if (Config_->RootPath) {
-                shellManagerGid = 1001;
-            }
-
-            // ToDo(psushin): move ShellManager into user job environment.
-            switch (JobEnvironmentType_) {
-                case EJobEnvironmentType::Simple: {
-                    // TODO: create specific shell manager  
+                for (const auto& variable : Environment_) {
+                    if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                        !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+                    {
+                        continue;
+                    }
+                    if (variable.StartsWith("YT_")) {
+                        shellEnvironment.push_back(variable);
+                    }
+                    visibleEnvironment.push_back(variable);
                 }
-                case EJobEnvironmentType::Porto: {
+
+                auto shellManagerUid = UserId_;
+                if (Config_->TestPollJobShell) {
+                    shellManagerUid = std::nullopt;
+                    shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
+                }
+
+                std::optional<int> shellManagerGid;
+                // YT-13790.
+                if (Config_->RootPath) {
+                    shellManagerGid = 1001;
+                }
+
+                    // ToDo(psushin): move ShellManager into user job environment.
                     TShellManagerConfig config{
                         .PreparationDir = Host_->GetPreparationPath(),
                         .WorkingDir = Host_->GetSlotPath(),
@@ -697,13 +701,11 @@ private:
                         UserJobEnvironment_->GetUserJobInstance());
                     break;
                 }
-                default: {
-                    // do nothing for test environment?
-                }
-
+            default: {
+                YT_ABORT();
             }
-#endif
         }
+#endif
     }
 
     void Prepare()
