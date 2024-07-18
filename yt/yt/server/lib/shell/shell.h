@@ -63,7 +63,7 @@ DEFINE_REFCOUNTED_TYPE(IShell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IShellPtr CreateShell(
+IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr portoExecutor,
     std::unique_ptr<TShellOptions> options);
 

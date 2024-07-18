@@ -676,20 +676,32 @@ private:
             }
 
             // ToDo(psushin): move ShellManager into user job environment.
-            TShellManagerConfig config{
-                .PreparationDir = Host_->GetPreparationPath(),
-                .WorkingDir = Host_->GetSlotPath(),
-                .UserId = shellManagerUid,
-                .GroupId = shellManagerGid,
-                .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                .Environment = std::move(shellEnvironment),
-                .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
-            };
+            switch (JobEnvironmentType_) {
+                case EJobEnvironmentType::Simple: {
+                    // TODO: create specific shell manager  
+                }
+                case EJobEnvironmentType::Porto: {
+                    TShellManagerConfig config{
+                        .PreparationDir = Host_->GetPreparationPath(),
+                        .WorkingDir = Host_->GetSlotPath(),
+                        .UserId = shellManagerUid,
+                        .GroupId = shellManagerGid,
+                        .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                        .Environment = std::move(shellEnvironment),
+                        .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+                    };
 
-            ShellManager_ = CreateShellManager(
-                config,
-                portoExecutor,
-                UserJobEnvironment_->GetUserJobInstance());
+                    ShellManager_ = CreatePortoShellManager(
+                        config,
+                        portoExecutor,
+                        UserJobEnvironment_->GetUserJobInstance());
+                    break;
+                }
+                default: {
+                    // do nothing for test environment?
+                }
+
+            }
 #endif
         }
     }

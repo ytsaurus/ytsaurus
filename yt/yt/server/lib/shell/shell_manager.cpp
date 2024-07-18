@@ -77,11 +77,11 @@ static const char* Bashrc =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShellManager
+class TPortoShellManager
     : public IShellManager
 {
 public:
-    TShellManager(
+    TPortoShellManager(
         const TShellManagerConfig& config,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance)
@@ -185,7 +185,7 @@ public:
                     EnsureToolBinaryPath(subcontainerName);
                 }
 #endif
-                shell = CreateShell(PortoExecutor_, std::move(options));
+                shell = CreatePortoShell(PortoExecutor_, std::move(options));
                 Register(shell);
                 shell->ResizeWindow(parameters.Height, parameters.Width);
 
@@ -379,7 +379,7 @@ IShellManagerPtr CreateShellManager(
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance)
 {
-    return New<TShellManager>(
+    return New<TPortoShellManager>(
         config,
         std::move(portoExecutor),
         std::move(rootInstance));
