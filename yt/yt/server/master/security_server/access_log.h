@@ -90,3 +90,7 @@ bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
+
+#define ACCESS_LOG_INL_H_
+#include "access_log-inl.h"
+#undef ACCESS_LOG_INL_H_

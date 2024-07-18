@@ -280,27 +280,6 @@ bool IsAccessLoggedType(const EObjectType type)
     return typesForAccessLog.contains(type);
 }
 
-bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
-{
-    if (!bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog) {
-        return false;
-    }
-
-    if (bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
-        return false;
-    }
-
-    if (!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader()) {
-        return true;
-    }
-
-    if (bootstrap->GetCellManager()->GetTotalPeerCount() <= 1) {
-        return true;
-    }
-
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
