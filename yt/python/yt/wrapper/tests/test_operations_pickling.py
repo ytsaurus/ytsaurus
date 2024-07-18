@@ -7,6 +7,8 @@ from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, get_test_f
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
+from yt.wrapper import TypedJob
+from yt.wrapper.schema import yt_dataclass
 import yt.subprocess_wrapper as subprocess
 
 # Necessary for tests.
@@ -25,6 +27,9 @@ import tempfile
 import sys
 import time
 import os
+from pickle import PicklingError
+from dataclasses import make_dataclass
+from typing import Iterable
 
 
 @pytest.mark.usefixtures("yt_env_with_increased_memory")
@@ -500,3 +505,24 @@ class Mapper(object):
                 failures += 1
 
         assert failures <= 1
+
+    @authors("dmifedorov")
+    def test_set_custom_pickler_params(self):
+        @yt_dataclass
+        class OutputRow:
+            str: str
+
+        dynamic_dataclass = yt_dataclass(make_dataclass("Row", fields=[("str", str)]))
+        rows = [dynamic_dataclass(str="a")]
+
+        yt.write_table_structured("//tmp/test_dynamic_dataclass_pickling", dynamic_dataclass, rows)
+
+        class Mapper(TypedJob):
+            def __call__(self, row: dynamic_dataclass) -> Iterable[OutputRow]:
+                yield OutputRow(str=row.str)
+
+        with pytest.raises(PicklingError):
+            yt.run_map(Mapper(), "//tmp/test_dynamic_dataclass_pickling", "//tmp/test_dynamic_dataclass_pickling")
+
+        with set_config_option("pickling/pickler_kwargs", [{"key": "byref", "value": False}]):
+            yt.run_map(Mapper(), "//tmp/test_dynamic_dataclass_pickling", "//tmp/test_dynamic_dataclass_pickling")

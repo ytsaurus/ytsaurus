@@ -293,6 +293,9 @@ default_config = {
         # Forces dill to load additional types (e.g. numpy.ndarray) for better pickling
         # (has no effect if framework is not "dill")
         "load_additional_dill_types": False,
+        # Additional arguments that will be passed to pickler.
+        # Expected list of dicts `{"key": <param_name>, "value": <param_value>}`
+        "pickler_kwargs": [],
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
         "check_python_version": False,
