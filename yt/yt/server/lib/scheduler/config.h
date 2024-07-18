@@ -435,6 +435,8 @@ public:
 
     THashSet<EJobResourceType> NecessaryResourcesForOperation;
 
+    bool EnableFastChildFunctionSummationInFifoPools;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

@@ -536,7 +536,8 @@ protected:
             TFairShareUpdateOptions{
                 .MainResource = EJobResourceType::Cpu,
                 .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
-                .IntegralSmoothPeriod = TDuration::Minutes(1)
+                .IntegralSmoothPeriod = TDuration::Minutes(1),
+                .EnableFastChildFunctionSummationInFifoPools = true,
             },
             totalResourceLimits,
             now,
