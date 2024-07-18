@@ -1267,7 +1267,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
-        return TGetJobStderrResponse::PagedLogFromReq(request, TSharedRef::FromString(*Stderr_));
+        return TGetJobStderrResponse::MakeJobStderr(request, TSharedRef::FromString(*Stderr_));
     }
 
     if (!UserJobSpec_) {

@@ -227,7 +227,7 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetJobStderrResponse TGetJobStderrResponse::PagedLogFromReq(const TGetJobStderrOptions& request, const TSharedRef& data)
+TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TGetJobStderrOptions& request, const TSharedRef& data)
 {
     const i64 totalSize = data.size();
     i64 endOffset = totalSize;
@@ -250,10 +250,12 @@ TGetJobStderrResponse TGetJobStderrResponse::PagedLogFromReq(const TGetJobStderr
             .EndOffset = 0,
         };
     } else {
+        const auto dataCut =
+            TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, request.Limit ? request.Limit : TStringBuf::npos)});
         return {
-            .Data{TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, request.Limit ? request.Limit : TStringBuf::npos)})},
+            .Data{dataCut},
             .TotalSize = totalSize,
-            .EndOffset = endOffset,
+            .EndOffset = request.Limit ? static_cast<i64>(firstPos + dataCut.size()) : endOffset,
         };
     }
 }

@@ -186,7 +186,7 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
         .Data = TSharedRef::FromString(data),
         .TotalSize = TotalSize_,
         .EndOffset = endOffset,
-        };
+    };
 }
 
 size_t TStderrWriter::GetCurrentSize() const
