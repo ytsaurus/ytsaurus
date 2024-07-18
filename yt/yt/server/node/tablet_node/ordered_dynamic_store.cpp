@@ -209,7 +209,7 @@ private:
 
     i64 GetEndingRowIndex()
     {
-        return Store_->StartingRowIndex_ + Store_->StoreRowCount_.load();
+        return Store_->StartingRowIndex_ + Store_->CommittedStoreRowCount_.load();
     }
 
     void AdjustUpperRowIndex()
@@ -459,6 +459,11 @@ i64 TOrderedDynamicStore::GetRowCount() const
     return StoreRowCount_;
 }
 
+void TOrderedDynamicStore::UpdateCommittedRowCount()
+{
+    CommittedStoreRowCount_.store(StoreRowCount_.load());
+}
+
 void TOrderedDynamicStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
@@ -606,6 +611,8 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
     }
 
     OnDynamicMemoryUsageUpdated();
+
+    UpdateCommittedRowCount();
 }
 
 TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()

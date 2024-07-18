@@ -105,6 +105,11 @@ bool TReplicatedStoreManager::ExecuteWrites(
     return true;
 }
 
+void TReplicatedStoreManager::UpdateCommittedStoreRowCount()
+{
+    LogStoreManager_->UpdateCommittedStoreRowCount();
+}
+
 bool TReplicatedStoreManager::IsOverflowRotationNeeded() const
 {
     return LogStoreManager_->IsOverflowRotationNeeded();
