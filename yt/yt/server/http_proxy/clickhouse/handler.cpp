@@ -566,7 +566,7 @@ private:
     {
         if (Config_->IgnoreMissingCredentials) {
             if (User_.empty()) {
-                if (!Token_.empty()) {
+                if (!Token_.empty() && Bootstrap_->GetConfig()->ClickHouse->PopulateUserWithToken) {
                     YT_LOG_DEBUG("Authentication is disabled and user is specified via token's value");
                     User_ = Token_;
                 } else {

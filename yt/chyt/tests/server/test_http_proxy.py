@@ -405,6 +405,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "refresh_time": 100,
                 "expire_after_failed_update_time": 100,
             },
+            "populate_user_with_token": True,
         },
     }
 
@@ -513,6 +514,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
 
         with Clique(1, spec={"acl": [allowance]}) as clique:
             # we expect token to be used as a username
+            # ("populate_user_with_token": True)
 
             correct_auth_response = clique.make_query_via_proxy(
                 "select currentUser()", headers={"x-ClickHouse-Key": username})
