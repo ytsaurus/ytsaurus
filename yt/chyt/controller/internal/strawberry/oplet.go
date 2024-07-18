@@ -103,8 +103,6 @@ type Oplet struct {
 
 	// secrets is an unparsed document with secrets from the corresponding cypress node.
 	secrets map[string]any
-	// secretsRevision is the revision of the cypress node containing secrets.
-	secretsRevision yt.Revision
 	// ytOpSecretsRevision is the revision of the document with secrets taken from persistentState.
 	ytOpSecretsRevision yt.Revision
 
@@ -448,7 +446,7 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 		}
 		return true, "min speclet revision is unsatisfied"
 	}
-	if oplet.ytOpSecretsRevision != oplet.secretsRevision {
+	if oplet.ytOpSecretsRevision != oplet.persistentState.SecretsRevision {
 		return true, "secrets changed"
 	}
 	// TODO(dakovalkov): eliminate this.
@@ -655,7 +653,6 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 	oplet.controllerSpeclet = controllerSpeclet
 
 	oplet.secrets = secrets
-	oplet.secretsRevision = secretsRevision
 	oplet.persistentState.SecretsRevision = secretsRevision
 
 	oplet.l.Info("strawberry operation state updated from cypress",
