@@ -1626,6 +1626,8 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        YT_LOG_DEBUG("Preparing for fair share tree update");
+
         ResourceTree_->PerformPostponedActions();
 
         // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
@@ -1668,6 +1670,8 @@ private:
                 {
                     TEventTimerGuard timer(FairShareUpdateTimer_);
 
+                    YT_LOG_DEBUG("Fair share tree update started");
+
                     if (StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
                         resourceUsage.emplace(StrategyHost_->GetResourceUsage(config->NodesFilter));
                         resourceLimits.emplace(StrategyHost_->GetResourceLimits(config->NodesFilter));
@@ -1700,19 +1704,21 @@ private:
                 }
 
                 MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate);
+
+                YT_LOG_DEBUG(
+                    "Fair share tree update finished "
+                    "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v, IsFairSharePreUpdateOffloadingEnabled: %v)",
+                    rootElement->GetTreeSize(),
+                    rootElement->SchedulableElementCount(),
+                    fairSharePostUpdateContext.UnschedulableReasons,
+                    StrategyHost_->IsFairSharePreUpdateOffloadingEnabled());
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
         WaitFor(asyncUpdate)
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Fair share tree update finished "
-            "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v, IsFairSharePreUpdateOffloadingEnabled: %v)",
-            rootElement->GetTreeSize(),
-            rootElement->SchedulableElementCount(),
-            fairSharePostUpdateContext.UnschedulableReasons,
-            StrategyHost_->IsFairSharePreUpdateOffloadingEnabled());
+        YT_LOG_DEBUG("Processing fair share tree update result and creating a tree snapshot");
 
         TError error;
         if (!fairShareUpdateContext->Errors.empty()) {
