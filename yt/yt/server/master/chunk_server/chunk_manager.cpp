@@ -3965,7 +3965,7 @@ private:
 
     void HydraRegisterChunkEndorsements(NProto::TReqRegisterChunkEndorsements* request)
     {
-        constexpr static int MaxChunkIdsPerLogMessage = 100;
+        static constexpr int MaxChunkIdsPerLogMessage = 100;
 
         std::vector<TChunkId> logQueue;
         auto maybeFlushLogQueue = [&] (bool force) {

@@ -33,7 +33,7 @@ DEFINE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
-constexpr static int TypicalAcdCount = 1;
+static constexpr int TypicalAcdCount = 1;
 using TAcdList = TCompactVector<NSecurityServer::TAccessControlDescriptor*, TypicalAcdCount>;
 
 //! Provides a bridge between TObjectManager and concrete object implementations.

@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.h>
@@ -1206,6 +1208,41 @@ void TSortedChunkStore::Load(TLoadContext& context)
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
 
     Load(context, MaxClipTimestamp_);
+}
+
+void TSortedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    TChunkStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    if (GetId() == GetChunkId()) {
+        return;
+    }
+
+    YT_VERIFY(TypeFromId(GetId()) == EObjectType::ChunkView);
+
+    auto* chunkViewDescriptor = descriptor->mutable_chunk_view_descriptor();
+
+    ToProto(chunkViewDescriptor->mutable_chunk_view_id(), GetId());
+    ToProto(chunkViewDescriptor->mutable_underlying_chunk_id(), GetChunkId());
+
+    if (HasNontrivialReadRange()) {
+        NChunkClient::TLegacyReadRange readRange;
+        if (auto key = ReadRange_.Front().first) {
+            readRange.LowerLimit().MergeLowerLegacyKey(TLegacyOwningKey(key));
+        }
+        if (auto key = ReadRange_.Front().second) {
+            readRange.LowerLimit().MergeUpperLegacyKey(TLegacyOwningKey(key));
+        }
+        ToProto(chunkViewDescriptor->mutable_read_range(), readRange);
+    }
+
+    if (OverrideTimestamp_) {
+        chunkViewDescriptor->set_override_timestamp(OverrideTimestamp_);
+    }
+
+    if (MaxClipTimestamp_) {
+        chunkViewDescriptor->set_max_clip_timestamp(MaxClipTimestamp_);
+    }
 }
 
 IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(

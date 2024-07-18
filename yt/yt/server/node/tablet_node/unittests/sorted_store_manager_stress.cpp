@@ -62,7 +62,7 @@ public:
 
     using TKey = int;
 
-    constexpr static int ValueCount = 3;
+    static constexpr int ValueCount = 3;
 
     struct TRow
     {

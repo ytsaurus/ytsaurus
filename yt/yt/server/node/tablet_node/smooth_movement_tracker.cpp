@@ -269,6 +269,14 @@ private:
         movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
         Host_->RegisterSiblingTabletAvenue(siblingEndpointId, targetCellId);
 
+        if (request->has_dynamic_store_id()) {
+            auto reason = EDynamicStoreIdReservationReason::SmoothMovement;
+            tablet->PushDynamicStoreIdToPool(
+                FromProto<TStoreId>(request->dynamic_store_id()),
+                reason);
+            YT_VERIFY(tablet->ReservedDynamicStoreIdCount()[reason] == 1);
+        }
+
         YT_LOG_DEBUG("Smooth tablet movement started (%v, TargetCellId: %v)",
             tablet->GetLoggingTag(),
             targetCellId);
@@ -472,8 +480,9 @@ private:
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedPersistentTransactions());
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedTransientTransactions());
 
+                ReleaseReservedDynamicStore(tablet);
+
                 // TODO(ifsmirnov): YT-17388 - frozen tablets.
-                // What if there is no dynamic store?
                 if (auto activeStore = tablet->GetActiveStore();
                     activeStore && activeStore->GetRowCount() > 0)
                 {
@@ -643,6 +652,18 @@ private:
         ToProto(rsp.mutable_tablet_id(), tablet->GetId());
         ToProto(rsp.mutable_error(), error);
         Host_->PostMasterMessage(tablet, rsp);
+    }
+
+    void ReleaseReservedDynamicStore(TTablet* tablet)
+    {
+        auto reason = EDynamicStoreIdReservationReason::SmoothMovement;
+
+        int reservedCount = tablet->ReservedDynamicStoreIdCount()[reason];
+        YT_VERIFY(reservedCount <= 1);
+
+        if (reservedCount == 1) {
+            tablet->ReleaseReservedDynamicStoreId(reason);
+        }
     }
 };
 

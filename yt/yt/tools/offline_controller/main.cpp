@@ -346,10 +346,10 @@ struct TOfflineOperation
     int SnapshotVersion;
     std::vector<TSharedRef> Snapshot;
 
-    constexpr static TStringBuf OperationTypeFileNameSuffix = ".type";
-    constexpr static TStringBuf SpecFileNameSuffix = ".spec";
-    constexpr static TStringBuf SnapshotVersionFileNameSuffix = ".version";
-    constexpr static TStringBuf SnapshotFileNameSuffix = ".snapshot";
+    static constexpr TStringBuf OperationTypeFileNameSuffix = ".type";
+    static constexpr TStringBuf SpecFileNameSuffix = ".spec";
+    static constexpr TStringBuf SnapshotVersionFileNameSuffix = ".version";
+    static constexpr TStringBuf SnapshotFileNameSuffix = ".snapshot";
 };
 
 TOfflineOperation LoadFromFiles(const TString& baseFileName)

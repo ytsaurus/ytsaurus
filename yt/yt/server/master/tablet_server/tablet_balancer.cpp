@@ -62,7 +62,7 @@ TInstant TruncatedNow()
     return TruncateToMinutes(Now());
 }
 
-constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
+static constexpr TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
 } // namespace
 

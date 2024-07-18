@@ -92,9 +92,9 @@ private:
     using TModifiableCumulativeStatistics = TFenwickTree<TCumulativeStatisticsEntry>;
     using TTrimmableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
 
-    constexpr static size_t AppendableAlternativeIndex = 0;
-    constexpr static size_t ModifiableAlternativeIndex = 1;
-    constexpr static size_t TrimmableAlternativeIndex = 2;
+    static constexpr size_t AppendableAlternativeIndex = 0;
+    static constexpr size_t ModifiableAlternativeIndex = 1;
+    static constexpr size_t TrimmableAlternativeIndex = 2;
 
     std::variant<
         TAppendableCumulativeStatistics,

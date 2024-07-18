@@ -60,7 +60,7 @@ class TRemoteChangelogStoreTest
 public:
     TRemoteChangelogStoreTest()
     {
-        constexpr static int RecordCount = 10;
+        static constexpr int RecordCount = 10;
         Records_.reserve(RecordCount);
         for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
             NHydra::NProto::TMutationHeader mutationHeader;

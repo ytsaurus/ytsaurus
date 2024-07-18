@@ -836,7 +836,7 @@ class TMapNodeChildren
     static void MaybeVerifyIsTrunk(TNonOwnedChild child);
 
 public:
-    constexpr static bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
+    static constexpr bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
     using TKeyToChild = THashMap<TString, TNonOwnedChild>;
     using TChildToKey = THashMap<TMaybeOwnedChild, TString>;
 

@@ -92,6 +92,8 @@ protected:
 
     void SetDynamicMemoryUsage(i64 value);
 
+    void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
+
 private:
     i64 DynamicMemoryUsage_ = 0;
 
@@ -172,6 +174,8 @@ protected:
     virtual void OnSetRemoved() = 0;
 
     EMemoryCategory GetMemoryCategory() const override;
+
+    void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -307,6 +311,8 @@ protected:
     virtual const NTableClient::TKeyComparer& GetKeyComparer() const = 0;
 
     TTabletStoreReaderConfigPtr GetReaderConfig();
+
+    void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
 
 private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;

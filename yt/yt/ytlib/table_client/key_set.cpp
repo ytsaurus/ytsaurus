@@ -7,7 +7,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Changing this requires non-trivial compats.
-constexpr static NCompression::ECodec KeySetCompressionCodec = NCompression::ECodec::Lz4;
+static constexpr NCompression::ECodec KeySetCompressionCodec = NCompression::ECodec::Lz4;
 
 ////////////////////////////////////////////////////////////////////////////////
 

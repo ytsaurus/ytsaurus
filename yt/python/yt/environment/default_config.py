@@ -243,6 +243,16 @@ def get_scheduler_config():
         };
         crash_on_allocation_heartbeat_processing_exception = %true;
         enable_fair_share_preupdate_offloading = %true;
+
+        template_pool_tree_config_map = {
+            common = {
+                filter = ".*";
+                priority = -117;
+                config = {
+                    enable_fast_child_function_summation_in_fifo_pools = %true;
+                };
+            };
+        };
     };
 }
 """)

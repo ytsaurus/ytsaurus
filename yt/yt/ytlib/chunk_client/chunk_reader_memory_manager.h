@@ -138,7 +138,7 @@ private:
     std::atomic<i64> PrefetchMemorySize_ = {0};
     std::atomic<i64> RequiredMemorySize_ = {0};
 
-    constexpr static i64 TotalMemorySizeUnknown = -1;
+    static constexpr i64 TotalMemorySizeUnknown = -1;
     std::atomic<i64> TotalMemorySize_ = {TotalMemorySizeUnknown};
 
     std::atomic<bool> Finalized_ = {false};

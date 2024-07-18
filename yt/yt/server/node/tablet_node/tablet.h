@@ -602,6 +602,11 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);
     DEFINE_BYVAL_RW_PROPERTY(bool, DynamicStoreIdRequested);
+    using TReservedDynamicStoreCountArray = TEnumIndexedArray<
+        EDynamicStoreIdReservationReason,
+        int
+    >;
+    DEFINE_BYREF_RO_PROPERTY(TReservedDynamicStoreCountArray, ReservedDynamicStoreIdCount);
 
     DEFINE_BYREF_RW_PROPERTY(TTabletDistributedThrottlersVector, DistributedThrottlers);
 
@@ -815,9 +820,14 @@ public:
 
     int GetEdenStoreCount() const;
 
-    void PushDynamicStoreIdToPool(TDynamicStoreId storeId);
+    void PushDynamicStoreIdToPool(
+        TDynamicStoreId storeId,
+        std::optional<EDynamicStoreIdReservationReason> reservationReason = {});
     TDynamicStoreId PopDynamicStoreIdFromPool();
-    void ClearDynamicStoreIdPool();
+    void ReleaseReservedDynamicStoreId(
+        EDynamicStoreIdReservationReason reason);
+    int GetUnreservedDynamicStoreIdCount() const;
+    void ClearDynamicStoreIdPool(bool keepReservations);
 
     NTabletNode::NProto::TMountHint GetMountHint() const;
 
