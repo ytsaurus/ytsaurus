@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <yt/yt/library/coredumper/config.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -57,6 +58,10 @@ void TServerConfig::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
             }
             config->BusServer->Port = config->RpcPort;
+        }
+
+        if (!config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath && config->CoreDumper) {
+            config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath = config->CoreDumper->Path;
         }
     });
 }

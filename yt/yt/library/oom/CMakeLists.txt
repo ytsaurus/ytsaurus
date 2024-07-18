@@ -22,4 +22,5 @@ target_link_libraries(yt-library-oom PUBLIC
 )
 target_sources(yt-library-oom PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/oom.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/tcmalloc_memory_limit_handler.cpp
 )
