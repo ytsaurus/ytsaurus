@@ -794,28 +794,6 @@ class TestGetJobStderr(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        test = get_job_stderr_paged(op.id, job_id, offset=1, limit=100)
-        assert test['total_size'] == 204
-        assert test['data'] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
-        test = get_job_stderr_paged(op.id, job_id, offset=100, limit=200)
-        assert test['total_size'] == 204
-        assert test['end_offset'] == 204
-        assert test['data'] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
-        test = get_job_stderr_paged(op.id, job_id,  offset=200000001, limit=0,)
-        assert test['total_size'] == 204
-        assert test['end_offset'] == 0
-        assert test['data'] == b''
-        test = get_job_stderr_paged(op.id, job_id, offset=-100)
-        assert test['total_size'] == 204
-        assert test['end_offset'] == 204
-        assert test['data'] == b'ycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
-        test = get_job_stderr_paged(op.id, job_id, offset=-1000)
-        assert test['total_size'] == 204
-        assert test['end_offset'] == 204
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
-        test = get_job_stderr_paged(op.id, job_id, offset=-1000, limit=100)
-        assert test['total_size'] == 204
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
         wait(
             lambda: retry(lambda: get_job_stderr_paged(op.id, job_id, limit=0, offset=-50))["data"].endswith(
                 b"STDERR-FINISH\n"
@@ -829,12 +807,35 @@ class TestGetJobStderr(YTEnvSetup):
         res += p["data"]
         p = get_job_stderr_paged(op.id, job_id, limit=10, offset=20)
         res += p["data"]
-
         assert res == b'current cycle is 0\ncurrent cyc'
-
         p = get_job_stderr_paged(op.id, job_id, offset=-20)
         res += p["data"]
         assert res.endswith(b"STDERR-FINISH\n")
+        test = get_job_stderr_paged(op.id, job_id, offset=1, limit=100)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 101
+        assert test['data'] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
+        test = get_job_stderr_paged(op.id, job_id, offset=100, limit=200)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 204
+        assert test['data'] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
+        test = get_job_stderr_paged(op.id, job_id,  offset=200000001, limit=0)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 0
+        assert test['data'] == b''
+        test = get_job_stderr_paged(op.id, job_id, offset=-100)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 204
+        assert test['data'] == b'ycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
+        test = get_job_stderr_paged(op.id, job_id, offset=-1000)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 204
+        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-FINISH\n'
+        test = get_job_stderr_paged(op.id, job_id, offset=-1000, limit=100)
+        assert test['total_size'] == 204
+        assert test['end_offset'] == 100
+        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
+
 
         clean_operations()
 
