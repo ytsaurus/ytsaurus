@@ -416,7 +416,7 @@ private:
         static_assert(sizeof(uintptr_t) == 8, "sizeof(uintptr_t) != 8");
         static_assert(alignof(TLegacyCellIndexToChunkExportData) >= 2);
         static_assert(alignof(TCellTagToChunkExportData) >= 2);
-        constexpr static uintptr_t LegacyExportDataMask = 1;
+        static constexpr uintptr_t LegacyExportDataMask = 1;
 
         uintptr_t Ptr_ = 0;
 
@@ -494,17 +494,17 @@ private:
         void Save(NCellMaster::TSaveContext& context) const override;
     };
 
-    constexpr static int RegularChunkTypicalReplicaCount = 5;
-    constexpr static int RegularChunkLastSeenReplicaCount = 5;
+    static constexpr int RegularChunkTypicalReplicaCount = 5;
+    static constexpr int RegularChunkLastSeenReplicaCount = 5;
     using TRegularChunkReplicasData = TReplicasData<RegularChunkTypicalReplicaCount, RegularChunkLastSeenReplicaCount>;
 
-    constexpr static int ErasureChunkTypicalReplicaCount = 24;
-    constexpr static int ErasureChunkLastSeenReplicaCount = 16;
+    static constexpr int ErasureChunkTypicalReplicaCount = 24;
+    static constexpr int ErasureChunkLastSeenReplicaCount = 16;
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
     using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
 
     // COMPAT(gritukan)
-    constexpr static int OldLastSeenReplicaCount = 16;
+    static constexpr int OldLastSeenReplicaCount = 16;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.

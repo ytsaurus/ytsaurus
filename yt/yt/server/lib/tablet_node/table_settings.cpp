@@ -155,7 +155,7 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
         double numerator = experiment->Fraction * experiment->FractionDenominator;
         experiment->FractionNumerator = std::llround(numerator);
 
-        constexpr static double AbsoluteError = 1e-6;
+        static constexpr double AbsoluteError = 1e-6;
         if (std::abs(numerator - experiment->FractionNumerator) > AbsoluteError) {
             THROW_ERROR_EXCEPTION("Fraction must be a multiple of 1/%v",
                 experiment->FractionDenominator);

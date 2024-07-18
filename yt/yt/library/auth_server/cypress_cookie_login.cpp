@@ -62,9 +62,9 @@ private:
 
     const ICypressCookieStorePtr CookieStore_;
 
-    constexpr static TStringBuf AuthorizationHeader = "Authorization";
-    constexpr static TStringBuf SetCookieHedaer = "Set-Cookie";
-    constexpr static TStringBuf BasicAuthorizationMethod = "Basic";
+    static constexpr TStringBuf AuthorizationHeader = "Authorization";
+    static constexpr TStringBuf SetCookieHedaer = "Set-Cookie";
+    static constexpr TStringBuf BasicAuthorizationMethod = "Basic";
 
     struct TUserInfo
     {

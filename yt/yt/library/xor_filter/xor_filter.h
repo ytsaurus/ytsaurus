@@ -29,16 +29,16 @@ public:
     static TSharedRef Build(TRange<TFingerprint> keys, int bitsPerKey, int trialCount = 10);
 
 private:
-    constexpr static int WordSize = 64;
+    static constexpr int WordSize = 64;
     static_assert(WordSize % sizeof(ui64) == 0);
 
-    constexpr static double LoadFactor = 1.23;
-    constexpr static int LoadFactorIncrement = 32;
+    static constexpr double LoadFactor = 1.23;
+    static constexpr int LoadFactorIncrement = 32;
 
-    constexpr static int FormatVersionSize = sizeof(i32);
+    static constexpr int FormatVersionSize = sizeof(i32);
     static_assert(FormatVersionSize == 4);
 
-    constexpr static int FormatVersion = 1;
+    static constexpr int FormatVersion = 1;
 
     // First three salts are used for computing slots of a certain key.
     // The fourth one is used to generate the expected fingerprint of the key.
@@ -46,7 +46,7 @@ private:
     int BitsPerKey_;
     int SlotCount_;
 
-    constexpr static int MetaSize = sizeof(BitsPerKey_) + sizeof(Salts_) + sizeof(SlotCount_);
+    static constexpr int MetaSize = sizeof(BitsPerKey_) + sizeof(Salts_) + sizeof(SlotCount_);
     static_assert(MetaSize == 40, "Consider changing FormatVersion");
 
     TSharedRef Data_;

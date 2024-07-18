@@ -107,7 +107,7 @@ private:
     const char* CurrentPointer_;
     ui32 ValueCount_;
 
-    constexpr static size_t DefaultKeyBufferCapacity = 128;
+    static constexpr size_t DefaultKeyBufferCapacity = 128;
 
     TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TMutableUnversionedRow Key_;

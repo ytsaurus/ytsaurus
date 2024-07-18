@@ -63,12 +63,12 @@ public:
         void (TClusterResourceLimits::*Do)(const TClusterResourceLimits& delta);
     };
 
-    constexpr static TModification IncreasingModification = {
+    static constexpr TModification IncreasingModification = {
         &TClusterResourceLimits::CheckIncrease,
         &TClusterResourceLimits::Increase,
     };
 
-    constexpr static TModification DecreasingModification = {
+    static constexpr TModification DecreasingModification = {
         &TClusterResourceLimits::CheckDecrease,
         &TClusterResourceLimits::Decrease,
     };

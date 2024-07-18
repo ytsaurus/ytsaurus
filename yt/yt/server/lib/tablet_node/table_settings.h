@@ -85,7 +85,7 @@ public:
 
     //! Fraction of tables of the domain that are affected by the experiment.
     //! Stored as a rational number to make deterministic choices and avoid precision errors.
-    constexpr static i64 FractionDenominator = 1000;
+    static constexpr i64 FractionDenominator = 1000;
     i64 FractionNumerator;
 
     //! If true, all affected tables will re-apply the experiment whenever it is updated
