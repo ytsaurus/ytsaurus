@@ -106,14 +106,13 @@ private:
 
     const TRange<EValueType> KeyColumnTypes_;
     const TCGModulePtr Module_;
+    const TComparerBuilderOptions Options_;
     LLVMContext& Context_;
 
     // NB: temporary data which may change during the building process.
     BasicBlock* NextBB_;
     BasicBlock* LastBB_;
     Function* Function_;
-
-    TComparerBuilderOptions Options_;
 };
 
 class TComparerBuilder::IValueBuilder
@@ -345,8 +344,8 @@ TComparerBuilder::TComparerBuilder(
     : IRBuilder(cgModule->GetContext())
     , KeyColumnTypes_(keyColumnTypes)
     , Module_(std::move(cgModule))
-    , Context_(Module_->GetContext())
     , Options_(std::move(options))
+    , Context_(Module_->GetContext())
 { }
 
 void TComparerBuilder::BuildDDComparer(TString& functionName)
@@ -507,7 +506,6 @@ void TComparerBuilder::BuildDoubleCmp(Value* lhs, Value* rhs, int index)
     SetInsertPoint(falseBB);
 }
 
-
 void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int index)
 {
     if (iterationsLimit != nullptr) {
@@ -619,7 +617,7 @@ TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType
     ValidateDynamicTableKeyColumnCount(keyColumnTypes.Size());
 
     auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
-    auto builder = TComparerBuilder(cgModule, keyColumnTypes, {.UseCompareDoubleValues=true});
+    auto builder = TComparerBuilder(cgModule, keyColumnTypes, {.UseCompareDoubleValues = true});
 
     auto uuComparerName = TString("UUCompare");
     builder.BuildUUComparer(uuComparerName);
