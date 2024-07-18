@@ -211,6 +211,9 @@ public:
     NHttps::TServerConfigPtr HttpsServer;
     NHttp::TServerConfigPtr TvmOnlyHttpServer;
     NHttps::TServerConfigPtr TvmOnlyHttpsServer;
+    NHttp::TServerConfigPtr ChytHttpServer;
+    NHttps::TServerConfigPtr ChytHttpsServer;
+
     NDriver::TDriverConfigPtr Driver;
 
     NAuth::TAuthenticationManagerConfigPtr Auth;

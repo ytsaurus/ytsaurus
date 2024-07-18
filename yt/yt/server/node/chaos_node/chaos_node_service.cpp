@@ -67,6 +67,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardCollocation));
     }
 
 private:
@@ -279,6 +280,24 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateReplicationCardCollocation(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardCollocation)
+    {
+        SyncWithUpstream();
+
+        auto replicationCardCollocationId = FromProto<TReplicationCardCollocationId>(
+            request->replication_card_collocation_id());
+        context->SetRequestInfo("ReplicationCardCollocationId: %v", replicationCardCollocationId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        auto cardIds = chaosManager->GetReplicationCardCollocationCardsIds(replicationCardCollocationId);
+
+        context->SetResponseInfo("ReplicationCardCollocationId: %v, ReplicationCardIds: %v",
+            replicationCardCollocationId,
+            cardIds);
+        ToProto(response->mutable_collocation_replication_card_ids(), cardIds);
+        context->Reply();
     }
 };
 

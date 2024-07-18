@@ -640,7 +640,8 @@ private:
                         ValidateOutputSchemaCompatibility({
                             .IgnoreSortOrder = false,
                             .ForbidExtraComputedColumns = false,
-                            .IgnoreStableNamesDifference = true});
+                            .IgnoreStableNamesDifference = true,
+                        });
                     }
                 }
                 break;
@@ -1048,7 +1049,7 @@ private:
                             *table->TableUploadOptions.TableSchema.Get(),
                             {
                                 .IgnoreSortOrder = false,
-                                .IgnoreStableNamesDifference = true
+                                .IgnoreStableNamesDifference = true,
                             });
 
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {

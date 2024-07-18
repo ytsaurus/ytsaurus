@@ -169,9 +169,12 @@ struct IRequestBatcher
     virtual TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request) = 0;
 };
 
+DECLARE_REFCOUNTED_STRUCT(IRequestBatcher)
+DEFINE_REFCOUNTED_TYPE(IRequestBatcher)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<IRequestBatcher> CreateRequestBatcher(TWeakPtr<TReplicationReader> reader);
+IRequestBatcherPtr CreateRequestBatcher(TWeakPtr<TReplicationReader> reader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,7 +305,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const TIntrusivePtr<IRequestBatcher> RequestBatcher_;
+    const IRequestBatcherPtr RequestBatcher_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
@@ -503,7 +506,7 @@ protected:
     const IThroughputThrottlerPtr MediumThrottler_;
     const IThroughputThrottlerPtr CombinedDataByteThrottler_;
 
-    const TIntrusivePtr<IRequestBatcher> RequestBatcher_;
+    const IRequestBatcherPtr RequestBatcher_;
 
     NLogging::TLogger Logger;
 
@@ -1454,7 +1457,7 @@ private:
                 .Address = address,
                 .Channel = channel,
                 .BlockIndexes = blockIndexes,
-                .Session = MakeStrong(this)
+                .Session = MakeStrong(this),
             });
 
         if (peer.NodeSuspicionMarkTime) {
@@ -1991,7 +1994,7 @@ private:
             return true;
         }
 
-        auto primaryAddress = peers[0].Address;
+        const auto& primaryAddress = peers[0].Address;
         if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
@@ -2183,13 +2186,13 @@ private:
             }
 
             for (const auto& [sessionId, iteration] : maxBarrier) {
-                NProto::TP2PBarrier wait;
+                NProto::TP2PBarrier waitBarrier;
 
-                ToProto(wait.mutable_session_id(), sessionId);
-                wait.set_iteration(iteration);
-                wait.set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
+                ToProto(waitBarrier.mutable_session_id(), sessionId);
+                waitBarrier.set_iteration(iteration);
+                waitBarrier.set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
 
-                barriers.push_back(wait);
+                barriers.push_back(waitBarrier);
             }
         }
 
@@ -3688,7 +3691,7 @@ DEFINE_REFCOUNTED_TYPE(TRequestBatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<IRequestBatcher> CreateRequestBatcher(TWeakPtr<TReplicationReader> reader)
+IRequestBatcherPtr CreateRequestBatcher(TWeakPtr<TReplicationReader> reader)
 {
     return New<TRequestBatcher>(reader.Lock());
 }

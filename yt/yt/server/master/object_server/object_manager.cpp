@@ -1763,7 +1763,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     VERIFY_THREAD_AFFINITY_ANY();
 
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(requestMessage, &header));
+    YT_VERIFY(TryParseRequestHeader(requestMessage, &header));
 
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);

@@ -47,6 +47,7 @@ static void RegisterComparerRoutinesImpl(TRoutineRegistry* registry)
 {
     registry->RegisterRoutine("memcmp", ::memcmp);
     registry->RegisterRoutine("ysoncmp", CompareYsonValues);
+    registry->RegisterRoutine("doublecmp", NYT::NTableClient::CompareDoubleValues);
 }
 
 static TRoutineRegistry* GetComparerRoutineRegistry()
@@ -59,13 +60,21 @@ static TRoutineRegistry* GetComparerRoutineRegistry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TComparerBuilderOptions
+{
+    bool UseCompareDoubleValues = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TComparerBuilder
     : public IRBuilder<>
 {
 public:
     TComparerBuilder(
         TCGModulePtr cgModule,
-        TRange<EValueType> keyColumnTypes);
+        TRange<EValueType> keyColumnTypes,
+        TComparerBuilderOptions options = {});
 
     void BuildDDComparer(TString& functionName);
     void BuildDUComparer(TString& functionName);
@@ -82,6 +91,8 @@ private:
     Value* CreateMin(Value* lhs, Value* rhs,  EValueType type);
 
     void BuildCmp(Value* lhs, Value* rhs, EValueType type, int index);
+    //! Create comparer for EValueType::Double values.
+    void BuildDoubleCmp(Value* lhs, Value* rhs, int index);
     //! Create comparer for EValueType::String values.
     void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
     //! Create comparer for EValueType::Composite and EValueType::Any values.
@@ -95,6 +106,7 @@ private:
 
     const TRange<EValueType> KeyColumnTypes_;
     const TCGModulePtr Module_;
+    const TComparerBuilderOptions Options_;
     LLVMContext& Context_;
 
     // NB: temporary data which may change during the building process.
@@ -327,10 +339,12 @@ private:
 
 TComparerBuilder::TComparerBuilder(
     TCGModulePtr cgModule,
-    TRange<EValueType> keyColumnTypes)
+    TRange<EValueType> keyColumnTypes,
+    TComparerBuilderOptions options)
     : IRBuilder(cgModule->GetContext())
     , KeyColumnTypes_(keyColumnTypes)
     , Module_(std::move(cgModule))
+    , Options_(std::move(options))
     , Context_(Module_->GetContext())
 { }
 
@@ -476,6 +490,22 @@ void TComparerBuilder::BuildYsonCmp(Value* lhsLength, Value* lhsData, Value* rhs
     SetInsertPoint(falseBB);
 }
 
+void TComparerBuilder::BuildDoubleCmp(Value* lhs, Value* rhs, int index)
+{
+    auto* cmpResult = CreateCall(
+        Module_->GetRoutine("doublecmp"),
+        {
+            lhs,
+            rhs
+        });
+    auto* trueBB = CreateBB("doublecmp.is.not.zero");
+    auto* falseBB = CreateBB("doublecmp.is.zero");
+    CreateCondBr(CreateICmpNE(cmpResult, getInt32(0)), trueBB, falseBB);
+    SetInsertPoint(trueBB);
+    CreateRet(CreateSelect(CreateICmpSGT(cmpResult, getInt32(0)), getInt32(index + 1), getInt32(-(index + 1))));
+    SetInsertPoint(falseBB);
+}
+
 void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int index)
 {
     if (iterationsLimit != nullptr) {
@@ -534,6 +564,10 @@ void TComparerBuilder::BuildMainLoop(
             auto* lhsData = lhsBuilder.GetStringData(index);
             auto* rhsData = rhsBuilder.GetStringData(index);
             BuildYsonCmp(lhsLength, lhsData, rhsLength, rhsData, index);
+        } else if (Options_.UseCompareDoubleValues && type == EValueType::Double) {
+            auto* lhs = lhsBuilder.GetData(index, type);
+            auto* rhs = rhsBuilder.GetData(index, type);
+            BuildDoubleCmp(lhs, rhs, index);
         } else {
             auto* lhs = lhsBuilder.GetData(index, type);
             auto* rhs = rhsBuilder.GetData(index, type);
@@ -583,7 +617,7 @@ TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType
     ValidateDynamicTableKeyColumnCount(keyColumnTypes.Size());
 
     auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
-    auto builder = TComparerBuilder(cgModule, keyColumnTypes);
+    auto builder = TComparerBuilder(cgModule, keyColumnTypes, {.UseCompareDoubleValues = true});
 
     auto uuComparerName = TString("UUCompare");
     builder.BuildUUComparer(uuComparerName);

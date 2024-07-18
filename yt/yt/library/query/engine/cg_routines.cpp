@@ -117,7 +117,7 @@ using THLL = NYT::THyperLogLog<14>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(30);
 
 class TYielder
     : public TWallTimer
@@ -549,6 +549,8 @@ void MultiJoinOpHelper(
             TForeignExecutorBufferTag(),
             context->MemoryChunkProvider);
 
+        TYielder yielder;
+
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
@@ -568,6 +570,8 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
+            yielder.Checkpoint(closure.Items[joinId].OrderedKeys.size());
+
             auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
             SaveAndRestoreCurrentCompartment([&] {
                 auto reader = parameters->Items[joinId].ExecuteForeign(
@@ -579,8 +583,6 @@ void MultiJoinOpHelper(
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
         }
-
-        TYielder yielder;
 
         std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -679,13 +681,7 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    auto asPositionIndependent = InplaceConvertToPI(row);
-                    auto captured = CapturePIValueRange(
-                        &closure.Context,
-                        MakeRange(asPositionIndependent.Begin(), asPositionIndependent.Size()),
-                        NWebAssembly::EAddressSpace::Host,
-                        NWebAssembly::EAddressSpace::WebAssembly,
-                        /*captureValues*/ true);
+                    auto captured = CaptureUnversionedValueRange(&closure.Context, row.Elements());
                     foreignValues.push_back(captured.Begin());
                 }
 

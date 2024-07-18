@@ -124,7 +124,6 @@ $ python
 
 ### Примеры { #examples }
 
-  * [Про компиляцию Python-программ в Аркадии](../../../api/python/examples.md#arcadia)
   * [Базовый уровень](../../../api/python/examples.md#base)
     - [Чтение и запись таблиц](../../../api/python/examples.md#read_write)
     - [Схемы таблиц](../../../api/python/examples.md#table_schema)
@@ -145,16 +144,6 @@ $ python
     - [Контекст и управление записью в выходные таблицы ](../../../api/python/examples.md#table_switches)
     - [Spec builders](../../../api/python/examples.md#spec_builder)
     - [Использование gevent](../../../api/python/examples.md#gevent)
-  * [Нетипизированное API](../../../api/python/examples.md#untyped_tutorial)
-    - [Чтение и запись таблиц](../../../api/python/examples.md#read_write_untyped)
-    - [Простой map](../../../api/python/examples.md#simple_map_untyped)
-    - [Сортировка таблицы и простая операция reduce](../../../api/python/examples.md#sort_and_reduce_untyped)
-    - [Reduce с несколькими входными таблицами](../../../api/python/examples.md#reduce_multiple_output_untyped)
-    - [Reduce с несколькими входными и несколькими выходными таблицами](../../../api/python/examples.md#reduce_multiple_input_output_untyped)
-    - [Операция MapReduce](../../../api/python/examples.md#map_reduce_untyped)
-    - [Декораторы для классов- и функций-джобов](../../../api/python/examples.md#job_decorators_untyped)
-    - [Переключатели таблиц и контекст](../../../api/python/examples.md#table_switches_untyped)
-    - [Работа со строками в Python3](../../../api/python/examples.md#yson_string_proxy)
 
 <!-- ### Для разработчика { #fordeveloper }
 

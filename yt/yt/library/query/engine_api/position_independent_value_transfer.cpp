@@ -228,7 +228,7 @@ std::vector<TUnversionedRow> CopyAndConvertFromPI(
     return result;
 }
 
-TPIValueRange CaptureUnversionedValueRange(TExpressionContext* context, TRange<TValue> range)
+TMutablePIValueRange CaptureUnversionedValueRange(TExpressionContext* context, TRange<TValue> range)
 {
     i64 rangeByteLength = range.size() * sizeof(TPIValue);
     i64 byteLength = rangeByteLength;
@@ -254,7 +254,7 @@ TPIValueRange CaptureUnversionedValueRange(TExpressionContext* context, TRange<T
         }
     }
 
-    return MakeRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
+    return MakeMutableRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

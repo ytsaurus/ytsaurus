@@ -137,7 +137,7 @@ class TChunkScannerWithPayload
 private:
     using TBase = NDetail::TChunkScannerBase;
 
-    constexpr static bool WithPayload = !std::is_void_v<TPayload>;
+    static constexpr bool WithPayload = !std::is_void_v<TPayload>;
 
     struct TChunkWithPayload
     {
@@ -201,10 +201,10 @@ private:
 
     std::queue<TQueueEntry> Queue_;
 
-    constexpr static TQueuedChunk None() noexcept;
-    constexpr static TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
+    static constexpr TQueuedChunk None() noexcept;
+    static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
 
-    constexpr static TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
+    static constexpr TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

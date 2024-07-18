@@ -193,7 +193,7 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 					return xerrors.New("some error")
 				}, nil)
 				require.Error(t, err)
-				require.True(t, v >= 3)
+				require.GreaterOrEqual(t, v, 3)
 			})
 		})
 	}

@@ -284,7 +284,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
         const auto& batchPrerequisitesExt = Header().GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
         for (auto& descriptor : InnerRequestDescriptors_) {
             NRpc::NProto::TRequestHeader requestHeader;
-            YT_VERIFY(ParseRequestHeader(descriptor.Message, &requestHeader));
+            YT_VERIFY(TryParseRequestHeader(descriptor.Message, &requestHeader));
 
             auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
             prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
@@ -300,7 +300,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
 TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(message, &header));
+    YT_VERIFY(TryParseRequestHeader(message, &header));
     if (header.retry()) {
         // Already patched.
         return message;
@@ -640,7 +640,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished()
 TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationId(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(message, &header));
+    YT_VERIFY(TryParseRequestHeader(message, &header));
     NRpc::SetMutationId(&header, GenerateMutationId(), false);
     return SetRequestHeader(message, header);
 }

@@ -452,6 +452,8 @@ items:
         href: admin-guide/cell-addition.md
       - name: Возможные проблемы
         href: admin-guide/problems.md
+      - name: Синхронизация пользователей и групп с внешней системой
+        href: admin-guide/identity-sync.md
   - name: Релизы
     href: admin-guide/releases.md
   - name: FAQ

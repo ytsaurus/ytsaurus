@@ -836,7 +836,7 @@ private:
                     return;
                 }
 
-                if (tablet->DynamicStoreIdPool().empty()) {
+                if (tablet->GetUnreservedDynamicStoreIdCount() == 0) {
                     YT_LOG_DEBUG(
                         "Cannot perform backup cutoff due to empty "
                         "dynamic store id pool (%v)",

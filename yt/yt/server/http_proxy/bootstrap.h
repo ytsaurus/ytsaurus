@@ -115,6 +115,9 @@ private:
     NHttp::IServerPtr ApiHttpsServer_;
     NHttp::IServerPtr TvmOnlyApiHttpServer_;
     NHttp::IServerPtr TvmOnlyApiHttpsServer_;
+    NHttp::IServerPtr ChytApiHttpServer_;
+    NHttp::IServerPtr ChytApiHttpsServer_;
+
     TApiPtr Api_;
 
     NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;

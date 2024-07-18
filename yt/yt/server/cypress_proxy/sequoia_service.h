@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
-
-#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NCypressProxy {

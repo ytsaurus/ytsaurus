@@ -136,30 +136,30 @@ TNodeId CreateIntermediateNodes(
 }
 
 TNodeId CopySubtree(
-    const std::vector<NRecords::TPathToNodeId>& sourceNodes,
+    const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const TAbsoluteYPath& sourceRootPath,
     const TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
-    const THashMap<TNodeId, NYPath::TYPath>& subtreeLinks,
+    const THashMap<TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
     const ISequoiaTransactionPtr& transaction)
 {
     THashMap<TAbsoluteYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
     nodePathToChildren.reserve(sourceNodes.size());
     TNodeId destinationNodeId;
     for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
-        TAbsoluteYPath destinationNodePath(it->Key.Path);
+        TAbsoluteYPath destinationNodePath(it->Path);
         destinationNodePath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
             destinationRootPath.Underlying());
 
         NRecords::TNodeIdToPath record{
-            .Key = {.NodeId = it->NodeId},
-            .Path = DemangleSequoiaPath(it->Key.Path),
+            .Key = {.NodeId = it->Id},
+            .Path = it->Path.Underlying(),
         };
 
-        if (IsLinkType(TypeFromId(it->NodeId))) {
-            record.TargetPath = GetOrCrash(subtreeLinks, it->NodeId);
+        if (IsLinkType(TypeFromId(it->Id))) {
+            record.TargetPath = GetOrCrash(subtreeLinks, it->Id).Underlying();
         }
 
         // NB: due to the reverse order of subtree traversing we naturally get
@@ -188,7 +188,7 @@ TNodeId CopySubtree(
 }
 
 void RemoveSelectedSubtree(
-    const std::vector<NRecords::TPathToNodeId>& subtreeNodes,
+    const std::vector<TCypressNodeDescriptor>& subtreeNodes,
     const ISequoiaTransactionPtr& transaction,
     bool removeRoot,
     TNodeId subtreeParentId)
@@ -198,31 +198,30 @@ void RemoveSelectedSubtree(
     YT_VERIFY(
         !removeRoot ||
         subtreeParentId ||
-        TypeFromId(subtreeNodes.front().NodeId) == EObjectType::Scion);
+        TypeFromId(subtreeNodes.front().Id) == EObjectType::Scion);
 
     THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
     pathToNodeId.reserve(subtreeNodes.size());
     for (const auto& node : subtreeNodes) {
-        pathToNodeId[TAbsoluteYPath(node.Key.Path)] = node.NodeId;
+        pathToNodeId[node.Path] = node.Id;
     }
 
     for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
-        RemoveNode(nodeIt->NodeId, nodeIt->Key.Path, transaction);
+        RemoveNode(nodeIt->Id, MangleSequoiaPath(nodeIt->Path.Underlying()), transaction);
     }
 
     for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
-        TAbsoluteYPath path(it->Key.Path);
-        if (auto parentIt = pathToNodeId.find(path.GetDirPath())) {
-            DetachChild(parentIt->second, path.GetBaseName(), transaction);
+        if (auto parentIt = pathToNodeId.find(it->Path.GetDirPath())) {
+            DetachChild(parentIt->second, it->Path.GetBaseName(), transaction);
         }
     }
 
-    auto rootType = TypeFromId(subtreeNodes.front().NodeId);
+    auto rootType = TypeFromId(subtreeNodes.front().Id);
     if (!removeRoot || rootType == EObjectType::Scion) {
         return;
     }
 
-    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Key.Path);
+    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Path);
     DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), transaction);
 }
 

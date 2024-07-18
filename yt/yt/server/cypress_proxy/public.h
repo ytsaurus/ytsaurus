@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/public.h>
-
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +66,21 @@ struct TCopyOptions
     bool PreserveExpirationTime = false;
     bool PreserveExpirationTimeout = false;
     bool PessimisticQuotaCheck = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressNodeDescriptor
+{
+    NCypressClient::TNodeId Id;
+    NSequoiaClient::TAbsoluteYPath Path;
+};
+
+struct TCypressChildDescriptor
+{
+    NCypressClient::TNodeId ParentId;
+    NCypressClient::TNodeId ChildId;
+    TString ChildKey;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

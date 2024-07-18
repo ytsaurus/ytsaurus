@@ -4,6 +4,7 @@
 
 #include <util/system/types.h>
 #include <util/generic/string.h>
+#include <util/datetime/base.h>
 
 namespace NYT {
 
@@ -16,6 +17,17 @@ struct TOOMOptions
 };
 
 void EnableEarlyOOMWatchdog(TOOMOptions options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTCMallocLimitHandlerOptions
+{
+    TString HeapDumpDirectory;
+    TDuration Timeout = TDuration::Seconds(300);
+};
+
+void EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions options);
+void DisableTCMallocLimitHandler();
 
 ////////////////////////////////////////////////////////////////////////////////
 

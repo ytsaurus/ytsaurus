@@ -23,11 +23,11 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TQlQueryHandler
+class TQLQueryHandler
     : public TQueryHandlerBase
 {
 public:
-    TQlQueryHandler(
+    TQLQueryHandler(
         const NApi::IClientPtr& stateClient,
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
@@ -43,7 +43,7 @@ public:
     {
         YT_LOG_DEBUG("Starting QL query");
         AsyncQueryResult_ = QueryClient_->SelectRows(Query_);
-        AsyncQueryResult_.Subscribe(BIND(&TQlQueryHandler::OnQueryFinish, MakeWeak(this)).Via(GetCurrentInvoker()));
+        AsyncQueryResult_.Subscribe(BIND(&TQLQueryHandler::OnQueryFinish, MakeWeak(this)).Via(GetCurrentInvoker()));
     }
 
     void Abort() override
@@ -77,14 +77,14 @@ private:
     }
 };
 
-class TQlEngine
+class TQLEngine
     : public IQueryEngine
 {
 public:
-    TQlEngine(IClientPtr stateClient, TYPath stateRoot)
+    TQLEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
-        , ControlQueue_(New<TActionQueue>("QlEngineControl"))
+        , ControlQueue_(New<TActionQueue>("QLEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
@@ -93,7 +93,7 @@ public:
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
         auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
-        return New<TQlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
+        return New<TQLQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -109,9 +109,9 @@ private:
     TClusterDirectoryPtr ClusterDirectory_;
 };
 
-IQueryEnginePtr CreateQlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateQLEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {
-    return New<TQlEngine>(stateClient, stateRoot);
+    return New<TQLEngine>(stateClient, stateRoot);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

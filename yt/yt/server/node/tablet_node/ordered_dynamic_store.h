@@ -66,6 +66,8 @@ public:
 
     void LockHunkStores(const NTableClient::THunkChunksInfo& hunkChunksInfo) override;
 
+    void UpdateCommittedRowCount();
+
 private:
     class TReader;
 
@@ -75,6 +77,7 @@ private:
     const std::optional<int> CumulativeDataWeightColumnId_;
 
     std::atomic<i64> StoreRowCount_ = 0;
+    std::atomic<i64> CommittedStoreRowCount_ = 0;
 
     std::array<std::unique_ptr<TOrderedDynamicRowSegment>, MaxOrderedDynamicSegments> Segments_;
     int CurrentSegmentIndex_ = -1;

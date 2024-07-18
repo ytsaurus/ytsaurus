@@ -80,6 +80,10 @@ DEFINE_ENUM(EChunkViewSizeStatus,
     (CompactionNotRequired)
 );
 
+DEFINE_ENUM(EDynamicStoreIdReservationReason,
+    ((SmoothMovement)  (1))
+);
+
 using TTabletDistributedThrottlersVector = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
     NConcurrency::IReconfigurableThroughputThrottlerPtr>;

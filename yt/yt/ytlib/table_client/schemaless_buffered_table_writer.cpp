@@ -50,12 +50,12 @@ public:
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
         TNameTablePtr nameTable,
-        const TYPath& path)
-        : Config_(config)
-        , Options_(options)
-        , Client_(client)
-        , NameTable_(nameTable)
-        , Path_(path)
+        TYPath path)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
+        , Client_(std::move(client))
+        , NameTable_(std::move(nameTable))
+        , Path_(std::move(path))
         , FlushBufferInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
         , FlushExecutor_(New<TPeriodicExecutor>(
             FlushBufferInvoker_,
@@ -120,6 +120,11 @@ public:
     const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
+    }
+
+    std::optional<NCrypto::TMD5Hash> GetDigest() const override
+    {
+        return std::nullopt;
     }
 
 private:

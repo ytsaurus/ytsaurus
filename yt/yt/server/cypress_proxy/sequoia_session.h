@@ -4,10 +4,6 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NCypressProxy {
@@ -29,33 +25,54 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NSequoiaClient::ISequoiaTransactionPtr, SequoiaTransaction);
 
 public:
+    //! Represents Cypress subtree selected from "path_to_node_id" Sequoia
+    //! table. Used as strong typedef with some guarantees.
+    struct TSubtree
+    {
+        // In-order traverse of subtree.
+        std::vector<TCypressNodeDescriptor> Nodes;
+    };
+
+    // Start and finish.
+
+    //! Initializes Sequoia session and starts Sequoia tx.
     static TSequoiaSessionPtr Start(const NSequoiaClient::ISequoiaClientPtr& client);
 
     //! Commits Sequoia transaction. If #coordinatorCellId is specified then
     //! late prepare mode will be used.
     void Commit(NObjectClient::TCellId coordinatorCellId = {});
 
-    //! Adds tx action for rootstock removal.
-    NObjectClient::TCellTag RemoveRootstock(NCypressClient::TNodeId rootstockId);
+    // Operations over subtree.
 
-    //! Acquires lock in "node_id_to_path" Sequoia table. If object was created
-    //! during this session this method is no-op.
-    /*!
-     *  NB: most of primitives are already taking all necessary locks. Think
-     *  twice before using this method.
-     */
-    void LockNodeInSequoiaTable(NCypressClient::TNodeId nodeId, NTableClient::ELockType lockType);
+    //! Selects subtree from "path_to_node_id" Sequoia table.
+    TSubtree FetchSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
 
-    //! Returns whether or not an object with a given ID _could_ be created in
-    //! this session.
-    /*!
-     *  This method is used to avoid unnecessary locks.
-     *
-     *  NB: relies only on Sequoia tx start timestamp so it cannot be determined
-     *  if a given ID was actually generated in this session, but considering
-     *  object existence the result of this method is guaranteed to be correct.
-     */
-     bool JustCreated(NObjectClient::TObjectId nodeId);
+    //! Removes the whole subtree (including its root) from all resolve tables.
+    //! If subtree root is not a scion then it is detached from its parent and
+    //! parent is locked in "node_id_to_path" table.
+    void DetachAndRemoveSubtree(const TSubtree& subtree, NCypressClient::TNodeId parentId);
+
+    //! Creates the copy of previously selected subtree and attaches it to
+    //! parent. Locks source subtree. Does _not_ locks destination parent.
+    // TODO(kvk1920): consider removing #sourceRoot since it can be derived
+    // from #subtree.
+    NCypressClient::TNodeId CopySubtree(
+        const TSubtree& subtree,
+        NSequoiaClient::TAbsoluteYPathBuf sourceRoot,
+        NSequoiaClient::TAbsoluteYPathBuf destinationRoot,
+        NCypressClient::TNodeId destinationParentId,
+        const TCopyOptions& options);
+
+    //! Removes only the content of map-node.
+    //! Detaches all removed nodes from their parents.
+    //! Acquires shared lock for subree root in "node_id_to_path" table.
+    void ClearSubtree(const TSubtree& subtree);
+
+    //! The same as SelectSubtree() + ClearSubtree(). Prefer using another
+    //! override of this method to avoid fetching the same subtree twice.
+    void ClearSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
+
+    // Miscelanous.
 
     //! Behaves like the "set" verb in Cypress. Acquires a shared lock on row in
     //! "node_id_to_path" Sequoia table.
@@ -69,9 +86,6 @@ public:
      */
     void SetNode(NCypressClient::TNodeId nodeId, NYson::TYsonString value);
 
-    //! Used to check map-node's emptiness during non-recursive removal.
-    bool IsMapNodeEmpty(NCypressClient::TNodeId mapNodeId);
-
     //! Removes single node. If it's map-node it has to be empty.
     //! If node is not a scion it will be detached from its parent and parent
     //! will be locked in "node_id_to_path" table.
@@ -79,51 +93,6 @@ public:
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TAbsoluteYPathBuf path,
         NCypressClient::TNodeId parentId);
-
-    //! Represents Cypress subtree selected from "path_to_node_id" Sequoia
-    //! table. Used as strong typedef with some guarantees.
-    struct TSelectedSubtree
-    {
-        // All records are sorted by mangled Sequoia path as it's done in
-        // "node_id_to_path" Sequoia table. It means that the first record is
-        // always root.
-        std::vector<NSequoiaClient::NRecords::TPathToNodeId> Records;
-    };
-
-    //! Selects subtree from "path_to_node_id" Sequoia table.
-    TSelectedSubtree SelectSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
-
-    //! Removes the whole subtree (including its root) from all resolve tables.
-    //! If subtree root is not a scion then it is detached from its parent and
-    //! parent is locked in "node_id_to_path" table.
-    void DetachAndRemoveSubtree(const TSelectedSubtree& subtree, NCypressClient::TNodeId parentId);
-
-    //! Creates the copy of previously selected subtree and attaches it to
-    //! parent. Locks source subtree. Does _not_ locks destination parent.
-    // TODO(kvk1920): consider removing #sourceRoot since it can be derived
-    // from #subtree.
-    NCypressClient::TNodeId CopySubtree(
-        const TSelectedSubtree& subtree,
-        NSequoiaClient::TAbsoluteYPathBuf sourceRoot,
-        NSequoiaClient::TAbsoluteYPathBuf destinationRoot,
-        NCypressClient::TNodeId destinationParentId,
-        const TCopyOptions& options);
-
-    //! Removes only the content of map-node.
-    //! Detaches all removed nodes from their parents.
-    //! Acquires shared lock for subree root in "node_id_to_path" table.
-    void ClearSubtree(const TSelectedSubtree& subtree);
-
-    //! The same as SelectSubtree() + ClearSubtree(). Prefer using another
-    //! override of this method to avoid fetching the same subtree twice.
-    void ClearSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
-
-    //! Looks up node in "node_id_to_path" Sequoia table.
-    std::optional<NSequoiaClient::NRecords::TNodeIdToPath> FindNodeById(NCypressClient::TNodeId);
-
-    //! Looks up nodes in "path_to_node_id" Sequoia table.
-    std::vector<std::optional<NSequoiaClient::NRecords::TPathToNodeId>>
-    FindNodesByPath(const std::vector<NSequoiaClient::NRecords::TPathToNodeIdKey>& keys);
 
     //! For parent P and node names [A_1, ..., A_n] creates P/A_1/.../A_n and
     //! returns ID of A_n. Attaches A_1 to P and locks P in "node_id_to_path"
@@ -145,16 +114,73 @@ public:
         const NYTree::IAttributeDictionary* explicitAttributes,
         NCypressClient::TNodeId parentId);
 
+    // Map-node's children accessors.
+
     //! Selects children from "child_node" Sequoia table.
-    TFuture<std::vector<NSequoiaClient::NRecords::TChildNode>> FetchChildren(
-        NCypressClient::TNodeId nodeId);
+    TFuture<std::vector<TCypressChildDescriptor>> FetchChildren(NCypressClient::TNodeId nodeId);
+
+    //! Used to check map-node's emptiness during non-recursive removal.
+    /*!
+     *  NB: of course, |IsMapNodeEmpty(X)| is semantically equal to
+     *  |FetchChildren(X).empty()|, but |IsMapNodeEmpty()| is better in case of
+     *  non-empty map-node. Both of methods are implemented as "SELECT FROM
+     *  child_nodes WHERE parent_id == mapNodeId", but this metod has "LIMIT 1".
+     */
+    bool IsMapNodeEmpty(NCypressClient::TNodeId mapNodeId);
+
+    // Resolve helpers.
+
+    //! Finds node path by its ID.
+    /*!
+     *  If such node exists but this function returns |nullopt| then this node
+     *  is a snapshot branch.
+     *
+     *  NB: caches link's target path if needed.
+     */
+    std::optional<NSequoiaClient::TAbsoluteYPath> FindNodePath(NCypressClient::TNodeId id);
+
+    //! Finds target path of link.
+    /*!
+     *  NB: if this node was already fetched from "node_id_to_path" Sequoia
+     *  table this method is no-op.
+     */
+    NSequoiaClient::TAbsoluteYPath GetLinkTargetPath(NCypressClient::TNodeId linkId);
+    THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath> GetLinkTargetPaths(
+        TRange<NCypressClient::TNodeId> linkIds);
+
+    //! Looks up nodes in "path_to_node_id" Sequoia table.
+    std::vector<NCypressClient::TNodeId> FindNodeIds(
+        TRange<NSequoiaClient::TAbsoluteYPathBuf> paths);
+
+    // Low-level helpers.
+
+    //! Adds tx action for rootstock removal.
+    NObjectClient::TCellTag RemoveRootstock(NCypressClient::TNodeId rootstockId);
 
 private:
     // Scheduled asynchronoius requests which must be done before session is
     // committed.
     std::vector<TFuture<void>> AdditionalFutures_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedLinkTargetPathsLock_);
+    THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath> CachedLinkTargetPaths_;
+
     TSequoiaSession(NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction);
+
+    //! Acquires lock in "node_id_to_path" Sequoia table. If object was created
+    //! during this session this method is no-op.
+    void MaybeLockNodeInSequoiaTable(NCypressClient::TNodeId nodeId, NTableClient::ELockType lockType);
+
+    //! Returns whether or not an object with a given ID _could_ be created in
+    //! this session.
+    /*!
+     *  This method is used to avoid unnecessary locks.
+     *
+     *  NB: relies only on Sequoia tx start timestamp so it cannot be determined
+     *  if a given ID was actually generated in this session, but considering
+     *  object existence the result of this method is guaranteed to be correct.
+     */
+    bool JustCreated(NObjectClient::TObjectId nodeId);
 
     DECLARE_NEW_FRIEND()
 };

@@ -296,6 +296,11 @@ void TOrderedChunkStore::Load(TLoadContext& context)
     TChunkStoreBase::Load(context);
 }
 
+void TOrderedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* /*descriptor*/)
+{
+    YT_ABORT();
+}
+
 const TKeyComparer& TOrderedChunkStore::GetKeyComparer() const
 {
     static const TKeyComparer KeyComparer;

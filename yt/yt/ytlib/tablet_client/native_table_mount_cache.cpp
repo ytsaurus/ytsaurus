@@ -45,6 +45,7 @@
 namespace NYT::NTabletClient {
 
 using namespace NApi;
+using namespace NTracing;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NElection;
@@ -104,6 +105,14 @@ private:
 
             updatePrimaryRevision = oldMountInfo->PrimaryRevision;
             updateSecondaryRevision = oldMountInfo->SecondaryRevision;
+        }
+
+        std::optional<TTraceContextGuard> guard;
+
+        if (reason == EUpdateReason::PeriodicUpdate) {
+            guard.emplace(TTraceContext::NewRoot("PeriodicUpdate"));
+
+            YT_LOG_DEBUG("Running periodic mount info update (TablePath: %v)", key);
         }
 
         auto session = New<TGetSession>(
@@ -375,9 +384,8 @@ private:
                     tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                 }
 
-                tabletInfo->Owners.push_back(MakeWeak(tableInfo));
+                Owner_->TabletInfoOwnerCache_.Insert(tabletInfo->TabletId, MakeWeak(tableInfo));
 
-                tabletInfo = Owner_->TabletInfoCache_.Insert(std::move(tabletInfo));
                 tableInfo->Tablets.push_back(tabletInfo);
                 if (tabletInfo->State == ETabletState::Mounted) {
                     tableInfo->MountedTablets.push_back(tabletInfo);
@@ -440,6 +448,12 @@ private:
     void OnRemoved(const TYPath& key) noexcept override
     {
         YT_LOG_DEBUG("Table mount info removed from cache (Path: %v)", key);
+    }
+
+    void RegisterCell(INodePtr cellDescriptor) override
+    {
+        auto nativeCellDescriptor = ConvertTo<TCellDescriptor>(cellDescriptor);
+        CellDirectory_->ReconfigureCell(nativeCellDescriptor);
     }
 };
 

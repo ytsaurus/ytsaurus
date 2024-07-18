@@ -3374,12 +3374,18 @@ class TestChaos(ChaosTestBase):
         crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
         crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
 
+        for crt in [crt1, crt2]:
+            assert get("{0}/@collocated_replication_card_ids".format(crt)) == []
+
         collocation_id = create("replication_card_collocation", None, attributes={
             "type": "replication",
             "table_paths": [crt1, crt2]
         })
+
+        cards = sorted([card1, card2])
         for crt in [crt1, crt2]:
             assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
+            assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
 
         def _get_orchid(cell_id, path):
             address = get("#{0}/@peers/0/address".format(cell_id))
@@ -3886,10 +3892,12 @@ class TestChaos(ChaosTestBase):
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
         self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
         self._sync_replication_era(card_id)
-        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
 
-        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id))
-        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id))
+        sync_unmount_table("//tmp/rqs", driver=remote_driver0)
+        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
+        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id, replication_progress=progress))
+        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id, replication_progress=progress))
+        sync_mount_table("//tmp/rqs", driver=remote_driver0)
         self._create_replica_tables(replicas[4:], replica_ids[4:], schema=schema1, pivot_keys=_create_pivots(schema1), replication_progress=progress)
         self._sync_replication_era(card_id)
 

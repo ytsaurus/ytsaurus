@@ -248,7 +248,7 @@ Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable classType(TSkiffStructuredIterator::type());
     Py::PythonClassObject<TSkiffStructuredIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
-    auto *iter = pythonIter.getCxxObject();
+    auto* iter = pythonIter.getCxxObject();
     iter->Initialize(
         std::move(inputStreamHolder),
         std::move(pySchemas),

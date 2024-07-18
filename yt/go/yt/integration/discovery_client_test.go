@@ -87,12 +87,12 @@ func TestDiscoveryClient(t *testing.T) {
 	dc, discoveryServerPath := getDiscoveryClientAndServers(t, env)
 	defer dc.Stop()
 
-	ctx, cancel := context.WithTimeout(env.Ctx, time.Minute)
-	defer cancel()
-
 	t.Run("P", func(t *testing.T) {
 		t.Run("Heartbeat", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(env.Ctx, time.Second*15)
+			defer cancel()
 
 			checkGroup := func(groupPath ypath.Path, expectedMemberCount int32) {
 				t.Helper()
@@ -137,6 +137,9 @@ func TestDiscoveryClient(t *testing.T) {
 		t.Run("GetGroupMeta", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(env.Ctx, time.Second*15)
+			defer cancel()
+
 			memberCount := 3
 			initMembers(t, ctx, dc, "/test/get_group_meta", memberCount)
 
@@ -147,6 +150,9 @@ func TestDiscoveryClient(t *testing.T) {
 
 		t.Run("ListMembers", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(env.Ctx, time.Second*15)
+			defer cancel()
 
 			memberCount := 3
 			initMembers(t, ctx, dc, "/test/get_group_meta", memberCount)

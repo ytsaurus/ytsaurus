@@ -482,6 +482,33 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         ]
 
     @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
+    def test_merge_does_not_teleport(self, mode):
+        create("table", "//tmp/t_in", driver=self.remote_driver)
+        create("table", "//tmp/t_out")
+
+        sorted_by = "<sorted_by=[{name=key; sort_order=ascending}]>"
+
+        data = [{"key": i, "value": i + 100} for i in range(0, 10)]
+
+        write_table(sorted_by + "//tmp/t_in", data, driver=self.remote_driver)
+
+        merge_by = {"merge_by": ["key"]} if mode == "sorted" else {}
+        merge(
+            in_=[
+                self.to_remote_path("//tmp/t_in"),
+            ],
+            out="//tmp/t_out",
+            mode=mode,
+            **merge_by,
+        )
+
+        if mode == "sorted":
+            assert get("//tmp/t_out/@sorted")
+
+        assert read_table("//tmp/t_out") == data
+
+    @authors("coteeq")
     def test_merge_interleave_rows(self):
         create("table", "//tmp/t_in", driver=self.remote_driver)
         create("table", "//tmp/t_in")

@@ -6,7 +6,7 @@
 %define api.prefix {yt_ql_yy}
 %define api.value.type variant
 %define api.location.type {TSourceLocation}
-%define parser_class_name {TParser}
+%define api.parser.class {TParser}
 %define parse.error verbose
 
 %defines

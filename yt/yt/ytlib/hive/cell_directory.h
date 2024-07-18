@@ -57,6 +57,10 @@ public:
 void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor);
 void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescriptor& protoDescriptor);
 
+// TODO(ifsmirnov): use TExternalizedYsonStruct.
+void Serialize(const TCellPeerDescriptor& descriptor, NYson::IYsonConsumer* consumer);
+void Deserialize(TCellPeerDescriptor& descriptor, NYTree::INodePtr node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellDescriptor final
@@ -76,6 +80,10 @@ DEFINE_REFCOUNTED_TYPE(TCellDescriptor)
 
 void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& descriptor);
 void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& protoDescriptor);
+
+// TODO(ifsmirnov): use TExternalizedYsonStruct.
+void Serialize(const TCellDescriptor& descriptor, NYson::IYsonConsumer* consumer);
+void Deserialize(TCellDescriptor& descriptor, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

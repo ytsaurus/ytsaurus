@@ -8,7 +8,6 @@
 * [CREATE TABLE](create_table.md)
 * [DROP TABLE](drop_table.md)
 * [INSERT](insert_into.md)
-* [UPSERT](upsert_into.md)
 * [GROUP BY](group_by.md)
 * [JOIN](join.md)
 * [WINDOW](window.md)

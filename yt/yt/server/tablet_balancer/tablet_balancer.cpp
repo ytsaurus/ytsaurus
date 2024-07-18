@@ -50,7 +50,7 @@ static constexpr auto& Logger = TabletBalancerLogger;
 
 static const TString TabletCellBundlesPath("//sys/tablet_cell_bundles");
 
-constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
+static constexpr TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
 static constexpr int MaxSavedErrorCount = 10;
 

@@ -19,6 +19,11 @@ DEPENDS(
 
 DEPENDS(yt/yt/packages/tests_package)
 
+DEPENDS(
+    # Required for HTTPS proxy tests.
+    contrib/libs/openssl/apps
+)
+
 TEST_SRCS(
     conftest.py
     base.py

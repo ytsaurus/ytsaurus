@@ -96,7 +96,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("ql_engine", &TThis::QlEngine)
+    registrar.Parameter("ql_engine", &TThis::QLEngine)
         .DefaultNew();
     registrar.Parameter("yql_engine", &TThis::YqlEngine)
         .DefaultNew();

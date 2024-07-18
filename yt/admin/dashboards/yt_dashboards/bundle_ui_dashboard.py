@@ -71,29 +71,51 @@ def build_max_lookup_select_execute_time_per_host():
 def build_user_lsm():
     top_lsm = NodeTablet("yt.tablet_node.{}.{}")
 
-    partitioning_dw = MonitoringExpr(NodeTablet(
-        "yt.tablet_node.chunk_writer.data_weight.rate").value("method", "partitioning"))
-    compaction_dw = MonitoringExpr(NodeTablet(
-        "yt.tablet_node.chunk_writer.data_weight.rate").value("method", "compaction"))
-    write_dw = MonitoringExpr(NodeTablet(
-        "yt.tablet_node.write.data_weight.rate"))
+    lsm_dw = MonitoringExpr(
+        NodeTablet("yt.tablet_node.store_compactor.out_data_weight.rate")
+            .aggr("eden", "reason"))
+
+    write_dw = MonitoringExpr(
+        NodeTablet("yt.tablet_node.write.data_weight.rate")
+            .aggr("user"))
+
+    cpu_usage = (lambda thread: MultiSensor(
+        MonitoringExpr(TabNodeCpu("yt.resource_tracker.thread_count")).series_max().alias("Thread count"),
+        MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu")) / 100)
+        .value("thread", thread))
+
+    osc = NodeTablet("yt.tablet_node.tablet.overlapping_store_count.max")
 
     return (Rowset()
             .all(MonitoringTag("host"))
             .stack(False)
             .top()
+
             .row()
                 .cell("Running compactions", top_lsm("store_compactor", "running_compactions"))
                 .cell("Running partitionings", top_lsm("store_compactor", "running_partitionings"))
             .row()
-                .cell("Feasible compactions", top_lsm("store_compactor", "feasible_compactions"))
-                .cell("Feasible partitionings", top_lsm("store_compactor", "feasible_partitionings"))
+                .cell("Compaction queue size", top_lsm("store_compactor", "feasible_compactions"))
+                .cell("Partitioning queue size", top_lsm("store_compactor", "feasible_partitionings"))
             .row()
                 .cell("Running flushes", top_lsm("store_flusher", "running_store_flushes"))
-                .cell("Max overlapping store count", top_lsm("tablet", "overlapping_store_count.max"))
+                .cell(
+                    "LSM write amplification", (
+                        (lsm_dw.value("activity", "compaction") + lsm_dw.value("activity", "partitioning"))
+                            .moving_avg("10m") /
+                        write_dw.moving_avg("10m"))
+                            .aggr(MonitoringTag("host"), "table_tag", "table_path")
+                )
             .row()
-                .aggr(MonitoringTag("host"), "table_tag", "table_path")
-                .cell("LSM write amplification", (compaction_dw.moving_avg("10m") + partitioning_dw.moving_avg("10m")) / write_dw.moving_avg("10m"))
+                .cell(
+                    "Max overlapping store count (per node)",
+                    osc.aggr("table_path", "table_tag"))
+                .cell(
+                    "Max overlapping store count (per table)",
+                    MonitoringExpr(osc).series_max("table_path", "table_tag"))
+            .row()
+                .cell("StoreCompact thread pool CPU usage", cpu_usage("StoreCompact"))
+                .cell("Compression thread pool CPU usage", cpu_usage("Compression"))
             ).owner
 
 

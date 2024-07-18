@@ -51,9 +51,13 @@ public:
 
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
-        auto keyColumns = outputSchema->GetKeyColumns();
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        auto rowReordererSchema = options->SchemaModification == NTableClient::ETableSchemaModification::None
+            ? outputSchema
+            : outputSchema->ToModifiedSchema(options->SchemaModification);
+
+        auto nameTable = TNameTable::FromSchema(*outputSchema);
 
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = JobSpecExt_.input_table_specs(0);
@@ -82,23 +86,26 @@ public:
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             TCallback<TUUComparerSignature> cgComparer;
-            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGComparatorApplicable()) {
-                cgComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
+            if (JobSpecExt_.enable_codegen_comparator() && rowReordererSchema->IsCGComparatorApplicable()) {
+                cgComparer = NQueryClient::GenerateStaticTableKeyComparer(rowReordererSchema->GetKeyColumnTypes());
             }
 
-            auto columnEvaluator = Host_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache()->Find(outputSchema);
+            auto columnEvaluator = Host_
+                ->GetClient()
+                ->GetNativeConnection()
+                ->GetColumnEvaluatorCache()
+                ->Find(rowReordererSchema);
 
             return CreateSortingReader(
                 reader,
                 nameTable,
-                keyColumns,
-                outputSchema->ToComparator(std::move(cgComparer)),
+                rowReordererSchema->GetColumnNames(),
+                rowReordererSchema->ToComparator(std::move(cgComparer)),
                 std::move(columnEvaluator));
         };
 
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
         options->ValidateKeyWeight = true;
         auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());

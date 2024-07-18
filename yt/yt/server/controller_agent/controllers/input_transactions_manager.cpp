@@ -34,13 +34,13 @@ TClusterResolver::TClusterResolver(IClientPtr client)
 TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
 {
     auto clusterName = path.GetCluster();
-    if (clusterName.has_value() && !IsLocalClusterName(*clusterName)) {
+    if (clusterName && !IsLocalClusterName(*clusterName)) {
         return TClusterName(*clusterName);
     }
     return LocalClusterName;
 }
 
-TString TClusterResolver::GetLocalClusterName() const
+const TString& TClusterResolver::GetLocalClusterName() const
 {
     return LocalClusterName_;
 }
@@ -98,9 +98,8 @@ TInputTransactionsManager::TInputTransactionsManager(
 
     if (forceStartLocalTransaction) {
         createClient(LocalClusterName);
-        auto localParent = TRichTransactionId {
+        auto localParent = TRichTransactionId{
             .Id = UserTransactionId_,
-            .ParentId = NullTransactionId,
             .Cluster = LocalClusterName,
         };
         ParentToTransaction_[localParent] = nullptr;
@@ -187,7 +186,7 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
         auto transactionId = transactionIds.NestedInputIds[i];
         auto oldParentId = OldNonTrivialInputTransactionParents_[i];
         auto& flatTransactionId = flatTransactionIds[parentToIndex[MakeRichTransactionId(oldParentId)]];
-        auto richTransactionId = TRichTransactionId {
+        auto richTransactionId = TRichTransactionId{
             .Id = transactionId,
             .ParentId = oldParentId,
             .Cluster = LocalClusterName
@@ -207,8 +206,8 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
 
     auto inputTransactionParent = MakeRichTransactionId(UserTransactionId_);
     if (ParentToTransaction_.contains(inputTransactionParent)) {
-        YT_VERIFY(flatTransactionIds[parentToIndex[inputTransactionParent]].Id == NullTransactionId);
-        flatTransactionIds[parentToIndex[inputTransactionParent]] = TRichTransactionId {
+        YT_VERIFY(!flatTransactionIds[parentToIndex[inputTransactionParent]].Id);
+        flatTransactionIds[parentToIndex[inputTransactionParent]] = TRichTransactionId{
             .Id = transactionIds.InputId,
             .ParentId = UserTransactionId_,
             .Cluster = LocalClusterName,
@@ -247,9 +246,8 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
         ITransactionPtr transaction;
         try {
             transaction = Clients_[transactionId.Cluster]->AttachTransaction(transactionId.Id, options);
-            auto parent = TRichTransactionId {
+            auto parent = TRichTransactionId{
                 .Id = transactionId.ParentId,
-                .ParentId = NullTransactionId,
                 .Cluster = transactionId.Cluster,
             };
             YT_VERIFY(ParentToTransaction_.contains(parent) && !ParentToTransaction_[parent]);
@@ -311,7 +309,7 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
 {
     std::vector<TTransactionId> transactionIds;
     for (const auto& parent : OldNonTrivialInputTransactionParents_) {
-        const auto& transaction = ParentToTransaction_.at(MakeRichTransactionId(parent));
+        const auto& transaction = GetOrCrash(ParentToTransaction_, MakeRichTransactionId(parent));
         transactionIds.push_back(transaction->GetId());
     }
 
@@ -324,10 +322,10 @@ void TInputTransactionsManager::FillSchedulerTransactionIds(
     for (const auto& [parent, transaction] : ParentToTransaction_) {
         YT_VERIFY(transaction);
         transactionIds->InputIds.push_back(
-            TRichTransactionId {
+            TRichTransactionId{
                 .Id = transaction->GetId(),
                 .ParentId = parent.Id,
-                .Cluster = parent.Cluster
+                .Cluster = parent.Cluster,
             });
     }
 
@@ -350,8 +348,9 @@ TFuture<void> TInputTransactionsManager::Abort(IClientPtr schedulerClient)
                     ->GetConnectionOrThrow(parent.Cluster.Underlying())
                     ->CreateNativeClient(schedulerClient->GetOptions());
                 if (!client) {
-                    auto error = TError("Failed to create scheduler client")
-                        << TErrorAttribute("cluster_name", parent.Cluster);
+                    auto error = TError(
+                        "Failed to create scheduler client for cluster %Qv",
+                        parent.Cluster);
                     YT_LOG_WARNING(error, "Failed to abort input transaction (TransactionId: %v)",
                         transaction->GetId());
                     abortFutures.push_back(MakeFuture(error));
@@ -379,13 +378,12 @@ TRichTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const
 {
     TRichTransactionId parent;
     parent.Cluster = ClusterResolver_->GetClusterName(path);
-    if (path.GetTransactionId().has_value()) {
-        parent.Id = *path.GetTransactionId();
-    } else {
-        parent.Id = IsLocal(parent.Cluster)
-            ? UserTransactionId_
-            : NullTransactionId;
-    }
+
+    auto effectiveUserTransactionId = IsLocal(parent.Cluster)
+        ? UserTransactionId_
+        : NullTransactionId;
+
+    parent.Id = path.GetTransactionId().value_or(effectiveUserTransactionId);
     parent.ParentId = NullTransactionId;
     return parent;
 }
@@ -421,13 +419,13 @@ void TInputTransactionsManager::ValidateRemoteOperationsAllowed(
         const auto& disallowRemoteConfig = ControllerConfig_->DisallowRemoteOperations;
         if (!disallowRemoteConfig->AllowedUsers.contains(authenticatedUser)) {
             THROW_ERROR_EXCEPTION(
-                "User %v is not allowed to start operations with remote clusters",
+                "User %Qv is not allowed to start operations with remote clusters",
                 authenticatedUser)
                 << TErrorAttribute("input_table_path", path);
         }
         if (!disallowRemoteConfig->AllowedClusters.contains(clusterName.Underlying())) {
             THROW_ERROR_EXCEPTION(
-                "Cluster %v is not allowed to be an input remote cluster",
+                "Cluster %Qv is not allowed to be an input remote cluster",
                 clusterName)
                 << TErrorAttribute("input_table_path", path);
         }

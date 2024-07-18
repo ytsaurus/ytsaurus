@@ -566,7 +566,7 @@ private:
     {
         if (Config_->IgnoreMissingCredentials) {
             if (User_.empty()) {
-                if (!Token_.empty()) {
+                if (!Token_.empty() && Bootstrap_->GetConfig()->ClickHouse->PopulateUserWithToken) {
                     YT_LOG_DEBUG("Authentication is disabled and user is specified via token's value");
                     User_ = Token_;
                 } else {
@@ -1012,7 +1012,7 @@ private:
         ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
             InstanceHost_,
             InstanceHttpPort_,
-            Request_->GetUrl().Path,
+            "/", // ClickHouse implements different endpoints but we use only default one
             CgiParameters_.Print());
 
         YT_LOG_DEBUG("Forwarding query to an instance (InstanceId: %v, Host: %v, HttpPort: %v, ProxiedRequestUrl: %v)",

@@ -48,7 +48,7 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
     };
 
-    constexpr static int ShardCount = 256;
+    static constexpr int ShardCount = 256;
     static_assert(IsPowerOf2(ShardCount), "Number of shards must be a power of two");
 
     std::array<TShard, ShardCount> Shards_;

@@ -71,7 +71,7 @@ protected:
 
 struct TVersionedRowMetadata
 {
-    constexpr static int DefaultKeyBufferCapacity = 128;
+    static constexpr int DefaultKeyBufferCapacity = 128;
     TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer;
 
     TLegacyMutableKey Key;
