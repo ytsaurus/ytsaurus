@@ -486,7 +486,7 @@ public:
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
 
-    i64 SummaryBlockSizeInFlight;
+    i64 TotalInFlightBlockSize;
 
     double FallbackTimeoutFraction;
 

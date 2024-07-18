@@ -193,7 +193,7 @@ void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
     BlockCache_->Reconfigure(config->BlockCache);
     MetaCache_->Reconfigure(config->MetaCache);
 
-    BlockMemoryTracker_->SetLimit(BlockMemoryTracker_->GetLimit() + config->SummaryBlockSizeInFlight);
+    BlockMemoryTracker_->SetLimit(BlockMemoryTracker_->GetLimit() + config->TotalInFlightBlockSize);
 
     Config_.Store(config);
 }
