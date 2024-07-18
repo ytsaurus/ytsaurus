@@ -395,8 +395,18 @@ public:
 
     static void TearDownTestCase()
     {
-        WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
-            .ThrowOnError();
+        while (true) {
+            auto error = WaitFor(Client_->RemoveNode(TYPath("//tmp/*")));
+            if (error.IsOK()) {
+                break;
+            }
+
+            if (!error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                THROW_ERROR(error);
+            }
+
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+        }
 
         TApiTestBase::TearDownTestCase();
     }
@@ -434,7 +444,6 @@ TEST_F(TAnyTypeTest, YsonValidation)
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(path + "/@row_count"))
             .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
-
     };
 
     test(MakeUnversionedAnyValue(""));

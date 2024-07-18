@@ -1,1 +1,1 @@
-{% include [Упорядоченные динтаблицы](../../_includes/user-guide/dynamic-tables/ordered-dynamic-tables.md) %}
+{% include [Ordered dynamic tables](../../_includes/user-guide/dynamic-tables/ordered-dynamic-tables.md) %}

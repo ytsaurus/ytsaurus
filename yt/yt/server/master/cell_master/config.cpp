@@ -270,6 +270,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("timestamp_manager", &TThis::TimestampManager)
         .DefaultNew();
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default(InvalidCellTag);
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider);
     registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .Default();
@@ -395,6 +397,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler_pool_manager", &TThis::SchedulerPoolManager)
         .DefaultNew();
     registrar.Parameter("sequoia_manager", &TThis::SequoiaManager)
+        .DefaultNew();
+    registrar.Parameter("ground_update_queue_manager", &TThis::GroundUpdateQueueManager)
         .DefaultNew();
     registrar.Parameter("cell_master", &TThis::CellMaster)
         .DefaultNew();

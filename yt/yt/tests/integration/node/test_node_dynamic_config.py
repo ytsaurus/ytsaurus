@@ -47,7 +47,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     def get_dynamic_config_annotation(self, node):
         dynamic_config = get_applied_node_dynamic_config(node)
-        if type(dynamic_config) == yson.YsonEntity:
+        if type(dynamic_config) is yson.YsonEntity:
             return ""
 
         return dynamic_config.get("config_annotation", "")

@@ -1020,12 +1020,13 @@ class TestBulkInsert(DynamicTablesBase):
 
                 wait(_wait_func)
 
-        def _run_op():
+        def _run_op(spec={}):
             map(
                 in_="//tmp/t_input",
                 out="<append=%true>//tmp/t_output",
                 command="cat",
                 authenticated_user="u",
+                spec=spec,
             )
 
         try:
@@ -1036,6 +1037,8 @@ class TestBulkInsert(DynamicTablesBase):
             _set_global_permit(False)
             with pytest.raises(YtError):
                 _run_op()
+
+            _run_op(spec={"allow_output_dynamic_tables": True})
 
             set("//sys/users/u/@enable_bulk_insert", True)
 

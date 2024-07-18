@@ -29,6 +29,8 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
+    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
+
     REGISTER_YSON_STRUCT(TCypressProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -38,14 +40,28 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserDirectorySynchronizerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Interval between consequent directory updates.
+    TDuration SyncPeriod;
+
+    REGISTER_YSON_STRUCT(TUserDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectServiceDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
     //! Size of the thread pool used for object service requests execution.
     int ThreadPoolSize;
-
-    bool AlertOnMixedReadWriteBatch;
 
     //! Skip the first phase in the two-phase request execution at master.
     //! When set to |true|, all requests are resolved at Sequoia first.

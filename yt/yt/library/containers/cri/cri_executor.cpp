@@ -418,6 +418,24 @@ public:
             mount->set_propagation(NProto::PROPAGATION_PRIVATE);
         }
 
+        for (const auto& deviceSpec : containerSpec->BindDevices) {
+            auto* device = config->add_devices();
+            device->set_container_path(deviceSpec.ContainerPath);
+            device->set_host_path(deviceSpec.HostPath);
+
+            TString permissions;
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Read)) {
+                permissions += "r";
+            }
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Write)) {
+                permissions += "w";
+            }
+            if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Create)) {
+                permissions += "m";
+            }
+            device->set_permissions(permissions);
+        }
+
         {
             ToProto(config->mutable_command(), containerSpec->Command);
             ToProto(config->mutable_args(), containerSpec->Arguments);
@@ -449,6 +467,11 @@ public:
                 security->mutable_run_as_group()->set_value(*containerSpec->Credentials.Gid);
             }
             ToProto(security->mutable_supplemental_groups(), containerSpec->Credentials.Groups);
+
+            auto* capabilities = security->mutable_capabilities();
+            for (const auto& capability : containerSpec->CapabilitiesToAdd) {
+                capabilities->add_add_capabilities(capability);
+            }
         }
 
         FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);

@@ -8,10 +8,10 @@
 #include <util/thread/pool.h>
 
 TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
-    : Port(port)
+    : Port_(port)
 {
     auto listenSocket = MakeAtomicShared<TInetStreamSocket>();
-    TSockAddrInet addr((TIpHost)INADDR_ANY, Port);
+    TSockAddrInet addr((TIpHost)INADDR_ANY, Port_);
     SetSockOpt(*listenSocket, SOL_SOCKET, SO_REUSEADDR, 1);
     int ret = listenSocket->Bind(&addr);
     Y_ENSURE_EX(ret == 0, TSystemError() << "Can not bind");
@@ -23,13 +23,13 @@ TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
     ret = listenSocket->Listen(10);
     Y_ENSURE_EX(ret == 0, TSystemError() << "Can not listen socket");
 
-    SendFinishSocket = MakeHolder<TInetStreamSocket>(socketPair[1]);
+    SendFinishSocket_ = MakeHolder<TInetStreamSocket>(socketPair[1]);
 
-    ThreadPool = MakeHolder<TAdaptiveThreadPool>();
-    ThreadPool->Start(1);
+    ThreadPool_ = MakeHolder<TAdaptiveThreadPool>();
+    ThreadPool_->Start(1);
 
     auto receiveFinish = MakeAtomicShared<TInetStreamSocket>(socketPair[0]);
-    ListenerThread = ThreadPool->Run([listenSocket, receiveFinish, requestHandler] {
+    ListenerThread_ = ThreadPool_->Run([listenSocket, receiveFinish, requestHandler] {
         TSocketPoller socketPoller;
         socketPoller.WaitRead(*receiveFinish, nullptr);
         socketPoller.WaitRead(*listenSocket, (void*)1);
@@ -63,7 +63,7 @@ TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
 TSimpleServer::~TSimpleServer()
 {
     try {
-        if (ThreadPool) {
+        if (ThreadPool_) {
             Stop();
         }
     } catch (...) {
@@ -73,18 +73,18 @@ TSimpleServer::~TSimpleServer()
 void TSimpleServer::Stop()
 {
     // Just send something to indicate shutdown.
-    SendFinishSocket->Send("X", 1);
-    ListenerThread->Join();
-    ThreadPool->Stop();
-    ThreadPool.Destroy();
+    SendFinishSocket_->Send("X", 1);
+    ListenerThread_->Join();
+    ThreadPool_->Stop();
+    ThreadPool_.Destroy();
 }
 
 int TSimpleServer::GetPort() const
 {
-    return Port;
+    return Port_;
 }
 
 TString TSimpleServer::GetAddress() const
 {
-    return TStringBuilder() << "localhost:" << Port;
+    return TStringBuilder() << "localhost:" << Port_;
 }

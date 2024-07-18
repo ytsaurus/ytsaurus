@@ -481,6 +481,12 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThan(0.0);
 }
 
+void TSortOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_simple_sort_for_evaluated_output", &TThis::EnableSimpleSortForEvaluatedOutput)
+        .Default(false);
+}
+
 void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
@@ -591,6 +597,14 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
 void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
+        .Default();
+}
+
+void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
+        .Default();
+    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
         .Default();
 }
 
@@ -1145,6 +1159,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
         .Default(false);
+
+    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
+        .DefaultNew();
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;

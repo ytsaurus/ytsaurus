@@ -98,6 +98,11 @@ int TPeerChannel::GetInflightRequestCount()
     return Underlying_->GetInflightRequestCount();
 }
 
+IMemoryUsageTrackerPtr TPeerChannel::GetChannelMemoryTracker()
+{
+    return Underlying_->GetChannelMemoryTracker();
+}
+
 //////////////////////////////////////////////////////////////////////////////////
 
 TChannelManager::TChannelManager(int peerCount)

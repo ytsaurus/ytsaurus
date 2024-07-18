@@ -525,8 +525,7 @@ public:
         batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
         SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
-
-        batchReq->AddRequestMessage(std::move(forwardedMessage), forwardedYPathExt->mutating());
+        batchReq->AddRequestMessage(std::move(forwardedMessage));
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
@@ -1764,7 +1763,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     VERIFY_THREAD_AFFINITY_ANY();
 
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(requestMessage, &header));
+    YT_VERIFY(TryParseRequestHeader(requestMessage, &header));
 
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -1789,7 +1788,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
-    batchReq->AddRequestMessage(std::move(forwardedRequestMessage), ypathExt.mutating());
+    batchReq->AddRequestMessage(std::move(forwardedRequestMessage));
     SetAuthenticationIdentity(batchReq, identity);
 
     YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "

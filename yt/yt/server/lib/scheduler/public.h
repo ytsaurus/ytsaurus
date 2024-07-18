@@ -103,6 +103,8 @@ DEFINE_ENUM(EOperationAlertType,
     ((MtnExperimentFailed)                         (34))
     ((NewPartitionsCountIsSignificantlyLarger)     (36))
     ((UseChunkSliceStatisticsDisabled)             (37))
+    ((JobIsNotDeterministic)                       (38))
+    ((IncompatibleStatistics)                      (39))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

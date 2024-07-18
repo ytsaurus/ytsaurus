@@ -221,6 +221,8 @@ public:
 
     void ReorderBlocks(TBlockReorderer* blockReorderer);
 
+    void SetCumulativeBlockSize(i64 cumulativeBlockSize);
+
     void ScheduleProcess();
 
     void SetFlushing();
@@ -230,6 +232,8 @@ public:
     bool IsFlushing() const;
 
     i64 GetSize() const;
+
+    i64 GetCumulativeBlockSize() const;
 
     int GetStartBlockIndex() const;
 
@@ -246,6 +250,7 @@ private:
     int FirstBlockIndex_;
 
     i64 Size_ = 0;
+    i64 CumulativeBlockSize_ = 0;
 
     void PutGroup(const TReplicationWriterPtr& writer);
     void SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes);
@@ -388,17 +393,17 @@ public:
         YT_ABORT();
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TChunkReplicaWithLocationList chunkReplicas;
+        TWrittenChunkReplicasInfo result;
         for (const auto& node : Nodes_) {
             if (node->IsAlive() && node->IsFinished()) {
-                chunkReplicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
+                result.Replicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
             }
         }
-        return chunkReplicas;
+        return result;
     }
 
     TChunkId GetChunkId() const override
@@ -471,6 +476,8 @@ private:
 
     //! Number of blocks that are already added via #AddBlocks.
     int BlockCount_ = 0;
+
+    i64 CumulativeBlockSize_ = 0;
 
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
@@ -1062,11 +1069,12 @@ private:
             BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
 
             CurrentGroup_->AddBlock(block);
-
             ++BlockCount_;
             ++currentBlockIndex;
+            CumulativeBlockSize_ += block.Size();
 
             if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
+                CurrentGroup_->SetCumulativeBlockSize(CumulativeBlockSize_);
                 FlushCurrentGroup();
             }
         }
@@ -1146,6 +1154,11 @@ i64 TGroup::GetSize() const
     return Size_;
 }
 
+i64 TGroup::GetCumulativeBlockSize() const
+{
+    return Size_;
+}
+
 bool TGroup::IsWritten() const
 {
     auto writer = Writer_.Lock();
@@ -1198,14 +1211,16 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         ToProto(req->mutable_session_id(), writer->SessionId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_populate_cache(writer->Config_->PopulateCache);
+        req->set_cumulative_block_size(CumulativeBlockSize_);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
-        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
+        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v, CumulativeBlockSize: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
             node->GetDefaultAddress(),
-            Size_);
+            Size_,
+            CumulativeBlockSize_);
 
         TFuture<void> throttleFuture;
         if (ShouldThrottle(node->GetDefaultAddress(), writer)) {
@@ -1276,11 +1291,13 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TN
         const auto& dstNode = dstNodes[i];
         const auto& srcNode = srcNodes[i % srcNodes.size()];
 
-        YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+        YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v, Size: %v, CumulativeBlockSize: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
             srcNode->GetDefaultAddress(),
-            dstNode->GetDefaultAddress());
+            dstNode->GetDefaultAddress(),
+            Size_,
+            CumulativeBlockSize_);
 
         TDataNodeServiceProxy proxy(srcNode->GetChannel());
         auto req = proxy.SendBlocks();
@@ -1289,6 +1306,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TN
         ToProto(req->mutable_session_id(), writer->SessionId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
+        req->set_cumulative_block_size(CumulativeBlockSize_);
         ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 
         sendBlocksFutures.push_back(req->Invoke());
@@ -1345,6 +1363,11 @@ void TGroup::SetFlushing()
 void TGroup::ReorderBlocks(TBlockReorderer* blockReorderer)
 {
     blockReorderer->ReorderBlocks(Blocks_);
+}
+
+void TGroup::SetCumulativeBlockSize(i64 cumulativeBlockSize)
+{
+    CumulativeBlockSize_ = cumulativeBlockSize;
 }
 
 void TGroup::ScheduleProcess()

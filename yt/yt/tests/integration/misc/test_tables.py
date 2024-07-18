@@ -10,7 +10,10 @@ from yt_commands import (
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import (
+    skip_if_no_descending, wait_until_unlocked
+)
+
 from yt_type_helpers import make_schema, normalize_schema, list_type
 import yt_error_codes
 
@@ -40,9 +43,6 @@ class TestTables(YTEnvSetup):
             "allow_multiple_erasure_parts_per_node": True
         }
     }
-
-    def _wait_until_unlocked(self, path):
-        wait(lambda: get(path + "/@lock_count") == 0)
 
     def _wait_until_no_nested_tx(self, tx_id):
         wait(lambda: get("#{}/@nested_transaction_ids".format(tx_id)) == [])
@@ -194,7 +194,7 @@ class TestTables(YTEnvSetup):
                 sorted_by=sorted_by,
                 tx=tx_b3,
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
         self._wait_until_no_nested_tx(tx_b3)
 
         commit_transaction(tx_b3)
@@ -251,7 +251,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", first_chunk, sorted_by=sorted_by)
         with raises_yt_error(yt_error_codes.SortOrderViolation):
             write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -271,7 +271,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", first_chunk)
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -291,7 +291,7 @@ class TestTables(YTEnvSetup):
                 [{"a": next_key, "b": 0}],
                 sorted_by=sorted_by_ab,
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -316,7 +316,7 @@ class TestTables(YTEnvSetup):
                 "<append=true>//tmp/table",
                 [{"b": 0}, {"b": 1}],
                 sorted_by=[{"name": "b", "sort_order": sort_order}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -396,20 +396,20 @@ class TestTables(YTEnvSetup):
         # we can write only list fragments
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads(b"string"))
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads(b"100"))
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads(b"3.14"))
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         # check max_row_weight limit
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a": "long_string"}, table_writer={"max_row_weight": 2})
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         # check max_key_weight limit
         with pytest.raises(YtError):
@@ -419,12 +419,12 @@ class TestTables(YTEnvSetup):
                 sorted_by=["a"],
                 table_writer={"max_key_weight": 2},
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         # check duplicate ids
         with pytest.raises(YtError):
             write_table("//tmp/table", b"{a=version1; a=version2}", is_raw=True)
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("psushin")
     def test_cannot_read_file_as_table(self):
@@ -448,7 +448,7 @@ class TestTables(YTEnvSetup):
                 "<append=true; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
                 [{"key": 1}],
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             # sorted_by and schema are not compatible
@@ -456,7 +456,7 @@ class TestTables(YTEnvSetup):
                 "<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
                 [{"key": 2}],
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
             # invalid schema - duplicate columns
@@ -464,7 +464,7 @@ class TestTables(YTEnvSetup):
                 "<schema=[{name=key; type=int64};{name=key; type=string}]>//tmp/table",
                 [],
             )
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         write_table(
             "<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
@@ -501,7 +501,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true;optimize_for=scan>//tmp/table", [{"key": 0}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("prime")
     def test_write_with_compression(self):
@@ -515,7 +515,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("<append=true;compression_codec=lz4>//tmp/table", [{"key": 0}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -546,12 +546,12 @@ class TestTables(YTEnvSetup):
         key = 1 if sort_order == "ascending" else 0
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"key": key}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         key = 2 if sort_order == "ascending" else -1
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"key": key}, {"key": key}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         write_table("<append=true>//tmp/table", [{"key": key}])
 
@@ -596,7 +596,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("//tmp/table", [{"k2": 1}, {"k2": 0}])
-        self._wait_until_unlocked("//tmp/table")
+        wait_until_unlocked("//tmp/table")
 
         write_table("//tmp/table", [{"k2": 0}, {"k2": 1}])
         assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in range(2)]
@@ -1570,7 +1570,7 @@ class TestTables(YTEnvSetup):
             init_table("//tmp/t", schema)
             with pytest.raises(YtError):
                 write_table("<append=%true>//tmp/t", rows)
-            self._wait_until_unlocked("//tmp/t")
+            wait_until_unlocked("//tmp/t")
 
         schema = make_schema(
             [{"name": "key", "type": "int64", "required": False}],
@@ -1653,7 +1653,7 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
-        self._wait_until_unlocked("//tmp/t")
+        wait_until_unlocked("//tmp/t")
 
         write_table("//tmp/t", row, is_raw=True, input_format=yson_with_type_conversion)
 
@@ -1898,7 +1898,7 @@ class TestTables(YTEnvSetup):
                 "<append=true;sorted_by={}>//tmp/t".format(sorted_by),
                 [{"key": 15 * mul}, {"key": 20 * mul}, {"key": 25 * mul}],
             )
-        self._wait_until_unlocked("//tmp/t")
+        wait_until_unlocked("//tmp/t")
 
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -1955,14 +1955,17 @@ class TestTables(YTEnvSetup):
 
         with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table("<chunk_sort_columns=[{name=a;sort_order=descending}]>//tmp/t1", [make_row(-31, 41, 59)])
+        wait_until_unlocked("//tmp/t1")
 
         with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=a;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1",
                         [make_row(-31, 41, 59)])
+        wait_until_unlocked("//tmp/t1")
 
         with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=f;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1",
                         [make_row(-31, 41, 59)])
+        wait_until_unlocked("//tmp/t1")
 
         with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table(
@@ -1970,6 +1973,7 @@ class TestTables(YTEnvSetup):
                 "{name=a;sort_order=descending};{name=b;sort_order=ascending};{name=d;sort_order=ascending}"
                 "]>//tmp/t1",
                 [{"a": -31, "b": 41, "d": 59, "c": 23}])
+        wait_until_unlocked("//tmp/t1")
 
         with raises_yt_error(yt_error_codes.SortOrderViolation):
             write_table(
@@ -1978,6 +1982,7 @@ class TestTables(YTEnvSetup):
                 "]>//tmp/t1",
                 [make_row(-100, 200, 300), make_row(-100, 200, 100)],
             )
+        wait_until_unlocked("//tmp/t1")
 
         # Check, whether boundary keys are validated by table schema not chunk schema.
         create(
@@ -2072,6 +2077,7 @@ class TestTables(YTEnvSetup):
                 "<chunk_sort_columns=[a];append=true>//tmp/t1",
                 make_rows([1, 2, 2, 3]),
             )
+        wait_until_unlocked("//tmp/t1")
 
         write_table("<chunk_sort_columns=[a];append=true>//tmp/t2", make_rows([1, 2, 2, 3]))
         write_table("<chunk_sort_columns=[a];append=true>//tmp/t2", make_rows([3, 4, 4, 5]))
@@ -2135,16 +2141,19 @@ class TestTables(YTEnvSetup):
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([2, 2]),
             )
+        wait_until_unlocked("//tmp/t1")
         with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t2",
                 make_rows([2, 2]),
             )
+        wait_until_unlocked("//tmp/t2")
 
         # `key_column_count' infers from table schema.
         write_table("<chunk_unique_keys=true;append=true>//tmp/t1", make_rows([3]))
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             write_table("<chunk_unique_keys=true;append=true>//tmp/t2", make_rows([3]))
+        wait_until_unlocked("//tmp/t2")
 
         # Keys are not ordered between chunks.
         with raises_yt_error(yt_error_codes.SortOrderViolation):
@@ -2152,6 +2161,7 @@ class TestTables(YTEnvSetup):
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([0]),
             )
+        wait_until_unlocked("//tmp/t1")
         write_table(
             "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t2",
             make_rows([0]),
@@ -2987,7 +2997,7 @@ class TestTablesMulticell(TestTables):
                 {"foo": float("nan"), "bar": "e"},
             ],
         )
-        self._wait_until_unlocked("//tmp/input")
+        wait_until_unlocked("//tmp/input")
 
     @authors("gritukan")
     def test_unsupported_chunk_feature(self):
@@ -3064,10 +3074,12 @@ class TestTablesMulticell(TestTables):
         write_table("<append=%true>//tmp/t", gen_data(values))
         with raises_yt_error("Error validating column"):
             write_table("<append=%true>//tmp/t", gen_data(wrong_values))
+        wait_until_unlocked("//tmp/t")
 
         write_table("//tmp/t", gen_data(values))
         with raises_yt_error("Error validating column"):
             write_table("//tmp/t", gen_data(wrong_values))
+        wait_until_unlocked("//tmp/t")
 
     @authors("whatsername")
     def test_lookup_sorted_any(self):

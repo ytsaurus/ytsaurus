@@ -26,7 +26,8 @@ public:
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         EWorkloadCategory workloadCategory,
-        NConcurrency::IThroughputThrottlerPtr nodeOutThrottler);
+        NConcurrency::IThroughputThrottlerPtr nodeOutThrottler,
+        IMemoryUsageTrackerPtr memoryTracker);
     ~TTableReplicator();
 
     void Enable();

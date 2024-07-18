@@ -914,6 +914,10 @@ private:
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
+    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
+
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
     TEnumIndexedArray<EMasterChannelKind, TChannels> MasterChannels_;
@@ -928,9 +932,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
-    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
-    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     struct TReplicaClient final
     {
@@ -1239,7 +1240,7 @@ private:
     // Operation info
     //
 
-    int DoGetOperationsArchiveVersion();
+    std::optional<int> TryGetOperationsArchiveVersion();
 
     struct TGetOperationFromCypressResult
     {
@@ -1285,6 +1286,7 @@ private:
         TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
+        int archiveVersion,
         const NLogging::TLogger& Logger);
 
     //
@@ -1354,6 +1356,7 @@ private:
 
     // Get statistics for jobs.
     TFuture<TListJobsStatistics> ListJobsStatisticsFromArchiveAsync(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);
@@ -1362,6 +1365,7 @@ private:
     // 1) Filtered finished jobs (with limit).
     // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
     TFuture<std::vector<TJob>> DoListJobsFromArchiveAsync(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);
@@ -1373,6 +1377,7 @@ private:
         const TListJobsOptions& options);
 
     std::optional<TJob> DoGetJobFromArchive(
+        int archiveVersion,
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,

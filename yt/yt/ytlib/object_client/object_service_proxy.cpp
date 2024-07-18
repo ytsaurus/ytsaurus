@@ -255,20 +255,16 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
     std::optional<TString> key,
     std::optional<size_t> hash)
 {
-    const auto& ypathExt = innerRequest->Header().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
     InnerRequestDescriptors_.push_back({
         std::move(key),
         innerRequest->Tag(),
         innerRequest->Serialize(),
-        hash,
-        ypathExt.mutating()
+        hash
     });
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
-    bool mutating,
     std::optional<TString> key,
     std::any tag,
     std::optional<size_t> hash)
@@ -277,8 +273,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
         std::move(key),
         std::move(tag),
         std::move(innerRequestMessage),
-        hash,
-        mutating
+        hash
     });
 }
 
@@ -289,7 +284,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
         const auto& batchPrerequisitesExt = Header().GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
         for (auto& descriptor : InnerRequestDescriptors_) {
             NRpc::NProto::TRequestHeader requestHeader;
-            YT_VERIFY(ParseRequestHeader(descriptor.Message, &requestHeader));
+            YT_VERIFY(TryParseRequestHeader(descriptor.Message, &requestHeader));
 
             auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
             prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
@@ -305,7 +300,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
 TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(message, &header));
+    YT_VERIFY(TryParseRequestHeader(message, &header));
     if (header.retry()) {
         // Already patched.
         return message;
@@ -363,23 +358,12 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
     std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
     innerRequestDescriptors.reserve(SubbatchSize_);
 
-    std::optional<bool> mutating;
-
     for (auto i = GetFirstUnreceivedSubresponseIndex(); i < GetTotalSubrequestCount(); ++i) {
         if (IsSubresponseReceived(i)) {
             continue;
         }
 
         auto& descriptor = InnerRequestDescriptors_[i];
-
-        if (!mutating) {
-            mutating = descriptor.Mutating;
-        }
-
-        if (mutating != descriptor.Mutating) {
-            continue;
-        }
-
         if (IsSubresponseUncertain(i)) {
             descriptor.Message = PatchForRetry(descriptor.Message);
         }
@@ -656,7 +640,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished()
 TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationId(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
-    YT_VERIFY(ParseRequestHeader(message, &header));
+    YT_VERIFY(TryParseRequestHeader(message, &header));
     NRpc::SetMutationId(&header, GenerateMutationId(), false);
     return SetRequestHeader(message, header);
 }
@@ -1029,7 +1013,6 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::Invoke()
         YT_VERIFY(parallelReqIndex < std::ssize(ParallelReqs_));
         ParallelReqs_[parallelReqIndex]->AddRequestMessage(
             req.Message,
-            req.Mutating,
             req.Key,
             req.Tag,
             req.Hash);

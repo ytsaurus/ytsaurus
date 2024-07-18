@@ -93,8 +93,12 @@ class MonitoringExpr(Taggable):
         return self.func("series_min", f'"{label}"', self)
 
     def series_max(self, *labels):
-        labels = [f'"{label}"' for label in labels]
-        return self.func("series_max", *labels, self)
+        if len(labels) == 0:
+            return self.func("series_max", self)
+        else:
+            labels = [f'"{label}"' for label in labels]
+            labels = "[" + ",".join(labels) + "]"
+            return self.func("series_max", labels, self)
 
     def top_avg(self, k):
         return self.func("top_avg", k, self)
@@ -107,6 +111,9 @@ class MonitoringExpr(Taggable):
 
     def bottom_min(self, k):
         return self.func("bottom_min", k, self)
+
+    def diff(self):
+        return self.func("diff", self)
 
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)

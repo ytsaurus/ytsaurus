@@ -58,20 +58,16 @@ get_built_tool_path(
 
 add_executable(yt-cpp-mapreduce-interface-ut)
 
-target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface
-)
-
 target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
-  cpp-testing-unittest_main
-  cpp-mapreduce-interface
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   contrib-libs-protobuf
-  cpp-testing-unittest
   yt_proto-yt-formats
+  cpp-mapreduce-interface
 )
 
 target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
@@ -87,49 +83,35 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
 )
 
 target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/proto3_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_table_schema_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_file_options_ut.proto
 )
 
 target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/format_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/ut/proto3_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_table_schema_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_file_options_ut.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/common_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/error_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/format_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/job_counters_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/job_statistics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/operation_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_table_schema_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/protobuf_file_options_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/ut/serialize_ut.cpp
+)
+
+add_test(
+  NAME
+  yt-cpp-mapreduce-interface-ut
+  COMMAND
+  yt-cpp-mapreduce-interface-ut
 )
 
 set_property(
-  TARGET
-  yt-cpp-mapreduce-interface-ut
-  PROPERTY
-  SPLIT_FACTOR
-  1
-)
-
-add_yunittest(
-  NAME
-  yt-cpp-mapreduce-interface-ut
-  TEST_TARGET
-  yt-cpp-mapreduce-interface-ut
-  TEST_ARG
-  --print-before-suite
-  --print-before-test
-  --fork-tests
-  --print-times
-  --show-fails
-)
-
-set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-ut
   PROPERTY
@@ -137,7 +119,7 @@ set_yunittest_property(
   SMALL
 )
 
-set_yunittest_property(
+set_property(
   TEST
   yt-cpp-mapreduce-interface-ut
   PROPERTY
@@ -145,7 +127,7 @@ set_yunittest_property(
   1
 )
 
-set_yunittest_property(
+set_property(
   TEST
   yt-cpp-mapreduce-interface-ut
   PROPERTY

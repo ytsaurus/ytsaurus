@@ -10,8 +10,6 @@
 #include <yt/yt/server/lib/hydra/serialize.h>
 #include <yt/yt/server/lib/hydra/checkpointable_stream.h>
 
-#include <yt/yt/server/lib/lease_server/serialize.h>
-
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
@@ -217,6 +215,8 @@ DEFINE_ENUM(EMasterReign,
     ((AddForbiddenErasureCodecsOption)                              (2621))  // abogutskiy
     ((InheritChunkMergerModeWhenCopy)                               (2622))  // cherepashka
     ((ForbiddenCompressionCodecsOptionRefactoring)                  (2623))  // abogutskiy
+    ((MultipleTableUpdateQueues)                                    (2624))  // babenko
+    ((RefactorCrossCellCopyInPreparationForSequoia)                 (2625))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
@@ -224,7 +224,7 @@ static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
-    : public NLeaseServer::TSaveContext
+    : public NHydra::TSaveContext
 {
 public:
     TSaveContext(
@@ -249,7 +249,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NLeaseServer::TLoadContext
+    : public NHydra::TLoadContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);

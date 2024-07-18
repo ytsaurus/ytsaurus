@@ -57,6 +57,7 @@ using namespace NProfiling;
 using namespace NControllerAgent;
 
 using NVectorHdrf::TFairShareUpdateExecutor;
+using NVectorHdrf::TFairShareUpdateOptions;
 using NVectorHdrf::TFairShareUpdateContext;
 using NVectorHdrf::SerializeDominant;
 using NVectorHdrf::RatioComparisonPrecision;
@@ -1625,6 +1626,8 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        YT_LOG_DEBUG("Preparing for fair share tree update");
+
         ResourceTree_->PerformPostponedActions();
 
         // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
@@ -1635,10 +1638,12 @@ private:
             resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
             resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
             fairShareUpdateContext.emplace(
+                TFairShareUpdateOptions{
+                    .MainResource = Config_->MainResource,
+                    .IntegralPoolCapacitySaturationPeriod = Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                    .IntegralSmoothPeriod = Config_->IntegralGuarantees->SmoothPeriod,
+                },
                 *resourceLimits,
-                Config_->MainResource,
-                Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                Config_->IntegralGuarantees->SmoothPeriod,
                 now,
                 LastFairShareUpdateTime_);
         }
@@ -1658,11 +1663,14 @@ private:
 
         // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
         TJobResourcesByTagFilter resourceLimitsByTagFilter;
-        auto asyncUpdate = BIND([&, config = Config_, lastFairShareUpdateTime = LastFairShareUpdateTime_]
+        // TODO(eshcherbin): This capture by reference is currently thread-unsafe. We need to fix it.
+        auto asyncUpdate = BIND([&, treeId = TreeId_, config = Config_, lastFairShareUpdateTime = LastFairShareUpdateTime_]
             {
                 TForbidContextSwitchGuard contextSwitchGuard;
                 {
                     TEventTimerGuard timer(FairShareUpdateTimer_);
+
+                    YT_LOG_DEBUG("Fair share tree update started");
 
                     if (StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
                         resourceUsage.emplace(StrategyHost_->GetResourceUsage(config->NodesFilter));
@@ -1673,15 +1681,20 @@ private:
                         resourceLimitsByTagFilter = fairSharePreUpdateContext.ResourceLimitsByTagFilter;
 
                         fairShareUpdateContext.emplace(
+                            TFairShareUpdateOptions{
+                                .MainResource = config->MainResource,
+                                .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                                .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
+                            },
                             *resourceLimits,
-                            config->MainResource,
-                            config->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                            config->IntegralGuarantees->SmoothPeriod,
                             now,
                             lastFairShareUpdateTime);
                     }
 
-                    TFairShareUpdateExecutor updateExecutor(rootElement, &*fairShareUpdateContext);
+                    TFairShareUpdateExecutor updateExecutor(
+                        rootElement,
+                        &*fairShareUpdateContext,
+                        /*loggingTag*/ Format("TreeId: %v", treeId));
                     updateExecutor.Run();
 
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
@@ -1691,19 +1704,21 @@ private:
                 }
 
                 MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate);
+
+                YT_LOG_DEBUG(
+                    "Fair share tree update finished "
+                    "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v, IsFairSharePreUpdateOffloadingEnabled: %v)",
+                    rootElement->GetTreeSize(),
+                    rootElement->SchedulableElementCount(),
+                    fairSharePostUpdateContext.UnschedulableReasons,
+                    StrategyHost_->IsFairSharePreUpdateOffloadingEnabled());
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
         WaitFor(asyncUpdate)
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Fair share tree update finished "
-            "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v, IsFairSharePreUpdateOffloadingEnabled: %v)",
-            rootElement->GetTreeSize(),
-            rootElement->SchedulableElementCount(),
-            fairSharePostUpdateContext.UnschedulableReasons,
-            StrategyHost_->IsFairSharePreUpdateOffloadingEnabled());
+        YT_LOG_DEBUG("Processing fair share tree update result and creating a tree snapshot");
 
         TError error;
         if (!fairShareUpdateContext->Errors.empty()) {
@@ -2509,84 +2524,65 @@ private:
         YT_VERIFY(treeSnapshot);
 
         for (const auto& allocationUpdate : allocationUpdates) {
-            switch (allocationUpdate.Status) {
-                case EAllocationUpdateStatus::Running: {
-                    std::optional<EAbortReason> maybeAbortReason;
-                    ProcessUpdatedAllocation(
-                        treeSnapshot,
-                        allocationUpdate.OperationId,
-                        allocationUpdate.AllocationId,
-                        allocationUpdate.AllocationResources,
-                        allocationUpdate.AllocationDataCenter,
-                        allocationUpdate.AllocationInfinibandCluster,
-                        &maybeAbortReason);
+            std::optional<EAbortReason> maybeAbortReason;
+            bool updateSuccessful = ProcessAllocationUpdate(treeSnapshot, allocationUpdate, &maybeAbortReason);
 
-                    if (maybeAbortReason) {
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
-                        // NB(eshcherbin): We want the node shard to send us an allocation finished update,
-                        // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
-                        // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
-                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
-                    }
+            if (!updateSuccessful) {
+                YT_LOG_DEBUG(
+                    "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId);
 
-                    break;
-                }
-                case EAllocationUpdateStatus::Finished: {
-                    if (!ProcessFinishedAllocation(treeSnapshot, allocationUpdate.OperationId, allocationUpdate.AllocationId)) {
-                        YT_LOG_DEBUG(
-                            "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
-                            allocationUpdate.OperationId,
-                            allocationUpdate.AllocationId);
-
-                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
-                    }
-                    break;
-                }
-                default:
-                    YT_ABORT();
+                allocationsToPostpone->insert(allocationUpdate.AllocationId);
+            } else if (maybeAbortReason) {
+                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
+                // NB(eshcherbin): We want the node shard to send us an allocation finished update,
+                // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
+                // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
+                allocationsToPostpone->insert(allocationUpdate.AllocationId);
             }
         }
     }
 
-    void ProcessUpdatedAllocation(
+    bool ProcessAllocationUpdate(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TOperationId operationId,
-        TAllocationId allocationId,
-        const TJobResources& allocationResources,
-        const std::optional<TString>& allocationDataCenter,
-        const std::optional<TString>& allocationInfinibandCluster,
+        const TAllocationUpdate& allocationUpdate,
         std::optional<EAbortReason>* maybeAbortReason)
     {
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG(
-            "Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
-            operationId,
-            allocationId,
-            allocationResources);
-
-        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessUpdatedAllocation(
-                treeSnapshot,
-                operationElement,
-                allocationId,
-                allocationResources,
-                allocationDataCenter,
-                allocationInfinibandCluster,
-                maybeAbortReason);
-        }
-    }
-
-    bool ProcessFinishedAllocation(const TFairShareTreeSnapshotPtr& treeSnapshot, TOperationId operationId, TAllocationId allocationId)
-    {
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)", operationId, allocationId);
-
-        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessFinishedAllocation(treeSnapshot, operationElement, allocationId);
-            return true;
+        auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+        if (!operationElement) {
+            return false;
         }
 
-        return false;
+        switch (allocationUpdate.Status) {
+            case EAllocationUpdateStatus::Running: {
+                // NB: Should be filtered out on large clusters.
+                YT_LOG_DEBUG("Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId,
+                    allocationUpdate.AllocationResources);
+
+                return TreeScheduler_->ProcessUpdatedAllocation(
+                    treeSnapshot,
+                    operationElement,
+                    allocationUpdate.AllocationId,
+                    allocationUpdate.AllocationResources,
+                    allocationUpdate.AllocationDataCenter,
+                    allocationUpdate.AllocationInfinibandCluster,
+                    maybeAbortReason);
+            }
+            case EAllocationUpdateStatus::Finished: {
+                // NB: Should be filtered out on large clusters.
+                YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId);
+
+                return TreeScheduler_->ProcessFinishedAllocation(
+                    treeSnapshot,
+                    operationElement,
+                    allocationUpdate.AllocationId);
+            }
+        }
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
@@ -2836,8 +2832,12 @@ private:
 
     void UpdateResourceUsages() override
     {
+        YT_LOG_DEBUG("Building resource usage snapshot");
+
         auto treeSnapshot = GetAtomicTreeSnapshot();
         auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
+
+        YT_LOG_DEBUG("Updating accumulated resource usage");
 
         AccumulatedPoolResourceUsageForMetering_.Update(treeSnapshot, resourceUsageSnapshot);
         AccumulatedOperationsResourceUsageForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
@@ -2847,7 +2847,7 @@ private:
             resourceUsageSnapshot = nullptr;
             YT_LOG_DEBUG("Resource usage snapshot is disabled");
         } else {
-            YT_LOG_DEBUG("Updating resources usage snapshot");
+            YT_LOG_DEBUG("Updating resource usage snapshot");
         }
 
         TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
@@ -3007,6 +3007,8 @@ private:
                 element->GetEffectiveUsePoolSatisfactionForScheduling())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_operations_enabled", element->AreLightweightOperationsEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_lightweight_operations_enabled", element->GetEffectiveLightweightOperationsEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_enabled", element->IsPriorityStrongGuaranteeAdjustmentEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_donorship_enabled", element->IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled())
             .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
     }
 
@@ -3305,6 +3307,7 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share_by_tier", attributes.StrongGuaranteeShareByTier)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_resources", element->GetSpecifiedStrongGuaranteeResources())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_resources", element->GetSpecifiedStrongGuaranteeResources())

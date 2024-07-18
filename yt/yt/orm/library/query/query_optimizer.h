@@ -25,10 +25,6 @@ bool TryOptimizeGroupByWithUniquePrefix(
     const std::vector<TString>& prefixReferences,
     const TString& tableName);
 
-//! Executes optimizer for queries, transforming string(try_get_string(...))
-//! into try_get_string(...).
-bool TryOptimizeTryGetString(NQueryClient::NAst::TQuery* query);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

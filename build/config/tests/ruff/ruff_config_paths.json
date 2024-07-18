@@ -6,11 +6,13 @@
     "sprav/mining/": "sprav/mining/pyproject.toml",
     "taxi/": "taxi/pyproject.toml",
     "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
+    "taxi/cargo/check": "taxi/cargo/check/pyproject.toml",
     "taxi/github/code-linters": "taxi/github/code-linters/pyproject.toml",
     "taxi/tars": "taxi/tars/pyproject.toml",
     "taxi/tplatform/uservices/": "taxi/tplatform/uservices/pyproject.toml",
     "taxi/uservices/": "taxi/uservices/pyproject.toml",
     "intranet/yandex_directory/": "intranet/yandex_directory/pyproject.toml",
     "games/admin": "games/admin/pyproject.toml",
-    "games/backend": "games/admin/pyproject.toml"
+    "games/backend": "games/admin/pyproject.toml",
+    "yandex360/backend/b2b_platform": "yandex360/backend/b2b_platform/pyproject.toml"
 }

@@ -154,6 +154,9 @@ ELSE()
         SET(SRCS
             ${SRCS}
             client_impl_yandex.py
+            features/__init__.py
+            features/use_base.py
+            features/use_get_gpu_cluster.py
             idm_cli_helpers.py
             idm_client_helpers.py
             idm_client.py

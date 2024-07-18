@@ -45,7 +45,7 @@ public:
         switch (messageType) {
             case EMessageType::Request: {
                 TRequestHeader header;
-                if (ParseRequestHeader(message, &header)) {
+                if (TryParseRequestHeader(message, &header)) {
                     Cerr << "Message type \"" << FormatEnum(messageType) << "\" is not supported yet" << Endl;
                 } else {
                     Cerr << "Failed to parse request header" << Endl;

@@ -1668,6 +1668,27 @@ class TestClientConfigFromCluster(object):
         del client
 
     @authors("denvr")
+    def test_remote_config_types(self):
+        assert isinstance(yt.default_config.default_config["max_replication_factor"], yt.default_config.RemotePatchableInteger)
+
+        config_remote_patch_path = "//test_client_config_types"
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {
+                "max_replication_factor": 5,
+            },
+        })
+        assert client.config["max_replication_factor"] == 5
+        del client
+
+        client = self.prepare_client_with_cluster_config(config_remote_patch_path, {
+            "default": {},
+        })
+        assert client.config["max_replication_factor"] != 5
+        tmp = None
+        assert client.config["max_replication_factor"] == tmp
+        del client
+
+    @authors("denvr")
     def test_remote_config_load_global(self):
         config_remote_patch_path = "//test_client_config_1"
         yt.default_config.default_config["proxy"]["enable_proxy_discovery"] = yt.default_config.RemotePatchableBoolean(True, "enable_proxy_discovery")
@@ -1717,8 +1738,8 @@ class TestClientConfigFromCluster(object):
         with mock.patch.dict(os.environ, env_patched):
             config = yt.default_config.get_config_from_env()
 
-        assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) == yt.default_config.RemotePatchableBoolean
-        assert type(config["proxy"]["enable_proxy_discovery"]) == bool
+        assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) is yt.default_config.RemotePatchableBoolean
+        assert type(config["proxy"]["enable_proxy_discovery"]) is bool
         assert config["proxy"]["enable_proxy_discovery"]
         yt.remove(config_remote_patch_path, recursive=True, force=True)
 

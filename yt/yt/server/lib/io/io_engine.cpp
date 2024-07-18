@@ -56,7 +56,7 @@ void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TSharedRef> IIOEngine::ReadAll(
+TFuture<IIOEngine::TReadResponse> IIOEngine::ReadAll(
     const TString& path,
     EWorkloadCategory category,
     TSessionId sessionId)
@@ -76,8 +76,8 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
                 {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
                     return Close({.Handle = handle}, category)
-                        .Apply(BIND([buffers = response.OutputBuffers] {
-                            return buffers[0];
+                        .Apply(BIND([response = response] () mutable {
+                            return std::move(response);
                         }));
                 }));
         }));

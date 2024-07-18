@@ -69,7 +69,6 @@ std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
         input,
         Bootstrap_->GetHydraFacade()->GetSnapshotLoadBackgroundThreadPool());
     TCompositeAutomaton::SetupLoadContext(context.get());
-    context->SetLeaseManager(Bootstrap_->GetLeaseManager());
     return context;
 }
 

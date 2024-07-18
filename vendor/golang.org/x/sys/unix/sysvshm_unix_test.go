@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build (darwin && amd64) || linux
+//go:build (darwin && amd64) || linux || zos
 
 package unix_test
 
@@ -46,8 +46,15 @@ func TestSysvSharedMemory(t *testing.T) {
 		t.Fatalf("Attach: %v", err)
 	}
 
-	if len(b1) != 1024 {
-		t.Fatalf("b1 len = %v, want 1024", len(b1))
+	if runtime.GOOS == "zos" {
+		// The minimum shared memory size is no less than units of 1M bytes in z/OS
+		if len(b1) < 1024 {
+			t.Fatalf("b1 len = %v, less than 1024", len(b1))
+		}
+	} else {
+		if len(b1) != 1024 {
+			t.Fatalf("b1 len = %v, want 1024", len(b1))
+		}
 	}
 
 	b1[42] = 'x'
@@ -58,8 +65,16 @@ func TestSysvSharedMemory(t *testing.T) {
 		t.Fatalf("Attach: %v", err)
 	}
 
-	if len(b2) != 1024 {
-		t.Fatalf("b2 len = %v, want 1024", len(b1))
+	if runtime.GOOS == "zos" {
+		// The returned shared memory alligns with the pagesize.
+		// If pagesize is not 1024 bytes, the shared memory could be larger
+		if len(b2) < 1024 {
+			t.Fatalf("b1 len = %v, less than 1024", len(b2))
+		}
+	} else {
+		if len(b2) != 1024 {
+			t.Fatalf("b1 len = %v, want 1024", len(b2))
+		}
 	}
 
 	b2[43] = 'y'

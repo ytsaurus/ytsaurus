@@ -57,15 +57,21 @@ TString TYPathBase<Absolute, TUnderlying>::GetBaseName() const
 }
 
 template <bool Absolute, class TUnderlying>
-TString TYPathBase<Absolute, TUnderlying>::ToString() const
-{
-    return TString(Path_);
-}
-
-template <bool Absolute, class TUnderlying>
 TMangledSequoiaPath TYPathBase<Absolute, TUnderlying>::ToMangledSequoiaPath() const
 {
     return MangleSequoiaPath(Path_);
+}
+
+template <bool Absolute, class TUnderlying>
+TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() const &
+{
+    return TRawYPath(TString(Underlying()));
+}
+
+template <bool Absolute, class TUnderlying>
+TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() &&
+{
+    return TRawYPath(TString(Underlying()));
 }
 
 template <bool Absolute, class TUnderlying>
@@ -83,15 +89,15 @@ bool TYPathBase<Absolute, TUnderlying>::operator==(const TYPathBase<Absolute, T>
 }
 
 template <bool Absolute, class TUnderlying>
-TUnderlying& TYPathBase<Absolute, TUnderlying>::Underlying()
+const TUnderlying& TYPathBase<Absolute, TUnderlying>::Underlying() const &
 {
     return Path_;
 }
 
 template <bool Absolute, class TUnderlying>
-const TUnderlying& TYPathBase<Absolute, TUnderlying>::Underlying() const
+TUnderlying&& TYPathBase<Absolute, TUnderlying>::Underlying() &&
 {
-    return Path_;
+    return std::move(Path_);
 }
 
 inline bool IsForbiddenYPathSymbol(char ch)
@@ -108,7 +114,7 @@ void TYPathBase<Absolute, TUnderlying>::Validate() const
         }
     }
 
-    if (Absolute) {
+    if constexpr (Absolute) {
         if (Path_.empty()) {
             THROW_ERROR_EXCEPTION("YPath cannot be empty");
         }
@@ -142,6 +148,12 @@ ptrdiff_t TYPathBase<Absolute, TUnderlying>::FindLastSegment() const
         ++it;
     }
     return Path_.rend() - it;
+}
+
+template <bool Absolute, class TUnderlying>
+TUnderlying* TYPathBase<Absolute, TUnderlying>::UnsafeMutableUnderlying() noexcept
+{
+    return &Path_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,20 +379,20 @@ TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... 
 template <bool Absolute>
 void FormatValue(TStringBuilderBase* builder, const TBasicYPath<Absolute>& path, TStringBuf spec)
 {
-    FormatValue(builder, path.ToString(), spec);
+    FormatValue(builder, path.Underlying(), spec);
 }
 
 template <bool Absolute>
 void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec)
 {
-    FormatValue(builder, path.ToString(), spec);
+    FormatValue(builder, path.Underlying(), spec);
 }
 
 template <bool Absolute, class TUnderlying>
 void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
-        .Value(path.ToString());
+        .Value(path.Underlying());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

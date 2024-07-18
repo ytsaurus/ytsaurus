@@ -183,8 +183,14 @@ struct IIOEngine
     virtual bool IsReadInFlightRequestLimitExceeded() const = 0;
     virtual bool IsWriteInFlightRequestLimitExceeded() const = 0;
 
+    virtual i64 GetInFlightReadRequestCount() const  = 0;
+    virtual i64 GetReadRequestLimit() const  = 0;
+
+    virtual i64 GetInFlightWriteRequestCount() const  = 0;
+    virtual i64 GetWriteRequestLimit() const  = 0;
+
     // Extension methods.
-    TFuture<TSharedRef> ReadAll(
+    TFuture<TReadResponse> ReadAll(
         const TString& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TSessionId sessionId = {});

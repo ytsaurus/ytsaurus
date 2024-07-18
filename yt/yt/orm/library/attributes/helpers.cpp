@@ -3,6 +3,7 @@
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
@@ -16,6 +17,7 @@
 namespace NYT::NOrm::NAttributes {
 
 using namespace NYPath;
+using namespace NYTree;
 using namespace NYson;
 
 using NProtoBuf::FieldDescriptor;
@@ -199,12 +201,12 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
     if (token == NYPath::ListBeginToken) {
         return TIndexParseResult{
             .Index = 0,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else if (token == NYPath::ListEndToken) {
         return TIndexParseResult{
             .Index = count,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else if (token.StartsWith(NYPath::ListBeforeToken) || token.StartsWith(NYPath::ListAfterToken)) {
         auto index = parseAbsoluteIndex(NYPath::ExtractListIndex(token));
@@ -214,12 +216,12 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
         }
         return TIndexParseResult{
             .Index = index,
-            .IndexType = EListIndexType::Relative
+            .IndexType = EListIndexType::Relative,
         };
     } else {
         return TIndexParseResult{
             .Index = parseAbsoluteIndex(token),
-            .IndexType = EListIndexType::Absolute
+            .IndexType = EListIndexType::Absolute,
         };
     }
 }
@@ -305,7 +307,7 @@ std::partial_ordering CompareScalarFields(
     }
 }
 
-std::partial_ordering CompareRepeatedFieldEntries(
+std::partial_ordering CompareScalarRepeatedFieldEntries(
     const Message* lhsMessage,
     const FieldDescriptor* lhsFieldDescriptor,
     int lhsIndex,
@@ -417,10 +419,363 @@ TErrorOr<TString> MapKeyFieldToString(
         case FieldDescriptor::CppType::CPPTYPE_STRING:
             return reflection->GetString(*message, keyFieldDescriptor);
         default:
-            return TError(EErrorCode::InvalidMap,
+            return TError(EErrorCode::InvalidData,
                 "Fields of type %v are not supported as map keys",
                 keyFieldDescriptor->type_name());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <typename T>
+T ConvertToScalarValue(const NYTree::INodePtr& node, const T& defaultValue)
+{
+    if (node->GetType() == ENodeType::Entity) {
+        return defaultValue;
+    }
+    return ConvertTo<T>(node);
+}
+
+int ConvertToEnumValue(const NYTree::INodePtr& node, const FieldDescriptor* field)
+{
+    YT_VERIFY(field->cpp_type() == FieldDescriptor::CPPTYPE_ENUM);
+    if (node->GetType() == ENodeType::Entity) {
+        return field->default_value_enum()->number();
+    }
+    return ConvertToProtobufEnumValue<int>(ReflectProtobufEnumType(field->enum_type()), node);
+}
+
+} // namespace
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const NYTree::INodePtr& value)
+{
+    const auto* reflection = message->GetReflection();
+    try {
+        switch (fieldDescriptor->cpp_type()) {
+            case FieldDescriptor::CPPTYPE_INT32:
+                reflection->SetInt32(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
+                break;
+            case FieldDescriptor::CPPTYPE_INT64:
+                reflection->SetInt64(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT32:
+                reflection->SetUInt32(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT64:
+                reflection->SetUInt64(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
+                break;
+            case FieldDescriptor::CPPTYPE_DOUBLE:
+                reflection->SetDouble(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
+                break;
+            case FieldDescriptor::CPPTYPE_FLOAT:
+                reflection->SetFloat(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
+                break;
+            case FieldDescriptor::CPPTYPE_BOOL:
+                reflection->SetBool(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
+                break;
+            case FieldDescriptor::CPPTYPE_ENUM:
+                reflection->SetEnumValue(
+                    message,
+                    fieldDescriptor,
+                    ConvertToEnumValue(value, fieldDescriptor));
+                break;
+            case FieldDescriptor::CPPTYPE_STRING:
+                reflection->SetString(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
+                break;
+            default:
+                return TError(EErrorCode::Unimplemented,
+                    "Cannot convert yson value to a proto field of type %v",
+                    fieldDescriptor->type_name());
+        }
+    } catch (std::exception& ex) {
+        return TError("Failed to convert yson value to a proto field") << ex;
+    }
+
+    return TError();
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    const NYTree::INodePtr& value)
+{
+    const auto* reflection = message->GetReflection();
+    try {
+        switch (fieldDescriptor->cpp_type()) {
+            case FieldDescriptor::CPPTYPE_INT32:
+                reflection->SetRepeatedInt32(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
+                break;
+            case FieldDescriptor::CPPTYPE_INT64:
+                reflection->SetRepeatedInt64(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT32:
+                reflection->SetRepeatedUInt32(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT64:
+                reflection->SetRepeatedUInt64(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
+                break;
+            case FieldDescriptor::CPPTYPE_DOUBLE:
+                reflection->SetRepeatedDouble(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
+                break;
+            case FieldDescriptor::CPPTYPE_FLOAT:
+                reflection->SetRepeatedFloat(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
+                break;
+            case FieldDescriptor::CPPTYPE_BOOL:
+                reflection->SetRepeatedBool(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
+                break;
+            case FieldDescriptor::CPPTYPE_ENUM:
+                reflection->SetRepeatedEnumValue(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToEnumValue(value, fieldDescriptor));
+                break;
+            case FieldDescriptor::CPPTYPE_STRING:
+                reflection->SetRepeatedString(
+                    message,
+                    fieldDescriptor,
+                    index,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
+                break;
+            default:
+                return TError(EErrorCode::Unimplemented,
+                    "Cannot convert yson value to a proto field of type %v",
+                    fieldDescriptor->type_name());
+        }
+    } catch (std::exception& ex) {
+        return TError("Failed to convert yson value to a proto field") << ex;
+    }
+
+    return TError();
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const NYTree::INodePtr& value)
+{
+    const auto* reflection = message->GetReflection();
+    try {
+        switch (fieldDescriptor->cpp_type()) {
+            case FieldDescriptor::CPPTYPE_INT32:
+                reflection->AddInt32(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
+                break;
+            case FieldDescriptor::CPPTYPE_INT64:
+                reflection->AddInt64(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT32:
+                reflection->AddUInt32(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
+                break;
+            case FieldDescriptor::CPPTYPE_UINT64:
+                reflection->AddUInt64(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
+                break;
+            case FieldDescriptor::CPPTYPE_DOUBLE:
+                reflection->AddDouble(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
+                break;
+            case FieldDescriptor::CPPTYPE_FLOAT:
+                reflection->AddFloat(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
+                break;
+            case FieldDescriptor::CPPTYPE_BOOL:
+                reflection->AddBool(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
+                break;
+            case FieldDescriptor::CPPTYPE_ENUM:
+                reflection->AddEnumValue(
+                    message,
+                    fieldDescriptor,
+                    ConvertToEnumValue(value, fieldDescriptor));
+                break;
+            case FieldDescriptor::CPPTYPE_STRING:
+                reflection->AddString(
+                    message,
+                    fieldDescriptor,
+                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
+                break;
+            default:
+                return TError(EErrorCode::Unimplemented,
+                    "Cannot convert yson value to a proto field of type %v",
+                    fieldDescriptor->type_name());
+        }
+    } catch (std::exception& ex) {
+        return TError("Failed to convert yson value to a proto field") << ex;
+    }
+
+    return TError();
+}
+
+std::pair<int, TError> FindAttributeDictionaryEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const TString& key)
+{
+    const auto* entryDescriptor = fieldDescriptor->message_type();
+    if (entryDescriptor == nullptr) {
+        return {
+            -1,
+            TError("Failed to locate the descriptor of an attribute dictionary entry")
+        };
+    }
+    const auto* keyFieldDescriptor = entryDescriptor->FindFieldByName("key");
+    if (keyFieldDescriptor == nullptr) {
+        return {
+            -1,
+            TError("Failed to locate the key field in an attribute dictionary entry")
+        };
+    }
+
+    const auto* reflection = message->GetReflection();
+
+    int size = reflection->FieldSize(*message, fieldDescriptor);
+    for (int i = 0; i < size; ++i) {
+        const auto& entry = reflection->GetRepeatedMessage(*message, fieldDescriptor, i);
+        const auto* entryReflection = entry.GetReflection();
+        TString tmp;
+        const auto& entryKey =
+            entryReflection->GetStringReference(entry, keyFieldDescriptor, &tmp);
+        if (entryKey == key) {
+            return {i, TError()};
+        }
+        if (entryKey > key) {
+            return {
+                i,
+                TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+            };
+        }
+    }
+
+    return {
+        size,
+        TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+    };
+}
+
+TErrorOr<TYsonString> GetAttributeDictionaryEntryValue(const NProtoBuf::Message* entry)
+{
+    const auto* entryDescriptor = entry->GetDescriptor();
+    const auto* entryReflection = entry->GetReflection();
+
+    const auto* valueFieldDescriptor = entryDescriptor->FindFieldByName("value");
+    if (valueFieldDescriptor == nullptr) {
+        return TError("Failed to locate the value field in an attribute dictionary entry");
+    }
+    TString tmp;
+    const auto& value = entryReflection->GetStringReference(*entry, valueFieldDescriptor, &tmp);
+
+    return TYsonString(value);
+}
+
+TError SetAttributeDictionaryEntryValue(
+    NProtoBuf::Message* entry,
+    const TYsonString& value)
+{
+    const auto* entryDescriptor = entry->GetDescriptor();
+    const auto* entryReflection = entry->GetReflection();
+
+    const auto* valueFieldDescriptor = entryDescriptor->FindFieldByName("value");
+    if (valueFieldDescriptor == nullptr) {
+        return TError("Failed to locate the value field in an attribute dictionary entry");
+    }
+    entryReflection->SetString(entry, valueFieldDescriptor, value.ToString());
+
+    return TError();
+}
+
+TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const TString& key)
+{
+    const auto* reflection = message->GetReflection();
+
+    auto* entry = reflection->AddMessage(message, fieldDescriptor);
+    const auto* entryDescriptor = entry->GetDescriptor();
+    const auto* entryReflection = entry->GetReflection();
+
+    const auto* keyFieldDescriptor = entryDescriptor->FindFieldByName("key");
+    if (keyFieldDescriptor == nullptr) {
+        return TError("Failed to locate the key field in an attribute dictionary entry");
+    }
+    entryReflection->SetString(entry, keyFieldDescriptor, key);
+
+    return entry;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -254,6 +254,7 @@ struct TReplicaCounters
 
     NProfiling::TGauge LagRowCount;
     NProfiling::TTimeGauge LagTime;
+
     NProfiling::TEventTimer ReplicationThrottleTime;
     NProfiling::TEventTimer ReplicationTransactionStartTime;
     NProfiling::TEventTimer ReplicationTransactionCommitTime;
@@ -265,6 +266,9 @@ struct TReplicaCounters
     NProfiling::TCounter ReplicationRowCount;
     NProfiling::TCounter ReplicationDataWeight;
     NProfiling::TCounter ReplicationErrorCount;
+    NProfiling::TCounter ReplicationBytesThrottled;
+
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

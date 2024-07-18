@@ -17,28 +17,28 @@ find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
-  contrib/tools/flatc
+  contrib/libs/flatbuffers/flatc
   flatc
 )
 
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
-  contrib/tools/flatc
+  contrib/libs/flatbuffers/flatc
   flatc
 )
 
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
-  contrib/tools/flatc
+  contrib/libs/flatbuffers/flatc
   flatc
 )
 
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
-  contrib/tools/flatc
+  contrib/libs/flatbuffers/flatc
   flatc
 )
 

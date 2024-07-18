@@ -117,6 +117,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/zstd.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/action_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_barrier.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_looper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_rw_lock.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_semaphore.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_stream_pipe.cpp
@@ -299,6 +300,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/pull_parser_deserialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/string.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/string_builder_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/string_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/syntax_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/token.cpp

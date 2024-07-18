@@ -56,12 +56,30 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
         # will timeout.
         before_mounting_ts = datetime.now()
         client.mount_table(queue_path, sync=False)
-        client.create("queue_consumer", consumer_path)
+
+        try:
+            client.create("queue_consumer", consumer_path)
+        except Exception as ex:
+            logger.warning("Failed to create queue_consumer using queue_consumer type handler: ", ex)
+
+            client.create("table", consumer_path, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+                    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+                    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+                    {"name": "offset", "type": "uint64", "required": True},
+                    {"name": "meta", "type": "any", "required": False},
+                ],
+            })
+            client.mount_table(consumer_path, sync=True)
+
         queue_mount_timeout = max(10 - (datetime.now() - before_mounting_ts).total_seconds(), 0)
         wait(lambda: client.get(f"{queue_path}/@tablet_state") == "mounted", timeout=queue_mount_timeout, error_message="Wait for queue tablet state to be mounted timed out")
 
         logger.info("Created queue %s and consumer %s", queue_path, consumer_path)
     except Exception as ex:
+        logger.error(f"Check setup failed: {ex}")
         cleanup()
         return states.PARTIALLY_AVAILABLE_STATE, f"Check setup failed: {ex}"
 

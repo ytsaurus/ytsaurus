@@ -7,7 +7,7 @@ from yt_commands import (
 )
 
 from yt_sequoia_helpers import (
-    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground, select_paths_from_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -41,6 +41,8 @@ class TestGrafting(YTEnvSetup):
     def test_create_rootstock(self, rootstock_cell_tag):
         rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get("//tmp/r&/@scion_id")
+
+        assert select_paths_from_ground() == ["//tmp/r/"]
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"
         assert get(f"#{rootstock_id}&/@scion_id") == scion_id
@@ -106,6 +108,13 @@ class TestGrafting(YTEnvSetup):
     def test_create_rootstock_in_unexisting_map_node(self):
         with raises_yt_error("Node //tmp has no child with key \"unexisting\""):
             create("rootstock", "//tmp/unexisting/r")
+
+    @authors("kvk1920")
+    def test_scion_properties(self):
+        create("rootstock", "//tmp/sequoia1")
+        create("rootstock", "//tmp/sequoia2")
+        with raises_yt_error("Scion cannot be cloned"):
+            copy("//tmp/sequoia1", "//tmp/sequoia2")
 
 
 ##################################################################

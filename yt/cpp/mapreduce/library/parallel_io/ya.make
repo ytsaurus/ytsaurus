@@ -16,3 +16,8 @@ SRCS(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    ut
+    ut_core_http
+)

@@ -4,7 +4,7 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicSequoiaQueueConfig::Register(TRegistrar registrar)
+void TDynamicTableUpdateQueueConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::MilliSeconds(100));
@@ -18,13 +18,25 @@ void TDynamicSequoiaQueueConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TDynamicTableUpdateQueueConfigPtr& TDynamicGroundUpdateQueueManagerConfig::GetQueueConfig(NSequoiaClient::EGroundUpdateQueue queue) const
+{
+    static const auto defaultConfig = New<TDynamicTableUpdateQueueConfig>();
+    auto it = Queues.find(queue);
+    return it == Queues.end() ? defaultConfig : it->second;
+}
+
+void TDynamicGroundUpdateQueueManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("queues", &TThis::Queues)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
-
-    registrar.Parameter("sequoia_queue", &TThis::SequoiaQueue)
-        .DefaultNew();
 
     registrar.Parameter("enable_cypress_transactions_in_sequoia", &TThis::EnableCypressTransactionsInSequoia)
         .Default(false);

@@ -1,11 +1,11 @@
 from yt_env_setup import (YTEnvSetup)
 
 from yt_commands import (
-    authors, ls, get, wait, run_test_vanilla, with_breakpoint,
-    wait_breakpoint, release_breakpoint, vanilla,
+    authors, ls, get, set, create, write_table, wait, run_test_vanilla,
+    with_breakpoint, wait_breakpoint, release_breakpoint, vanilla, map,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
-    set_node_banned)
+    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id)
 
 from yt_helpers import JobCountProfiler, profiler_factory
 
@@ -218,5 +218,102 @@ class TestJobProxyCallFailed(YTEnvSetup):
                 },
             },
         })
+
+        op.track()
+
+
+class TestJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("ngc224")
+    def test_io_statistics(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=True,
+        )
+
+        statistics = op.get_statistics()
+        chunk_reader_statistics = statistics["chunk_reader_statistics"]
+
+        assert extract_statistic_v2(chunk_reader_statistics, "data_bytes_read_from_disk") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_read_from_disk", summary_type="count") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "meta_io_requests", summary_type="count") > 0
+
+
+class TestAllocationWithTwoJobs(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("pogorelov")
+    def test_simple(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in" + "/@replication_factor", 1)
+        set("//tmp/t_out" + "/@replication_factor", 1)
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
+
+        assert allocation_id1 == allocation_id2
+
+        release_breakpoint()
 
         op.track()

@@ -16,10 +16,12 @@ public:
     TYtWriteTransform(
         const NYT::TRichYPath& path,
         const NYT::TTableSchema& schema,
-        const NYT::TSortColumns& columnsToSort)
+        const NYT::TSortColumns& columnsToSort,
+        bool uniqueKeys)
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(columnsToSort)
+        , UniqueKeys_(uniqueKeys)
         , RawWrite_(MakeIntrusive<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<void>()))
     { }
 
@@ -75,9 +77,9 @@ private:
     NPrivate::IRawYtWritePtr  CreateSortedWrite() const
     {
         if constexpr (std::is_same_v<TInputRow, NYT::TNode>) {
-            return NPrivate::MakeYtNodeSortedWrite(Path_, Schema_, *ColumnsToSort_);
+            return NPrivate::MakeYtNodeSortedWrite(Path_, Schema_, *ColumnsToSort_, UniqueKeys_);
         } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TInputRow>) {
-            return NPrivate::MakeYtProtoSortedWrite<TInputRow>(Path_, Schema_, *ColumnsToSort_);
+            return NPrivate::MakeYtProtoSortedWrite<TInputRow>(Path_, Schema_, *ColumnsToSort_, UniqueKeys_);
         } else {
             static_assert(TDependentFalse<TInputRow>, "unknown YT writer");
         }
@@ -87,6 +89,7 @@ private:
     NYT::TRichYPath Path_;
     NYT::TTableSchema Schema_;
     std::optional<NYT::TSortColumns> ColumnsToSort_;
+    bool UniqueKeys_;
 
     mutable NPrivate::IRawWritePtr RawWrite_;
 };

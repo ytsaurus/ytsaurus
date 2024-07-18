@@ -31,13 +31,12 @@ public:
         Sha1_.Append(data);
     }
 
-    TMD5Hash GetMD5()
+    TMD5Hash GetMD5() const
     {
-        auto md5Copy = MD5_;
-        return md5Copy.GetDigest();
+        return MD5_.GetDigest();
     }
 
-    TSha1Hash GetSha1()
+    TSha1Hash GetSha1() const
     {
         return Sha1_.GetDigest();
     }

@@ -32,6 +32,8 @@ public:
 
     void Fail(const TError& error);
 
+    std::optional<NCrypto::TMD5Hash> GetDigest() const override;
+
 private:
     struct TSchemafulRowsetWriterBufferTag
     { };

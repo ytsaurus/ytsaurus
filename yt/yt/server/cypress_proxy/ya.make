@@ -3,19 +3,23 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    actions.cpp
     action_helpers.cpp
     bootstrap.cpp
     config.cpp
     dynamic_config_manager.cpp
     helpers.cpp
     node_proxy.cpp
+    node_proxy_base.cpp
     object_service.cpp
     path_resolver.cpp
     program.cpp
     rootstock_proxy.cpp
     sequoia_service.cpp
-    sequoia_service_detail.cpp
+    sequoia_session.cpp
     sequoia_tree_visitor.cpp
+    user_directory_synchronizer.cpp
+    user_directory.cpp
 )
 
 PEERDIR(

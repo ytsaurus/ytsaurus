@@ -92,7 +92,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 	app.locations = make([]*Location, 0)
 
 	var agentInfos []strawberry.AgentInfo
-	healthers := make(map[string]monitoring.Healther)
+	healthCheckers := make(map[string]monitoring.HealthChecker)
 	for _, proxy := range config.LocationProxies {
 		l.Debug("initializing location", log.String("location_proxy", proxy))
 		var err error
@@ -120,7 +120,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		}
 
 		// TODO(max42): extend for generic controllers.
-		healthers[proxy] = loc.as["chyt"]
+		healthCheckers[proxy] = loc.as["chyt"]
 
 		app.locations = append(app.locations, loc)
 		for _, a := range loc.as {
@@ -134,10 +134,11 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		l.Info("initializing HTTP API")
 		var apiConfig = api.HTTPAPIConfig{
 			BaseAPIConfig: api.APIConfig{
-				ControllerFactories: cfs,
-				ControllerMappings:  config.HTTPControllerMappings,
-				BaseACL:             config.BaseACL,
-				RobotUsername:       config.Strawberry.RobotUsername,
+				ControllerFactories:       cfs,
+				ControllerMappings:        config.HTTPControllerMappings,
+				BaseACL:                   config.BaseACL,
+				RobotUsername:             config.Strawberry.RobotUsername,
+				AssignAdministerToCreator: config.Strawberry.AssignAdministerToCreatorOrDefault(),
 			},
 			ClusterInfos:    agentInfos,
 			LocationAliases: config.HTTPLocationAliases,
@@ -150,11 +151,10 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 	if config.HTTPMonitoringEndpoint != nil {
 		var monitoringConfig = monitoring.HTTPMonitoringConfig{
-			Clusters:                     config.LocationProxies,
-			Endpoint:                     config.HTTPMonitoringEndpointOrDefault(),
-			HealthStatusExpirationPeriod: config.HealthStatusExpirationPeriodOrDefault(),
+			Clusters: config.LocationProxies,
+			Endpoint: config.HTTPMonitoringEndpointOrDefault(),
 		}
-		app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)
+		app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthCheckers)
 	}
 
 	app.isLeader = atomic.NewBool(false)

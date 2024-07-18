@@ -205,6 +205,9 @@ public:
 
     virtual bool ShouldComputePromisedGuaranteeFairShare() const = 0;
 
+    virtual bool IsPriorityStrongGuaranteeAdjustmentEnabled() const = 0;
+    virtual bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const = 0;
+
 private:
     using TChildSuggestions = std::vector<double>;
 
@@ -217,8 +220,6 @@ private:
 
     void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
-    virtual bool IsPriorityStrongGuaranteeAdjustmentEnabled() const = 0;
-    virtual bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const = 0;
     void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context) override;
     void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
     void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context) override;
@@ -345,22 +346,27 @@ DEFINE_REFCOUNTED_TYPE(TOperationElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareUpdateOptions
+{
+    EJobResourceType MainResource = EJobResourceType::Cpu;
+
+    TDuration IntegralPoolCapacitySaturationPeriod;
+    TDuration IntegralSmoothPeriod;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFairShareUpdateContext
 {
-    // TODO(eshcherbin): Create a separate fair share update config instead of passing all options in context.
     TFairShareUpdateContext(
+        const TFairShareUpdateOptions& options,
         const TJobResources totalResourceLimits,
-        const EJobResourceType mainResource,
-        const TDuration integralPoolCapacitySaturationPeriod,
-        const TDuration integralSmoothPeriod,
         const TInstant now,
         const std::optional<TInstant> previousUpdateTime);
 
-    const TJobResources TotalResourceLimits;
+    const TFairShareUpdateOptions Options;
 
-    const EJobResourceType MainResource;
-    const TDuration IntegralPoolCapacitySaturationPeriod;
-    const TDuration IntegralSmoothPeriod;
+    const TJobResources TotalResourceLimits;
 
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
@@ -393,12 +399,15 @@ public:
     TFairShareUpdateExecutor(
         const TRootElementPtr& rootElement,
         // TODO(ignat): split context on input and output parts.
-        TFairShareUpdateContext* context);
+        TFairShareUpdateContext* context,
+        const std::optional<TString>& loggingTag = {});
 
     void Run();
 
 private:
     const TRootElementPtr RootElement_;
+
+    NLogging::TLogger Logger;
 
     void ConsumeAndRefillIntegralPools();
     void UpdateBurstPoolIntegralShares();

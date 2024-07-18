@@ -384,6 +384,14 @@ private:
             ESmoothMovementStage::ServantSwitchRequested,
             ESmoothMovementStage::ServantSwitched);
 
+        tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
+
+        if (auto& promise = tablet->SmoothMovementData().TargetActivationPromise()) {
+            YT_LOG_DEBUG("Setting target servant activation promise (%v)",
+                tablet->GetLoggingTag());
+            promise.TrySet();
+        }
+
         tablet->UpdateUnflushedTimestamp();
     }
 
@@ -504,6 +512,13 @@ private:
                     TReqSwitchServant req;
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
                     req.set_mount_revision(movementData.GetSiblingMountRevision());
+
+                    {
+                        auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
+                        runtimeData.SiblingServantCellId.Store(movementData.GetSiblingCellId());
+                        runtimeData.SiblingServantMountRevision.store(movementData.GetSiblingMountRevision());
+                        runtimeData.IsActiveServant.store(false);
+                    }
 
                     auto masterEndpointId = tablet->GetMasterAvenueEndpointId();
                     tablet->SetMasterAvenueEndpointId({});

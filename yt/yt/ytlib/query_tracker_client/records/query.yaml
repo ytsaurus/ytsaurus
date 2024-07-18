@@ -49,7 +49,7 @@ types:
 
       # YSON list.
       - cpp_name: AccessControlObjects
-        cpp_type: NYson::TYsonString
+        cpp_type: std::optional<NYson::TYsonString>
         column_name: access_control_objects
         column_type: Any
         lock: client

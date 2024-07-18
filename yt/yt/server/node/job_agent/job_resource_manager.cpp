@@ -184,19 +184,20 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto doUpdate = [&] (EResourcesState state) {
-            ResourceUsageBuffer_->Update([this, state] (ISensorWriter* writer) {
-                auto guard = ReaderGuard(ResourcesLock_);
-                NProfiling::TWithTagGuard withTags{writer};
-                withTags.AddTag(MakeResourcesTag(state));
+        auto doProfile = [this] (ISensorWriter* writer, EResourcesState state) {
+            NProfiling::TWithTagGuard withTags{writer};
+            withTags.AddTag(MakeResourcesTag(state));
 
-                ProfileResources(writer, ResourceUsages_[state]);
-            });
+            ProfileResources(writer, ResourceUsages_[state]);
         };
 
-        doUpdate(EResourcesState::Pending);
-        doUpdate(EResourcesState::Acquired);
-        doUpdate(EResourcesState::Releasing);
+        ResourceUsageBuffer_->Update([this, &doProfile] (ISensorWriter* writer) {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            doProfile(writer, EResourcesState::Pending);
+            doProfile(writer, EResourcesState::Acquired);
+            doProfile(writer, EResourcesState::Releasing);
+        });
 
         ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
             ProfileResources(writer, GetResourceLimits());
@@ -1450,6 +1451,12 @@ public:
         return reference;
     }
 
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool /*keepExistingTracking*/) override
+    {
+        // TODO(pogorelov): Support shared ref tracking.
+        return reference;
+    }
+
 private:
     const TResourceHolderPtr ResourceHolder_;
 
@@ -1518,11 +1525,12 @@ TResourceOwner::TResourceOwner(
         resourceConsumerType,
         jobResources))
 {
-    ResourceHolder_->ResetOwner(MakeStrong(this));
+    ResourceHolder_->ResetOwner(MakeWeak(this));
 }
 
-void TResourceOwner::ReleaseResources()
+void TResourceOwner::OnResourcesTransferred()
 {
+
     ResourceHolder_->ResetOwner({});
     ResourceHolder_.Reset();
 }
@@ -1806,11 +1814,11 @@ TResourceOwnerPtr TResourceHolder::GetOwner() const noexcept
     return Owner_.Lock();
 }
 
-void TResourceHolder::ResetOwner(const TResourceOwnerPtr& owner)
+void TResourceHolder::ResetOwner(TWeakPtr<TResourceOwner> owner)
 {
     auto guard = ReaderGuard(ResourcesLock_);
 
-    Owner_ = owner;
+    Owner_ = std::move(owner);
 }
 
 void TResourceHolder::PrepareResourcesRelease() noexcept

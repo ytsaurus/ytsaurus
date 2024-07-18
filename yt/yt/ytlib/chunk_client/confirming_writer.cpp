@@ -39,6 +39,7 @@ using namespace NTableClient;
 using namespace NNodeTrackerClient;
 
 using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,10 +165,12 @@ public:
         return DataStatistics_;
     }
 
-    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
+    TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
         YT_VERIFY(UnderlyingWriter_);
-        return UnderlyingWriter_->GetWrittenChunkReplicas();
+        auto result = UnderlyingWriter_->GetWrittenChunkReplicasInfo();
+        result.ConfirmationRevision = ConfirmationRevision_;
+        return result;
     }
 
     TChunkId GetChunkId() const override
@@ -218,6 +221,7 @@ private:
 
     TDeferredChunkMetaPtr ChunkMeta_;
     NProto::TDataStatistics DataStatistics_;
+    NHydra::TRevision ConfirmationRevision_ = NHydra::NullRevision;
 
     NLogging::TLogger Logger;
 
@@ -314,7 +318,7 @@ private:
 
         YT_LOG_DEBUG("Chunk closed");
 
-        auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
+        auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
@@ -353,31 +357,15 @@ private:
         multicellSyncExt->set_suppress_upstream_sync(true);
 
         auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Failed to confirm chunk %v",
-                SessionId_.ChunkId);
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Failed to confirm chunk %v",
+            SessionId_.ChunkId);
 
-            DataStatistics_ = rspOrError.Value()->statistics();
-        } else {
-            auto req = proxy.ConfirmChunk();
-            GenerateMutationId(req);
-            fillRequest(req);
-            auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
-            multicellSyncExt->set_suppress_upstream_sync(true);
-
-            auto rspOrError = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Failed to confirm chunk %v",
-                SessionId_.ChunkId);
-
-            const auto& rsp = rspOrError.Value();
-            DataStatistics_ = rsp->statistics();
-        }
+        const auto& rsp = rspOrError.Value();
+        DataStatistics_ = rsp->statistics();
+        ConfirmationRevision_ = FromProto<i64>(rsp->revision());
 
         Closed_ = true;
 

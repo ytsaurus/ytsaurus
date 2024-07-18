@@ -4,7 +4,30 @@
 #include <util/generic/typetraits.h>
 #include <type_traits>
 
+namespace NRoren {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename>
+class TOutput;
+
+class IExecutionContext;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren
+
 namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+concept CParDoArgs =
+    requires {
+        typename T::TInputRow;
+        typename T::TOutputRow;
+    }
+    && std::constructible_from<T, const typename T::TInputRow&, TOutput<typename T::TOutputRow>&, IExecutionContext&>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

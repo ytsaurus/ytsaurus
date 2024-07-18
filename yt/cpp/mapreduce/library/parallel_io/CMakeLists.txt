@@ -13,6 +13,8 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+add_subdirectory(ut)
+add_subdirectory(ut_core_http)
 
 add_library(mapreduce-library-parallel_io)
 

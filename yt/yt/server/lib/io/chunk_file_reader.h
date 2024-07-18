@@ -138,7 +138,7 @@ private:
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-        const TSharedRef& data);
+        const IIOEngine::TReadResponse& readResponse);
 
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);

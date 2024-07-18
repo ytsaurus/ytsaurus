@@ -39,7 +39,6 @@ std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
     }
     auto context = std::make_unique<TLoadContext>(input);
     TCompositeAutomaton::SetupLoadContext(context.get());
-    context->SetLeaseManager(host->GetLeaseManager());
     return context;
 }
 

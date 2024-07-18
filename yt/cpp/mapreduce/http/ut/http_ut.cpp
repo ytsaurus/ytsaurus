@@ -4,8 +4,11 @@
 
 #include <yt/cpp/mapreduce/interface/config.h>
 
-#include <library/cpp/testing/unittest/registar.h>
-#include <library/cpp/testing/unittest/tests_data.h>
+#include <library/cpp/testing/common/network.h>
+
+#include <library/cpp/testing/gtest/gtest.h>
+
+#include <util/system/byteorder.h>
 
 using namespace NYT;
 
@@ -20,15 +23,14 @@ void WriteDataFrame(TStringBuf string, IOutputStream* stream)
 
 THolder<TSimpleServer> CreateFramingEchoServer()
 {
-    TPortManager pm;
-    int port = pm.GetPort();
+    auto port = NTesting::GetFreePort();
     return MakeHolder<TSimpleServer>(
         port,
         [] (IInputStream* input, IOutputStream* output) {
             try {
                 THttpInput httpInput(input);
                 if (!httpInput.Headers().FindHeader("X-YT-Accept-Framing")) {
-                    UNIT_FAIL("X-YT-Accept-Framing header not found");
+                    FAIL() << "X-YT-Accept-Framing header not found";
                 }
                 auto input = httpInput.ReadAll();
 
@@ -50,49 +52,43 @@ THolder<TSimpleServer> CreateFramingEchoServer()
         });
 }
 
-Y_UNIT_TEST_SUITE(HttpHeader)
+TEST(THttpHeaderTest, AddParameter)
 {
-    Y_UNIT_TEST(TestAddParameter)
-    {
-        THttpHeader header("POST", "/foo");
-        header.AddMutationId();
+    THttpHeader header("POST", "/foo");
+    header.AddMutationId();
 
-        auto id1 = header.GetParameters()["mutation_id"].AsString();
+    auto id1 = header.GetParameters()["mutation_id"].AsString();
 
-        header.AddMutationId();
+    header.AddMutationId();
 
-        auto id2 = header.GetParameters()["mutation_id"].AsString();
+    auto id2 = header.GetParameters()["mutation_id"].AsString();
 
-        UNIT_ASSERT(id1 != id2);
-    }
+    EXPECT_TRUE(id1 != id2);
 }
 
-Y_UNIT_TEST_SUITE(Framing)
+TEST(TFramingTest, FramingSimple)
 {
-    Y_UNIT_TEST(TestFramingSimple)
-    {
-        auto server = CreateFramingEchoServer();
+    auto server = CreateFramingEchoServer();
 
-        THttpRequest request;
-        request.Connect(server->GetAddress());
-        auto requestStream = request.StartRequest(THttpHeader("POST", "concatenate"));
-        *requestStream << "Some funny data";
-        request.FinishRequest();
-        auto response = request.GetResponseStream()->ReadAll();
-        UNIT_ASSERT_VALUES_EQUAL(response, "Some funny data");
-    }
+    THttpRequest request;
+    request.Connect(server->GetAddress());
+    auto requestStream = request.StartRequest(THttpHeader("POST", "concatenate"));
+    *requestStream << "Some funny data";
+    request.FinishRequest();
+    auto response = request.GetResponseStream()->ReadAll();
+    EXPECT_EQ(response, "Some funny data");
+}
 
-    Y_UNIT_TEST(TestFramingLarge)
-    {
-        auto server = CreateFramingEchoServer();
+TEST(TFramingTest, FramingLarge)
+{
+    auto server = CreateFramingEchoServer();
 
-        THttpRequest request;
-        request.Connect(server->GetAddress());
-        auto requestStream = request.StartRequest(THttpHeader("POST", "concatenate"));
-        auto data = TString(100000, 'x');
-        *requestStream << data;
-        request.FinishRequest();
-        auto response = request.GetResponseStream()->ReadAll();
-        UNIT_ASSERT_EQUAL(response, data);
-    }
+    THttpRequest request;
+    request.Connect(server->GetAddress());
+    auto requestStream = request.StartRequest(THttpHeader("POST", "concatenate"));
+    auto data = TString(100000, 'x');
+    *requestStream << data;
+    request.FinishRequest();
+    auto response = request.GetResponseStream()->ReadAll();
+    EXPECT_EQ(response, data);
 }

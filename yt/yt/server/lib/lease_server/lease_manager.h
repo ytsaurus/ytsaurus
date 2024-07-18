@@ -14,28 +14,6 @@ namespace NYT::NLeaseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ILeaseGuard
-    : public TRefCounted
-{
-    virtual TLeaseId GetLeaseId() const = 0;
-
-    virtual bool IsPersistent() const = 0;
-    virtual bool IsValid() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ILeaseGuard)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TLeaseGuardComparer
-{
-    bool operator()(const ILeaseGuardPtr& lhs, const ILeaseGuardPtr& rhs) const;
-
-    static bool Compare(const ILeaseGuardPtr& lhs, const ILeaseGuardPtr& rhs);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ILease
 {
     virtual ~ILease() = default;
@@ -44,14 +22,11 @@ struct ILease
 
     virtual ELeaseState GetState() const = 0;
 
-    virtual int RefPersistently(bool force = false) = 0;
+    virtual int RefPersistently(bool force) = 0;
     virtual int UnrefPersistently() = 0;
-    virtual ILeaseGuardPtr GetPersistentLeaseGuard(bool force = false) = 0;
-    virtual ILeaseGuardPtr GetPersistentLeaseGuardOnLoad() = 0;
 
-    virtual int RefTransiently(bool force = false) = 0;
-    virtual int UnrefTransiently(int leaderAutomatonTerm) = 0;
-    virtual ILeaseGuardPtr GetTransientLeaseGuard(bool force = false) = 0;
+    virtual int RefTransiently(bool force) = 0;
+    virtual int UnrefTransiently() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,8 +42,6 @@ struct ILeaseManager
 
     virtual void SetDecommission(bool decommission) = 0;
     virtual bool IsFullyDecommissioned() const = 0;
-
-    virtual std::optional<int> GetLeaderAutomatonTerm() const = 0;
 
     virtual NRpc::IServicePtr GetRpcService() = 0;
 

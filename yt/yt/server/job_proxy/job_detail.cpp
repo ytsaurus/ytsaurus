@@ -8,12 +8,16 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
@@ -69,6 +73,13 @@ TJob::TJob(IJobHostPtr host)
 
 void TJob::Initialize()
 {
+    if (Host_->GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
+        // NB(coteeq): Do not sync cluster directory if data is local only.
+        auto connection = Host_->GetClient()->GetNativeConnection();
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+            .ThrowOnError();
+    }
+
     PopulateInputNodeDirectory();
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
@@ -78,8 +89,17 @@ void TJob::Initialize()
 
 void TJob::PopulateInputNodeDirectory() const
 {
-    Host_->GetClient()->GetNativeConnection()->GetNodeDirectory()->MergeFrom(
-        Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
+    auto connection = Host_->GetClient()->GetNativeConnection();
+    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
+    connection->GetNodeDirectory()->MergeFrom(jobSpecExt.input_node_directory());
+
+    for (const auto& [clusterName, protoRemoteCluster] : jobSpecExt.remote_input_clusters()) {
+        connection
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(clusterName)
+            ->GetNodeDirectory()
+            ->MergeFrom(protoRemoteCluster.node_directory());
+    }
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)

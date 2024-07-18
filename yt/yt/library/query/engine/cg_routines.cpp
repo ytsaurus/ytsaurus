@@ -117,7 +117,7 @@ using THLL = NYT::THyperLogLog<14>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(30);
 
 class TYielder
     : public TWallTimer
@@ -549,6 +549,8 @@ void MultiJoinOpHelper(
             TForeignExecutorBufferTag(),
             context->MemoryChunkProvider);
 
+        TYielder yielder;
+
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
@@ -568,6 +570,8 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
+            yielder.Checkpoint(closure.Items[joinId].OrderedKeys.size());
+
             auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
             SaveAndRestoreCurrentCompartment([&] {
                 auto reader = parameters->Items[joinId].ExecuteForeign(
@@ -579,8 +583,6 @@ void MultiJoinOpHelper(
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
         }
-
-        TYielder yielder;
 
         std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -679,13 +681,7 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    auto asPositionIndependent = InplaceConvertToPI(row);
-                    auto captured = CapturePIValueRange(
-                        &closure.Context,
-                        MakeRange(asPositionIndependent.Begin(), asPositionIndependent.Size()),
-                        NWebAssembly::EAddressSpace::Host,
-                        NWebAssembly::EAddressSpace::WebAssembly,
-                        /*captureValues*/ true);
+                    auto captured = CaptureUnversionedValueRange(&closure.Context, row.Elements());
                     foreignValues.push_back(captured.Begin());
                 }
 
@@ -2870,6 +2866,15 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
     return hllAtHost->EstimateCardinality();
 }
 
+ui64 HyperLogLogGetFingerprint(TValue* value)
+{
+    auto valueAtHost = *ConvertPointerFromWasmToHost(value);
+    if (IsStringLikeType(valueAtHost.Type)) {
+        valueAtHost.Data.String = ConvertPointerFromWasmToHost(valueAtHost.Data.String);
+    }
+    return NTableClient::GetFarmFingerprint(valueAtHost);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReplica
@@ -3805,6 +3810,7 @@ REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);

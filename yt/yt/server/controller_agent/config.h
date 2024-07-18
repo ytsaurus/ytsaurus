@@ -523,10 +523,11 @@ class TSortOperationOptions
     : public TSortOperationOptionsBase
 {
 public:
+    bool EnableSimpleSortForEvaluatedOutput;
+
     REGISTER_YSON_STRUCT(TSortOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
@@ -741,6 +742,22 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDisallowRemoteOperationsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    THashSet<TString> AllowedUsers;
+    THashSet<TString> AllowedClusters;
+
+    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1198,6 +1215,8 @@ public:
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
     bool JobIdUnequalToAllocationId;
+
+    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

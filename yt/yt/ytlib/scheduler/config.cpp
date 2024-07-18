@@ -764,6 +764,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("lock_output_dynamic_tables", &TThis::LockOutputDynamicTables)
         .Default();
 
+    registrar.Parameter("allow_output_dynamic_tables", &TThis::AllowOutputDynamicTables)
+        .Default();
+
     registrar.Parameter("job_cpu_monitor", &TThis::JobCpuMonitor)
         .DefaultNew();
 
@@ -968,7 +971,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("memory_limit", &TThis::MemoryLimit)
         .Default(512_MB)
         .GreaterThan(0)
-        .LessThanOrEqual(1_TB);
+        .LessThanOrEqual(16_TB);
     registrar.Parameter("memory_reserve_factor", &TThis::MemoryReserveFactor)
         .Default();
     registrar.Parameter("user_job_memory_digest_default_value", &TThis::UserJobMemoryDigestDefaultValue)

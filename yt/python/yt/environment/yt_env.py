@@ -725,8 +725,8 @@ class YTInstance(object):
     def get_proxy_address(self):
         return self.get_http_proxy_address()
 
-    def get_http_proxy_address(self, tvm_only=False, https=False):
-        return self.get_http_proxy_addresses(tvm_only=tvm_only, https=https)[0]
+    def get_http_proxy_address(self, tvm_only=False, https=False, chyt=False):
+        return self.get_http_proxy_addresses(tvm_only=tvm_only, https=https, chyt=chyt)[0]
 
     def get_http_proxy_url(self):
         return "http://" + self.get_http_proxy_address()
@@ -734,20 +734,29 @@ class YTInstance(object):
     def get_https_proxy_url(self):
         return "https://" + self.get_http_proxy_address(https=True)
 
-    def get_http_proxy_addresses(self, tvm_only=False, https=False):
+    def get_http_proxy_addresses(self, tvm_only=False, https=False, chyt=False):
         if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")
         if tvm_only and https:
             raise YtError("Request of HTTPS and TVM proxies are not supported simultaneously")
+        if tvm_only and chyt:
+            raise YtError("Request of CHYT and TVM proxies are not supported simultaneously")
         if https and not self.yt_config.enable_tls:
             raise YtError("Https proxies are not enabled")
 
         if tvm_only:
             port_path = "tvm_only_http_server/port"
-        elif https:
-            port_path = "https_server/port"
         else:
-            port_path = "port"
+            if chyt:
+                if https:
+                    port_path = "chyt_https_server/port"
+                else:
+                    port_path = "chyt_http_server/port"
+            else:
+                if https:
+                    port_path = "https_server/port"
+                else:
+                    port_path = "port"
 
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, port_path, "http_proxy"))
                 for config in self.configs["http_proxy"]]

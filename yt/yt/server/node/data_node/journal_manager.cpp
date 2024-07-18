@@ -200,6 +200,7 @@ private:
     THashSet<TChunkId> CreateChunkIds_;
     THashSet<TChunkId> RemoveChunkIds_;
     THashSet<TChunkId> AppendChunkIds_;
+    THashSet<TChunkId> AbsentChunkIds_;
     THashMap<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
 
     struct TSplitEntry
@@ -380,9 +381,13 @@ private:
         if (it == SplitMap_.end()) {
             auto changelog = Callbacks_->OpenSplitChangelog(chunkId);
             if (!changelog) {
-                YT_LOG_FATAL("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
-                    chunkId);
+                if (AbsentChunkIds_.insert(chunkId).second) {
+                    YT_LOG_INFO("Journal chunk is missing but has relevant records in the multiplexed changelog (ChunkId: %v)",
+                        chunkId);
+                }
+                return;
             }
+
             it = SplitMap_.emplace(
                 chunkId,
                 TSplitEntry(chunkId, changelog)).first;
@@ -477,13 +482,16 @@ private:
 
         YT_VERIFY(!SplitMap_.contains(chunkId));
 
-        if (!Callbacks_->RemoveSplitChangelog(chunkId))
-            return;
+        if (Callbacks_->RemoveSplitChangelog(chunkId)) {
+            YT_LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
+                chunkId);
+        }
 
-        YT_LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
-            chunkId);
+        if (AbsentChunkIds_.erase(chunkId)) {
+            YT_LOG_INFO("Replay removed absent journal chunk (ChunkId: %v)",
+                chunkId);
+        }
     }
-
 };
 
 class TMultiplexedWriter

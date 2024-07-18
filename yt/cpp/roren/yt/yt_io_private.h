@@ -189,14 +189,17 @@ public:
     using IRawYtWrite::IRawYtWrite;
 
     virtual const NYT::TSortColumns& GetColumnsToSort() const = 0;
+    virtual void FillSchema(NYT::TTableSchema& schema) const = 0;
 };
+
+void FillSchemaFromSortColumns(NYT::TTableSchema& schema, const NYT::TSortColumns& columnsToSort, bool uniqueKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IRawYtReadPtr MakeYtNodeInput(NYT::TRichYPath path);
 IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema);
 IRawYtSortedWritePtr MakeYtNodeSortedWrite(
-    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort);
+    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

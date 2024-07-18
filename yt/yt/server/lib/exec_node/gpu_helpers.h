@@ -24,6 +24,7 @@ void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpu
 
 struct TGpuDriverVersion
 {
+    // NB(omgronny): empty vector is a dummy gpu driver version.
     std::vector<int> Components;
 
     static TGpuDriverVersion FromString(TStringBuf driverVersionString);
@@ -33,6 +34,10 @@ bool operator < (const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs);
 
 TString GetGpuDriverVersionString();
 TString GetDummyGpuDriverVersionString();
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> ListInfinibandDevices();
 
 ////////////////////////////////////////////////////////////////////////////////
 

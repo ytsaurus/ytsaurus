@@ -32,6 +32,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   cpp-yson-node
   cpp-yt-string
   library-timers-timer
+  yt-yt-core
 )
 
 target_sources(cpp-roren-interface PRIVATE

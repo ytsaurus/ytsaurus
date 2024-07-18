@@ -22,6 +22,9 @@ import time
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
+    ENABLE_TLS = True
+    ENABLE_CHYT_HTTPS_PROXIES = True
+
     DELTA_PROXY_CONFIG = {
         "clickhouse": {
             "operation_cache": {
@@ -35,31 +38,36 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         },
     }
 
+    @classmethod
+    def setup_class(cls, test_name=None, run_id=None):
+        super().setup_class(test_name=test_name, run_id=run_id)
+        Clique.proxy_https_address = cls._get_proxy_https_address()
+        Clique.chyt_https_address = cls._get_chyt_https_address()
+
     def _get_proxy_metric(self, metric_name):
         return profiler_factory().at_http_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
 
-    @authors("evgenstf")
+    @authors("evgenstf", "barykinni")
     def test_instance_choice(self):
-        with Clique(5, alias="*test_alias") as clique:
+        with Clique(5, alias="test_alias") as clique:
             for job_cookie in range(5):
-                proxy_response = clique.make_query_via_proxy(
-                    "select * from system.clique", database="*test_alias@" + str(job_cookie)
-                )
-                for instance_response in proxy_response:
-                    assert (
-                        instance_response["self"] == 1
-                        if instance_response["job_cookie"] == job_cookie
-                        else instance_response["self"] == 0
+                for add_asterisk in [False, True]:  # alias can be written with or without an asterisk
+                    database_alias = "*" * int(add_asterisk) + "test_alias"
+
+                    proxy_response = clique.make_query_via_proxy(
+                        "select * from system.clique", database=database_alias + "@" + str(job_cookie)
                     )
 
-                proxy_response = clique.make_query_via_proxy(
-                    "select * from system.clique", database=clique.op.id + "@" + str(job_cookie)
-                )
-                for instance_response in proxy_response:
-                    assert (
-                        instance_response["self"] == 1
-                        if instance_response["job_cookie"] == job_cookie
-                        else instance_response["self"] == 0
+                    for instance_response in proxy_response:
+                        assert (
+                            instance_response["self"] == 1
+                            if instance_response["job_cookie"] == job_cookie
+                            else instance_response["self"] == 0
+                        )
+
+                with raises_yt_error(QueryFailedError):  # operation-id is no longer supported
+                    clique.make_query_via_proxy(
+                        "select * from system.clique", database=clique.op.id + "@" + str(job_cookie)
                     )
 
             with raises_yt_error(QueryFailedError):
@@ -244,7 +252,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_counter.get_delta(verbose=True) == 1
         assert banned_count.get_delta(verbose=True) == 1
 
-    @authors("max42")
+    @authors("max42", "barykinni")
     def test_database_specification(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -253,7 +261,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
         with Clique(1, alias="*alias") as clique:
             assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", database="alias")[0] == {"a": 1}
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0]
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1 as a", database="*alia")
@@ -267,7 +278,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1 as a", database="")
 
-            with raises_yt_error(1915):  # NoSuchOperation
+            with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1 as a", database="1-2-3-4")
 
             with raises_yt_error(QueryFailedError):
@@ -286,17 +297,12 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             wait(lambda: not get(clique.op.get_path() + "/@suspended"))
             time.sleep(1)
 
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
-
         wait(lambda: clique.get_active_instance_count() == 0)
 
         time.sleep(1)
 
         with raises_yt_error(QueryFailedError):
             assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-
-        with raises_yt_error(QueryFailedError):
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
 
     @authors("dakovalkov")
     def test_expect_100_continue(self):
@@ -376,6 +382,18 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1", user="u2")
 
+    @authors("barykinni")
+    def test_legacy_endpoint(self):
+        with Clique(1) as clique:
+            assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query") == [{"a": 1}]
+            assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query", https_proxy=True) == [{"a": 1}]
+
+    @authors("barykinni")
+    def test_chyt_proxy(self):
+        with Clique(1) as clique:
+            assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True) == [{"a": 1}]
+            assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True, https_proxy=True) == [{"a": 1}]
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
@@ -387,6 +405,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "refresh_time": 100,
                 "expire_after_failed_update_time": 100,
             },
+            "populate_user_with_token": True,
         },
     }
 
@@ -466,7 +485,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             check_log_entry(log_entries[2], {
                 "authenticated_user": "root",
                 "http_method": "post",
-                "clique_alias": "*invalid_database",
+                "clique_alias": "invalid_database",  # alias is expected not to have an asterisk
                 "http_code": 400,
                 "error_code": 1,
             })
@@ -485,3 +504,23 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
             assert response.status_code == 403
             assert "X-ClickHouse-Server-Display-Name" in response.headers
+
+    @authors("barykinni")
+    def test_http_proxy_authorization_via_x_click_house_key_header(self):
+        username = "simple-dimple"
+        create_user(username)
+
+        allowance = {"subjects": [username], "action": "allow", "permissions": ["read"]}
+
+        with Clique(1, spec={"acl": [allowance]}) as clique:
+            # we expect token to be used as a username
+            # ("populate_user_with_token": True)
+
+            correct_auth_response = clique.make_query_via_proxy(
+                "select currentUser()", headers={"x-ClickHouse-Key": username})
+
+            assert correct_auth_response == [{"currentUser()": username}]
+
+            invalid_key = "mismatched"
+            with raises_yt_error(900):  # user "mismatched" doesn't exist
+                clique.make_query_via_proxy("select currentUser()", headers={"x-ClickHouse-Key": invalid_key})

@@ -409,35 +409,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTryGetStringOptimizer
-    : public TBaseOptimizer
-{
-public:
-    bool Run(TQuery* query)
-    {
-        return OptimizeQuery(query);
-    }
-
-    bool OnFunction(TFunctionExpressionPtr expression) override
-    {
-        if (expression->FunctionName == "string" && expression->Arguments.size() == 1) {
-            auto argumentFunction = expression->Arguments[0]->As<TFunctionExpression>();
-            if (argumentFunction && argumentFunction->FunctionName == "try_get_string") {
-                expression->FunctionName = "try_get_string";
-                expression->Arguments = argumentFunction->Arguments;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-private:
-    using TBaseOptimizer::Visit;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TGroupByOptimizer
     : public TBaseAstVisitor<std::optional<size_t>, TGroupByOptimizer>
 {
@@ -573,13 +544,6 @@ bool TryOptimizeJoin(TQuery* query)
     THROW_ERROR_EXCEPTION_UNLESS(query, "TryOptimizeJoin() received a nullptr query");
     TJoinOptimizer optimizer(query);
     return optimizer.Run();
-}
-
-bool TryOptimizeTryGetString(TQuery* query)
-{
-    TTryGetStringOptimizer optimizer;
-    YT_VERIFY(query);
-    return optimizer.Run(query);
 }
 
 bool TryOptimizeGroupByWithUniquePrefix(

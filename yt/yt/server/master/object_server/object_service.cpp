@@ -624,7 +624,7 @@ private:
             subrequest.RequestMessage = subrequestPartsBuilder.Finish();
 
             auto& requestHeader = subrequest.RequestHeader;
-            if (!ParseRequestHeader(subrequest.RequestMessage, &requestHeader)) {
+            if (!TryParseRequestHeader(subrequest.RequestMessage, &requestHeader)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Error parsing subrequest header");
@@ -1347,7 +1347,7 @@ private:
                 : NApi::EMasterChannelKind::Follower;
 
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, channelKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage, subrequest.YPathExt->mutating());
+            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();

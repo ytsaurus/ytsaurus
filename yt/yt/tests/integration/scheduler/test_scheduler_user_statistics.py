@@ -4,7 +4,7 @@ from yt_commands import (
     assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config,
     wait, wait_no_assert,
     get, create, write_table, map, run_test_vanilla,
-    raises_yt_error, with_breakpoint, wait_breakpoint, release_breakpoint)
+    with_breakpoint, wait_breakpoint, release_breakpoint)
 
 from yt.common import YtError
 
@@ -89,7 +89,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         # But the empty keys are not ok (as well as for any other map nodes).
         with pytest.raises(YtError):
-            op = map(
+            map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 spec={"max_failed_job_count": 1},
@@ -239,7 +239,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 summary_type="sum")
             assert count == 2 and max == 10 and sum == 20
 
-    @authors("galtsev")
+    @authors("galtsev", "pavook")
     @pytest.mark.parametrize("crash_inside_periodic", [False, True])
     def test_incompatible_statistic_paths_should_not_crash_ca(self, crash_inside_periodic):
         command = """
@@ -250,8 +250,15 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             fi
         """
 
+        def check_alert_set(operation):
+            return "incompatible_statistics" in operation.get_alerts()
+
         if crash_inside_periodic:
             command = with_breakpoint(command + "BREAKPOINT")
-
-        with raises_yt_error('Expected "slash" in YPath but found end-of-string'):
-            run_test_vanilla(command, job_count=2, track=True)
+            op = run_test_vanilla(command, job_count=2, track=False)
+            wait(lambda: check_alert_set(op))
+            release_breakpoint()
+            op.track()
+        else:
+            op = run_test_vanilla(command, job_count=2, track=True)
+            assert check_alert_set(op)

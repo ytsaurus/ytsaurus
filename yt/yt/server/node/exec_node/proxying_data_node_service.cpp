@@ -136,6 +136,10 @@ private:
         bool hasCompleteChunk = true;
         response->set_has_complete_chunk(hasCompleteChunk);
 
+        if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
+            response->set_net_throttling(true);
+        }
+
         context->SetResponseInfo(
             "HasCompleteChunk: %v",
             hasCompleteChunk);
@@ -157,6 +161,17 @@ private:
             chunkId,
             MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
             workloadDescriptor);
+
+        if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
+            response->set_has_complete_chunk(true);
+            response->set_net_throttling(true);
+            context->SetResponseInfo(
+                "HasCompleteChunk: %v, NetThrottling: %v",
+                true,
+                true);
+            context->Reply();
+            return;
+        }
 
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
@@ -190,6 +205,17 @@ private:
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             workloadDescriptor);
+
+        if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
+            response->set_has_complete_chunk(true);
+            response->set_net_throttling(true);
+            context->SetResponseInfo(
+                "HasCompleteChunk: %v, NetThrottling: %v",
+                true,
+                true);
+            context->Reply();
+            return;
+        }
 
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;

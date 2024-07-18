@@ -25,7 +25,7 @@ target_link_libraries(mapreduce-library-mock_client PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
-  cpp-testing-gmock_in_unittest
+  cpp-testing-gtest_extensions
 )
 
 target_sources(mapreduce-library-mock_client PRIVATE

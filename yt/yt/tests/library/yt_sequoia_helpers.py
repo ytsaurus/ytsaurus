@@ -54,7 +54,7 @@ def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
     query = f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"
     if not fetch_sys_dir:
         query += " where not is_prefix('//sys', path)"
-    return select_rows_from_ground(query, **kwargs)
+    return [row["path"] for row in select_rows_from_ground(query, **kwargs)]
 
 
 def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):

@@ -56,7 +56,7 @@ public:
 
         auto requestMessage = context->GetRequestMessage();
         NRpc::NProto::TRequestHeader requestHeader;
-        if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+        if (!TryParseRequestHeader(requestMessage, &requestHeader)) {
             context->Reply(TError("Error parsing request header"));
             return;
         }

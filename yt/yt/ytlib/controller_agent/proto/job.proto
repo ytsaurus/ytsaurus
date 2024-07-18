@@ -25,6 +25,8 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
+import "yt_proto/yt/core/crypto/proto/crypto.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Describes a job to be run at a node.
@@ -297,7 +299,7 @@ message TUserJobSpec
     optional bool redirect_stdout_to_stderr = 72 [default = false];
 
     repeated string extra_environment = 74;
-    
+
     optional bool enable_fuse = 75 [default = false];
 
     reserved 38, 48, 61, 62;
@@ -363,6 +365,12 @@ message TTableOutputSpec
 
     // Table schema ID.
     optional NYT.NProto.TGuid schema_id = 13;
+}
+
+message TRemoteInputCluster
+{
+    required string name = 1;
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
 }
 
 // Describes a job submitted by a scheduler.
@@ -460,6 +468,8 @@ message TJobSpecExt
 
     optional bool enable_codegen_comparator = 39;
 
+    map<string, TRemoteInputCluster> remote_input_clusters = 40;
+
     reserved 8, 28;
 }
 
@@ -505,6 +515,10 @@ message TJobResultExt
 
     optional bool has_stderr = 21;
     optional bool has_fail_context = 22;
+
+    // MD5 digest for each output table.
+    // May be empty for some tables, e.g. if the table is not intermediate.
+    repeated NYT.NCrypto.NProto.TMD5Hash output_digests = 23;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

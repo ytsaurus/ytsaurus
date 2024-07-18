@@ -2196,7 +2196,7 @@ public:
 
         auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
 
-        auto dynamicConfig = GetDynamicConfig();
+        const auto& dynamicConfig = GetDynamicConfig();
         auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
 
         TWallTimer aclIterationTimer;

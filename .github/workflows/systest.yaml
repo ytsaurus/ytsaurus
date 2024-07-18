@@ -2,7 +2,10 @@ name: Systest
 
 on:
   schedule:
-    - cron: '0 0 0 0 0'
+    - cron: '0 0 1 1 *'
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
   start-vm:

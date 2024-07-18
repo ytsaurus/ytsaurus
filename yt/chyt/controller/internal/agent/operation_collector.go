@@ -8,15 +8,20 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
+type OperationsOrError struct {
+	Operations []yt.OperationStatus
+	Error      error
+}
+
 func CollectOperations(
 	ctx context.Context,
 	ytc yt.Client,
 	period time.Duration,
 	opNamespace string,
-	l log.Logger) <-chan []yt.OperationStatus {
+	l log.Logger) <-chan OperationsOrError {
 	l.Debug("operation collecting started", log.Duration("period", period))
 
-	eventCh := make(chan []yt.OperationStatus)
+	eventCh := make(chan OperationsOrError)
 
 	go func() {
 		ticker := time.NewTicker(period)
@@ -51,6 +56,8 @@ func CollectOperations(
 
 					if err != nil {
 						l.Error("error collecting running operations", log.Error(err))
+						eventCh <- OperationsOrError{Error: err}
+						continue
 					}
 
 					opIDs := make([]string, len(runningOps))
@@ -63,7 +70,7 @@ func CollectOperations(
 						log.Duration("elapsed_time", time.Since(startedAt)),
 						log.Int("total_operations_count", len(runningOps)))
 
-					eventCh <- runningOps
+					eventCh <- OperationsOrError{Operations: runningOps}
 				}
 			}
 		}

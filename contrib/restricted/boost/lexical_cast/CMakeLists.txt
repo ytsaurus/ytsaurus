@@ -27,6 +27,7 @@ target_link_libraries(restricted-boost-lexical_cast INTERFACE
   restricted-boost-container
   restricted-boost-core
   restricted-boost-integer
+  restricted-boost-numeric_conversion
   restricted-boost-throw_exception
   restricted-boost-type_traits
 )

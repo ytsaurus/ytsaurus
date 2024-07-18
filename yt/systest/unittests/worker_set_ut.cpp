@@ -1,5 +1,6 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/systest/worker_set.h>
@@ -265,7 +266,7 @@ TEST_F(TWorkerSetTest, ConcurrentWork)
     for (int i = 0; i < NumClients; i++) {
         auto cb = [&]() {
             for (int i = 0; i < NumOperations; i++) {
-                auto token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
+                auto token = NConcurrency::WaitFor(TWorkerSetTest::PickWorker(&workerSet)).ValueOrThrow();
                 int num = atoi(token.HostPort().c_str());
                 ++numRuns[num];
                 if (i % 3 == 0) {

@@ -446,8 +446,7 @@ struct IOperationController
      *  \note Invoker affinity: cancelable controller invoker
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const TSchedulingContext& context,
-        const NScheduler::TJobResources& allocationLimits,
+        const TAllocationSchedulingContext& context,
         const TString& treeId) = 0;
 
     //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().
@@ -561,7 +560,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
-    virtual TJobStartInfo SettleJob(TAllocationId allocationId) = 0;
+    virtual TJobStartInfo SettleJob(TAllocationId allocationId, std::optional<TJobId> lastJobId) = 0;
 
     //! Called during node heartbeat processing to process job info.
     /*!

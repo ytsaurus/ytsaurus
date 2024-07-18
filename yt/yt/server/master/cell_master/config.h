@@ -289,6 +289,8 @@ public:
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
+    //! Clock server cell tag
+    NObjectClient::TCellTag ClockClusterTag;
 
     TDiscoveryServersConfigPtr DiscoveryServer;
 
@@ -395,6 +397,7 @@ public:
     NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
+    NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
     NIncumbentServer::TIncumbentManagerConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;

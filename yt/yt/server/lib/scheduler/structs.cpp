@@ -218,7 +218,8 @@ void TCompositeNeededResources::Persist(const TStreamPersistenceContext &context
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{DefaultResources: %v, ResourcesByPoolTree: %v}",
+    builder->AppendFormat(
+        "{DefaultResources: %v, ResourcesByPoolTree: %v}",
         neededResources.DefaultResources,
         neededResources.ResourcesByPoolTree);
 }

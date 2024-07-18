@@ -85,6 +85,13 @@ public:
         return Underlying_->Track(reference, keepHolder);
     }
 
+    TErrorOr<TSharedRef> TryTrack(
+        TSharedRef reference,
+        bool keepHolder) override
+    {
+        return Underlying_->TryTrack(reference, keepHolder);
+    }
+
 private:
     const IMemoryUsageTrackerPtr Underlying_;
     std::atomic<i64> Size_ = 0;

@@ -2,12 +2,14 @@
 
 #include "private.h"
 
+#include <yt/yt/library/process/subprocess.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -28,13 +30,15 @@ using namespace NGpu;
 static constexpr auto& Logger = NJobAgent::JobAgentServerLogger;
 
 static const TString DevNvidiaPath("/dev/nvidia");
+static const TString DevInfinibandPath("/dev/infiniband");
 static const TString DevPath("/dev");
 static const TString NvidiaDevicePrefix("nvidia");
 static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
 static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
-    "/dev/nvidia-uvm"
+    "/dev/nvidia-uvm",
 };
+static const TString DummyGpuDriverVersion = "dummy";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +91,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices()
 
     if (foundMetaDeviceCount < std::ssize(MetaGpuDevices)) {
         if (!result.empty()) {
-            THROW_ERROR_EXCEPTION("Too few Nvidia meta GPU devices found, but nvidia devices presented");
+            THROW_ERROR_EXCEPTION("Too few Nvidia meta GPU devices found, but Nvidia devices presented");
         }
         YT_LOG_INFO("Too few Nvidia meta GPU devices found; assuming no device is present (Found: %v, Needed: %v)",
             foundMetaDeviceCount,
@@ -119,6 +123,11 @@ void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
 TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)
 {
     std::vector<int> result;
+
+    if (driverVersionString == DummyGpuDriverVersion) {
+        return {result};
+    }
+
     auto components = StringSplitter(driverVersionString).Split('.');
 
     try {
@@ -150,6 +159,33 @@ TString GetDummyGpuDriverVersionString()
 {
     static TString version = "dummy";
     return version;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> ListInfinibandDevices()
+{
+    if (!NFS::Exists(DevInfinibandPath)) {
+        return {};
+    }
+
+    std::vector<TString> devices;
+    TDirIterator dir(DevInfinibandPath, TDirIterator::TOptions().SetMaxLevel(1));
+
+    for (auto file = dir.begin(); file != dir.end(); ++file) {
+        if (file->fts_pathlen == file->fts_namelen || file->fts_pathlen <= DevInfinibandPath.length()) {
+            continue;
+        }
+
+        TStringBuf fileName(file->fts_path + DevInfinibandPath.length() + 1);
+        if (fileName.empty()) {
+            continue;
+        }
+
+        devices.push_back(Format("%v/%v", DevInfinibandPath, fileName));
+    }
+
+    return devices;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

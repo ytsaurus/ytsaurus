@@ -230,6 +230,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
+    registrar.Parameter("slot_init_timeout", &TThis::SlotInitTimeout)
+        .Default(TDuration::Minutes(10));
+
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
@@ -524,7 +527,7 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 void FormatValue(TStringBuilderBase* builder, const THeartbeatReporterDynamicConfigBase& config, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
-        "{NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v}",
+        "{Period: %v, Splay: %v, MinBackoff: %v, MaxBackoff: %v, BackoffMultiplier: %v}",
         config.HeartbeatExecutor.Period,
         config.HeartbeatExecutor.Splay,
         config.HeartbeatExecutor.MinBackoff,
@@ -589,6 +592,9 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("meta_cache", &TThis::MetaCache)
         .DefaultNew();
+    registrar.Parameter("summary_block_size_in_flight", &TThis::TotalInFlightBlockSize)
+        .Alias("total_in_flight_block_size")
+        .Default(0);
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .InRange(0.0, 1.0)
         .Default(0.8);
@@ -740,6 +746,14 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAllocationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_multiple_jobs", &TThis::EnableMultipleJobs)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
@@ -808,6 +822,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
         .Default();
+
+    registrar.Parameter("allocation", &TThis::Allocation)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

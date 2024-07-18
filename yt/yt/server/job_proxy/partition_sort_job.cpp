@@ -77,7 +77,7 @@ public:
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             TCallback<TUUComparerSignature> cgComparer;
-            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
+            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGComparatorApplicable()) {
                 cgComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
             }
 

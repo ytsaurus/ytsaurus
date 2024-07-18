@@ -186,7 +186,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     bool opaqueChild = false;
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     if (node->GetOpaque() && node != context->GetRootNode()) {
-        context->RegisterOpaqueChildPath(cypressManager->GetNodePath(node, context->GetTransaction()));
+        context->RegisterAsOpaque(cypressManager->GetNodePath(node, context->GetTransaction()));
         opaqueChild = true;
     }
     Save(*context, opaqueChild);
@@ -1285,8 +1285,8 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
     TSizeSerializer::Save(*context, keyToChildMap.size());
     for (const auto& [key, child] : SortHashMapByKeys(keyToChildMap)) {
         Save(*context, key);
-        const auto& typeHandler = cypressManager->GetHandler(child);
-        typeHandler->BeginCopy(child, context);
+        Save(*context, child->GetId());
+        context->RegisterChild(child);
     }
 }
 
@@ -1301,20 +1301,11 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
 
     using NYT::Load;
 
-    auto& children = trunkNode->MutableChildren();
-
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
         auto key = Load<TString>(*context);
-
-        auto* childNode = factory->EndCopyNode(inheritedAttributes, context);
-        auto* trunkChildNode = childNode->GetTrunkNode();
-
-        children.Insert(key, trunkChildNode);
-
-        AttachChild(trunkNode->GetTrunkNode(), childNode);
-
-        ++trunkNode->ChildCountDelta();
+        auto childId = Load<TNodeId>(*context);
+        context->RegisterChild(std::move(key), childId);
     }
 }
 
@@ -1588,48 +1579,21 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
 }
 
 void TListNodeTypeHandler::DoBeginCopy(
-    TListNode* node,
-    TBeginCopyContext* context)
+    TListNode* /*node*/,
+    TBeginCopyContext* /*context*/)
 {
-    TBase::DoBeginCopy(node, context);
-
-    using NYT::Save;
-
-    const auto& cypressManager = GetBootstrap()->GetCypressManager();
-
-    const auto& children = node->IndexToChild();
-    TSizeSerializer::Save(*context, children.size());
-    for (auto* child : children) {
-        const auto& typeHandler = cypressManager->GetHandler(child);
-        typeHandler->BeginCopy(child, context);
-    }
+    THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }
 
 void TListNodeTypeHandler::DoEndCopy(
     TListNode* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TEndCopyContext* /*context*/,
+    ICypressNodeFactory* /*factory*/,
+    IAttributeDictionary* /*inheritedAttributes*/)
 {
-    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
-
-    using NYT::Load;
-
-    const auto& objectManager = this->GetBootstrap()->GetObjectManager();
-    auto& indexToChild = trunkNode->IndexToChild();
-    auto& childToIndex = trunkNode->ChildToIndex();
-
-    int size = static_cast<int>(TSizeSerializer::Load(*context));
-    for (int index = 0; index < size; ++index) {
-        auto* childNode = factory->EndCopyNode(inheritedAttributes, context);
-        auto* trunkChildNode = childNode->GetTrunkNode();
-
-        indexToChild.push_back(trunkChildNode);
-        YT_VERIFY(childToIndex.emplace(trunkChildNode, index).second);
-
-        AttachChild(trunkNode, childNode);
-        objectManager->RefObject(childNode->GetTrunkNode());
-    }
+    YT_LOG_ALERT("Recieved EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
+        trunkNode->GetId());
+    THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

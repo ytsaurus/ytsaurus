@@ -1214,6 +1214,8 @@ private:
             movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
             Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
 
+            tablet->InitializeTargetServantActivationFuture();
+
             YT_VERIFY(!masterAvenueEndpointId);
         }
 
@@ -4210,7 +4212,8 @@ private:
                 Bootstrap_->GetHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 EWorkloadCategory::SystemTabletReplication,
-                Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication));
+                Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication),
+                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication));
             replicaInfo->SetReplicator(replicator);
 
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {

@@ -7,7 +7,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
 )
 
-func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]Healther) chi.Router {
+func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]HealthChecker) chi.Router {
 	r := chi.NewRouter()
 	monitoring := NewHTTPLeaderMonitoring(leader, l)
 	r.Get("/is_leader", monitoring.HandleIsLeader)
@@ -18,7 +18,7 @@ func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderC
 	return r
 }
 
-func NewServer(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]Healther) *httpserver.HTTPServer {
+func NewServer(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]HealthChecker) *httpserver.HTTPServer {
 	monitoringHandler := RegisterHTTPMonitoring(c, l, leader, healthers)
 	return httpserver.New(c.Endpoint, monitoringHandler)
 }

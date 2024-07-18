@@ -21,15 +21,15 @@
 ## Примеры
 
 Чтение из таблицы:
-```sql
+```bash
 yt select-rows "* FROM [//mytable] LIMIT 10" --format json
 ```
 Подсчет количества строк:
-```sql
+```bash
 yt select-rows "SUM(1) FROM [//mytable] GROUP BY 1" --format json
 ```
 Запросы с группировкой:
-```sql
+```bash
 yt select-rows "day, MIN(price), MAX(price) FROM [//mytable] WHERE is_ok = 1 GROUP BY timestamp / 86400 AS day" --format json
 yt select-rows "item_id FROM [//mytable] WHERE (user_id, order_id) IN ((1, 1), (1, 2), (10, 10), (10, 11))" --format json
 ```
@@ -309,7 +309,7 @@ t.list[1+1]
 from `//tmp/test` as t;
 ```
 
-```sh
+```bash
 $ yt create table '//tmp/test' --attributes '{dynamic=true; schema=<"unique_keys"=%true;"strict"=%true;>[{name=a;sort_order=ascending;type=int64;};{name=b;type_v3={type_name=struct;members=[{name=c;type={type_name=list;item=int64}}]}}]}'
 $ yt mount-table --path '//tmp/test'
 $ echo '{a=0;b={c=[]}}' | yt insert-rows --table '//tmp/test' --format yson

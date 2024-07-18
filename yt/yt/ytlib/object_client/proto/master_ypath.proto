@@ -6,6 +6,7 @@ import "yt_proto/yt/client/cell_master/proto/cell_directory.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/hive/proto/cluster_directory.proto";
 import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+import "yt/ytlib/object_client/proto/user_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,7 @@ message TReqGetClusterMeta
     optional bool populate_timestamp_provider_node_addresses = 6;
     optional bool populate_features = 7;
     optional bool populate_chaos_cache_node_addresses = 8 [default = false];
+    optional bool populate_user_directory = 9;
 }
 
 message TRspGetClusterMeta
@@ -46,6 +48,7 @@ message TRspGetClusterMeta
     repeated string timestamp_provider_node_addresses = 6;
     optional bytes features = 7; // YSON
     repeated string chaos_cache_node_addresses = 8;
+    optional NObjectClient.NProto.TUserDirectory user_directory = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +135,7 @@ message TRspRemoveMaintenance
     }
     repeated TRemovedMaintenanceCountPerTarget removed_maintenance_counts_per_target = 10;
 
-    reserved 1, 2, 3, 4, 5, 6, 8;
+    reserved 1 to 6, 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

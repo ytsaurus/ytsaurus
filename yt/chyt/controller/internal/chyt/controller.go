@@ -393,10 +393,6 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		cluster: cluster,
 		config:  parseConfig(rawConfig),
 	}
-	_, err := c.updateClusterConnection(context.Background())
-	if err != nil {
-		panic(err)
-	}
 	c.prepareTvmSecret()
 	return c
 }

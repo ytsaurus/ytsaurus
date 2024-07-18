@@ -24,7 +24,7 @@ public:
         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
             tableSchema,
             *OutputTableSchema_,
-            {.IgnoreSortOrder=true});
+            {.IgnoreSortOrder = true});
         if (compatibility != ESchemaCompatibility::FullyCompatible) {
             THROW_ERROR_EXCEPTION("Schema of output table %v is not compatible with schema of input table %v",
                 OutputPath_,

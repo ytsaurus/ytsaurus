@@ -134,7 +134,7 @@ public:
     TDuration HealthCheckPeriod;
 
     TEngineConfigBasePtr MockEngine;
-    TQLEngineConfigPtr QlEngine;
+    TQLEngineConfigPtr QLEngine;
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
     TSpytEngineConfigPtr SpytEngine;

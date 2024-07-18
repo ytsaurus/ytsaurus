@@ -678,8 +678,8 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESingleChunkTeleportStrategy,
-    (Disabled)
-    (Enabled)
+    ((Disabled) (0))
+    ((Enabled)  (1))
 );
 
 class TAutoMergeConfig
@@ -1075,6 +1075,9 @@ public:
     //! If explicitly set, overrides the default behaviour or locking output dynamic tables depending
     //! on their atomicity.
     std::optional<bool> LockOutputDynamicTables;
+
+    //! Allows writing to dynamic tables for users without explicit permit.
+    bool AllowOutputDynamicTables;
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 

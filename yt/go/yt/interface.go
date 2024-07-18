@@ -855,6 +855,13 @@ type CheckPermissionOptions struct {
 	Columns []string `http:"columns,omitnil"`
 }
 
+type CheckPermissionByACLOptions struct {
+	*PrerequisiteOptions
+	*MasterReadOptions
+
+	IgnoreMissingSubjects bool `http:"ignore_missing_subjects,omitfalse"`
+}
+
 type DisableChunkLocationsOptions struct {
 }
 
@@ -997,6 +1004,16 @@ type AdminClient interface {
 		permission Permission,
 		path ypath.YPath,
 		options *CheckPermissionOptions,
+	) (result *CheckPermissionResponse, err error)
+
+	// http:verb:"check_permission_by_acl"
+	// http:params:"user","permission","acl"
+	CheckPermissionByACL(
+		ctx context.Context,
+		user string,
+		permission Permission,
+		ACL []ACE,
+		options *CheckPermissionByACLOptions,
 	) (result *CheckPermissionResponse, err error)
 
 	// http:verb:"disable_chunk_locations"
@@ -1406,7 +1423,7 @@ type StartQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// deprecated
+	// COMPAT
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
@@ -1458,7 +1475,7 @@ type AlterQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// deprecated
+	// COMPAT
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions

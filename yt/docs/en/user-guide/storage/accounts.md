@@ -1,1 +1,1 @@
-{% include [Аккаунты](../../_includes/user-guide/storage/accounts.md) %}
+{% include [Accounts](../../_includes/user-guide/storage/accounts.md) %}

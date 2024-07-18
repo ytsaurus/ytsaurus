@@ -160,6 +160,8 @@ TClient::TClient(
         CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
+    , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+    , QueryMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Query))
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
@@ -167,8 +169,6 @@ TClient::TClient(
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
-    , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
-    , QueryMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Query))
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
@@ -777,6 +777,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     masterReq->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
     masterReq->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
     masterReq->set_populate_features(options.PopulateFeatures);
+    masterReq->set_populate_user_directory(options.PopulateUserDirectory);
     SetCachingHeader(masterReq, options);
     batchReq->AddRequest(masterReq, "cluster_meta");
 
@@ -822,6 +823,10 @@ TClusterMeta TClient::DoGetClusterMeta(
             auto schedulerFeatures = ConvertTo<IMapNodePtr>(TYsonStringBuf(schedulerRspOrError.Value()->value()));
             meta.Features = PatchNode(meta.Features, schedulerFeatures)->AsMap();
         }
+    }
+    if (options.PopulateUserDirectory) {
+        meta.UserDirectory = std::make_shared<NObjectClient::NProto::TUserDirectory>();
+        meta.UserDirectory->Swap(masterRsp->mutable_user_directory());
     }
     return meta;
 }

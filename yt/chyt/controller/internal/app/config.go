@@ -1,8 +1,6 @@
 package app
 
 import (
-	"time"
-
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -45,26 +43,15 @@ type Config struct {
 	// under which the location is accessible through http api.
 	HTTPLocationAliases map[string][]string `yson:"http_location_aliases"`
 
-	// HealthStatusExpirationPeriod defines when agent health status becomes outdated.
-	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`
-
 	BaseACL []yt.ACE `yson:"base_acl"`
 
 	DisableAPIAuth bool `yson:"disable_api_auth"`
 }
 
 const (
-	DefaultHealthStatusExpirationPeriod = time.Duration(time.Minute)
-	DefaultHTTPAPIEndpoint              = ":80"
-	DefaultHTTPMonitoringEndpoint       = ":2223"
+	DefaultHTTPAPIEndpoint        = ":80"
+	DefaultHTTPMonitoringEndpoint = ":2223"
 )
-
-func (c *Config) HealthStatusExpirationPeriodOrDefault() time.Duration {
-	if c.HealthStatusExpirationPeriod != nil {
-		return *c.HealthStatusExpirationPeriod
-	}
-	return DefaultHealthStatusExpirationPeriod
-}
 
 func (c *Config) HTTPAPIEndpointOrDefault() string {
 	if c.HTTPAPIEndpoint != nil {

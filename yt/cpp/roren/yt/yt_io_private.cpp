@@ -254,17 +254,36 @@ IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSche
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FillSchemaFromSortColumns(NYT::TTableSchema& schema, const NYT::TSortColumns& columnsToSort, bool uniqueKeys)
+{
+    for (auto& column : schema.MutableColumns()) {
+        for (const auto& sortedColumn : columnsToSort.Parts_) {
+            if (column.Name() == sortedColumn.Name()) {
+                column.SortOrder(sortedColumn.SortOrder());
+            }
+        }
+    }
+    schema.UniqueKeys(uniqueKeys);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRawYtNodeSortedWrite
     : public IRawYtSortedWrite
 {
 public:
-    TRawYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
-        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort))
+    TRawYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
+        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort)), UniqueKeys_(uniqueKeys)
     { }
 
     const NYT::TSortColumns& GetColumnsToSort() const override
     {
         return ColumnsToSort_;
+    }
+
+    void FillSchema(NYT::TTableSchema& schema) const override
+    {
+        FillSchemaFromSortColumns(schema, ColumnsToSort_, UniqueKeys_);
     }
 
     IYtJobOutputPtr CreateJobOutput(int sinkIndex) const override
@@ -288,7 +307,8 @@ public:
             return ::MakeIntrusive<TRawYtNodeSortedWrite>(
                 NYT::TRichYPath{},
                 NYT::TTableSchema{},
-                NYT::TSortColumns{}
+                NYT::TSortColumns{},
+                false
             );
         };
     }
@@ -305,12 +325,13 @@ public:
 
 private:
     NYT::TSortColumns ColumnsToSort_;
+    bool UniqueKeys_;
 };
 
 IRawYtSortedWritePtr MakeYtNodeSortedWrite(
-    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort)
+    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort,  bool uniqueKeys)
 {
-    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema), std::move(columnsToSort));
+    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema), std::move(columnsToSort), uniqueKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

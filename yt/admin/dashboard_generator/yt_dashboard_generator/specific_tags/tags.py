@@ -12,7 +12,7 @@ class SpecificTag():
         return hash((self.name, self.value))
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.name == other.name and self.value == other.value
+        return type(self) is type(other) and self.name == other.name and self.value == other.value
 
     @classmethod
     def make_new(cls, name):

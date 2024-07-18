@@ -73,7 +73,7 @@ std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TStartedAlloc
         if (allocationInfo.StartedJobInfo) {
             result.push_back(allocationInfo.StartedJobInfo->JobId);
 
-            if (ssize(result) == maxSampleSize) {
+            if (ssize(result) >= maxSampleSize) {
                 break;
             }
         }
@@ -90,7 +90,7 @@ std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TJobToRelease
     for (const auto& jobInfo : jobs) {
         result.push_back(jobInfo.JobId);
 
-        if (ssize(result) == maxSampleSize) {
+        if (ssize(result) >= maxSampleSize) {
             break;
         }
     }
@@ -160,56 +160,55 @@ public:
 
             const auto& nodeJobs = nodeIt->second.Jobs;
 
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("jobs").DoMap([&] (TFluentMap fluent) {
-                        for (const auto& [allocationId, allocationInfo] : nodeJobs.Allocations) {
-                            if (const auto& runningJob = allocationInfo.GetRunningJob();
-                                runningJob && runningJob->Confirmed) {
-                                fluent
-                                    .Item(ToString(runningJob->JobId)).BeginMap()
-                                    .Item("operation_id").Value(allocationInfo.OperationId)
-                                    .Item("stage").Value(EJobStage::Running)
-                                .EndMap();
-                            }
-
-                            for (const auto& [jobId, _] : allocationInfo.GetFinishedJobs()) {
-                                fluent
-                                    .Item(ToString(jobId)).BeginMap()
-                                    .Item("operation_id").Value(allocationInfo.OperationId)
-                                    .Item("stage").Value(EJobStage::Finished)
-                                .EndMap();
-                            }
-                        }
-                    })
-                    .Item("jobs_waiting_for_confirmation").DoMap([&] (TFluentMap fluent) {
-                        for (const auto& [allocationId, allocationInfo] : nodeJobs.Allocations) {
-                            if (const auto& runningJob = allocationInfo.GetRunningJob();
-                                runningJob && !runningJob->Confirmed) {
-                                fluent
-                                    .Item(ToString(runningJob->JobId)).BeginMap()
-                                        .Item("operation_id").Value(allocationInfo.OperationId)
-                                    .EndMap();
-                            }
-                        }
-                    })
-                    .Item("jobs_to_release").DoMapFor(nodeJobs.JobsToRelease, [] (TFluentMap fluent, const auto& pair) {
-                        const auto& [jobId, releaseFlags] = pair;
-
-                        fluent
-                            .Item(ToString(jobId)).BeginMap()
-                                .Item("release_flags").Value(ToString(releaseFlags))
+            BuildYsonFluently(consumer).BeginMap()
+                .Item("jobs").DoMap([&] (TFluentMap fluent) {
+                    for (const auto& [allocationId, allocationInfo] : nodeJobs.Allocations) {
+                        if (const auto& runningJob = allocationInfo.GetRunningJob();
+                            runningJob && runningJob->Confirmed) {
+                            fluent
+                                .Item(ToString(runningJob->JobId)).BeginMap()
+                                .Item("operation_id").Value(allocationInfo.OperationId)
+                                .Item("stage").Value(EJobStage::Running)
                             .EndMap();
-                    })
-                    .Item("jobs_to_abort").DoMapFor(nodeJobs.JobsToAbort, [] (TFluentMap fluent, const auto& pair) {
-                        const auto& [jobId, abortReason] = pair;
+                        }
 
-                        fluent
-                            .Item(ToString(jobId)).BeginMap()
-                                .Item("abort_reason").Value(abortReason)
+                        for (const auto& [jobId, _] : allocationInfo.GetFinishedJobs()) {
+                            fluent
+                                .Item(ToString(jobId)).BeginMap()
+                                .Item("operation_id").Value(allocationInfo.OperationId)
+                                .Item("stage").Value(EJobStage::Finished)
                             .EndMap();
-                    })
-                .EndMap();
+                        }
+                    }
+                })
+                .Item("jobs_waiting_for_confirmation").DoMap([&] (TFluentMap fluent) {
+                    for (const auto& [allocationId, allocationInfo] : nodeJobs.Allocations) {
+                        if (const auto& runningJob = allocationInfo.GetRunningJob();
+                            runningJob && !runningJob->Confirmed) {
+                            fluent
+                                .Item(ToString(runningJob->JobId)).BeginMap()
+                                    .Item("operation_id").Value(allocationInfo.OperationId)
+                                .EndMap();
+                        }
+                    }
+                })
+                .Item("jobs_to_release").DoMapFor(nodeJobs.JobsToRelease, [] (TFluentMap fluent, const auto& pair) {
+                    const auto& [jobId, releaseFlags] = pair;
+
+                    fluent
+                        .Item(ToString(jobId)).BeginMap()
+                            .Item("release_flags").Value(ToString(releaseFlags))
+                        .EndMap();
+                })
+                .Item("jobs_to_abort").DoMapFor(nodeJobs.JobsToAbort, [] (TFluentMap fluent, const auto& pair) {
+                    const auto& [jobId, abortReason] = pair;
+
+                    fluent
+                        .Item(ToString(jobId)).BeginMap()
+                            .Item("abort_reason").Value(abortReason)
+                        .EndMap();
+                })
+            .EndMap();
         }));
 
         return IYPathService::FromProducerLazy(std::move(producer));
@@ -520,22 +519,21 @@ public:
             operationId,
             jobTracker = JobTracker_
         ] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("jobs_ready").Value(jobsReady)
-                    .Item("allocations").Do([&] (TFluentAny innerFluent) {
-                        const auto& operationIt = jobTracker->RegisteredOperations_.find(operationId);
+            BuildYsonFluently(consumer).BeginMap()
+                .Item("jobs_ready").Value(jobsReady)
+                .Item("allocations").Do([&] (TFluentAny innerFluent) {
+                    const auto& operationIt = jobTracker->RegisteredOperations_.find(operationId);
 
-                        if (operationIt == std::end(jobTracker->RegisteredOperations_)) {
-                            return;
-                        }
+                    if (operationIt == std::end(jobTracker->RegisteredOperations_)) {
+                        return;
+                    }
 
-                        innerFluent.DoListFor(operationIt->second.TrackedAllocationIds, [] (TFluentList fluent, TAllocationId allocationId) {
-                            fluent
-                                .Item().Value(allocationId);
-                        });
-                    })
-                .EndMap();
+                    innerFluent.DoListFor(operationIt->second.TrackedAllocationIds, [] (TFluentList fluent, TAllocationId allocationId) {
+                        fluent
+                            .Item().Value(allocationId);
+                    });
+                })
+            .EndMap();
         }));
 
         return IYPathService::FromProducerLazy(std::move(producer));
@@ -780,17 +778,17 @@ TEventType TJobTracker::TAllocationInfo::ConsumePostponedEventOrCrash()
 {
     auto event = ConsumePostponedEventOrCrash();
 
-    return std::move(GetEventOrCrash<TEventType>(event));
+    return std::move(GetEventOrCrash<TEventType>(GetPtr(event)));
 }
 
 template <class TEvent>
-TEvent& TJobTracker::TAllocationInfo::GetEventOrCrash(TSchedulerToAgentAllocationEvent& event)
+TEvent& TJobTracker::TAllocationInfo::GetEventOrCrash(TNonNullPtr<TSchedulerToAgentAllocationEvent> event)
 {
-    auto* typedEvent = std::get_if<TEvent>(&event.EventSummary);
+    auto* typedEvent = std::get_if<TEvent>(&event->EventSummary);
     YT_LOG_FATAL_UNLESS(
         typedEvent,
         "Unexpected allocation event type (Event: %v)",
-        event);
+        *event);
     return *typedEvent;
 }
 
@@ -962,6 +960,10 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto nodeId = FromProto<TNodeId>(request->node_id());
     auto allocationId = FromProto<TAllocationId>(request->allocation_id());
     auto operationId = FromProto<TOperationId>(request->operation_id());
+    std::optional<TJobId> lastJobId;
+    if (request->has_last_job_id()) {
+        lastJobId = FromProto<TJobId>(request->last_job_id());
+    }
 
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION(
@@ -974,11 +976,12 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         "Controller agent disconnected");
 
     auto Logger = NControllerAgent::Logger().WithTag(
-        "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v",
+        "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, LastJobId: %v",
         nodeId,
         nodeDescriptor.GetDefaultAddress(),
         operationId,
-        allocationId);
+        allocationId,
+        lastJobId);
 
     SwitchTo(GetCancelableInvokerOrThrow());
 
@@ -999,7 +1002,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     if (!nodeInfo) {
         YT_LOG_INFO("Node is not registered in job tracker; skip settle job request");
 
-        THROW_ERROR_EXCEPTION("Node is not registered in job tracker", allocationId)
+        THROW_ERROR_EXCEPTION("Node is not registered in job tracker")
             << TErrorAttribute("incarnation_id", IncarnationId_);
     }
 
@@ -1041,7 +1044,8 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto asyncJobInfo = BIND(
         &IOperationController::SettleJob,
         operationController,
-        allocationId)
+        allocationId,
+        lastJobId)
         .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
         .Run();
 
@@ -1199,7 +1203,7 @@ void TJobTracker::TOperationUpdatesProcessingContext::AddAllocationEvent(TSchedu
     if (auto* abortedEvent = std::get_if<TAbortedAllocationSummary>(&event.EventSummary)) {
         AbortedAllocations.push_back(std::move(*abortedEvent));
     } else {
-        auto& finishedEvent = TAllocationInfo::GetEventOrCrash<TFinishedAllocationSummary>(event);
+        auto& finishedEvent = TAllocationInfo::GetEventOrCrash<TFinishedAllocationSummary>(GetPtr(event));
         FinishedAllocations.push_back(std::move(finishedEvent));
     }
 }
@@ -1314,16 +1318,16 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
     operationIdToUpdatesProcessingContext.reserve(std::size(heartbeatProcessingContext.Request.GroupedJobSummaries));
 
     DoProcessJobInfosInHeartbeat(
-        operationIdToUpdatesProcessingContext,
-        nodeInfo,
-        heartbeatProcessingContext,
-        heartbeatProcessingResult);
+        GetPtr(operationIdToUpdatesProcessingContext),
+        GetPtr(nodeInfo),
+        GetPtr(heartbeatProcessingContext),
+        GetPtr(heartbeatProcessingResult));
 
     DoProcessAllocationsInHeartbeat(
-        operationIdToUpdatesProcessingContext,
-        nodeInfo,
-        heartbeatProcessingContext,
-        heartbeatProcessingResult);
+        GetPtr(operationIdToUpdatesProcessingContext),
+        GetPtr(nodeInfo),
+        GetPtr(heartbeatProcessingContext),
+        GetPtr(heartbeatProcessingResult));
 
     heartbeatProcessingResult.Context = std::move(heartbeatProcessingContext);
 
@@ -1333,17 +1337,17 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
 }
 
 void TJobTracker::DoProcessUnconfirmedJobsInHeartbeat(
-    THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-    TNodeInfo& nodeInfo,
-    THeartbeatProcessingContext& heartbeatProcessingContext,
-    THeartbeatProcessingResult& heartbeatProcessingResult)
+    TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+    TNonNullPtr<TNodeInfo> nodeInfo,
+    TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+    TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto& heartbeatCounters = heartbeatProcessingResult.Counters;
-    auto& nodeJobs = nodeInfo.Jobs;
+    auto& heartbeatCounters = heartbeatProcessingResult->Counters;
+    auto& nodeJobs = nodeInfo->Jobs;
 
-    for (auto jobId : heartbeatProcessingContext.Request.UnconfirmedJobIds) {
+    for (auto jobId : heartbeatProcessingContext->Request.UnconfirmedJobIds) {
         auto allocationIt = nodeJobs.Allocations.find(AllocationIdFromJobId(jobId));
         if (allocationIt == std::end(nodeJobs.Allocations)) {
             continue;
@@ -1391,19 +1395,19 @@ void TJobTracker::DoProcessUnconfirmedJobsInHeartbeat(
         }
     }
 
-    heartbeatCounters.UnconfirmedJobCount = std::ssize(heartbeatProcessingContext.Request.UnconfirmedJobIds);
+    heartbeatCounters.UnconfirmedJobCount = std::ssize(heartbeatProcessingContext->Request.UnconfirmedJobIds);
 }
 
 THashSet<TJobId> TJobTracker::DoProcessAbortedAndReleasedJobsInHeartbeat(
-    TNodeInfo& nodeInfo,
-    THeartbeatProcessingContext& heartbeatProcessingContext,
-    THeartbeatProcessingResult& heartbeatProcessingResult)
+    TNonNullPtr<TNodeInfo> nodeInfo,
+    TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+    TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto* response = &heartbeatProcessingContext.RpcContext->Response();
-    auto& heartbeatCounters = heartbeatProcessingResult.Counters;
-    auto& nodeJobs = nodeInfo.Jobs;
+    auto* response = &heartbeatProcessingContext->RpcContext->Response();
+    auto& heartbeatCounters = heartbeatProcessingResult->Counters;
+    auto& nodeJobs = nodeInfo->Jobs;
 
     THashSet<TJobId> jobsToSkip;
     jobsToSkip.reserve(std::size(nodeJobs.JobsToAbort) + std::size(nodeJobs.JobsToRelease));
@@ -1453,16 +1457,16 @@ THashSet<TJobId> TJobTracker::DoProcessAbortedAndReleasedJobsInHeartbeat(
 }
 
 void TJobTracker::DoProcessJobInfosInHeartbeat(
-    THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-    TNodeInfo& nodeInfo,
-    THeartbeatProcessingContext& heartbeatProcessingContext,
-    THeartbeatProcessingResult& heartbeatProcessingResult)
+    TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+    TNonNullPtr<TNodeInfo> nodeInfo,
+    TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+    TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto* response = &heartbeatProcessingContext.RpcContext->Response();
-    auto& heartbeatCounters = heartbeatProcessingResult.Counters;
-    auto& nodeJobs = nodeInfo.Jobs;
+    auto* response = &heartbeatProcessingContext->RpcContext->Response();
+    auto& heartbeatCounters = heartbeatProcessingResult->Counters;
+    auto& nodeJobs = nodeInfo->Jobs;
 
     DoProcessUnconfirmedJobsInHeartbeat(
         operationIdToUpdatesProcessingContext,
@@ -1475,7 +1479,7 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
         heartbeatProcessingContext,
         heartbeatProcessingResult);
 
-    for (auto& [operationId, jobSummaries] : heartbeatProcessingContext.Request.GroupedJobSummaries) {
+    for (auto& [operationId, jobSummaries] : heartbeatProcessingContext->Request.GroupedJobSummaries) {
         auto traceContextGuard = CreateOperationTraceContextGuard(
             "ProcessJobSummaries",
             operationId);
@@ -1518,11 +1522,11 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                     bool wasJobEventThrottled = !HandleJobInfo(
                         allocationIt,
                         *currentJobStage,
-                        operationUpdatesProcessingContext,
+                        GetPtr(operationUpdatesProcessingContext),
                         response,
-                        jobSummary,
+                        GetPtr(jobSummary),
                         Logger,
-                        heartbeatCounters,
+                        GetPtr(heartbeatCounters),
                         shouldSkipRunningJobEvents);
                     throttledAnyEvents = wasJobEventThrottled;
 
@@ -1549,7 +1553,7 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                         .JobId = jobId,
                         .AbortReason = EAbortReason::Unknown,
                     });
-                ReportUnknownJobInArchive(jobId, operationId, nodeInfo.NodeAddress);
+                ReportUnknownJobInArchive(jobId, operationId, nodeInfo->NodeAddress);
             } else {
                 ++heartbeatCounters.JobReleaseRequestCount;
                 ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
@@ -1561,16 +1565,16 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
 }
 
 void TJobTracker::DoProcessAllocationsInHeartbeat(
-    THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
-    TNodeInfo& nodeInfo,
-    THeartbeatProcessingContext& heartbeatProcessingContext,
-    THeartbeatProcessingResult& heartbeatProcessingResult)
+    TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> operationIdToUpdatesProcessingContext,
+    TNonNullPtr<TNodeInfo> nodeInfo,
+    TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+    TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto* response = &heartbeatProcessingContext.RpcContext->Response();
-    auto& heartbeatCounters = heartbeatProcessingResult.Counters;
-    auto& nodeJobs = nodeInfo.Jobs;
+    auto* response = &heartbeatProcessingContext->RpcContext->Response();
+    auto& heartbeatCounters = heartbeatProcessingResult->Counters;
+    auto& nodeJobs = nodeInfo->Jobs;
 
     auto now = TInstant::Now();
 
@@ -1595,7 +1599,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                     return;
                 }
 
-                if (heartbeatProcessingContext.Request.AllocationIdsRunningOnNode.contains(allocationId)) {
+                if (heartbeatProcessingContext->Request.AllocationIdsRunningOnNode.contains(allocationId)) {
                     return;
                 }
 
@@ -1654,7 +1658,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
 
                 if (const auto& runningJob = allocation.GetRunningJob(); runningJob && runningJob->Confirmed) {
                     YT_LOG_INFO(
-                        "Aborting job since allocation aborted (JobId: %v, AllocationId: %v, AbortReason: %v",
+                        "Aborting job since allocation aborted (JobId: %v, AllocationId: %v, AbortReason: %v)",
                         runningJob->JobId,
                         AllocationIdFromJobId(runningJob->JobId),
                         abortedAllocationInfo->AbortReason);
@@ -1732,14 +1736,14 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
 }
 
 TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdatesProcessingContext(
-    THashMap<TOperationId, TOperationUpdatesProcessingContext>& contexts,
-    THeartbeatProcessingContext& heartbeatProcessingContext,
-    THeartbeatProcessingResult& heartbeatProcessingResult,
+    TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> contexts,
+    TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
+    TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult,
     TOperationId operationId)
 {
-    auto* response = &heartbeatProcessingContext.RpcContext->Response();
+    auto* response = &heartbeatProcessingContext->RpcContext->Response();
 
-    auto [it, inserted] = contexts.emplace(
+    auto [it, inserted] = contexts->emplace(
         operationId,
         TOperationUpdatesProcessingContext{.OperationId = operationId,});
 
@@ -1748,7 +1752,7 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
         return operationUpdatesProcessingContext;
     }
 
-    operationUpdatesProcessingContext.OperationLogger = heartbeatProcessingContext.Logger.WithTag(
+    operationUpdatesProcessingContext.OperationLogger = heartbeatProcessingContext->Logger.WithTag(
         "OperationId: %v",
         operationId);
 
@@ -1760,7 +1764,7 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
 
         ToProto(response->add_unknown_operation_ids(), operationId);
 
-        ++heartbeatProcessingResult.Counters.UnknownOperationCount;
+        ++heartbeatProcessingResult->Counters.UnknownOperationCount;
 
         return operationUpdatesProcessingContext;
     }
@@ -1790,11 +1794,11 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
 bool TJobTracker::HandleJobInfo(
     TNodeJobs::TAllocationIterator allocationIt,
     EJobStage currentJobStage,
-    TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
-    TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary>& jobSummary,
+    TNonNullPtr<TOperationUpdatesProcessingContext> operationUpdatesProcessingContext,
+    TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+    TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters,
+    TNonNullPtr<THeartbeatCounters> heartbeatCounters,
     bool shouldSkipRunningJobEvents)
 {
     switch (currentJobStage) {
@@ -1822,19 +1826,19 @@ bool TJobTracker::HandleJobInfo(
 
 bool TJobTracker::HandleRunningJobInfo(
     TNodeJobs::TAllocationIterator allocationIt,
-    TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
-    TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary>& jobSummary,
+    TNonNullPtr<TOperationUpdatesProcessingContext> operationUpdatesProcessingContext,
+    TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+    TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters,
+    TNonNullPtr<THeartbeatCounters> heartbeatCounters,
     bool shouldSkipRunningJobEvents)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto& allocation = allocationIt->second;
 
-    auto newJobStage = JobStageFromJobState(jobSummary->State);
-    auto jobId = jobSummary->Id;
+    auto newJobStage = JobStageFromJobState((*jobSummary)->State);
+    auto jobId = (*jobSummary)->Id;
 
     YT_VERIFY(allocation.GetRunningJob());
 
@@ -1845,13 +1849,13 @@ bool TJobTracker::HandleRunningJobInfo(
             "Job confirmed (JobStage: %v)",
             newJobStage);
 
-        ++heartbeatCounters.ConfirmedJobCount;
+        ++heartbeatCounters->ConfirmedJobCount;
     }
 
     const auto& requestedActionInfo = runningJob.RequestedActionInfo;
 
     if (newJobStage == EJobStage::Running) {
-        ++heartbeatCounters.RunningJobCount;
+        ++heartbeatCounters->RunningJobCount;
 
         if (const auto& postponedEvent = allocation.GetPostponedEvent();
             postponedEvent && std::holds_alternative<TAbortedAllocationSummary>(postponedEvent->EventSummary))
@@ -1872,19 +1876,19 @@ bool TJobTracker::HandleRunningJobInfo(
 
         if (shouldSkipRunningJobEvents) {
             YT_LOG_INFO("Skipping running job summary because operation controller invoker is overloaded");
-            ++heartbeatCounters.ThrottledRunningJobEventCount;
+            ++heartbeatCounters->ThrottledRunningJobEventCount;
 
             return /*wasHandled*/ false;
         }
 
-        operationUpdatesProcessingContext.JobSummaries.push_back(std::move(jobSummary));
+        operationUpdatesProcessingContext->JobSummaries.push_back(std::move(*jobSummary));
 
         return /*wasHandled*/ true;
     }
 
     YT_VERIFY(newJobStage == EJobStage::Finished);
 
-    ++heartbeatCounters.FinishedJobCount;
+    ++heartbeatCounters->FinishedJobCount;
 
     Visit(
         requestedActionInfo,
@@ -1906,26 +1910,26 @@ bool TJobTracker::HandleRunningJobInfo(
 
     allocation.FinishRunningJob();
 
-    operationUpdatesProcessingContext.JobSummaries.push_back(std::move(jobSummary));
+    operationUpdatesProcessingContext->JobSummaries.push_back(std::move(*jobSummary));
 
     return /*wasHandled*/ true;
 }
 
 bool TJobTracker::HandleFinishedJobInfo(
     TNodeJobs::TAllocationIterator /*allocationIt*/,
-    TOperationUpdatesProcessingContext& /*operationUpdatesProcessingContext*/,
-    TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary>& jobSummary,
+    TNonNullPtr<TOperationUpdatesProcessingContext> /*operationUpdatesProcessingContext*/,
+    TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
+    TNonNullPtr<std::unique_ptr<TJobSummary>> jobSummary,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters)
+    TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    auto newJobStage = JobStageFromJobState(jobSummary->State);
-    auto jobId = jobSummary->Id;
+    auto newJobStage = JobStageFromJobState((*jobSummary)->State);
+    auto jobId = (*jobSummary)->Id;
 
     if (newJobStage < EJobStage::Finished) {
-        ++heartbeatCounters.StaleRunningJobCount;
+        ++heartbeatCounters->StaleRunningJobCount;
 
         YT_LOG_DEBUG(
             "Stale job info received (CurrentJobStage: %v, ReceivedJobState: %v)",
@@ -1935,7 +1939,7 @@ bool TJobTracker::HandleFinishedJobInfo(
         return /*wasHandled*/ true;
     }
 
-    ++heartbeatCounters.DuplicatedFinishedJobCount;
+    ++heartbeatCounters->DuplicatedFinishedJobCount;
 
     ToProto(
         response->add_jobs_to_store(),
@@ -1950,11 +1954,11 @@ bool TJobTracker::HandleFinishedJobInfo(
 }
 
 void TJobTracker::ProcessInterruptionRequest(
-    TCtxHeartbeat::TTypedResponse* response,
+    TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
     const TInterruptionRequestOptions& requestOptions,
     TJobId jobId,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters)
+    TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1963,7 +1967,7 @@ void TJobTracker::ProcessInterruptionRequest(
         requestOptions.Reason,
         requestOptions.Timeout);
 
-    ++heartbeatCounters.JobInterruptionRequestCount;
+    ++heartbeatCounters->JobInterruptionRequestCount;
 
     auto* protoJobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(protoJobToInterrupt->mutable_job_id(), jobId);
@@ -1972,17 +1976,17 @@ void TJobTracker::ProcessInterruptionRequest(
 }
 
 void TJobTracker::ProcessGracefulAbortRequest(
-    TCtxHeartbeat::TTypedResponse* response,
+    TNonNullPtr<TCtxHeartbeat::TTypedResponse> response,
     const TGracefulAbortRequestOptions& requestOptions,
     TJobId jobId,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters)
+    TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO("Request node to gracefully abort job");
 
-    ++heartbeatCounters.JobFailureRequestCount;
+    ++heartbeatCounters->JobFailureRequestCount;
 
     if (Config_->EnableGracefulAbort) {
         NProto::ToProto(
@@ -2373,9 +2377,7 @@ std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded
             "Removing allocation (OperationId: %v, AllocationId: %v, PostponedEvent: %v)",
             operationId,
             allocationId,
-            allocation.GetPostponedEvent()
-                ? ToString(*allocation.GetPostponedEvent())
-                : "None");
+            allocation.GetPostponedEvent());
 
         auto result = std::move(allocation);
 

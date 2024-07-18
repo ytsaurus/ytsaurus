@@ -400,6 +400,26 @@ func makeCheckPermissionResult(result *rpc_proxy.TCheckPermissionResult) (yt.Che
 	return ret, nil
 }
 
+func makeCheckPermissionByACLResult(result *rpc_proxy.TCheckPermissionByAclResult) (yt.CheckPermissionResult, error) {
+	if result == nil {
+		return yt.CheckPermissionResult{}, xerrors.Errorf("unable to convert nil check permission result")
+	}
+
+	action, err := makeSecurityActionType(result.GetAction())
+	if err != nil {
+		return yt.CheckPermissionResult{}, err
+	}
+
+	ret := yt.CheckPermissionResult{
+		Action:      action,
+		SubjectID:   makeNodeID(result.SubjectId),
+		SubjectName: result.SubjectName,
+		//TODO: MissingSubjects
+	}
+
+	return ret, nil
+}
+
 func makeCheckPermissionResponse(response *rpc_proxy.TRspCheckPermission) (*yt.CheckPermissionResponse, error) {
 	if response == nil {
 		return nil, nil
@@ -425,6 +445,23 @@ func makeCheckPermissionResponse(response *rpc_proxy.TRspCheckPermission) (*yt.C
 	ret := &yt.CheckPermissionResponse{
 		CheckPermissionResult: result,
 		Columns:               columns,
+	}
+
+	return ret, nil
+}
+
+func makeCheckPermissionByACLResponse(response *rpc_proxy.TRspCheckPermissionByAcl) (*yt.CheckPermissionResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	result, err := makeCheckPermissionByACLResult(response.Result)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := &yt.CheckPermissionResponse{
+		CheckPermissionResult: result,
 	}
 
 	return ret, nil

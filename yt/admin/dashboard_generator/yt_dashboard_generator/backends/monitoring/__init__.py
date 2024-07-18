@@ -323,6 +323,12 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         assert len(rows) == len(self.row_heights)
 
         max_len = max(len(row) for row in rows)
+
+        if rowset.cell_per_row is not None:
+            if max_len > rowset.cell_per_row:
+                raise RuntimeError("Row has more cells than specified in rowset: {} > {}".format(max_len, rowset.cell_per_row))
+            max_len = max(max_len, rowset.cell_per_row)
+
         width = self.BOARD_WIDTH // max_len
 
         for row, specified_height in zip(rows, self.row_heights):

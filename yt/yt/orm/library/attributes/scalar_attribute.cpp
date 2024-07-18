@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
@@ -13,6 +14,7 @@
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <library/cpp/iterator/functools.h>
 #include <library/cpp/yt/misc/cast.h>
 
 #include <google/protobuf/io/coded_stream.h>
@@ -50,231 +52,68 @@ constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool IsMutable>
-struct TMutabilityTraits;
-
-template <>
-struct TMutabilityTraits</*IsMutable*/ true>
-{
-    using TGenericMessage = NProtoBuf::Message;
-
-    static TGenericMessage* GetMessage(TGenericMessage* root)
-    {
-        return const_cast<TGenericMessage*>(root);
-    }
-
-    static TGenericMessage* GetRepeatedMessage(TGenericMessage* root, const FieldDescriptor* field, int index)
-    {
-        return root->GetReflection()->MutableRepeatedMessage(
-            const_cast<TGenericMessage*>(root),
-            field,
-            index);
-    }
-
-    static TGenericMessage* GetMessage(TGenericMessage* root, const FieldDescriptor* field)
-    {
-        return root->GetReflection()->MutableMessage(const_cast<TGenericMessage*>(root), field);
-    }
-};
-
-template <>
-struct TMutabilityTraits</*IsMutable*/ false>
-{
-    using TGenericMessage = const NProtoBuf::Message;
-
-    static TGenericMessage* GetMessage(const TGenericMessage* root)
-    {
-        return root;
-    }
-
-    static TGenericMessage* GetRepeatedMessage(TGenericMessage* root, const FieldDescriptor* field, int index)
-    {
-        return &root->GetReflection()->GetRepeatedMessage(
-            *root,
-            field,
-            index);
-    }
-
-    static TGenericMessage* GetMessage(TGenericMessage* root, const FieldDescriptor* field)
-    {
-        return &root->GetReflection()->GetMessage(*root, field);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TString& GetKey(
-    const NProtoBuf::Message& message,
-    const FieldDescriptor* field,
-    TString& scratch)
-{
-    const auto* reflection = message.GetReflection();
-    switch (field->cpp_type()) {
-        case FieldDescriptor::CPPTYPE_INT32:
-            scratch = ToString(reflection->GetInt32(message, field));
-            return scratch;
-        case FieldDescriptor::CPPTYPE_INT64:
-            scratch = ToString(reflection->GetInt64(message, field));
-            return scratch;
-        case FieldDescriptor::CPPTYPE_UINT32:
-            scratch = ToString(reflection->GetUInt32(message, field));
-            return scratch;
-        case FieldDescriptor::CPPTYPE_UINT64:
-            scratch = ToString(reflection->GetUInt64(message, field));
-            return scratch;
-        case FieldDescriptor::CPPTYPE_BOOL:
-            scratch = ToString(reflection->GetBool(message, field));
-            return scratch;
-        case FieldDescriptor::CPPTYPE_STRING:
-            return reflection->GetStringReference(message, field, &scratch);
-        default:
-            break;
-    }
-    THROW_ERROR_EXCEPTION("Unexpected map key type %v",
-        static_cast<int>(field->cpp_type()));
-}
-
-
-void SetKey(
-    NProtoBuf::Message* message,
-    const FieldDescriptor* field,
-    const TString& key)
-{
-    const auto* reflection = message->GetReflection();
-    switch (field->cpp_type()) {
-        case FieldDescriptor::CPPTYPE_INT32:
-            reflection->SetInt32(message, field, FromString<i32>(key));
-            return;
-        case FieldDescriptor::CPPTYPE_INT64:
-            reflection->SetInt64(message, field, FromString<i64>(key));
-            return;
-        case FieldDescriptor::CPPTYPE_UINT32:
-            reflection->SetUInt32(message, field, FromString<ui32>(key));
-            return;
-        case FieldDescriptor::CPPTYPE_UINT64:
-            reflection->SetUInt64(message, field, FromString<ui64>(key));
-            return;
-        case FieldDescriptor::CPPTYPE_BOOL:
-            reflection->SetBool(message, field, FromString<bool>(key));
-            return;
-        case FieldDescriptor::CPPTYPE_STRING:
-            reflection->SetString(message, field, key);
-            return;
-        default:
-            break;
-    }
-    THROW_ERROR_EXCEPTION("Unexpected map key type %v",
-        static_cast<int>(field->cpp_type()));
-}
-
-template <bool IsMutable>
-struct TLookupMapItemResult
-{
-    typename TMutabilityTraits<IsMutable>::TGenericMessage* Message;
-    int Index;
-};
-
-template <bool IsMutable>
-std::optional<TLookupMapItemResult<IsMutable>> LookupMapItem(
-    typename TMutabilityTraits<IsMutable>::TGenericMessage* message,
-    const FieldDescriptor* field,
-    const TString& key)
-{
-    YT_VERIFY(field->is_map());
-    const auto* keyType = field->message_type()->map_key();
-
-    const auto* reflection = message->GetReflection();
-    int count = reflection->FieldSize(*message, field);
-
-    TString tmp;
-    for (int index = 0; index < count; ++index) {
-        auto* item = TMutabilityTraits<IsMutable>::GetRepeatedMessage(message, field, index);
-        const TString& mapKey = GetKey(*item, keyType, tmp);
-        if (mapKey == key) {
-            return TLookupMapItemResult<IsMutable>{item, index};
-        }
-    }
-    return std::nullopt;
-}
-
-NProtoBuf::Message* AddMapItem(NProtoBuf::Message* message, const FieldDescriptor* field, const TString& key)
-{
-    YT_VERIFY(field->is_map());
-    const auto* keyType = field->message_type()->map_key();
-
-    auto* item = message->GetReflection()->AddMessage(message, field);
-    YT_VERIFY(item);
-
-    SetKey(item, keyType, key);
-    return item;
-}
-
-template <bool IsMutable>
-std::optional<typename TMutabilityTraits<IsMutable>::TGenericMessage*> LookupMapItemValue(
-    typename TMutabilityTraits<IsMutable>::TGenericMessage* message,
-    const FieldDescriptor* field,
-    const TString& key)
-{
-    auto itemIfPresent = LookupMapItem<IsMutable>(message, field, key);
-
-    if (itemIfPresent) {
-        auto item = itemIfPresent->Message;
-        YT_ASSERT(field->message_type()->map_value()->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE);
-        const auto* fieldDescriptor = field->message_type()->map_value();
-        return TMutabilityTraits<IsMutable>::GetMessage(item, fieldDescriptor);
-    } else {
-        return std::nullopt;
-    }
-}
-
-NProtoBuf::Message* AddMapItemValue(NProtoBuf::Message* message, const FieldDescriptor* field, const TString& key)
-{
-    auto* item = AddMapItem(message, field, key);
-    YT_ASSERT(field->message_type()->map_value()->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE);
-    return TMutabilityTraits</*IsMutable*/ true>::GetMessage(item, field->message_type()->map_value());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<int> LookupUnknownYsonFieldsItem(UnknownFieldSet* unknownFields, TStringBuf key, TString& value)
+// Returns [index of the item, its content].
+TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
+    UnknownFieldSet* unknownFields,
+    TStringBuf key)
 {
     int count = unknownFields->field_count();
     for (int index = 0; index < count; ++index) {
         auto* field = unknownFields->mutable_field(index);
         if (field->number() == UnknownYsonFieldNumber) {
+            if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected type %v of item within yson unknown field set",
+                    static_cast<int>(field->type()));
+            }
+
             UnknownFieldSet tmpItem;
-            THROW_ERROR_EXCEPTION_UNLESS(field->type() == UnknownField::TYPE_LENGTH_DELIMITED,
-                "Unexpected type %v of item within yson unknown field set",
-                static_cast<int>(field->type()));
-            THROW_ERROR_EXCEPTION_UNLESS(tmpItem.ParseFromString(field->length_delimited()),
-                "Cannot parse UnknownYsonFields item");
-            THROW_ERROR_EXCEPTION_UNLESS(tmpItem.field_count() == 2,
-                "Unexpected field count %v in item within yson unknown field set",
-                tmpItem.field_count());
+            if (!tmpItem.ParseFromString(field->length_delimited())) {
+                return TError(EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
+            }
+
+            if (tmpItem.field_count() != 2) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected field count %v in item within yson unknown field set",
+                    tmpItem.field_count());
+            }
+
             auto* keyField = tmpItem.mutable_field(0);
             auto* valueField = tmpItem.mutable_field(1);
             if (keyField->number() != ProtobufMapKeyFieldNumber) {
                 std::swap(keyField, valueField);
             }
-            THROW_ERROR_EXCEPTION_UNLESS(keyField->number() == ProtobufMapKeyFieldNumber,
-                "Unexpected key tag %v of item within yson unknown field set",
-                keyField->number());
-            THROW_ERROR_EXCEPTION_UNLESS(valueField->number() == ProtobufMapValueFieldNumber,
-                "Unexpected value tag %v of item within yson unknown field set",
-                valueField->number());
-            THROW_ERROR_EXCEPTION_UNLESS(keyField->type() == UnknownField::TYPE_LENGTH_DELIMITED,
-                "Unexpected key type %v of item within yson unknown field set",
-                static_cast<int>(keyField->type()));
-            THROW_ERROR_EXCEPTION_UNLESS(valueField->type() == UnknownField::TYPE_LENGTH_DELIMITED,
-                "Unexpected value type %v of item within yson unknown field set",
-                static_cast<int>(valueField->type()));
+
+            if (keyField->number() != ProtobufMapKeyFieldNumber) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected key tag %v of item within yson unknown field set",
+                    keyField->number());
+            }
+            if (keyField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected key type %v of item within yson unknown field set",
+                    static_cast<int>(keyField->type()));
+            }
+
+            if (valueField->number() != ProtobufMapValueFieldNumber) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected value tag %v of item within yson unknown field set",
+                    valueField->number());
+            }
+            if (valueField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(EErrorCode::InvalidData,
+                    "Unexpected value type %v of item within yson unknown field set",
+                    static_cast<int>(valueField->type()));
+            }
+
             if (keyField->length_delimited() == key) {
-                value = std::move(*valueField->mutable_length_delimited());
-                return index;
+                return std::pair<int, TYsonString>{
+                    index,
+                    TYsonString(valueField->length_delimited())};
             }
         }
     }
-    return std::nullopt;
+    return TError(EErrorCode::MissingKey, "Unknown yson field not found");
 }
 
 TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
@@ -295,202 +134,9 @@ TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int ConvertToEnumValue(const INodePtr& node, const FieldDescriptor* field)
-{
-    YT_VERIFY(field->cpp_type() == FieldDescriptor::CPPTYPE_ENUM);
-    if (node->GetType() == ENodeType::Entity) {
-        return field->default_value_enum()->number();
-    }
-    return ConvertToProtobufEnumValue<int>(ReflectProtobufEnumType(field->enum_type()), node);
-}
-
-template <typename T>
-T ConvertToProtobufValue(const INodePtr& node, const T& defaultValue)
-{
-    if (node->GetType() == ENodeType::Entity) {
-        return defaultValue;
-    }
-    return ConvertTo<T>(node);
-}
-
-[[noreturn]] void ThrowUnsupportedCppType(google::protobuf::FieldDescriptor::CppType cppType, TStringBuf path)
-{
-    THROW_ERROR_EXCEPTION("Unsupported cpp_type %v for attribute %Qv",
-        static_cast<int>(cppType),
-        path);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool IsMutableParameter>
-class IHandler
-{
-protected:
-    constexpr static bool IsMutable = IsMutableParameter;
-    using TGenericMessage = typename TMutabilityTraits<IsMutable>::TGenericMessage;
-
-public:
-    virtual ~IHandler() = default;
-
-    //! Handle regular field.
-    virtual void HandleRegular(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf path) const = 0;
-
-    //! Handle list (repeated) field item.
-    virtual void HandleListItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TIndexParseResult parseIndexResult,
-        TStringBuf path) const = 0;
-
-    virtual void HandleListExpansion(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf prefixPath,
-        TStringBuf suffixPath) const = 0;
-
-    //! Handle map item.
-    virtual void HandleMapItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        const TString& key,
-        TStringBuf path) const = 0;
-
-    //! The field is not found.
-    virtual void HandleUnknown(TGenericMessage* message, NYPath::TTokenizer& tokenizer) const = 0;
-
-    //! Handle empty intermediate parents.
-    //! If returns false, traverse stops, otherwise creates parent initialized with default values.
-    virtual bool HandleMissing(TStringBuf path) const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool IsMutable>
-void Traverse(
-    typename TMutabilityTraits<IsMutable>::TGenericMessage* root,
-    const NYPath::TYPath& path,
-    const IHandler<IsMutable>& handler)
-{
-    NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-
-    while (true) {
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto* descriptor = root->GetDescriptor();
-        const auto* field = descriptor->FindFieldByName(tokenizer.GetLiteralValue());
-        if (!field) {
-            handler.HandleUnknown(root, tokenizer);
-            break;
-        }
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            handler.HandleRegular(root, field, tokenizer.GetPrefix());
-            break;
-        }
-        if (field->is_map()) {
-            const auto* mapType = field->message_type();
-            tokenizer.Expect(NYPath::ETokenType::Slash);
-            tokenizer.Advance();
-            tokenizer.Expect(NYPath::ETokenType::Literal);
-            TString key = tokenizer.GetLiteralValue();
-            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                handler.HandleMapItem(root, field, key, tokenizer.GetPrefix());
-                break;
-            } else {
-                THROW_ERROR_EXCEPTION_UNLESS(
-                    mapType->map_value()->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE,
-                    "Unexpected type %v for map value at %Qv",
-                    mapType->map_value()->type_name(),
-                    tokenizer.GetPrefix());
-
-                auto valueIfPresent = LookupMapItemValue<IsMutable>(root, field, key);
-                if (!valueIfPresent) {
-                    if (handler.HandleMissing(tokenizer.GetPrefix())) {
-                        if constexpr (IsMutable) {
-                            valueIfPresent.emplace(AddMapItemValue(
-                                TMutabilityTraits<IsMutable>::GetMessage(root),
-                                field,
-                                key));
-                            THROW_ERROR_EXCEPTION_UNLESS(*valueIfPresent,
-                                "Could not add map item with key %Q", key);
-                        } else {
-                            THROW_ERROR_EXCEPTION("Cannot add map item to immutable field %Qv",
-                                root->GetTypeName());
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                YT_VERIFY(valueIfPresent && *valueIfPresent);
-                root = *valueIfPresent;
-            }
-        } else if (field->is_repeated()) {
-            tokenizer.Expect(NYPath::ETokenType::Slash);
-            auto prefix = tokenizer.GetPrefix();
-            tokenizer.Advance();
-            if (tokenizer.GetType() == NYPath::ETokenType::Asterisk) {
-                handler.HandleListExpansion(root, field, prefix, tokenizer.GetSuffix());
-                break;
-            }
-            tokenizer.ExpectListIndex();
-
-            TString indexToken = tokenizer.GetLiteralValue();
-            auto* reflection = root->GetReflection();
-            int count = reflection->FieldSize(*root, field);
-            auto parseIndexResult = ParseListIndex(indexToken, count);
-            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                handler.HandleListItem(root, field, parseIndexResult, tokenizer.GetPrefix());
-                break;
-            } else {
-                THROW_ERROR_EXCEPTION_UNLESS(field->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE,
-                    "Unexpected type %v of attribute %Qv",
-                    field->type_name(),
-                    tokenizer.GetPrefixPlusToken());
-                if (parseIndexResult.IsOutOfBounds(count)) {
-                    THROW_ERROR_EXCEPTION_IF(handler.HandleMissing(tokenizer.GetPrefix()),
-                        "Cannot add default values to repeated field %Qv", tokenizer.GetPrefix());
-                    break;
-                } else {
-                    auto index = parseIndexResult.Index;
-                    root = TMutabilityTraits<IsMutable>::GetRepeatedMessage(root, field, index);
-                }
-            }
-        } else if (field->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
-            const auto* reflection = root->GetReflection();
-            if (reflection->HasField(*root, field)) {
-                root = TMutabilityTraits<IsMutable>::GetMessage(root, field);
-            } else if (handler.HandleMissing(tokenizer.GetPrefix())) {
-                THROW_ERROR_EXCEPTION_UNLESS(IsMutable,
-                    "Cannot add message %Qv to immutable field %Qv",
-                    field->type_name(),
-                    root->GetTypeName());
-                root = TMutabilityTraits<IsMutable>::GetMessage(root, field);
-            } else {
-                break;
-            }
-        } else {
-            THROW_ERROR_EXCEPTION("Unexpected type %v of attribute %Qv",
-                field->type_name(),
-                tokenizer.GetPrefixPlusToken());
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TClearVisitor final
     : public TProtoVisitor<Message*>
 {
-public:
-    TClearVisitor()
-    {
-        AllowAsterisk_ = true;
-    }
-
 protected:
     void VisitWholeMessage(
         Message* message,
@@ -511,7 +157,7 @@ protected:
         EVisitReason reason) override
     {
         if (PathComplete()) {
-            // User supplied a useless trailing asterisk. Avoid quardatic deletion.
+            // User supplied a useless trailing asterisk. Avoid quadratic deletion.
             VisitField(message, fieldDescriptor, EVisitReason::Manual);
             return;
         }
@@ -525,7 +171,7 @@ protected:
         EVisitReason reason) override
     {
         if (PathComplete()) {
-            // User supplied a useless trailing asterisk. Avoid quardatic deletion.
+            // User supplied a useless trailing asterisk. Avoid quadratic deletion.
             VisitField(message, fieldDescriptor, EVisitReason::Manual);
             return;
         }
@@ -541,17 +187,22 @@ protected:
     {
         auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
 
-        TString value;
-        auto index = LookupUnknownYsonFieldsItem(unknownFields, name, value);
+        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name);
 
-        if (index.has_value()) {
+        if (errorOrItem.IsOK()) {
+            auto [index, value] = std::move(errorOrItem).Value();
             if (PathComplete()) {
-                unknownFields->DeleteSubrange(*index, 1);
+                unknownFields->DeleteSubrange(index, 1);
                 return;
             }
-            if (RemoveFromNodeByPath(value)) {
-                auto* item = unknownFields->mutable_field(*index)->mutable_length_delimited();
-                *item = SerializeUnknownYsonFieldsItem(name, value);
+
+            auto root = value
+                ? ConvertToNode(value)
+                : GetEphemeralNodeFactory()->CreateMap();
+            if (RemoveNodeByYPath(root, NYPath::TYPath{Tokenizer_.GetInput()})) {
+                value = ConvertToYsonString(root);
+                auto* item = unknownFields->mutable_field(index)->mutable_length_delimited();
+                *item = SerializeUnknownYsonFieldsItem(name, value.AsStringBuf());
                 return;
             }
         }
@@ -564,8 +215,8 @@ protected:
         const FieldDescriptor* fieldDescriptor,
         EVisitReason reason) override
     {
-        auto* reflection = message->GetReflection();
         if (PathComplete()) {
+            auto* reflection = message->GetReflection();
             if (!fieldDescriptor->has_presence() ||
                 reflection->HasField(*message, fieldDescriptor))
             {
@@ -612,17 +263,6 @@ protected:
         TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
     }
 
-    bool RemoveFromNodeByPath(TString& nodeString)
-    {
-        auto root = ConvertToNode(TYsonStringBuf{nodeString});
-        Expect(NYPath::ETokenType::Slash);
-        if (RemoveNodeByYPath(root, NYPath::TYPath{Tokenizer_.GetInput()})) {
-            nodeString = ConvertToYsonString(root).ToString();
-            return true;
-        }
-        return false;
-    }
-
     void DeleteRepeatedFieldEntry(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
@@ -635,396 +275,385 @@ protected:
         }
         reflection->RemoveLast(message, fieldDescriptor);
     }
-}; //TClearVisitor
+}; // TClearVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSetHandler
-    : public IHandler</*IsMutable*/ true>
+class TSetVisitor final
+    : public TProtoVisitor<Message*>
 {
 public:
-    TSetHandler(
+    TSetVisitor(
         const INodePtr& value,
         const TProtobufWriterOptions& options,
         bool recursive)
-        : Value_(value)
+        : CurrentValue_(value)
         , Options_(options)
         , Recursive_(recursive)
-    { }
-
-    void HandleRegular(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf path) const final
     {
-        if (field->is_map()) {
-            HandleMap(message, field, path);
-        } else if (field->is_repeated()) {
-            message->GetReflection()->ClearField(message, field);
-            if (Value_->GetType() != ENodeType::Entity) {
-                AppendValues(message, field, path, Value_->AsList()->GetChildren());
-            }
-        } else {
-            SetValue(message, field, path, Value_);
-        }
+        SetProcessAttributeDictionary(true);
     }
 
-    void HandleListItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TIndexParseResult parseIndexResult,
-        TStringBuf path) const final
-    {
-        YT_VERIFY(field->is_repeated());
-        const auto* reflection = message->GetReflection();
-        int count = reflection->FieldSize(*message, field);
-
-        switch (parseIndexResult.IndexType) {
-            case EListIndexType::Absolute: {
-                parseIndexResult.EnsureIndexIsWithinBounds(count, path);
-                SetValue(message, field, parseIndexResult.Index, path, Value_);
-                break;
-            }
-            case EListIndexType::Relative: {
-                // Index may be pointing past end of the list
-                // as Set with index currently works as `insert before index`.
-                parseIndexResult.EnsureIndexIsWithinBounds(count + 1, path);
-                int beforeIndex = parseIndexResult.Index;
-                AppendValues(message, field, path, {Value_});
-                for (int index = beforeIndex; index < count; ++index) {
-                    reflection->SwapElements(message, field, index, count);
-                }
-                break;
-            }
-        }
-    }
-
-    void HandleListExpansion(
-        TGenericMessage* /*message*/,
-        const FieldDescriptor* /*field*/,
-        TStringBuf /*prefixPath*/,
-        TStringBuf /*suffixPath*/) const final
-    {
-        THROW_ERROR_EXCEPTION("Set handler does not support list expansions");
-    }
-
-    void HandleMapItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        const TString& key,
-        TStringBuf path) const final
-    {
-        YT_VERIFY(field->is_map());
-
-        auto itemOrError = LookupMapItem<IsMutable>(message, field, key);
-        TGenericMessage* item = itemOrError
-            ? itemOrError->Message
-            : AddMapItem(message, field, key);
-        SetValue(item, field->message_type()->map_value(), path, Value_);
-    }
-
-    void HandleUnknown(TGenericMessage* message, NYPath::TTokenizer& tokenizer) const final
-    {
-        switch (Options_.UnknownYsonFieldModeResolver(NYPath::TYPath{tokenizer.GetPrefixPlusToken()})) {
-            case EUnknownYsonFieldsMode::Skip:
-                return;
-            // Forward in a object type handler attribute leaf is interpreted as Fail.
-            case EUnknownYsonFieldsMode::Forward:
-            case EUnknownYsonFieldsMode::Fail:
-                THROW_ERROR_EXCEPTION("Attribute %Qv is unknown", tokenizer.GetPrefixPlusToken());
-            case EUnknownYsonFieldsMode::Keep:
-                break;
-        }
-        TString key = tokenizer.GetLiteralValue();
-        TString value;
-        TString* item = nullptr;
-        auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
-        auto index = LookupUnknownYsonFieldsItem(unknownFields, key, value);
-        if (!index.has_value()) {
-            THROW_ERROR_EXCEPTION_UNLESS(Recursive_ || tokenizer.GetSuffix().empty(),
-                "Attribute %Qv is missing",
-                tokenizer.GetPrefixPlusToken());
-            item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
-        } else {
-            item = unknownFields->mutable_field(*index)->mutable_length_delimited();
-        }
-
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            value = ConvertToYsonString(Value_).ToString();
-        } else {
-            SetNodeValueByPath(value, tokenizer, Value_, Recursive_);
-        }
-        *item = SerializeUnknownYsonFieldsItem(key, value);
-    }
-
-    bool HandleMissing(TStringBuf path) const final
-    {
-        THROW_ERROR_EXCEPTION_UNLESS(Recursive_, "Attribute %Qv is missing", path);
-        return true;
-    }
-
-private:
-    const INodePtr& Value_;
+protected:
+    INodePtr CurrentValue_;
     const TProtobufWriterOptions& Options_;
     const bool Recursive_;
 
-    void HandleMap(TGenericMessage* message, const FieldDescriptor* field, TStringBuf path) const
+    void VisitRegularMessage(
+        Message* message,
+        const Descriptor* descriptor,
+        EVisitReason reason) override
     {
-        YT_VERIFY(field->is_map());
-        const auto* reflection = message->GetReflection();
-        reflection->ClearField(message, field);
+        if (PathComplete()) {
+            message->Clear();
 
-        if (Value_->GetType() == ENodeType::Entity) {
+            if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
+                for (const auto& [key, value] : SortedMapChildren()) {
+                    if (value->GetType() == ENodeType::Entity) {
+                        continue;
+                    }
+                    auto checkpoint = CheckpointBranchedTraversal(key);
+                    TemporarilySetCurrentValue(checkpoint, value);
+                    const auto* fieldDescriptor = descriptor->FindFieldByName(key);
+                    if (fieldDescriptor) {
+                        VisitField(message, fieldDescriptor, EVisitReason::Manual);
+                    } else {
+                        VisitUnrecognizedField(message, descriptor, key, reason);
+                    }
+                }
+            } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
+                Throw(EErrorCode::Unimplemented,
+                    "Cannot set a message from a yson node of type %v",
+                    CurrentValue_->GetType());
+            }
             return;
         }
-        for (const auto& [key, value] : Value_->AsMap()->GetChildren()) {
-            TString fullPath = Format("%v/%v", path, key);
-            auto* item = reflection->AddMessage(message, field);
-            SetKey(item, field->message_type()->map_key(), key);
-            SetValue(item, field->message_type()->map_value(), fullPath, value);
-        }
+
+        TProtoVisitor::VisitRegularMessage(message, descriptor, reason);
     }
 
-    void SetValue(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf path,
-        const INodePtr& node) const
+    void VisitUnrecognizedField(
+        Message* message,
+        const Descriptor* descriptor,
+        TString name,
+        EVisitReason reason) override
     {
-        const auto* reflection = message->GetReflection();
-        switch (field->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
+        switch (Options_.UnknownYsonFieldModeResolver(CurrentPath_.GetPath())) {
+            case EUnknownYsonFieldsMode::Keep:
+                KeepUnrecognizedField(message, descriptor, name);
                 return;
-            case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetInt64(message, field, ConvertToProtobufValue(node, field->default_value_int64()));
+            case EUnknownYsonFieldsMode::Skip:
                 return;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetUInt32(message, field, ConvertToProtobufValue(node, field->default_value_uint32()));
-                return;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetUInt64(message, field, ConvertToProtobufValue(node, field->default_value_uint64()));
-                return;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetDouble(message, field, ConvertToProtobufValue(node, field->default_value_double()));
-                return;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetFloat(
-                    message,
-                    field,
-                    CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
-                return;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetBool(message, field, ConvertToProtobufValue(node, field->default_value_bool()));
-                return;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                reflection->SetEnumValue(message, field, ConvertToEnumValue(node, field));
-                return;
-            case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetString(message, field, ConvertToProtobufValue(node, field->default_value_string()));
-                return;
-            case FieldDescriptor::CPPTYPE_MESSAGE:
-                DeserializeProtobufMessage(
-                    *TMutabilityTraits<IsMutable>::GetMessage(message, field),
-                    ReflectProtobufMessageType(field->message_type()),
-                    node,
-                    GetOptionsByPath(path));
-                return;
+            // Forward in an object type handler attribute leaf is interpreted as Fail.
+            case EUnknownYsonFieldsMode::Forward:
+            case EUnknownYsonFieldsMode::Fail:
+            default:
+                break;
         }
-        ThrowUnsupportedCppType(field->cpp_type(), path);
+
+        if (descriptor->IsReservedName(name)) {
+            return;
+        }
+
+        TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
     }
 
-    void SetValue(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        int index,
-        TStringBuf path,
-        const INodePtr& node) const
+    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TString name)
     {
-        YT_VERIFY(field->is_repeated());
+        Y_UNUSED(descriptor);
+
         const auto* reflection = message->GetReflection();
 
-        switch (field->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetRepeatedInt32(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_int32()));
-                return;
-            case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetRepeatedInt64(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_int64()));
-                return;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetRepeatedUInt32(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_uint32()));
-                return;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetRepeatedUInt64(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_uint64()));
-                return;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetRepeatedDouble(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_double()));
-                return;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetRepeatedFloat(
-                    message,
-                    field,
-                    index,
-                    CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
-                return;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetRepeatedBool(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_bool()));
-                return;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                reflection->SetRepeatedEnumValue(message, field, index, ConvertToEnumValue(node, field));
-                return;
-            case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetRepeatedString(
-                    message,
-                    field,
-                    index,
-                    ConvertToProtobufValue(node, field->default_value_string()));
-                return;
-            case FieldDescriptor::CPPTYPE_MESSAGE:
-                DeserializeProtobufMessage(
-                    *TMutabilityTraits<IsMutable>::GetRepeatedMessage(message, field, index),
-                    ReflectProtobufMessageType(field->message_type()),
-                    node,
-                    GetOptionsByPath(path));
-                return;
-        }
-        ThrowUnsupportedCppType(field->cpp_type(), path);
-    }
+        auto* unknownFields = reflection->MutableUnknownFields(message);
+        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name);
 
-    void AppendValues(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf path,
-        const std::vector<INodePtr>& nodes) const
-    {
-        YT_VERIFY(field->is_repeated());
-        const auto* reflection = message->GetReflection();
-        auto doForEach = [&] (const auto& func) {
-            for (const auto& node : nodes) {
-                func(node);
+        TYsonString value;
+        TString* item = nullptr;
+        if (errorOrItem.IsOK()) {
+            int index;
+            std::tie(index, value) = std::move(errorOrItem).Value();
+            item = unknownFields->mutable_field(index)->mutable_length_delimited();
+        } else if (errorOrItem.GetCode() == EErrorCode::MissingKey) {
+            if (PathComplete() || Recursive_) {
+                item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
+            } else {
+                Throw(errorOrItem);
             }
-        };
+        } else {
+            Throw(errorOrItem);
+        }
 
-        switch (field->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddInt32(message, field, ConvertToProtobufValue(node, field->default_value_int32()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_INT64:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddInt64(message, field, ConvertToProtobufValue(node, field->default_value_int64()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddUInt32(message, field, ConvertToProtobufValue(node, field->default_value_uint32()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddUInt64(message, field, ConvertToProtobufValue(node, field->default_value_uint64()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddDouble(message, field, ConvertToProtobufValue(node, field->default_value_double()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddFloat(
+        StoreCurrentValueToYsonString(value);
+        *item = SerializeUnknownYsonFieldsItem(name, value.AsStringBuf());
+    }
+
+    void VisitAttributeDictionary(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
+    {
+        Y_UNUSED(reason);
+
+        const auto* reflection = message->GetReflection();
+
+        if (PathComplete()) {
+            reflection->ClearField(message, fieldDescriptor);
+
+            if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
+                for (const auto& [key, value] : SortedMapChildren()) {
+                    auto checkpoint = CheckpointBranchedTraversal(key);
+                    auto entry = ValueOrThrow(
+                        AddAttributeDictionaryEntry(message, fieldDescriptor, key));
+                    ThrowOnError(SetAttributeDictionaryEntryValue(
+                        entry,
+                        ConvertToYsonString(value)));
+                }
+            } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
+                Throw(EErrorCode::Unimplemented,
+                    "Cannot set an attribute dictionary from a yson node of type %v",
+                    CurrentValue_->GetType());
+            }
+            return;
+        }
+
+        SkipSlash();
+
+        TString key = Tokenizer_.GetLiteralValue();
+        AdvanceOver(key);
+
+        auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);
+
+        Message* entry = nullptr;
+        TYsonString value;
+        if (error.IsOK()) {
+            entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
+            value = ValueOrThrow(GetAttributeDictionaryEntryValue(entry));
+        } else if (error.GetCode() == EErrorCode::MissingKey) {
+            ThrowOnError(AddAttributeDictionaryEntry(message, fieldDescriptor, key));
+            RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
+            entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
+        } else {
+            Throw(error);
+        }
+
+        StoreCurrentValueToYsonString(value);
+        ThrowOnError(SetAttributeDictionaryEntryValue(entry, value));
+    }
+
+    void VisitMapField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
+    {
+        if (PathComplete()) {
+            const auto* reflection = message->GetReflection();
+            reflection->ClearField(message, fieldDescriptor);
+
+            if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
+                for (const auto& [key, value] : SortedMapChildren()) {
+                    auto checkpoint = CheckpointBranchedTraversal(key);
+                    TemporarilySetCurrentValue(checkpoint, value);
+                    auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key);
+                    // The key is obviously missing from the cleared map. This will populate the
+                    // entry.
+                    OnKeyError(
                         message,
-                        field,
-                        CheckedIntegralCast<float>(ConvertToProtobufValue<double>(node, field->default_value_float())));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddBool(message, field, ConvertToProtobufValue(node, field->default_value_bool()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddEnumValue(message, field, ConvertToEnumValue(node, field));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_STRING:
-                doForEach([&] (const INodePtr& node) {
-                    reflection->AddString(message, field, ConvertToProtobufValue(node, field->default_value_string()));
-                });
-                return;
-            case FieldDescriptor::CPPTYPE_MESSAGE:
-                doForEach([&, options = GetOptionsByPath(path)] (const INodePtr& node) {
-                    DeserializeProtobufMessage(
-                        *reflection->AddMessage(message, field),
-                        ReflectProtobufMessageType(field->message_type()),
-                        node,
-                        options);
-                });
-                return;
+                        fieldDescriptor,
+                        std::move(keyMessage),
+                        key,
+                        EVisitReason::Manual,
+                        TError());
+                }
+            } else if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
+                // Falling back to a list of maps with explicit |key| and |value| fields.
+                VisitRepeatedField(message, fieldDescriptor, reason);
+            } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
+                Throw(EErrorCode::Unimplemented,
+                    "Cannot set a proto map from a yson node of type %v",
+                    CurrentValue_->GetType());
+            }
+            return;
         }
-        ThrowUnsupportedCppType(field->cpp_type(), path);
+
+        TProtoVisitor::VisitMapField(message, fieldDescriptor, reason);
     }
 
-    static void SetNodeValueByPath(
-        TString& nodeString,
-        NYPath::TTokenizer& tokenizer,
-        const INodePtr& value,
-        bool recursive)
+    void OnKeyError(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<Message> keyMessage,
+        TString key,
+        EVisitReason reason,
+        TError error) override
     {
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        auto root = !nodeString.empty()
-            ? ConvertToNode(TYsonStringBuf{nodeString})
-            : GetEphemeralNodeFactory()->CreateMap();
+        if (PathComplete() || Recursive_) {
+            const auto* reflection = message->GetReflection();
+            auto* entry = keyMessage.get();
 
-        try {
-            SyncYPathSet(
-                root,
-                NYPath::TYPath{tokenizer.GetInput()},
-                ConvertToYsonString(value),
-                recursive);
-            nodeString = ConvertToYsonString(root).ToString();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Cannot set unknown attribute \"%v%v\"",
-                tokenizer.GetPrefixPlusToken(),
-                tokenizer.GetSuffix()) << ex;
+            reflection->AddAllocatedMessage(message, fieldDescriptor, keyMessage.release());
+            VisitMapFieldEntry(
+                message,
+                fieldDescriptor,
+                entry,
+                std::move(key),
+                reason);
+
+            return;
+        }
+
+        TProtoVisitor::OnKeyError(
+            message,
+            fieldDescriptor,
+            std::move(keyMessage),
+            std::move(key),
+            reason,
+            error);
+    }
+
+    void VisitRepeatedField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
+    {
+        if (PathComplete()) {
+            const auto* reflection = message->GetReflection();
+            reflection->ClearField(message, fieldDescriptor);
+
+            if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
+                for (const auto& [index, value] : Enumerate(CurrentValue_->AsList()->GetChildren())) {
+                    auto checkpoint = CheckpointBranchedTraversal(int(index));
+                    TemporarilySetCurrentValue(checkpoint, value);
+                    // This is a bunch of insertions at the end of the array. Index points at the
+                    // end.
+                    VisitRepeatedFieldEntryRelative(
+                        message,
+                        fieldDescriptor,
+                        index,
+                        EVisitReason::Manual);
+                }
+            } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
+                Throw(EErrorCode::Unimplemented,
+                    "Cannot set a repeated proto field from a yson node of type %v",
+                    CurrentValue_->GetType());
+            }
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason) override
+    {
+        if (PathComplete() && fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
+            ThrowOnError(
+                SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, CurrentValue_));
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
+    void VisitRepeatedFieldEntryRelative(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason) override
+    {
+        if (PathComplete() || Recursive_) {
+            if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
+                const auto* reflection = message->GetReflection();
+                auto* entry = reflection->AddMessage(message, fieldDescriptor);
+                VisitMessage(entry, EVisitReason::Manual);
+            } else {
+                ThrowOnError(
+                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, CurrentValue_));
+            }
+
+            RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedFieldEntryRelative(message, fieldDescriptor, index, reason);
+    }
+
+    void VisitSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
+    {
+        if (PathComplete() || Recursive_) {
+            if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                // MutableMessage will create the field.
+                TProtoVisitor::VisitPresentSingularField(
+                    message,
+                    fieldDescriptor,
+                    EVisitReason::Manual);
+            } else {
+                ThrowOnError(SetScalarField(message, fieldDescriptor, CurrentValue_));
+            }
+            return;
+        }
+
+        TProtoVisitor::VisitSingularField(message, fieldDescriptor, reason);
+    }
+
+    void TemporarilySetCurrentValue(TCheckpoint& checkpoint, INodePtr value)
+    {
+        checkpoint.Defer([this, oldCurrentValue = std::move(CurrentValue_)] () {
+            CurrentValue_ = std::move(oldCurrentValue);
+        });
+        CurrentValue_ = std::move(value);
+    }
+
+    void StoreCurrentValueToYsonString(TYsonString& value) const
+    {
+        if (PathComplete()) {
+            value = ConvertToYsonString(CurrentValue_);
+        } else {
+            auto root = value
+                ? ConvertToNode(value)
+                : GetEphemeralNodeFactory()->CreateMap();
+            try {
+                SyncYPathSet(
+                    root,
+                    NYPath::TYPath{Tokenizer_.GetInput()},
+                    ConvertToYsonString(CurrentValue_),
+                    Recursive_);
+                value = ConvertToYsonString(root);
+            } catch (std::exception& ex) {
+                Throw(TError("Failed to store yson string") << ex);
+            }
         }
     }
 
-    TProtobufWriterOptions GetOptionsByPath(TStringBuf basePath) const
+    std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
     {
-        TProtobufWriterOptions options = Options_;
-        options.UnknownYsonFieldModeResolver = [=, this] (const NYPath::TYPath& path) {
-            return Options_.UnknownYsonFieldModeResolver(basePath + path);
-        };
-        return options;
+        auto children = CurrentValue_->AsMap()->GetChildren();
+        std::sort(
+            children.begin(),
+            children.end(),
+            [] (const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+        return children;
     }
-};
+
+    // Put the new entry at |index| and slide everything forward. Makes a noop if index was pointing
+    // after the last entry.
+    static void RotateLastEntryBeforeIndex(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index)
+    {
+        const auto* reflection = message->GetReflection();
+        int last = reflection->FieldSize(*message, fieldDescriptor) - 1;
+        for (int pos = index; pos < last; ++pos) {
+            reflection->SwapElements(message, fieldDescriptor, pos, last);
+        }
+    }
+}; // TSetVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1034,11 +663,11 @@ class TComparisonVisitor final
 public:
     TComparisonVisitor()
     {
-        AllowAsterisk_ = true;
-        VisitEverythingAfterPath_ = true;
+        SetAllowAsterisk(true);
+        SetVisitEverythingAfterPath(true);
     }
 
-    bool Equal_ = true;
+    DEFINE_BYVAL_RW_PROPERTY(bool, Equal, true);
 
 protected:
     void NotEqual()
@@ -1096,7 +725,7 @@ protected:
         if (PathComplete()
             && fieldDescriptor->type() != NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
         {
-            if (CompareRepeatedFieldEntries(
+            if (CompareScalarRepeatedFieldEntries(
                 message.first,
                 fieldDescriptor,
                 index,
@@ -1166,7 +795,7 @@ protected:
                             indexParseResults.second.Index));
                     VisitMessage(next, EVisitReason::Manual);
                 } else {
-                    if (CompareRepeatedFieldEntries(
+                    if (CompareScalarRepeatedFieldEntries(
                             message.first,
                             fieldDescriptor,
                             indexParseResults.first.Index,
@@ -1300,7 +929,7 @@ bool AreProtoMessagesEqualByPath(
 {
     TComparisonVisitor visitor;
     visitor.Visit(std::pair(&lhs, &rhs), path);
-    return visitor.Equal_;
+    return visitor.GetEqual();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1317,7 +946,8 @@ void ClearProtobufFieldByPath(
         message.Clear();
     } else {
         TClearVisitor visitor;
-        visitor.AllowMissing_ = skipMissing;
+        visitor.SetAllowMissing(skipMissing);
+        visitor.SetAllowAsterisk(true);
         visitor.Visit(&message, path);
     }
 }
@@ -1329,15 +959,8 @@ void SetProtobufFieldByPath(
     const TProtobufWriterOptions& options,
     bool recursive)
 {
-    if (path.empty()) {
-        DeserializeProtobufMessage(
-            message,
-            ReflectProtobufMessageType(message.GetDescriptor()),
-            value,
-            options);
-    } else {
-        Traverse(&message, path, TSetHandler{value, options, recursive});
-    }
+    TSetVisitor visitor(value, options, recursive);
+    visitor.Visit(&message, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

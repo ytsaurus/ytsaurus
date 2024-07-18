@@ -81,8 +81,10 @@ using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
+using namespace NCrypto;
 
 using NYT::ToProto;
+using NYT::FromProto;
 
 using NTableClient::TLegacyKey;
 using NNodeTrackerClient::TNodeId;
@@ -884,13 +886,13 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             if (IsIntermediate()) {
-                Controller_->UpdateTask(GetNextPartitionTask());
+                Controller_->UpdateTask(GetNextPartitionTask().Get());
             } else if (Controller_->SimpleSort) {
-                Controller_->UpdateTask(Controller_->SimpleSortTask);
+                Controller_->UpdateTask(Controller_->SimpleSortTask.Get());
             } else {
-                Controller_->UpdateTask(Controller_->UnorderedMergeTask);
-                Controller_->UpdateTask(Controller_->IntermediateSortTask);
-                Controller_->UpdateTask(Controller_->FinalSortTask);
+                Controller_->UpdateTask(Controller_->UnorderedMergeTask.Get());
+                Controller_->UpdateTask(Controller_->IntermediateSortTask.Get());
+                Controller_->UpdateTask(Controller_->FinalSortTask.Get());
             }
 
             auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
@@ -975,7 +977,7 @@ protected:
             if (IsIntermediate()) {
                 const auto& nextPartitionTask = GetNextPartitionTask();
                 nextPartitionTask->FinishInput();
-                Controller_->UpdateTask(nextPartitionTask);
+                Controller_->UpdateTask(nextPartitionTask.Get());
             } else {
                 if (Controller_->FinalSortTask) {
                     Controller_->FinalSortTask->Finalize();
@@ -1236,16 +1238,24 @@ protected:
                     stripe->PartitionTag = joblet->InputStripeList->PartitionTag;
                 }
 
+                std::optional<TMD5Hash> outputDigest;
+                if (!jobResultExt.output_digests().empty()) {
+                    FromProto(&outputDigest, jobResultExt.output_digests()[0]);
+                }
+
                 RegisterStripe(
                     stripe,
                     OutputStreamDescriptors_[0],
-                    joblet);
+                    joblet,
+                    NChunkPools::TChunkStripeKey(),
+                    /*processEmptyStripes*/ false,
+                    outputDigest);
             }
 
             Controller_->CheckMergeStartThreshold();
 
             if (!IsFinalSort_) {
-                Controller_->UpdateTask(Controller_->SortedMergeTask);
+                Controller_->UpdateTask(Controller_->SortedMergeTask.Get());
             }
 
             return result;
@@ -1257,7 +1267,7 @@ protected:
 
             Controller_->UpdateTask(this);
             if (!Controller_->SimpleSort) {
-                Controller_->UpdateTask(Controller_->GetFinalPartitionTask());
+                Controller_->UpdateTask(Controller_->GetFinalPartitionTask().Get());
             }
         }
 
@@ -1413,7 +1423,7 @@ protected:
             auto nodeId = joblet->NodeDescriptor.Id;
 
             auto partitionIndex = *joblet->InputStripeList->PartitionTag;
-            auto& partition = Controller_->GetFinalPartition(partitionIndex);
+            const auto& partition = Controller_->GetFinalPartition(partitionIndex);
 
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
@@ -1431,7 +1441,7 @@ protected:
         {
             if (!Controller_->SimpleSort) {
                 auto partitionIndex = *completedJob->InputStripe->PartitionTag;
-                auto& partition = Controller_->GetFinalPartition(partitionIndex);
+                const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 auto nodeId = completedJob->NodeDescriptor.Id;
                 partition->AddLocality(nodeId, -completedJob->DataWeight);
             }
@@ -1550,7 +1560,7 @@ protected:
             GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter);
 
             SetIsFinalSort(false);
-            OutputStreamDescriptors_ = Controller_->GetSortedMergeStreamDescriptors();
+            OutputStreamDescriptors_ = {Controller_->GetSortedMergeStreamDescriptor()};
         }
 
         IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
@@ -1713,7 +1723,7 @@ protected:
 
             auto partitionIndex = partition->Index;
             auto sortedMergeChunkPool = Controller_->CreateSortedMergeChunkPool(Format("%v(%v)", GetTitle(), partitionIndex));
-            YT_VERIFY(SortedMergeChunkPools_.emplace(partitionIndex, sortedMergeChunkPool).second);;
+            YT_VERIFY(SortedMergeChunkPools_.emplace(partitionIndex, sortedMergeChunkPool).second);
             MultiChunkPool_->AddPool(std::move(sortedMergeChunkPool), partitionIndex);
 
             Partitions_.push_back(std::move(partition));
@@ -2154,7 +2164,7 @@ protected:
 
         IntermediateSortTask = New<TSortTask>(
             this,
-            GetSortedMergeStreamDescriptors(),
+            std::vector{GetSortedMergeStreamDescriptor()},
             BuildInputStreamDescriptorsFromOutputStreamDescriptors(
                 GetFinalPartitionTask()->GetOutputStreamDescriptors()),
             /*isFinalSort*/ false);
@@ -2274,7 +2284,7 @@ protected:
                 task = FinalSortTask;
             }
 
-            UpdateTask(task);
+            UpdateTask(task.Get());
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataWeight += partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
@@ -2338,7 +2348,7 @@ protected:
             const auto& partitions = PartitionsByLevels[level];
             std::vector<IPersistentChunkPoolInputPtr> shuffleChunkPoolInputs;
             shuffleChunkPoolInputs.reserve(partitions.size());
-            for (auto& partition : partitions) {
+            for (const auto& partition : partitions) {
                 IShuffleChunkPoolPtr shuffleChunkPool;
                 if (level + 1 == PartitionTreeDepth) {
                     shuffleChunkPool = CreateShuffleChunkPool(
@@ -2573,15 +2583,15 @@ protected:
 
     void UpdateSortTasks()
     {
-        UpdateTask(SimpleSortTask);
-        UpdateTask(IntermediateSortTask);
-        UpdateTask(FinalSortTask);
+        UpdateTask(SimpleSortTask.Get());
+        UpdateTask(IntermediateSortTask.Get());
+        UpdateTask(FinalSortTask.Get());
     }
 
     void UpdateMergeTasks()
     {
-        UpdateTask(UnorderedMergeTask);
-        UpdateTask(SortedMergeTask);
+        UpdateTask(UnorderedMergeTask.Get());
+        UpdateTask(SortedMergeTask.Get());
     }
 
     std::optional<TLocalityEntry> GetLocalityEntry(TNodeId nodeId) const
@@ -2982,7 +2992,7 @@ protected:
         return GetStandardStreamDescriptors();
     }
 
-    virtual std::vector<TOutputStreamDescriptorPtr> GetSortedMergeStreamDescriptors() const
+    virtual TOutputStreamDescriptorPtr GetSortedMergeStreamDescriptor() const
     {
         auto streamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
 
@@ -2993,7 +3003,7 @@ protected:
         streamDescriptor->TargetDescriptor = SortedMergeTask->GetVertexDescriptor();
         streamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
 
-        return {streamDescriptor};
+        return streamDescriptor;
     }
 
     IPersistentChunkPoolPtr CreateSortedMergeChunkPool(TString name)
@@ -3239,7 +3249,11 @@ private:
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
-                    ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
+                    ValidateOutputSchemaCompatibility({
+                        .IgnoreSortOrder = true,
+                        .ForbidExtraComputedColumns = false,
+                        .IgnoreStableNamesDifference = true,
+                    });
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
@@ -3294,6 +3308,18 @@ private:
 
             // Don't create more partitions than we have samples (plus one).
             PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
+            if (PartitionCount == 1 && !Config->SortOperationOptions->EnableSimpleSortForEvaluatedOutput) {
+                for (const auto& outputColumn : OutputTables_[0]->TableUploadOptions.TableSchema->Columns()) {
+                    if (outputColumn.Expression()) {
+                        PartitionCount = 2;
+                        YT_LOG_INFO(
+                            "Force increased partition count due to "
+                            "evaluated columns in output (PartitionCount: %v)",
+                            PartitionCount);
+                    }
+                }
+            }
+
             SimpleSort = (PartitionCount == 1);
 
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
@@ -3885,7 +3911,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent
@@ -4351,6 +4377,11 @@ private:
             if (partitionTaskLevel != PartitionTreeDepth - 1) {
                 shuffleStreamDescriptor->TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
             }
+            shuffleStreamDescriptor->TableWriterOptions->ComputeDigest =
+                partitionTaskLevel == 0 &&
+                Spec->EnableIntermediateOutputRecalculation &&
+                Spec->HasNontrivialMapper();
+
             partitionStreamDescriptors.emplace_back(std::move(shuffleStreamDescriptor));
 
             if (partitionTaskLevel == 0) {
@@ -4383,6 +4414,15 @@ private:
             GetFinalPartitions().size(),
             partitionJobSizeConstraints->GetJobCount(),
             partitionJobSizeConstraints->GetDataWeightPerJob());
+    }
+
+    TOutputStreamDescriptorPtr GetSortedMergeStreamDescriptor() const override
+    {
+        auto streamDescriptor = TSortControllerBase::GetSortedMergeStreamDescriptor();
+        streamDescriptor->TableWriterOptions->ComputeDigest =
+            Spec->HasNontrivialReduceCombiner() &&
+            Spec->EnableIntermediateOutputRecalculation;
+        return streamDescriptor;
     }
 
     void InitJobIOConfigs()
@@ -4811,7 +4851,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent

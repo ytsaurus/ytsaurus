@@ -443,7 +443,6 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         upperClipBound,
         ReadRange_.GetHolder());
 
-
     // Fast lane:
     // - ranges do not intersect with chunk view;
     // - chunk timestamp is greater than requested timestamp.

@@ -32,6 +32,8 @@ message TDataSource
     optional string object_id = 16;
     optional string account = 17;
 
+    optional string cluster_name = 18;
+
     reserved 5, 6;
 }
 

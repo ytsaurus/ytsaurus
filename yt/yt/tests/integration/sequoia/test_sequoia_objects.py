@@ -61,7 +61,6 @@ class TestSequoiaReplicas(YTEnvSetup):
         },
         "chunk_manager": {
             "sequoia_chunk_replicas": {
-                "enable": True,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True
             }
@@ -71,6 +70,10 @@ class TestSequoiaReplicas(YTEnvSetup):
     @classmethod
     def setup_class(cls):
         super(TestSequoiaReplicas, cls).setup_class()
+
+        for media in ls("//sys/media"):
+            set("//sys/media/{}/@enable_sequoia_replicas".format(media), False)
+
         create_domestic_medium(cls.TABLE_MEDIUM_1)
         create_domestic_medium(cls.TABLE_MEDIUM_2)
         set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_1), True)
@@ -98,6 +101,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_chunk_replicas_node_offline1(self, erasure_codec):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
@@ -108,7 +112,6 @@ class TestSequoiaReplicas(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t")
 
         desired_replica_count = 3 if erasure_codec == "none" else 16
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
@@ -128,6 +131,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline2(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
@@ -136,7 +140,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -152,6 +155,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_purgatory(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
@@ -160,7 +164,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -208,6 +211,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_replication(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "replication_factor": 2})
 
@@ -229,6 +233,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_last_seen_replicas(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
@@ -238,7 +243,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -257,6 +261,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("erasure_codec", ["lrc_12_2_2"])
     def test_refresh(self, erasure_codec):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
@@ -268,7 +273,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         desired_replica_count = 3 if erasure_codec == "none" else 16
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
@@ -287,6 +291,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_unapproved(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         ground_driver = get_ground_driver()
         unapproved_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
         set("{}/@mount_config/min_data_versions".format(unapproved_replicas_path), 1, driver=ground_driver)
@@ -300,7 +305,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
@@ -324,7 +328,6 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         },
         "chunk_manager": {
             "sequoia_chunk_replicas": {
-                "enable": True,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "store_sequoia_replicas_on_master": False,
@@ -333,8 +336,14 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         }
     }
 
+    @classmethod
+    def setup_class(cls):
+        super(TestOnlySequoiaReplicas, cls).setup_class()
+
     @authors("kivedernikov")
     def test_empty_sequoia_handler(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+
         table = "//tmp/t"
         create("table", table, attributes={"replication_factor": 1})
         write_table("<append=%true>" + table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
@@ -346,6 +355,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
     @authors("kivedernikov")
     def test_master_sequoia_replicas_handler(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_1)
         set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_2)
@@ -425,6 +436,12 @@ class TestSequoiaQueues(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
     }
 
+    def _pause_sequoia_queue(self):
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+    def _resume_sequoia_queue(self):
+        remove("//sys/@config/ground_update_queue_manager/queues/sequoia")
+
     @authors("aleksandra-zh")
     def test_link(self):
         create("map_node", "//tmp/m1")
@@ -444,7 +461,7 @@ class TestSequoiaQueues(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_restart(self):
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+        self._pause_sequoia_queue()
 
         create("map_node", "//tmp/m1")
         link("//tmp/m1", "//tmp/m2")
@@ -454,14 +471,14 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+        self._resume_sequoia_queue()
 
         def get_row(path):
             return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
         wait(lambda: len(get_row('//tmp/m2')) == 1)
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+        self._pause_sequoia_queue()
 
         remove("//tmp/m2")
 
@@ -470,7 +487,7 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+        self._resume_sequoia_queue()
 
         wait(lambda: len(get_row('//tmp/m2')) == 0)
 

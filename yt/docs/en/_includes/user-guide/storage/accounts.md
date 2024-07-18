@@ -22,7 +22,7 @@ To find out how many and which resources a given Cypress node consumes, you shou
 
 To assign account `A` to a Cypress node, the user who initiated this change must have the `use` permission for account `A`. It must also have the `write` permission. An account for the node can likewise be specified at the time the node is created. In this case, you must also have the `use` permission.
 
-When you copy Cypress parts with the `copy` command and move them with the `move` command, the accounts and the owners in the copied subtree change — they become equal to the account of the folder to which the copying is performed, and to the user who is copying, respectively. To prevent the account from being changed, use the `preserve_account` option.
+When you copy Cypress parts with the `copy` command or move them with the `move` command, the accounts and the owners in the copied subtree change — they become equal to the account associated with the destination folder, and to the user who is copying them, respectively. To prevent changes to an account, use the `preserve_account` option.
 
 If the user exceeds the account quota for certain resource types, the system starts denying the account further access to the exceeded resource type. This does not mean that an account never exceeds its limits when used. For example, the limits may have been forcibly set below usage. Besides that, disk and chunk quota consumption tracking works asynchronously, which can also result in exceeding allocated limits.
 
@@ -69,11 +69,11 @@ The account hierarchy is represented on the **Accounts** page (as well as in the
 The account tree in Cypress is located at `//sys/account_tree`. The full flat list is available at `//sys/accounts` (account names are globally unique, despite the hierarchical organization).
 
 ```bash
-yt list //sys/account_tree/my_account
+$ yt list //sys/account_tree/my_account
 my_subaccount1
 my_subaccount2
 
-yt list //sys/accounts
+$ yt list //sys/accounts
 my_account
 my_subaccount1
 my_subaccount2
@@ -84,14 +84,15 @@ my_subaccount2
 ### Creating an account { #account_tree_creating }
 
 The maximum allowable account tree height is 10.
-You can create a topmost account in the {{product-name}} web interface by clicking **Create account** on the **Accounts** page.
+
+You can create a topmost account in the {{product-name}} web interface by clicking **Create account** on the **Accounts** page. You can create nested accounts using the command line or the {{product-name}} web interface.
 
 {% cut "In the {{product-name}} web interface" %}
 
 To create a new account, you need to:
 
 1. On the **Accounts** page, click **Create account**.
-2. Specify the ABC service, the name of the new account, the name of the parent account into which the created account will be nested, as well as the users responsible for the new account. If necessary, you can also request the automatic creation of a home directory corresponding to the account.
+2. Specify {% if audience == "internal" %}the ABC service, {% endif %}the name of the new account, the name of the parent account into which the created account will be nested, and the users responsible for the new account. If necessary, you can also request the automatic creation of a home directory corresponding to the account.
 
 ![](../../../../images/account_tree_create.png){ .center }
 
@@ -99,7 +100,7 @@ To create a new account, you need to:
 
 {% cut "In the command line" %}
 
-To create an account, specify its name in the `name` attribute and the parent name in the `parent_name` attribute. If no parent name is specified, a topmost account will be created. Only {{product-name}} administrators have the right to create such accounts.
+To create an account, specify its name in the `name` attribute and the parent name in the `parent_name` attribute. If no parent name is specified, a topmost account will be created. Only {{product-name}} cluster administrators have the right to create topmost accounts.
 
 ```bash
 yt create account --attributes='{ name = "my_subaccount3"; parent_name = "my_account" }'
@@ -111,7 +112,7 @@ yt create account --attributes='{ name = "my_subaccount3"; parent_name = "my_acc
 
 Accounts can be moved and renamed, so you should only remove an account when you really do not need it anymore.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 Before removing an account, make sure there is no data in it. Otherwise, the account will be put into a special pending state instead of being removed until all associated Cypress nodes are removed, after which it will be removed automatically. You can neither use the account in that state, nor return it to its normal state.
 
@@ -121,7 +122,7 @@ Before removing an account, make sure there is no data in it. Otherwise, the acc
 
 To remove an account, you need to:
 
-1. On the **Accounts** page, find the account in the list and click the pencil to edit the account.
+1. On the **Accounts** page, find the account in the list and click the pencil icon to edit the account.
 2. In the dialog window that opens, go to the **Delete** section, click **Delete**, and confirm the action.
 
 {% endcut %}
@@ -140,13 +141,13 @@ yt remove //sys/account_tree/my_account/my_subaccount3
 
 {% endcut %}
 
-#### Moving or renaming an account { #account_tree_moving }
+### Moving or renaming an account { #account_tree_moving }
 
 {% cut "In the {{product-name}} web interface" %}
 
 To move an account you need to:
 
-1. On the **Accounts** page, find the account in the list and click the pencil to edit the account.
+1. On the **Accounts** page, find the account in the list and click the pencil icon to edit the account.
 2. In the dialog window that opens, in the **General** section, in the **Parent** drop-down list, select where to move the account.
 
 {% endcut %}
@@ -158,10 +159,10 @@ There are two ways to move an account:
 1. Moving an account using the `parent_name` attribute.
 
 ```bash
-yt set //sys/account_tree/my_account/my_subaccount3/@parent_name my_subaccount2
-yt exists //sys/account_tree/my_account/my_subaccount3
+$ yt set //sys/account_tree/my_account/my_subaccount3/@parent_name my_subaccount2
+$ yt exists //sys/account_tree/my_account/my_subaccount3
 %false
-yt exists //sys/account_tree/my_account/my_subaccount2/my_subaccount3
+$ yt exists //sys/account_tree/my_account/my_subaccount2/my_subaccount3
 %true
 ```
 
@@ -183,8 +184,10 @@ Note that the full path to the account, including its name, is specified as the 
 
 To transfer resources, you need to:
 
-1. On the **Accounts** page, find the account you want to transfer resources to in the list and click the pencil to edit it.
-2. In the dialog window that opens, go to the section corresponding to the type of resource you want to transfer, specify the account whose resources will be reallocated (by default, the parent account is suggested), the new limit, and click **Save**.
+1. On the **Accounts** page, find the account to which you want to transfer resources and click the pencil icon to edit the account.
+2. In the dialog window that opens, open the section corresponding to the type of resource that you want to transfer.
+3. Specify the account from which to reallocate resources (the parent account is suggested by default) and the new limit.
+4. Click **Save**.
 
 ![](../../../../images/account_tree_transfer_resources.png){ .center }
 
@@ -199,9 +202,9 @@ Transferring account resources using the `transfer-account-resources` command:
 yt transfer-account-resources my_subaccount1 my_subaccount2 --resource-delta '{node_count=10}'
 ```
 
-The `resource-delta` argument is a yson structure of the `ClusterResources` type (see below). For example: `{node_count=5;disk_space_per_medium={default=1024}}`. You need to specify the volume of transferred resources, not the new limits. Missing quotas can be skipped.
+The `resource-delta` argument is a YSON structure of the `ClusterResources` type (see below). For example: `{node_count=5;disk_space_per_medium={default=1024}}`. You need to specify the amount of resources to be transferred, not the new limits. Missing quotas can be skipped.
 
-In case of the `argument command: invalid choice` error, update the `yt` utility. For more information, see the [Installation](../../../overview/try-yt.md) section.
+In case of the `argument command: invalid choice` error, update the `yt` utility. For more information, see [Try YTsaurus](../../../overview/try-yt.md).
 
 {% endcut %}
 

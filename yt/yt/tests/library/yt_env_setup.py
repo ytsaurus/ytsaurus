@@ -238,6 +238,8 @@ class YTEnvSetup(object):
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
+    ENABLE_CHYT_HTTP_PROXIES = False
+    ENABLE_CHYT_HTTPS_PROXIES = False
     NUM_HTTP_PROXIES = 1
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
@@ -503,6 +505,10 @@ class YTEnvSetup(object):
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
+        has_ground = cls.get_param("USE_SEQUOIA", index) and not cls._is_ground_cluster(index)
+        primary_cell_tag = (index + 1) * 10
+        clock_cluster_tag = (index + cls.get_ground_index_offset() + 1) * 10 if has_ground else primary_cell_tag
+
         if cls.USE_SLOT_USER_ID is None:
             use_slot_user_id = cls.USE_PORTO
         else:
@@ -547,7 +553,9 @@ class YTEnvSetup(object):
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
-            primary_cell_tag=(index + 1) * 10,
+            primary_cell_tag=primary_cell_tag,
+            has_ground=has_ground,
+            clock_cluster_tag=clock_cluster_tag,
             enable_structured_logging=True,
             enable_log_compression=True,
             log_compression_method="zstd",
@@ -561,6 +569,8 @@ class YTEnvSetup(object):
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
+            enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
+            enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -844,7 +854,7 @@ class YTEnvSetup(object):
         yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
         yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
         yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 100, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 2000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)

@@ -4,6 +4,14 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTableWriterOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("compute_digest", &TThis::ComputeDigest)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBlobTableWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_part_size", &TThis::MaxPartSize)

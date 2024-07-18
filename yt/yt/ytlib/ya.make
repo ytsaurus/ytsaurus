@@ -324,6 +324,7 @@ SRCS(
     object_client/proto/master_ypath.proto
     object_client/proto/object_service.proto
     object_client/proto/object_ypath.proto
+    object_client/proto/user_directory.proto
 
     orchid/orchid_service.cpp
     orchid/orchid_ypath_service.cpp
@@ -348,6 +349,7 @@ SRCS(
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 
+    scheduler/cluster_name.cpp
     scheduler/config.cpp
     scheduler/disk_resources.cpp
     scheduler/helpers.cpp
@@ -456,7 +458,7 @@ SRCS(
     table_client/table_columnar_statistics_cache.cpp
     table_client/table_read_spec.cpp
     table_client/table_upload_options.cpp
-    table_client/timestamped_schema_utils.cpp
+    table_client/timestamped_schema_helpers.cpp
     table_client/timing_reader.cpp
     table_client/timing_statistics.cpp
     table_client/versioned_block_reader.cpp

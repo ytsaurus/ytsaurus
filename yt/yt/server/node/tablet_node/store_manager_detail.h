@@ -87,6 +87,8 @@ public:
     std::optional<TInstant> GetLastPeriodicRotationTime() const override;
     void SetLastPeriodicRotationTime(TInstant value) override;
 
+    void UpdateCommittedStoreRowCount() override;
+
     ISortedStoreManagerPtr AsSorted() override;
     IOrderedStoreManagerPtr AsOrdered() override;
 

@@ -24,7 +24,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString UnknownProfilingTag("unknown");
+TMethodCounters::TMethodCounters(const NProfiling::TProfiler& profiler)
+    : CpuTime(profiler.TimeCounter("/cumulative_cpu_time"))
+    , RequestCount(profiler.Counter("/request_count"))
+    , RequestDuration(profiler.Timer("/request_duration"))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,8 +115,8 @@ TTestAllocationGuard::~TTestAllocationGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
-    i64 AllocationSize,
-    TDuration AllocationReleaseDelay,
+    i64 allocationSize,
+    TDuration allocationReleaseDelay,
     std::function<void()> constructCallback,
     std::function<void()> destructCallback,
     IInvokerPtr destructCallbackInvoker,
@@ -120,12 +124,12 @@ std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
 {
     std::vector<TTestAllocationGuard> testHeap;
 
-    for (i64 i = 0; i < AllocationSize; i += allocationPartSize) {
+    for (i64 i = 0; i < allocationSize; i += allocationPartSize) {
         testHeap.emplace_back(
             allocationPartSize,
             constructCallback,
             destructCallback,
-            AllocationReleaseDelay,
+            allocationReleaseDelay,
             destructCallbackInvoker);
     }
 
@@ -136,33 +140,21 @@ std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
 
 void CollectHeapUsageStatistics(
     IYsonConsumer* consumer,
-    const std::vector<TString>& memoryTagsList)
+    const std::vector<TString>& memoryTags)
 {
-    YT_VERIFY(consumer);
-
-    const auto memorySnapshot = GetMemoryUsageSnapshot();
-    YT_VERIFY(memorySnapshot);
-
-    auto heapUsageStatistics = BuildYsonStringFluently<EYsonType::MapFragment>();
-
-    heapUsageStatistics
-        .Item("heap_usage_statistics").DoMapFor(
-            memoryTagsList,
+    auto memorySnapshot = GetMemoryUsageSnapshot();
+    BuildYsonMapFragmentFluently(consumer)
+        .Item("heap_usage").DoMapFor(
+            memoryTags,
             [&] (TFluentMap fluent, const auto& tag) {
                 fluent.Item(tag).DoMap([&] (TFluentMap fluent) {
-                    auto memoryUsageStatistic = BuildYsonStringFluently<EYsonType::MapFragment>();
-
-                    memoryUsageStatistic.DoFor(
+                    fluent.DoFor(
                         memorySnapshot->GetUsage(tag),
                         [] (TFluentMap fluent, const auto& pair) {
                             fluent.Item(pair.first).Value(pair.second);
                         });
-
-                    fluent.GetConsumer()->OnRaw(memoryUsageStatistic.Finish());
                 });
             });
-
-    consumer->OnRaw(heapUsageStatistics.Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

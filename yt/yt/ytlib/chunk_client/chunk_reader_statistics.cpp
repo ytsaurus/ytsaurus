@@ -44,6 +44,7 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_meta_io_requests(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_omitted_suspicious_node_count(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_p2p_activation_count(chunkReaderStatistics->P2PActivationCount.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_remote_cpu_time(chunkReaderStatistics->RemoteCpuTime.load(std::memory_order::relaxed));
@@ -62,6 +63,7 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->DataBytesTransmitted.store(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.store(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.store(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
+    chunkReaderStatistics->MetaIORequests.store(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.store(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
     chunkReaderStatistics->P2PActivationCount.store(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
     chunkReaderStatistics->RemoteCpuTime.store(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
@@ -79,6 +81,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->DataBytesTransmitted.fetch_add(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
+    chunkReaderStatistics->MetaIORequests.fetch_add(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
     chunkReaderStatistics->P2PActivationCount.fetch_add(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
     chunkReaderStatistics->RemoteCpuTime.fetch_add(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
@@ -94,9 +97,11 @@ void DumpChunkReaderStatistics(
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr)
 {
     jobStatistics->AddSample(path + "/data_bytes_read_from_disk", chunkReaderStatisticsPtr->DataBytesReadFromDisk.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/data_io_requests", chunkReaderStatisticsPtr->DataIORequests.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/data_bytes_transmitted", chunkReaderStatisticsPtr->DataBytesTransmitted.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/data_bytes_read_from_cache", chunkReaderStatisticsPtr->DataBytesReadFromCache.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/meta_bytes_read_from_disk", chunkReaderStatisticsPtr->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/meta_io_requests", chunkReaderStatisticsPtr->MetaIORequests.load(std::memory_order::relaxed));
 }
 
 void DumpTimingStatistics(
@@ -143,6 +148,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     , WastedDataBytesTransmitted_(profiler.Counter("/wasted_data_bytes_transmitted"))
     , WastedDataBytesReadFromCache_(profiler.Counter("/wasted_data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
+    , MetaIORequests_(profiler.Counter("/meta_io_requests"))
     , WastedMetaBytesReadFromDisk_(profiler.Counter("/wasted_meta_bytes_read_from_disk"))
     , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
     , P2PActivationCount_(profiler.Counter("/p2p_activation_count"))
@@ -167,6 +173,7 @@ void TChunkReaderStatisticsCounters::Increment(
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
 
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
+    MetaIORequests_.Increment(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
     OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
 
     P2PActivationCount_.Increment(chunkReaderStatistics->P2PActivationCount.load(std::memory_order::relaxed));

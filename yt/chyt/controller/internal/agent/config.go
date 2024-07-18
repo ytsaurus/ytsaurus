@@ -19,6 +19,11 @@ type Config struct {
 	// RevisionCollectPeriod defines how often agent collects Cypress node revisions via batch ListNode.
 	RevisionCollectPeriod *yson.Duration `yson:"revision_collect_period"`
 
+	// HealthCheckerToleranceFactor is a maximum period factor before a health checker
+	// considers the state as `expired`. E.g. if the pass period is 5s and the factor is 2.0,
+	// the health checker will consider the state valid for 10s.
+	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
+
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
 
@@ -38,13 +43,19 @@ type Config struct {
 	// Available template parameters: Proxy.
 	// E.g. "https://example.com/{{.Proxy}}"
 	ClusterURLTemplate string `yson:"cluster_url_template"`
+
+	// AssignAdministerToCreator determines whether the operation creator
+	// should be granted the `administer` right to the corresponding ACO.
+	AssignAdministerToCreator *bool `yson:"assign_administer_to_creator"`
 }
 
 const (
-	DefaultPassPeriod              = yson.Duration(5 * time.Second)
-	DefaultCollectOperationsPeriod = yson.Duration(time.Minute)
-	DefaultRevisionCollectPeriod   = yson.Duration(5 * time.Second)
-	DefaultPassWorkerNumber        = 1
+	DefaultPassPeriod                   = yson.Duration(5 * time.Second)
+	DefaultCollectOperationsPeriod      = yson.Duration(time.Minute)
+	DefaultRevisionCollectPeriod        = yson.Duration(5 * time.Second)
+	DefaultHealthCheckerToleranceFactor = 2.0
+	DefaultPassWorkerNumber             = 1
+	DefaultAssignAdministerToCreator    = true
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -68,9 +79,23 @@ func (c *Config) RevisionCollectPeriodOrDefault() yson.Duration {
 	return DefaultRevisionCollectPeriod
 }
 
+func (c *Config) HealthCheckerToleranceFactorOrDefault() float64 {
+	if c.HealthCheckerToleranceFactor != nil {
+		return *c.HealthCheckerToleranceFactor
+	}
+	return DefaultHealthCheckerToleranceFactor
+}
+
 func (c *Config) PassWorkerNumberOrDefault() int {
 	if c.PassWorkerNumber != nil {
 		return *c.PassWorkerNumber
 	}
 	return DefaultPassWorkerNumber
+}
+
+func (c *Config) AssignAdministerToCreatorOrDefault() bool {
+	if c.AssignAdministerToCreator != nil {
+		return *c.AssignAdministerToCreator
+	}
+	return DefaultAssignAdministerToCreator
 }

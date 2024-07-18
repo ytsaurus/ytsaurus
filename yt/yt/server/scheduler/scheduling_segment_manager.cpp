@@ -1255,12 +1255,12 @@ void TSchedulingSegmentManager::LogSegmentsStructured(const TUpdateSchedulingSeg
         .Item("operations_info").DoMapFor(context->OperationStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
             const auto& [operationId, operationState] = item;
             fluent
-                .Do(BIND(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState));
+                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState, std::placeholders::_1));
         })
         .Item("nodes_info").DoMapFor(context->NodeStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
             const auto& [_, nodeState] = item;
             fluent
-                .Do(BIND(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState));
+                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState, std::placeholders::_1));
         });
 }
 

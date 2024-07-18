@@ -27,6 +27,8 @@ class LocalYtConfig(object):
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(1)
+    has_ground = attr.ib(False)
+    clock_cluster_tag = attr.ib(1)
 
     """High level node settings"""
     jobs_environment_type = attr.ib(None)
@@ -59,6 +61,8 @@ class LocalYtConfig(object):
     enable_rpc_driver_proxy_discovery = attr.ib(False)
     enable_resource_tracking = attr.ib(False)
     enable_tvm_only_proxies = attr.ib(False)
+    enable_chyt_http_proxies = attr.ib(False)
+    enable_chyt_https_proxies = attr.ib(False)
 
     """TLS settings"""
     enable_tls = attr.ib(False)

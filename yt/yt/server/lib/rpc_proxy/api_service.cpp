@@ -635,11 +635,11 @@ public:
             config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
+        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
-        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -849,6 +849,7 @@ private:
     const NNative::TClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -858,7 +859,6 @@ private:
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
 
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
     struct TDetailedProfilingCountersKey
     {
@@ -1224,7 +1224,6 @@ private:
 
         if (clockClusterTag == InvalidCellTag) {
             Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
-            clockClusterTag = Connection_->GetClusterTag();
         }
 
         const auto& timestampProvider = Connection_->GetTimestampProvider();
@@ -3821,7 +3820,7 @@ private:
             options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
         }
         if (request->has_versioned_read_options()) {
-            options.VersionedReadOptions = ConvertTo<TVersionedReadOptions>(TYsonString(request->versioned_read_options()));
+            FromProto(&options.VersionedReadOptions, request->versioned_read_options());
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
@@ -3905,7 +3904,7 @@ private:
                 ToProto(response->mutable_replication_progress(), result.ReplicationProgress);
 
                 for (auto [tabletId, rowIndex] : result.EndReplicationRowIndexes) {
-                    auto *protoReplicationRowIndex = response->add_end_replication_row_indexes();
+                    auto* protoReplicationRowIndex = response->add_end_replication_row_indexes();
                     ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
                     protoReplicationRowIndex->set_row_index(rowIndex);
                 }

@@ -1042,6 +1042,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_controller", &TThis::JobController)
         .DefaultNew();
 
+    registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->DisableLocationWritesPendingReadSizeHighLimit.has_value() != config->DisableLocationWritesPendingReadSizeLowLimit.has_value()) {
             THROW_ERROR_EXCEPTION(

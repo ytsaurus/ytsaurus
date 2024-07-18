@@ -109,9 +109,6 @@ class TRawPStateNode
     , public TAttributes
 { };
 
-template <typename TKey, typename TState>
-TPState<TKey, TState> CreatePState();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransformNode

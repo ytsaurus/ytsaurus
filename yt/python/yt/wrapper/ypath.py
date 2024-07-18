@@ -33,7 +33,7 @@ def _process_prefix(path, prefix):
     tokens = TokensByPath(path)
     if prefix is not None:
         prefix = TokensByPath(prefix).raw_path
-    if prefix is not None and type(tokens.raw_path) != type(prefix):
+    if prefix is not None and type(tokens.raw_path) is not type(prefix):
         raise YtError("Type mismatch of ypath %r and prefix %r" % (tokens.raw_path, prefix))
 
     if tokens.raw_path == tokens.slash or tokens.raw_path.startswith(tokens.double_slash) or \

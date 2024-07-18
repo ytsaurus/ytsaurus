@@ -74,7 +74,9 @@ public:
     TFnAttributes AddResourceFile(const TString& resourceFile)&&;
 
 private:
-    bool IsPure_ = false;
+    // In parDo attributes nullopt is equal to false.
+    // In override nullopt means no override by this value.
+    std::optional<bool> IsPure_;
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;
@@ -307,4 +309,30 @@ class IStatefulTimerDoFn
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <typename TInputRow_, typename TOutputRow_>
+struct TParDoArgs
+{
+    using TInputRow = TInputRow_;
+    using TOutputRow = TOutputRow_;
+
+    TParDoArgs(const TInputRow& inputRow, TOutput<TOutputRow>& output, IExecutionContext& context)
+        : InputRow(inputRow)
+        , Output(output)
+        , ExecutionContext(context)
+    { }
+
+    TParDoArgs(const TParDoArgs&) = default;
+    TParDoArgs(TParDoArgs&&) = default;
+
+    TParDoArgs& operator=(const TParDoArgs&) = delete;
+    TParDoArgs& operator=(TParDoArgs&&) = delete;
+
+    const TInputRow& InputRow;
+    TOutput<TOutputRow>& Output;
+    IExecutionContext& ExecutionContext;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren

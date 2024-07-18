@@ -168,6 +168,10 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("tvm_only_https_server", &TThis::TvmOnlyHttpsServer)
         .Optional();
+    registrar.Parameter("chyt_http_server", &TThis::ChytHttpServer)
+        .Optional();
+    registrar.Parameter("chyt_https_server", &TThis::ChytHttpsServer)
+        .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
         config->HttpServer->Port = config->Port;

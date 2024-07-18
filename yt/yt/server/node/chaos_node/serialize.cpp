@@ -49,7 +49,7 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger)
-    : NLeaseServer::TSaveContext(
+    : NHydra::TSaveContext(
         output,
         std::move(logger),
         GetCurrentReign())

@@ -282,6 +282,11 @@ private:
         return DynamicConfigManager_->GetConfig()->DataNode;
     }
 
+    std::optional<double> GetFallbackTimeoutFraction() const
+    {
+        return GetDynamicConfig()->FallbackTimeoutFraction;
+    }
+
     void SetSessionIdAllocationTag(TTraceContextPtr context, TString sessionId)
     {
         context->SetAllocationTags({{SessionIdAllocationTag, sessionId}});
@@ -421,6 +426,7 @@ private:
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
+        i64 cumulativeBlockSize = request->cumulative_block_size();
 
         ValidateOnline();
 
@@ -429,18 +435,17 @@ private:
         const auto& location = session->GetStoreLocation();
         auto options = session->GetSessionOptions();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v, CumulativeBlockSize: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
             flushBlocks,
             location->GetMediumName(),
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            cumulativeBlockSize);
 
-        if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
-        }
+        location->CheckWriteThrottling(session->GetWorkloadDescriptor());
 
         TWallTimer timer;
 
@@ -450,6 +455,7 @@ private:
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
+            cumulativeBlockSize,
             populateCache);
 
         // Flush blocks if needed.
@@ -500,19 +506,21 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
+        i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
+            cumulativeBlockSize,
             targetDescriptor);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
+        session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
             .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
                 if (errorOrRsp.IsOK()) {
                     response->set_close_demanded(errorOrRsp.Value()->close_demanded());
@@ -849,6 +857,7 @@ private:
         const std::vector<NChunkClient::TBlock>& blocks) const
     {
         auto netThrottling = responseTemplate.NetThrottling;
+        auto hasCompleteChunk = responseTemplate.HasCompleteChunk;
 
         if (!netThrottling) {
             SetRpcAttachedBlocks(response, blocks);
@@ -887,7 +896,7 @@ private:
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
-            responseTemplate.HasCompleteChunk,
+            hasCompleteChunk,
             netThrottling,
             responseTemplate.NetQueueSize,
             responseTemplate.DiskThrottling,
@@ -896,16 +905,69 @@ private:
             blocksWithData,
             blocksSize);
 
+        if (blocksSize == 0) {
+            return VoidFuture;
+        }
+
         // NB: We throttle only heavy responses that contain a non-empty attachment
         // as we want responses containing the information about disk/net throttling
         // to be delivered immediately.
-        if (blocksSize > 0) {
-            context->SetComplete();
-            const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
-            return netThrottler->Throttle(blocksSize);
-        } else {
-            return VoidFuture;
+
+        context->SetComplete();
+
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
+        auto resultFuture = netThrottler->Throttle(blocksSize);
+
+        auto timeoutFraction = GetFallbackTimeoutFraction();
+
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
+            return resultFuture;
         }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        auto throttleFuture = resultFuture
+            .Apply(BIND([] { return false; }));
+        auto fallbackFuture = TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+            .Apply(BIND([] { return true; }));
+        return AnySet<bool>({std::move(throttleFuture), std::move(fallbackFuture)})
+            .Apply(BIND([=] (bool isThrottled) {
+                if (isThrottled) {
+                    response->set_net_throttling(true);
+                    response->Attachments().clear();
+
+                    // Override response info.
+                    context->SetResponseInfo(
+                        "HasCompleteChunk: %v,"
+                        "NetThrottling: %v",
+                        hasCompleteChunk,
+                        true);
+                }
+
+                // Directly hold current request context.
+                Y_UNUSED(context);
+            }));
+    }
+
+    template <class T, class TContext>
+    TFuture<T> WrapWithTimeout(
+        TFuture<T> future,
+        const TIntrusivePtr<TContext>& context,
+        TCallback<T()> fallbackValue)
+    {
+        auto timeoutFraction = GetFallbackTimeoutFraction();
+
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
+            return future;
+        }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        return AnySet<T>({
+            future,
+            TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+                .Apply(fallbackValue)
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
@@ -957,7 +1019,7 @@ private:
 
         struct TReadBlocksResult
         {
-            bool ReadFromP2P;
+            bool ReadFromP2P = false;
             std::vector<TBlock> Blocks;
         };
 
@@ -1001,8 +1063,11 @@ private:
                 }));
         });
 
-        auto blocksFuture = WaitP2PBarriers(request)
-            .Apply(readBlocks);
+        auto blocksFuture = WrapWithTimeout(
+            WaitP2PBarriers(request)
+                .Apply(readBlocks),
+            context,
+            BIND([] { return TReadBlocksResult(); }));
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
@@ -1089,10 +1154,13 @@ private:
             chunkReaderStatistics);
 
         auto blocksFuture = chunk
-            ? chunk->ReadBlockRange(
-                firstBlockIndex,
-                blockCount,
-                options)
+            ? WrapWithTimeout(
+                chunk->ReadBlockRange(
+                    firstBlockIndex,
+                    blockCount,
+                    options),
+                context,
+                BIND([] { return std::vector<TBlock>(); }))
             : MakeFuture(std::vector<TBlock>());
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,

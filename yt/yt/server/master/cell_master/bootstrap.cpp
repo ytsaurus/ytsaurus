@@ -88,7 +88,7 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
-#include <yt/yt/server/master/sequoia_server/sequoia_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -481,9 +481,9 @@ const IChunkManagerPtr& TBootstrap::GetChunkManager() const
     return ChunkManager_;
 }
 
-const ISequoiaQueueManagerPtr& TBootstrap::GetSequoiaQueueManager() const
+const IGroundUpdateQueueManagerPtr& TBootstrap::GetGroundUpdateQueueManager() const
 {
-    return SequoiaQueueManager_;
+    return GroundUpdateQueueManager_;
 }
 
 const IJournalManagerPtr& TBootstrap::GetJournalManager() const
@@ -949,11 +949,14 @@ void TBootstrap::DoInitialize()
 
     ZookeeperManager_ = CreateZookeeperManager(this);
 
-    SequoiaQueueManager_ = CreateSequoiaQueueManager(this);
+    GroundUpdateQueueManager_ = CreateGroundUpdateQueueManager(this);
 
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
+        YT_LOG_DEBUG("Initializing internal clocks (ClockClusterTag: %v)",
+            GetCellTag());
+
         TimestampManager_ = New<TTimestampManager>(
             Config_->TimestampManager,
             HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
@@ -961,7 +964,7 @@ void TBootstrap::DoInitialize()
             HydraFacade_->GetAutomaton(),
             GetCellTag(),
             /*authenticator*/ nullptr,
-            InvalidCellTag);
+            GetCellTag());
     }
 
     LeaseManager_ = CreateLeaseManager(
@@ -1000,7 +1003,7 @@ void TBootstrap::DoInitialize()
     SchedulerPoolManager_->Initialize();
     ZookeeperBootstrap_->Initialize();
     ZookeeperManager_->Initialize();
-    SequoiaQueueManager_->Initialize();
+    GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
     SequoiaActionsExecutor_->Initialize();
 
@@ -1097,9 +1100,20 @@ void TBootstrap::InitializeTimestampProvider()
     if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(Config_->TimestampProvider, ChannelFactory_);
 
+        auto nativeClockClusterTag = Config_->ClockClusterTag;
+        if (nativeClockClusterTag == InvalidCellTag) {
+            nativeClockClusterTag = GetCellTag();
+        }
+
+        auto alienProviders = CreateAlienTimestampProvidersMap(
+            /*configs*/ {}, // Add alien ts-providers to master config if needed
+            TimestampProvider_,
+            nativeClockClusterTag,
+            ChannelFactory_);
+
         RpcServer_->RegisterService(CreateTimestampProxyService(
             TimestampProvider_,
-            /*alienProviders*/ {},
+            std::move(alienProviders),
             /*authenticator*/ nullptr));
     } else {
         auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);

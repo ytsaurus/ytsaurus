@@ -274,7 +274,8 @@ class TestRuntimeParameters(YTEnvSetup):
         assert error.contains_text("Max running operation count of pool \"busy\" violated")
 
     @authors("omgronny")
-    def test_change_pool_slot_index_in_cypress(self):
+    @pytest.mark.parametrize("slot_index_source", ["slot_index_per_pool_tree", "scheduling_attributes_per_pool_tree"])
+    def test_change_pool_slot_index_in_cypress(self, slot_index_source):
         create_pool("first")
         create_pool("second")
 
@@ -287,7 +288,10 @@ class TestRuntimeParameters(YTEnvSetup):
         second_ops[-1].wait_for_state("running")
 
         def get_slot_index(op):
-            return get(op.get_path() + "/@slot_index_per_pool_tree/default")
+            if slot_index_source == "slot_index_per_pool_tree":
+                return get(op.get_path() + "/@slot_index_per_pool_tree/default")
+            else:
+                return get(op.get_path() + "/@scheduling_attributes_per_pool_tree/default/slot_index")
 
         op = run_sleeping_vanilla(spec={"pool": "first"})
         op.wait_for_state("running")

@@ -115,24 +115,25 @@ TCompactVector<ui16, 32> GetGroupsIds(
     TRange<ui16> keyColumnIndexes,
     TRange<TColumnIdMapping> valuesIdMapping)
 {
+    int availableReadItemWidth = std::min<int>(readItemWidth, chunkKeyColumnCount);
     int extraKeyColumnCount = 0;
     for (auto id : keyColumnIndexes) {
-        if (id >= readItemWidth && id < chunkKeyColumnCount) {
+        if (id >= availableReadItemWidth && id < chunkKeyColumnCount) {
             ++extraKeyColumnCount;
         }
     }
 
     TCompactVector<ui16, 32> groupIds;
-    groupIds.resize(chunkKeyColumnCount + extraKeyColumnCount + std::ssize(valuesIdMapping) + 1);
+    groupIds.resize(availableReadItemWidth + extraKeyColumnCount + std::ssize(valuesIdMapping) + 1);
     // Use raw data pointer because TCompactVector has branch in index operator.
     auto* groupIdsData = groupIds.data();
 
-    for (int index = 0; index < chunkKeyColumnCount; ++index) {
+    for (int index = 0; index < availableReadItemWidth; ++index) {
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 
     for (auto index : keyColumnIndexes) {
-        if (index < readItemWidth || index >= chunkKeyColumnCount) {
+        if (index < availableReadItemWidth || index >= chunkKeyColumnCount) {
             continue;
         }
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
@@ -144,6 +145,8 @@ TCompactVector<ui16, 32> GetGroupsIds(
 
     // Timestamp group id.
     *groupIdsData++ = preparedChunkMeta.ColumnInfos.back().GroupId;
+
+    YT_VERIFY(groupIdsData == groupIds.end());
 
     std::sort(groupIds.begin(), groupIds.end());
     groupIds.erase(std::unique(groupIds.begin(), groupIds.end()), groupIds.end());

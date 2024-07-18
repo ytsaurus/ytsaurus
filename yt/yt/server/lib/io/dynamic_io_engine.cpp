@@ -195,6 +195,26 @@ public:
         return GetCurrentEngine()->IsWriteInFlightRequestLimitExceeded();
     }
 
+    i64 GetInFlightReadRequestCount() const override
+    {
+        return GetCurrentEngine()->GetInFlightReadRequestCount();
+    }
+
+    i64 GetReadRequestLimit() const override
+    {
+        return GetCurrentEngine()->GetReadRequestLimit();
+    }
+
+    i64 GetInFlightWriteRequestCount() const override
+    {
+        return GetCurrentEngine()->GetInFlightWriteRequestCount();
+    }
+
+    i64 GetWriteRequestLimit() const override
+    {
+        return GetCurrentEngine()->GetWriteRequestLimit();
+    }
+
 private:
     const TString LocationId_;
     const NProfiling::TProfiler Profiler_;

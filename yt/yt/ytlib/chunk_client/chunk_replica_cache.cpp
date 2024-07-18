@@ -278,6 +278,7 @@ public:
         const TAllyReplicasInfo& replicas) override
     {
         YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+        YT_VERIFY(replicas.Revision != NHydra::NullRevision);
 
         auto now = TInstant::Now();
 
@@ -332,20 +333,6 @@ public:
 
             CacheSizeGauge_.Update(Entries_.size());
         }
-    }
-
-    void RegisterReplicas(
-        TChunkId chunkId,
-        const TChunkReplicaWithMediumList& replicas) override
-    {
-        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
-
-        UpdateReplicas(
-            chunkId,
-            TAllyReplicasInfo{
-                .Replicas = replicas,
-                .Revision = 1 // must be larger than NullRevision
-            });
     }
 
     void Reconfigure(TChunkReplicaCacheConfigPtr config) override

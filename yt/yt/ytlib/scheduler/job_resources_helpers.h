@@ -54,7 +54,6 @@ TString FormatResourceUsage(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-TString FormatResources(const TJobResources& resources);
 TString FormatResources(const TJobResourcesWithQuota& resources);
 
 TString FormatResourcesConfig(const TJobResourcesConfigPtr& config);

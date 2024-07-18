@@ -56,7 +56,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -335,8 +335,8 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
 
-    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Primary];
-    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
+    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
     const auto& indices = tableInfo->Indices;
 
     const TColumnSchema* unfoldedColumn{};
@@ -389,15 +389,9 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     for (const auto& tableColumn : tableSchema.Columns()) {
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
-        if (indexColumn && *indexColumn->LogicalType() == *tableColumn.LogicalType()) {
-            replacedColumns.insert(indexColumn->Name());
-        }
-
-        if (!tableColumn.SortOrder()) {
+        if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
             continue;
         }
-
-        YT_ASSERT(indexColumn && indexColumn->SortOrder());
 
         auto* indexReference = head->New<NAst::TReferenceExpression>(
             NullSourceLocation,
@@ -411,6 +405,11 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         indexJoinColumns.push_back(indexReference);
         tableJoinColumns.push_back(tableReference);
     }
+
+    THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
+        "Misuse of operator WITH INDEX, tables %v and %v have no shared columns",
+        query.Table.Path,
+        index.Path);
 
     query.WherePredicate = NAst::TTableReferenceReplacer(
         head,
@@ -465,7 +464,7 @@ class TQueryPreparer
 {
 public:
     TQueryPreparer(
-        const TStickyTableMountInfoCachePtr& tableMountCache,
+        TStickyTableMountInfoCachePtr tableMountCache,
         IInvokerPtr invoker,
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
         TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {},
@@ -486,7 +485,7 @@ public:
     }
 
 private:
-    const TStickyTableMountInfoCachePtr& TableMountCache_;
+    const TStickyTableMountInfoCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
     const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
@@ -540,7 +539,7 @@ private:
         auto tableSchema = GetTableSchema(path, tableInfo);
         return TDataSplit{
             .ObjectId = tableInfo->TableId,
-            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIoMode::LatestTimestamp
+            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIOMode::LatestTimestamp
                 ? ToLatestTimestampSchema(tableSchema)
                 : std::move(tableSchema),
             .MountRevision = tableInfo->PrimaryRevision,
@@ -1821,24 +1820,27 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
         const auto& config = Connection_->GetStaticConfig();
         const auto& tableMountCache = Connection_->GetTableMountCache();
 
-        std::optional<TErrorCode> retryableErrorCode;
-        TTabletInfoPtr tabletInfo;
-        std::tie(retryableErrorCode, tabletInfo) = tableMountCache->InvalidateOnError(
+        auto invalidationResult = tableMountCache->InvalidateOnError(
             error,
             /*forceRetry*/ false);
 
-        if (retryableErrorCode && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
+        if (invalidationResult.Retryable && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
             YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
                 retryCount,
                 config->TableMountCache->OnErrorRetryCount);
-            auto now = Now();
-            auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
-                config->TableMountCache->OnErrorSlackPeriod;
-            if (retryTime > now) {
-                TDelayedExecutor::WaitForDuration(retryTime - now);
+
+            if (!invalidationResult.TableInfoUpdatedFromError) {
+                auto now = Now();
+                const auto& tabletInfo = invalidationResult.TabletInfo;
+                auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                    config->TableMountCache->OnErrorSlackPeriod;
+                if (retryTime > now) {
+                    TDelayedExecutor::WaitForDuration(retryTime - now);
+                }
             }
+
             if (profilingInfo) {
-                profilingInfo->RetryReasons.push_back(*retryableErrorCode);
+                profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
             }
             continue;
         }

@@ -1854,15 +1854,25 @@ class TestChaos(ChaosTestBase):
         ts = row[0].attributes["write_timestamps"][0]
 
         if mode == "async":
-            def _insistent_lookup_rows():
-                try:
-                    return lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts)
-                except YtError as err:
-                    if err.contains_text("No in-sync replicas found for table //tmp/crt"):
-                        return []
-                    raise err
-            wait(lambda: _insistent_lookup_rows() == values)
-            row = lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts, versioned=True)
+            def _insistent_lookup_rows(versioned):
+                result = None
+
+                def try_lookup_rows():
+                    try:
+                        nonlocal result
+                        result = lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts, versioned=versioned)
+                    except YtError as err:
+                        if err.is_no_in_sync_replicas():
+                            return False
+                        raise err
+                    return True
+
+                wait(try_lookup_rows)
+                return result
+
+            assert _insistent_lookup_rows(versioned=False) == values
+            # Since we have 2 proxies, the second request could be done to another proxy with older replication card
+            row = _insistent_lookup_rows(versioned=True)
         else:
             row = lookup_rows("//tmp/crt", [{"key": 0}], versioned=True)
 
@@ -3364,12 +3374,18 @@ class TestChaos(ChaosTestBase):
         crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
         crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
 
+        for crt in [crt1, crt2]:
+            assert get("{0}/@collocated_replication_card_ids".format(crt)) == []
+
         collocation_id = create("replication_card_collocation", None, attributes={
             "type": "replication",
             "table_paths": [crt1, crt2]
         })
+
+        cards = sorted([card1, card2])
         for crt in [crt1, crt2]:
             assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
+            assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
 
         def _get_orchid(cell_id, path):
             address = get("#{0}/@peers/0/address".format(cell_id))
@@ -3876,10 +3892,12 @@ class TestChaos(ChaosTestBase):
         replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
         self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
         self._sync_replication_era(card_id)
-        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
 
-        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id))
-        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id))
+        sync_unmount_table("//tmp/rqs", driver=remote_driver0)
+        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
+        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id, replication_progress=progress))
+        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id, replication_progress=progress))
+        sync_mount_table("//tmp/rqs", driver=remote_driver0)
         self._create_replica_tables(replicas[4:], replica_ids[4:], schema=schema1, pivot_keys=_create_pivots(schema1), replication_progress=progress)
         self._sync_replication_era(card_id)
 
@@ -3929,7 +3947,7 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.contains_text("No in-sync replicas found for table") or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
+                        if err.is_no_in_sync_replicas() or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
                             return False
                         else:
                             raise err

@@ -11,7 +11,6 @@ from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper import yson
-from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB, YtError
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
@@ -200,10 +199,8 @@ class YtTestEnvironment(object):
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
-        # TODO(ignat): Remove after max_replication_factor will be implemented.
-        set_option("_is_testing_mode", True, client=None)
-
         self.config = update(get_default_config(), config)
+        self.config["max_replication_factor"] = 1
         self.config["enable_request_logging"] = True
         self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100

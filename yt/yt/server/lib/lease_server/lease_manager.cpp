@@ -72,12 +72,9 @@ public:
 
     int RefPersistently(bool force) override;
     int UnrefPersistently() override;
-    ILeaseGuardPtr GetPersistentLeaseGuard(bool force) override;
-    ILeaseGuardPtr GetPersistentLeaseGuardOnLoad() override;
 
     int RefTransiently(bool force) override;
-    int UnrefTransiently(int leaderAutomatonTerm) override;
-    ILeaseGuardPtr GetTransientLeaseGuard(bool force) override;
+    int UnrefTransiently() override;
 
     void SetState(ELeaseState newState)
     {
@@ -106,137 +103,13 @@ public:
     }
 
 private:
-    class TPersistentLeaseGuard
-        : public ILeaseGuard
-    {
-    public:
-        TPersistentLeaseGuard(
-            ILease* lease,
-            ILeaseManagerPtr leaseManager,
-            bool force,
-            bool onLoad)
-            : LeaseManager_(std::move(leaseManager))
-        {
-            // NB: May throw, so we store Lease_
-            // after successful ref.
-            if (!onLoad) {
-                lease->RefPersistently(force);
-            }
-
-            LeaseId_ = lease->GetId();
-        }
-
-        ~TPersistentLeaseGuard()
-        {
-            if (LeaseId_) {
-                auto* lease = LeaseManager_->FindLease(LeaseId_);
-                // Lease was forcefully revoked.
-                if (!lease) {
-                    return;
-                }
-
-                lease->UnrefPersistently();
-                LeaseId_ = {};
-            }
-        }
-
-        TLeaseId GetLeaseId() const override
-        {
-            return LeaseId_;
-        }
-
-        bool IsPersistent() const override
-        {
-            return true;
-        }
-
-        bool IsValid() const override
-        {
-            return LeaseManager_->FindLease(LeaseId_);
-        }
-
-    private:
-        const ILeaseManagerPtr LeaseManager_;
-
-        TLeaseId LeaseId_;
-    };
-
-    class TTransientLeaseGuard
-        : public ILeaseGuard
-    {
-    public:
-        TTransientLeaseGuard(
-            ILease* lease,
-            ILeaseManagerPtr leaseManager,
-            bool force,
-            int leaderAutomatonTerm)
-            : LeaseManager_(std::move(leaseManager))
-        {
-            // NB: May throw, so we store Lease_
-            // after successful ref.
-            lease->RefTransiently(force);
-
-            LeaseId_ = lease->GetId();
-            LeaderAutomatonTerm_ = leaderAutomatonTerm;
-        }
-
-        ~TTransientLeaseGuard()
-        {
-            if (LeaseId_) {
-                auto* lease = LeaseManager_->FindLease(LeaseId_);
-                // Lease was forcefully revoked.
-                if (!lease) {
-                    return;
-                }
-
-                lease->UnrefTransiently(LeaderAutomatonTerm_);
-                LeaseId_ = {};
-            }
-        }
-
-        TLeaseId GetLeaseId() const override
-        {
-            return LeaseId_;
-        }
-
-        bool IsPersistent() const override
-        {
-            return false;
-        }
-
-        bool IsValid() const override
-        {
-            return
-                LeaderAutomatonTerm_ == LeaseManager_->GetLeaderAutomatonTerm() &&
-                LeaseManager_->FindLease(LeaseId_);
-        }
-
-    private:
-        const ILeaseManagerPtr LeaseManager_;
-
-        TLeaseId LeaseId_;
-        int LeaderAutomatonTerm_;
-    };
-
     const TLeaseId Id_;
-    TWeakPtr<TLeaseManager> Owner_;
+    TLeaseManager* const Owner_;
 
     ELeaseState State_ = ELeaseState::Unknown;
 };
 
 DECLARE_ENTITY_TYPE(TLease, TLeaseId, NObjectClient::TObjectIdEntropyHash);
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TLeaseGuardComparer::operator()(const ILeaseGuardPtr& lhs, const ILeaseGuardPtr& rhs) const
-{
-    return Compare(lhs, rhs);
-}
-
-bool TLeaseGuardComparer::Compare(const ILeaseGuardPtr& lhs, const ILeaseGuardPtr& rhs)
-{
-    return lhs->GetLeaseId() < rhs->GetLeaseId();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -370,13 +243,6 @@ public:
         return Decommission_ && LeaseMap_.empty();
     }
 
-    std::optional<int> GetLeaderAutomatonTerm() const override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return LeaderAutomatonTerm_;
-    }
-
     IServicePtr GetRpcService() override
     {
         return this;
@@ -428,8 +294,6 @@ private:
 
     TPeriodicExecutorPtr LeaseRemovalExecutor_;
 
-    std::optional<int> LeaderAutomatonTerm_;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void LoadKeys(TLoadContext& context)
@@ -465,8 +329,6 @@ private:
             Config_->LeaseRemovalPeriod);
         LeaseRemovalExecutor_->Start();
 
-        LeaderAutomatonTerm_ = TCompositeAutomatonPart::HydraManager_->GetAutomatonTerm();
-
         for (auto [leaseId, lease] : LeaseMap_) {
             MaybeRemoveLease(lease);
         }
@@ -484,8 +346,6 @@ private:
         for (auto [leaseId, lease] : LeaseMap_) {
             lease->SetTransientRefCounter(0);
         }
-
-        LeaderAutomatonTerm_ = std::nullopt;
     }
 
     void HydraRegisterLease(NProto::TReqRegisterLease* request)
@@ -699,7 +559,7 @@ private:
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         } else {
             auto* lease = GetLeaseOrThrow(leaseId);
-            lease->UnrefTransiently(*GetLeaderAutomatonTerm());
+            lease->UnrefTransiently();
             context->Reply();
         }
     }
@@ -755,7 +615,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
-        YT_VERIFY(LeaderAutomatonTerm_);
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced transiently")
@@ -776,14 +635,9 @@ private:
         return transientRefCounter;
     }
 
-    int UnrefLeaseTransiently(TLease* lease, int leaderAutomatonTerm)
+    int UnrefLeaseTransiently(TLease* lease)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        // Leader epoch changed during lease holding.
-        if (leaderAutomatonTerm != LeaderAutomatonTerm_) {
-            return lease->GetTransientRefCounter();
-        }
 
         auto transientRefCounter = lease->GetTransientRefCounter() - 1;
         lease->SetTransientRefCounter(transientRefCounter);
@@ -877,71 +731,22 @@ private:
 
 int TLease::RefPersistently(bool force)
 {
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return owner->RefLeasePersistently(this, force);
+    return Owner_->RefLeasePersistently(this, force);
 }
 
 int TLease::UnrefPersistently()
 {
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return owner->UnrefLeasePersistently(this);
-}
-
-ILeaseGuardPtr TLease::GetPersistentLeaseGuard(bool force)
-{
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return New<TPersistentLeaseGuard>(
-        this,
-        std::move(owner),
-        force,
-        /*onLoad*/ false);
-}
-
-ILeaseGuardPtr TLease::GetPersistentLeaseGuardOnLoad()
-{
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return New<TPersistentLeaseGuard>(
-        this,
-        std::move(owner),
-        /*force*/ false,
-        /*onLoad*/ true);
+    return Owner_->UnrefLeasePersistently(this);
 }
 
 int TLease::RefTransiently(bool force)
 {
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return owner->RefLeaseTransiently(this, force);
+    return Owner_->RefLeaseTransiently(this, force);
 }
 
-int TLease::UnrefTransiently(int leaderAutomatonTerm)
+int TLease::UnrefTransiently()
 {
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    return owner->UnrefLeaseTransiently(this, leaderAutomatonTerm);
-}
-
-ILeaseGuardPtr TLease::GetTransientLeaseGuard(bool force)
-{
-    auto owner = Owner_.Lock();
-    YT_VERIFY(owner);
-
-    auto leaderAutomatonTerm = *owner->GetLeaderAutomatonTerm();
-    return New<TTransientLeaseGuard>(
-        this,
-        std::move(owner),
-        force,
-        leaderAutomatonTerm);
+    return Owner_->UnrefLeaseTransiently(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

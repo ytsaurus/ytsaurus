@@ -16,6 +16,7 @@ from yt_dashboard_generator.taggable import NotEquals
 
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr
 
+
 def _build_versions(d):
     d.add(Rowset()
         .stack(True)
@@ -23,6 +24,7 @@ def _build_versions(d):
         .row()
             .cell("Versions", ExeNode("yt.build.version"))
     )
+
 
 def _build_cpu(d):
     def exe_node_thread_cpu(thread):
@@ -39,10 +41,12 @@ def _build_cpu(d):
             .cell("JobEnvironment CPU Wait", exe_node_thread_cpu("JobEnvironment"))
     )
 
+
 def _build_memory(d):
     d.add(Rowset()
         .stack(False)
         .aggr(yt_host)
+        .min(0)
         .row()
             .cell("Nodes Used Memory", ExeNodeMemory("yt.memory.generic.bytes_in_use_by_app"))
             .cell("Total Nodes User Job Memory Limit", ExeNode("yt.job_controller.resource_limits.user_memory"))
@@ -58,6 +62,7 @@ def _build_jobs(d):
     d.add(Rowset()
         .stack(False)
         .aggr(yt_host)
+        .min(0)
         .row()
             .cell(
                 "Controller Started And Completed Jobs",
@@ -78,6 +83,7 @@ def _build_jobs(d):
             .cell("Active Job Count", ExeNode("yt.job_controller.active_job_count").aggr("origin"))
     )
 
+
 def _build_network(d):
     rowset = Rowset().stack(False)
     for metric_name, service_name in (
@@ -95,6 +101,7 @@ def _build_network(d):
             )
     d.add(rowset)
 
+
 def _build_heartbeat_info(d):
     d.add(Rowset()
         .stack(False)
@@ -102,6 +109,7 @@ def _build_heartbeat_info(d):
         .row()
             .cell("Controller Agent Heartbeats Throttled", CA("yt.controller_agent.job_tracker.node_heartbeat.throttled_heartbeat_count.rate"))
     )
+
 
 def _build_alerts_and_slots(d):
     d.add(Rowset()
@@ -118,6 +126,7 @@ def _build_alerts_and_slots(d):
                 .replace_nan(0))
     )
 
+
 def _build_porto_info(d):
     d.add(Rowset()
         .stack(False)
@@ -131,8 +140,12 @@ def _build_porto_info(d):
                 .all("backend"))
         .row()
             # COMPAT(pogorelov): Remove "job_envir onment" after 24.1.
-            .cell("Porto Commands", ExeNode("yt.exec_node.job_envir onment.porto.command*.rate|yt.exec_node.job_environment.porto.command*.rate"))
+            .cell("Porto Commands",
+                ExeNode("yt.exec_node.job_envir onment.porto.command*.rate|yt.exec_node.job_environment.porto.command*.rate")
+                .value("command", NotEquals("-"))
+            )
     )
+
 
 def _build_volume_errors(d):
     d.add(Rowset()
@@ -142,6 +155,7 @@ def _build_volume_errors(d):
             .cell("Volume Creation Errors", ExeNode("yt.volumes.create_errors.rate"))
             .cell("Volume Removal Errors", ExeNode("yt.volumes.remove_errors.rate"))
     )
+
 
 def _build_cache_miss_info(d):
     d.add(Rowset()
@@ -159,8 +173,10 @@ def _build_page_faults(d):
             .cell("Page Faults", ExeNodePorto("yt.porto.memory.major_page_faults").all("container_category"))
     )
 
+
 def build_exe_nodes():
     d = Dashboard()
+    d.set_cell_per_row(2)
 
     _build_versions(d)
     _build_cpu(d)

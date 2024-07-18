@@ -1493,7 +1493,7 @@ private:
         TMergeChunkInfo chunkInfo;
         ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
 
-        for (auto replica : writer->GetWrittenChunkReplicas()) {
+        for (auto replica : writer->GetWrittenChunkReplicasInfo().Replicas) {
             chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkInfo.add_source_replicas(ToProto<ui64>(replica));
         }
@@ -2773,7 +2773,7 @@ private:
 
         TChunkReplicaWithLocationList writtenReplicas;
         for (const auto& writer : succeededWriters) {
-            auto replicas = writer.ChunkWriter->GetWrittenChunkReplicas();
+            auto replicas = writer.ChunkWriter->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(replicas.size() == 1);
             const auto& replica = replicas[0];
             int replicaIndex = IsErasure()

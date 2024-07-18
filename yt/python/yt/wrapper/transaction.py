@@ -259,6 +259,8 @@ class Transaction(object):
         self._used_with_statement = False
         try:
             if not self._acquire:
+                self._prepare_stop_pinger()
+                self._stop_pinger()
                 return
 
             action = "commit" if type is None else "abort"

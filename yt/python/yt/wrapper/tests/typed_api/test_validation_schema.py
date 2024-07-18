@@ -169,7 +169,7 @@ class TestDefaultOptionalNotOptional(object):
             format = StructuredSkiffFormat([py_schema], for_reading=True)
             record = format.load_rows(io.BytesIO(yt_data)).__next__()
             assert record
-            assert type(record) == py_struct
+            assert type(record) is py_struct
             assert record.int_field == yt_data_value
 
     @pytest.mark.parametrize("test_name, py_struct, yt_struct, is_read, exception_str", [
@@ -260,7 +260,7 @@ class TestDefaultOptionalNotOptional(object):
                 format = StructuredSkiffFormat([py_schema], for_reading=True)
                 record = format.load_rows(io.BytesIO(yt_data)).__next__()
                 assert record
-                assert type(record) == py_struct
+                assert type(record) is py_struct
                 assert record == yt_data_value
 
     @pytest.mark.parametrize("test_name, validate_runtime, py_struct, yt_struct, yt_data, py_data_value, exception_str", [
@@ -333,5 +333,5 @@ class TestDefaultOptionalNotOptional(object):
                 del py_schema._schema_runtime_context
                 record = format.load_rows(io.BytesIO(yt_data)).__next__()
                 assert record
-                assert type(record) == py_struct
+                assert type(record) is py_struct
                 assert record == yt_data_value

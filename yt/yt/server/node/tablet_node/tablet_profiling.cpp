@@ -211,6 +211,8 @@ TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
     , ReplicationRowCount(profiler.WithDense().Counter("/replica/replication_row_count"))
     , ReplicationDataWeight(profiler.WithDense().Counter("/replica/replication_data_weight"))
     , ReplicationErrorCount(profiler.WithDense().Counter("/replica/replication_error_count"))
+    , ReplicationBytesThrottled(profiler.WithDense().Counter("/replica/replication_bytes_throttled"))
+    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/replica/chunk_reader_statistics"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

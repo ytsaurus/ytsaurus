@@ -58,9 +58,14 @@ TEST(TSelfifyEvaluatedExpressionTest, HashExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char Compare(const TPIValue* first, const TPIValue* second)
+char CompareI64(const TPIValue* first, const TPIValue* second)
 {
     return first[0].Data.Int64 < second[0].Data.Int64;
+}
+
+char CompareString(const TPIValue* first, const TPIValue* second)
+{
+    return first[0].AsStringBuf() < second[0].AsStringBuf();
 }
 
 TEST(TTopCollectorTest, Simple)
@@ -76,7 +81,7 @@ TEST(TTopCollectorTest, Simple)
 
     auto topCollector = TTopCollector(
         resultLength,
-        NWebAssembly::PrepareFunction(&Compare),
+        NWebAssembly::PrepareFunction(&CompareI64),
         /*rowSize*/ 1,
         GetDefaultMemoryChunkProvider());
 
@@ -109,7 +114,7 @@ TEST(TTopCollectorTest, Shuffle)
 
         auto topCollector = TTopCollector(
             resultLength,
-            NWebAssembly::PrepareFunction(&Compare),
+            NWebAssembly::PrepareFunction(&CompareI64),
             /*rowSize*/ 1,
             GetDefaultMemoryChunkProvider());
 
@@ -125,6 +130,37 @@ TEST(TTopCollectorTest, Shuffle)
             EXPECT_EQ(sortResult[i+1][0].Data.Int64, i);
         }
     }
+}
+
+TEST(TTopCollectorTest, LargeRow)
+{
+    i64 dataLength = 1;
+
+    auto topCollector = TTopCollector(
+        2,
+        NWebAssembly::PrepareFunction(&CompareString),
+        /*rowSize*/ 1,
+        GetDefaultMemoryChunkProvider());
+
+    auto largeString = TString();
+    largeString.resize(600_KB);
+
+    auto data = std::vector<TPIValue>(dataLength);
+    MakePositionIndependentStringValue(&data[0], largeString);
+
+    ::memset(std::bit_cast<void*>(largeString.begin()), 'c', 600_KB);
+    topCollector.AddRow(&data[0]);
+
+    ::memset(std::bit_cast<void*>(largeString.begin()), 'b', 600_KB);
+    topCollector.AddRow(&data[0]);
+
+    ::memset(std::bit_cast<void*>(largeString.begin()), 'a', 600_KB);
+    topCollector.AddRow(&data[0]);
+
+    auto sortResult = topCollector.GetRows();
+
+    EXPECT_EQ(sortResult[0][0].AsStringBuf()[0], 'a');
+    EXPECT_EQ(sortResult[1][0].AsStringBuf()[0], 'b');
 }
 
 ////////////////////////////////////////////////////////////////////////////////

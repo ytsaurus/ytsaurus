@@ -172,12 +172,12 @@ def check_dump_load(type_, skiff_bytes, value, *, expected_type=None, assert_val
     actual_list = list(load_structured(stream, py_schemas=[py_schema], skiff_schemas=[skiff_schema_for_reading]))
 
     assert len(actual_list) == 1
-    assert type(actual_list[0]) == Row
+    assert type(actual_list[0]) is Row
     actual = actual_list[0].x
     if expected_type is None:
-        assert type(actual) == type_
+        assert type(actual) is type_
     else:
-        assert type(actual) == expected_type
+        assert type(actual) is expected_type
     assert_value_eq(actual=actual, expected=value)
 
     actual_skiff_bytes_with_table_index = dump_single_value_row(type_, value)

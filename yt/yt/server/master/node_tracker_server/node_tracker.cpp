@@ -1689,8 +1689,7 @@ private:
             }
         }
 
-        // COMPAT(gritukan)
-        if (GetDynamicConfig()->UseResourceStatisticsFromClusterNodeHeartbeat && request->has_resource_usage()) {
+        if (request->has_resource_usage()) {
             node->SetResourceUsage(request->resource_usage());
             node->SetResourceLimits(request->resource_limits());
         }

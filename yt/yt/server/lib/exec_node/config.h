@@ -299,6 +299,8 @@ public:
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
 
+    TDuration SlotInitTimeout;
+
     TDuration SlotReleaseTimeout;
 
     bool AbortOnFreeVolumeSynchronizationFailed;
@@ -484,6 +486,8 @@ public:
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
 
+    i64 TotalInFlightBlockSize;
+
     double FallbackTimeoutFraction;
 
     REGISTER_YSON_STRUCT(TJobInputCacheDynamicConfig);
@@ -639,6 +643,21 @@ DEFINE_REFCOUNTED_TYPE(TJobCommonConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAllocationConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableMultipleJobs;
+
+    REGISTER_YSON_STRUCT(TAllocationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -683,6 +702,8 @@ public:
     std::optional<TDuration> TestResourceAcquisitionDelay;
 
     TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
+
+    TAllocationConfigPtr Allocation;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 

@@ -8,6 +8,7 @@
 
 namespace NYT::NJobProxy {
 
+using namespace NCrypto;
 using namespace NFormats;
 using namespace NTableClient;
 
@@ -130,6 +131,11 @@ i64 TAnyToCompositeConverter::GetEncodedRowBatchCount() const
 i64 TAnyToCompositeConverter::GetEncodedColumnarBatchCount() const
 {
     return UnderlyingWriter_->GetEncodedColumnarBatchCount();
+}
+
+std::optional<TMD5Hash> TAnyToCompositeConverter::GetDigest() const
+{
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

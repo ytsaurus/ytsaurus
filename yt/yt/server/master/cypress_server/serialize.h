@@ -54,6 +54,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Rename this to TBeginCopyNodeContext
 class TBeginCopyContext
     : public TEntityStreamSaveContext
 {
@@ -63,25 +64,33 @@ public:
         ENodeCloneMode mode,
         const TCypressNode* rootNode);
 
-    void RegisterPortalRootId(TNodeId portalRootId);
-    void RegisterOpaqueChildPath(const NYPath::TYPath& opaqueChildPath);
+    void RegisterSchema(NTableServer::TMasterTableSchemaId schemaId);
     void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
-    TEntitySerializationKey RegisterSchema(NTableServer::TMasterTableSchema* schema);
-    const THashMap<NTableServer::TMasterTableSchema*, TEntitySerializationKey>& GetRegisteredSchemas() const;
+    void RegisterPortalRoot(NCypressClient::TNodeId portalRootId);
+    void RegisterAsOpaque(const NYPath::TYPath& path);
+    void RegisterChild(TCypressNode* child);
 
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, PortalRootIds);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<NYPath::TYPath>, OpaqueChildPaths);
+    std::optional<NTableServer::TMasterTableSchemaId> GetSchemaId() const;
+    std::optional<NObjectClient::TCellTag> GetExternalCellTag() const;
+    std::optional<NCypressClient::TNodeId> GetPortalRootId() const;
+    std::optional<NYPath::TYPath> GetPathIfOpaque() const;
+    const std::vector<TCypressNode*>& GetChildren() const;
+
+    std::vector<TSharedRef> Finish();
+
     DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
     DEFINE_BYVAL_RO_PROPERTY(const TCypressNode*, RootNode);
 
-    std::vector<TSharedRef> Finish();
-    NObjectClient::TCellTagList GetExternalCellTags();
-
 private:
-    TCellLocalObjectSaveRegistry<NTableServer::TMasterTableSchema> SchemaRegistry_;
     TChunkedOutputStream Stream_;
-    std::vector<NObjectClient::TCellTag> ExternalCellTags_;
+
+    std::optional<NTableServer::TMasterTableSchemaId> SchemaId_;
+    std::optional<NObjectClient::TCellTag> ExternalCellTag_;
+    std::optional<NCypressClient::TNodeId> PortalRootId_;
+    // Used iff node is marked as opaque.
+    std::optional<NYPath::TYPath> Path_;
+    std::vector<TCypressNode*> Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +102,8 @@ public:
     TEndCopyContext(
         NCellMaster::TBootstrap* bootstrap,
         ENodeCloneMode mode,
-        TRef data);
+        TRef data,
+        const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& schemaIdToSchema);
 
     template <class T>
     T* GetObject(NObjectServer::TObjectId id);
@@ -102,18 +112,21 @@ public:
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(OpaqueChild);
 
-    void RegisterSchema(TEntitySerializationKey key, NTableServer::TMasterTableSchema* schema);
-    NTableServer::TMasterTableSchema* GetSchemaOrThrow(TEntitySerializationKey key);
+    NTableServer::TMasterTableSchema* GetSchema(NTableServer::TMasterTableSchemaId schemaId) const;
 
-    bool IsOpaqueChild() const;
-    void SetOpaqueChild(bool opaqueChild);
+    void RegisterChild(TString key, TNodeId childId);
+    bool HasChildren() const;
+    std::vector<std::pair<TString, TNodeId>> GetChildren() const;
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TCellLocalObjectLoadRegistry<NTableServer::TMasterTableSchema> SchemaRegistry_;
+
+    const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& SchemaIdToSchema_;
     TMemoryInput Stream_;
-    bool OpaqueChild_;
+
+    std::vector<std::pair<TString, TNodeId>> Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

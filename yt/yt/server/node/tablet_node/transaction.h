@@ -102,8 +102,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, TransientLeaseGuards);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::ILeaseGuardPtr>, PersistentLeaseGuards);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, TransientLeaseIds);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, PersistentLeaseIds);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletId, ExternalizerTabletId);
 

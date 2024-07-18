@@ -1,13 +1,10 @@
 #include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
-#include "backup_manager.h"
 #include "hunk_lock_manager.h"
 #include "tablet.h"
-#include "sorted_store_manager.h"
 #include "transaction_manager.h"
 #include "transaction.h"
-#include "serialize.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 
@@ -214,11 +211,7 @@ public:
                 ValidateTransactionActive(transaction);
 
                 try {
-                    const auto& leaseManager = Host_->GetLeaseManager();
-                    for (auto transactionId : params.PrerequisiteTransactionIds) {
-                        auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
-                        transaction->TransientLeaseGuards().push_back(lease->GetTransientLeaseGuard());
-                    }
+                    AddTransientLeasesOrThrow(transaction, params.PrerequisiteTransactionIds, /*force*/ false);
                 } catch (const std::exception& ex) {
                     throwPrerequisitesError(TError(ex));
                 }
@@ -249,11 +242,7 @@ public:
             } else {
                 YT_VERIFY(atomicity == EAtomicity::None);
 
-                const auto& leaseManager = Host_->GetLeaseManager();
-                for (auto transactionId : params.PrerequisiteTransactionIds) {
-                    auto* lease = leaseManager->GetLeaseOrThrow(transactionId);
-                    Y_UNUSED(lease->GetTransientLeaseGuard());
-                }
+                CheckTransientLeasesOrThrow(params.PrerequisiteTransactionIds);
 
                 if (transactionManager->GetDecommission()) {
                     THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
@@ -508,7 +497,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                AddPersistentLeaseGuards(transaction, prerequisiteTransactionIds);
+                AddPersistentLeases(transaction, prerequisiteTransactionIds);
 
                 YT_LOG_DEBUG(
                     "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
@@ -660,7 +649,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                AddPersistentLeaseGuards(transaction, prerequisiteTransactionIds);
+                AddPersistentLeases(transaction, prerequisiteTransactionIds);
 
                 YT_LOG_DEBUG(
                     "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
@@ -885,6 +874,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         UnlockLockedTablets(transaction);
+        ClearTransientLeases(transaction);
+        ClearPersistentLeases(transaction);
     }
 
     //! This method promotes transaction transient generation and also resets its transient state.
@@ -949,7 +940,8 @@ private:
         }
         transaction->TransientAffectedTabletIds().clear();
 
-        transaction->TransientLeaseGuards().clear();
+        // NB: Transient lease ref counters are reset automatically by Lease Manager when epoch ends.
+        transaction->TransientLeaseIds().clear();
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)
@@ -1191,15 +1183,65 @@ private:
         transaction->PersistentAffectedTabletIds().clear();
     }
 
-    void AddPersistentLeaseGuards(
+    void AddPersistentLeases(
         TTransaction* transaction,
         const std::vector<TTransactionId>& prerequisiteTransactionIds)
     {
         const auto& leaseManager = Host_->GetLeaseManager();
         for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
             auto* lease = leaseManager->GetLease(prerequisiteTransactionId);
-            transaction->PersistentLeaseGuards().push_back(lease->GetPersistentLeaseGuard(/*force*/ true));
+            lease->RefPersistently(/*force*/ true);
+            transaction->PersistentLeaseIds().push_back(lease->GetId());
         }
+    }
+
+    void CheckTransientLeasesOrThrow(const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    {
+        const auto& leaseManager = Host_->GetLeaseManager();
+        for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+            auto* lease = leaseManager->GetLeaseOrThrow(prerequisiteTransactionId);
+            lease->RefTransiently(/*force*/ false);
+            lease->UnrefTransiently();
+        }
+    }
+
+    void AddTransientLeasesOrThrow(
+        TTransaction* transaction,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        bool force)
+    {
+        const auto& leaseManager = Host_->GetLeaseManager();
+        for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+            auto* lease = leaseManager->GetLeaseOrThrow(prerequisiteTransactionId);
+            lease->RefTransiently(force);
+            transaction->TransientLeaseIds().push_back(lease->GetId());
+        }
+    }
+
+    void ClearPersistentLeases(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& leaseManager = Host_->GetLeaseManager();
+        for (auto leaseId : transaction->PersistentLeaseIds()) {
+            if (auto* lease = leaseManager->FindLease(leaseId)) {
+                lease->UnrefPersistently();
+            }
+        }
+        transaction->PersistentLeaseIds().clear();
+    }
+
+    void ClearTransientLeases(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& leaseManager = Host_->GetLeaseManager();
+        for (auto leaseId : transaction->TransientLeaseIds()) {
+            if (auto* lease = leaseManager->FindLease(leaseId)) {
+                lease->UnrefTransiently();
+            }
+        }
+        transaction->TransientLeaseIds().clear();
     }
 
     TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const

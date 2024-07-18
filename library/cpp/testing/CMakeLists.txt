@@ -14,7 +14,6 @@
 
 add_subdirectory(common)
 add_subdirectory(gbenchmark)
-add_subdirectory(gmock_in_unittest)
 add_subdirectory(gtest)
 add_subdirectory(gtest_extensions)
 add_subdirectory(gtest_main)

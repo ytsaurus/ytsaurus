@@ -432,7 +432,7 @@ class TestLookup(TestSortedDynamicTablesBase):
                             assert column not in expected[key]
                             continue
                         assert len(values) == 1
-                        if type(values[0]) == yson.YsonEntity:
+                        if type(values[0]) is yson.YsonEntity:
                             assert column not in expected[key]
                         else:
                             assert int(values[0]) == expected[key][column]

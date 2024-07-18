@@ -248,7 +248,6 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(64_MB);
     registrar.Parameter("max_rows_per_transaction", &TThis::MaxRowsPerTransaction)
         .GreaterThan(0)
-        .LessThanOrEqual(MaxRowsPerTransactionHardLimit)
         .Default(100'000);
 
     registrar.Parameter("default_lookup_rows_timeout", &TThis::DefaultLookupRowsTimeout)
@@ -419,7 +418,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(3);
 
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);

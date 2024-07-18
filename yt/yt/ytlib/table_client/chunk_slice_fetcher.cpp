@@ -133,6 +133,11 @@ public:
         return chunkSlices;
     }
 
+    i64 GetChunkSliceCount() const override
+    {
+        return SliceCount_;
+    }
+
 private:
     const TChunkSliceFetcherConfigPtr Config_;
     const NTableClient::TRowBufferPtr RowBuffer_;
@@ -384,6 +389,101 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
         client,
         rowBuffer,
         logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCombiningChunkSliceFetcher
+    : public IChunkSliceFetcher
+{
+public:
+    TCombiningChunkSliceFetcher(
+        std::vector<IChunkSliceFetcherPtr> chunkSliceFetchers,
+        std::vector<int> tableIndexToFetcherIndex)
+        : ChunkSliceFetchers_(std::move(chunkSliceFetchers))
+        , TableIndexToFetcherIndex_(std::move(tableIndexToFetcherIndex))
+    { }
+
+    void AddChunk(TInputChunkPtr /*chunk*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    int GetChunkCount() const override
+    {
+        int chunkCount = 0;
+        for (const auto& fetcher : ChunkSliceFetchers_) {
+            chunkCount += fetcher->GetChunkCount();
+        }
+        return chunkCount;
+    }
+
+    void SetCancelableContext(TCancelableContextPtr cancelableContext) override
+    {
+        for (auto& fetcher : ChunkSliceFetchers_) {
+            fetcher->SetCancelableContext(cancelableContext);
+        }
+    }
+
+    TFuture<void> Fetch() override
+    {
+        std::vector<TFuture<void>> fetchFutures;
+        for (const auto& fetcher : ChunkSliceFetchers_) {
+            fetchFutures.push_back(fetcher->Fetch());
+        }
+        return AllSucceeded(std::move(fetchFutures));
+    }
+
+    std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() override
+    {
+        std::vector<TInputChunkSlicePtr> chunkSlices;
+        chunkSlices.reserve(GetChunkSliceCount());
+        for (auto& fetcher : ChunkSliceFetchers_) {
+            auto fetcherSlices = fetcher->GetChunkSlices();
+            chunkSlices.insert(
+                chunkSlices.begin(),
+                std::make_move_iterator(fetcherSlices.begin()),
+                std::make_move_iterator(fetcherSlices.end()));
+        }
+
+        return chunkSlices;
+    }
+
+    void AddDataSliceForSlicing(
+        NChunkClient::TLegacyDataSlicePtr dataSlice,
+        const TComparator& comparator,
+        i64 sliceDataWeight,
+        bool sliceByKeys) override
+    {
+        YT_VERIFY(dataSlice->GetTableIndex() < std::ssize(TableIndexToFetcherIndex_));
+        auto fetcherIndex = TableIndexToFetcherIndex_[dataSlice->GetTableIndex()];
+        YT_VERIFY(fetcherIndex < std::ssize(ChunkSliceFetchers_));
+        ChunkSliceFetchers_[fetcherIndex]->AddDataSliceForSlicing(dataSlice, comparator, sliceDataWeight, sliceByKeys);
+    }
+
+    i64 GetChunkSliceCount() const override
+    {
+        i64 sliceCount = 0;
+        for (const auto& fetcher : ChunkSliceFetchers_) {
+            sliceCount += fetcher->GetChunkSliceCount();
+        }
+        return sliceCount;
+    }
+
+private:
+    const std::vector<IChunkSliceFetcherPtr> ChunkSliceFetchers_;
+    const std::vector<int> TableIndexToFetcherIndex_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkSliceFetcherPtr CreateCombiningChunkSliceFetcher(
+    std::vector<IChunkSliceFetcherPtr> chunkSliceFetchers,
+    std::vector<int> tableIndexToFetcherIndex)
+{
+    return New<TCombiningChunkSliceFetcher>(
+        std::move(chunkSliceFetchers),
+        std::move(tableIndexToFetcherIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

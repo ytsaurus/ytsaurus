@@ -51,6 +51,8 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/ytlib/hive/cell_directory.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
@@ -68,6 +70,7 @@ using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedThrottler;
+using namespace NHiveClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -78,11 +81,15 @@ using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 using NProto::TMountHint;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +309,45 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
             MountRevision,
             mountRevision)
             << TErrorAttribute("tablet_id", TabletId);
+    }
+}
+
+void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
+{
+    const auto& smoothMovementData = TabletRuntimeData->SmoothMovementData;
+
+    if (!smoothMovementData.IsActiveServant.load()) {
+        auto error = TError(
+            NTabletClient::EErrorCode::TabletServantIsNotActive,
+            "Tablet servant is not active")
+            << TErrorAttribute("tablet_id", TabletId);
+
+        auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
+        auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
+
+        if (siblingCellId && siblingMountRevision) {
+            error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
+            error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
+
+            auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
+            if (cellDescriptor) {
+                error <<= TErrorAttribute(
+                    "sibling_servant_cell_descriptor",
+                    ConvertToNode(cellDescriptor));
+            } else {
+                YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
+                    LoggingTag);
+            }
+
+            THROW_ERROR error;
+        } else if (smoothMovementData.TargetActivationFuture) {
+            YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
+                LoggingTag);
+            WaitFor(smoothMovementData.TargetActivationFuture)
+                .ThrowOnError();
+            YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
+                LoggingTag);
+        }
     }
 }
 
@@ -1068,6 +1114,21 @@ void TTablet::Load(TLoadContext& context)
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
+
+    if (IsActiveServant()) {
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(true);
+    } else {
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(false);
+
+        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Source) {
+            RuntimeData_->SmoothMovementData.SiblingServantMountRevision.store(
+                SmoothMovementData_.GetSiblingMountRevision());
+            RuntimeData_->SmoothMovementData.SiblingServantCellId.Store(
+                SmoothMovementData_.GetSiblingCellId());
+        } else {
+            InitializeTargetServantActivationFuture();
+        }
+    }
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
@@ -1810,6 +1871,8 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 
     HunkLockManager_->StartEpoch();
     TabletWriteManager_->StartEpoch();
+
+    InitializeTargetServantActivationFuture();
 }
 
 void TTablet::StopEpoch()
@@ -1832,6 +1895,10 @@ void TTablet::StopEpoch()
 
     HunkLockManager_->StopEpoch();
     TabletWriteManager_->StopEpoch();
+
+    if (auto& promise = SmoothMovementData_.TargetActivationPromise()) {
+        promise.TrySet(TError("Tablet epoch canceled"));
+    }
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -2811,6 +2878,15 @@ void TTablet::SetCompressionDictionaryRebuildBackoffTime(
     TInstant backoffTime)
 {
     CompressionDictionaryInfos_[policy].RebuildBackoffTime = backoffTime;
+}
+
+void TTablet::InitializeTargetServantActivationFuture()
+{
+    if (!IsActiveServant() && SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
+        SmoothMovementData_.TargetActivationPromise() = NewPromise<void>();
+        RuntimeData_->SmoothMovementData.TargetActivationFuture =
+            SmoothMovementData_.TargetActivationPromise().ToFuture().ToUncancelable();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

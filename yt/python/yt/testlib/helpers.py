@@ -77,3 +77,15 @@ def set_config_options(options_dict):
     finally:
         for key, value in iteritems(old_values):
             yt.config._set(key, value)
+
+
+@contextmanager
+def set_cypress_attribute(path, value, final_action=None):
+    old_value = yt.get(path)
+    try:
+        yt.set(path, value)
+        yield
+    finally:
+        if final_action is not None:
+            final_action()
+        yt.set(path, old_value)

@@ -101,12 +101,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
-    registrar.Parameter(
-        "use_resource_statistics_from_cluster_node_heartbeat",
-        &TThis::UseResourceStatisticsFromClusterNodeHeartbeat)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_real_chunk_locations", &TThis::EnableRealChunkLocations)
         .Default(true);
 

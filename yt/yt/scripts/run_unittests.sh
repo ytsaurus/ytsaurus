@@ -9,6 +9,8 @@ for unittester_binary in $(find . -name "unittester-*" -type f | grep -v "unitte
 done
 
 for unittester_binary in $(find . -name "*-ut" -type f); do
-    echo "Running ${unittester_binary}"
-    ${unittester_binary}
+    if ! [[ ${unittester_binary} =~ "yt-cpp-mapreduce" ]]; then
+        echo "Running ${unittester_binary}"
+        ${unittester_binary}
+    fi
 done

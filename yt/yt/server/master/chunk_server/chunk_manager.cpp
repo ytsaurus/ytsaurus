@@ -3223,12 +3223,7 @@ private:
         // This could be under 'else', but it is not.
         refreshSequoiaChunks(request->added_chunks());
 
-        if (config->ProcessRemovedSequoiaReplicasOnMaster) {
-            ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
-        }
-        // ProcessRemovedReplicas will only refresh chunks that were actually removed,
-        // which is not the case if Sequoia replicas are no longer stored on master.
-        refreshSequoiaChunks(request->removed_chunks());
+        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
     }
 
     static void BuildReplicasListYson(
@@ -4545,8 +4540,11 @@ private:
             subrequest->chunk_meta(),
             schemaId);
 
-        if (subresponse && subrequest->request_statistics()) {
-            ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+        if (subresponse) {
+            if (subrequest->request_statistics()) {
+                ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+            }
+            subresponse->set_revision(ToProto<i64>(GetCurrentMutationContext()->GetVersion().ToRevision()));
         }
     }
 
@@ -5403,6 +5401,12 @@ private:
             return;
         }
 
+
+        if (ChunksBeingPurged_) {
+            YT_LOG_DEBUG("Chunks are still being purged");
+            return;
+        }
+
         auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
         for (const auto& replica : replicasOrError.Value()) {
             ToProto(request->add_replicas(), replica);
@@ -5857,6 +5861,12 @@ private:
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!chunk) {
+            return nullptr;
+        }
+
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+            ScheduleChunkRefresh(chunk);
             return nullptr;
         }
 

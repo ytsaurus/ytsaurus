@@ -18,12 +18,12 @@ func TestFiles(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	defer cancel()
-
 	t.Run("P", func(t *testing.T) {
 		t.Run("WriteReadFile", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			name := tmpPath()
 
@@ -49,6 +49,9 @@ func TestFiles(t *testing.T) {
 		t.Run("ReadFileError", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			name := tmpPath()
 
 			_, err := env.YT.ReadFile(ctx, name, nil)
@@ -58,6 +61,9 @@ func TestFiles(t *testing.T) {
 
 		t.Run("WriteFileError", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			name := tmpPath()
 
