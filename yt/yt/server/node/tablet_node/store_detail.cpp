@@ -526,6 +526,14 @@ void TStoreBase::SetDynamicMemoryUsage(i64 value)
     }
 }
 
+void TStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    YT_VERIFY(GetType() != EStoreType::HunkChunk);
+
+    descriptor->set_store_type(ToProto<int>(GetType()));
+    ToProto(descriptor->mutable_store_id(), GetId());
+}
+
 ETabletDynamicMemoryType TStoreBase::DynamicMemoryTypeFromState(EStoreState state)
 {
     switch (state) {
@@ -720,6 +728,17 @@ void TDynamicStoreBase::SetBackupCheckpointTimestamp(TTimestamp /*timestamp*/)
 
 void TDynamicStoreBase::LockHunkStores(const NTableClient::THunkChunksInfo& /*hunkChunksInfo*/)
 { }
+
+void TDynamicStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    TStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    // Initialize meta in the least possible way.
+    auto* meta = descriptor->mutable_chunk_meta();
+    meta->set_type(0);
+    meta->set_format(0);
+    meta->mutable_extensions();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1276,6 +1295,13 @@ TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const
 TInstant TChunkStoreBase::GetCreationTime() const
 {
     return TInstant::MicroSeconds(MiscExt_.creation_time());
+}
+
+void TChunkStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    TStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    ToProto(descriptor->mutable_chunk_meta(), GetChunkMeta());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

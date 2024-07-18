@@ -1292,44 +1292,6 @@ private:
         #undef GET_FROM_REPLICATABLE
     }
 
-    void PopulateAddStoreDescriptor(
-        TAddStoreDescriptor* descriptor,
-        const IStorePtr& store)
-    {
-        YT_VERIFY(store->GetType() != EStoreType::HunkChunk);
-
-        descriptor->set_store_type(ToProto<int>(store->GetType()));
-        ToProto(descriptor->mutable_store_id(), store->GetId());
-
-        if (store->IsChunk()) {
-            const auto& chunkStore = store->AsChunk();
-
-            ToProto(descriptor->mutable_chunk_meta(), chunkStore->GetChunkMeta());
-
-            switch (store->GetType()) {
-                case EStoreType::SortedChunk: {
-                    auto sortedChunkStore = store->AsSortedChunk();
-                    if (sortedChunkStore->GetId() != sortedChunkStore->GetChunkId()) {
-                        THROW_ERROR_EXCEPTION("Chunk views are not supported");
-                    }
-                    break;
-                }
-
-                case EStoreType::OrderedChunk:
-                    YT_ABORT();
-
-                default:
-                    YT_ABORT();
-            }
-        } else {
-            // Initialize meta in the least possible way.
-            auto* meta = descriptor->mutable_chunk_meta();
-            meta->set_type(0);
-            meta->set_format(0);
-            meta->mutable_extensions();
-        }
-    }
-
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
         auto& movementData = tablet->SmoothMovementData();
@@ -1367,7 +1329,7 @@ private:
                 movementData.CommonDynamicStoreIds().insert(store->GetId());
             }
 
-            PopulateAddStoreDescriptor(replicatableContent->add_stores(), store);
+            store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
 
             if (store->IsSorted()) {
                 ToProto(

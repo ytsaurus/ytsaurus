@@ -41,6 +41,8 @@ public:
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;
 
+    void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
+
 private:
     class TReader;
 

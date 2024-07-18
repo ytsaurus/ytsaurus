@@ -4,18 +4,17 @@
 #include "hunk_chunk.h"
 #include "partition.h"
 #include "private.h"
+#include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store.h"
 #include "store_detail.h"
 #include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
-#include <yt/yt/server/node/tablet_node/tablet_manager.h>
-#include <yt/yt/server/node/tablet_node/tablet_slot.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
