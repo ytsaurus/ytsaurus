@@ -501,6 +501,23 @@ private:
         const TReplicaInfo* selfReplica,
         const TRefCountedReplicationProgressPtr& replicationProgress)
     {
+        const auto& tableProfiler = tabletSnapshot->TableProfiler;
+        auto* counters = tableProfiler->GetTablePullerCounters();
+
+        TDuration throttleTime;
+        {
+            if (auto throttleFuture = Throttler_->Throttle(1); !throttleFuture.IsSet()) {
+                auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
+                YT_LOG_DEBUG("Started waiting for replication throttling");
+
+                WaitFor(throttleFuture)
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Finished waiting for replication throttling");
+                throttleTime = timerGuard.GetElapsedTime();
+            }
+        }
+
         auto queueReplicaOrError = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
         if (!queueReplicaOrError.IsOK()) {
             // This form of logging accepts only string literals.
@@ -514,8 +531,6 @@ private:
         YT_VERIFY(queueReplicaId);
         YT_VERIFY(queueReplicaInfo);
 
-        const auto& tableProfiler = tabletSnapshot->TableProfiler;
-        auto* counters = tableProfiler->GetTablePullerCounters();
         auto finally = Finally([this, queueReplicaId=queueReplicaId, tableProfiler, counters] {
             if (std::uncaught_exception()) {
                 BannedReplicaTracker_.BanReplica(queueReplicaId);
@@ -571,11 +586,15 @@ private:
         const auto& progress = result.ReplicationProgress;
         const auto& nameTable = result.Rowset->GetNameTable();
 
-        YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v)",
+        YT_LOG_DEBUG("Pulled rows "
+            "(RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v, ThrottleTime: %v)",
             rowCount,
             dataWeight,
             progress,
-            endReplicationRowIndexes);
+            endReplicationRowIndexes,
+            throttleTime);
+
+        Throttler_->Acquire(dataWeight);
 
         // TODO(savrus) Remove this sanity check when pull rows is mature enough.
         if (result.Versioned) {
