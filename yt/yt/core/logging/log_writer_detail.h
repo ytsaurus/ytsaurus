@@ -40,27 +40,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A mix-in thread-safe class intended to report the size of the current log segment.
-class TSegmentSizeReporter
-{
-public:
-    explicit TSegmentSizeReporter(TString logWriterName);
-
-    void IncrementSegmentSize(i64 size);
-    void ResetSegmentSize(i64 size);
-
-private:
-    std::atomic<i64> CurrentSegmentSize_ = 0;
-    NProfiling::TGauge CurrentSegmentSizeGauge_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Implements the rate-limiting part of ILogWriter.
 //! System log events are always allowed to pass through.
 //! Requires an underlying Write implementation to be provided upon construction.
 //!
-//! NB(achulkov2): The WriteImpl solution is a bit sad, but I see no other way to work
+//! TODO(achulkov2): The WriteImpl solution is a bit sad, but I see no other way to work
 //! around the dynamically interpreted ILogWriter/IFileLogWriter interface. Ideally, we
 //! need to get rid of dynamic casts in TLogManager by abstracting the file-writer related
 //! logic. Then we could switch to a wrapper-like solution, similar to our channels.
@@ -83,15 +67,22 @@ public:
 
     void SetCategoryRateLimits(const THashMap<TString, i64>& categoryRateLimits) override;
 
+protected:
+    //! Represents the number of bytes stored in the current segment "on disk".
+    void IncrementSegmentSize(i64 size);
+    void ResetSegmentSize(i64 size);
+
 private:
     const TString Name_;
     const TLogWriterConfigPtr Config_;
-    const TLoggingCategory* SystemCategory_ = nullptr;
+    const NProfiling::TProfiler Profiler_;
 
     // These fields are only accessed via the main logging thread and during
     // log manager's Initialize call, so the lack of synchronization should be fine.
     TRateLimitCounter RateLimit_;
     THashMap<TStringBuf, TRateLimitCounter> CategoryToRateLimit_;
+
+    std::atomic<i64> CurrentSegmentSize_ = 0;
 
     virtual i64 WriteImpl(const TLogEvent& event) = 0;
 
@@ -103,9 +94,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStreamLogWriterBase
-    : public virtual ILogWriter
-    , public TRateLimitingLogWriterBase
-    , public TSegmentSizeReporter
+    : public TRateLimitingLogWriterBase
 {
 public:
     TStreamLogWriterBase(

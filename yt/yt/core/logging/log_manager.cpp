@@ -505,6 +505,7 @@ public:
         }
 
         // For now this is the only way to wait for log writers that perform asynchronous flushes.
+        // TODO(achulkov2): Refactor log manager to support asynchronous operations.
         if (Config_->ShutdownBusyTimeout) {
             Sleep(Config_->ShutdownBusyTimeout);
         }

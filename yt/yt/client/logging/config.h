@@ -33,7 +33,7 @@ public:
     TDuration FlushPeriod;
 
     //! Due to its asynchronous nature, the writer keeps serialized events in its own internal buffer.
-    //! The buffer size is controlled by this two limits below. Both of them are specified in *bytes*.
+    //! The buffer size is controlled by the two limits below. Both of them are specified in *bytes*.
     //! If the buffer size exceeds the high watermark, the writer drops any new events until the buffer
     //! size drops below the low watermark.
     i64 LowBacklogWeightWatermark;

@@ -91,7 +91,7 @@ TLogEvent GetSkippedLogStructuredEvent(i64 count, TStringBuf skippedBy)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TLogEvent GetLogStartEvent(ELogFamily family)
+TLogEvent GetStartLogEvent(ELogFamily family)
 {
     switch (family) {
         case ELogFamily::PlainText:
@@ -213,6 +213,7 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
                     .Item("level").Value(FormatEnum(event.Level))
                     .Item("category").Value(event.Category->Name);
             })
+            // TODO(achulkov2): The presence of different system fields should be controller by a flag enum instead of multiple boolean options.
             .DoIf(EnableHostField_, [&] (auto fluent) {
                 fluent.Item("host").Value(NNet::GetLocalHostName());
             })

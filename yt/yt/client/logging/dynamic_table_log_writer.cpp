@@ -62,9 +62,7 @@ using TClientHolderPtr = TIntrusivePtr<TClientHolder>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTableLogWriter
-    : public virtual ILogWriter
-    , public TRateLimitingLogWriterBase
-    , public TSegmentSizeReporter
+    : public TRateLimitingLogWriterBase
 {
 public:
     TDynamicTableLogWriter(
@@ -76,7 +74,6 @@ public:
         : TRateLimitingLogWriterBase(
             name,
             config)
-        , TSegmentSizeReporter(name)
         , ClientHolder_(std::move(clientHolder))
         , Formatter_(std::move(formatter))
         , Config_(config)
@@ -96,12 +93,17 @@ public:
         , DroppedEventsCounter_(Profiler_.Counter("/dropped_events"))
         , FlushedEventsCounter_(Profiler_.Counter("/flushed_events"))
         , FlushedBytesCounter_(Profiler_.Counter("/flushed_bytes"))
-        , BacklogEventsGauge_(Profiler_.Gauge("/backlog_events"))
-        , BacklogWeightGauge_(Profiler_.Gauge("/backlog_weight"))
     {
         FlushExecutor_->Start();
 
         YT_LOG_INFO("Created dynamic table log writer (Config: %v)", ConvertToYsonString(Config_, EYsonFormat::Text));
+
+        Profiler_.AddFuncGauge("/backlog_events", MakeStrong(this), [this] {
+            return BacklogEventCount_.load(std::memory_order::relaxed);
+        });
+        Profiler_.AddFuncGauge("/backlog_weight", MakeStrong(this), [this] {
+            return BacklogWeight_.load(std::memory_order::relaxed);
+        });
     }
 
     // This method is called *extremely* often: once every 40ms.
@@ -116,11 +118,6 @@ public:
     void Reload() override
     { }
 
-    ~TDynamicTableLogWriter()
-    {
-        YT_UNUSED_FUTURE(FlushExecutor_->Stop());
-    }
-
 private:
     const TClientHolderPtr ClientHolder_;
     const std::unique_ptr<ILogFormatter> Formatter_;
@@ -134,8 +131,6 @@ private:
     TCounter DroppedEventsCounter_;
     TCounter FlushedEventsCounter_;
     TCounter FlushedBytesCounter_;
-    TGauge BacklogEventsGauge_;
-    TGauge BacklogWeightGauge_;
 
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
 
@@ -206,11 +201,9 @@ private:
         auto writtenBytes = static_cast<i64>(countingOutputStream.Counter());
 
         BacklogWeight_.fetch_add(writtenBytes, std::memory_order::relaxed);
-        BacklogWeightGauge_.Update(BacklogWeight_.load(std::memory_order::relaxed));
 
         ++CurrentRowCount_;
         BacklogEventCount_.fetch_add(1, std::memory_order::relaxed);
-        BacklogEventsGauge_.Update(BacklogEventCount_.load(std::memory_order::relaxed));
 
         return writtenBytes;
     }
@@ -261,10 +254,7 @@ private:
 
         auto decrementBacklogStatistics = Finally([this, size = std::ssize(bufferToFlush.YsonRows), eventCount = bufferToFlush.RowCount] {
             BacklogWeight_.fetch_sub(size, std::memory_order::relaxed);
-            BacklogWeightGauge_.Update(BacklogWeight_.load(std::memory_order::relaxed));
-
             BacklogEventCount_.fetch_sub(eventCount, std::memory_order::relaxed);
-            BacklogEventsGauge_.Update(BacklogEventCount_.load(std::memory_order::relaxed));
         });
 
         TBackoffStrategy backoff(Config_->WriteBackoff);

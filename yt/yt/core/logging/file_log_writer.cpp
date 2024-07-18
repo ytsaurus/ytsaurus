@@ -190,7 +190,7 @@ private:
             }
 
             if (Config_->AreSystemMessagesEnabled()) {
-                Formatter_->WriteFormatted(GetOutputStream(), GetLogStartEvent(Config_->GetSystemMessageFamily()));
+                Formatter_->WriteFormatted(GetOutputStream(), GetStartLogEvent(Config_->GetSystemMessageFamily()));
             }
 
             ResetSegmentSize(File_->GetLength());

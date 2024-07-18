@@ -19,7 +19,7 @@ struct ILogFormatter
 };
 
 //! The provided log family controls whether the event message is structured or unstructured.
-TLogEvent GetLogStartEvent(ELogFamily family);
+TLogEvent GetStartLogEvent(ELogFamily family);
 
 //! The provided log family controls whether the event message is structured or unstructured.
 TLogEvent GetSkippedLogEvent(ELogFamily family, i64 count, TStringBuf skippedBy);
