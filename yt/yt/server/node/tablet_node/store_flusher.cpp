@@ -524,7 +524,7 @@ private:
                 tabletSnapshot->PhysicalSchema->IsSorted();
 
             if (shouldRequestDynamicStoreId) {
-                int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->GetDynamicStoreCount();
+                int potentialDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount() + tablet->GetDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
                 // dynamic stores and empty pool. If both passive stores are flushed concurrently

@@ -326,7 +326,7 @@ public:
     bool AllocateDynamicStoreIfNeeded(TTablet* tablet) override
     {
         if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
-            tablet->DynamicStoreIdPool().empty() &&
+            tablet->GetUnreservedDynamicStoreIdCount() == 0 &&
             !tablet->GetDynamicStoreIdRequested())
         {
             AllocateDynamicStore(tablet);
@@ -1353,10 +1353,6 @@ private:
             THROW_ERROR_EXCEPTION("Bulk insert lock replication is not supported");
         }
 
-        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead) {
-            THROW_ERROR_EXCEPTION("Tables with enabled dynamic store read are not supported");
-        }
-
         // Essential stuff.
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(
@@ -1785,8 +1781,29 @@ private:
                 "All stores of tablet are going to be discarded (%v)",
                 tablet->GetLoggingTag());
 
-            tablet->ClearDynamicStoreIdPool();
+            int reservedStoreIdCount = 0;
+            for (auto value : tablet->ReservedDynamicStoreIdCount()) {
+                reservedStoreIdCount += value;
+            }
+
+            tablet->ClearDynamicStoreIdPool(/*keepReservations*/ true);
             PopulateDynamicStoreIdPool(tablet, request);
+
+            if (reservedStoreIdCount > ssize(tablet->DynamicStoreIdPool())) {
+                YT_LOG_ALERT("Tablet unlock request did not provide enough dynamic "
+                    "store ids to guarantee all reservations "
+                    "(%v, ProvidedStoreCount: %v, Reservations: %v)",
+                    tablet->GetLoggingTag(),
+                    ssize(tablet->DynamicStoreIdPool()),
+                    MakeFormattableView(
+                        TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues(),
+                        [&] (auto* builder, auto key) {
+                            builder->AppendFormat(
+                                "%v:%v",
+                                key,
+                                tablet->ReservedDynamicStoreIdCount()[key]);
+                        }));
+            }
 
             storeManager->DiscardAllStores();
         }
@@ -1919,7 +1936,7 @@ private:
                 }
 
                 tablet->SetState(ETabletState::Frozen);
-                tablet->ClearDynamicStoreIdPool();
+                tablet->ClearDynamicStoreIdPool(/*keepReservations*/ false);
 
                 for (const auto& [storeId, store] : tablet->StoreIdMap()) {
                     if (store->IsChunk()) {
@@ -2008,7 +2025,7 @@ private:
             }
         }
 
-        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->GetUnreservedDynamicStoreIdCount() == 0) {
             if (!tablet->GetDynamicStoreIdRequested()) {
                 AllocateDynamicStore(tablet);
             }

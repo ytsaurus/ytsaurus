@@ -906,6 +906,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, *LockManager_);
     Save(context, DynamicStoreIdPool_);
     Save(context, DynamicStoreIdRequested_);
+    Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
@@ -1044,6 +1045,14 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, DynamicStoreIdPool_);
     Load(context, DynamicStoreIdRequested_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead ||
+        (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead_24_1 &&
+            context.GetVersion() < ETabletReign::Start_24_2))
+    {
+        Load(context, ReservedDynamicStoreIdCount_);
+    }
 
     Load(context, SchemaId_);
 
@@ -2515,6 +2524,7 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     if (CustomRuntimeData_) {
         replicatableContent->set_custom_runtime_data(CustomRuntimeData_.ToString());
     }
+    ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2568,6 +2578,8 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
         ? TYsonString(replicatableContent.custom_runtime_data())
         : TYsonString();
+
+    FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
@@ -2628,10 +2640,16 @@ int TTablet::GetEdenStoreCount() const
     return Eden_->Stores().size();
 }
 
-void TTablet::PushDynamicStoreIdToPool(TDynamicStoreId storeId)
+void TTablet::PushDynamicStoreIdToPool(
+    TDynamicStoreId storeId,
+    std::optional<EDynamicStoreIdReservationReason> reservationReason)
 {
     YT_VERIFY(storeId);
     DynamicStoreIdPool_.push_back(storeId);
+
+    if (reservationReason) {
+        ++ReservedDynamicStoreIdCount_[*reservationReason];
+    }
 }
 
 TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
@@ -2642,9 +2660,30 @@ TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
     return id;
 }
 
-void TTablet::ClearDynamicStoreIdPool()
+void TTablet::ReleaseReservedDynamicStoreId(
+    EDynamicStoreIdReservationReason reason)
+{
+    YT_VERIFY(ReservedDynamicStoreIdCount_[reason] > 0);
+    --ReservedDynamicStoreIdCount_[reason];
+}
+
+int TTablet::GetUnreservedDynamicStoreIdCount() const
+{
+    int totalCount = ssize(DynamicStoreIdPool_);
+    for (auto reservedCount : ReservedDynamicStoreIdCount_) {
+        totalCount -= reservedCount;
+    }
+    YT_VERIFY(totalCount >= 0);
+    return totalCount;
+}
+
+void TTablet::ClearDynamicStoreIdPool(bool keepReservations)
 {
     DynamicStoreIdPool_.clear();
+
+    if (!keepReservations) {
+        ReservedDynamicStoreIdCount_ = {};
+    }
 }
 
 TMountHint TTablet::GetMountHint() const
