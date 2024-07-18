@@ -1214,6 +1214,8 @@ private:
             movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
             Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
 
+            tablet->InitializeTargetServantActivationFuture();
+
             YT_VERIFY(!masterAvenueEndpointId);
         }
 

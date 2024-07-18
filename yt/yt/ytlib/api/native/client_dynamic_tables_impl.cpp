@@ -1820,24 +1820,27 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
         const auto& config = Connection_->GetStaticConfig();
         const auto& tableMountCache = Connection_->GetTableMountCache();
 
-        std::optional<TErrorCode> retryableErrorCode;
-        TTabletInfoPtr tabletInfo;
-        std::tie(retryableErrorCode, tabletInfo) = tableMountCache->InvalidateOnError(
+        auto invalidationResult = tableMountCache->InvalidateOnError(
             error,
             /*forceRetry*/ false);
 
-        if (retryableErrorCode && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
+        if (invalidationResult.Retryable && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
             YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
                 retryCount,
                 config->TableMountCache->OnErrorRetryCount);
-            auto now = Now();
-            auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
-                config->TableMountCache->OnErrorSlackPeriod;
-            if (retryTime > now) {
-                TDelayedExecutor::WaitForDuration(retryTime - now);
+
+            if (!invalidationResult.TableInfoUpdatedFromError) {
+                auto now = Now();
+                const auto& tabletInfo = invalidationResult.TabletInfo;
+                auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                    config->TableMountCache->OnErrorSlackPeriod;
+                if (retryTime > now) {
+                    TDelayedExecutor::WaitForDuration(retryTime - now);
+                }
             }
+
             if (profilingInfo) {
-                profilingInfo->RetryReasons.push_back(*retryableErrorCode);
+                profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
             }
             continue;
         }

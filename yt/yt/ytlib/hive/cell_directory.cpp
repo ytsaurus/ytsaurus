@@ -20,14 +20,15 @@
 namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NHydra;
 using namespace NElection;
+using namespace NHydra;
+using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NLogging;
+using namespace NRpc;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -54,9 +55,9 @@ public:
         return Address_;
     }
 
-    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        static auto attributes = NYTree::CreateEphemeralAttributes();
+        static auto attributes = CreateEphemeralAttributes();
         return *attributes;
     }
 
@@ -237,6 +238,32 @@ void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescripto
         : std::nullopt);
 }
 
+void Serialize(const TCellPeerDescriptor& descriptor, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do([&] (auto fluent) {
+                SerializeFragment(static_cast<const TNodeDescriptor&>(descriptor), fluent.GetConsumer());
+            })
+            .Item("voting").Value(descriptor.GetVoting())
+            .OptionalItem("alien_cluster", descriptor.GetAlienCluster())
+        .EndMap();
+}
+
+void Deserialize(TCellPeerDescriptor& descriptor, INodePtr node)
+{
+    descriptor = {};
+
+    DeserializeFragment(static_cast<TNodeDescriptor&>(descriptor), node);
+
+    auto mapNode = node->AsMap();
+
+    descriptor.SetVoting(mapNode->GetChildValueOrThrow<bool>("voting"));
+    if (auto child = mapNode->FindChildValue<TString>("alien_cluster")) {
+        descriptor.SetAlienCluster(*child);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TCellInfo* protoInfo, const TCellInfo& info)
@@ -263,6 +290,25 @@ void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& proto
     descriptor->CellId = FromProto<TCellId>(protoDescriptor.cell_id());
     descriptor->ConfigVersion = protoDescriptor.config_version();
     descriptor->Peers = FromProto<std::vector<TCellPeerDescriptor>>(protoDescriptor.peers());
+}
+
+void Serialize(const TCellDescriptor& descriptor, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("cell_id").Value(descriptor.CellId)
+            .Item("config_version").Value(descriptor.ConfigVersion)
+            .Item("peers").Value(descriptor.Peers)
+        .EndMap();
+}
+
+void Deserialize(TCellDescriptor& descriptor, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+
+    Deserialize(descriptor.CellId, mapNode->GetChildOrThrow("cell_id"));
+    Deserialize(descriptor.ConfigVersion, mapNode->GetChildOrThrow("config_version"));
+    Deserialize(descriptor.Peers, mapNode->GetChildOrThrow("peers"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
