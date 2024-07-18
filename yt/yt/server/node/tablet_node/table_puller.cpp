@@ -506,7 +506,10 @@ private:
 
         TDuration throttleTime;
         {
-            if (auto throttleFuture = Throttler_->Throttle(1); !throttleFuture.IsSet()) {
+            auto throttleFuture = Throttler_->Throttle(1);
+            if (throttleFuture.IsSet()) {
+                throttleFuture.Get().ThrowOnError();
+            } else {
                 auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
                 YT_LOG_DEBUG("Started waiting for replication throttling");
 
