@@ -85,8 +85,6 @@ void LogAccess(
 
 bool IsAccessLoggedType(const NCypressClient::EObjectType type);
 
-bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

@@ -13,7 +13,7 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
+inline bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
 {
     if (!bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog) {
         return false;

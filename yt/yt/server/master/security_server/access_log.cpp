@@ -17,8 +17,6 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt/ytlib/election/cell_manager.h>
-
 #include <library/cpp/yt/string/raw_formatter.h>
 
 namespace NYT::NSecurityServer {
