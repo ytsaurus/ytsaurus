@@ -304,7 +304,9 @@ func (a *Agent) background() {
 					subnodes := tokens[1:]
 					oplet, ok := a.aliasToOp[alias]
 					switch {
-					case reflect.DeepEqual(subnodes, []string{}) || reflect.DeepEqual(subnodes, []string{"speclet"}):
+					case (reflect.DeepEqual(subnodes, []string{}) ||
+						reflect.DeepEqual(subnodes, []string{"speclet"}) ||
+						reflect.DeepEqual(subnodes, []string{"secrets"})):
 						if ok {
 							oplet.OnCypressNodeChanged()
 						} else {

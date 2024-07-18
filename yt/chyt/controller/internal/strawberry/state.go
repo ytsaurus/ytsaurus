@@ -37,6 +37,8 @@ type PersistentState struct {
 	// Creator is a user who created the strawberry operation.
 	// Creator will automatically gain access to the strawberry operation when the access control object is created.
 	Creator string `yson:"creator"`
+
+	SecretsRevision yt.Revision `yson:"secrets_revision"`
 }
 
 const (

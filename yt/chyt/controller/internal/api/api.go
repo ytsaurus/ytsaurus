@@ -265,6 +265,7 @@ func (a *API) Create(
 	ctx context.Context,
 	alias string,
 	specletOptions map[string]any,
+	secrets map[string]any,
 ) error {
 	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
@@ -391,6 +392,25 @@ func (a *API) Create(
 	if err != nil {
 		return err
 	}
+
+	_, err = a.Ytc.CreateNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets"),
+		yt.NodeDocument,
+		&yt.CreateNodeOptions{
+			Attributes: map[string]any{
+				"value": secrets,
+				"acl": []yt.ACE{
+					{
+						Action:      yt.ActionAllow,
+						Subjects:    []string{"owner"},
+						Permissions: []yt.Permission{yt.PermissionAdminister, yt.PermissionRead, yt.PermissionWrite},
+					},
+				},
+				"inherit_acl": false,
+			},
+			TransactionOptions: txOptions,
+		})
 
 	return tx.Commit()
 }

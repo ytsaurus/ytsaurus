@@ -63,11 +63,19 @@ var SpecletOptionsParameter = CmdParameter{
 	Validator:   validateSpecletOptions,
 }
 
+var SecretsParameter = CmdParameter{
+	Name:        "secrets",
+	Type:        TypeAny,
+	Description: "map of secrets in yson format",
+	Validator:   validateSpecletOptions,
+}
+
 var CreateCmdDescriptor = CmdDescriptor{
 	Name: "create",
 	Parameters: []CmdParameter{
 		AliasParameter.AsExplicit(),
 		SpecletOptionsParameter,
+		SecretsParameter,
 	},
 	Description: "create a new strawberry operation",
 	Handler:     HTTPAPI.HandleCreate,
@@ -76,11 +84,15 @@ var CreateCmdDescriptor = CmdDescriptor{
 func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	var specletOptions map[string]any
+	var secrets map[string]any
 	if value, ok := params["speclet_options"]; ok {
 		specletOptions = value.(map[string]any)
 	}
+	if value, ok := params["secrets"]; ok {
+		secrets = value.(map[string]any)
+	}
 
-	err := a.API.Create(r.Context(), alias, specletOptions)
+	err := a.API.Create(r.Context(), alias, specletOptions, secrets)
 	if err != nil {
 		a.ReplyWithError(w, err)
 		return

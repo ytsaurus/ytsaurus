@@ -93,6 +93,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"environment":                        env,
 			},
 		},
+		"secure_vault":         oplet.Secrets(),
 		"max_failed_job_count": 10 * 1000,
 		"max_stderr_count":     150,
 		"title":                "JUPYT notebook *" + alias,
