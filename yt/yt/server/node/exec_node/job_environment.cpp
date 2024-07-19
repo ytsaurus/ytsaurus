@@ -116,7 +116,7 @@ public:
 
         try {
             const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+            auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
             if (dynamicConfig && dynamicConfig->EnableNumaNodeScheduling) {
                 if (numaNodeAffinity) {
                     UpdateSlotCpuSet(slotIndex, slotType, numaNodeAffinity->CpuSet);
@@ -220,7 +220,7 @@ public:
         Alert_.Store(alert);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
 
         YT_LOG_FATAL_IF(dynamicConfig->AbortOnJobsDisabled, alert);
 
@@ -449,7 +449,7 @@ public:
         , ContainerDestroyFailureCounter_(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        const auto& slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+        auto slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
         ShouldCloseDescriptors_.store(slotManagerConfig->ShouldCloseDescriptors);
     }
 
