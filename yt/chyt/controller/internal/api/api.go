@@ -823,3 +823,16 @@ func (a *API) GetSecrets(ctx context.Context, alias string) (secrets map[string]
 
 	return
 }
+
+func (a *API) SetSecrets(ctx context.Context, alias string, secrets map[string]any) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+
+	secretsPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets")
+	err := a.Ytc.SetNode(ctx, secretsPath, secrets, nil)
+	return err
+}

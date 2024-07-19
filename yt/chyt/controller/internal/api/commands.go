@@ -443,6 +443,26 @@ func (a HTTPAPI) HandleGetSecrets(w http.ResponseWriter, r *http.Request, params
 	a.ReplyOK(w, secrets)
 }
 
+var SetSecretsCmdDescriptor = CmdDescriptor{
+	Name:        "set_secrets",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit(), SecretsParameter},
+	Description: "set secrets by alias",
+	Handler:     HTTPAPI.HandleSetSecrets,
+}
+
+func (a HTTPAPI) HandleSetSecrets(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	alias := params["alias"].(string)
+	secrets := params["secrets"].(map[string]any)
+
+	err := a.API.SetSecrets(r.Context(), alias, secrets)
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+
+	a.ReplyOK(w, nil)
+}
+
 var AllCommands = []CmdDescriptor{
 	ListCmdDescriptor,
 	CreateCmdDescriptor,
@@ -461,6 +481,7 @@ var AllCommands = []CmdDescriptor{
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
 	GetSecretsCmdDescriptor,
+	SetSecretsCmdDescriptor,
 }
 
 func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.ControllerFactory, l log.Logger) chi.Router {
