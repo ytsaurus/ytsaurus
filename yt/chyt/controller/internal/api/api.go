@@ -812,13 +812,23 @@ func (a *API) GetSecrets(ctx context.Context, alias string) (secrets map[string]
 		return nil, err
 	}
 
-	err = a.Ytc.GetNode(
-		ctx,
-		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets"),
-		&secrets,
-		nil)
+	secretsPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets")
+	secretsNodeExists, err := a.Ytc.NodeExists(ctx, secretsPath, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if secretsNodeExists {
+		err = a.Ytc.GetNode(
+			ctx,
+			secretsPath,
+			&secrets,
+			nil)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		secrets = make(map[string]any)
 	}
 
 	return
@@ -833,6 +843,33 @@ func (a *API) SetSecrets(ctx context.Context, alias string, secrets map[string]a
 	}
 
 	secretsPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets")
-	err := a.Ytc.SetNode(ctx, secretsPath, secrets, nil)
+	secretsNodeExists, err := a.Ytc.NodeExists(ctx, secretsPath, nil)
+	if err != nil {
+		return err
+	}
+	if !secretsNodeExists {
+		_, err = a.Ytc.CreateNode(
+			ctx,
+			secretsPath,
+			yt.NodeDocument,
+			&yt.CreateNodeOptions{
+				Attributes: map[string]any{
+					"value": secrets,
+					"acl": []yt.ACE{
+						{
+							Action:      yt.ActionAllow,
+							Subjects:    []string{"owner"},
+							Permissions: []yt.Permission{yt.PermissionAdminister, yt.PermissionRead, yt.PermissionWrite},
+						},
+					},
+					"inherit_acl": false,
+				},
+			})
+		if err != nil {
+			return err
+		}
+	} else {
+		err = a.Ytc.SetNode(ctx, secretsPath, secrets, nil)
+	}
 	return err
 }
