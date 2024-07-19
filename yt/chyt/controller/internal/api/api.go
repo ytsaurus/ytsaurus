@@ -411,6 +411,9 @@ func (a *API) Create(
 			},
 			TransactionOptions: txOptions,
 		})
+	if err != nil {
+		return err
+	}
 
 	return tx.Commit()
 }
