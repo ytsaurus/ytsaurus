@@ -579,12 +579,15 @@ TRANSFORMS[8] = [
 ]
 
 
-def finished_queries_table_by_user_and_start_time_mapper(row):
-    column_names = FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9.user_columns
+def get_minus_start_time_mapper(table):
+    column_names = table.user_columns
 
-    result = dict([(key, row.get(key)) for key in column_names])
-    result["minus_start_time"] = -row.get("start_time")
-    yield result
+    def minus_start_time_mapper(row):
+        result = dict([(key, row.get(key)) for key in column_names])
+        result["minus_start_time"] = -row.get("start_time")
+        yield result
+
+    return minus_start_time_mapper
 
 
 def finished_queries_table_by_aco_and_start_time_mapper(row):
@@ -595,8 +598,9 @@ def finished_queries_table_by_aco_and_start_time_mapper(row):
 
     acos = yson.YsonList(row.get("access_control_objects"))
     for aco in acos:
-        result["access_control_object"] = aco
-        yield result
+        if aco != "nobody":
+            result["access_control_object"] = aco
+            yield result
 
 
 FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V9 = TableInfo(
@@ -634,6 +638,24 @@ FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9 = TableInfo(
     },
 )
 
+FINISHED_QUERIES_TABLE_BY_START_TIME_V9 = TableInfo(
+    [
+        ("minus_start_time", "int64"),
+        ("query_id", "string")
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
 TRANSFORMS[9] = [
     Conversion(
         "finished_queries_by_aco_and_start_time",
@@ -645,11 +667,13 @@ TRANSFORMS[9] = [
         "finished_queries_by_user_and_start_time",
         source="finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9,
-        mapper=finished_queries_table_by_user_and_start_time_mapper
+        mapper=get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9)
     ),
     Conversion(
         "finished_queries_by_start_time",
-        remove_table=True,
+        source="finished_queries_by_start_time",
+        table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V9,
+        mapper=get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V9)
     ),
 ]
 

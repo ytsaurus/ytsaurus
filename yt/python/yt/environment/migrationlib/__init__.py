@@ -205,17 +205,13 @@ class Conversion(object):
         for re-using migration in different environments
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False):
-        assert not remove_table or \
-            table_info is None and mapper is None and source is None and not use_default_mapper
-
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
         self.use_default_mapper = use_default_mapper
         self.filter_callback = filter_callback
-        self.remove_table = remove_table
 
     def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count):
         if self.table_info:
@@ -228,12 +224,6 @@ class Conversion(object):
             need_sort = old_key_columns != table_info.key_columns
         else:
             need_sort = False
-
-        if self.remove_table:
-            assert source_table is not None
-            _unmount_table(client, source_table)
-            client.remove(source_table)
-            return True  # in place transformation
 
         if not self.use_default_mapper and not self.mapper and not self.source and source_table and not need_sort:
             table_info.alter_table(client, source_table, shard_count, mount=False)
@@ -327,9 +317,7 @@ class Migration(object):
         table_infos = copy.deepcopy(self.initial_table_infos)
         for version in range(self.initial_version + 1, version + 1):
             for conversion in self.transforms.get(version, []):
-                if conversion.remove_table:
-                    table_infos.pop(conversion.table, None)
-                elif conversion.table_info:
+                if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
 
         for table_name, table_info in table_infos.items():
@@ -355,9 +343,7 @@ class Migration(object):
         table_infos = copy.deepcopy(self.initial_table_infos)
         for version in range(self.initial_version, transform_begin):
             for conversion in self.transforms.get(version, []):
-                if conversion.remove_table:
-                    table_infos.pop(conversion.table, None)
-                elif conversion.table_info:
+                if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
 
         for version in range(transform_begin, transform_end + 1):
@@ -388,8 +374,6 @@ class Migration(object):
                         swap_tasks.append((table_path, tmp_path))
                     if conversion.table_info:
                         table_infos[table] = conversion.table_info
-                    if conversion.remove_table:
-                        table_infos.pop(table, None)
 
                 for target_path, tmp_path in swap_tasks:
                     _swap_table(client, target_path, tmp_path, version)
@@ -423,9 +407,9 @@ class Migration(object):
         table_infos = copy.deepcopy(self.initial_table_infos)
         for version in range(self.initial_version + 1, version + 1):
             for conversion in self.transforms.get(version, []):
-                if conversion.remove_table:
-                    table_infos.pop(conversion.table, None)
-                elif conversion.table_info:
+                if conversion.source:
+                    del table_infos[conversion.source]
+                if conversion.table_info:
                     table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
 
         return {table: table_info.schema for table, table_info in table_infos.items()}
@@ -453,9 +437,7 @@ class Migration(object):
         table_infos = {}
         for version in range(current_version + 1, target_version + 1):
             for conversion in self.transforms.get(version, []):
-                if conversion.remove_table:
-                    table_infos.pop(conversion.table, None)
-                elif conversion.table_info:
+                if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
 
         for table, table_info in table_infos.items():

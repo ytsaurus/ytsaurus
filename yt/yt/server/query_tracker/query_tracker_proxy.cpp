@@ -60,6 +60,9 @@ constexpr int MaxAccessControlObjectsPerQuery = 10;
 // Path to access control object namespace for QT.
 constexpr TStringBuf QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
 
+const TString FinishedQueriesByAcoAndStartTimeTable = "finished_queries_by_aco_and_start_time";
+const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user_and_start_time";
+
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 16);
@@ -452,7 +455,8 @@ void AddFilterConditions(
     const TListQueriesOptions& options,
     const TString& user,
     const std::vector<TString>& acosForUser,
-    const TString& table)
+    const TString& table,
+    bool isSuperuser)
 {
     std::optional<i64> fromTime = options.FromTime ? std::make_optional<i64>(options.FromTime->MicroSeconds()) : std::nullopt;
     if (options.CursorDirection == EOperationSortDirection::Future && options.CursorTime) {
@@ -489,17 +493,19 @@ void AddFilterConditions(
             builder.AddWhereConjunct("[start_time] <= " + ToString(toTime));
         }
 
-        placeholdersFluentMap.Item("User").Value(user);
+        if (!isSuperuser) {
+            placeholdersFluentMap.Item("User").Value(user);
 
-        TStringBuilder conditionBuilder;
-        TDelimitedStringBuilderWrapper delimitedBuilder(&conditionBuilder, " OR ");
+            TStringBuilder conditionBuilder;
+            TDelimitedStringBuilderWrapper delimitedBuilder(&conditionBuilder, " OR ");
 
-        delimitedBuilder->AppendString("user = {User}");
-        for (const auto& aco : acosForUser) {
-            delimitedBuilder->AppendString(Format("list_contains(access_control_objects, \"%v\")", aco));
+            delimitedBuilder->AppendString("user = {User}");
+            for (const auto& aco : acosForUser) {
+                delimitedBuilder->AppendString(Format("list_contains(access_control_objects, \"%v\")", aco));
+            }
+
+            builder.AddWhereConjunct(conditionBuilder.Flush());
         }
-
-        builder.AddWhereConjunct(conditionBuilder.Flush());
     } else {
         if (fromTime) {
             builder.AddWhereConjunct("-[minus_start_time] >= " + ToString(fromTime));
@@ -508,10 +514,10 @@ void AddFilterConditions(
             builder.AddWhereConjunct("-[minus_start_time] <= " + ToString(toTime));
         }
 
-        if (table == "finished_queries_by_user_and_start_time") {
+        if (table == FinishedQueriesByUserAndStartTimeTable) {
             placeholdersFluentMap.Item("User").Value(user);
             builder.AddWhereConjunct("user = {User}");
-        } else if (table == "finished_queries_by_aco_and_start_time") {
+        } else if (table == FinishedQueriesByAcoAndStartTimeTable) {
             placeholdersFluentMap.Item("acosForUser").DoListFor(acosForUser, [] (TFluentList fluent, const TString& aco) {
                 fluent.Item().Value(aco);
             });
@@ -531,14 +537,15 @@ void GetQueriesByStartTime(
     const TString& user,
     const std::vector<TString>& acosForUser,
     const TString& tableName,
-    std::vector<std::pair<TTimestamp, TQueryId>>& results)
+    std::vector<std::pair<TTimestamp, TQueryId>>& results,
+    bool isSuperuser = false)
 {
     NQueryClient::TQueryBuilder builder;
     TYsonString placeholderValues;
     builder.SetSource(root + "/" + tableName);
-    AddFilterConditions(builder, placeholderValues, requestOptions, user, acosForUser, tableName);
-    builder.AddSelectExpression("[query_id]");
+    AddFilterConditions(builder, placeholderValues, requestOptions, user, acosForUser, tableName, isSuperuser);
     builder.AddSelectExpression("[minus_start_time]");
+    builder.AddSelectExpression("[query_id]");
     // We request for one more in order to understand whether the whole result fits into the limit.
     builder.SetLimit(requestOptions.Limit + 1);
     if (requestOptions.CursorDirection == EOperationSortDirection::Past) {
@@ -546,6 +553,12 @@ void GetQueriesByStartTime(
     } else if (requestOptions.CursorDirection == EOperationSortDirection::Future) {
         builder.AddOrderByDescendingExpression("minus_start_time");
     }
+    if (tableName == FinishedQueriesByAcoAndStartTimeTable) {
+        // We need to combine the same query with different acos into one record
+        builder.AddGroupByExpression("minus_start_time");
+        builder.AddGroupByExpression("query_id");
+    }
+
     TSelectRowsOptions options;
     options.Timestamp = timestamp;
     options.PlaceholderValues = placeholderValues;
@@ -688,6 +701,25 @@ void TQueryTrackerProxy::StartQuery(
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
         {
+            static_assert(TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+
+            TFinishedQueryByStartTime newRecord{
+                .Key = {.MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
+                .Engine = engine,
+                .User = user,
+                .AccessControlObjects = ConvertToYsonString(accessControlObjects),
+                .State = EQueryState::Draft,
+                .FilterFactors = filterFactors,
+            };
+            std::vector rows{
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                StateRoot_ + "/finished_queries_by_start_time",
+                TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+        {
             static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
 
             TFinishedQueryByUserAndStartTime newRecord{
@@ -700,7 +732,7 @@ void TQueryTrackerProxy::StartQuery(
                 newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
             };
             transaction->WriteRows(
-                StateRoot_ + "/finished_queries_by_user_and_start_time",
+                StateRoot_ + "/" + FinishedQueriesByUserAndStartTimeTable,
                 TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
@@ -721,7 +753,7 @@ void TQueryTrackerProxy::StartQuery(
                     rows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
                 }
                 transaction->WriteRows(
-                    StateRoot_ + "/finished_queries_by_aco_and_start_time",
+                    StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
                     TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(rows), rowBuffer));
             }
@@ -1030,8 +1062,13 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
     YT_LOG_DEBUG("Fetched user %Qv subjects: %v", user, userSubjectsVector);
 
-    auto acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
-    YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", user, acosForUser);
+    bool isSuperuser = userSubjects.contains(SuperusersGroupName);
+    std::vector<TString> acosForUser;
+
+    if (!isSuperuser) {
+        acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
+        YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", user, acosForUser);
+    }
 
     auto addSelectExpressionsFromAttributes = [&] (NQueryClient::TQueryBuilder& builder, const TNameTablePtr& nameTable) {
         if (attributes) {
@@ -1056,7 +1093,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
             NQueryClient::TQueryBuilder builder;
             TYsonString placeholderValues;
             builder.SetSource(StateRoot_ + "/active_queries");
-            AddFilterConditions(builder, placeholderValues, options, user, acosForUser, TString("active_queries"));
+            AddFilterConditions(builder, placeholderValues, options, user, acosForUser, TString("active_queries"), isSuperuser);
             addSelectExpressionsFromAttributes(builder, TActiveQueryDescriptor::Get()->GetNameTable());
             addSelectExpressionsForMerging(builder);
             TSelectRowsOptions options;
@@ -1081,31 +1118,42 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
             {
                 std::vector<std::pair<TTimestamp, TQueryId>> results;
-                GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser /*make optional*/, "finished_queries_by_user_and_start_time", results);
-                if (!acosForUser.empty()) {
-                    GetQueriesByStartTime<TFinishedQueryByAcoAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, "finished_queries_by_aco_and_start_time", results);
-                }
-
-                if (options.CursorDirection != EOperationSortDirection::None) {
-                    auto compare = [&] (const std::pair<TTimestamp, TQueryId>& lhs, const std::pair<TTimestamp, TQueryId>& rhs) {
-                        return options.CursorDirection == EOperationSortDirection::Past ? lhs > rhs : lhs < rhs;
-                    };
-                    std::sort(results.begin(), results.end(), compare);
-                }
-
-                if (results.size() > options.Limit) {
-                    incomplete = true;
-                    results.resize(options.Limit);
+                if (isSuperuser) {
+                    GetQueriesByStartTime<TFinishedQueryByStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, "finished_queries_by_start_time", results, isSuperuser);
+                } else {
+                    GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByUserAndStartTimeTable, results);
+                    if (!acosForUser.empty()) {
+                        GetQueriesByStartTime<TFinishedQueryByAcoAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByAcoAndStartTimeTable, results);
+                    }
+                    if (options.CursorDirection != EOperationSortDirection::None) {
+                        auto compare = [&] (const std::pair<TTimestamp, TQueryId>& lhs, const std::pair<TTimestamp, TQueryId>& rhs) {
+                            return options.CursorDirection == EOperationSortDirection::Past ? lhs > rhs : lhs < rhs;
+                        };
+                        std::sort(results.begin(), results.end(), compare);
+                    }
                 }
 
                 bool isFirst = true;
+
+                // filter duplicates
+                THashSet<TQueryId> usedQueries;
                 for (const auto& result : results) {
+                    if (usedQueries.contains(result.second)) {
+                        continue;
+                    }
+                    usedQueries.insert(result.second);
+                    if (usedQueries.size() > options.Limit) {
+                        incomplete = true;
+                        break;
+                    }
+
                     if (!isFirst) {
                         admittedQueryIds.AppendString(", ");
                     }
                     admittedQueryIds.AppendFormat("\"%v\"", result.second);
                     isFirst = false;
                 }
+
                 if (isFirst) {
                     return {};
                 }
@@ -1251,6 +1299,25 @@ void TQueryTrackerProxy::AlterQuery(
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
         {
+            TFinishedQueryByStartTimePartial record{
+                .Key = {.MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+            };
+            if (options.Annotations) {
+                record.FilterFactors = filterFactors;
+            }
+            if (accessControlObjects) {
+                record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+            }
+
+            std::vector rows{
+                record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                StateRoot_ + "/finished_queries_by_start_time",
+                TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+        {
             if (options.Annotations) {
                 if (!query.User) {
                     THROW_ERROR_EXCEPTION("User is lost in query %v", queryId);
@@ -1267,7 +1334,7 @@ void TQueryTrackerProxy::AlterQuery(
                     record.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
                 };
                 transaction->WriteRows(
-                    StateRoot_ + "/finished_queries_by_user_and_start_time",
+                    StateRoot_ + "/" + FinishedQueriesByUserAndStartTimeTable,
                     TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(rows), rowBuffer));
             }
@@ -1290,7 +1357,7 @@ void TQueryTrackerProxy::AlterQuery(
                     keysToDelete.push_back(TFinishedQueryByAcoAndStartTimeKey{.AccessControlObject = aco, .MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId}.ToKey(rowBuffer));
                 }
                 transaction->DeleteRows(
-                    StateRoot_ + "/finished_queries_by_aco_and_start_time",
+                    StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
                     TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(keysToDelete), rowBuffer));
             }
@@ -1313,7 +1380,7 @@ void TQueryTrackerProxy::AlterQuery(
                     rows.push_back(record.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
                 }
                 transaction->WriteRows(
-                    StateRoot_ + "/finished_queries_by_aco_and_start_time",
+                    StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
                     TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(rows), rowBuffer));
             }

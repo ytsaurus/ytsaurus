@@ -559,7 +559,7 @@ private:
 
             {
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
-                // (which do not matter for finished query) and filter factors field (which goes to
+                // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
                 static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
                 TFinishedQuery newRecord{
@@ -584,6 +584,25 @@ private:
                 transaction->WriteRows(
                     StateRoot_ + "/finished_queries",
                     TFinishedQueryDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(newRows), rowBuffer));
+            }
+
+            {
+                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+                TFinishedQueryByStartTime newRecord{
+                    .Key = TFinishedQueryByStartTimeKey{.MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
+                    .Engine = activeQueryRecord->Engine,
+                    .User = activeQueryRecord->User,
+                    .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
+                    .State = finalState,
+                    .FilterFactors = activeQueryRecord->FilterFactors,
+                };
+                std::vector newRows = {
+                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                };
+                transaction->WriteRows(
+                    StateRoot_ + "/finished_queries_by_start_time",
+                    TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(newRows), rowBuffer));
             }
 

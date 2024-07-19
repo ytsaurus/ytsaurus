@@ -124,7 +124,7 @@ class TestMigration(YTEnvSetup):
         insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"query_id": "test_query_id", "start_time": 1, "user": "user", "access_control_objects": ["aco1", "aco2"]}])
         run_migration(client, 9)
 
-        queries_by_aco = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+        queries_by_aco = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time] order by (access_control_object, minus_start_time, query_id) LIMIT 3"))
         assert len(queries_by_aco) == 2
 
         assert queries_by_aco[0]["query_id"] == "test_query_id"
@@ -147,4 +147,4 @@ class TestMigration(YTEnvSetup):
         assert "access_control_objects" not in queries_by_user[0]
         assert "start_time" not in queries_by_user[0]
 
-        assert not exists("//sys/query_tracker/finished_queries_by_start_time")
+        assert exists("//sys/query_tracker/finished_queries_by_start_time")

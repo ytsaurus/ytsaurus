@@ -128,6 +128,7 @@ TEST_F(TQueryTrackerProxyTest, StartDraftQuery)
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
+    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
 
     ExpectAcosExist({"aco1", "aco2"});
@@ -159,6 +160,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAnnotationAndAcoInFinishedQuery)
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
+    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
     // One DeleteRows and ModifyRows call is expected each. But in mockTransaction, DeleteRows is implemented through ModifyRows
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _)).Times(2);
@@ -188,6 +190,7 @@ TEST_F(TQueryTrackerProxyTest,  AlterAnnotationInFinishedQuery)
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
+    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
@@ -213,6 +216,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAcoInFinishedQuery)
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
+    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
     // One DeleteRows and ModifyRows call is expected each. But in mockTransaction, DeleteRows is implemented through ModifyRows
     EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _)).Times(2);
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
@@ -240,32 +244,39 @@ public:
         Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config);
     }
 
-    void ExpectListQueriesGetAcoCalls(bool everyoneAcoExists)
+    void ExpectListQueriesGetAcoCalls(bool everyoneAcoExists, bool isSuperuser = false)
     {
-        auto existAcos = EmptyMap;
-        if (everyoneAcoExists) {
-            existAcos = BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("aco")
-                    .BeginAttributes()
-                        .Item("principal_acl")
-                            .BeginList()
-                                .Item().BeginMap()
-                                    .Item("action").Value("allow")
-                                    .Item("subjects").BeginList().Item().Value("everyone").EndList()
-                                    .Item("permissions").BeginList().Item().Value("use").EndList()
-                                .EndMap()
-                            .EndList()
-                    .EndAttributes()
+        if (!isSuperuser) {
+            auto existAcos = EmptyMap;
+            if (everyoneAcoExists) {
+                existAcos = BuildYsonStringFluently()
                     .BeginMap()
-                    .EndMap()
-                .EndMap();
+                        .Item("aco")
+                        .BeginAttributes()
+                            .Item("principal_acl")
+                                .BeginList()
+                                    .Item().BeginMap()
+                                        .Item("action").Value("allow")
+                                        .Item("subjects").BeginList().Item().Value("everyone").EndList()
+                                        .Item("permissions").BeginList().Item().Value("use").EndList()
+                                    .EndMap()
+                                .EndList()
+                        .EndAttributes()
+                        .BeginMap()
+                        .EndMap()
+                    .EndMap();
+            }
+
+            EXPECT_CALL(*MockClient, GetNode(TYPath("//sys/access_control_object_namespaces/queries"), _))
+                .WillOnce(Return(MakeFuture(existAcos)));
         }
 
-        EXPECT_CALL(*MockClient, GetNode(TYPath("//sys/access_control_object_namespaces/queries"), _))
-            .WillOnce(Return(MakeFuture(existAcos)));
+        std::vector<TString> memberOfClosure({"users", "everyone"});
+        if (isSuperuser) {
+            memberOfClosure.push_back(NSecurityClient::SuperusersGroupName);
+        }
         EXPECT_CALL(*MockClient, GetNode(TYPath("//sys/users/user/@member_of_closure"), _))
-            .WillOnce(Return(MakeFuture(ConvertToYsonString(std::vector<TString>{"users", "everyone"}))));
+            .WillOnce(Return(MakeFuture(ConvertToYsonString(memberOfClosure))));
     }
 
 public:
@@ -301,9 +312,9 @@ TEST_F(TListQueryTrackerProxyTest, ListQueries)
         CreateSimpleQuery<TActiveQuery>(queryId[3], startTime[3]),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([query_id]), ([minus_start_time]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
-    EXPECT_CALL(*MockClient, SelectRows("([query_id]), ([minus_start_time]) FROM [//sys/query_tracker/finished_queries_by_aco_and_start_time] WHERE (access_control_object IN {acosForUser}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_aco_and_start_time] WHERE (access_control_object IN {acosForUser}) GROUP BY (minus_start_time), (query_id) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByAcoAndStartTimeDescriptor>(finishedQueryByAcoAndStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows(Format("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in (\"%v\", \"%v\", \"%v\"))", queryId[5], queryId[4], queryId[2]), _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
@@ -344,7 +355,7 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesWithoutAco)
         CreateSimpleQuery<TActiveQuery>(queryId[2], startTime[2]),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([query_id]), ([minus_start_time]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows(Format("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in (\"%v\", \"%v\"))", queryId[3], queryId[1]), _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
@@ -372,7 +383,7 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesOnOnlyActive)
         CreateSimpleQuery<TActiveQuery>(queryId),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([query_id]), ([minus_start_time]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 101", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 101", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE (user = {User})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
@@ -380,6 +391,35 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesOnOnlyActive)
     auto result = Proxy->ListQueries(TListQueriesOptions{}, "user");
     ASSERT_EQ(result.Queries.size(), 1ul);
     ASSERT_EQ(result.Queries[0].Id, queryId);
+    ASSERT_FALSE(result.Incomplete);
+}
+
+TEST_F(TListQueryTrackerProxyTest, ListQueriesForSuperuser)
+{
+    ExpectListQueriesGetAcoCalls(/*everyoneAcoExists*/ false, /*isSuperuser*/ true);
+
+    auto startTime = 1;
+    auto queryId = TQueryId::Create();
+    std::vector<TFinishedQueryByStartTimePartial> finishedQueryByStartTimeRecords = {
+        { .Key = { .MinusStartTime = -startTime, .QueryId = queryId } },
+    };
+    std::vector<TFinishedQuery> finishedQueryRecords{
+        CreateSimpleQuery<TFinishedQuery>(queryId, startTime),
+    };
+    std::vector<TActiveQuery> activeQueryRecords;
+
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_start_time] ORDER BY (minus_start_time) ASC LIMIT 101", _))
+        .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByStartTimeDescriptor>(finishedQueryByStartTimeRecords, /*isPartialRecord*/ true)));
+    EXPECT_CALL(*MockClient, SelectRows(Format("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in (\"%v\"))", queryId), _))
+        .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
+    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries]", _))
+        .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
+
+    auto result = Proxy->ListQueries(
+        TListQueriesOptions{},
+        "user");
+
+    ASSERT_EQ(result.Queries.size(), 1ul);
     ASSERT_FALSE(result.Incomplete);
 }
 
