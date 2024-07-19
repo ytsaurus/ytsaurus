@@ -803,3 +803,23 @@ func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.O
 
 	return append(strawberryOptions, ctlOptions...), nil
 }
+
+func (a *API) GetSecrets(ctx context.Context, alias string) (secrets map[string]any, err error) {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return nil, err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return nil, err
+	}
+
+	err = a.Ytc.GetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets"),
+		&secrets,
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return
+}
