@@ -89,7 +89,7 @@ public:
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
-        const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
+        auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 
         JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
 

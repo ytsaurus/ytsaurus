@@ -413,8 +413,8 @@ public:
     TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const
     {
         TNodeResourceLimitsOverrides resourceLimits;
-        const auto& resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
-        const auto& dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
+        auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
+        auto dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
 
         #define XX(name, Name) \
             if (resourceLimitsOverrides.has_##name()) { \

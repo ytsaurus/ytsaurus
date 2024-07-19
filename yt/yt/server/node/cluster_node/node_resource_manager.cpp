@@ -511,7 +511,7 @@ void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOv
 TNodeResourceLimitsOverrides TNodeResourceManager::ComputeEffectiveResourceLimitsOverrides() const
 {
     TNodeResourceLimitsOverrides resourceLimits;
-    const auto& dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
+    auto dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
 
     #define XX(name, Name) \
         if (ResourceLimitsOverride_.has_##name()) { \
@@ -687,7 +687,7 @@ double TNodeResourceManager::GetTabletSlotCpu() const
     }
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
-    const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
 
     if (const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager()) {
         double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
