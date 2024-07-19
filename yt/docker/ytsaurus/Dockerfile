@@ -1,3 +1,11 @@
+# Arguments used in FROM statemensts need to be declared before the first FROM statement.
+
+# Args for ytsaurus-server-override.
+ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
+ARG BASE_IMAGE="dev-24.1-2024-07-16-3a74ae83a9036cab5d95fb93ae2740d881ba80fd-relwithdebinfo"
+
+##########################################################################################
+
 FROM mirror.gcr.io/ubuntu:focal AS base
 
 USER root
@@ -27,7 +35,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 
 ##########################################################################################
 
-FROM base AS base_ytsaurus_python_packages
+FROM base AS base-ytsaurus-python-packages
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
 RUN for package in client yson local native_driver; \
@@ -43,7 +51,7 @@ RUN rm -rf /tmp/ytsaurus_python
 
 ##########################################################################################
 
-FROM base_ytsaurus_python_packages AS base_exec
+FROM base-ytsaurus-python-packages AS base-exec
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   containerd \
@@ -58,7 +66,7 @@ RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
 ##########################################################################################
 
-FROM base_exec AS ytsaurus
+FROM base-exec AS ytsaurus-bloated
 
 # YTsaurus binary.
 COPY ./ytserver-all /usr/bin/ytserver-all
@@ -85,6 +93,9 @@ COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
 COPY ./init_operations_archive.py /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
 
+FROM scratch AS ytsaurus
+COPY --from=ytsaurus-bloated / /
+
 ##########################################################################################
 
 FROM base AS chyt
@@ -102,7 +113,7 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 ##########################################################################################
 
-FROM base_ytsaurus_python_packages AS query-tracker
+FROM base-ytsaurus-python-packages AS query-tracker-bloated
 
 # Query tracker binaries.
 COPY ./ytserver-all /usr/bin/ytserver-all
@@ -120,6 +131,9 @@ COPY ./init_query_tracker_state.py /usr/bin/init_query_tracker_state
 # Query tracker credits files.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 
+FROM scratch AS query-tracker
+COPY --from=query-tracker-bloated / /
+
 ##########################################################################################
 
 FROM base AS strawberry
@@ -133,10 +147,15 @@ COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 
 ##########################################################################################
 
-FROM base_exec AS local
+FROM base-exec AS local-bloated
 
 COPY ./ytserver-all /usr/bin/ytserver-all
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+
+FROM scratch AS local
+COPY --from=local-bloated / /
+
+WORKDIR /tmp
 
 COPY ./configure.sh .
 RUN ./configure.sh /var/lib/yt/local-cypress
@@ -148,5 +167,19 @@ VOLUME /var/lib/yt/local-cypress
 EXPOSE 80
 
 ENTRYPOINT ["bash", "/usr/bin/start.sh"]
+
+##########################################################################################
+
+FROM ${BASE_REPOSITORY}:${BASE_IMAGE} AS ytsaurus-server-override-bloated
+
+USER root
+
+# Override binaries built from source.
+COPY ./ytserver-all /usr/bin/ytserver-all
+COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
+COPY ./init_operations_archive.py /usr/bin/init_operations_archive
+
+FROM scratch AS ytsaurus-server-override
+COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
