@@ -799,6 +799,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		}
 	}
 
+	spec["secure_vault"] = oplet.Secrets()
+
 	opACL := oplet.getOpACL()
 	spec["acl"] = opACL
 	spec["add_authenticated_user_to_acl"] = false
