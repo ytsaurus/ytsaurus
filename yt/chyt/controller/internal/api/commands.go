@@ -67,7 +67,7 @@ var SecretsParameter = CmdParameter{
 	Name:        "secrets",
 	Type:        TypeAny,
 	Description: "map of secrets in yson format",
-	Validator:   validateSpecletOptions,
+	Validator:   validateSecrets,
 }
 
 var CreateCmdDescriptor = CmdDescriptor{

@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
 	"reflect"
 	"regexp"
 
@@ -38,6 +39,21 @@ func validateSpecletOptions(speclet any) error {
 	if !ok {
 		typeName := reflect.TypeOf(speclet).String()
 		return unexpectedTypeError(typeName)
+	}
+	return nil
+}
+
+func validateSecrets(secrets any) error {
+	secretsMap, ok := secrets.(map[string]any)
+	if !ok {
+		typeName := reflect.TypeOf(secrets).String()
+		return unexpectedTypeError(typeName)
+	}
+	allowedTypes := []string{"string", "int64", "bool", "float64"}
+	for _, v := range secretsMap {
+		if vType := reflect.TypeOf(v).String(); !slices.Contains(allowedTypes, vType) {
+			return unexpectedTypeError(vType)
+		}
 	}
 	return nil
 }
