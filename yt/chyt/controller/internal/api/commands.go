@@ -426,7 +426,7 @@ func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request, p
 
 var GetSecretsCmdDescriptor = CmdDescriptor{
 	Name:        "get_secrets",
-	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Parameters:  []CmdParameter{AliasParameter},
 	Description: "get secrets by alias",
 	Handler:     HTTPAPI.HandleGetSecrets,
 }
@@ -443,9 +443,17 @@ func (a HTTPAPI) HandleGetSecrets(w http.ResponseWriter, r *http.Request, params
 	a.ReplyOK(w, secrets)
 }
 
+var SecretsParameterRequired = CmdParameter{
+	Name:        "secrets",
+	Type:        TypeAny,
+	Description: "map of secrets in yson format",
+	Validator:   validateSecrets,
+	Required:    true,
+}
+
 var SetSecretsCmdDescriptor = CmdDescriptor{
 	Name:        "set_secrets",
-	Parameters:  []CmdParameter{AliasParameter.AsExplicit(), SecretsParameter},
+	Parameters:  []CmdParameter{AliasParameter, SecretsParameterRequired.AsExplicit()},
 	Description: "set secrets by alias",
 	Handler:     HTTPAPI.HandleSetSecrets,
 }
