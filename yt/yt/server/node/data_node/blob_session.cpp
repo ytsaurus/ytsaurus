@@ -528,19 +528,25 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     auto precedingBlockReceivedFuturesCombine = AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
-        .Apply(BIND([config = Config_] (const TError& error) {
-            if (error.GetCode() == NYT::EErrorCode::Timeout) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::WriteThrottlingActive,
-                    "Block reordering timeout")
-                    << TErrorAttribute("timeout", config->SessionBlockReorderTimeout);
-            }
+        .Apply(BIND([
+                config = Config_,
+                startBlockIndex,
+                endBlockIndex = startBlockIndex + blocks.size()
+            ] (const TError& error) {
+                if (error.GetCode() == NYT::EErrorCode::Timeout) {
+                    THROW_ERROR_EXCEPTION(
+                        NChunkClient::EErrorCode::WriteThrottlingActive,
+                        "Block reordering timeout")
+                        << TErrorAttribute("timeout", config->SessionBlockReorderTimeout)
+                        << TErrorAttribute("start_block_index", startBlockIndex)
+                        << TErrorAttribute("end_block_index", endBlockIndex);
+                }
 
-            if (!error.IsOK()) {
-                THROW_ERROR(error);
-            }
-        })
-        .AsyncVia(SessionInvoker_));
+                if (!error.IsOK()) {
+                    THROW_ERROR(error);
+                }
+            })
+            .AsyncVia(SessionInvoker_));
 
     if (useCumulativeBlockSize) {
         return precedingBlockReceivedFuturesCombine
