@@ -141,6 +141,7 @@ public:
     void Initialize();
 
     void ScheduleMerge(NCypressClient::TObjectId chunkOwnerId);
+    bool CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner);
     void ScheduleMerge(TChunkOwnerBase* trunkChunkOwner);
 
     EChunkMergerStatus GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const;
@@ -171,7 +172,7 @@ private:
 
     bool Enabled_ = false;
 
-    THashMap<NCypressClient::TObjectId, EChunkMergerStatus> NodeToChunkMergerStatus;
+    THashMap<NCypressClient::TObjectId, EChunkMergerStatus> NodeToChunkMergerStatus_;
 
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;
@@ -243,8 +244,9 @@ private:
     bool NeedRestorePersistentStatistics_ = false;
 
     THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> AccountIdToNodeMergeDurations_;
-    THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCount_;
+    THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCountAfterMaxBackoffDelay_;
     THashMap<NSecurityServer::TAccountId, THashSet<NObjectClient::TObjectId>> AccountIdToStuckNodes_;
+    THashMap<NObjectClient::TObjectId, TDuration> NodeToBackoffPeriod_;
 
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
     void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
@@ -255,7 +257,10 @@ private:
     void OnLeaderActive() override;
     void OnStopLeading() override;
 
+    void RescheduleMerge(NCypressClient::TObjectId nodeId, NSecurityClient::TAccountId accountId);
+
     void RegisterSession(TChunkOwnerBase* chunkOwner);
+    void DoRegisterSession(TChunkOwnerBase* chunkOwner);
     void RegisterSessionTransient(TChunkOwnerBase* chunkOwner);
     void FinalizeJob(
         TMergeJobInfo jobInfo,
@@ -332,6 +337,7 @@ private:
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);
     void HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* request);
     void HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMergeSessions* request);
+    void HydraRescheduleMerge(NProto::TReqRescheduleMerge* request);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
