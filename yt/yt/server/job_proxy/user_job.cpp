@@ -644,11 +644,11 @@ private:
 #ifdef _linux_
         switch (JobEnvironmentType_) {
             case EJobEnvironmentType::Testing:
-            case EJobEnvironmentType::Simple: 
+            case EJobEnvironmentType::Simple:
                 // No shell support
                 break;
             case EJobEnvironmentType::Cri: {
-                // TODO: create specific shell manager  
+                // TODO: create specific shell manager
                 break;
             }
             case EJobEnvironmentType::Porto: {
@@ -684,25 +684,22 @@ private:
                     shellManagerGid = 1001;
                 }
 
-                    // ToDo(psushin): move ShellManager into user job environment.
-                    TShellManagerConfig config{
-                        .PreparationDir = Host_->GetPreparationPath(),
-                        .WorkingDir = Host_->GetSlotPath(),
-                        .UserId = shellManagerUid,
-                        .GroupId = shellManagerGid,
-                        .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                        .Environment = std::move(shellEnvironment),
-                        .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
-                    };
+                // ToDo(psushin): move ShellManager into user job environment.
+                TShellManagerConfig config{
+                    .PreparationDir = Host_->GetPreparationPath(),
+                    .WorkingDir = Host_->GetSlotPath(),
+                    .UserId = shellManagerUid,
+                    .GroupId = shellManagerGid,
+                    .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                    .Environment = std::move(shellEnvironment),
+                    .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+                };
 
-                    ShellManager_ = CreatePortoShellManager(
-                        config,
-                        portoExecutor,
-                        UserJobEnvironment_->GetUserJobInstance());
-                    break;
-                }
-            default: {
-                YT_ABORT();
+                ShellManager_ = CreatePortoShellManager(
+                    config,
+                    portoExecutor,
+                    UserJobEnvironment_->GetUserJobInstance());
+                break;
             }
         }
 #endif
