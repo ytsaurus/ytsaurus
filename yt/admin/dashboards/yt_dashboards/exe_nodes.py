@@ -80,6 +80,8 @@ def _build_jobs(d):
             .cell("Controller Aborted Jobs", CA_jobs("aborted").aggr("abort_reason"))
             .cell("Node Aborted Jobs", node_jobs("aborted").aggr("origin"))
         .row()
+            .cell("Job Proxy Aborts", ExeNode("yt.job_controller.job_proxy_process_exit.count.rate").value("terminated_by_signal", "aborted"))
+        .row()
             .cell("Active Job Count", ExeNode("yt.job_controller.active_job_count").aggr("origin"))
     )
 
