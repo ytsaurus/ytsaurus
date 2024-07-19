@@ -61,7 +61,7 @@ struct INodeMemoryTracker
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef WrapWithDelayedReferenceHolder(
     TSharedRef reference,
@@ -100,6 +100,12 @@ TSharedRefArray TrackMemory(
     EMemoryCategory category,
     TSharedRefArray array,
     bool keepExistingTracking = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+    IMemoryUsageTrackerPtr underlying,
+    NProfiling::TCounter memoryUsageCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

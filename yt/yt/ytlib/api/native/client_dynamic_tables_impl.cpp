@@ -129,6 +129,7 @@ using namespace NYTree;
 
 const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
 const TString SecondaryIndexAlias = "IndexTable";
+constexpr ssize_t MinPullDataSize = 1_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -452,6 +453,30 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
 
     return WaitFor(AllSucceeded(asyncTableInfos))
         .ValueOrThrow();
+}
+
+std::optional<i64> ReserveMemory(
+    IReservingMemoryUsageTrackerPtr& reservingTracker,
+    i64 initialAmount,
+    int requestsCount)
+{
+    i64 reservedBytes = initialAmount;
+    bool memoryReserved = false;
+
+    while (reservedBytes >= MinPullDataSize * requestsCount) {
+        if (reservingTracker->TryReserve(reservedBytes).IsOK()) {
+            memoryReserved = true;
+            break;
+        }
+
+        reservedBytes /= 2;
+    }
+
+    if (!memoryReserved) {
+        return std::nullopt;
+    }
+
+    return reservedBytes;
 }
 
 } // namespace
@@ -3000,6 +3025,8 @@ TSyncAlienCellsResult TClient::DoSyncAlienCells(
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletPullRowsSession
     : public TRefCounted
 {
@@ -3020,6 +3047,8 @@ public:
         const TPullRowsOptions& options,
         TTabletRequest request,
         IInvokerPtr invoker,
+        i64 maxDataWeight,
+        IMemoryUsageTrackerPtr memoryTracker,
         NLogging::TLogger logger)
     : Client_(std::move(client))
     , Schema_(std::move(schema))
@@ -3027,13 +3056,22 @@ public:
     , TabletInfo_(std::move(tabletInfo))
     , Versioned_(versioned)
     , Options_(options)
+    , MaxDataWeight_(maxDataWeight)
     , Request_(std::move(request))
     , Invoker_(std::move(invoker))
+    , MemoryTracker_(std::move(memoryTracker))
     , ReplicationProgress_(std::move(Request_.Progress))
     , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     , Logger(logger
         .WithTag("TabletId: %v", TabletInfo_->TabletId))
     { }
+
+    ~TTabletPullRowsSession()
+    {
+        if (MemoryTracker_ && ResultOrError_.IsOK()) {
+            MemoryTracker_->Release(ResultOrError_.Value()->GetTotalSize());
+        }
+    }
 
     TFuture<void> RunRequest()
     {
@@ -3082,8 +3120,10 @@ private:
     const TTabletInfoPtr TabletInfo_;
     const bool Versioned_;
     const TPullRowsOptions& Options_;
+    const i64 MaxDataWeight_;
     const TTabletRequest Request_;
     const IInvokerPtr Invoker_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 
     TErrorOr<TQueryServiceProxy::TRspPullRowsPtr> ResultOrError_;
 
@@ -3113,6 +3153,7 @@ private:
             req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
+            req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
@@ -3145,10 +3186,15 @@ private:
         }
 
         const auto& result = resultOrError.Value();
+        if (MemoryTracker_) {
+            MemoryTracker_->Acquire(result->GetTotalSize());
+        }
+
         ReplicationProgress_ = FromProto<TReplicationProgress>(result->end_replication_progress());
         if (result->has_end_replication_row_index()) {
             ReplicationRowIndex_ = result->end_replication_row_index();
         }
+
         DataWeight_ += result->data_weight();
         RowCount_ += result->row_count();
 
@@ -3189,8 +3235,10 @@ private:
                 ReplicationRowIndex_.reset();
                 break;
             }
+
             rows.push_back(row.ToTypeErasedRow());
         }
+
         return rows;
     }
 
@@ -3298,9 +3346,30 @@ TPullRowsResult TClient::DoPullRows(
         });
     }
 
+    auto reservingTracker = options.MemoryTracker;
+
+    i64 dataWeight = options.MaxDataWeight;
+    if (reservingTracker) {
+        auto reserveResult = ReserveMemory(reservingTracker, dataWeight, requests.size());
+        if (!reserveResult) {
+            THROW_ERROR_EXCEPTION("Failed to reserve memory for pull rows request");
+        }
+
+        dataWeight = *reserveResult;
+    }
+
+    // Raw response + parsed rows for each session.
+    i64 dataWeightPerResponse = dataWeight / (2 * requests.size());
+
     struct TPullRowsOutputBufferTag { };
+    auto outputRowBuffer = New<TRowBuffer>(
+        TPullRowsOutputBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        reservingTracker);
+
     std::vector<TIntrusivePtr<TTabletPullRowsSession>> sessions;
     std::vector<TFuture<void>> futureResults;
+
     for (const auto& request : requests) {
         sessions.push_back(New<TTabletPullRowsSession>(
             this,
@@ -3311,6 +3380,8 @@ TPullRowsResult TClient::DoPullRows(
             options,
             request,
             Connection_->GetInvoker(),
+            dataWeightPerResponse,
+            reservingTracker,
             Logger));
         futureResults.push_back(sessions.back()->RunRequest());
     }
@@ -3332,7 +3403,6 @@ TPullRowsResult TClient::DoPullRows(
 
     TPullRowsResult combinedResult;
     std::vector<TTypeErasedRow> resultRows;
-    auto outputRowBuffer = New<TRowBuffer>(TPullRowsOutputBufferTag());
 
     bool success = false;
     for (const auto& session : sessions) {
@@ -3365,6 +3435,12 @@ TPullRowsResult TClient::DoPullRows(
             error.MutableInnerErrors()->push_back(session->GetResultOrError());
         }
         THROW_ERROR_EXCEPTION(error);
+    }
+
+    // Return all excessively reserved memory to the parent tracker.
+    sessions.clear();
+    if (reservingTracker) {
+        reservingTracker->ReleaseUnusedReservation();
     }
 
     if (tableInfo->IsSorted() && options.OrderRowsByTimestamp) {

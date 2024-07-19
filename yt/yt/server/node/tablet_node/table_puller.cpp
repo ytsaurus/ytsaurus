@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/api/rowset.h>
@@ -136,7 +138,8 @@ public:
         ITabletSlotPtr slot,
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IInvokerPtr workerInvoker,
-        IThroughputThrottlerPtr nodeInThrottler)
+        IThroughputThrottlerPtr nodeInThrottler,
+        IMemoryUsageTrackerPtr memoryTracker)
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
@@ -160,6 +163,7 @@ public:
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
+        , MemoryTracker_(std::move(memoryTracker))
     { }
 
     void Enable() override
@@ -206,6 +210,7 @@ private:
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
+    IMemoryUsageTrackerPtr MemoryTracker_;
 
     TFuture<void> FiberFuture_;
 
@@ -501,6 +506,14 @@ private:
         const auto& tableProfiler = tabletSnapshot->TableProfiler;
         auto* counters = tableProfiler->GetTablePullerCounters();
 
+        if (MemoryTracker_->IsExceeded()) {
+            YT_LOG_DEBUG("Skipping pull rows iteration due to puller memory limit exceeded (MemoryLimit: %v)",
+                MemoryTracker_->GetLimit());
+            THROW_ERROR_EXCEPTION("Skipping pull rows iteration due to puller memory limit exceeded")
+                << TErrorAttribute("memory_limit", MemoryTracker_->GetLimit());
+        }
+
+        auto reservingTracker = CreateResevingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
         TDuration throttleTime;
         {
             auto throttleFuture = Throttler_->Throttle(1);
@@ -559,6 +572,7 @@ private:
             options.UpstreamReplicaId = queueReplicaId;
             options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
             options.TableSchema = TableSchema_;
+            options.MemoryTracker = reservingTracker;
 
             YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %v)",
                 clusterName,
@@ -673,7 +687,12 @@ private:
             modifyOptions.AllowMissingKeyColumns = true;
 
             std::vector<TRowModification> rowModifications;
+
+            auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(
+                reservingTracker,
+                resultRows.size() * sizeof(TRowModification));
             rowModifications.reserve(resultRows.size());
+
             for (auto row : resultRows) {
                 rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
             }
@@ -817,7 +836,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
-    IThroughputThrottlerPtr nodeInThrottler)
+    IThroughputThrottlerPtr nodeInThrottler,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     return New<TTablePuller>(
         std::move(config),
@@ -826,7 +846,8 @@ ITablePullerPtr CreateTablePuller(
         std::move(slot),
         std::move(tabletSnapshotStore),
         std::move(workerInvoker),
-        std::move(nodeInThrottler));
+        std::move(nodeInThrottler),
+        std::move(memoryTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
