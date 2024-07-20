@@ -7,12 +7,13 @@
 #include <yt/cpp/mapreduce/util/temp_table.h>
 
 #include <memory>
-#include <set>
 
 namespace NRoren {
-    class TPipeline;
-    class IYtGraph;
-}
+
+class TPipeline;
+class IYtGraph;
+
+} // namespace NRoren
 
 namespace NRoren::NPrivate {
 

@@ -31,12 +31,17 @@ target_link_libraries(cpp-roren-yt PUBLIC
 
 target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/connectors.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/dependency_runner.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/dot.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/kv_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/level_runner.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/profile_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/transforms.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/visitors.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_io_private.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph.cpp

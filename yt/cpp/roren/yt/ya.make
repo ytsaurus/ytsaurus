@@ -2,12 +2,17 @@ LIBRARY()
 
 SRCS(
     base_state.cpp
+    connectors.cpp
     dependency_runner.cpp
     dot.cpp
     jobs.cpp
     kv_state.cpp
     level_runner.cpp
+    operations.cpp
     profile_state.cpp
+    tables.cpp
+    transforms.cpp
+    visitors.cpp
     yt.cpp
     yt_io_private.cpp
     yt_graph.cpp
