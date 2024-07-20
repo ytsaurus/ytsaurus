@@ -348,22 +348,30 @@ DEFINE_REFCOUNTED_TYPE(TOperationElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareUpdateOptions
+{
+    EJobResourceType MainResource = EJobResourceType::Cpu;
+
+    TDuration IntegralPoolCapacitySaturationPeriod;
+    TDuration IntegralSmoothPeriod;
+
+    // COMPAT(eshcherbin): Remove when well tested.
+    bool EnableFastChildFunctionSummationInFifoPools = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFairShareUpdateContext
 {
-    // TODO(eshcherbin): Create a separate fair share update config instead of passing all options in context.
     TFairShareUpdateContext(
+        const TFairShareUpdateOptions& options,
         const TJobResources totalResourceLimits,
-        const EJobResourceType mainResource,
-        const TDuration integralPoolCapacitySaturationPeriod,
-        const TDuration integralSmoothPeriod,
         const TInstant now,
         const std::optional<TInstant> previousUpdateTime);
 
-    const TJobResources TotalResourceLimits;
+    const TFairShareUpdateOptions Options;
 
-    const EJobResourceType MainResource;
-    const TDuration IntegralPoolCapacitySaturationPeriod;
-    const TDuration IntegralSmoothPeriod;
+    const TJobResources TotalResourceLimits;
 
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
@@ -396,12 +404,15 @@ public:
     TFairShareUpdateExecutor(
         const TRootElementPtr& rootElement,
         // TODO(ignat): split context on input and output parts.
-        TFairShareUpdateContext* context);
+        TFairShareUpdateContext* context,
+        const std::optional<TString>& loggingTag = {});
 
     void Run();
 
 private:
     const TRootElementPtr RootElement_;
+
+    NLogging::TLogger Logger;
 
     void ConsumeAndRefillIntegralPools();
     void UpdateBurstPoolIntegralShares();

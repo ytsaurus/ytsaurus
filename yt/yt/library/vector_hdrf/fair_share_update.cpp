@@ -344,7 +344,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
 {
     const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
     auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
-    auto mainResourceType = context->MainResource;
+    auto mainResourceType = context->Options.MainResource;
     auto parentMainResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, mainResourceType);
     auto doDetermineImplicitGuarantees = [&] (const auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         if (resourceType == mainResourceType) {
@@ -695,7 +695,10 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
     }
 
     double rightFunctionBound = GetChildCount();
-    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, rightFunctionBound, TResourceVector::Zero());
+    std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
+    if (!context->Options.EnableFastChildFunctionSummationInFifoPools) {
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, rightFunctionBound, TResourceVector::Zero());
+    }
 
     double currentRightBound = 0.0;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
@@ -706,14 +709,22 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         YT_VERIFY(childFSBS.IsTrimmedLeft() && childFSBS.IsTrimmedRight());
         YT_VERIFY(childFSBS.LeftFunctionValue() == TResourceVector::Zero());
 
-        // TODO(antonkikh): This can be implemented much more efficiently by concatenating functions instead of adding.
-        *FairShareByFitFactor_ += childFSBS
-            .Shift(/* deltaArgument */ currentRightBound)
-            .Extend(/* newLeftBound */ 0.0, /* newRightBound */ rightFunctionBound);
+        auto childFunction = childFSBS
+            .Shift(/*deltaArgument*/ currentRightBound)
+            .Extend(/*newLeftBound*/ 0.0, /*newRightBound*/ rightFunctionBound);
+        if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
+            childrenFunctions.push_back(std::move(childFunction));
+        } else {
+            *FairShareByFitFactor_ += childFunction;
+        }
         currentRightBound += 1.0;
     }
 
     YT_VERIFY(currentRightBound == rightFunctionBound);
+
+    if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+    }
 }
 
 void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context)
@@ -1159,7 +1170,7 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
     auto& integralResourcesState = IntegralResourcesState();
 
     auto oldVolume = integralResourcesState.AccumulatedVolume;
-    auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->IntegralPoolCapacitySaturationPeriod);
+    auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->Options.IntegralPoolCapacitySaturationPeriod);
 
     auto zero = TResourceVolume();
     integralResourcesState.AccumulatedVolume +=
@@ -1416,16 +1427,12 @@ void TOperationElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdate
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareUpdateContext::TFairShareUpdateContext(
+    const TFairShareUpdateOptions& options,
     const TJobResources totalResourceLimits,
-    const EJobResourceType mainResource,
-    const TDuration integralPoolCapacitySaturationPeriod,
-    const TDuration integralSmoothPeriod,
     const TInstant now,
     const std::optional<TInstant> previousUpdateTime)
-    : TotalResourceLimits(totalResourceLimits)
-    , MainResource(mainResource)
-    , IntegralPoolCapacitySaturationPeriod(integralPoolCapacitySaturationPeriod)
-    , IntegralSmoothPeriod(integralSmoothPeriod)
+    : Options(options)
+    , TotalResourceLimits(totalResourceLimits)
     , Now(now)
     , PreviousUpdateTime(previousUpdateTime)
 { }
@@ -1434,10 +1441,16 @@ TFairShareUpdateContext::TFairShareUpdateContext(
 
 TFairShareUpdateExecutor::TFairShareUpdateExecutor(
     const TRootElementPtr& rootElement,
-    TFairShareUpdateContext* context)
+    TFairShareUpdateContext* context,
+    const std::optional<TString>& loggingTag)
     : RootElement_(rootElement)
+    , Logger(FairShareLogger)
     , Context_(context)
-{ }
+{
+    if (loggingTag) {
+        Logger.AddRawTag(*loggingTag);
+    }
+}
 
 /// Steps of fair share update:
 ///
@@ -1466,8 +1479,6 @@ TFairShareUpdateExecutor::TFairShareUpdateExecutor(
 ///   The weight proportional component emerges here.
 void TFairShareUpdateExecutor::Run()
 {
-    const auto& Logger = FairShareLogger;
-
     TWallTimer timer;
 
     RootElement_->ValidatePoolConfigs(Context_);
@@ -1515,8 +1526,6 @@ void TFairShareUpdateExecutor::Run()
 
 void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
 {
-    const auto& Logger = FairShareLogger;
-
     for (auto& burstPool : Context_->BurstPools) {
         auto integralRatio = std::min(burstPool->Attributes().BurstRatio, GetIntegralShareRatioByVolume(burstPool));
         auto proposedIntegralShare = TResourceVector::Min(
@@ -1552,8 +1561,6 @@ void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
 
 void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
 {
-    const auto& Logger = FairShareLogger;
-
     if (Context_->RelaxedPools.empty()) {
         return;
     }
@@ -1685,7 +1692,7 @@ double TFairShareUpdateExecutor::GetIntegralShareRatioByVolume(const TPool* pool
 {
     const auto& accumulatedVolume = pool->IntegralResourcesState().AccumulatedVolume;
     return accumulatedVolume.GetMinResourceRatio(Context_->TotalResourceLimits) /
-        Context_->IntegralSmoothPeriod.SecondsFloat();
+        Context_->Options.IntegralSmoothPeriod.SecondsFloat();
 }
 
 TResourceVector TFairShareUpdateExecutor::GetHierarchicalAvailableLimitsShare(const TElement* element) const

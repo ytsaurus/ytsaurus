@@ -570,6 +570,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("necessary_resources_for_operation", &TThis::NecessaryResourcesForOperation)
         .Default();
 
+    registrar.Parameter("enable_fast_child_function_summation_in_fifo_pools", &TThis::EnableFastChildFunctionSummationInFifoPools)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

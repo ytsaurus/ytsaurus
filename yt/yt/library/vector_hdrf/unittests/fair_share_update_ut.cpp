@@ -533,10 +533,13 @@ protected:
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
         TFairShareUpdateContext context(
+            TFairShareUpdateOptions{
+                .MainResource = EJobResourceType::Cpu,
+                .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
+                .IntegralSmoothPeriod = TDuration::Minutes(1),
+                .EnableFastChildFunctionSummationInFifoPools = true,
+            },
             totalResourceLimits,
-            /*mainResource*/ EJobResourceType::Cpu,
-            /*integralPoolCapacitySaturationPeriod*/ TDuration::Days(1),
-            /*integralSmoothPeriod*/ TDuration::Minutes(1),
             now,
             previousUpdateTime);
 

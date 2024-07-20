@@ -811,10 +811,12 @@ protected:
         };
 
         NVectorHdrf::TFairShareUpdateContext context(
+            NVectorHdrf::TFairShareUpdateOptions{
+                .MainResource = TreeConfig_->MainResource,
+                .IntegralPoolCapacitySaturationPeriod = TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                .IntegralSmoothPeriod = TreeConfig_->IntegralGuarantees->SmoothPeriod,
+            },
             totalResourceLimits,
-            TreeConfig_->MainResource,
-            TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
-            TreeConfig_->IntegralGuarantees->SmoothPeriod,
             now,
             previousUpdateTime);
 
