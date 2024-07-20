@@ -4,10 +4,11 @@ SRCS(
     base_state.cpp
     connectors.cpp
     dependency_runner.cpp
+    depricated/level_runner.cpp
+    depricated/yt_graph.cpp
     dot.cpp
     jobs.cpp
     kv_state.cpp
-    level_runner.cpp
     operations.cpp
     profile_state.cpp
     tables.cpp
@@ -15,7 +16,6 @@ SRCS(
     visitors.cpp
     yt.cpp
     yt_io_private.cpp
-    yt_graph.cpp
     yt_graph_v2.cpp
     yt_proto_io.cpp
     yt_write.cpp

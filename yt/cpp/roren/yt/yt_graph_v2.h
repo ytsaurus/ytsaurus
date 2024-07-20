@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yt_graph.h"
+#include "interface_graph.h"
 
 #include <yt/cpp/roren/yt/proto/config.pb.h>
 
