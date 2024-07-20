@@ -123,6 +123,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
+    if (auto eraseCodecValue = context.ExplicitAttributes->FindYson("erasure_codec")) {
+        ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecs);
+    }
+
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");

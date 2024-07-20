@@ -2275,6 +2275,11 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
                     chunkManagerConfig->DeprecatedCodecIds, \
                     chunkManagerConfig->DeprecatedCodecNameToAlias); \
             } \
+            if (key == EInternedAttributeKey::ErasureCodec) { \
+                ValidateErasureCodec( \
+                    value, \
+                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
+            } \
             { \
                 auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
                 auto* lockedNode = LockThisImpl<TCompositeNodeBase>(lockRequest); \
@@ -2619,6 +2624,11 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
                 value, \
                 chunkManagerConfig->DeprecatedCodecIds, \
                 chunkManagerConfig->DeprecatedCodecNameToAlias); \
+        } \
+        if (key == "erasure_codec") { \
+            ValidateErasureCodec( \
+                value, \
+                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
         } \
         using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
         InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \

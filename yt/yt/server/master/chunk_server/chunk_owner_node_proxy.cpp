@@ -1134,6 +1134,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             }
 
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateErasureCodec(value, config->ForbiddenErasureCodecs);
 
             const auto& uninternedKey = key.Unintern();
             auto codec = ConvertTo<NErasure::ECodec>(value);

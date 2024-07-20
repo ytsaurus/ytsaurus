@@ -4,6 +4,7 @@
 #include "shard.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -462,6 +463,16 @@ void ValidateCompressionCodec(
         auto& [_, alias] = *it;
         THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead", codecName, alias);
 
+    }
+}
+
+void ValidateErasureCodec(
+    const NYson::TYsonString& value,
+    const THashSet<NErasure::ECodec>& forbiddenCodecs)
+{
+    auto codecId = ConvertTo<NErasure::ECodec>(value);
+    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecs.contains(codecId)) {
+        THROW_ERROR_EXCEPTION("Erasure codec %Qv is forbidden", codecId);
     }
 }
 
