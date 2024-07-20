@@ -177,28 +177,28 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
         const auto lastByte = static_cast<decltype(NApi::TGetJobStderrResponse::TotalSize)>(reference.Str().size());
 
         {
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string );
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
             ASSERT_EQ(data.TotalSize, static_cast<decltype(data.TotalSize)>(reference.Str().size()));
         }
 
         {
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Limit = 123}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Limit = 123});
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str().substr(0, 123));
             ASSERT_EQ(data.EndOffset, 123);
             ASSERT_EQ(data.TotalSize, lastByte);
         }
 
         {
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Limit = 123, .Offset = 10}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Limit = 123, .Offset = 10});
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str().substr(10, 123));
             ASSERT_EQ(data.EndOffset, 10 + 123);
             ASSERT_EQ(data.TotalSize, lastByte);
         }
 
         {
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Offset = -50}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string, {.Offset = -50} );
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str().substr(reference.Str().size() - 50, 50));
             ASSERT_EQ(data.EndOffset, lastByte);
             ASSERT_EQ(data.TotalSize, lastByte);
@@ -206,7 +206,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
 
         {
             // before start
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Offset = -50000}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Offset = -50000});
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
             ASSERT_EQ(data.TotalSize, lastByte);
@@ -214,7 +214,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
 
         {
             // Requested more than have
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Limit = 100, .Offset = 250}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Limit = 100, .Offset = 250});
             ASSERT_EQ(data.Data.size(), size_t(44));
             ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("100\n"));
             ASSERT_EQ(data.EndOffset, lastByte);
@@ -223,7 +223,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
 
         {
             // Range after end
-            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr({.Limit = 123, .Offset = 300}, string);
+            const auto data = NApi::TGetJobStderrResponse::MakeJobStderr( string, {.Limit = 123, .Offset = 300});
             ASSERT_EQ(data.Data.ToStringBuf(), "");
             ASSERT_EQ(data.EndOffset, 0);
             ASSERT_EQ(data.TotalSize, lastByte);

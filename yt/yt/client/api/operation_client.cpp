@@ -227,12 +227,12 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TGetJobStderrOptions& request, const TSharedRef& data)
+TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options)
 {
     auto totalSize = std::ssize(data);
     i64 endOffset = totalSize;
 
-    if (!request.Offset && !request.Limit) {
+    if (!options.Offset && !options.Limit) {
         return {
             .Data = data,
             .TotalSize = totalSize,
@@ -241,12 +241,12 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TGetJobStderrOp
     };
 
     size_t firstPos = 0;
-    if (request.Offset >= 0) {
-        firstPos = request.Offset;
-    } else if (-request.Offset > static_cast<i64>(data.size())) {
+    if (options.Offset >= 0) {
+        firstPos = options.Offset;
+    } else if (-options.Offset > static_cast<i64>(data.size())) {
         firstPos = 0;
     } else {
-        firstPos = data.size() + request.Offset;
+        firstPos = data.size() + options.Offset;
     }
 
     if (firstPos >= data.size()) {
@@ -257,11 +257,11 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TGetJobStderrOp
         };
     } else {
         const auto dataCut =
-            TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, request.Limit ? request.Limit : TStringBuf::npos)});
+            TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, options.Limit ? options.Limit : TStringBuf::npos)});
         return {
             .Data = dataCut,
             .TotalSize = totalSize,
-            .EndOffset = request.Limit ? static_cast<i64>(firstPos + dataCut.size()) : endOffset,
+            .EndOffset = options.Limit ? static_cast<i64>(firstPos + dataCut.size()) : endOffset,
         };
     }
 }

@@ -370,7 +370,7 @@ struct TGetJobStderrResponse
     i64 TotalSize = 0;
     i64 EndOffset = 0;
 
-    static TGetJobStderrResponse MakeJobStderr(const TGetJobStderrOptions& req, const TSharedRef& data);
+    static TGetJobStderrResponse MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options = {});
 };
 
 
