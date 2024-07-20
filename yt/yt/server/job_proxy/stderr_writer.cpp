@@ -144,36 +144,40 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     Tail_->Write(buf, len);
 }
 
-NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStderrOptions& request) const
+NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStderrOptions& options) const
 {
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());
-    SaveCurrentDataTo(&stringStream, request.Offset || request.Limit);
+    SaveCurrentDataTo(&stringStream, options.Offset || options.Limit);
     auto data = stringStream.Str();
     i64 endOffset = TotalSize_;
     const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
     size_t first;
-    i64 limit = request.Limit;
-    if (request.Offset >= 0) {
-        if (request.Offset >= currentFirstAbsolutePos) {
-            first = request.Offset - currentFirstAbsolutePos;
+    i64 limit = options.Limit;
+    if (options.Offset >= 0) {
+        if (options.Offset >= currentFirstAbsolutePos) {
+            first = options.Offset - currentFirstAbsolutePos;
         } else {
             first = 0;
-            if (request.Limit > 0) {
-                limit = request.Limit - (currentFirstAbsolutePos - request.Offset);
+            if (options.Limit > 0) {
+                limit = options.Limit - (currentFirstAbsolutePos - options.Offset);
                 if (limit < 0) {
-                    return {.Data {}, .TotalSize = TotalSize_, .EndOffset = request.Offset + request.Limit};
+                    return {
+                        .Data = {},
+                        .TotalSize = TotalSize_,
+                        .EndOffset = options.Offset + options.Limit,
+                    };
                 }
             }
         }
     } else {
-        if (-request.Offset >= static_cast<i64>(data.size())) {
+        if (-options.Offset >= static_cast<i64>(data.size())) {
             first = 0;
         } else {
-            first = data.size() + request.Offset;
+            first = data.size() + options.Offset;
         }
     }
-    if (request.Offset || request.Limit) {
+    if (options.Offset || options.Limit) {
         if (first >= data.size()) {
             data = "";
             endOffset = 0;

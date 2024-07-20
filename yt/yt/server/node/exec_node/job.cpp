@@ -1262,12 +1262,12 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
     }
 }
 
-std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& request)
+std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& options)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
-        return TGetJobStderrResponse::MakeJobStderr(request, TSharedRef::FromString(*Stderr_));
+        return TGetJobStderrResponse::MakeJobStderr(options, TSharedRef::FromString(*Stderr_));
     }
 
     if (!UserJobSpec_) {
@@ -1276,7 +1276,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
 
     if (JobPhase_ == EJobPhase::Running) {
         try {
-            return GetJobProbeOrThrow()->GetStderr(request);
+            return GetJobProbeOrThrow()->GetStderr(options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;

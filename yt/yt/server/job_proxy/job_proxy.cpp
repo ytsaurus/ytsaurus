@@ -214,10 +214,10 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId t
     return job->DumpInputContext(transactionId);
 }
 
-TGetJobStderrResponse TJobProxy::GetStderr(const TGetJobStderrOptions& request)
+TGetJobStderrResponse TJobProxy::GetStderr(const TGetJobStderrOptions& options)
 {
     auto job = GetJobOrThrow();
-    return job->GetStderr(request);
+    return job->GetStderr(options);
 }
 
 TPollJobShellResponse TJobProxy::PollJobShell(

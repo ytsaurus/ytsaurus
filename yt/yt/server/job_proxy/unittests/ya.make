@@ -6,7 +6,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     asan_warning_filter_ut.cpp
-    stderr_writer.cpp
+    stderr_writer_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

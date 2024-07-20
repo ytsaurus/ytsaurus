@@ -30,7 +30,7 @@ public:
     void PopulateInputNodeDirectory() const override;
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId) override;
-    NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& request) override;
+    NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& options = {}) override;
     std::optional<TString> GetFailContext() override;
     std::vector<NJobAgent::TJobProfile> GetProfiles() override;
     const NControllerAgent::TCoreInfos& GetCoreInfos() const override;

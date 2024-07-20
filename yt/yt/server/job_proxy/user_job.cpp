@@ -839,12 +839,12 @@ private:
         return FailContext_;
     }
 
-    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& request) override
+    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& options) override
     {
         ValidatePrepared();
 
-        auto result = WaitFor(BIND([this, this_ = MakeStrong(this), request = request] {
-                return ErrorOutput_->GetCurrentData(request);
+        auto result = WaitFor(BIND([this, this_ = MakeStrong(this), options = options] {
+                return ErrorOutput_->GetCurrentData(options);
             })
             .AsyncVia(ReadStderrInvoker_)
             .Run());

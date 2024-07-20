@@ -836,7 +836,6 @@ class TestGetJobStderr(YTEnvSetup):
         assert test['end_offset'] == 100
         assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
 
-
         clean_operations()
 
         wait(lambda: get_job_stderr_paged(op.id, job_id)["data"].endswith(b"STDERR-FINISH\n"))

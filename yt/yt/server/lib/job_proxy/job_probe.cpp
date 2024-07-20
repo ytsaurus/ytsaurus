@@ -68,13 +68,13 @@ public:
         };
     }
 
-    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& request) override
+    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& options) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->GetStderr();
-        req->set_limit(request.Limit);
-        req->set_offset(request.Offset);
+        req->set_limit(options.Limit);
+        req->set_offset(options.Offset);
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
         const auto& rsp = rspOrError.Value();
