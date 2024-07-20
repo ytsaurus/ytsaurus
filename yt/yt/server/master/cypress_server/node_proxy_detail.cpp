@@ -2272,8 +2272,8 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
                 const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
                 ValidateCompressionCodec( \
                     value, \
-                    chunkManagerConfig->DeprecatedCodecIds, \
-                    chunkManagerConfig->DeprecatedCodecNameToAlias); \
+                    chunkManagerConfig->ForbiddenCompressionCodecs, \
+                    chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
             } \
             if (key == EInternedAttributeKey::ErasureCodec) { \
                 ValidateErasureCodec( \
@@ -2622,8 +2622,8 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
             const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
             ValidateCompressionCodec( \
                 value, \
-                chunkManagerConfig->DeprecatedCodecIds, \
-                chunkManagerConfig->DeprecatedCodecNameToAlias); \
+                chunkManagerConfig->ForbiddenCompressionCodecs, \
+                chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
         } \
         if (key == "erasure_codec") { \
             ValidateErasureCodec( \

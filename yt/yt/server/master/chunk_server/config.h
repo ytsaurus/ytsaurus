@@ -613,11 +613,12 @@ public:
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;
 
+
     //! Deprecated codec ids, used values from yt/core/compression by default.
-    std::optional<THashSet<NCompression::ECodec>> DeprecatedCodecIds;
+    std::optional<THashSet<NCompression::ECodec>> ForbiddenCompressionCodecs;
 
     //! Deprecated codec names and their alises, used values from yt/core/compression by default.
-    std::optional<THashMap<TString, TString>> DeprecatedCodecNameToAlias;
+    std::optional<THashMap<TString, TString>> ForbiddenCompressionCodecNameToAlias;
 
     //! Forbidden erasure codec ids, empty by default.
     THashSet<NErasure::ECodec> ForbiddenErasureCodecs;

@@ -68,17 +68,6 @@ static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-bool IsCompressionCodecValidationSuppressed()
-{
-    return IsSubordinateMutation();
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 template<class TImpl>
 TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstrap)
     : TSchemafulNodeTypeHandler(bootstrap)
@@ -114,13 +103,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const auto& cypressManagerConfig = this->GetBootstrap()->GetDynamicConfig()->CypressManager;
     const auto& chunkManagerConfig = this->GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager;
 
-    if (!IsCompressionCodecValidationSuppressed()) {
-        if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
-            ValidateCompressionCodec(
-                compressionCodecValue,
-                chunkManagerConfig->DeprecatedCodecIds,
-                chunkManagerConfig->DeprecatedCodecNameToAlias);
-        }
+    if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
+        ValidateCompressionCodec(
+            compressionCodecValue,
+            chunkManagerConfig->ForbiddenCompressionCodecs,
+            chunkManagerConfig->ForbiddenCompressionCodecNameToAlias);
     }
 
     if (auto eraseCodecValue = context.ExplicitAttributes->FindYson("erasure_codec")) {

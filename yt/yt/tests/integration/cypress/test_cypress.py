@@ -64,7 +64,7 @@ def not_implemented_in_sequoia(func):
 
 
 class TestCypress(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 12
 
     NUM_MASTERS = 3
     NUM_NODES = 0
@@ -3795,6 +3795,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@a") == 3
         assert get("//tmp/@b") == 2
 
+    # COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codecs option
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_deprecated_compression_codec(self):
@@ -3811,6 +3812,29 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
 
         set("//sys/@config/chunk_manager/deprecated_codec_name_to_alias", {})
+        create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
+        remove("//tmp/t1")
+
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@compression_codec", "gzip_normal")
+        remove("//tmp/t1")
+
+    @authors("ignat")
+    @not_implemented_in_sequoia
+    def test_forbidden_compression_codec(self):
+        create("table", "//tmp/t1")
+        with pytest.raises(YtError):
+            set("//tmp/t1/@compression_codec", "gzip_normal")
+        remove("//tmp/t1")
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
+
+        set("//sys/@config/chunk_manager/forbidden_compression_codec_ids", [])
+        create("table", "//tmp/t1")
+        remove("//tmp/t1")
+
+        set("//sys/@config/chunk_manager/forbidden_compression_codec_name_to_alias", {})
         create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
         remove("//tmp/t1")
 
