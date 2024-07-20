@@ -1,4 +1,10 @@
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
+from yt_env_setup import (
+    YTEnvSetup,
+    Restarter,
+    SCHEDULERS_SERVICE,
+    NODES_SERVICE,
+    is_asan_build,
+)
 
 
 from yt_commands import (
@@ -2424,7 +2430,6 @@ class TestUserJobMonitoring(YTEnvSetup):
     def test_descriptor_reusage(self):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
-            job_count=1,
             task_patch={
                 "monitoring": {
                     "enable": True,
@@ -2449,6 +2454,39 @@ class TestUserJobMonitoring(YTEnvSetup):
         job2_descriptor = job_info["monitoring_descriptor"]
 
         assert job1_descriptor == job2_descriptor
+
+    @authors("eshcherbin")
+    def test_no_sensors_after_job_finish(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"job_testing_options": {"delay_in_cleanup": 100000}},
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["cpu/user"],
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
+        job = get_job(op.id, job_id)
+        node = job["address"]
+        descriptor = job["monitoring_descriptor"]
+
+        profiler = profiler_factory().at_node(node)
+        cpu_user_counter = profiler.counter("user_job/cpu/user", tags={"job_descriptor": descriptor})
+        wait(lambda: cpu_user_counter.get_delta() > 0)
+
+        release_breakpoint()
+
+        wait(lambda: cpu_user_counter.get() is None)
+
+        # In order to remove the job.
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
 
 
 ##################################################################
