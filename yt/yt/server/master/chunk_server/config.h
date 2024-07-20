@@ -197,7 +197,11 @@ public:
 
     int MaxNodesBeingMerged;
 
-    int MaxAllowedReschedulingsPerSession;
+    int MaxAllowedBackoffReschedulingsPerSession;
+
+    TDuration MinBackoffPeriod;
+
+    TDuration MaxBackoffPeriod;
 
     // For testing purposes.
     std::optional<int> MaxChunksPerIteration;
