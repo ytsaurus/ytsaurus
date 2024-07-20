@@ -191,6 +191,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemovedDuplicateChunkCountFromSnapshot)                       (2585))  // cherepashka
     ((UnapprovedSequoiaReplicas)                                    (2586))  // aleksandra-zh
     ((ChunkMergerBackoff)                                           (2587))  // cherepashka
+    ((ForbiddenErasureCodecs_ForbiddenComprCodecsRefactoring_24_1)  (2588))  // abogutskiy, shakurov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
