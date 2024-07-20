@@ -451,7 +451,7 @@ void ValidateCompressionCodec(
         : NCompression::GetDeprecatedCodecIds();
     auto codecId = ConvertTo<NCompression::ECodec>(value);
     if (deprecatedCodecs.find(codecId) != deprecatedCodecs.end()) {
-        THROW_ERROR_EXCEPTION("Codec %Qv is deprecated", codecId);
+        THROW_ERROR_EXCEPTION("Codec %Qlv is deprecated", codecId);
     }
 
     auto deprecatedCodecNameToAlias = configuredDeprecatedCodecNameToAlias
@@ -461,7 +461,9 @@ void ValidateCompressionCodec(
     auto it = deprecatedCodecNameToAlias.find(codecName);
     if (deprecatedCodecNameToAlias.find(codecName) != deprecatedCodecNameToAlias.end()) {
         auto& [_, alias] = *it;
-        THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead", codecName, alias);
+        THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead",
+            codecName,
+            alias);
 
     }
 }
@@ -472,7 +474,7 @@ void ValidateErasureCodec(
 {
     auto codecId = ConvertTo<NErasure::ECodec>(value);
     if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecs.contains(codecId)) {
-        THROW_ERROR_EXCEPTION("Erasure codec %Qv is forbidden", codecId);
+        THROW_ERROR_EXCEPTION("Erasure codec %Qlv is forbidden", codecId);
     }
 }
 
