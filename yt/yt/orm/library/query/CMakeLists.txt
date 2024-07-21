@@ -35,6 +35,7 @@ target_sources(orm-library-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/expression_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_introspection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_matcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/lexicographical_order.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_optimizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_rewriter.cpp
