@@ -3068,7 +3068,7 @@ public:
 
     ~TTabletPullRowsSession()
     {
-        if (MemoryTracker_ && ResultOrError_.IsOK()) {
+        if (MemoryTracker_ && ResultOrError_.IsOK() && ResultOrError_.Value()) {
             MemoryTracker_->Release(ResultOrError_.Value()->GetTotalSize());
         }
     }
