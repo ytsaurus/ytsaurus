@@ -26,7 +26,7 @@ struct TKafkaConnectionTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(nadya73): make a base class with zookeper connection.
+// TODO(nadya73): make a base class with zookeeper connection.
 class TConnection
     : public IConnection
 {

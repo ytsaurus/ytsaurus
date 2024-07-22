@@ -2,18 +2,15 @@
 
 #include "private.h"
 
-#include "actions.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
 #include "sequoia_tree_visitor.h"
-#include "sequoia_session.h"
 #include "sequoia_service.h"
+#include "sequoia_session.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
-
-#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
@@ -22,6 +19,7 @@
 #include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
@@ -31,16 +29,11 @@
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
-
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ypath/helpers.h>
-#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/yson/writer.h>
 
@@ -172,7 +165,7 @@ protected:
     IBootstrap* const Bootstrap_;
     const TNodeId Id_;
     const TAbsoluteYPath Path_;
-    // Can be null only if |Id_| is a scion, Cypress symlink or snapshot branch.
+    // Can be null only if |Id_| is a scion, Cypress link or snapshot branch.
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
 
@@ -334,17 +327,17 @@ protected:
     TSubtreeReplacementResult ReplaceSubtreeWithMapNodeChain(
         TRange<TString> unresolvedSuffixTokens,
         bool force,
-        std::vector<NRecords::TPathToNodeId>* removedNodes = nullptr)
+        std::vector<TCypressNodeDescriptor>* removedNodes = nullptr)
     {
         // Inplace.
         if (unresolvedSuffixTokens.Empty()) {
             YT_VERIFY(force);
 
-            auto subtreeToRemove = SequoiaSession_->SelectSubtree(Path_);
+            auto subtreeToRemove = SequoiaSession_->FetchSubtree(Path_);
             SequoiaSession_->DetachAndRemoveSubtree(subtreeToRemove, ParentId_);
 
             if (removedNodes) {
-                *removedNodes = std::move(subtreeToRemove.Records);
+                *removedNodes = std::move(subtreeToRemove.Nodes);
             }
 
             return {
@@ -419,8 +412,9 @@ protected:
         }
 
         if (recursive) {
-            auto subtree = SequoiaSession_->SelectSubtree(Path_);
-            YT_VERIFY(!subtree.Records.empty());
+            auto subtree = SequoiaSession_->FetchSubtree(Path_);
+            // Subtree must consist of at least its root.
+            YT_VERIFY(!subtree.Nodes.empty());
             SequoiaSession_->DetachAndRemoveSubtree(subtree, ParentId_);
         } else if (!SequoiaSession_->IsMapNodeEmpty(Id_)) {
             THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
@@ -677,7 +671,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         THROW_ERROR_EXCEPTION("Scion cannot be cloned");
     }
 
-    // NB: Rewriting in case there were symlinks in the original source path.
+    // NB: Rewriting in case there were links in the original source path.
     const auto& sourceRootPath = resolvedSource->Path;
     if (auto sourceUnresolvedSuffix = resolvedSource->UnresolvedSuffix;
         !sourceUnresolvedSuffix.IsEmpty())
@@ -686,7 +680,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
 
-    // NB: from now on, all symlinks are resolved and no path contains symlinks
+    // NB: from now on, all links are resolved and no path contains links
     // so we can just compare paths here.
     if (Path_ == sourceRootPath) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
@@ -717,21 +711,21 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
     }
 
-    std::vector<NRecords::TPathToNodeId> removedNodes;
+    std::vector<TCypressNodeDescriptor> removedNodes;
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         destinationSuffixDirectoryTokens,
         force,
         &removedNodes);
 
-    auto nodesToCopy = SequoiaSession_->SelectSubtree(sourceRootPath);
+    auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
 
     // Select returns sorted entries and destination subtree cannot include source subtree.
     // Thus to check that subtrees don't overlap it's enough to check source root with
     // first and last elements of the destination subtree.
     if (options.Mode == ENodeCloneMode::Move &&
         (removedNodes.empty() ||
-         sourceRootPath < TAbsoluteYPath(removedNodes.front().Key.Path) ||
-         TAbsoluteYPath(removedNodes.back().Key.Path) < sourceRootPath))
+         sourceRootPath < TAbsoluteYPath(removedNodes.front().Path) ||
+         TAbsoluteYPath(removedNodes.back().Path) < sourceRootPath))
     {
         auto sourceParentId = resolvedSource->ParentId;
         // Since source is not a scion (because they cannot be copied) it has at
@@ -975,7 +969,7 @@ private:
         std::queue<TNodeId> childrenLookupQueue;
         childrenLookupQueue.push(Id_);
 
-        THashMap<TNodeId, std::vector<NRecords::TChildNode>> nodeIdToChildren;
+        THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildren;
         nodeIdToChildren[Id_] = {};
 
         int maxRetrievedDepth = 0;
@@ -992,7 +986,7 @@ private:
 
             ++maxRetrievedDepth;
 
-            std::vector<TFuture<std::vector<NRecords::TChildNode>>> asyncNextLayer;
+            std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncNextLayer;
             while (!childrenLookupQueue.empty()) {
                 auto nodeId = childrenLookupQueue.front();
                 childrenLookupQueue.pop();
@@ -1014,7 +1008,7 @@ private:
 
             for (const auto& children : currentSubtreeLayerChildren) {
                 for (const auto& child : children) {
-                    nodeIdToChildren[child.Key.ParentId].push_back(child);
+                    nodeIdToChildren[child.ParentId].push_back(child);
                     nodeIdToChildren[child.ChildId] = {};
                     childrenLookupQueue.push(child.ChildId);
                 }
@@ -1187,7 +1181,6 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
         .ValueOrThrow();
 
-
     // Should be no-op.
     SequoiaSession_->Commit();
 
@@ -1195,7 +1188,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         .BeginList()
             .DoFor(children, [&] (TFluentList fluent, const auto& child) {
                 fluent
-                    .Item().Value(child.Key.ChildKey);
+                    .Item().Value(child.ChildKey);
             })
         .EndList().ToString());
     context->Reply();

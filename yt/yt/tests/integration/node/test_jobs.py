@@ -249,6 +249,17 @@ class TestJobStatistics(YTEnvSetup):
         assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_read_from_disk", summary_type="count") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "meta_io_requests", summary_type="count") > 0
 
+    @authors("artemagafonov")
+    def test_vanilla_statistics(self):
+        op = run_test_vanilla("sleep 1", track=True)
+
+        statistics = op.get_statistics()
+        pipes_statistic = statistics["user_job"]["pipes"]
+
+        assert "data" not in statistics or ("data" in statistics and "input" not in statistics["data"])
+        assert "input" not in pipes_statistic
+        assert "output" in pipes_statistic
+
 
 class TestAllocationWithTwoJobs(YTEnvSetup):
     NUM_NODES = 1

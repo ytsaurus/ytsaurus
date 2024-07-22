@@ -97,99 +97,99 @@ public:
             {}))
     { }
 
-    i64 GetTotalLimit() const
+    i64 GetTotalLimit() const override
     {
         return Underlying_->GetTotalLimit();
     }
 
-    i64 GetTotalUsed() const
+    i64 GetTotalUsed() const override
     {
         return Underlying_->GetTotalUsed();
     }
 
-    i64 GetTotalFree() const
+    i64 GetTotalFree() const override
     {
         return Underlying_->GetTotalFree();
     }
 
-    bool IsTotalExceeded() const
+    bool IsTotalExceeded() const override
     {
         return Underlying_->IsTotalExceeded();
     }
 
-    void ClearTrackers()
+    void ClearTrackers() override
     {
         Underlying_->ClearTrackers();
     }
 
-    i64 GetExplicitLimit(EMemoryCategory category) const
+    i64 GetExplicitLimit(EMemoryCategory category) const override
     {
         return Underlying_->GetExplicitLimit(category);
     }
 
-    i64 GetLimit(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const
+    i64 GetLimit(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const override
     {
         return Underlying_->GetLimit(category, poolTag);
     }
 
-    i64 GetUsed(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const
+    i64 GetUsed(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const override
     {
         return Underlying_->GetUsed(category, poolTag);
     }
 
-    i64 GetFree(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const
+    i64 GetFree(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const override
     {
         return Underlying_->GetFree(category, poolTag);
     }
 
-    bool IsExceeded(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const
+    bool IsExceeded(EMemoryCategory category, const std::optional<TPoolTag>& poolTag = {}) const override
     {
         return Underlying_->IsExceeded(category, poolTag);
     }
 
-    void SetTotalLimit(i64 newLimit)
+    void SetTotalLimit(i64 newLimit) override
     {
         Underlying_->SetTotalLimit(newLimit);
     }
 
-    void SetCategoryLimit(EMemoryCategory category, i64 newLimit)
+    void SetCategoryLimit(EMemoryCategory category, i64 newLimit) override
     {
         Underlying_->SetCategoryLimit(category, newLimit);
     }
 
-    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
+    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override
     {
         Underlying_->SetPoolWeight(poolTag, newWeight);
     }
 
-    bool Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+    bool Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
     {
         return Underlying_->Acquire(category, size, poolTag);
     }
 
-    TError TryAcquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+    TError TryAcquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
     {
         return Underlying_->TryAcquire(category, size, poolTag);
     }
 
-    TError TryChange(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+    TError TryChange(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
     {
         return Underlying_->TryChange(category, size, poolTag);
     }
 
-    void Release(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+    void Release(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
     {
         return Underlying_->Release(category, size, poolTag);
     }
 
-    i64 UpdateUsage(EMemoryCategory category, i64 newUsage)
+    i64 UpdateUsage(EMemoryCategory category, i64 newUsage) override
     {
         return Underlying_->UpdateUsage(category, newUsage);
     }
 
     IMemoryUsageTrackerPtr WithCategory(
         EMemoryCategory category,
-        std::optional<TPoolTag> poolTag = {})
+        std::optional<TPoolTag> poolTag = {}) override
     {
         return Underlying_->WithCategory(category, poolTag);
     }
@@ -223,9 +223,17 @@ public:
     TSharedRef Track(
         TSharedRef reference,
         EMemoryCategory category,
-        bool keepHolder)
+        bool keepHolder) override
     {
         return Underlying_->Track(reference, category, keepHolder);
+    }
+
+    TErrorOr<TSharedRef> TryTrack(
+        TSharedRef reference,
+        EMemoryCategory category,
+        bool keepHolder) override
+    {
+        return Underlying_->TryTrack(reference, category, keepHolder);
     }
 
 private:
@@ -346,6 +354,28 @@ TEST(TMemoryUsageTrackerTest, BlockCache)
     memoryTracker->ClearTrackers();
 }
 
+TEST(TMemoryUsageTrackerTest, TryTrack)
+{
+    auto memoryTracker = New<TTestNodeMemoryTracker>();
+
+    {
+        auto reference = CreateReference(1);
+        memoryTracker->SetTotalLimit(2);
+        EXPECT_TRUE(memoryTracker->IsEmpty());
+        EXPECT_NO_THROW(reference = memoryTracker->WithCategory(EMemoryCategory::Unknown)->TryTrack(std::move(reference), true)
+            .ValueOrThrow());
+        auto heavyReference = CreateReference(5);
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            memoryTracker->WithCategory(EMemoryCategory::Unknown)->TryTrack(std::move(heavyReference), true)
+                .ValueOrThrow(),
+            NYT::TErrorException,
+            "Not enough memory to serve \"unknown\" acquisition request");
+    }
+
+    EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
+}
+
 TEST(TMemoryUsageTrackerTest, ResetCategory)
 {
     auto memoryTracker = New<TTestNodeMemoryTracker>();
@@ -378,6 +408,58 @@ TEST(TMemoryUsageTrackerTest, AttachCategory)
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
     memoryTracker->ClearTrackers();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TReservingMemoryUsageTrackerTest, TestReturnedAll)
+{
+    NProfiling::TCounter memoryUsageCounter;
+    auto tracker = New<TTestNodeMemoryTracker>();
+    auto categoryTracker = tracker->WithCategory(EMemoryCategory::PullIncoming);
+    auto reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
+
+    reservingTracker->SetLimit(10000);
+    ASSERT_EQ(tracker->GetLimit(EMemoryCategory::PullIncoming), 10000);
+    ASSERT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+
+    EXPECT_EQ(reservingTracker->GetFree(), 10000);
+    EXPECT_TRUE(!reservingTracker->TryReserve(100000).IsOK());
+    EXPECT_EQ(reservingTracker->GetFree(), 10000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+
+    EXPECT_TRUE(reservingTracker->TryReserve(1000).IsOK());
+    EXPECT_EQ(reservingTracker->GetFree(), 10000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 9000);
+
+    EXPECT_TRUE(reservingTracker->TryAcquire(900).IsOK());
+    EXPECT_EQ(reservingTracker->GetFree(), 9100);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 9000);
+
+    EXPECT_TRUE(reservingTracker->TryReserve(1000).IsOK());
+    EXPECT_EQ(reservingTracker->GetFree(), 9100);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 8000);
+
+    EXPECT_TRUE(reservingTracker->TryAcquire(3000).IsOK());
+    EXPECT_EQ(reservingTracker->GetFree(), 6100);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6100);
+
+    reservingTracker->Release(100);
+    EXPECT_EQ(reservingTracker->GetFree(), 6200);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6100);
+
+    reservingTracker->ReleaseUnusedReservation();
+    EXPECT_EQ(reservingTracker->GetFree(), 6200);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6200);
+
+    reservingTracker->Release(3800);
+    EXPECT_EQ(reservingTracker->GetFree(), 10000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6200);
+
+    reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+
+    tracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,10 @@
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -21,6 +25,30 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::vector<TCypressNodeDescriptor> ParseSubtree(TRange<NRecords::TPathToNodeId> records)
+{
+    std::vector<TCypressNodeDescriptor> nodes;
+    nodes.reserve(records.size());
+
+    std::transform(
+        records.begin(),
+        records.end(),
+        std::back_inserter(nodes),
+        [] (const NRecords::TPathToNodeId& record) {
+            return TCypressNodeDescriptor{
+                .Id = record.NodeId,
+                .Path = TAbsoluteYPath(DemangleSequoiaPath(record.Key.Path)),
+            };
+        });
+    return nodes;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +87,7 @@ TCellTag TSequoiaSession::RemoveRootstock(TNodeId rootstockId)
     return CellTagFromId(rootstockId);
 }
 
-void TSequoiaSession::LockNodeInSequoiaTable(TNodeId nodeId, ELockType lockType)
+void TSequoiaSession::MaybeLockNodeInSequoiaTable(TNodeId nodeId, ELockType lockType)
 {
     if (!JustCreated(nodeId)) {
         LockRowInNodeIdToPathTable(nodeId, SequoiaTransaction_, lockType);
@@ -73,7 +101,7 @@ bool TSequoiaSession::JustCreated(TObjectId id)
 
 void TSequoiaSession::SetNode(TNodeId nodeId, TYsonString value)
 {
-    LockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
+    MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
     NYT::NCypressProxy::SetNode(nodeId, value, SequoiaTransaction_);
 }
 
@@ -96,58 +124,48 @@ void TSequoiaSession::DetachAndRemoveSingleNode(
 {
     RemoveNode(nodeId, path.ToMangledSequoiaPath(), SequoiaTransaction_);
     if (TypeFromId(nodeId) != EObjectType::Scion) {
-        LockNodeInSequoiaTable(parentId, ELockType::SharedStrong);
+        MaybeLockNodeInSequoiaTable(parentId, ELockType::SharedStrong);
         DetachChild(parentId, path.GetBaseName(), SequoiaTransaction_);
     }
 }
 
-TSequoiaSession::TSelectedSubtree TSequoiaSession::SelectSubtree(TAbsoluteYPathBuf path)
+TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsoluteYPathBuf path)
 {
-    auto records = WaitFor(NCypressProxy::SelectSubtree(path, SequoiaTransaction_))
+    auto records = WaitFor(SelectSubtree(path, SequoiaTransaction_))
         .ValueOrThrow();
-    return {std::move(records)};
+    return {ParseSubtree(records)};
 }
 
-void TSequoiaSession::DetachAndRemoveSubtree(const TSelectedSubtree& subtree, TNodeId parentId)
+void TSequoiaSession::DetachAndRemoveSubtree(const TSubtree& subtree, TNodeId parentId)
 {
-    LockNodeInSequoiaTable(subtree.Records.front().NodeId, ELockType::SharedStrong);
-    RemoveSelectedSubtree(subtree.Records, SequoiaTransaction_, /*removeRoot*/ true, parentId);
+    MaybeLockNodeInSequoiaTable(subtree.Nodes.front().Id, ELockType::SharedStrong);
+    RemoveSelectedSubtree(subtree.Nodes, SequoiaTransaction_, /*removeRoot*/ true, parentId);
 }
 
 TNodeId TSequoiaSession::CopySubtree(
-    const TSelectedSubtree& subtree,
+    const TSubtree& subtree,
     TAbsoluteYPathBuf sourceRoot,
     TAbsoluteYPathBuf destinationRoot,
     TNodeId destinationParentId,
     const TCopyOptions& options)
 {
     // To copy simlinks properly we have to fetch their target paths.
-    std::vector<NRecords::TNodeIdToPathKey> symlinkKeys;
-    for (const auto& record : subtree.Records) {
-        if (IsLinkType(TypeFromId(record.NodeId))) {
-            symlinkKeys.push_back({.NodeId = record.NodeId});
+
+    std::vector<TNodeId> linkIds;
+    for (const auto& node : subtree.Nodes) {
+        if (IsLinkType(TypeFromId(node.Id))) {
+            linkIds.push_back(node.Id);
         }
     }
 
-    auto symlinks = WaitFor(SequoiaTransaction_->LookupRows(symlinkKeys))
-        .ValueOrThrow();
-
-    THashMap<TNodeId, NYPath::TYPath> targetPaths;
-    targetPaths.reserve(symlinks.size());
-    for (const auto& record : symlinks) {
-        // Failure here means that Sequoia tables corrupted: node exists in
-        // "path_to_node_id" table but hasn't corresponding record in
-        // "node_id_to_path" table.
-        YT_VERIFY(record);
-        EmplaceOrCrash(targetPaths, record->Key.NodeId, record->TargetPath);
-    }
+    auto links = GetLinkTargetPaths(linkIds);
 
     auto createdSubtreeRootId = NCypressProxy::CopySubtree(
-        subtree.Records,
+        subtree.Nodes,
         sourceRoot,
         destinationRoot,
         options,
-        targetPaths,
+        links,
         SequoiaTransaction_);
 
     AttachChild(
@@ -159,10 +177,10 @@ TNodeId TSequoiaSession::CopySubtree(
     return createdSubtreeRootId;
 }
 
-void TSequoiaSession::ClearSubtree(const TSelectedSubtree& subtree)
+void TSequoiaSession::ClearSubtree(const TSubtree& subtree)
 {
-    LockNodeInSequoiaTable(subtree.Records.front().NodeId, ELockType::SharedStrong);
-    RemoveSelectedSubtree(subtree.Records, SequoiaTransaction_, /*removeRoot*/ false);
+    MaybeLockNodeInSequoiaTable(subtree.Nodes.front().Id, ELockType::SharedStrong);
+    RemoveSelectedSubtree(subtree.Nodes, SequoiaTransaction_, /*removeRoot*/ false);
 }
 
 void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
@@ -171,26 +189,100 @@ void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
         .Apply(BIND([this, strongThis = MakeStrong(this)] (
             const std::vector<NRecords::TPathToNodeId>& records
         ) {
-            LockNodeInSequoiaTable(records.front().NodeId, ELockType::SharedStrong);
-            RemoveSelectedSubtree(records, SequoiaTransaction_, /*removeRoot*/ false);
+            MaybeLockNodeInSequoiaTable(records.front().NodeId, ELockType::SharedStrong);
+            RemoveSelectedSubtree(ParseSubtree(records), SequoiaTransaction_, /*removeRoot*/ false);
         }));
 
     AdditionalFutures_.emplace_back(std::move(future));
 }
 
-std::optional<NRecords::TNodeIdToPath> TSequoiaSession::FindNodeById(TNodeId id)
+std::optional<TAbsoluteYPath> TSequoiaSession::FindNodePath(TNodeId id)
 {
     auto rsp = WaitFor(SequoiaTransaction_->LookupRows<NRecords::TNodeIdToPathKey>({{.NodeId = id}}))
         .ValueOrThrow();
     YT_VERIFY(rsp.size() == 1);
-    return std::move(rsp.front());
+
+    if (!rsp.front()) {
+        return std::nullopt;
+    }
+
+    if (IsLinkType(TypeFromId(id))) {
+        auto guard = WriterGuard(CachedLinkTargetPathsLock_);
+        CachedLinkTargetPaths_.emplace(id, TAbsoluteYPath(rsp.front()->TargetPath));
+    }
+    return TAbsoluteYPath(rsp.front()->Path);
 }
 
-std::vector<std::optional<NRecords::TPathToNodeId>> TSequoiaSession::FindNodesByPath(
-    const std::vector<NSequoiaClient::NRecords::TPathToNodeIdKey>& keys)
+THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> linkIds)
 {
-    return WaitFor(SequoiaTransaction_->LookupRows(keys))
+    THashMap<TNodeId, TAbsoluteYPath> result;
+    result.reserve(linkIds.Size());
+
+    std::vector<NRecords::TNodeIdToPathKey> linksToFetch;
+
+    {
+        auto guard = ReaderGuard(CachedLinkTargetPathsLock_);
+        for (auto linkId : linkIds) {
+            YT_VERIFY(IsLinkType(TypeFromId(linkId)));
+
+            auto it = CachedLinkTargetPaths_.find(linkId);
+            if (it != CachedLinkTargetPaths_.end()) {
+                result.emplace(it->first, it->second);
+            } else {
+                linksToFetch.push_back({.NodeId = linkId});
+            }
+        }
+    }
+
+    if (!linksToFetch.empty()) {
+        auto fetchedLinks = WaitFor(SequoiaTransaction_->LookupRows(linksToFetch))
+            .ValueOrThrow();
+
+        auto guard = WriterGuard(CachedLinkTargetPathsLock_);
+        for (auto& record : fetchedLinks) {
+            YT_VERIFY(record);
+            auto nodeId = record->Key.NodeId;
+            auto targetPath = TAbsoluteYPath(std::move(record->TargetPath));
+            CachedLinkTargetPaths_.emplace(nodeId, targetPath);
+            result.emplace(nodeId, std::move(targetPath));
+        }
+    }
+
+    return result;
+}
+
+TAbsoluteYPath TSequoiaSession::GetLinkTargetPath(TNodeId linkId)
+{
+    return GetLinkTargetPaths(TRange(&linkId, 1)).at(linkId);
+}
+
+std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsoluteYPathBuf> paths)
+{
+    std::vector<NRecords::TPathToNodeIdKey> keys(paths.size());
+    std::transform(
+        paths.begin(),
+        paths.end(),
+        keys.begin(),
+        [] (TAbsoluteYPathBuf path) {
+            return NRecords::TPathToNodeIdKey{MangleSequoiaPath(path.Underlying())};
+        });
+
+    auto rsps = WaitFor(SequoiaTransaction_->LookupRows(keys))
         .ValueOrThrow();
+
+    std::vector<TNodeId> result(paths.size());
+    std::transform(
+        rsps.begin(),
+        rsps.end(),
+        result.begin(),
+        [] (const std::optional<NRecords::TPathToNodeId>& record) {
+            if (record) {
+                return record->NodeId;
+            } else {
+                return TNodeId{};
+            }
+        });
+    return result;
 }
 
 TNodeId TSequoiaSession::CreateMapNodeChain(
@@ -198,7 +290,7 @@ TNodeId TSequoiaSession::CreateMapNodeChain(
     TNodeId startId,
     TRange<TString> names)
 {
-    LockNodeInSequoiaTable(startId, ELockType::SharedStrong);
+    MaybeLockNodeInSequoiaTable(startId, ELockType::SharedStrong);
     return CreateIntermediateNodes(startPath, startId, names, SequoiaTransaction_);
 }
 
@@ -215,14 +307,31 @@ TNodeId TSequoiaSession::CreateNode(
     return createdNodeId;
 }
 
-TFuture<std::vector<NRecords::TChildNode>> TSequoiaSession::FetchChildren(TNodeId nodeId)
+TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNodeId nodeId)
 {
     YT_VERIFY(IsSequoiaCompositeNodeType(TypeFromId(nodeId)));
+
+    static auto parseRecords = BIND([] (std::vector<NRecords::TChildNode>&& records) {
+        std::vector<TCypressChildDescriptor> result(records.size());
+        std::transform(
+            std::make_move_iterator(records.begin()),
+            std::make_move_iterator(records.end()),
+            result.begin(),
+            [] (NRecords::TChildNode&& record) {
+                return TCypressChildDescriptor{
+                    .ParentId = record.Key.ParentId,
+                    .ChildId = record.ChildId,
+                    .ChildKey = std::move(record.Key.ChildKey),
+                };
+            });
+        return result;
+    });
 
     return SequoiaTransaction_->SelectRows<NRecords::TChildNode>({
         .WhereConjuncts = {Format("parent_id = %Qv", nodeId)},
         .OrderBy = {"child_key"},
-    });
+    })
+        .ApplyUnique(parseRecords);
 }
 
 TSequoiaSession::TSequoiaSession(ISequoiaTransactionPtr sequoiaTransaction)

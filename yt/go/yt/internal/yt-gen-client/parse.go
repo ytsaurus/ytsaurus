@@ -173,11 +173,11 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 				return
 			}
 
-			paramToVariable := func(p *ast.Field) variable {
-				name := p.Names[0].Name
+			var getTypeName func(e ast.Expr) string
+			getTypeName = func(e ast.Expr) string {
 				var typeName string
 
-				switch typ := p.Type.(type) {
+				switch typ := e.(type) {
 				case *ast.SelectorExpr:
 					typeName = fmt.Sprintf("%s.%s", typ.X.(*ast.Ident).Name, typ.Sel.Name)
 				case *ast.Ident:
@@ -187,12 +187,19 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 					}
 				case *ast.InterfaceType:
 					typeName = "any"
+				case *ast.ArrayType:
+					typeName = "[]" + getTypeName(typ.Elt)
 				default:
 					var b strings.Builder
-					_ = printer.Fprint(&b, fset, p.Type)
+					_ = printer.Fprint(&b, fset, e)
 					typeName = b.String()
 				}
+				return typeName
+			}
 
+			paramToVariable := func(p *ast.Field) variable {
+				name := p.Names[0].Name
+				typeName := getTypeName(p.Type)
 				return variable{name: name, typ: typeName}
 			}
 

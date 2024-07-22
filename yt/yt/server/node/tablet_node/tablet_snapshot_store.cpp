@@ -13,6 +13,9 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -127,6 +130,12 @@ public:
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
             }
         }
+
+        tabletSnapshot->ValidateServantIsActive(
+            Bootstrap_
+                ->GetClient()
+                ->GetNativeConnection()
+                ->GetCellDirectory());
     }
 
     void ValidateBundleNotBanned(

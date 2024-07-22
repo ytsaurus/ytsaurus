@@ -80,6 +80,8 @@ struct IChaosManager
     virtual void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
+    virtual std::vector<TReplicationCardId> GetReplicationCardCollocationCardsIds(
+        const TReplicationCardCollocationId& replicationCardCollocationId) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;

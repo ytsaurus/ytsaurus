@@ -498,7 +498,7 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TString& address)
             YT_LOG_TRACE(error, "Received error from tablet");
             if (subresponse.tablet_missing() || error.GetCode() == NTabletClient::EErrorCode::NoSuchTablet) {
                 const auto& tablet = state.Tablets[index];
-                tableMountCache->InvalidateTablet(tablet);
+                tableMountCache->InvalidateTablet(tablet->TabletId);
                 state.MissingTabletIds.push_back(tablet->TabletId);
             } else {
                 THROW_ERROR(error);

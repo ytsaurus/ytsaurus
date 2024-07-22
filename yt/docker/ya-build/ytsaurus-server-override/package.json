@@ -5,12 +5,16 @@
         "description": "Core YTsaurus image built with yt client libraries from existing base image",
         "version": "local-{revision}",
     },
+    "params": {
+        "format": "docker",
+        "docker_target": "ytsaurus-server-override",
+    },
     "build": {
         "build_server_binaries": {
             "targets": [
                 "yt/yt/server/all",
             ],
-            "build_type": "release",
+            "build_type": "profile",
             "thinlto": true,
             "target-platforms": [
                 "default-linux-x86_64",
@@ -20,10 +24,6 @@
                     "name": "NO_STRIP",
                     "value": "yes",
                 },
-                {
-                    "name": "PIC",
-                    "value": "yes",
-                },
             ],
         },
     },
@@ -31,7 +31,7 @@
         {
             "source": {
                 "type": "ARCADIA",
-                "path": "yt/docker/ya-build/ytsaurus-server-override/Dockerfile",
+                "path": "yt/docker/ytsaurus/Dockerfile",
             },
             "destination": {
                 "path": "/Dockerfile",

@@ -608,7 +608,7 @@ private:
                         continue;
                     }
 
-                    auto uniformLimit = std::max<double>(1, *optionalTotalLimit / totalCount);
+                    auto uniformLimit = std::max<double>(0, *optionalTotalLimit / totalCount);
                     YT_VERIFY(throttlerIdToUniformLimit.emplace(throttlerId, uniformLimit).second);
                     YT_LOG_TRACE("Uniform distribution limit updated (ThrottlerId: %v, UniformLimit: %v)",
                         throttlerId,

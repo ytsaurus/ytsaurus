@@ -83,6 +83,7 @@ TEST_F(TOrderedStoreManagerTest, WriteRows)
         auto row = Format("a=%v", i);
         auto rowRef = WriteRow(BuildRow(row));
         EXPECT_EQ(store, rowRef.Store);
+        GetStoreManager()->UpdateCommittedStoreRowCount();
         EXPECT_TRUE(AreRowsEqual(GetRow(i), row));
     }
 }

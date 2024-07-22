@@ -238,6 +238,8 @@ class YTEnvSetup(object):
     NUM_CONTROLLER_AGENTS = None
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
+    ENABLE_CHYT_HTTP_PROXIES = False
+    ENABLE_CHYT_HTTPS_PROXIES = False
     NUM_HTTP_PROXIES = 1
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
@@ -567,6 +569,8 @@ class YTEnvSetup(object):
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
+            enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
+            enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -850,7 +854,7 @@ class YTEnvSetup(object):
         yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
         yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
         yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 100, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 2000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)

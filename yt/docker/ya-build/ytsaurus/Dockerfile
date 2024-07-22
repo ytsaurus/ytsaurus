@@ -91,6 +91,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   zstd \
   unzip \
   dnsutils \
+  iproute2 \
   iputils-ping \
   lsb-release \
   openjdk-11-jdk \

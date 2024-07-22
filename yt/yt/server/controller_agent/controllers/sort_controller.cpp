@@ -7,7 +7,6 @@
 #include "helpers.h"
 #include "operation_controller_detail.h"
 #include "task.h"
-#include "unordered_controller.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/helpers.h>
@@ -1249,8 +1248,7 @@ protected:
                     joblet,
                     NChunkPools::TChunkStripeKey(),
                     /*processEmptyStripes*/ false,
-                    outputDigest
-                );
+                    outputDigest);
             }
 
             Controller_->CheckMergeStartThreshold();
@@ -3253,7 +3251,8 @@ private:
                     ValidateOutputSchemaCompatibility({
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
-                        .IgnoreStableNamesDifference = true});
+                        .IgnoreStableNamesDifference = true,
+                    });
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
@@ -3308,6 +3307,18 @@ private:
 
             // Don't create more partitions than we have samples (plus one).
             PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
+            if (PartitionCount == 1 && !Config->SortOperationOptions->EnableSimpleSortForEvaluatedOutput) {
+                for (const auto& outputColumn : OutputTables_[0]->TableUploadOptions.TableSchema->Columns()) {
+                    if (outputColumn.Expression()) {
+                        PartitionCount = 2;
+                        YT_LOG_INFO(
+                            "Force increased partition count due to "
+                            "evaluated columns in output (PartitionCount: %v)",
+                            PartitionCount);
+                    }
+                }
+            }
+
             SimpleSort = (PartitionCount == 1);
 
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
@@ -4200,17 +4211,6 @@ private:
             return;
         }
 
-        auto toStreamSchema = [] (const TTableSchemaPtr& schema, const TSortColumns& sortColumns) {
-            auto columns = schema->Columns();
-            auto optionalAnyType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
-            for (const auto& sortColumn : sortColumns) {
-                if (!schema->FindColumn(sortColumn.Name)) {
-                    columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
-                }
-            }
-            return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
-        };
-
         std::vector<TColumnSchema> chunkSchemaColumns;
         if (Spec->HasNontrivialMapper()) {
             YT_VERIFY(std::ssize(Spec->Mapper->OutputStreams) > Spec->MapperOutputTableCount);
@@ -4226,7 +4226,32 @@ private:
         } else {
             YT_VERIFY(!InputManager->GetInputTables().empty());
             for (const auto& inputTable : InputManager->GetInputTables()) {
-                IntermediateStreamSchemas_.push_back(toStreamSchema(inputTable->Schema, Spec->SortBy));
+                auto toStreamSchema = [] (
+                    const TTableSchemaPtr& schema,
+                    const TSortColumns& sortColumns,
+                    const std::optional<std::vector<TString>>& columnFilter)
+                {
+                    auto columns = schema->Columns();
+                    if (columnFilter) {
+                        std::vector<TColumnSchema> newColumns;
+                        for (const auto& name : *columnFilter) {
+                            if (auto* foundColumn = schema->FindColumn(name)) {
+                                newColumns.push_back(*foundColumn);
+                            }
+                        }
+                        columns = std::move(newColumns);
+                    }
+                    auto optionalAnyType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+                    for (const auto& sortColumn : sortColumns) {
+                        if (!schema->FindColumn(sortColumn.Name)) {
+                            columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
+                        }
+                    }
+                    return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
+                };
+
+                const auto& columns = inputTable->Path.GetColumns();
+                IntermediateStreamSchemas_.push_back(toStreamSchema(inputTable->Schema, Spec->SortBy, columns));
             }
             if (AreAllEqual(IntermediateStreamSchemas_)) {
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();

@@ -47,9 +47,9 @@ class TClusterResolver
 {
 public:
     TClusterResolver() = default;
-    TClusterResolver(NApi::NNative::IClientPtr client);
+    explicit TClusterResolver(NApi::NNative::IClientPtr client);
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
-    TString GetLocalClusterName() const;
+    const TString& GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
@@ -68,7 +68,7 @@ class TInputTransactionsManager
 public:
     TInputTransactionsManager(
         NApi::NNative::IClientPtr client,
-        TClusterResolverPtr ClusterResolver,
+        TClusterResolverPtr clusterResolver,
         NScheduler::TOperationId operationId,
         const std::vector<NYPath::TRichYPath>& inputTablesAndFiles,
         // NB(coteeq): Operation may require input transaction even if it is not

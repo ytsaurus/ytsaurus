@@ -659,6 +659,7 @@ public:
 
         if (enableReplicatedTableTracker) {
             replica->SetEnableReplicatedTableTracker(*enableReplicatedTableTracker);
+            FireUponTableReplicaUpdate(replica);
         }
 
         if (enabled) {
@@ -902,10 +903,6 @@ public:
 
             if (!table->IsPhysicallySorted()) {
                 THROW_ERROR_EXCEPTION("Ordered table tablet cannot be moved");
-            }
-
-            if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
-                THROW_ERROR_EXCEPTION("Cannot move table with enabled dynamic store read");
             }
 
             if (table->GetAtomicity() != EAtomicity::Full) {
@@ -2707,13 +2704,15 @@ public:
             /*updateDataStatistics*/ true,
             /*updateTabletStatistics*/ false);
 
-        // TODO(ifsmirnov): YT-17383
-        YT_VERIFY(!tablet->AuxiliaryServant());
-
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
-        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
+
         tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
+
+        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
+        if (auto* cell = tablet->AuxiliaryServant().GetCell()) {
+            cell->GossipStatistics().Local() += statisticsDelta;
+        }
     }
 
     void FireUponTableReplicaUpdate(TTableReplica* replica)
@@ -3610,6 +3609,16 @@ private:
                 ToProto(
                     req.mutable_source_avenue_endpoint_id(),
                     tablet->GetTabletwiseAvenueEndpointId());
+
+                if (IsDynamicStoreReadEnabled(
+                    tablet->GetOwner()->As<TTableNode>(),
+                    GetDynamicConfig()))
+                {
+                    auto* dynamicStore = TabletChunkManager_->CreateDynamicStore(
+                        tablet->As<TTablet>());
+                    AttachDynamicStoreToTablet(tablet->As<TTablet>(), dynamicStore);
+                    ToProto(req.mutable_dynamic_store_id(), dynamicStore->GetId());
+                }
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());

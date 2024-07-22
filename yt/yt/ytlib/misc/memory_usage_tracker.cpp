@@ -15,6 +15,10 @@
 
 namespace NYT {
 
+using namespace NLogging;
+using namespace NProfiling;
+using namespace NThreading;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using ECategory = INodeMemoryTracker::ECategory;
@@ -36,8 +40,8 @@ public:
     TNodeMemoryTracker(
         i64 totalLimit,
         const std::vector<std::pair<ECategory, i64>>& limits,
-        const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const TLogger& logger,
+        const TProfiler& profiler);
 
     i64 GetTotalLimit() const override;
     i64 GetTotalUsed() const override;
@@ -68,6 +72,10 @@ public:
     void ClearTrackers() override;
 
     TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) override;
+    TErrorOr<TSharedRef> TryTrack(
+        TSharedRef reference,
+        EMemoryCategory category,
+        bool keepExistingTracking) override;
 
 private:
     class TTrackedReferenceHolder
@@ -108,10 +116,10 @@ private:
         const EMemoryCategory Category_;
     };
 
-    const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler_;
+    const TLogger Logger;
+    const TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     std::atomic<i64> TotalLimit_;
 
@@ -180,10 +188,15 @@ private:
 
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
-    void CreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category);
+    TError TryCreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category, bool allowOvercommit);
     void RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category);
-    void ChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta);
+    TError TryChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta, bool allowOvercommit);
     std::optional<EMemoryCategory> GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage);
+    TErrorOr<TSharedRef> DoTryTrackMemory(
+        TSharedRef reference,
+        EMemoryCategory category,
+        bool keepExistingTracking,
+        bool allowOvercommit);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,6 +265,12 @@ public:
     {
         return MemoryTracker_->Track(reference, Category_, keepHolder);
     }
+    virtual TErrorOr<TSharedRef> TryTrack(
+        TSharedRef reference,
+        bool keepHolder) override
+    {
+        return MemoryTracker_->TryTrack(reference, Category_, keepHolder);
+    }
 
 private:
     const INodeMemoryTrackerPtr MemoryTracker_;
@@ -264,8 +283,8 @@ private:
 TNodeMemoryTracker::TNodeMemoryTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,
-    const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const TLogger& logger,
+    const TProfiler& profiler)
     : Logger(logger)
     , Profiler_(profiler.WithSparse())
     , TotalLimit_(totalLimit)
@@ -697,7 +716,38 @@ TNodeMemoryTracker::TReferenceAddressMapShard& TNodeMemoryTracker::GetReferenceA
     return ReferenceAddressToState_[(key.first >> ReferenceAddressExpectedAlignmentLog) % ReferenceAddressMapShardCount];
 }
 
-TSharedRef TNodeMemoryTracker::Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking)
+TSharedRef TNodeMemoryTracker::Track(
+    TSharedRef reference,
+    EMemoryCategory category,
+    bool keepExistingTracking)
+{
+    auto resultRef = DoTryTrackMemory(
+        reference,
+        category,
+        keepExistingTracking,
+        /*allowOvercommit*/ true);
+
+    YT_VERIFY(resultRef.IsOK());
+    return resultRef.ValueOrThrow();
+}
+
+TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
+    TSharedRef reference,
+    EMemoryCategory category,
+    bool keepExistingTracking)
+{
+    return DoTryTrackMemory(
+        reference,
+        category,
+        keepExistingTracking,
+        /*allowOvercommit*/ false);
+}
+
+TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
+    TSharedRef reference,
+    EMemoryCategory category,
+    bool keepExistingTracking,
+    bool allowOvercommit)
 {
     if (!reference) {
         return reference;
@@ -712,7 +762,10 @@ TSharedRef TNodeMemoryTracker::Track(TSharedRef reference, EMemoryCategory categ
         return reference;
     }
 
-    CreateStateOrIncrementUsageCounter(rawReference, category);
+    auto error = TryCreateStateOrIncrementUsageCounter(rawReference, category, allowOvercommit);
+    if (!error.IsOK()) {
+        return error;
+    }
 
     auto underlyingHolder = holder->Clone({.KeepMemoryReferenceTracking = keepExistingTracking});
     auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
@@ -721,7 +774,10 @@ TSharedRef TNodeMemoryTracker::Track(TSharedRef reference, EMemoryCategory categ
         New<TTrackedReferenceHolder>(this, std::move(underlyingReference), category));
 }
 
-void TNodeMemoryTracker::CreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category)
+TError TNodeMemoryTracker::TryCreateStateOrIncrementUsageCounter(
+    TRef rawReference,
+    EMemoryCategory category,
+    bool allowOvercommit)
 {
     auto key = GetReferenceKey(rawReference);
     auto& shard = GetReferenceAddressMapShard(key);
@@ -729,12 +785,11 @@ void TNodeMemoryTracker::CreateStateOrIncrementUsageCounter(TRef rawReference, E
     auto guard = Guard(shard.SpinLock);
 
     if (auto it = shard.Map.find(key); it != shard.Map.end()) {
-        ChangeCategoryUsage(&it->second, category, 1);
-        return;
+        return TryChangeCategoryUsage(&it->second, category, /*delta*/ 1, allowOvercommit);
     }
 
     auto it = EmplaceOrCrash(shard.Map, key, TState{.Reference = rawReference});
-    ChangeCategoryUsage(&it->second, category, 1);
+    return TryChangeCategoryUsage(&it->second, category, /*delta*/ 1, allowOvercommit);
 }
 
 void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category)
@@ -746,13 +801,20 @@ void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMe
     auto it = GetIteratorOrCrash(shard.Map, key);
     auto& state = it->second;
 
-    ChangeCategoryUsage(&state, category, -1);
+    // Overcommit is not expected when while state is removing, because the counter is not incremented.
+    YT_VERIFY(TryChangeCategoryUsage(&state, category, /*delta*/ -1, /*allowOvercommit*/ true)
+        .IsOK());
+
     if (state.CategoryToUsage.empty()) {
         shard.Map.erase(it);
     }
 }
 
-void TNodeMemoryTracker::ChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta)
+TError TNodeMemoryTracker::TryChangeCategoryUsage(
+    TState* state,
+    EMemoryCategory category,
+    i64 delta,
+    bool allowOvercommit)
 {
     auto oldCategory = GetCategoryByUsage(state->CategoryToUsage);
 
@@ -760,7 +822,7 @@ void TNodeMemoryTracker::ChangeCategoryUsage(TState* state, EMemoryCategory cate
         state->CategoryToUsage[category] + delta != 0)
     {
         state->CategoryToUsage[category] += delta;
-        return;
+        return TError();
     }
 
     state->CategoryToUsage[category] += delta;
@@ -772,14 +834,26 @@ void TNodeMemoryTracker::ChangeCategoryUsage(TState* state, EMemoryCategory cate
     auto newCategory = GetCategoryByUsage(state->CategoryToUsage);
     if (!newCategory) {
         state->MemoryGuard.Release();
-        return;
+        return TError();
     }
 
     if ((oldCategory && newCategory && *oldCategory != *newCategory) || !oldCategory) {
-        state->MemoryGuard = TMemoryUsageTrackerGuard::Acquire(
-            WithCategory(*newCategory),
-            static_cast<i64>(state->Reference.Size()));
+        if (allowOvercommit) {
+            state->MemoryGuard = TMemoryUsageTrackerGuard::Acquire(
+                WithCategory(*newCategory),
+                static_cast<i64>(state->Reference.Size()));
+        } else {
+            auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
+                WithCategory(*newCategory),
+                static_cast<i64>(state->Reference.Size()));
+            if (!guardOrError.IsOK()) {
+                return guardOrError;
+            }
+            state->MemoryGuard = std::move(guardOrError.ValueOrThrow());
+        }
     }
+
+    return TError();
 }
 
 std::optional<EMemoryCategory> TNodeMemoryTracker::GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage)
@@ -991,6 +1065,21 @@ TSharedRef WrapWithDelayedReferenceHolder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TErrorOr<TSharedRef> TryTrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRef reference,
+    bool keepExistingTracking)
+{
+    if (!tracker) {
+        return reference;
+    }
+    return TryTrackMemory(
+        tracker->WithCategory(category),
+        std::move(reference),
+        keepExistingTracking);
+}
+
 TSharedRef TrackMemory(
     const INodeMemoryTrackerPtr& tracker,
     EMemoryCategory category,
@@ -1019,6 +1108,156 @@ TSharedRefArray TrackMemory(
         tracker->WithCategory(category),
         std::move(array),
         keepExistingTracking);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReservingMemoryTracker
+    : public IReservingMemoryUsageTracker
+{
+public:
+    TReservingMemoryTracker(
+        IMemoryUsageTrackerPtr underlying,
+        TCounter memoryUsageCounter)
+        : Underlying_(std::move(underlying))
+        , MemoryUsageCounter_(std::move(memoryUsageCounter))
+    { }
+
+    ~TReservingMemoryTracker()
+    {
+        Underlying_->Release(UnderlyingAllocatedSize_);
+        MemoryUsageCounter_.Increment(-UnderlyingAllocatedSize_);
+    }
+
+    TError TryAcquire(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
+        if (auto toAquire = size - reservedAmount; toAquire > 0) {
+            auto acquireResult = Underlying_->TryAcquire(toAquire);
+            if (!acquireResult.IsOK()) {
+                return acquireResult;
+            }
+            UnderlyingAllocatedSize_ += toAquire;
+            MemoryUsageCounter_.Increment(toAquire);
+        }
+
+        AllocatedSize_ += size;
+
+        return {};
+    }
+
+    TError TryChange(i64 /*size*/) override
+    {
+        return TError("Setting is not supported for reserve memory tracker");
+    }
+
+    bool Acquire(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
+        bool result = true;
+        if (auto toAquire = size - reservedAmount; toAquire > 0) {
+            result = Underlying_->Acquire(toAquire);
+            UnderlyingAllocatedSize_ += toAquire;
+            MemoryUsageCounter_.Increment(toAquire);
+        }
+
+        AllocatedSize_ += size;
+        return result;
+    }
+
+    void Release(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        AllocatedSize_ -= size;
+    }
+
+    void SetLimit(i64 size) override
+    {
+        Underlying_->SetLimit(size);
+    }
+
+    i64 GetLimit() const override
+    {
+        return Underlying_->GetLimit();
+    }
+
+    i64 GetUsed() const override
+    {
+        return Underlying_->GetUsed();
+    }
+
+    i64 GetFree() const override
+    {
+        auto guard = Guard(SpinLock_);
+        return Underlying_->GetFree() + UnderlyingAllocatedSize_ - AllocatedSize_;
+    }
+
+    bool IsExceeded() const override
+    {
+        return Underlying_->IsExceeded();
+    }
+
+    TError TryReserve(i64 size) override
+    {
+        auto guard = Guard(SpinLock_);
+        auto reserveResult = Underlying_->TryAcquire(size);
+        if (reserveResult.IsOK()) {
+            UnderlyingAllocatedSize_ += size;
+            MemoryUsageCounter_.Increment(size);
+        }
+
+        return reserveResult;
+    }
+
+    TSharedRef Track(TSharedRef reference, bool keepHolder) override
+    {
+        return Underlying_->Track(std::move(reference), keepHolder);
+    }
+
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool keepHolder) override
+    {
+        return Underlying_->TryTrack(std::move(reference), keepHolder);
+    }
+
+    void ReleaseUnusedReservation() override
+    {
+        auto guard = Guard(SpinLock_);
+        if (auto releaseAmount = UnderlyingAllocatedSize_ - AllocatedSize_; releaseAmount > 0) {
+            Underlying_->Release(releaseAmount);
+            MemoryUsageCounter_.Increment(-releaseAmount);
+            UnderlyingAllocatedSize_ -= releaseAmount;
+        }
+    }
+
+private:
+    const IMemoryUsageTrackerPtr Underlying_;
+    const TCounter MemoryUsageCounter_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
+    // Amount we allocated from Underlying_.
+    i64 UnderlyingAllocatedSize_ = 0;
+    // Amount that was allocated by users (UnderlyingAllocatedSize_ >= AllocatedSize_).
+    i64 AllocatedSize_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TReservingMemoryTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+    IMemoryUsageTrackerPtr underlying,
+    TCounter memoryUsageCounter)
+{
+    return New<TReservingMemoryTracker>(std::move(underlying), std::move(memoryUsageCounter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,8 +24,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr static const char* OriginalTabletStateAttributeName = "original_tablet_state";
-constexpr static const char* OriginalEnabledReplicaIdsAttributeName  = "original_enabled_replica_ids";
+static constexpr const char* OriginalTabletStateAttributeName = "original_tablet_state";
+static constexpr const char* OriginalEnabledReplicaIdsAttributeName  = "original_enabled_replica_ids";
 
 ////////////////////////////////////////////////////////////////////////////////
 

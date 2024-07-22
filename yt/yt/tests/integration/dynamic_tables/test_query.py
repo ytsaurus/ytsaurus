@@ -1718,7 +1718,9 @@ class TestQuery(DynamicTablesBase):
 
         _check_query(rows[0:1], "(a) between (1) and (2)", 0)
         _check_query(rows[0:1], "(a, b) between ((1) and (1, 2))", 1)
-        _check_query([], "(a, b) between (1, 2) and (2, 1)", 1)
+
+        # No common prefix in ranges inferred in following query.
+        _check_query([], "(a, b) between (1, 2) and (2, 1)", 0)
         _check_query([], "(a, b) between ((2) and (2, 1))", 1)
         _check_query([rows[1], rows[2]], """(a, b, c) between (
                      (3, 3, 2) and (3, 3, 4),
@@ -2204,6 +2206,51 @@ class TestQuery(DynamicTablesBase):
             f"k, [$timestamp:v2], v1, v4, v3, v2, v5, [$timestamp:v3], [$timestamp:v4], [$timestamp:v1], [$timestamp:v5] from [{path}]",
             with_timestamps=True,
         ) == []
+
+    @authors("sabdenovch")
+    def test_select_from_ordered_table(self):
+        sync_create_cells(1)
+
+        path = "//tmp/t"
+
+        create_dynamic_table(path, schema=[
+            make_column("value", "int64"),
+        ])
+
+        sync_mount_table(path)
+
+        insert_rows(path, [{"value": i} for i in range(10)])
+
+        # full scan
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(10)]
+        actual = select_rows(f"* from [{path}] limit 10")
+        assert expected == actual
+
+        # prefix scan
+        actual = select_rows(f"* from [{path}] where [$tablet_index] in (0) limit 10")
+        assert expected == actual
+
+        # full key scan
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(1)]
+        actual = select_rows(f"* from [{path}] where ([$tablet_index], [$row_index]) in ((0,0))")
+        assert expected == actual
+
+        # join on common key
+        expected = [{"$tablet_index": 0, "$row_index": i, "value": i} for i in range(10)]
+        actual = select_rows(f"* from [{path}] join [{path}] using [$tablet_index], [$row_index], value limit 10")
+        assert expected == actual
+
+        # join on common key prefix
+        expected = [{"A.value": i} for i in range(10)]
+        actual = select_rows(f"A.value from [{path}] A join [{path}] B on "
+                             "(A.[$tablet_index], A.value) = (B.[$tablet_index], B.[$row_index]) limit 10")
+        assert expected == actual
+
+        # join on foreign key prefix
+        expected = [{"A.value": i} for i in range(10)]
+        actual = select_rows(f"A.value from [{path}] A join [{path}] B on "
+                             "(0, A.value) = (B.[$tablet_index], B.[$row_index]) limit 10")
+        assert expected == actual
 
 
 class TestQueryRpcProxy(TestQuery):

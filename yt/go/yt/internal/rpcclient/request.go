@@ -1039,6 +1039,28 @@ func (r *CheckPermissionRequest) SetTxOptions(opts *TransactionOptions) {
 
 func (r *CheckPermissionRequest) ReadRetryOptions() {}
 
+type CheckPermissionByACLRequest struct {
+	*rpc_proxy.TReqCheckPermissionByAcl
+}
+
+func NewCheckPermissionByACLRequest(r *rpc_proxy.TReqCheckPermissionByAcl) *CheckPermissionByACLRequest {
+	return &CheckPermissionByACLRequest{TReqCheckPermissionByAcl: r}
+}
+
+func (r *CheckPermissionByACLRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("user", r.GetUser()),
+		log.Int32("permission", r.GetPermission()),
+		log.String("acl", r.GetAcl()),
+	}
+}
+
+func (r *CheckPermissionByACLRequest) Path() (string, bool) {
+	return "", false
+}
+
+func (r *CheckPermissionByACLRequest) ReadRetryOptions() {}
+
 type DisableChunkLocationsRequest struct {
 	*rpc_proxy.TReqDisableChunkLocations
 }

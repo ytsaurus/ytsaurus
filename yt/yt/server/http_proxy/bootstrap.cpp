@@ -288,6 +288,19 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
+    if (Config_->ChytHttpServer) {
+        Config_->ChytHttpServer->ServerName = "ChytHttpApi";
+        ChytApiHttpServer_ = NHttp::CreateServer(Config_->ChytHttpServer, Poller_, Acceptor_);
+        // Single handler.
+        ChytApiHttpServer_->AddHandler("/", AllowCors(ClickHouseHandler_));
+    }
+
+    if (Config_->ChytHttpsServer) {
+        Config_->ChytHttpsServer->ServerName = "ChytHttpsApi";
+        ChytApiHttpsServer_ = NHttps::CreateServer(Config_->ChytHttpsServer, Poller_, Acceptor_, GetControlInvoker());
+        ChytApiHttpsServer_->AddHandler("/", AllowCors(ClickHouseHandler_));
+    }
+
     SetNodeByYPath(
         orchidRoot,
         "/http_proxy",
@@ -355,6 +368,12 @@ void TBootstrap::Run()
     }
     if (TvmOnlyApiHttpsServer_) {
         TvmOnlyApiHttpsServer_->Start();
+    }
+    if (ChytApiHttpServer_) {
+        ChytApiHttpServer_->Start();
+    }
+    if (ChytApiHttpsServer_) {
+        ChytApiHttpsServer_->Start();
     }
     Coordinator_->Start();
 
@@ -473,6 +492,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 
     // ClickHouse.
     server->AddHandler("/query", AllowCors(ClickHouseHandler_));
+    server->AddHandler("/chyt", AllowCors(ClickHouseHandler_));
 
     if (!Config_->UIRedirectUrl.empty()) {
         server->AddHandler("/", New<TCallbackHandler>(BIND([config = Config_] (

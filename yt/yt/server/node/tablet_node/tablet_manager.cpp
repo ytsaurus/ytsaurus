@@ -326,7 +326,7 @@ public:
     bool AllocateDynamicStoreIfNeeded(TTablet* tablet) override
     {
         if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
-            tablet->DynamicStoreIdPool().empty() &&
+            tablet->GetUnreservedDynamicStoreIdCount() == 0 &&
             !tablet->GetDynamicStoreIdRequested())
         {
             AllocateDynamicStore(tablet);
@@ -1214,6 +1214,8 @@ private:
             movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
             Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
 
+            tablet->InitializeTargetServantActivationFuture();
+
             YT_VERIFY(!masterAvenueEndpointId);
         }
 
@@ -1290,44 +1292,6 @@ private:
         #undef GET_FROM_REPLICATABLE
     }
 
-    void PopulateAddStoreDescriptor(
-        TAddStoreDescriptor* descriptor,
-        const IStorePtr& store)
-    {
-        YT_VERIFY(store->GetType() != EStoreType::HunkChunk);
-
-        descriptor->set_store_type(ToProto<int>(store->GetType()));
-        ToProto(descriptor->mutable_store_id(), store->GetId());
-
-        if (store->IsChunk()) {
-            const auto& chunkStore = store->AsChunk();
-
-            ToProto(descriptor->mutable_chunk_meta(), chunkStore->GetChunkMeta());
-
-            switch (store->GetType()) {
-                case EStoreType::SortedChunk: {
-                    auto sortedChunkStore = store->AsSortedChunk();
-                    if (sortedChunkStore->GetId() != sortedChunkStore->GetChunkId()) {
-                        THROW_ERROR_EXCEPTION("Chunk views are not supported");
-                    }
-                    break;
-                }
-
-                case EStoreType::OrderedChunk:
-                    YT_ABORT();
-
-                default:
-                    YT_ABORT();
-            }
-        } else {
-            // Initialize meta in the least possible way.
-            auto* meta = descriptor->mutable_chunk_meta();
-            meta->set_type(0);
-            meta->set_format(0);
-            meta->mutable_extensions();
-        }
-    }
-
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
         auto& movementData = tablet->SmoothMovementData();
@@ -1351,10 +1315,6 @@ private:
             THROW_ERROR_EXCEPTION("Bulk insert lock replication is not supported");
         }
 
-        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead) {
-            THROW_ERROR_EXCEPTION("Tables with enabled dynamic store read are not supported");
-        }
-
         // Essential stuff.
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(
@@ -1369,7 +1329,7 @@ private:
                 movementData.CommonDynamicStoreIds().insert(store->GetId());
             }
 
-            PopulateAddStoreDescriptor(replicatableContent->add_stores(), store);
+            store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
 
             if (store->IsSorted()) {
                 ToProto(
@@ -1783,8 +1743,29 @@ private:
                 "All stores of tablet are going to be discarded (%v)",
                 tablet->GetLoggingTag());
 
-            tablet->ClearDynamicStoreIdPool();
+            int reservedStoreIdCount = 0;
+            for (auto value : tablet->ReservedDynamicStoreIdCount()) {
+                reservedStoreIdCount += value;
+            }
+
+            tablet->ClearDynamicStoreIdPool(/*keepReservations*/ true);
             PopulateDynamicStoreIdPool(tablet, request);
+
+            if (reservedStoreIdCount > ssize(tablet->DynamicStoreIdPool())) {
+                YT_LOG_ALERT("Tablet unlock request did not provide enough dynamic "
+                    "store ids to guarantee all reservations "
+                    "(%v, ProvidedStoreCount: %v, Reservations: %v)",
+                    tablet->GetLoggingTag(),
+                    ssize(tablet->DynamicStoreIdPool()),
+                    MakeFormattableView(
+                        TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues(),
+                        [&] (auto* builder, auto key) {
+                            builder->AppendFormat(
+                                "%v:%v",
+                                key,
+                                tablet->ReservedDynamicStoreIdCount()[key]);
+                        }));
+            }
 
             storeManager->DiscardAllStores();
         }
@@ -1917,7 +1898,7 @@ private:
                 }
 
                 tablet->SetState(ETabletState::Frozen);
-                tablet->ClearDynamicStoreIdPool();
+                tablet->ClearDynamicStoreIdPool(/*keepReservations*/ false);
 
                 for (const auto& [storeId, store] : tablet->StoreIdMap()) {
                     if (store->IsChunk()) {
@@ -2006,7 +1987,7 @@ private:
             }
         }
 
-        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->GetUnreservedDynamicStoreIdCount() == 0) {
             if (!tablet->GetDynamicStoreIdRequested()) {
                 AllocateDynamicStore(tablet);
             }
@@ -4210,7 +4191,8 @@ private:
                 Bootstrap_->GetHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 EWorkloadCategory::SystemTabletReplication,
-                Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication));
+                Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication),
+                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication));
             replicaInfo->SetReplicator(replicator);
 
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
@@ -4246,7 +4228,8 @@ private:
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
-            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication)));
+            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication),
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PullIncoming)));
     }
 
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)

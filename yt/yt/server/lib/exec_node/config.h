@@ -299,6 +299,8 @@ public:
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
 
+    TDuration SlotInitTimeout;
+
     TDuration SlotReleaseTimeout;
 
     bool AbortOnFreeVolumeSynchronizationFailed;
@@ -484,7 +486,7 @@ public:
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
 
-    i64 SummaryBlockSizeInFlight;
+    i64 TotalInFlightBlockSize;
 
     double FallbackTimeoutFraction;
 

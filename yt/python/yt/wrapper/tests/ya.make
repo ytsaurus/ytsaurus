@@ -194,5 +194,6 @@ IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
         system_python
         arcadia_python
+        features
     )
 ENDIF()

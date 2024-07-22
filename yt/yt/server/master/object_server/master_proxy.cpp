@@ -449,7 +449,7 @@ private:
         auto templateRequest = templateRequestBuilder.Finish();
 
         NRpc::NProto::TRequestHeader templateRequestHeader;
-        if (!ParseRequestHeader(templateRequest, &templateRequestHeader)) {
+        if (!TryParseRequestHeader(templateRequest, &templateRequestHeader)) {
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
         auto templateMethod = templateRequestHeader.method();

@@ -438,7 +438,7 @@ public:
         }
     }
 
-    constexpr static auto Name = "SystemLogTableExporter";
+    static constexpr auto Name = "SystemLogTableExporter";
 
     String getName() const override
     {

@@ -624,7 +624,7 @@ private:
             subrequest.RequestMessage = subrequestPartsBuilder.Finish();
 
             auto& requestHeader = subrequest.RequestHeader;
-            if (!ParseRequestHeader(subrequest.RequestMessage, &requestHeader)) {
+            if (!TryParseRequestHeader(subrequest.RequestMessage, &requestHeader)) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Error parsing subrequest header");

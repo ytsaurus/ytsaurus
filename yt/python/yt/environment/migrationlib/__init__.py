@@ -328,6 +328,8 @@ class Migration(object):
         if self.table_init_callback:
             self.table_init_callback(client, tables_path)
 
+        client.set(tables_path + "/@version", version)
+
         if mount:
             for table_name in table_infos.keys():
                 client.mount_table(ypath_join(tables_path, table_name), sync=False)
@@ -335,8 +337,6 @@ class Migration(object):
                 _wait_for_predicate(
                     lambda: client.get(ypath_join(tables_path, table_name) + "/@tablet_state") == "mounted",
                     "table {} becomes mounted".format(table_name))
-
-        client.set(tables_path + "/@version", version)
 
     def _transform(self, client, transform_begin, transform_end, force, tables_path, shard_count):
         logging.info("Transforming from %s to %s version", transform_begin - 1, transform_end)
@@ -455,11 +455,14 @@ class Migration(object):
         assert target_version == self.initial_version or target_version in self.transforms
         assert target_version >= self.initial_version
 
+        current_version = None
         if client.exists(tables_path):
-            current_version = client.get("{0}/@".format(tables_path)).get("version", self.initial_version)
-        else:
-            current_version = self.initial_version
+            current_version = client.get("{0}/@".format(tables_path)).get("version")
+
+        if current_version is None:
+            current_version = target_version
             self._initialize_migration(client, tables_path=tables_path, version=current_version)
+
         assert current_version >= self.initial_version, \
             "Expected tables version to be >= {}, got {}".format(self.initial_version, current_version)
 

@@ -119,7 +119,7 @@ private:
             return;
         }
 
-        const auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
+        auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
             ->TabletNode->MediumThrottlers;
 
         if (!throttlersConfig->EnableChangelogThrottling) {

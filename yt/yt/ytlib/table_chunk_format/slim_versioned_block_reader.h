@@ -76,17 +76,17 @@ private:
     int RowIndex_ = -1;
     const char* RowPtr_ = nullptr;
 
-    constexpr static int DefaultKeyScratchCapacity = 128;
+    static constexpr int DefaultKeyScratchCapacity = 128;
     TCompactVector<char, DefaultKeyScratchCapacity> KeyScratch_;
     NTableClient::TLegacyMutableKey Key_;
 
-    constexpr static int DefaultDeleteTimestampScratchCapacity = 16;
+    static constexpr int DefaultDeleteTimestampScratchCapacity = 16;
     TCompactVector<NTableClient::TTimestamp, DefaultDeleteTimestampScratchCapacity> DeleteTimestampScratch_;
 
-    constexpr static int DefaultWriteTimestampScratchCapacity = 64;
+    static constexpr int DefaultWriteTimestampScratchCapacity = 64;
     TCompactVector<NTableClient::TTimestamp, DefaultWriteTimestampScratchCapacity> WriteTimestampScratch_;
 
-    constexpr static int DefaultValueScratchCapacity = 64;
+    static constexpr int DefaultValueScratchCapacity = 64;
     TCompactVector<NTableClient::TVersionedValue, DefaultValueScratchCapacity> ValueScratch_;
 
     bool JumpToRowIndex(int rowIndex);

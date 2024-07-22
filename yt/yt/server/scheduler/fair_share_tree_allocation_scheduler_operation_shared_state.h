@@ -18,8 +18,8 @@ public:
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
-    // Returns resources change.
-    TJobResources SetAllocationResourceUsage(TAllocationId allocationId, const TJobResources& resources);
+    // Returns resources delta if operation is enabled and std::nullopt otherwise.
+    std::optional<TJobResources> SetAllocationResourceUsage(TAllocationId allocationId, const TJobResources& resources);
 
     TDiskQuota GetTotalDiskQuota() const;
 
@@ -32,7 +32,7 @@ public:
         const TJobResources& precommittedResources,
         TControllerEpoch scheduleAllocationEpoch,
         bool force = false);
-    void OnAllocationFinished(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
+    bool OnAllocationFinished(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
     void UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element);
 
     bool GetPreemptible() const;

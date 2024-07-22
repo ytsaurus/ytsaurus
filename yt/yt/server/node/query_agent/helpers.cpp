@@ -58,6 +58,11 @@ void TSimpleRowsetWriter::Fail(const TError& error)
     Result_.TrySet(error);
 }
 
+std::optional<NCrypto::TMD5Hash> TSimpleRowsetWriter::GetDigest() const
+{
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryAgent

@@ -419,7 +419,7 @@ private:
         auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            GetRemoteChunkReaderHost(),
+            MakeChunkReaderHost(),
             inputChunkId,
             inputReplicas,
             erasureCodec,
@@ -761,7 +761,7 @@ private:
         auto reader = CreateReplicationReader(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            GetRemoteChunkReaderHost(),
+            MakeChunkReaderHost(),
             inputChunkId,
             inputReplicas);
 
@@ -996,7 +996,7 @@ private:
         return JobSpecExt_.output_table_specs(0).dynamic();
     }
 
-    TChunkReaderHostPtr GetRemoteChunkReaderHost()
+    TChunkReaderHostPtr MakeChunkReaderHost()
     {
         return New<TChunkReaderHost>(
             RemoteClient_,

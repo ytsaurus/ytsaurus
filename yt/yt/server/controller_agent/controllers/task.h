@@ -397,7 +397,7 @@ protected:
 
     //! A convenience method for calling task->Finish() and
     //! task->SetInputVertex(this->GetJobType());
-    void FinishTaskInput(const TTaskPtr& task);
+    void FinishTaskInput(const TTaskPtr& task) const;
 
     virtual TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
 

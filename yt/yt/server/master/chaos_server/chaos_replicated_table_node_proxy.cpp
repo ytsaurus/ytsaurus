@@ -20,6 +20,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
@@ -121,6 +123,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueProducerPartitions)
             .SetPresent(isQueueProducer)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CollocatedReplicationCardIds)
             .SetOpaque(true));
     }
 
@@ -371,6 +375,29 @@ private:
                             .Value(card->ReplicationCardCollocationId);
                     }));
 
+            case EInternedAttributeKey::CollocatedReplicationCardIds: {
+                auto id = GetThisImpl()->GetReplicationCardId();
+                auto connection = Bootstrap_->GetClusterConnection();
+                return GetReplicationCard()
+                    .ApplyUnique(BIND([connection = std::move(connection), id] (TReplicationCardPtr&& card) {
+                        if (card->ReplicationCardCollocationId.IsEmpty()) {
+                            return MakeFuture(
+                                BuildYsonStringFluently()
+                                    .BeginList()
+                                    .EndList());
+                        }
+
+                        return GetCollocatedReplicationCards(
+                            card->ReplicationCardCollocationId,
+                            id,
+                            std::move(connection))
+                            .ApplyUnique(BIND([] (std::vector<TReplicationCardId>&& ids) {
+                                return BuildYsonStringFluently()
+                                    .Value(ids);
+                            }));
+                    }));
+            }
+
             case EInternedAttributeKey::QueueStatus:
             case EInternedAttributeKey::QueuePartitions: {
                 if (!isQueue) {
@@ -421,6 +448,24 @@ private:
         return client->GetReplicationCard(impl->GetReplicationCardId(), getCardOptions)
             .Apply(BIND([client] (const TReplicationCardPtr& card) {
                 return card;
+            }));
+    }
+
+    static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
+        TReplicationCardCollocationId collocationId,
+        TReplicationCardId replicationCardId,
+        NNative::IConnectionPtr connection)
+    {
+        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardId(replicationCardId));
+        auto req = proxy.GetReplicationCardCollocation();
+        ToProto(req->mutable_replication_card_collocation_id(), collocationId);
+        return req->Invoke()
+            .ApplyUnique(BIND([] (TChaosNodeServiceProxy::TErrorOrRspGetReplicationCardCollocationPtr&& result) {
+                if (!result.IsOK()) {
+                    return TErrorOr<std::vector<TReplicationCardId>>(TError(result));
+                }
+                return TErrorOr(
+                    FromProto<std::vector<TReplicationCardId>>(result.Value()->collocation_replication_card_ids()));
             }));
     }
 

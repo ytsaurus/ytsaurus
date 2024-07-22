@@ -193,7 +193,6 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
                 }
             });
     } else if (keys) {
-        YT_VERIFY(tableInfo->IsSorted());
         YT_VERIFY(!ranges);
         size_t keyWidth = keys.Front().GetCount();
 

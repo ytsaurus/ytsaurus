@@ -57,22 +57,22 @@ NCypressClient::TNodeId CreateIntermediateNodes(
 
 //! Copies subtree.
 /*!
- *  NB: all symlinks in subtree have to be passed in this function via
+ *  NB: all links in subtree have to be passed in this function via
  *  #subtreeLinks in order to copy their target paths.
  */
 NCypressClient::TNodeId CopySubtree(
-    const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& sourceNodes,
+    const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
     const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
-    const THashMap<NCypressClient::TNodeId, NYPath::TYPath>& subtreeLinks,
+    const THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Removes previously selected subtree. If root removal is requested then
 //! #subtreeParent has to be provided (it's needed to detach removed root from
 //! its parent).
 void RemoveSelectedSubtree(
-    const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& nodesToRemove,
+    const std::vector<TCypressNodeDescriptor>& nodesToRemove,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     bool removeRoot = true,
     NCypressClient::TNodeId subtreeParentId = {});

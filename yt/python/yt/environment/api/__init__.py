@@ -61,6 +61,8 @@ class LocalYtConfig(object):
     enable_rpc_driver_proxy_discovery = attr.ib(False)
     enable_resource_tracking = attr.ib(False)
     enable_tvm_only_proxies = attr.ib(False)
+    enable_chyt_http_proxies = attr.ib(False)
+    enable_chyt_https_proxies = attr.ib(False)
 
     """TLS settings"""
     enable_tls = attr.ib(False)

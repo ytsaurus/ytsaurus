@@ -392,7 +392,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < EMasterReign::QueueProducers_24_1
         || (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap && context.GetVersion() < EMasterReign::QueueProducers)) {
         if (Attributes_) {
-            constexpr static std::array producerRelatedAttributes = {
+            static constexpr std::array producerRelatedAttributes = {
                 EInternedAttributeKey::TreatAsQueueProducer,
                 EInternedAttributeKey::QueueProducerStatus,
                 EInternedAttributeKey::QueueProducerPartitions,

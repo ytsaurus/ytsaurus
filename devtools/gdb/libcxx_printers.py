@@ -209,6 +209,9 @@ class SharedPointerPrinter:
         self.typename = typename
         self.val = val
 
+    def children (self):
+        return [('get()', self.val['__ptr_'])]
+
     def to_string (self):
         state = 'empty'
         refcounts = self.val['__cntrl_']
@@ -220,7 +223,7 @@ class SharedPointerPrinter:
             else:
                 state = 'count %d, weak %d' % (usecount, weakcount)
 
-        return '%s (%s) = %s' % (self.typename, state, self.val['__ptr_'])
+        return '%s (%s)' % (self.typename, state)
 
 class UniquePointerPrinter:
     "Print a unique_ptr"
@@ -229,9 +232,13 @@ class UniquePointerPrinter:
         self.typename = typename
         self.val = val
 
+    def children (self):
+        v, _ = destructure_compressed_pair(self.val['__ptr_'])
+        return [('get()', v)]
+
     def to_string (self):
         v, _ = destructure_compressed_pair(self.val['__ptr_'])
-        return ('%s<%s> = %s' % (str(self.typename), print_type(v.type.target()), v))
+        return ('%s<%s>' % (str(self.typename), print_type(v.type.target())))
 
 class AtomicPrinter:
     "Print atomic"

@@ -55,6 +55,8 @@ struct IStoreManager
         NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) = 0;
 
+    virtual void UpdateCommittedStoreRowCount() = 0;
+
     virtual bool IsOverflowRotationNeeded() const = 0;
     virtual TError CheckOverflow() const = 0;
     virtual bool IsRotationPossible() const = 0;

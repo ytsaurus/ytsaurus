@@ -60,8 +60,6 @@ items:
         href: syntax/select.md
       - name: SUBQUERY
         href: syntax/subquery.md
-      - name: UPSERT
-        href: syntax/upsert_into.md
       - name: USE
         href: syntax/use.md
       - name: VALUES

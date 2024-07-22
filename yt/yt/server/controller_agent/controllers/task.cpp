@@ -1595,7 +1595,7 @@ void TTask::AddChunksToInputSpec(
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         inputSpec->add_virtual_row_index_per_data_slice(dataSlice->VirtualRowIndex.value_or(-1));
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            auto newChunkSpec = inputSpec->add_chunk_specs();
+            auto* newChunkSpec = inputSpec->add_chunk_specs();
             YT_LOG_TRACE(
                 "Serializing chunk slice (LowerLimit: %v, UpperLimit: %v)",
                 chunkSlice->LowerLimit().KeyBound,
@@ -1896,7 +1896,7 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
     }
 }
 
-void TTask::FinishTaskInput(const TTaskPtr& task)
+void TTask::FinishTaskInput(const TTaskPtr& task) const
 {
     task->RegisterInGraph(GetVertexDescriptor());
     task->FinishInput();
@@ -2026,12 +2026,6 @@ void TTask::RegisterOutput(
         joblet->OutputStreamDescriptors,
         joblet->InputStripeList,
         &outputStripes);
-
-    if (std::ssize(joblet->OutputStreamDescriptors) != jobResultExt.output_digests_size()) {
-        YT_LOG_ERROR("Invalid number of output digests (Expected %v, Actual %v)",
-            std::ssize(joblet->OutputStreamDescriptors),
-            jobResultExt.output_digests_size());
-    }
 
     const auto& streamDescriptors = joblet->OutputStreamDescriptors;
     for (int tableIndex = 0; tableIndex < std::ssize(streamDescriptors); ++tableIndex) {

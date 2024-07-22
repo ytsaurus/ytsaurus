@@ -405,7 +405,7 @@ private:
         int LastPartIndex;
         i64 LastPartEndOffset;
 
-        constexpr static int TypicalRequestParts = 2;
+        static constexpr int TypicalRequestParts = 2;
         TCompactVector<TSharedRef, TypicalRequestParts> Parts;
         int FetchedPartCount = 0;
 
@@ -450,7 +450,7 @@ private:
     std::vector<TRequest> Requests_;
     int CompletedRequestCount_ = 0;
 
-    constexpr static int TypicalRequestsPerPart = 2;
+    static constexpr int TypicalRequestsPerPart = 2;
     std::vector<TCompactVector<int, TypicalRequestsPerPart>> PartIndexToRegularRequestIndices_;
 
     std::vector<TChunkFragment> RepairFragments_;
@@ -460,7 +460,7 @@ private:
         int RequestIndex;
         int PartIndex;
     };
-    constexpr static int TypicalRequestPartsPerRepairRequest = 2;
+    static constexpr int TypicalRequestPartsPerRepairRequest = 2;
     std::vector<TCompactVector<TRequestPartDescriptor, TypicalRequestPartsPerRepairRequest>> RepairRequestIndexToRequestParts_;
 
     std::vector<std::vector<TSharedRef>> RepairFragmentParts_;

@@ -857,6 +857,7 @@ private:
         const std::vector<NChunkClient::TBlock>& blocks) const
     {
         auto netThrottling = responseTemplate.NetThrottling;
+        auto hasCompleteChunk = responseTemplate.HasCompleteChunk;
 
         if (!netThrottling) {
             SetRpcAttachedBlocks(response, blocks);
@@ -895,7 +896,7 @@ private:
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
-            responseTemplate.HasCompleteChunk,
+            hasCompleteChunk,
             netThrottling,
             responseTemplate.NetQueueSize,
             responseTemplate.DiskThrottling,
@@ -934,7 +935,17 @@ private:
                 if (isThrottled) {
                     response->set_net_throttling(true);
                     response->Attachments().clear();
+
+                    // Override response info.
+                    context->SetResponseInfo(
+                        "HasCompleteChunk: %v,"
+                        "NetThrottling: %v",
+                        hasCompleteChunk,
+                        true);
                 }
+
+                // Directly hold current request context.
+                Y_UNUSED(context);
             }));
     }
 

@@ -39,6 +39,8 @@ public:
         NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) override;
 
+    void UpdateCommittedStoreRowCount() override;
+
     bool IsOverflowRotationNeeded() const override;
     TError CheckOverflow() const override;
     bool IsRotationPossible() const override;

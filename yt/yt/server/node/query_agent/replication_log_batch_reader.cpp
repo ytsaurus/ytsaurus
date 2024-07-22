@@ -29,6 +29,7 @@ TColumnFilter TReplicationLogBatchReaderBase::CreateColumnFilter() const
 void TReplicationLogBatchReaderBase::ReadReplicationBatch(
     i64* currentRowIndex,
     TTimestamp upperTimestamp,
+    i64 maxDataWeight,
     i64* totalRowCount,
     i64* batchRowCount,
     i64* batchDataWeight,
@@ -42,6 +43,10 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
     auto columnFilter = CreateColumnFilter();
     *readAllRows = true;
     std::vector<TUnversionedRow> readerRows;
+
+    if (maxDataWeight > TableMountConfig_->MaxDataWeightPerReplicationCommit) {
+        maxDataWeight = TableMountConfig_->MaxDataWeightPerReplicationCommit;
+    }
 
     while (*readAllRows) {
         i64 readAmount = 2 * TableMountConfig_->MaxRowsPerReplicationCommit;
@@ -96,7 +101,7 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
                     }
 
                     if (*batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit ||
-                        *batchDataWeight >= TableMountConfig_->MaxDataWeightPerReplicationCommit ||
+                        *batchDataWeight >= maxDataWeight ||
                         timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit)
                     {
                         *readAllRows = false;
@@ -105,7 +110,7 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
                             TabletId_,
                             timestamp,
                             *batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
-                            *batchDataWeight >= TableMountConfig_->MaxDataWeightPerReplicationCommit,
+                            *batchDataWeight >= maxDataWeight,
                             timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit);
                         break;
                     }

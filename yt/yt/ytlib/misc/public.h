@@ -39,6 +39,8 @@ DEFINE_ENUM(EMemoryCategory,
     ((TabletBackground)           (19))
     ((JobInputBlockCache)         (25))
     ((JobInputChunkMetaCache)     (26))
+    ((TableReplication)           (27))
+    ((PullIncoming)               (28))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

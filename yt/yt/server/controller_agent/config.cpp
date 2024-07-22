@@ -481,6 +481,12 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThan(0.0);
 }
 
+void TSortOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_simple_sort_for_evaluated_output", &TThis::EnableSimpleSortForEvaluatedOutput)
+        .Default(false);
+}
+
 void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)

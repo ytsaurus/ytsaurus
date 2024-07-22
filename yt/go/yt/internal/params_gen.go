@@ -749,6 +749,16 @@ func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 }
 
+func writeCheckPermissionByACLOptions(w *yson.Writer, o *yt.CheckPermissionByACLOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("ignore_missing_subjects")
+	w.Any(o.IgnoreMissingSubjects)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+	writeMasterReadOptions(w, o.MasterReadOptions)
+}
+
 func writeDisableChunkLocationsOptions(w *yson.Writer, o *yt.DisableChunkLocationsOptions) {
 	if o == nil {
 		return
@@ -3262,6 +3272,65 @@ func (p *CheckPermissionParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 }
 
 func (p *CheckPermissionParams) MasterReadOptions() **yt.MasterReadOptions {
+	return &p.options.MasterReadOptions
+}
+
+type CheckPermissionByACLParams struct {
+	verb       Verb
+	user       string
+	permission yt.Permission
+	ACL        []yt.ACE
+	options    *yt.CheckPermissionByACLOptions
+}
+
+func NewCheckPermissionByACLParams(
+	user string,
+	permission yt.Permission,
+	ACL []yt.ACE,
+	options *yt.CheckPermissionByACLOptions,
+) *CheckPermissionByACLParams {
+	if options == nil {
+		options = &yt.CheckPermissionByACLOptions{}
+	}
+	optionsCopy := *options
+	return &CheckPermissionByACLParams{
+		Verb("check_permission_by_acl"),
+		user,
+		permission,
+		ACL,
+		&optionsCopy,
+	}
+}
+
+func (p *CheckPermissionByACLParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CheckPermissionByACLParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *CheckPermissionByACLParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("user", p.user),
+		log.Any("permission", p.permission),
+		log.Any("ACL", p.ACL),
+	}
+}
+
+func (p *CheckPermissionByACLParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("user")
+	w.Any(p.user)
+	w.MapKeyString("permission")
+	w.Any(p.permission)
+	w.MapKeyString("acl")
+	w.Any(p.ACL)
+	writeCheckPermissionByACLOptions(w, p.options)
+}
+
+func (p *CheckPermissionByACLParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
+}
+
+func (p *CheckPermissionByACLParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
 }
 

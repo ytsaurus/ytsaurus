@@ -77,16 +77,14 @@ static const char* Bashrc =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShellManager
+class TShellManagerBase
     : public IShellManager
 {
 public:
-    TShellManager(
+    TShellManagerBase(
         const TShellManagerConfig& config,
-        IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance)
-        : PortoExecutor_(std::move(portoExecutor))
-        , RootInstance_(std::move(rootInstance))
+        : RootInstance_(std::move(rootInstance))
         , PreparationDir_(CombinePaths(config.PreparationDir, GetSandboxRelPath(ESandboxKind::Home)))
         , WorkingDir_(CombinePaths(config.WorkingDir, GetSandboxRelPath(ESandboxKind::Home)))
         , EnableJobShellSeccopm(config.EnableJobShellSeccopm)
@@ -94,6 +92,110 @@ public:
         , GroupId_(config.GroupId)
         , MessageOfTheDay_(config.MessageOfTheDay)
         , Environment_(config.Environment)
+    { }
+
+    void Terminate(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Shell manager is terminating");
+
+        Terminated_ = true;
+        for (auto& shell : IdToShell_) {
+            shell.second->Terminate(error);
+        }
+        IdToShell_.clear();
+        IndexToShell_.clear();
+    }
+
+    TFuture<void> GracefulShutdown(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Shell manager is shutting down");
+
+        std::vector<TFuture<void>> futures;
+        for (auto& shell : IdToShell_) {
+            futures.push_back(shell.second->Shutdown(error));
+        }
+        return AllSet(futures).As<void>();
+    }
+
+protected:
+    const IInstancePtr RootInstance_;
+    const TString PreparationDir_;
+    const TString WorkingDir_;
+    const bool EnableJobShellSeccopm;
+    std::optional<int> UserId_;
+    std::optional<int> GroupId_;
+    std::optional<TString> MessageOfTheDay_;
+
+    std::vector<TString> Environment_;
+    THashMap<TShellId, IShellPtr> IdToShell_;
+    THashMap<int, IShellPtr> IndexToShell_;
+    bool Terminated_ = false;
+
+    int NextShellIndex_ = 1;
+
+    const NLogging::TLogger Logger = ShellLogger();
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void Register(IShellPtr shell)
+    {
+        YT_VERIFY(IdToShell_.emplace(shell->GetId(), shell).second);
+        YT_VERIFY(IndexToShell_.emplace(shell->GetIndex(), shell).second);
+
+        YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
+            shell->GetId(),
+            shell->GetIndex());
+    }
+
+    IShellPtr Find(TShellId shellId) const
+    {
+        auto it = IdToShell_.find(shellId);
+        return it == IdToShell_.end() ? nullptr : it->second;
+    }
+
+    IShellPtr Find(int shellIndex) const
+    {
+        auto it = IndexToShell_.find(shellIndex);
+        return it == IndexToShell_.end() ? nullptr : it->second;
+    }
+
+    IShellPtr GetShellOrThrow(
+        std::optional<TShellId> shellId,
+        std::optional<int> shellIndex)
+    {
+        if (shellId) {
+            auto shell = Find(*shellId);
+            if (shell) {
+                return shell;
+            }
+        }
+
+        if (shellIndex) {
+            auto shell = Find(*shellIndex);
+            if (shell) {
+                return shell;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No such shell %v", shellId);
+    }
+};
+
+class TPortoShellManager
+    : public TShellManagerBase
+{
+public:
+    TPortoShellManager(
+        const TShellManagerConfig& config,
+        IPortoExecutorPtr portoExecutor,
+        IInstancePtr rootInstance)
+        : TShellManagerBase(config, std::move(rootInstance))
+        , PortoExecutor_(std::move(portoExecutor))
     { }
 
     TPollJobShellResponse PollJobShell(
@@ -185,7 +287,7 @@ public:
                     EnsureToolBinaryPath(subcontainerName);
                 }
 #endif
-                shell = CreateShell(PortoExecutor_, std::move(options));
+                shell = CreatePortoShell(PortoExecutor_, std::move(options));
                 Register(shell);
                 shell->ResizeWindow(parameters.Height, parameters.Width);
 
@@ -251,95 +353,8 @@ public:
         };
     }
 
-    void Terminate(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO("Shell manager is terminating");
-        Terminated_ = true;
-        for (auto& shell : IdToShell_) {
-            shell.second->Terminate(error);
-        }
-        IdToShell_.clear();
-        IndexToShell_.clear();
-    }
-
-    TFuture<void> GracefulShutdown(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO("Shell manager is shutting down");
-        std::vector<TFuture<void>> futures;
-        for (auto& shell : IdToShell_) {
-            futures.push_back(shell.second->Shutdown(error));
-        }
-        return AllSet(futures).As<void>();
-    }
-
 private:
     const IPortoExecutorPtr PortoExecutor_;
-    const IInstancePtr RootInstance_;
-    const TString PreparationDir_;
-    const TString WorkingDir_;
-    const bool EnableJobShellSeccopm;
-    std::optional<int> UserId_;
-    std::optional<int> GroupId_;
-    std::optional<TString> MessageOfTheDay_;
-
-    std::vector<TString> Environment_;
-    THashMap<TShellId, IShellPtr> IdToShell_;
-    THashMap<int, IShellPtr> IndexToShell_;
-    bool Terminated_ = false;
-
-    int NextShellIndex_ = 1;
-
-    const NLogging::TLogger Logger = ShellLogger();
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
-    void Register(IShellPtr shell)
-    {
-        YT_VERIFY(IdToShell_.emplace(shell->GetId(), shell).second);
-        YT_VERIFY(IndexToShell_.emplace(shell->GetIndex(), shell).second);
-
-        YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
-            shell->GetId(),
-            shell->GetIndex());
-    }
-
-    IShellPtr Find(TShellId shellId) const
-    {
-        auto it = IdToShell_.find(shellId);
-        return it == IdToShell_.end() ? nullptr : it->second;
-    }
-
-    IShellPtr Find(int shellIndex) const
-    {
-        auto it = IndexToShell_.find(shellIndex);
-        return it == IndexToShell_.end() ? nullptr : it->second;
-    }
-
-    IShellPtr GetShellOrThrow(
-        std::optional<TShellId> shellId,
-        std::optional<int> shellIndex)
-    {
-        if (shellId) {
-            auto shell = Find(*shellId);
-            if (shell) {
-                return shell;
-            }
-        }
-
-        if (shellIndex) {
-            auto shell = Find(*shellIndex);
-            if (shell) {
-                return shell;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("No such shell %v", shellId);
-    }
 
 #ifdef _linux_
     void EnsureToolBinaryPath(const TString& container) const
@@ -374,12 +389,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IShellManagerPtr CreateShellManager(
+IShellManagerPtr CreatePortoShellManager(
     const TShellManagerConfig& config,
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance)
 {
-    return New<TShellManager>(
+    return New<TPortoShellManager>(
         config,
         std::move(portoExecutor),
         std::move(rootInstance));
@@ -387,7 +402,7 @@ IShellManagerPtr CreateShellManager(
 
 #else
 
-IShellManagerPtr CreateShellManager(
+IShellManagerPtr CreatePortoShellManager(
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance,
     const TString& preparationDir,

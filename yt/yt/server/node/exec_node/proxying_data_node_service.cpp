@@ -165,6 +165,10 @@ private:
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
             response->set_has_complete_chunk(true);
             response->set_net_throttling(true);
+            context->SetResponseInfo(
+                "HasCompleteChunk: %v, NetThrottling: %v",
+                true,
+                true);
             context->Reply();
             return;
         }
@@ -205,6 +209,10 @@ private:
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
             response->set_has_complete_chunk(true);
             response->set_net_throttling(true);
+            context->SetResponseInfo(
+                "HasCompleteChunk: %v, NetThrottling: %v",
+                true,
+                true);
             context->Reply();
             return;
         }

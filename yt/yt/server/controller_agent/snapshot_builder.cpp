@@ -176,10 +176,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     ControllersSuspended_ = true;
 
-    TFuture<void> forkFuture;
-    YT_PROFILE_TIMING("/controller_agent/snapshot/fork_time") {
-        forkFuture = Fork();
-    }
+    auto forkFuture = Fork();
 
     YT_LOG_INFO("Resuming controllers");
 

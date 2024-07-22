@@ -135,6 +135,11 @@ void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
         std::swap(context, Contexts_[contextId]);
         context.Clear();
     }
+
+    if (EmptyContextIds_.empty()) {
+        EmptyContextIds_.push_back(Contexts_.size());
+        Contexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
+    }
 }
 
 TTopCollectorBase::TRowAndBuffer TTopCollectorBase::Capture(

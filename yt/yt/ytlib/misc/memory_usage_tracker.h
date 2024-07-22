@@ -46,6 +46,11 @@ struct INodeMemoryTracker
     virtual i64 UpdateUsage(ECategory category, i64 newUsage) = 0;
 
     virtual TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) = 0;
+    //! Returns an error if overcommit has occurred.
+    virtual TErrorOr<TSharedRef> TryTrack(
+        TSharedRef reference,
+        EMemoryCategory category,
+        bool keepExistingTracking) = 0;
 
     virtual IMemoryUsageTrackerPtr WithCategory(
         ECategory category,
@@ -56,7 +61,7 @@ struct INodeMemoryTracker
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef WrapWithDelayedReferenceHolder(
     TSharedRef reference,
@@ -78,16 +83,29 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
 
 /////////////////////////////////////////////////////////////////////////////
 
+TErrorOr<TSharedRef> TryTrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRef reference,
+    bool keepExistingTracking = false);
+
 TSharedRef TrackMemory(
     const INodeMemoryTrackerPtr& tracker,
     EMemoryCategory category,
     TSharedRef reference,
     bool keepExistingTracking = false);
+
 TSharedRefArray TrackMemory(
     const INodeMemoryTrackerPtr& tracker,
     EMemoryCategory category,
     TSharedRefArray array,
     bool keepExistingTracking = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+    IMemoryUsageTrackerPtr underlying,
+    NProfiling::TCounter memoryUsageCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

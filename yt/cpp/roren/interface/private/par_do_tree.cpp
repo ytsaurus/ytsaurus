@@ -236,6 +236,7 @@ private:
     static TFnAttributes MergeFnAttributes(const std::vector<TParDoNode>& parDoNodeList)
     {
         TFnAttributes result;
+        result.SetIsPure(true); // Empty tree is pure.
         for (const auto& node : parDoNodeList) {
             const auto& currentAttributes = node.ParDo->GetFnAttributes();
             TFnAttributesOps::Merge(result, currentAttributes);

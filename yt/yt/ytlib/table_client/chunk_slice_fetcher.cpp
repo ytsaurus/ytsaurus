@@ -404,9 +404,8 @@ public:
         , TableIndexToFetcherIndex_(std::move(tableIndexToFetcherIndex))
     { }
 
-    void AddChunk(TInputChunkPtr chunk) override
+    void AddChunk(TInputChunkPtr /*chunk*/) override
     {
-        Y_UNUSED(chunk);
         YT_UNIMPLEMENTED();
     }
 
@@ -418,19 +417,21 @@ public:
         }
         return chunkCount;
     }
+
     void SetCancelableContext(TCancelableContextPtr cancelableContext) override
     {
         for (auto& fetcher : ChunkSliceFetchers_) {
             fetcher->SetCancelableContext(cancelableContext);
         }
     }
-    virtual TFuture<void> Fetch() override
+
+    TFuture<void> Fetch() override
     {
         std::vector<TFuture<void>> fetchFutures;
-        for (auto& fetcher : ChunkSliceFetchers_) {
+        for (const auto& fetcher : ChunkSliceFetchers_) {
             fetchFutures.push_back(fetcher->Fetch());
         }
-        return AllSucceeded(fetchFutures);
+        return AllSucceeded(std::move(fetchFutures));
     }
 
     std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() override
@@ -470,8 +471,8 @@ public:
     }
 
 private:
-    std::vector<IChunkSliceFetcherPtr> ChunkSliceFetchers_;
-    std::vector<int> TableIndexToFetcherIndex_;
+    const std::vector<IChunkSliceFetcherPtr> ChunkSliceFetchers_;
+    const std::vector<int> TableIndexToFetcherIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

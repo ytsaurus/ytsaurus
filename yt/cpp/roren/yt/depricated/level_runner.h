@@ -1,10 +1,11 @@
 #pragma once
 
+#include "yt_graph.h"
+
 #include <library/cpp/threading/future/core/future.h>
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
 #include <yt/cpp/mapreduce/interface/fwd.h>
-#include <yt/cpp/roren/yt/yt_graph.h>
 
 #include <util/system/spinlock.h>
 

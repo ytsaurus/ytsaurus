@@ -255,6 +255,11 @@ public:
         return DataWeight_;
     }
 
+    std::optional<TMD5Hash> GetDigest() const override
+    {
+        return std::nullopt;
+    }
+
 protected:
     const NLogging::TLogger Logger;
 
@@ -1199,7 +1204,7 @@ private:
     {
         std::vector<int> columnOrder(row.GetCount());
         std::iota(columnOrder.begin(), columnOrder.end(), 0);
-        std::sort(columnOrder.begin(), columnOrder.end(), [this, &row](int lhs, int rhs) {
+        std::sort(columnOrder.begin(), columnOrder.end(), [this, &row] (int lhs, int rhs) {
             return NameTable_->GetNameOrThrow(row[lhs].Id) < NameTable_->GetNameOrThrow(row[rhs].Id);
         });
 
@@ -1228,7 +1233,7 @@ private:
                     Hasher_.Append(value.AsStringBuf());
                     break;
                 default:
-                    THROW_ERROR_EXCEPTION("Unexpected value type: %Qlv",
+                    THROW_ERROR_EXCEPTION("Unexpected value type %Qlv",
                         value.Type);
             }
         }
@@ -2141,6 +2146,11 @@ public:
     const TTableSchemaPtr& GetSchema() const override
     {
         return TableUploadOptions_.TableSchema.Get();
+    }
+
+    std::optional<TMD5Hash> GetDigest() const override
+    {
+        return std::nullopt;
     }
 
 private:

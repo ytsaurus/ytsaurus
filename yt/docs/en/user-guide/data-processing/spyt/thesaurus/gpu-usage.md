@@ -1,0 +1,1 @@
+{% include [GPU usage](../../../../_includes/user-guide/data-processing/spyt/thesaurus/gpu-usage.md) %}

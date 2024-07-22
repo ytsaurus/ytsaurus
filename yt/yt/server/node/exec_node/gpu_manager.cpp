@@ -188,6 +188,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     auto now = TInstant::Now();
     for (const auto& descriptor : descriptors) {
         GpuDevices_.push_back(descriptor.DeviceName);
+        InsertOrCrash(GpuDeviceIndices_, descriptor.DeviceIndex);
+
         FreeSlots_.emplace_back(descriptor.DeviceIndex);
 
         EmplaceOrCrash(
@@ -295,6 +297,7 @@ void TGpuManager::OnHealthCheck()
         }
 
         std::vector<int> freeDeviceIndices;
+        std::vector<int> unknownDeviceIndices;
 
         YT_LOG_DEBUG("Updating healthy GPU devices (DeviceIndices: %v)",
             deviceIndices);
@@ -332,14 +335,20 @@ void TGpuManager::OnHealthCheck()
             }
 
             for (auto& gpuInfo : gpuInfos) {
+                if (!GpuDeviceIndices_.contains(gpuInfo.Index)) {
+                    YT_LOG_WARNING("Found unknown GPU device (DeviceIndex: %v)",
+                        gpuInfo.Index);
+                    unknownDeviceIndices.push_back(gpuInfo.Index);
+                    continue;
+                }
+
                 gpuInfo.UpdateTime = now;
                 HealthyGpuInfoMap_[gpuInfo.Index] = gpuInfo;
             }
 
             for (auto index : FreeSlots_) {
                 if (!HealthyGpuInfoMap_.contains(index)) {
-                    YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                        GetGpuDeviceName(index));
+                    YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)", index);
                 } else {
                     freeDeviceIndices.push_back(index);
                     newFreeSlotIndices.emplace_back(std::move(index));
@@ -362,9 +371,11 @@ void TGpuManager::OnHealthCheck()
 
         YT_LOG_DEBUG(
             "List of healthy GPU devices updated "
-            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
+            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, UnknownDeviceIndices: %v, "
+            "AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
             deviceIndices,
             freeDeviceIndices,
+            unknownDeviceIndices,
             AcquiredGpuDeviceIndices_,
             LostGpuDeviceIndices_);
     } catch (const std::exception& ex) {
@@ -492,15 +503,15 @@ std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 {
-    YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceIndex));
+    YT_LOG_DEBUG("Released GPU slot (DeviceIndex: %v)",
+        deviceIndex);
 
     auto guard = Guard(SpinLock_);
 
     if (AcquiredGpuDeviceIndices_.erase(deviceIndex) > 0) {
         if (!HealthyGpuInfoMap_.contains(deviceIndex)) {
             LostGpuDeviceIndices_.insert(deviceIndex);
-            YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
+            YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)",
                 deviceIndex);
         } else {
             FreeSlots_.push_back(deviceIndex);
@@ -541,8 +552,8 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 
     InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
 
-    YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceIndex));
+    YT_LOG_DEBUG("Acquired GPU slot (DeviceIndex: %v)",
+        deviceIndex);
     return New<TGpuSlot>(MakeStrong(this), deviceIndex);
 }
 
@@ -595,7 +606,7 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 
     std::vector<TGpuSlotPtr> resultSlots;
     std::vector<int> remainingSlotIndices;
-    for (   auto index : FreeSlots_) {
+    for (auto index : FreeSlots_) {
         if (resultDeviceIndices.contains(index)) {
             resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), index));
         } else {

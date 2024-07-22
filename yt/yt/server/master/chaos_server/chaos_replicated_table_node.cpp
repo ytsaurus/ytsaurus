@@ -93,7 +93,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     {
         Load(context, TreatAsQueueProducer_);
     } else if (Attributes_) {
-        constexpr static std::array producerRelatedAttributes = {
+        static constexpr std::array producerRelatedAttributes = {
             EInternedAttributeKey::TreatAsQueueProducer,
             EInternedAttributeKey::QueueProducerStatus,
             EInternedAttributeKey::QueueProducerPartitions,

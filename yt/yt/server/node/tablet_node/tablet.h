@@ -137,6 +137,22 @@ struct TTabletErrors
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRuntimeSmoothMovementData
+{
+    std::atomic<bool> IsActiveServant;
+
+    // The following fields are filled only at the source servant when it becomes non-active.
+    // They are needed to redirect clients to the target servant. Note that target->source
+    // redirection never happens.
+    TAtomicObject<TCellId> SiblingServantCellId;
+    std::atomic<NHydra::TRevision> SiblingServantMountRevision;
+
+    // Will be set when the target servant becomes active.
+    TFuture<void> TargetActivationFuture;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletData
@@ -158,6 +174,7 @@ struct TRuntimeTabletData
     TEnumIndexedArray<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TTabletErrors Errors;
     NConcurrency::TAsyncBarrier PreparedTransactionBarrier;
+    TRuntimeSmoothMovementData SmoothMovementData;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -308,6 +325,7 @@ struct TTabletSnapshot
 
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
+    void ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
     void WaitOnLocks(TTimestamp timestamp) const;
 };
 
@@ -505,6 +523,8 @@ public:
     // Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
 
+    DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
+
 public:
     void ValidateWriteToTablet() const;
     bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
@@ -582,6 +602,11 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);
     DEFINE_BYVAL_RW_PROPERTY(bool, DynamicStoreIdRequested);
+    using TReservedDynamicStoreCountArray = TEnumIndexedArray<
+        EDynamicStoreIdReservationReason,
+        int
+    >;
+    DEFINE_BYREF_RO_PROPERTY(TReservedDynamicStoreCountArray, ReservedDynamicStoreIdCount);
 
     DEFINE_BYREF_RW_PROPERTY(TTabletDistributedThrottlersVector, DistributedThrottlers);
 
@@ -795,9 +820,14 @@ public:
 
     int GetEdenStoreCount() const;
 
-    void PushDynamicStoreIdToPool(TDynamicStoreId storeId);
+    void PushDynamicStoreIdToPool(
+        TDynamicStoreId storeId,
+        std::optional<EDynamicStoreIdReservationReason> reservationReason = {});
     TDynamicStoreId PopDynamicStoreIdFromPool();
-    void ClearDynamicStoreIdPool();
+    void ReleaseReservedDynamicStoreId(
+        EDynamicStoreIdReservationReason reason);
+    int GetUnreservedDynamicStoreIdCount() const;
+    void ClearDynamicStoreIdPool(bool keepReservations);
 
     NTabletNode::NProto::TMountHint GetMountHint() const;
 
@@ -835,6 +865,8 @@ public:
     void SetCompressionDictionaryRebuildBackoffTime(
         NTableClient::EDictionaryCompressionPolicy policy,
         TInstant backoffTime);
+
+    void InitializeTargetServantActivationFuture();
 
 private:
     struct TTabletSizeMetrics

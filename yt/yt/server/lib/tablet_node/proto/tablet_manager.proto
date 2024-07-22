@@ -171,6 +171,7 @@ message TReqReplicateTabletContent
     optional bytes partition_pivot_keys = 7;
     repeated NYT.NProto.TGuid store_partition_ids = 8;
     optional NYT.NProto.TGuid active_store_id = 9;
+    repeated NYT.NProto.TGuid allocated_dynamic_store_ids = 12;
 
     required uint64 last_commit_timestamp = 10;
     required uint64 last_write_timestamp = 11;
@@ -485,6 +486,7 @@ message TReqStartSmoothMovement
     required uint64 source_mount_revision = 3;
     required uint64 target_mount_revision = 4;
     required NYT.NProto.TGuid source_avenue_endpoint_id = 5;
+    required NYT.NProto.TGuid dynamic_store_id = 6;
 }
 
 message TReqChangeSmoothMovementStage

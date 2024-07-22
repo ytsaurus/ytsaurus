@@ -1,7 +1,6 @@
 #include "slot_manager.h"
 
 #include "bootstrap.h"
-#include "chunk_cache.h"
 #include "job.h"
 #include "job_controller.h"
 #include "private.h"
@@ -186,10 +185,6 @@ void TSlotManager::Start()
     auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-            FreeSlots_.push(slotIndex);
-        }
-
         InitializeEnvironment().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
             auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
 
@@ -246,6 +241,25 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         SlotCount_,
         Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->Cpu,
         GetIdleCpuFraction());
+
+    auto slotInitTimeout = DynamicConfig_.Acquire()->SlotInitTimeout;
+    FreeSlots_.clear();
+    for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
+            .WithTimeout(slotInitTimeout);
+        slotInitFuture.Subscribe(
+            BIND([this, this_ = MakeStrong(this), slotIndex] (const TError& error) {
+                VERIFY_THREAD_AFFINITY(JobThread);
+
+                if (error.IsOK()) {
+                    FreeSlots_.push(slotIndex);
+                } else {
+                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
+                    JobEnvironment_->Disable(std::move(wrappedError));
+                }
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
+    }
 
     if (!JobEnvironment_->IsEnabled()) {
         auto error = TError("Job environment is disabled");
@@ -1130,10 +1144,6 @@ void TSlotManager::AsyncInitialize()
         .WithTimeout(timeout));
 
     YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
-    YT_LOG_FATAL_IF(std::ssize(FreeSlots_) != SlotCount_,
-        "Some slots are still acquired (FreeSlots: %v, SlotCount: %v)",
-        std::ssize(FreeSlots_),
-        SlotCount_);
 
     NumaNodeStates_.clear();
 

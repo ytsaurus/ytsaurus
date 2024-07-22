@@ -537,7 +537,7 @@ TRANSFORMS[52] = [
                 ("alert_events", "any"),
                 ("scheduling_attributes_per_pool_tree", "any"),
             ],
-            in_memory=True,
+            in_memory=False,
             get_pivot_keys=get_default_pivots,
             default_lock="operations_cleaner",
             attributes={
@@ -551,8 +551,8 @@ TRANSFORMS[52] = [
 
 
 def are_hunks_enabled(client):
-    hunks_path = "//sys/@config/tablet_manager/enable_hunks"
-    return client.exists(hunks_path) and client.get(hunks_path)
+    # Hunks are enabled by default now
+    return True
 
 
 def check_operations_archive_version(client, target_version):
@@ -641,8 +641,6 @@ def build_arguments_parser():
 
 
 def run(client, archive_path, target_version, shard_count, latest, force):
-    check_operations_archive_version(client, target_version)
-
     migration = prepare_migration(client, archive_path)
 
     target_version = target_version

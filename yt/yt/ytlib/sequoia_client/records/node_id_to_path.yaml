@@ -18,7 +18,7 @@ types:
 
       - cpp_name: TargetPath
         cpp_type: NYPath::TYPath
-        column_name: redirect_path
+        column_name: target_path
         column_type: String
 
     verbatim: |

@@ -179,11 +179,13 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         TJobId jobId,
+        NJobTrackerClient::EJobType jobType,
         const std::vector<int>& ports,
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
         , Logger(Host_->GetLogger())
         , JobId_(jobId)
+        , JobType_(jobType)
         , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
@@ -532,6 +534,7 @@ private:
     const NLogging::TLogger Logger;
 
     const TJobId JobId_;
+    const NJobTrackerClient::EJobType JobType_;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
     IUserJobReadControllerPtr UserJobReadController_;
@@ -641,57 +644,68 @@ private:
 
     void InitShellManager()
     {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
 #ifdef _linux_
-            auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-            auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
+        switch (JobEnvironmentType_) {
+            case EJobEnvironmentType::Testing:
+            case EJobEnvironmentType::Simple:
+                // No shell support.
+                break;
+            case EJobEnvironmentType::Cri: {
+                // TODO(abogutksiy): create specific shell manager.
+                break;
+            }
+            case EJobEnvironmentType::Porto: {
+                auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+                auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
 
-            std::vector<TString> shellEnvironment;
-            shellEnvironment.reserve(Environment_.size());
-            std::vector<TString> visibleEnvironment;
-            visibleEnvironment.reserve(Environment_.size());
+                std::vector<TString> shellEnvironment;
+                shellEnvironment.reserve(Environment_.size());
+                std::vector<TString> visibleEnvironment;
+                visibleEnvironment.reserve(Environment_.size());
 
-            for (const auto& variable : Environment_) {
-                if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
-                    !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
-                {
-                    continue;
+                for (const auto& variable : Environment_) {
+                    if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                        !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+                    {
+                        continue;
+                    }
+                    if (variable.StartsWith("YT_")) {
+                        shellEnvironment.push_back(variable);
+                    }
+                    visibleEnvironment.push_back(variable);
                 }
-                if (variable.StartsWith("YT_")) {
-                    shellEnvironment.push_back(variable);
+
+                auto shellManagerUid = UserId_;
+                if (Config_->TestPollJobShell) {
+                    shellManagerUid = std::nullopt;
+                    shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
                 }
-                visibleEnvironment.push_back(variable);
+
+                std::optional<int> shellManagerGid;
+                // YT-13790.
+                if (Config_->RootPath) {
+                    shellManagerGid = 1001;
+                }
+
+                // ToDo(psushin): move ShellManager into user job environment.
+                TShellManagerConfig config{
+                    .PreparationDir = Host_->GetPreparationPath(),
+                    .WorkingDir = Host_->GetSlotPath(),
+                    .UserId = shellManagerUid,
+                    .GroupId = shellManagerGid,
+                    .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                    .Environment = std::move(shellEnvironment),
+                    .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+                };
+
+                ShellManager_ = CreatePortoShellManager(
+                    config,
+                    portoExecutor,
+                    UserJobEnvironment_->GetUserJobInstance());
+                break;
             }
-
-            auto shellManagerUid = UserId_;
-            if (Config_->TestPollJobShell) {
-                shellManagerUid = std::nullopt;
-                shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
-            }
-
-            std::optional<int> shellManagerGid;
-            // YT-13790.
-            if (Config_->RootPath) {
-                shellManagerGid = 1001;
-            }
-
-            // ToDo(psushin): move ShellManager into user job environment.
-            TShellManagerConfig config{
-                .PreparationDir = Host_->GetPreparationPath(),
-                .WorkingDir = Host_->GetSlotPath(),
-                .UserId = shellManagerUid,
-                .GroupId = shellManagerGid,
-                .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                .Environment = std::move(shellEnvironment),
-                .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
-            };
-
-            ShellManager_ = CreateShellManager(
-                config,
-                portoExecutor,
-                UserJobEnvironment_->GetUserJobInstance());
-#endif
         }
+#endif
     }
 
     void Prepare()
@@ -1303,14 +1317,14 @@ private:
             statistics = CustomStatistics_;
         }
 
-        if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
-            result.TotalInputStatistics.DataStatistics = *dataStatistics;
-        }
-
-        statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
-
-        if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
-            result.TotalInputStatistics.CodecStatistics = *codecStatistics;
+        if (HasInputStatistics()) {
+            if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
+                result.TotalInputStatistics.DataStatistics = *dataStatistics;
+            }
+            statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
+            if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
+                result.TotalInputStatistics.CodecStatistics = *codecStatistics;
+            }
         }
 
         if (const auto& timingStatistics = UserJobReadController_->GetTimingStatistics()) {
@@ -1378,10 +1392,12 @@ private:
         if (Prepared_) {
             IJob::TStatistics::TMultiPipeStatistics pipeStatistics;
 
-            pipeStatistics.InputPipeStatistics = {
-                .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
-                .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
-            };
+            if (HasInputStatistics()) {
+                pipeStatistics.InputPipeStatistics = {
+                    .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
+                    .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
+                };
+            }
 
             for (int i = 0; i < std::ssize(TablePipeReaders_); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
@@ -1768,6 +1784,11 @@ private:
             default:                                YT_ABORT();
         }
     }
+
+    bool HasInputStatistics() const override
+    {
+        return JobType_ != NJobTrackerClient::EJobType::Vanilla;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1776,6 +1797,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     TJobId jobId,
+    NJobTrackerClient::EJobType jobType,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
@@ -1783,6 +1805,7 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
+        jobType,
         std::move(ports),
         std::move(userJobWriteController));
 }

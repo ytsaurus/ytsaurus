@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 namespace NYT::NCypressProxy {
@@ -38,6 +40,12 @@ struct TParsedReqCreate
 
 //! On parse error replies it to underlying context and returns |nullopt|.
 std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr context);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TCopyOptions* options,
+    const NCypressClient::NProto::TReqCopy& protoOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

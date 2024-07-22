@@ -464,7 +464,7 @@ public:
 
         auto addTags = [this] (auto profiler) {
             return profiler
-                .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : UnknownProfilingTag)
+                .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
                 .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         };
 

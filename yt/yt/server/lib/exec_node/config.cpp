@@ -230,6 +230,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
+    registrar.Parameter("slot_init_timeout", &TThis::SlotInitTimeout)
+        .Default(TDuration::Minutes(10));
+
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
@@ -589,8 +592,9 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("meta_cache", &TThis::MetaCache)
         .DefaultNew();
-    registrar.Parameter("summary_block_size_in_flight", &TThis::SummaryBlockSizeInFlight)
-        .Default(1_GB);
+    registrar.Parameter("summary_block_size_in_flight", &TThis::TotalInFlightBlockSize)
+        .Alias("total_in_flight_block_size")
+        .Default(0);
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .InRange(0.0, 1.0)
         .Default(0.8);

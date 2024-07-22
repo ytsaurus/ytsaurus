@@ -364,6 +364,9 @@ private:
 
         const auto& params = SnapshotWriter_->GetParams();
 
+        Owner_->CompressedSnapshotSizeGauge_.Update(params.CompressedLength);
+        Owner_->UncompressedSnapshotSizeGauge_.Update(params.UncompressedLength);
+
         TRemoteSnapshotParams remoteParams{
             .PeerId = SelfPeerId_,
             .SnapshotId = SnapshotId_,
@@ -814,7 +817,9 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , StateHashChecker_(std::move(stateHashChecker))
-    , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
+    , SnapshotLoadTimeGauge_(profiler.TimeGauge("/snapshot_load_time"))
+    , CompressedSnapshotSizeGauge_(profiler.Gauge("/compressed_snapshot_size"))
+    , UncompressedSnapshotSizeGauge_(profiler.Gauge("/uncompressed_snapshot_size"))
     , ForkCounters_(New<TForkCounters>(profiler))
 {
     YT_VERIFY(Config_);
@@ -963,7 +968,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 
     TWallTimer timer;
     auto finally = Finally([&] {
-        SnapshotLoadTime_.Update(timer.GetElapsedTime());
+        SnapshotLoadTimeGauge_.Update(timer.GetElapsedTime());
     });
 
     ClearState();

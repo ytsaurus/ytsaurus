@@ -1103,7 +1103,7 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
         self._execute_command("GET", "read_table")
         time.sleep(1)
         wait(lambda: self.check_memory_usage(
-            get(http_proxy_agent_orchid + "/heap_usage_statistics"),
+            get(http_proxy_agent_orchid + "/heap_usage"),
             "read_table"))
 
     @authors("ni-stoiko")
@@ -1121,8 +1121,8 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
         self._execute_command("GET", "read_table")
 
         profiler = profiler_factory().at_http_proxy(http_proxies[0])
-        command_memory_usage_gauge = profiler.gauge("heap_usage/command")
-        user_memory_usage_gauge = profiler.gauge("heap_usage/user")
+        command_memory_usage_gauge = profiler.gauge("memory/heap_usage/command")
+        user_memory_usage_gauge = profiler.gauge("memory/heap_usage/user")
 
         def check(statistics, tag, memory=5 * 1024 ** 2):
             for stat in statistics:

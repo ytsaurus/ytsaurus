@@ -8,8 +8,9 @@ type Speclet struct {
 }
 
 const (
+	gib           = 1024 * 1024 * 1024
 	DefaultCPU    = 2
-	DefaultMemory = 8 * 1024 * 1024 * 1024
+	DefaultMemory = 8 * gib
 )
 
 func (speclet *Speclet) CPUOrDefault() uint64 {

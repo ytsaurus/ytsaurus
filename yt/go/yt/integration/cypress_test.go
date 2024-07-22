@@ -23,12 +23,12 @@ func TestCypress(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	defer cancel()
-
 	t.Run("P", func(t *testing.T) {
 		t.Run("Get", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			var attrs struct {
 				Account  string `yson:"account"`
@@ -45,6 +45,9 @@ func TestCypress(t *testing.T) {
 		t.Run("Set", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			err := env.YT.SetNode(ctx, ypath.Path("//@test_cypress_attribute"), "test_value", nil)
 			require.NoError(t, err)
 
@@ -57,6 +60,9 @@ func TestCypress(t *testing.T) {
 
 		t.Run("MultisetAttributes", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			attrValues := map[string]any{
 				"x": "test_value",
@@ -80,6 +86,9 @@ func TestCypress(t *testing.T) {
 		t.Run("List", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			var list []struct {
 				Owner string `yson:"owner,attr"`
 				Name  string `yson:",value"`
@@ -98,6 +107,9 @@ func TestCypress(t *testing.T) {
 		t.Run("Exists", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			ok, err := env.YT.NodeExists(ctx, ypath.Path("/"), nil)
 			require.NoError(t, err)
 			require.True(t, ok)
@@ -109,6 +121,9 @@ func TestCypress(t *testing.T) {
 
 		t.Run("CreateNode", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			name := tmpPath()
 
@@ -126,6 +141,9 @@ func TestCypress(t *testing.T) {
 
 		t.Run("LinkNode", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			targetName := tmpPath()
 			linkName := tmpPath()
@@ -145,6 +163,9 @@ func TestCypress(t *testing.T) {
 		t.Run("CopyNode", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			name := tmpPath()
 			copyName := tmpPath()
 
@@ -163,6 +184,9 @@ func TestCypress(t *testing.T) {
 
 		t.Run("MoveNode", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			name := tmpPath()
 			movedName := tmpPath()
@@ -187,6 +211,9 @@ func TestCypress(t *testing.T) {
 		t.Run("RemoveNode", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
+
 			name := tmpPath()
 
 			err := env.YT.RemoveNode(ctx, name, nil)
@@ -206,6 +233,9 @@ func TestCypress(t *testing.T) {
 
 		t.Run("BinaryPath", func(t *testing.T) {
 			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancel()
 
 			var value any
 			err := env.YT.GetNode(ctx, ypath.Path("/привет"), &value, nil)

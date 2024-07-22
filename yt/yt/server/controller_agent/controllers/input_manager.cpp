@@ -79,10 +79,10 @@ auto MakeSafe(TWeakPtr<IInputManagerHost> weakHost, TCallback<TReturn(TArgs...)>
         });
 }
 
-bool AreAllElementsEqual(auto container, auto compare)
+bool AreAllElementsEqual(const auto& container, auto compare)
 {
-    auto invertCompare = [&compare] (const auto& l, const auto& r) {
-        return !compare(l, r);
+    auto invertCompare = [&compare] (const auto& lhs, const auto& rhs) {
+        return !compare(lhs, rhs);
     };
     // std::adjacent_find with inverted compare function finds a pair which has different elements.
     return std::adjacent_find(container.begin(), container.end(), invertCompare) == container.end();
@@ -170,7 +170,7 @@ TNodeDirectoryBuilderFactory::TNodeDirectoryBuilderFactory(
     TInputManagerPtr inputManager,
     EOperationType operationType)
     : JobSpecExt_(jobSpecExt)
-    , InputManager_(inputManager)
+    , InputManager_(std::move(inputManager))
     , IsRemoteCopy_(operationType == EOperationType::RemoteCopy)
 { }
 
@@ -178,7 +178,7 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
     const TChunkStripePtr& stripe)
 {
     YT_VERIFY(stripe->GetTableIndex() < std::ssize(InputManager_->InputTables_));
-    auto clusterName = InputManager_->InputTables_[stripe->GetTableIndex()]->ClusterName;
+    const auto& clusterName = InputManager_->InputTables_[stripe->GetTableIndex()]->ClusterName;
     if (!IsRemoteCopy_ && IsLocal(clusterName)) {
         // Local node directory is filled by exe-node (see also job.proto).
         // Except for the RemoteCopy operations.
@@ -195,9 +195,8 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
         Builders_.emplace(
             clusterName,
             std::make_shared<TNodeDirectoryBuilder>(
-                InputManager_->Clusters_[clusterName]->NodeDirectory(),
-                protoNodeDirectory
-            ));
+                InputManager_->GetClusterOrCrash(clusterName)->NodeDirectory(),
+                protoNodeDirectory));
     }
 
     return Builders_[clusterName];
@@ -208,8 +207,8 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
 TInputCluster::TInputCluster(
     TClusterName name,
     TLogger logger)
-    : Name(name)
-    , Logger(logger.WithTag("Cluster: %v", name))
+    : Name(std::move(name))
+    , Logger(logger.WithTag("Cluster: %v", Name))
 { }
 
 void TInputCluster::InitializeClient(IClientPtr localClient)
@@ -243,10 +242,6 @@ void TInputCluster::Persist(const TPersistenceContext& context)
     Persist(context, Logger);
     Persist(context, NodeDirectory_);
     Persist(context, InputTables_);
-    if (context.IsLoad()) {
-        ChunkScraper_ = nullptr;
-        Client_ = nullptr;
-    }
     Persist(context, UnavailableInputChunkIds_);
     Persist(context, PathToInputTables_);
 }
@@ -255,19 +250,19 @@ void TInputCluster::Persist(const TPersistenceContext& context)
 
 TInputManager::TInputManager(IInputManagerHost* host, TLogger logger)
     : Host_(host)
-    , Logger(logger)
+    , Logger(std::move(logger))
 { }
 
 void TInputManager::InitializeClients(IClientPtr client)
 {
-    for (auto& [_, cluster] : Clusters_) {
+    for (const auto& [_, cluster] : Clusters_) {
         cluster->InitializeClient(client);
     }
 }
 
 void TInputManager::InitializeStructures(
     IClientPtr client,
-    TInputTransactionsManagerPtr inputTransactionsManager)
+    const TInputTransactionsManagerPtr& inputTransactionsManager)
 {
     YT_VERIFY(inputTransactionsManager);
     InputTables_.clear();
@@ -276,8 +271,8 @@ void TInputManager::InitializeStructures(
 
     auto ensureCluster = [&](const auto& name) {
         if (!Clusters_.contains(name)) {
-            Clusters_.emplace(name, New<TInputCluster>(name, Logger));
-            Clusters_[name]->InitializeClient(client);
+            const auto& cluster = Clusters_.emplace(name, New<TInputCluster>(name, Logger)).first->second;
+            cluster->InitializeClient(client);
         }
     };
 
@@ -290,7 +285,7 @@ void TInputManager::InitializeStructures(
         table->ClusterName = clusterName;
         ensureCluster(clusterName);
 
-        Clusters_[clusterName]->InputTables().push_back(table);
+        GetClusterOrCrash(clusterName)->InputTables().push_back(table);
         InputTables_.push_back(table);
     }
 
@@ -346,7 +341,7 @@ void TInputManager::LockInputTables()
         .ThrowOnError();
 }
 
-void TInputCluster::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const
+void TInputCluster::ValidateOutputTableLockedCorrectly(const TOutputTablePtr& outputTable) const
 {
     if (auto it = PathToInputTables_.find(outputTable->GetPath())) {
         for (const auto& inputTable : it->second) {
@@ -369,10 +364,10 @@ void TInputCluster::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTab
     }
 }
 
-void TInputManager::ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const
+void TInputManager::ValidateOutputTableLockedCorrectly(const TOutputTablePtr& outputTable) const
 {
-    if (Clusters_.contains(LocalClusterName)) {
-        Clusters_.at(LocalClusterName)->ValidateOutputTableLockedCorrectly(std::move(outputTable));
+    if (auto clusterIter = Clusters_.find(LocalClusterName); clusterIter != Clusters_.end()) {
+        clusterIter->second->ValidateOutputTableLockedCorrectly(outputTable);
     }
 }
 
@@ -494,7 +489,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     THashMap<TClusterName, TColumnarStatisticsFetcherPtr> columnarStatisticsFetchers;
     THashMap<TClusterName, TChunkSliceSizeFetcherPtr> chunkSliceSizeFetchers;
 
-    for (auto& [clusterName, cluster] : Clusters_) {
+    for (const auto& [clusterName, cluster] : Clusters_) {
         columnarStatisticsFetchers[clusterName] = New<TColumnarStatisticsFetcher>(
             Host_->GetChunkScraperInvoker(),
             cluster->Client(),
@@ -621,7 +616,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
 
     std::vector<TFuture<void>> statisticsFutures;
-    for (auto& [clusterName, fetcher] : columnarStatisticsFetchers) {
+    for (const auto& [clusterName, fetcher] : columnarStatisticsFetchers) {
         if (fetcher->GetChunkCount() > 0) {
             YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (Cluster: %v, ChunkCount: %v)",
                 clusterName,
@@ -630,7 +625,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
-                BIND([fetcher, Logger = Clusters_[clusterName]->Logger] {
+                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->Logger] {
                     YT_LOG_INFO("Columnar statistics fetched");
                     fetcher->ApplyColumnSelectivityFactors();
                 })
@@ -641,7 +636,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         }
     }
 
-    for (auto& [clusterName, fetcher] : chunkSliceSizeFetchers) {
+    for (const auto& [clusterName, fetcher] : chunkSliceSizeFetchers) {
         if (fetcher && fetcher->GetChunkCount() > 0) {
             YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
                 clusterName,
@@ -649,7 +644,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
-                BIND([fetcher, Logger = Clusters_[clusterName]->Logger] {
+                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->Logger] {
                     YT_LOG_INFO("Input chunk slice statistics fetched");
                     fetcher->ApplyBlockSelectivityFactors();
                 })
@@ -715,17 +710,17 @@ void TInputManager::FetchInputTablesAttributes()
             }));
 
     std::vector<TFuture<void>> getBasicAttributesFutures;
-    for (auto& [_, cluster] : Clusters_) {
+    for (const auto& [_, cluster] : Clusters_) {
         auto getAttributes = BIND([&] {
             GetUserObjectBasicAttributes(
                 cluster->Client(),
                 MakeUserObjectList(cluster->InputTables()),
-                /* defaultTransactionId */ NullTransactionId,
+                /*defaultTransactionId*/ NullTransactionId,
                 Logger,
                 EPermission::Read,
                 TGetUserObjectBasicAttributesOptions{
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
-                    .PopulateSecurityTags = true
+                    .PopulateSecurityTags = true,
                 });
         });
 
@@ -766,11 +761,11 @@ void TInputManager::FetchInputTablesAttributes()
         YT_VERIFY(
             AreAllElementsEqual(
                 tables,
-                [] (const auto& l, const auto& r) {
-                    return l->ClusterName == r->ClusterName;
+                [] (const auto& lhs, const auto& rhs) {
+                    return lhs->ClusterName == rhs->ClusterName;
                 }));
         auto proxy = CreateObjectServiceReadProxy(
-            Clusters_[tables[0]->ClusterName]->Client(),
+            GetClusterOrCrash(tables[0]->ClusterName)->Client(),
             EMasterChannelKind::Follower,
             externalCellTag);
         auto batchReq = proxy.ExecuteBatch();
@@ -933,15 +928,15 @@ void TInputManager::FetchInputTablesAttributes()
 
 void TInputManager::InitInputChunkScrapers()
 {
-    THashMap<TClusterName, THashSet<TChunkId>> clusterToChunkIds;
+    THashMap<TInputClusterPtr, THashSet<TChunkId>> clusterToChunkIds;
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
         if (!IsDynamicTabletStoreType(TypeFromId(chunkId))) {
-            auto clusterName = GetClusterName(chunkDescriptor);
-            clusterToChunkIds[clusterName].insert(chunkId);
+            auto cluster = GetClusterOrCrash(chunkDescriptor);
+            clusterToChunkIds[cluster].insert(chunkId);
         }
     }
 
-    for (auto& [clusterName, cluster] : Clusters_) {
+    for (const auto& [clusterName, cluster] : Clusters_) {
         YT_VERIFY(!cluster->ChunkScraper());
         cluster->ChunkScraper() = New<TChunkScraper>(
             Host_->GetConfig()->ChunkScraper,
@@ -949,7 +944,7 @@ void TInputManager::InitInputChunkScrapers()
             Host_->GetChunkLocationThrottlerManager(),
             cluster->Client(),
             cluster->NodeDirectory(),
-            std::move(clusterToChunkIds[clusterName]),
+            std::move(clusterToChunkIds[cluster]),
             MakeSafe(
                 MakeWeak(Host_),
                 BIND(&TInputManager::OnInputChunkLocated, MakeWeak(this)))
@@ -1075,7 +1070,7 @@ void TInputManager::OnInputChunkAvailable(
 
     UnregisterUnavailableInputChunk(chunkId);
 
-    auto& cluster = Clusters_[GetClusterName(*descriptor)];
+    auto& cluster = GetClusterOrCrash(*descriptor);
     if (cluster->UnavailableInputChunkIds().empty()) {
         YT_UNUSED_FUTURE(cluster->ChunkScraper()->Stop());
     }
@@ -1141,7 +1136,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
                 Host_->UpdateTask(inputStripe.Task.Get());
             }
-            Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
+            GetClusterOrCrash(*descriptor)->ChunkScraper()->Start();
             break;
         }
 
@@ -1153,7 +1148,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                 }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
-            Clusters_[GetClusterName(*descriptor)]->ChunkScraper()->Start();
+            GetClusterOrCrash(*descriptor)->ChunkScraper()->Start();
             break;
         }
 
@@ -1164,7 +1159,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
 void TInputManager::RegisterUnavailableInputChunks(bool reportIfFound)
 {
-    for (auto& [_, cluster] : Clusters_) {
+    for (const auto& [_, cluster] : Clusters_) {
         cluster->UnavailableInputChunkIds().clear();
     }
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
@@ -1184,7 +1179,7 @@ void TInputManager::RegisterUnavailableInputChunks(bool reportIfFound)
 
 void TInputManager::RegisterUnavailableInputChunk(TChunkId chunkId)
 {
-    auto& cluster = Clusters_[GetClusterName(chunkId)];
+    auto& cluster = GetClusterOrCrash(chunkId);
     InsertOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
     YT_LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
@@ -1192,46 +1187,47 @@ void TInputManager::RegisterUnavailableInputChunk(TChunkId chunkId)
 
 void TInputManager::UnregisterUnavailableInputChunk(TChunkId chunkId)
 {
-    auto& cluster = Clusters_[GetClusterName(chunkId)];
+    auto& cluster = GetClusterOrCrash(chunkId);
     EraseOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
     YT_LOG_TRACE("Input chunk is no longer unavailable (ChunkId: %v)", chunkId);
 }
 
-TClusterName TInputManager::GetClusterName(NChunkClient::TChunkId chunkId) const
+const TInputClusterPtr& TInputManager::GetClusterOrCrash(const TClusterName& clusterName) const
 {
-    return InputTables_[GetOrCrash(InputChunkMap_, chunkId).GetTableIndex()]->ClusterName;
+    return GetOrCrash(Clusters_, clusterName);
 }
 
-TClusterName TInputManager::GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const
+const TInputClusterPtr& TInputManager::GetClusterOrCrash(NChunkClient::TChunkId chunkId) const
 {
-    return InputTables_[chunkDescriptor.GetTableIndex()]->ClusterName;
+    return GetClusterOrCrash(InputTables_[GetOrCrash(InputChunkMap_, chunkId).GetTableIndex()]->ClusterName);
+}
+
+const TInputClusterPtr& TInputManager::GetClusterOrCrash(const TInputChunkDescriptor& chunkDescriptor) const
+{
+    return GetClusterOrCrash(InputTables_[chunkDescriptor.GetTableIndex()]->ClusterName);
 }
 
 void TInputManager::BuildUnavailableInputChunksYson(TFluentAny fluent) const
 {
     fluent
         .BeginMap()
-        .DoFor(Clusters_, [] (TFluentMap fluent, const auto& clusterNameAndCluster) {
-            const auto& [name, cluster] = clusterNameAndCluster;
-            fluent
-                .Item(Format("%v", name))
-                .DoListFor(cluster->UnavailableInputChunkIds(), [] (TFluentList fluent, const auto& chunkId) {
-                    fluent.Item().Value(chunkId);
-                });
-        })
+            .DoFor(Clusters_, [] (TFluentMap fluent, const auto& clusterNameAndCluster) {
+                const auto& [name, cluster] = clusterNameAndCluster;
+                fluent
+                    .Item(Format("%v", name))
+                    .Value(cluster->UnavailableInputChunkIds());
+            })
         .EndMap();
 }
 
 int TInputManager::GetUnavailableInputChunkCount() const
 {
-    return std::accumulate(
-        Clusters_.begin(),
-        Clusters_.end(),
-        0,
-        [] (int acc, const auto& clusterNameAndCluster) {
-            return acc + std::ssize(clusterNameAndCluster.second->UnavailableInputChunkIds());
-        });
+    int chunkCount = 0;
+    for (const auto& [_, cluster] : Clusters_) {
+        chunkCount += std::ssize(cluster->UnavailableInputChunkIds());
+    }
+    return chunkCount;
 }
 
 bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
@@ -1267,7 +1263,7 @@ void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)
 std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned, std::optional<TClusterName> clusterName) const
 {
     std::vector<TInputChunkPtr> result;
-    const auto& tables = clusterName ? Clusters_.at(*clusterName)->InputTables() : InputTables_;
+    const auto& tables = clusterName ? GetClusterOrCrash(*clusterName)->InputTables() : InputTables_;
     for (const auto& table : tables) {
         if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
             for (const auto& chunk : table->Chunks) {
@@ -1337,7 +1333,7 @@ std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TIn
 
 std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManager::CreateSamplesFetcher(
     const NTableClient::TTableSchemaPtr& sampleSchema,
-    NTableClient::TRowBufferPtr rowBuffer,
+    const NTableClient::TRowBufferPtr& rowBuffer,
     i64 sampleCount,
     int maxSampleSize) const
 {
@@ -1402,16 +1398,19 @@ void TInputManager::Persist(const TPersistenceContext& context)
 
     Persist(context, InputTables_);
     if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
-        Clusters_[LocalClusterName]->InputTables() = InputTables_;
+        const auto& emplacedIterator = EmplaceOrCrash(
+            Clusters_,
+            LocalClusterName,
+            New<TInputCluster>(LocalClusterName, Logger));
+        emplacedIterator->second->InputTables() = InputTables_;
     }
 
     if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, Clusters_[LocalClusterName]->NodeDirectory());
+        Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
     }
     Persist(context, InputChunkMap_);
     if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, Clusters_[LocalClusterName]->UnavailableInputChunkIds());
+        Persist(context, GetClusterOrCrash(LocalClusterName)->UnavailableInputChunkIds());
     }
     Persist(context, InputHasStaticTableWithHunks_);
     Persist(context, InputHasOrderedDynamicStores_);
@@ -1421,11 +1420,15 @@ void TInputManager::Persist(const TPersistenceContext& context)
     }
 }
 
+void TInputManager::PrepareToBeLoadedFromAncientVersion()
+{
+    Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
+}
+
 void TInputManager::LoadInputNodeDirectory(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    YT_VERIFY(Clusters_.contains(LocalClusterName));
-    NYT::Persist(context, Clusters_[LocalClusterName]->NodeDirectory());
+    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
 }
 
 void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
@@ -1437,16 +1440,14 @@ void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
 void TInputManager::LoadPathToInputTables(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    YT_VERIFY(Clusters_.contains(LocalClusterName));
-    NYT::Persist(context, Clusters_[LocalClusterName]->PathToInputTables());
+    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->PathToInputTables());
 }
 
 void TInputManager::LoadInputTables(const TPersistenceContext& context)
 {
     YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
     NYT::Persist(context, InputTables_);
-    YT_VERIFY(Clusters_.contains(LocalClusterName));
-    Clusters_[LocalClusterName]->InputTables() = InputTables_;
+    GetClusterOrCrash(LocalClusterName)->InputTables() = InputTables_;
 }
 
 void TInputManager::LoadInputHasOrderedDynamicStores(const TPersistenceContext& context)

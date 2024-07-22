@@ -135,6 +135,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
+    THashSet<int> GpuDeviceIndices_;
     THashSet<int> LostGpuDeviceIndices_;
 
     std::vector<NGpu::TRdmaDeviceInfo> RdmaDevices_;

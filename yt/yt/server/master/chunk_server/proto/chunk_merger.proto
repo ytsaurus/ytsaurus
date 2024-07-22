@@ -62,4 +62,10 @@ message TReqFinalizeChunkMergeSessions
     repeated TSessionResult subrequests = 1;
 }
 
+message TReqRescheduleMerge
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required NYT.NProto.TGuid account_id = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

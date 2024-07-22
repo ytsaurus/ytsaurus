@@ -23,10 +23,10 @@ public:
         const NChunkPools::TChunkStripePtr& stripe);
 
 private:
-    NProto::TJobSpecExt* JobSpecExt_;
-    TInputManagerPtr InputManager_;
+    NProto::TJobSpecExt* const JobSpecExt_;
+    const TInputManagerPtr InputManager_;
     THashMap<NScheduler::TClusterName, std::shared_ptr<NNodeTrackerClient::TNodeDirectoryBuilder>> Builders_;
-    bool IsRemoteCopy_;
+    const bool IsRemoteCopy_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,7 +131,7 @@ public:
         NLogging::TLogger logger);
 
     void LockTables();
-    void ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const;
+    void ValidateOutputTableLockedCorrectly(const TOutputTablePtr& outputTable) const;
 
     void ReportIfHasUnavailableChunks() const;
 
@@ -141,7 +141,6 @@ public:
     void Persist(const TPersistenceContext& context);
 };
 
-DECLARE_REFCOUNTED_CLASS(TInputCluster)
 DEFINE_REFCOUNTED_TYPE(TInputCluster)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,12 +157,12 @@ public:
     void InitializeClients(NApi::NNative::IClientPtr client);
     void InitializeStructures(
         NApi::NNative::IClientPtr client,
-        TInputTransactionsManagerPtr inputTransactionsManager);
+        const TInputTransactionsManagerPtr& inputTransactionsManager);
 
     const std::vector<TInputTablePtr>& GetInputTables() const;
 
     void LockInputTables();
-    void ValidateOutputTableLockedCorrectly(TOutputTablePtr outputTable) const;
+    void ValidateOutputTableLockedCorrectly(const TOutputTablePtr& outputTable) const;
 
     void Prepare();
     TFetchInputTablesStatistics FetchInputTables();
@@ -175,6 +174,7 @@ public:
 
     void Persist(const TPersistenceContext& context);
     // COMPAT(coteeq)
+    void PrepareToBeLoadedFromAncientVersion();
     void LoadInputNodeDirectory(const TPersistenceContext& context);
     void LoadInputChunkMap(const TPersistenceContext& context);
     void LoadPathToInputTables(const TPersistenceContext& context);
@@ -213,7 +213,7 @@ public:
 
     std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> CreateSamplesFetcher(
         const NTableClient::TTableSchemaPtr& sampleSchema,
-        NTableClient::TRowBufferPtr rowBuffer,
+        const NTableClient::TRowBufferPtr& rowBuffer,
         i64 sampleCount,
         int maxSampleSize) const;
 
@@ -276,8 +276,9 @@ private:
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
 
-    NScheduler::TClusterName GetClusterName(NChunkClient::TChunkId chunkId) const;
-    NScheduler::TClusterName GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const;
+    const TInputClusterPtr& GetClusterOrCrash(const NScheduler::TClusterName& clusterName) const;
+    const TInputClusterPtr& GetClusterOrCrash(NChunkClient::TChunkId chunkId) const;
+    const TInputClusterPtr& GetClusterOrCrash(const TInputChunkDescriptor& chunkDescriptor) const;
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const;
 };

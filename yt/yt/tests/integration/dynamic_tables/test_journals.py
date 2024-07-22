@@ -437,7 +437,7 @@ class TestJournals(TestJournalsBase):
         wait(lambda: get_account_committed_disk_space("tmp") == 0)
 
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, enable_chunk_preallocation=False)
 
         chunk_id = get_singular_chunk_id("//tmp/j")
 

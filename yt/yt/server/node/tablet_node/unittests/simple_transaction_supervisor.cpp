@@ -19,9 +19,8 @@ namespace {
 
 void RecoverErrorFromMutationResponse(TMutationResponse response)
 {
-    const auto& data = response.Data;
     NRpc::NProto::TResponseHeader header;
-    NRpc::TryParseResponseHeader(data, &header);
+    YT_VERIFY(NRpc::TryParseResponseHeader(response.Data, &header));
     if (header.has_error()) {
         FromProto<TError>(header.error())
             .ThrowOnError();

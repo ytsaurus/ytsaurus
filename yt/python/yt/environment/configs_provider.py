@@ -1152,6 +1152,9 @@ def _build_http_proxy_config(proxy_dir,
         config["monitoring_port"] = next(ports_generator)
         config["rpc_port"] = next(ports_generator)
 
+        if yt_config.enable_chyt_http_proxies:
+            config["chyt_http_server"] = {"port": next(ports_generator)}
+
         fqdn = "{0}:{1}".format(yt_config.fqdn, config["port"])
         set_at(config, "coordinator/public_fqdn", fqdn)
         init_singletons(config, yt_config, index)
@@ -1173,6 +1176,19 @@ def _build_http_proxy_config(proxy_dir,
         if yt_config.https_cert is not None:
             set_at(config, "https_server", {
                 "port": yt_config.https_proxy_ports[index] if yt_config.https_proxy_ports else next(ports_generator),
+                "credentials": {
+                    "cert_chain": {
+                        "file_name": os.path.join(proxy_dir[index], 'https.crt'),
+                    },
+                    "private_key": {
+                        "file_name": os.path.join(proxy_dir[index], 'https.key'),
+                    },
+                },
+            })
+
+        if yt_config.enable_chyt_https_proxies:
+            set_at(config, "chyt_https_server", {
+                "port": next(ports_generator),
                 "credentials": {
                     "cert_chain": {
                         "file_name": os.path.join(proxy_dir[index], 'https.crt'),

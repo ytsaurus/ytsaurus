@@ -3223,12 +3223,7 @@ private:
         // This could be under 'else', but it is not.
         refreshSequoiaChunks(request->added_chunks());
 
-        if (config->ProcessRemovedSequoiaReplicasOnMaster) {
-            ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
-        }
-        // ProcessRemovedReplicas will only refresh chunks that were actually removed,
-        // which is not the case if Sequoia replicas are no longer stored on master.
-        refreshSequoiaChunks(request->removed_chunks());
+        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
     }
 
     static void BuildReplicasListYson(
@@ -3970,7 +3965,7 @@ private:
 
     void HydraRegisterChunkEndorsements(NProto::TReqRegisterChunkEndorsements* request)
     {
-        constexpr static int MaxChunkIdsPerLogMessage = 100;
+        static constexpr int MaxChunkIdsPerLogMessage = 100;
 
         std::vector<TChunkId> logQueue;
         auto maybeFlushLogQueue = [&] (bool force) {
@@ -5866,6 +5861,12 @@ private:
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!chunk) {
+            return nullptr;
+        }
+
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+            ScheduleChunkRefresh(chunk);
             return nullptr;
         }
 
