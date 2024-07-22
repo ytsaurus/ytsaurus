@@ -256,8 +256,16 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
             .EndOffset = 0,
         };
     } else {
-        const auto dataCut =
-            TSharedRef::FromString(TString{data.ToStringBuf().substr(firstPos, options.Limit ? options.Limit : TStringBuf::npos)});
+        auto lastPos = firstPos;
+        if (options.Limit > 0) {
+            lastPos += options.Limit;
+        } else {
+            lastPos += data.size();
+        }
+        if (lastPos > data.size()) {
+            lastPos = data.size();
+        }
+        const auto dataCut = data.Slice(firstPos, lastPos);
         return {
             .Data = dataCut,
             .TotalSize = totalSize,
