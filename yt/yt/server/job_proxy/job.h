@@ -172,7 +172,7 @@ struct IJob
 
         struct TMultiPipeStatistics
         {
-            TPipeStatistics InputPipeStatistics;
+            std::optional<TPipeStatistics> InputPipeStatistics;
             std::vector<TPipeStatistics> OutputPipeStatistics;
             TPipeStatistics TotalOutputPipeStatistics;
         };
@@ -181,6 +181,8 @@ struct IJob
     };
 
     virtual TStatistics GetStatistics() const = 0;
+
+    virtual bool HasInputStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)
