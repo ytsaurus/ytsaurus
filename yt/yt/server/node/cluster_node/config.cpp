@@ -195,18 +195,7 @@ void TResourceLimitsOverrides::Register(TRegistrar registrar)
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
-        .Default({
-            {
-                .Period = TDuration::Seconds(30),
-                .Splay = TDuration::Seconds(1),
-                .Jitter = 0.0,
-            },
-            {
-                .MinBackoff = TDuration::Seconds(5),
-                .MaxBackoff = TDuration::Seconds(60),
-                .BackoffMultiplier = 2.0,
-            },
-        });
+        .Default();
 
     registrar.Parameter("use_host_objects", &TThis::UseHostObjects)
         .Default(false);
@@ -257,6 +246,24 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sync_directories_on_connect", &TThis::SyncDirectoriesOnConnect)
         .Default();
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default({
+            {
+                .Period = TDuration::Seconds(30),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
+    // COMPAT(cherepashka)
+    registrar.Postprocessor([] (TThis* config) {
+        config->HeartbeatExecutor.Period = config->HeartbeatPeriod;
+        config->HeartbeatExecutor.Splay = config->HeartbeatPeriodSplay;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
