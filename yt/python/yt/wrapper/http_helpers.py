@@ -640,7 +640,8 @@ def _check_token_file_permissions(token_path):
 def _get_token_from_file(client):
     token_path = get_config(client=client)["token_path"]
     if token_path is None:
-        token_path = os.path.join(os.path.expanduser("~"), ".yt", "token")
+        token_path = os.path.join("~", ".yt", "token")
+    token_path = os.path.expanduser(token_path)
     if os.path.isfile(token_path):
         with open(token_path, "r") as token_file:
             token = token_file.read().strip()
