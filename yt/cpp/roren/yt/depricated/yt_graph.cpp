@@ -1,12 +1,10 @@
-#include "yt.h"
-#include "state.h"
 #include "yt_graph.h"
 
-#include "jobs.h"
-#include "yt/cpp/roren/interface/private/par_do_tree.h"
-
 #include <yt/cpp/roren/interface/roren.h>
+
+#include <yt/cpp/roren/yt/jobs.h>
 #include <yt/cpp/roren/yt/proto/config.pb.h>
+#include <yt/cpp/roren/yt/yt.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/format.h>
@@ -15,6 +13,8 @@
 #include <library/cpp/yson/writer.h>
 
 namespace NRoren {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT;
 using namespace NPrivate;
@@ -1020,8 +1020,6 @@ std::shared_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipel
     TraverseInTopologicalOrder(GetRawPipeline(pipeline), &visitor);
     return graph;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

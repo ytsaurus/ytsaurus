@@ -641,57 +641,68 @@ private:
 
     void InitShellManager()
     {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
 #ifdef _linux_
-            auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-            auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
+        switch (JobEnvironmentType_) {
+            case EJobEnvironmentType::Testing:
+            case EJobEnvironmentType::Simple:
+                // No shell support.
+                break;
+            case EJobEnvironmentType::Cri: {
+                // TODO(abogutksiy): create specific shell manager.
+                break;
+            }
+            case EJobEnvironmentType::Porto: {
+                auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+                auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
 
-            std::vector<TString> shellEnvironment;
-            shellEnvironment.reserve(Environment_.size());
-            std::vector<TString> visibleEnvironment;
-            visibleEnvironment.reserve(Environment_.size());
+                std::vector<TString> shellEnvironment;
+                shellEnvironment.reserve(Environment_.size());
+                std::vector<TString> visibleEnvironment;
+                visibleEnvironment.reserve(Environment_.size());
 
-            for (const auto& variable : Environment_) {
-                if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
-                    !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
-                {
-                    continue;
+                for (const auto& variable : Environment_) {
+                    if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                        !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+                    {
+                        continue;
+                    }
+                    if (variable.StartsWith("YT_")) {
+                        shellEnvironment.push_back(variable);
+                    }
+                    visibleEnvironment.push_back(variable);
                 }
-                if (variable.StartsWith("YT_")) {
-                    shellEnvironment.push_back(variable);
+
+                auto shellManagerUid = UserId_;
+                if (Config_->TestPollJobShell) {
+                    shellManagerUid = std::nullopt;
+                    shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
                 }
-                visibleEnvironment.push_back(variable);
+
+                std::optional<int> shellManagerGid;
+                // YT-13790.
+                if (Config_->RootPath) {
+                    shellManagerGid = 1001;
+                }
+
+                // ToDo(psushin): move ShellManager into user job environment.
+                TShellManagerConfig config{
+                    .PreparationDir = Host_->GetPreparationPath(),
+                    .WorkingDir = Host_->GetSlotPath(),
+                    .UserId = shellManagerUid,
+                    .GroupId = shellManagerGid,
+                    .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                    .Environment = std::move(shellEnvironment),
+                    .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+                };
+
+                ShellManager_ = CreatePortoShellManager(
+                    config,
+                    portoExecutor,
+                    UserJobEnvironment_->GetUserJobInstance());
+                break;
             }
-
-            auto shellManagerUid = UserId_;
-            if (Config_->TestPollJobShell) {
-                shellManagerUid = std::nullopt;
-                shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
-            }
-
-            std::optional<int> shellManagerGid;
-            // YT-13790.
-            if (Config_->RootPath) {
-                shellManagerGid = 1001;
-            }
-
-            // ToDo(psushin): move ShellManager into user job environment.
-            TShellManagerConfig config{
-                .PreparationDir = Host_->GetPreparationPath(),
-                .WorkingDir = Host_->GetSlotPath(),
-                .UserId = shellManagerUid,
-                .GroupId = shellManagerGid,
-                .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                .Environment = std::move(shellEnvironment),
-                .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
-            };
-
-            ShellManager_ = CreateShellManager(
-                config,
-                portoExecutor,
-                UserJobEnvironment_->GetUserJobInstance());
-#endif
         }
+#endif
     }
 
     void Prepare()

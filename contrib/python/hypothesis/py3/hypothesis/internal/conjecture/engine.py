@@ -30,6 +30,7 @@ from typing import (
     Set,
     Tuple,
     Union,
+    cast,
     overload,
 )
 
@@ -56,6 +57,7 @@ from hypothesis.internal.conjecture.data import (
     Example,
     HypothesisProvider,
     InterestingOrigin,
+    IRKWargsType,
     IRNode,
     Overrun,
     PrimitiveProvider,
@@ -455,7 +457,7 @@ class ConjectureRunner:
                 self.stats_per_test_case.append(call_stats)
                 if self.settings.backend != "hypothesis":
                     for node in data.examples.ir_tree_nodes:
-                        value = data.provider.post_test_case_hook(node.value)
+                        value = data.provider.realize(node.value)
                         expected_type = {
                             "string": str,
                             "float": float,
@@ -466,10 +468,19 @@ class ConjectureRunner:
                         if type(value) is not expected_type:
                             raise HypothesisException(
                                 f"expected {expected_type} from "
-                                f"{data.provider.post_test_case_hook.__qualname__}, "
-                                f"got {type(value)} ({value!r})"
+                                f"{data.provider.realize.__qualname__}, "
+                                f"got {type(value)}"
                             )
+
+                        kwargs = cast(
+                            IRKWargsType,
+                            {
+                                k: data.provider.realize(v)
+                                for k, v in node.kwargs.items()
+                            },
+                        )
                         node.value = value
+                        node.kwargs = kwargs
 
                 self._cache(data)
                 if data.invalid_at is not None:  # pragma: no branch # coverage bug?
@@ -552,7 +563,7 @@ class ConjectureRunner:
             if changed:
                 self.save_buffer(data.buffer)
                 self.interesting_examples[key] = data.as_result()  # type: ignore
-                self.__data_cache.pin(data.buffer)
+                self.__data_cache.pin(data.buffer, data.as_result())
                 self.shrunk_examples.discard(key)
 
             if self.shrinks >= MAX_SHRINKS:
@@ -899,7 +910,9 @@ class ConjectureRunner:
         zero_data = self.cached_test_function(bytes(BUFFER_SIZE))
         if zero_data.status > Status.OVERRUN:
             assert isinstance(zero_data, ConjectureResult)
-            self.__data_cache.pin(zero_data.buffer)
+            self.__data_cache.pin(
+                zero_data.buffer, zero_data.as_result()
+            )  # Pin forever
 
         if zero_data.status == Status.OVERRUN or (
             zero_data.status == Status.VALID

@@ -666,6 +666,7 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraCreateChunks, Unretained(this)));
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraFinalizeChunkMergeSessions, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraRescheduleMerge, Unretained(this)));
 }
 
 void TChunkMerger::Initialize()
@@ -688,7 +689,7 @@ void TChunkMerger::ScheduleMerge(TObjectId chunkOwnerId)
     }
 }
 
-void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
+bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
@@ -698,31 +699,31 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
     const auto& config = GetDynamicConfig();
     if (!config->Enable && !config->EnableQueueSizeLimitChanges) {
         YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
-        return;
+        return false;
     }
 
     if (!IsObjectAlive(trunkChunkOwner)) {
-        return;
+        return false;
     }
 
     if (trunkChunkOwner->GetType() != EObjectType::Table) {
         YT_LOG_DEBUG("Chunk merging is supported only for table types (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
-        return;
+        return false;
     }
 
     auto* table = trunkChunkOwner->As<TTableNode>();
     if (table->IsDynamic()) {
         YT_LOG_DEBUG("Chunk merging is not supported for dynamic tables (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
-        return;
+        return false;
     }
 
     auto schema = table->GetSchema()->AsTableSchema();
     if (schema->HasHunkColumns()) {
         YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
-        return;
+        return false;
     }
 
     auto* account = trunkChunkOwner->Account().Get();
@@ -730,6 +731,20 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
         YT_LOG_DEBUG("Skipping node as its account is banned from using chunk merger (NodeId: %v, Account: %v)",
             trunkChunkOwner->GetId(),
             account->GetName());
+        return false;
+    }
+
+    return true;
+}
+
+void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
+
+    YT_VERIFY(trunkChunkOwner->IsTrunk());
+
+    if (!CanRegisterMergeSession(trunkChunkOwner)) {
         return;
     }
 
@@ -740,8 +755,8 @@ EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeI
 {
     YT_VERIFY(!HasMutationContext());
 
-    auto it = NodeToChunkMergerStatus.find(nodeId);
-    return it == NodeToChunkMergerStatus.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
+    auto it = NodeToChunkMergerStatus_.find(nodeId);
+    return it == NodeToChunkMergerStatus_.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
 }
 
 void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
@@ -921,27 +936,28 @@ void TChunkMerger::OnLeaderActive()
     StartMergeTransaction();
 
     const auto& config = GetDynamicConfig();
+    const auto& epochAutomatonInvoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger);
 
     ScheduleExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger),
+        epochAutomatonInvoker,
         BIND(&TChunkMerger::ProcessTouchedNodes, MakeWeak(this)),
         config->SchedulePeriod);
     ScheduleExecutor_->Start();
 
     ChunkCreatorExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger),
+        epochAutomatonInvoker,
         BIND(&TChunkMerger::CreateChunks, MakeWeak(this)),
         config->CreateChunksPeriod);
     ChunkCreatorExecutor_->Start();
 
     StartTransactionExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger),
+        epochAutomatonInvoker,
         BIND(&TChunkMerger::StartMergeTransaction, MakeWeak(this)),
         config->TransactionUpdatePeriod);
     StartTransactionExecutor_->Start();
 
     FinalizeSessionExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger),
+        epochAutomatonInvoker,
         BIND(&TChunkMerger::FinalizeSessions, MakeWeak(this)),
         config->SessionFinalizationPeriod);
     FinalizeSessionExecutor_->Start();
@@ -1009,8 +1025,11 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
-    NodeToChunkMergerStatus.clear();
+    NodeToChunkMergerStatus_.clear();
     ConfigVersion_ = 0;
+    NodeToRescheduleCountAfterMaxBackoffDelay_.clear();
+    NodeToBackoffPeriod_.clear();
+    AccountIdToStuckNodes_.clear();
 
     OldNodesBeingMerged_.reset();
     NeedRestorePersistentStatistics_ = false;
@@ -1028,7 +1047,10 @@ void TChunkMerger::ResetTransientState()
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
     AccountIdToNodeMergeDurations_ = {};
-    NodeToChunkMergerStatus = {};
+    NodeToChunkMergerStatus_ = {};
+    NodeToRescheduleCountAfterMaxBackoffDelay_ = {};
+    NodeToBackoffPeriod_ = {};
+    AccountIdToStuckNodes_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1074,6 +1096,47 @@ void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
     }
 }
 
+void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
+
+    YT_LOG_DEBUG(
+        "Initiating backoff reschedule merge (NodeId: %v, AccountId: %v)",
+        nodeId,
+        accountId);
+
+    auto [it, _] = NodeToBackoffPeriod_.emplace(nodeId, GetDynamicConfig()->MinBackoffPeriod);
+    auto maxBackoffPeriod = GetDynamicConfig()->MaxBackoffPeriod;
+    auto backoff = it->second;
+    EmplaceOrCrash(NodesBeingMerged_, nodeId, accountId);
+
+    TDelayedExecutor::Submit(
+        BIND([this, this_ = MakeStrong(this), nodeId, accountId] {
+            if (IsLeader()) {
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                TReqRescheduleMerge request;
+                ToProto(request.mutable_node_id(), nodeId);
+                ToProto(request.mutable_account_id(), accountId);
+                YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)->Commit());
+            }
+        }),
+        backoff,
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger));
+
+    if (backoff == maxBackoffPeriod) {
+        if (NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId] + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
+            YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
+                nodeId,
+                NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId],
+                accountId);
+            AccountIdToStuckNodes_[accountId].insert(nodeId);
+        }
+        ++NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId];
+    }
+    NodeToBackoffPeriod_[nodeId] = std::min(2 * backoff, maxBackoffPeriod);
+}
+
 void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1092,7 +1155,17 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 
     auto accountId = chunkOwner->Account()->GetId();
     EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), accountId);
-    EmplaceOrCrash(NodeToChunkMergerStatus, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
+    DoRegisterSession(chunkOwner);
+}
+
+void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
+    YT_VERIFY(NodesBeingMerged_.contains(chunkOwner->GetId()));
+
+    auto accountId = chunkOwner->Account()->GetId();
+    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
     IncrementPersistentTracker(accountId);
 
     if (IsLeader()) {
@@ -1381,7 +1454,7 @@ void TChunkMerger::ProcessTouchedNodes()
 
             if (CanScheduleMerge(node)) {
                 YT_VERIFY(NodesBeingMerged_.contains(nodeId));
-                NodeToChunkMergerStatus[nodeId] = EChunkMergerStatus::InMergePipeline;
+                NodeToChunkMergerStatus_[nodeId] = EChunkMergerStatus::InMergePipeline;
 
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
@@ -1742,7 +1815,8 @@ void TChunkMerger::ValidateStatistics(
 void TChunkMerger::RemoveNodeFromRescheduleMaps(TAccountId accountId, NCypressClient::TNodeId nodeId)
 {
     // Doesn't guarantee the success of the operation, because nodeId is not always in the map when deleted.
-    NodeToRescheduleCount_.erase(nodeId);
+    NodeToRescheduleCountAfterMaxBackoffDelay_.erase(nodeId);
+    NodeToBackoffPeriod_.erase(nodeId);
     AccountIdToStuckNodes_[accountId].erase(nodeId);
     if (AccountIdToStuckNodes_[accountId].empty()) {
         AccountIdToStuckNodes_.erase(accountId);
@@ -2033,7 +2107,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         auto toErase = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
         auto accountId = toErase->second;
         NodesBeingMerged_.erase(toErase);
-        NodeToChunkMergerStatus.erase(nodeId);
+        NodeToChunkMergerStatus_.erase(nodeId);
         DecrementPersistentTracker(accountId);
 
         auto* chunkOwner = FindChunkOwner(nodeId);
@@ -2049,8 +2123,9 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         if (table->IsDynamic()) {
             YT_LOG_DEBUG(
                 "Table became dynamic between chunk replacement and "
-                "merge session finalization, ignored (TableId: %v)",
-                table->GetId());
+                "merge session finalization, ignored (TableId: %v, AccountId: %v)",
+                table->GetId(),
+                accountId);
             continue;
         }
 
@@ -2074,17 +2149,11 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         }
 
         if (result == EMergeSessionResult::TransientFailure || (result == EMergeSessionResult::OK && nodeTouched)) {
-            // TODO(shakurov): "RescheduleMerge"?
             if (result == EMergeSessionResult::TransientFailure) {
-                if (NodeToRescheduleCount_[nodeId] + 1 > GetDynamicConfig()->MaxAllowedReschedulingsPerSession) {
-                    YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v)",
-                        nodeId,
-                        NodeToRescheduleCount_[nodeId]);
-                }
-                ++NodeToRescheduleCount_[nodeId];
+                RescheduleMerge(nodeId, accountId);
+            } else {
+                ScheduleMerge(nodeId);
             }
-            ScheduleMerge(nodeId);
-            AccountIdToStuckNodes_[accountId].insert(nodeId);
             continue;
         } else if (result == EMergeSessionResult::PermanentFailure) {
             RemoveNodeFromRescheduleMaps(accountId, nodeId);
@@ -2143,6 +2212,51 @@ void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction*
     YT_LOG_INFO("Merge transaction updated (NewTransactionId: %v, PreviousTransactionId: %v)",
         TransactionRotator_.GetTransactionId(),
         TransactionRotator_.GetPreviousTransactionId());
+}
+
+void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
+
+    auto nodeId = FromProto<TObjectId>(request->node_id());
+    auto accountId = FromProto<TAccountId>(request->account_id());
+
+    if (!NodesBeingMerged_.contains(nodeId)) {
+        YT_LOG_INFO("Node was removed from persistent merge state before merge was rescheduled (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
+        return;
+    }
+
+    if (RunningSessions_.contains(nodeId)) {
+        YT_LOG_INFO("Node already has running merge session (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
+        return;
+    }
+
+    auto* trunkNode = FindChunkOwner(nodeId);
+    if (!IsObjectAlive(trunkNode)) {
+        YT_LOG_DEBUG(
+            "Cannot reschedule merge: node was destroyed (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
+        EraseOrCrash(NodesBeingMerged_, nodeId);
+        return;
+    }
+
+    YT_VERIFY(trunkNode->IsTrunk());
+    if (!CanRegisterMergeSession(trunkNode)) {
+        YT_LOG_DEBUG(
+            "Cannot reschedule merge: unable to register merge session (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
+        EraseOrCrash(NodesBeingMerged_, nodeId);
+        return;
+    }
+
+    DoRegisterSession(trunkNode);
 }
 
 void TChunkMerger::Save(NCellMaster::TSaveContext& context) const

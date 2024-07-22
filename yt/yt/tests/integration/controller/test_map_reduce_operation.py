@@ -1700,6 +1700,39 @@ for l in sys.stdin:
         mapper_expected_rows = [{"b": r["b"]} for r in rows]
         assert mapper_expected_rows == mapper_actual_rows
 
+    @authors("ermolovd")
+    def test_intermediate_schema_column_filter(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
+        schema = [
+            make_column("key", "string"),
+            make_column("value1", "string"),
+            make_column("value2", "string"),
+        ]
+
+        create("table", "//tmp/input", attributes={"schema": schema})
+        create("table", "//tmp/output")
+
+        rows = [{"key": "1", "value1": "one_1", "value2": "one_2"}]
+        write_table("//tmp/input", rows)
+
+        map_reduce(
+            in_="//tmp/input{key,value1}",
+            out=["//tmp/output"],
+            reducer_command="cat",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "json",
+                    "enable_input_table_index": True,
+                },
+            },
+        )
+
+        reducer_actual_rows = read_table("//tmp/output")
+        assert sorted_dicts([{"key": "1", "value1": "one_1"}]) == sorted_dicts(reducer_actual_rows)
+
     @authors("levysotsky")
     def test_single_intermediate_schema_trivial_mapper(self):
         input_schema = output_schema = [
@@ -3269,9 +3302,11 @@ while True:
             {"key": "foo", "value1": ["item3"], "value2": ["item4"]},
         ]
 
-    @pytest.mark.xfail(reason="YT-19087 is not closed")
     @authors("ermolovd")
     def test_column_filter_intermediate_schema_YT_19087(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
         create("table", "//tmp/t_in", attributes={
             "schema": [
                 make_column("a", "string"),

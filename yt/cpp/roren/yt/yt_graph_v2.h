@@ -1,18 +1,19 @@
 #pragma once
 
-#include "yt_graph.h"
+#include "interface_graph.h"
 
 #include <yt/cpp/roren/yt/proto/config.pb.h>
 
 #include <yt/cpp/mapreduce/util/temp_table.h>
 
 #include <memory>
-#include <set>
 
 namespace NRoren {
-    class TPipeline;
-    class IYtGraph;
-}
+
+class TPipeline;
+class IYtGraph;
+
+} // namespace NRoren
 
 namespace NRoren::NPrivate {
 

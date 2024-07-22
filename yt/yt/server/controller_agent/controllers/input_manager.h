@@ -276,8 +276,9 @@ private:
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
 
-    NScheduler::TClusterName GetClusterName(NChunkClient::TChunkId chunkId) const;
-    NScheduler::TClusterName GetClusterName(const TInputChunkDescriptor& chunkDescriptor) const;
+    const TInputClusterPtr& GetClusterOrCrash(const NScheduler::TClusterName& clusterName) const;
+    const TInputClusterPtr& GetClusterOrCrash(NChunkClient::TChunkId chunkId) const;
+    const TInputClusterPtr& GetClusterOrCrash(const TInputChunkDescriptor& chunkDescriptor) const;
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const;
 };
