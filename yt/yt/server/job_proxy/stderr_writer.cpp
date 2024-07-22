@@ -203,14 +203,14 @@ size_t TStderrWriter::GetCurrentSize() const
     return sizeCounter.GetSize();
 }
 
-void TStderrWriter::SaveCurrentDataTo(IOutputStream* output, bool addPrefix) const
+void TStderrWriter::SaveCurrentDataTo(IOutputStream* output, bool noPrefix) const
 {
-    if (!Tail_ || !addPrefix) {
+    if (!Tail_ || !noPrefix) {
         output->Write(Head_.Begin(), Head_.Size());
     }
 
     if (Tail_) {
-        if (Tail_->IsOverflowed() && !addPrefix) {
+        if (Tail_->IsOverflowed() && !noPrefix) {
             static const TStringBuf skipped = "\n...skipped...\n";
             output->Write(skipped);
         }
