@@ -432,6 +432,8 @@ public:
     //! Splay for data node heartbeats.
     TDuration IncrementalHeartbeatPeriodSplay;
 
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
     //! Period between consequent job heartbeats to a given cell.
     std::optional<TDuration> JobHeartbeatPeriod;
 
@@ -451,7 +453,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+    std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout for incremental data node heartbeat RPC request.
     TDuration IncrementalHeartbeatTimeout;

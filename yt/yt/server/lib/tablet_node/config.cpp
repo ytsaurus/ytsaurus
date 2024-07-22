@@ -765,13 +765,7 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
-{
-    // TODO(cherepashka): make this yson struct.
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default({
             {
@@ -785,6 +779,20 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
                 .BackoffMultiplier = 2.0,
             },
         });
+    // COMPAT(cherepashka)
+    registrar.Postprocessor([] (TThis* config) {
+        config->HeartbeatExecutor.Period = config->HeartbeatPeriod;
+        config->HeartbeatExecutor.Splay = config->HeartbeatPeriodSplay;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    // TODO(cherepashka): make this yson struct.
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default();
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 }

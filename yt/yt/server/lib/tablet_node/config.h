@@ -724,6 +724,8 @@ public:
     //! Splay for tablet node heartbeats.
     TDuration HeartbeatPeriodSplay;
 
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
     //! Timeout of the tablet node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
@@ -740,7 +742,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+    std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout of the tablet node heartbeat RPC request.
     TDuration HeartbeatTimeout;

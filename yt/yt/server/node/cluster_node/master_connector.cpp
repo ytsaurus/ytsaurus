@@ -124,7 +124,7 @@ public:
             Bootstrap_,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
             CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
-            dynamicConfigManager->GetConfig()->MasterConnector->HeartbeatExecutor,
+            Config_->HeartbeatExecutor,
             heartbeatLogger);
         HeartbeatReporter_->Initialize();
     }
@@ -677,7 +677,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor);
+        HeartbeatReporter_->Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
     }

@@ -186,7 +186,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+    std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     // COMPAT(gritukan)
     bool UseHostObjects;
@@ -266,6 +266,8 @@ public:
 
     //! Timeout of the cluster node heartbeat RPC request.
     TDuration HeartbeatTimeout;
+
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     //! Controls if cluster and cell directories are to be synchronized on connect.
     //! Useful for tests.
