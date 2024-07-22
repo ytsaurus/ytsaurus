@@ -85,8 +85,8 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    std::optional<i64> Limit = 0;
-    std::optional<i64> Offset = 0;
+    std::optional<i64> Limit;
+    std::optional<i64> Offset;
 };
 
 struct TGetJobFailContextOptions
