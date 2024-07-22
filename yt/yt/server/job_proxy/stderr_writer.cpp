@@ -152,13 +152,13 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
     auto data = stringStream.Str();
     i64 endOffset = TotalSize_;
     const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
-    size_t first;
+    size_t dataBeginOffset;
     i64 limit = options.Limit;
     if (options.Offset >= 0) {
         if (options.Offset >= currentFirstAbsolutePos) {
-            first = options.Offset - currentFirstAbsolutePos;
+            dataBeginOffset = options.Offset - currentFirstAbsolutePos;
         } else {
-            first = 0;
+            dataBeginOffset = 0;
             if (options.Limit > 0) {
                 limit = options.Limit - (currentFirstAbsolutePos - options.Offset);
                 if (limit < 0) {
@@ -172,18 +172,18 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
         }
     } else {
         if (-options.Offset >= static_cast<i64>(data.size())) {
-            first = 0;
+            dataBeginOffset = 0;
         } else {
-            first = data.size() + options.Offset;
+            dataBeginOffset = data.size() + options.Offset;
         }
     }
     if (options.Offset || options.Limit) {
-        if (first >= data.size()) {
+        if (dataBeginOffset >= data.size()) {
             data = "";
             endOffset = 0;
         } else {
-            data = data.substr(first, limit ? limit : data.npos);
-            endOffset = currentFirstAbsolutePos + first + data.size();
+            data = data.substr(dataBeginOffset, limit ? limit : data.npos);
+            endOffset = currentFirstAbsolutePos + dataBeginOffset + data.size();
         }
     }
     return {
@@ -202,14 +202,14 @@ size_t TStderrWriter::GetCurrentSize() const
     return sizeCounter.GetSize();
 }
 
-void TStderrWriter::SaveCurrentDataTo(IOutputStream* output, bool continuous) const
+void TStderrWriter::SaveCurrentDataTo(IOutputStream* output, bool addPrefix) const
 {
-    if (!Tail_ || !continuous) {
+    if (!Tail_ || !addPrefix) {
         output->Write(Head_.Begin(), Head_.Size());
     }
 
     if (Tail_) {
-        if (Tail_->IsOverflowed() && !continuous) {
+        if (Tail_->IsOverflowed() && !addPrefix) {
             static const TStringBuf skipped = "\n...skipped...\n";
             output->Write(skipped);
         }

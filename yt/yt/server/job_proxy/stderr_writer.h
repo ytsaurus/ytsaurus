@@ -52,7 +52,7 @@ public:
 private:
     void DoWrite(const void* buf, size_t len) override;
 
-    void SaveCurrentDataTo(IOutputStream* output, bool continuous = false) const;
+    void SaveCurrentDataTo(IOutputStream* output, bool addPrefix = false) const;
 
 private:
     // Limit for the head or for the tail part.

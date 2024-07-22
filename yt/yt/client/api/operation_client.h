@@ -373,7 +373,6 @@ struct TGetJobStderrResponse
     static TGetJobStderrResponse MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options = {});
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationClient

@@ -941,11 +941,11 @@ std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
             << std::move(rspOrError);
     }
     auto rsp = rspOrError.Value();
-    return {{
+    return TGetJobStderrResponse{
         .Data = TSharedRef::FromString(rsp->stderr_data()),
         .TotalSize = rsp->total_size(),
         .EndOffset = rsp->end_offset(),
-    }};
+    };
 }
 
 TSharedRef TClient::DoGetJobStderrFromArchive(
