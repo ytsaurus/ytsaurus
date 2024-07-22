@@ -152,6 +152,7 @@ yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tut
   возможные значения `text`, `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
 - **time_mode** (`binary`) — режим представления типов `date`, `datetime`, `timestamp`, возможные значения `text` или `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
 - **uuid_mode** (`binary`) — режим представления типа `uuid`, возможные значения `binary`, `text_yql` или `text_yt` подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
+- **sort_keys** (`%false`) — сортировать ключи в результате, возможные значения `%true` или `%false`.
 
 ## JSON { #json }
 
