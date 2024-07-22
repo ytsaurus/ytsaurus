@@ -579,11 +579,11 @@ private:
 
         req->set_exec_node_is_not_data_node(Bootstrap_->GetConfig()->ExecNodeIsNotDataNode);
 
-        if (auto& rack = Bootstrap_->GetConfig()->Rack) {
+        if (const auto& rack = Bootstrap_->GetConfig()->Rack) {
             req->set_rack(*rack);
         }
-        if (auto& datacenter = Bootstrap_->GetConfig()->DataCenter) {
-            req->set_data_center(*datacenter);
+        if (const auto& dataCenter = Bootstrap_->GetConfig()->DataCenter) {
+            req->set_data_center(*dataCenter);
         }
 
         req->set_chunk_locations_supported(true);
