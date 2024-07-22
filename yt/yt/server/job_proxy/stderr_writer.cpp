@@ -148,36 +148,37 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
 {
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());
-    SaveCurrentDataTo(&stringStream, options.Offset || options.Limit);
+    auto limit = options.Limit.value_or(0);
+    auto offset = options.Offset.value_or(0);
+    SaveCurrentDataTo(&stringStream, offset || limit);
     auto data = stringStream.Str();
-    i64 endOffset = TotalSize_;
+    auto endOffset = TotalSize_;
     const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
     size_t dataBeginOffset;
-    i64 limit = options.Limit;
-    if (options.Offset >= 0) {
-        if (options.Offset >= currentFirstAbsolutePos) {
-            dataBeginOffset = options.Offset - currentFirstAbsolutePos;
+    if (offset >= 0) {
+        if (offset >= currentFirstAbsolutePos) {
+            dataBeginOffset = offset - currentFirstAbsolutePos;
         } else {
             dataBeginOffset = 0;
-            if (options.Limit > 0) {
-                limit = options.Limit - (currentFirstAbsolutePos - options.Offset);
+            if (limit > 0) {
+                limit = limit - (currentFirstAbsolutePos - offset);
                 if (limit < 0) {
                     return {
                         .Data = {},
                         .TotalSize = TotalSize_,
-                        .EndOffset = options.Offset + options.Limit,
+                        .EndOffset = offset + options.Limit.value_or(0),
                     };
                 }
             }
         }
     } else {
-        if (-options.Offset >= static_cast<i64>(data.size())) {
+        if (-offset >= static_cast<i64>(data.size())) {
             dataBeginOffset = 0;
         } else {
-            dataBeginOffset = data.size() + options.Offset;
+            dataBeginOffset = data.size() + offset;
         }
     }
-    if (options.Offset || options.Limit) {
+    if (offset || limit) {
         if (dataBeginOffset >= data.size()) {
             data = "";
             endOffset = 0;

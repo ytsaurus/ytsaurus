@@ -230,9 +230,11 @@ void TListOperationsAccessFilter::Register(TRegistrar registrar)
 TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options)
 {
     auto totalSize = std::ssize(data);
-    i64 endOffset = totalSize;
+    auto endOffset = totalSize;
+    auto offset = options.Offset.value_or(0);
+    auto limit = options.Limit.value_or(0);
 
-    if (!options.Offset && !options.Limit) {
+    if (!offset && !limit) {
         return {
             .Data = data,
             .TotalSize = totalSize,
@@ -242,11 +244,11 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
 
     size_t firstPos = 0;
     if (options.Offset >= 0) {
-        firstPos = options.Offset;
-    } else if (-options.Offset > static_cast<i64>(data.size())) {
+        firstPos = offset;
+    } else if (-offset > static_cast<i64>(data.size())) {
         firstPos = 0;
     } else {
-        firstPos = data.size() + options.Offset;
+        firstPos = data.size() + offset;
     }
 
     if (firstPos >= data.size()) {
@@ -258,7 +260,7 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
     } else {
         auto lastPos = firstPos;
         if (options.Limit > 0) {
-            lastPos += options.Limit;
+            lastPos += limit;
         } else {
             lastPos += data.size();
         }

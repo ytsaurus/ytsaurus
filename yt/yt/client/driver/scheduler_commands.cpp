@@ -137,14 +137,14 @@ void TGetJobStderrCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
 
-    registrar.ParameterWithUniversalAccessor<i64>(
+    registrar.ParameterWithUniversalAccessor<std::optional<i64>>(
         "limit",
         [] (TThis* command) -> auto& {
             return command->Options.Limit;
         })
         .Optional(/*init*/ true);
 
-    registrar.ParameterWithUniversalAccessor<i64>(
+    registrar.ParameterWithUniversalAccessor<std::optional<i64>>(
         "offset",
         [] (TThis* command) -> auto& {
             return command->Options.Offset;
