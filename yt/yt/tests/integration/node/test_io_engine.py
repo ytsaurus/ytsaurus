@@ -522,13 +522,32 @@ class BaseTestRpcMemoryTracking(YTEnvSetup):
         return node_profiler.counter(name="bus/server_connections")
 
     @classmethod
+    def get_client_connections_sensor(self, node):
+        node_profiler = profiler_factory().at_node(node)
+        return node_profiler.counter(name="bus/client_connections")
+
+    @classmethod
     def check_node(self, node, value=32768):
         # 32768 = 16384 + 16384 = ReadBufferSize + WriteBufferSize, see yt/core/bus/tcp/connection.cpp
-        sensor = self.get_server_connections_sensor(node)
-        connections = sensor.get()
-        if connections is None or connections == 0:
+        server_connections_sensor = self.get_server_connections_sensor(node)
+        server_connections = server_connections_sensor.get()
+
+        client_connections_sensor = self.get_client_connections_sensor(node)
+        client_connections = client_connections_sensor.get()
+
+        if server_connections is None or server_connections == 0:
+            print_debug("No server connections")
             return False
-        return self.get_rpc_memory_used(node) == value * connections
+
+        total_connections = server_connections + client_connections
+        rpc_used = self.get_rpc_memory_used(node)
+        expected_used = value * total_connections
+        print_debug((
+            f"rpc memory used: {rpc_used}, server connections: {server_connections}, "
+            f"client connections: {client_connections}, expected memory used: {expected_used}"
+        ))
+
+        return self.get_rpc_memory_used(node) == expected_used
 
 
 @authors("don-dron")
