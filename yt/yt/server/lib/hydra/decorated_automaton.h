@@ -312,7 +312,9 @@ private:
     std::atomic<bool> LastSuccessfulSnapshotReadOnly_ = false;
     std::atomic<bool> ReadOnly_ = false;
 
-    NProfiling::TTimeGauge SnapshotLoadTime_;
+    NProfiling::TTimeGauge SnapshotLoadTimeGauge_;
+    NProfiling::TGauge CompressedSnapshotSizeGauge_;
+    NProfiling::TGauge UncompressedSnapshotSizeGauge_;
 
     TForkCountersPtr ForkCounters_;
 
