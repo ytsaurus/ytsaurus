@@ -369,7 +369,8 @@ class TestBulkInsert(DynamicTablesBase):
         )
 
     @pytest.mark.parametrize("operation", ["sorted_merge", "ordered_merge", "sort"])
-    def test_simultaneous_sorted_operations(self, operation):
+    @pytest.mark.parametrize("avoid_simple_sort", [True, False])
+    def test_simultaneous_sorted_operations(self, operation, avoid_simple_sort):
         sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t_output")
         sync_mount_table("//tmp/t_output")
@@ -403,6 +404,7 @@ class TestBulkInsert(DynamicTablesBase):
                     out="<append=%true>//tmp/t_output",
                     sort_by=["key"],
                     track=False,
+                    spec={"partition_count": 2} if avoid_simple_sort else {},
                 )
             operations.append(op)
 
@@ -840,7 +842,8 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == rows
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
-    def test_sort(self):
+    @pytest.mark.parametrize("avoid_simple_sort", [True, False])
+    def test_sort(self, avoid_simple_sort):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output")
@@ -852,7 +855,12 @@ class TestBulkInsert(DynamicTablesBase):
         ]
         write_table("//tmp/t_input", rows)
 
-        sort(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", sort_by=["key"])
+        sort(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            sort_by=["key"],
+            spec={"partition_count": 2} if avoid_simple_sort else {},
+        )
 
         assert read_table("//tmp/t_output") == sorted_dicts(rows)
         assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(rows))
@@ -1767,7 +1775,8 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t_output]"), flat_rows)
 
     @pytest.mark.parametrize("use_schema", [True, False])
-    def test_sort(self, use_schema):
+    @pytest.mark.parametrize("avoid_simple_sort", [True, False])
+    def test_sort(self, use_schema, avoid_simple_sort):
         sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t_output")
         sync_mount_table("//tmp/t_output")
@@ -1789,16 +1798,26 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             )
         write_table("//tmp/t_input", rows)
 
-        sort(
-            in_="//tmp/t_input",
-            out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
-            sort_by=["key"],
-        )
+        if avoid_simple_sort:
+            with raises_yt_error():
+                sort(
+                    in_="//tmp/t_input",
+                    out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+                    sort_by=["key"],
+                    spec={"partition_count": 2},
+                )
+        else:
+            sort(
+                in_="//tmp/t_input",
+                out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+                sort_by=["key"],
+            )
 
-        assert read_table("//tmp/t_output") == sorted_dicts(flat_rows)
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(flat_rows))
+            assert read_table("//tmp/t_output") == sorted_dicts(flat_rows)
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(flat_rows))
 
-    def test_sort_with_intermediate_table(self):
+    @pytest.mark.parametrize("avoid_simple_sort", [True, False])
+    def test_sort_with_intermediate_table(self, avoid_simple_sort):
         sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t_output")
         sync_mount_table("//tmp/t_output")
@@ -1827,7 +1846,12 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             schema_modification="unversioned_update",
         )
 
-        sort(in_="//tmp/t_input", out="//tmp/t_intermediate", sort_by=["key"])
+        sort(
+            in_="//tmp/t_input",
+            out="//tmp/t_intermediate",
+            sort_by=["key"],
+            spec={"partition_count": 2} if avoid_simple_sort else {},
+        )
         merge(
             in_="//tmp/t_intermediate",
             out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",

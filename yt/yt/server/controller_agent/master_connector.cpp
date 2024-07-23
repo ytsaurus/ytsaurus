@@ -874,6 +874,7 @@ private:
             if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
                 archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
             }
+
             if (!archiveUpdated) {
                 hasSubrequests = true;
 

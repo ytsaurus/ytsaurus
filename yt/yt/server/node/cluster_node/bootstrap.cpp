@@ -787,6 +787,12 @@ private:
             Config_->Tags,
             Flavors_);
 
+        NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
+            Config_->ResourceLimits->TotalMemory,
+            /*limits*/ {},
+            Logger(),
+            ClusterNodeProfiler.WithPrefix("/memory_usage"));
+
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
         ConnectionThreadPool_ = CreateThreadPool(
@@ -796,20 +802,18 @@ private:
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
-        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
+        Connection_ = NApi::NNative::CreateConnection(
+            Config_->ClusterConnection,
+            std::move(connectionOptions),
+            /*clusterDirectoryOverride*/ nullptr,
+            NodeMemoryUsageTracker_);
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
-
-        NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
-            Config_->ResourceLimits->TotalMemory,
-            /*limits*/ {},
-            Logger(),
-            ClusterNodeProfiler.WithPrefix("/memory_usage"));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);

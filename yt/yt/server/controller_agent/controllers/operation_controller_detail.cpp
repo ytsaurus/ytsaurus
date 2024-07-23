@@ -1697,7 +1697,7 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 TFuture<void> TOperationControllerBase::AbortInputTransactions() const
 {
     if (InputTransactions) {
-        return InputTransactions->Abort(SchedulerClient);
+        return InputTransactions->Abort(SchedulerInputClient);
     }
     return VoidFuture;
 }

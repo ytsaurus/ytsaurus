@@ -251,7 +251,8 @@ private:
     std::vector<TError> RequestErrors_;
     TError ResponseError_;
 
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
+    using TInstanceMap = THashMap<TString, NYTree::IAttributeDictionaryPtr>;
+    TInstanceMap Instances_;
 
     // Fields for structured log only.
     int RetryCount_ = -1;
@@ -915,6 +916,43 @@ private:
         return true;
     }
 
+    TInstanceMap::const_iterator TryPickInstanceByJobCookie(size_t jobCookie) const
+    {
+        return std::find_if(
+            Instances_.cbegin(), Instances_.cend(),
+            [&](const auto& instance) {
+                return jobCookie == instance.second->template Get<size_t>("job_cookie");
+            });
+    }
+
+    TInstanceMap::const_iterator PickInstanceSticky(const TString& stickyCookie) const
+    {
+        size_t stickyHash = ComputeHash(stickyCookie);
+
+        // Each instance is given a numeric score to compare by.
+        auto instanceScore = [&](const auto& instance) -> size_t {
+            size_t instanceCookie = instance.second->template Get<size_t>("job_cookie");
+
+            size_t instanceHash = ComputeHash(instanceCookie);
+            HashCombine(instanceHash, stickyHash);
+            return instanceHash;
+        };
+
+        // Choose the best instance considerring their scores.
+        return std::max_element(
+            Instances_.cbegin(), Instances_.cend(),
+            [&](const auto& lhs, const auto& rhs) {
+                return instanceScore(lhs) < instanceScore(rhs);
+            });
+    }
+
+    TInstanceMap::const_iterator PickInstanceRandomly() const
+    {
+        auto instanceIterator = Instances_.cbegin();
+        std::advance(instanceIterator, RandomNumber(Instances_.size()));
+        return instanceIterator;
+    }
+
     bool TryPickInstance(bool forceUpdate)
     {
         YT_LOG_DEBUG("Trying to pick instance (ForceUpdate: %v)", forceUpdate);
@@ -924,20 +962,27 @@ private:
             return false;
         }
 
+        TInstanceMap::const_iterator pickedInstance;
+
         if (JobCookie_.has_value()) {
-            for (const auto& [id, attributes] : Instances_) {
-                if (*JobCookie_ == attributes->Get<size_t>("job_cookie")) {
-                    InitializeInstance(id, attributes);
-                    return true;
-                }
+            pickedInstance = TryPickInstanceByJobCookie(*JobCookie_);
+            if (pickedInstance == Instances_.cend()) {
+                YT_LOG_DEBUG("No instance with given job-cookie (JobCookie: %v)", *JobCookie_);
+                return false;
             }
+            YT_LOG_DEBUG("Picked instance by job-cookie (JobCookie: %v)", *JobCookie_);
+
+        } else if (const TString& sessionId = CgiParameters_.Get("session_id"); !sessionId.empty()) {
+            pickedInstance = PickInstanceSticky(sessionId);
+            YT_LOG_DEBUG("Picked instance by sticky-cookie (SessionId: %v)", sessionId);
+
         } else {
-            auto instanceIterator = Instances_.begin();
-            std::advance(instanceIterator, RandomNumber(Instances_.size()));
-            InitializeInstance(instanceIterator->first, instanceIterator->second);
-            return true;
+            pickedInstance = PickInstanceRandomly();
+            YT_LOG_DEBUG("Picked instance randomly");
         }
-        return false;
+
+        InitializeInstance(pickedInstance->first, pickedInstance->second);
+        return true;
     }
 
     bool TryIssueProxiedRequest(int retryIndex)

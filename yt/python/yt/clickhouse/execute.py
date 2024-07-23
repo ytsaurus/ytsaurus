@@ -3,7 +3,6 @@ import datetime
 from .helpers import get_alias_from_env_or_raise
 
 from yt.yson import dumps
-from yt.common import require
 from yt.wrapper import YtClient
 from yt.wrapper.config import get_config, get_option, set_option
 from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token
@@ -65,8 +64,6 @@ def execute(query, alias=None, raw=None, format=None, settings=None, traceparent
         if not raw:
             format = "JSONEachRow"
             settings["output_format_json_quote_64bit_integers"] = False
-
-    require(alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
 
     if FORMAT_CLAUSE_REGEX.search(query.upper()):
         raise YtError("Do not specify FORMAT clause in query; use format keyword instead")

@@ -737,6 +737,10 @@ void TJob::OnJobFinalized()
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
+    // NB(eshcherbin): We need to destroy this producer, otherwise it will continue
+    // to send metrics for some time after the job is finished.
+    UserJobSensorProducer_.Reset();
+
     JobFinished_.Fire(MakeStrong(this));
 
     HandleJobReport(MakeDefaultJobReport()

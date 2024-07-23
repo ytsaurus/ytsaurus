@@ -2,12 +2,15 @@
 
 #include "yt_io_private.h"
 #include "yt_proto_io.h"
+#include "tables.h"
 
 #include <yt/cpp/mapreduce/interface/common.h>
 
 #include <yt/cpp/roren/interface/transforms.h>
 
 namespace NRoren {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TYtWriteTransform
     : public NPrivate::IWithAttributes
@@ -93,5 +96,22 @@ private:
 
     mutable NPrivate::IRawWritePtr RawWrite_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NPrivate::IRawParDoPtr CreateAddTableIndexProtoParDo(ssize_t index);
+NPrivate::IRawParDoPtr CreateAddTableIndexParDo(ssize_t index);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren
+
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawParDoPtr CreateReadImpulseParDo(const std::vector<TTableNode*>& inputTables);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate

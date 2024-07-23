@@ -81,7 +81,7 @@ public:
             Bootstrap_,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TCellarNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
-            GetDynamicConfig()->HeartbeatExecutor,
+            Config_->HeartbeatExecutor,
             heartbeatLogger);
         HeartbeatReporter_->Initialize();
     }
@@ -191,7 +191,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor);
+        HeartbeatReporter_->Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const

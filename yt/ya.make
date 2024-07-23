@@ -40,7 +40,7 @@ IF (NOT OPENSOURCE)
         recipe
         scripts
         skynet
-        spark/spark-over-yt
+        spark
         terraform
         yt_proto
         yt_sync

@@ -264,9 +264,10 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
     for (int i = 0; i < std::ssize(transactions); ++i) {
         auto transaction = transactions[i];
         if (!transaction) {
-            YT_LOG_INFO("Input transaction is missing, will use clean start "
-                    "(TransactionId: %v)",
-                    transactionIds.InputIds[i].Id);
+            YT_LOG_INFO(
+                "Input transaction is missing, will use clean start "
+                "(TransactionId: %v)",
+                transactionIds.InputIds[i].Id);
             pingFutures.push_back(
                 MakeFuture(
                     TError("Failed to attach transaction")
@@ -276,9 +277,9 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
                 transaction->Ping()
                     .Apply(BIND([transactionId = transaction->GetId()] (const TError& error) {
                         if (!error.IsOK()) {
-                            THROW_ERROR TError("Failed to ping transaction")
-                                << error
-                                << TErrorAttribute("transaction_id", transactionId);
+                            THROW_ERROR_EXCEPTION("Failed to ping transaction")
+                                << TErrorAttribute("transaction_id", transactionId)
+                                << error;
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -357,7 +358,19 @@ TFuture<void> TInputTransactionsManager::Abort(IClientPtr schedulerClient)
                     continue;
                 }
             }
-            abortFutures.push_back(client->AttachTransaction(transaction->GetId())->Abort());
+
+            try {
+                abortFutures.push_back(
+                    client
+                        ->AttachTransaction(transaction->GetId())
+                        ->Abort());
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(
+                    ex,
+                    "Error attaching operation transaction for abort (TransactionId: %v)",
+                    transaction->GetId());
+            }
+
         }
     }
 

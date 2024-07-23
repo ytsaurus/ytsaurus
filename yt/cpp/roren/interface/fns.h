@@ -74,9 +74,7 @@ public:
     TFnAttributes AddResourceFile(const TString& resourceFile)&&;
 
 private:
-    // In parDo attributes nullopt is equal to false.
-    // In override nullopt means no override by this value.
-    std::optional<bool> IsPure_;
+    bool IsPure_ = false; // Random function can not be implicitly pure. So default is false.
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;
