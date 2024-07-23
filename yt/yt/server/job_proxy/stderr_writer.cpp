@@ -179,7 +179,7 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
         }
     }
     if (offset || limit) {
-        if (dataBeginOffset >= data.size()) {
+        if (dataBeginOffset >= static_cast<i64>(data.size())) {
             data = "";
             endOffset = 0;
         } else {
