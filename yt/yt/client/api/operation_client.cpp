@@ -243,7 +243,7 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
     };
 
     size_t firstPos = 0;
-    if (options.Offset >= 0) {
+    if (offset >= 0) {
         firstPos = offset;
     } else if (-offset > static_cast<i64>(data.size())) {
         firstPos = 0;
@@ -259,7 +259,7 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
         };
     } else {
         auto lastPos = firstPos;
-        if (options.Limit > 0) {
+        if (limit > 0) {
             lastPos += limit;
         } else {
             lastPos += data.size();
@@ -271,7 +271,7 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
         return {
             .Data = dataCut,
             .TotalSize = totalSize,
-            .EndOffset = options.Limit ? static_cast<i64>(firstPos + dataCut.size()) : endOffset,
+            .EndOffset = limit ? static_cast<i64>(firstPos + dataCut.size()) : endOffset,
         };
     }
 }
