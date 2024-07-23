@@ -79,6 +79,8 @@ public:
 
     bool EnableInheritAttributesDuringCopy;
 
+    bool DisableCypressNodeReachability;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

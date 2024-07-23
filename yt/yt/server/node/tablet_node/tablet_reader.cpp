@@ -1017,7 +1017,6 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
         tabletSnapshot->CustomRuntimeData,
-        /*lookup*/ false,
         /*mergeRowsOnFlush*/ false,
         /*useTtlColumn*/ true);
 

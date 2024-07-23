@@ -291,7 +291,7 @@ THashSet<TString> ListNodeAttributes(
     return result;
 }
 
-void AttachChild(
+void AttachChildToNode(
     TCypressNode* trunkParent,
     TCypressNode* child)
 {
@@ -312,7 +312,7 @@ void AttachChild(
     }
 }
 
-void DetachChild(
+void DetachChildFromNode(
     TCypressNode* /*trunkParent*/,
     TCypressNode* child)
 {
@@ -334,6 +334,16 @@ void AttachChildToSequoiaNodeOrThrow(
             childKey);
     }
     children.Insert(childKey, childId);
+}
+
+void MaybeSetUnreachable(
+    const INodeTypeHandlerPtr& handler,
+    TCypressNode* node)
+{
+    if (!node->GetReachable()) {
+        return;
+    }
+    handler->SetUnreachable(node);
 }
 
 bool NodeHasKey(const TCypressNode* node)

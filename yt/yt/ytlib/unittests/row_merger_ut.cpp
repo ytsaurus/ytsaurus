@@ -556,7 +556,6 @@ public:
             majorTimestamp,
             evaluator,
             std::move(runtimeData),
-            false,
             mergeRowsOnFlush,
             true,
             mergeDeletionsOnFlush);

@@ -77,11 +77,13 @@ THashSet<TString> ListNodeAttributes(
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-void AttachChild(
+// Use the following Attach/Detach methods with caution
+// as they ignore node reachability control.
+void AttachChildToNode(
     TCypressNode* trunkParent,
     TCypressNode* child);
 
-void DetachChild(
+void DetachChildFromNode(
     TCypressNode* trunkParent,
     TCypressNode* child);
 
@@ -89,6 +91,10 @@ void AttachChildToSequoiaNodeOrThrow(
     TCypressNode* trunkParent,
     const TString& childKey,
     TNodeId childId);
+
+void MaybeSetUnreachable(
+    const INodeTypeHandlerPtr& handler,
+    TCypressNode* node);
 
 bool NodeHasKey(const TCypressNode* node);
 std::optional<TString> FindNodeKey(
