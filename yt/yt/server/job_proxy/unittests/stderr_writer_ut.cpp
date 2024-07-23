@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+
 #include <yt/yt/server/job_proxy/stderr_writer.h>
 
 namespace NYT::NJobProxy {
