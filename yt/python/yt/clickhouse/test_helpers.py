@@ -195,6 +195,10 @@ def create_clique_speclet(work_dir, speclet_patch):
             "compressed_cache": 0,
             "uncompressed_cache": 0,
             "reader": 1024 ** 3,
+            "clickhouse_watermark": 0,
+            "watchdog_oom_watermark": 0,
+            "watchdog_oom_window_watermark": 0,
+            "footprint": 0,
         },
     }
     speclet = update(speclet, speclet_patch)

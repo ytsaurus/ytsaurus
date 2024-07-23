@@ -1,3 +1,5 @@
+from .conftest import get_tests_sandbox
+
 from yt.testlib import authors
 from yt.clickhouse.test_helpers import (get_host_paths, create_symlinks_for_chyt_binaries,
                                         create_controller_init_cluster_config, create_controller_run_config)
@@ -30,11 +32,15 @@ def check_controller_api_readiness():
         return False
 
 
+def get_work_dir():
+    return get_tests_sandbox() + "/test_controller"
+
+
 @pytest.mark.usefixtures("yt_env")
 class TestController(object):
     def setup_class(cls):
-        work_dir = os.getcwd()
-        create_symlinks_for_chyt_binaries(HOST_PATHS, work_dir)
+        os.mkdir(get_work_dir())
+        create_symlinks_for_chyt_binaries(HOST_PATHS, get_work_dir())
 
     def setup(self):
         cluster_proxy = yt.config.config["proxy"]["url"]
@@ -45,7 +51,7 @@ class TestController(object):
         os.environ["YT_TEST_USER"] = "root"
         os.environ["CHYT_CTL_ADDRESS"] = "http://localhost:{}".format(controller_api_port)
 
-        work_dir = os.getcwd()
+        work_dir = get_work_dir()
         init_cluster_config_path = create_controller_init_cluster_config(cluster_proxy, work_dir, ["chyt"])
         run_config_path = create_controller_run_config(
             proxy=cluster_proxy,
