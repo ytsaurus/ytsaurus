@@ -2759,6 +2759,8 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
+| `offset` | No |                           | Offset in bytes. |
+| `limit` | No |                           | Limit in bytes. |
 
 Input data:
 
@@ -2772,7 +2774,11 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff }
+PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "`offset`" = 500; "`limit`" = 100 }
+OUTPUT {
+OUTPUT   "total_size" = 1000;
+OUTPUT   "end_offset" = 600;
+OUTPUT }
 ```
 
 ## Other
