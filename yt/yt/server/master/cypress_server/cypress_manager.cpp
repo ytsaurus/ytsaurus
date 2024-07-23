@@ -2124,6 +2124,8 @@ public:
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
 
+        MaybeSetUnreachable(handler, branchedNode);
+
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
@@ -2326,8 +2328,48 @@ public:
         YT_ASSERT(trunkNode->IsTrunk());
 
         TSubtreeNodes result;
-        ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
+        ListSubtreeNodes(trunkNode, transaction, includeRoot, [] (TCypressNode*) { return true; }, &result);
         return result;
+    }
+
+    TSubtreeNodes ListBranchedSubtreeNodes(
+        TCypressNode* trunkNode,
+        TTransaction* transaction,
+        bool includeRoot = true)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TSubtreeNodes result;
+        ListSubtreeNodes(
+            trunkNode,
+            transaction,
+            includeRoot,
+            [&] (TCypressNode* trunkNode) -> bool {
+                return FindNode(trunkNode, transaction);
+            },
+            &result);
+        return result;
+    }
+
+    void SetUnreachableSubtreeNodes(
+        TCypressNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        for (auto* node : ListBranchedSubtreeNodes(trunkNode, transaction)) {
+            const auto& handler = GetHandler(node);
+            handler->SetUnreachable(GetVersionedNode(node, transaction));
+        }
+    }
+
+    void SetReachableSubtreeNodes(
+        TCypressNode* trunkNode,
+        TTransaction* transaction,
+        bool includeRoot = true) override
+    {
+        for (auto* node : ListBranchedSubtreeNodes(trunkNode, transaction, includeRoot)) {
+            const auto& handler = GetHandler(node);
+            handler->SetReachable(GetVersionedNode(node, transaction));
+        }
     }
 
     bool IsOrphaned(TCypressNode* trunkNode) override
@@ -2589,6 +2631,9 @@ private:
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
+    // COMPAT(danilalexeev)
+    bool RecomputeNodeReachability_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2644,6 +2689,11 @@ private:
             }
             object->Namespace()->RegisterMember(object);
         }
+
+        // COMPAT(danilalexeev)
+        if (context.GetVersion() < EMasterReign::CypressNodeReachability) {
+            RecomputeNodeReachability_ = true;
+        }
     }
 
     void Clear() override
@@ -2667,6 +2717,8 @@ private:
         RootShard_ = nullptr;
 
         RecursiveResourceUsageCache_->Clear();
+
+        RecomputeNodeReachability_ = false;
     }
 
     void SetZeroState() override
@@ -2757,6 +2809,22 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
+
+        // COMPAT(danilalexeev)
+        if (RecomputeNodeReachability_) {
+            YT_LOG_INFO("Determining Cypress nodes reachability");
+            for (auto [nodeId, node] : NodeMap_) {
+                if ((node->IsTrunk() && !IsObjectAlive(node)) || node->IsForeign()) {
+                    continue;
+                }
+                auto pathRootType = EPathRootType::Other;
+                GetNodePath(node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
+                node->SetReachable(
+                    pathRootType != EPathRootType::SequoiaNode &&
+                    pathRootType != EPathRootType::Other);
+            }
+            YT_LOG_INFO("Finished determining Cypress nodes reachability");
+        }
     }
 
     void InitBuiltins()
@@ -2776,6 +2844,7 @@ private:
                 securityManager->GetEveryoneGroup(),
                 EPermission::Read));
             rootNodeHolder->Acd().SetOwner(securityManager->GetRootUser());
+            rootNodeHolder->SetReachable(true);
 
             RootNode_ = rootNodeHolder.get();
             NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
@@ -2948,7 +3017,7 @@ private:
     {
         TSubtreeNodes nodes;
         if (recursive) {
-            ListSubtreeNodes(trunkNode, transaction, true, &nodes);
+            ListSubtreeNodes(trunkNode, transaction, true, [] (TCypressNode*) { return true; }, &nodes);
         } else {
             nodes.push_back(trunkNode);
         }
@@ -2976,7 +3045,7 @@ private:
     {
         TSubtreeNodes nodes;
         if (recursive) {
-            ListSubtreeNodes(trunkNode, transaction, true, &nodes);
+            ListSubtreeNodes(trunkNode, transaction, true, [] (TCypressNode*) { return true; }, &nodes);
 
             // For determinism.
             Sort(nodes, TCypressNodeIdComparer());
@@ -3771,15 +3840,17 @@ private:
         multicellManager->PostToMaster(request, externalCellTag);
     }
 
+    template <CInvocable<bool(TCypressNode*)> TFilter>
     void ListSubtreeNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         bool includeRoot,
+        TFilter&& filter,
         TSubtreeNodes* subtreeNodes)
     {
         YT_ASSERT(trunkNode->IsTrunk());
 
-        if (includeRoot) {
+        if (includeRoot && filter(trunkNode)) {
             subtreeNodes->push_back(trunkNode);
         }
 
@@ -3800,7 +3871,7 @@ private:
                 }
 
                 for (const auto& [key, child] : children) {
-                    ListSubtreeNodes(child, transaction, true, subtreeNodes);
+                    ListSubtreeNodes(child, transaction, true, filter, subtreeNodes);
                 }
 
                 break;
@@ -3810,7 +3881,7 @@ private:
                 auto* node = GetVersionedNode(trunkNode, transaction);
                 auto* listRoot = node->As<TListNode>();
                 for (auto* trunkChild : listRoot->IndexToChild()) {
-                    ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
+                    ListSubtreeNodes(trunkChild, transaction, true, filter, subtreeNodes);
                 }
                 break;
             }
@@ -3868,6 +3939,8 @@ private:
         bool isSnapshotBranch = branchedNode->GetLockMode() == ELockMode::Snapshot;
 
         TCypressNode* originatingNode = nullptr;
+
+        MaybeSetUnreachable(handler, branchedNode);
 
         if (!isSnapshotBranch) {
             // Merge changes back.
@@ -4487,6 +4560,14 @@ private:
         return visitor->Run();
     }
 
+    void ResetCypressNodeReachability()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (auto [nodeId, node] : NodeMap_) {
+            node->SetReachable(false);
+        }
+    }
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
     {
@@ -4494,10 +4575,22 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
+
+        if (!oldConfig->CypressManager->DisableCypressNodeReachability &&
+            GetDynamicConfig()->DisableCypressNodeReachability)
+        {
+            ResetCypressNodeReachability();
+        }
+
+        if (oldConfig->CypressManager->DisableCypressNodeReachability &&
+            !GetDynamicConfig()->DisableCypressNodeReachability)
+        {
+            YT_LOG_ALERT("Cypress node reachability is enabled again");
+        }
     }
 };
 

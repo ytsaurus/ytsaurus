@@ -373,6 +373,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
         branchedNode->SetNativeContentRevision(originatingNode->GetNativeContentRevision());
     }
     branchedNode->SetOpaque(originatingNode->GetOpaque());
+    branchedNode->SetReachable(originatingNode->GetReachable());
 
     // Copying node's account requires special handling.
     YT_VERIFY(!branchedNode->Account());
@@ -1180,11 +1181,35 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMerge(
     auto& children = originatingNode->MutableChildren();
     const auto& keyToChild = originatingNode->KeyToChild();
 
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+    auto parentIsReachable = originatingNode->GetReachable();
+
+    auto maybeSetUnrechableOverwrittenOriginatingNodeChild = [&] (TCypressNode* child) {
+        if (parentIsReachable) {
+            cypressManager->SetUnreachableSubtreeNodes(child, originatingNode->GetTransaction());
+        }
+    };
+    auto maybeSetRechableOverwritingBranchedNodeChild = [&] (TCypressNode* child) {
+        if (parentIsReachable) {
+            cypressManager->SetReachableSubtreeNodes(child, originatingNode->GetTransaction());
+        }
+    };
+
     for (const auto& [key, trunkChildNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
         auto it = keyToChild.find(key);
-        if (trunkChildNode) {
+        auto childModified = it == keyToChild.end() || it->second != trunkChildNode;
+        if (trunkChildNode && childModified) {
+            if (it != keyToChild.end() && it->second) {
+                // Originating node's child by this key is removed and becomes unreachable.
+                maybeSetUnrechableOverwrittenOriginatingNodeChild(it->second);
+            }
+
+            // The following action invalidates the iterator.
             children.Set(key, trunkChildNode);
-        } else {
+
+            // Branched subtree becomes reachable under the originating node's transaction.
+            maybeSetRechableOverwritingBranchedNodeChild(trunkChildNode);
+        } else if (!trunkChildNode) {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
@@ -1193,6 +1218,8 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMerge(
                 }
             } else if (it->second) {
                 // Originating: present
+                maybeSetUnrechableOverwrittenOriginatingNodeChild(it->second);
+
                 if (isOriginatingNodeBranched) {
                     children.Set(key, nullptr);
                 } else {
@@ -1242,7 +1269,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoClone(
 
         clonedChildren.Insert(key, clonedTrunkChildNode);
 
-        AttachChild(clonedTrunkNode, clonedChildNode);
+        AttachChildToNode(clonedTrunkNode, clonedChildNode);
 
         ++clonedTrunkNode->ChildCountDelta();
     }
@@ -1538,9 +1565,21 @@ void TListNodeTypeHandler::DoMerge(
         objectManager->UnrefObject(child);
     }
 
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+
+    auto parentIsReachable = originatingNode->GetReachable();
+    if (parentIsReachable) {
+        // We do not care about performance here as list nodes are deprecated.
+        cypressManager->SetUnreachableSubtreeNodes(originatingNode->GetTrunkNode(), originatingNode->GetTransaction());
+    }
+
     // Replace the child list with the branched copy.
     originatingNode->IndexToChild().swap(branchedNode->IndexToChild());
     originatingNode->ChildToIndex().swap(branchedNode->ChildToIndex());
+
+    if (parentIsReachable) {
+        cypressManager->SetReachableSubtreeNodes(originatingNode->GetTrunkNode(), originatingNode->GetTransaction());
+    }
 }
 
 void TListNodeTypeHandler::DoClone(
@@ -1564,7 +1603,7 @@ void TListNodeTypeHandler::DoClone(
         clonedTrunkNode->IndexToChild().push_back(clonedChildTrunkNode);
         YT_VERIFY(clonedTrunkNode->ChildToIndex().emplace(clonedChildTrunkNode, index).second);
 
-        AttachChild(clonedTrunkNode, clonedChildNode);
+        AttachChildToNode(clonedTrunkNode, clonedChildNode);
         objectManager->RefObject(clonedChildNode->GetTrunkNode());
     }
 }

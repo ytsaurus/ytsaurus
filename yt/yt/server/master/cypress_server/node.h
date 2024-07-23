@@ -223,6 +223,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Reachable);
+
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TString, Annotation);
 
     //! The shard this node belongs to.

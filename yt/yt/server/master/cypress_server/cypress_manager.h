@@ -215,6 +215,13 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true) = 0;
+    virtual void SetUnreachableSubtreeNodes(
+        TCypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) = 0;
+    virtual void SetReachableSubtreeNodes(
+        TCypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        bool includeRoot = true) = 0;
 
     virtual bool IsOrphaned(TCypressNode* trunkNode) = 0;
 
