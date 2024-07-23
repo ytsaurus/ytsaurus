@@ -45,7 +45,11 @@ struct INodeMemoryTracker
     virtual void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
     virtual i64 UpdateUsage(ECategory category, i64 newUsage) = 0;
 
-    virtual TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) = 0;
+    virtual TSharedRef Track(
+        TSharedRef reference,
+        EMemoryCategory category,
+        bool keepExistingTracking) = 0;
+
     //! Returns an error if overcommit has occurred.
     virtual TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,

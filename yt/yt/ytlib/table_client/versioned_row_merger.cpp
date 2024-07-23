@@ -40,7 +40,6 @@ public:
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
         TColumnEvaluatorPtr columnEvaluator,
-        bool lookup,
         bool mergeRowsOnFlush,
         std::optional<int> ttlColumnIndex,
         bool mergeDeletionsOnFlush,
@@ -52,7 +51,6 @@ public:
         , CurrentTimestamp_(currentTimestamp)
         , MajorTimestamp_(IgnoreMajorTimestamp_ ? MaxTimestamp : majorTimestamp)
         , ColumnEvaluator_(std::move(columnEvaluator))
-        , Lookup_(lookup)
         , MergeRowsOnFlush_(mergeRowsOnFlush)
         , MergeDeletionsOnFlush_(mergeDeletionsOnFlush)
         , TtlColumnIndex_(ttlColumnIndex)
@@ -121,7 +119,7 @@ public:
         }
     }
 
-    TMutableVersionedRow BuildMergedRow() override
+    TMutableVersionedRow BuildMergedRow(bool produceEmptyRow) override
     {
         if (!Started_) {
             return {};
@@ -367,7 +365,7 @@ public:
             DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
         }
 
-        if (!Lookup_ && MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+        if (!produceEmptyRow && MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
             Cleanup();
             return {};
         }
@@ -409,7 +407,6 @@ private:
     const TTimestamp CurrentTimestamp_;
     const TTimestamp MajorTimestamp_;
     const TColumnEvaluatorPtr ColumnEvaluator_;
-    const bool Lookup_ = true;
     const bool MergeRowsOnFlush_;
     const bool MergeDeletionsOnFlush_;
     const std::optional<int> TtlColumnIndex_;
@@ -494,7 +491,6 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-    bool lookup,
     bool mergeRowsOnFlush,
     std::optional<int> ttlColumnIndex,
     bool mergeDeletionsOnFlush)
@@ -508,7 +504,6 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
         currentTimestamp,
         majorTimestamp,
         columnEvaluator,
-        lookup,
         mergeRowsOnFlush,
         ttlColumnIndex,
         mergeDeletionsOnFlush,
@@ -527,7 +522,6 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator,
     NYson::TYsonString customRuntimeData,
-    bool lookup,
     bool mergeRowsOnFlush,
     bool useTtlColumn,
     bool mergeDeletionsOnFlush)
@@ -543,7 +537,6 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 currentTimestamp,
                 majorTimestamp,
                 std::move(columnEvaluator),
-                lookup,
                 mergeRowsOnFlush,
                 useTtlColumn ? tableSchema->GetTtlColumnIndex() : std::nullopt,
                 mergeDeletionsOnFlush);
@@ -584,7 +577,6 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 currentTimestamp,
                 majorTimestamp,
                 std::move(columnEvaluator),
-                lookup,
                 mergeRowsOnFlush,
                 useTtlColumn ? tableSchema->GetTtlColumnIndex() : std::nullopt,
                 mergeDeletionsOnFlush,

@@ -870,17 +870,10 @@ private:
             ValidateYson(progress, GetYsonNestingLevelLimit());
             ValidateYson(briefProgress, GetYsonNestingLevelLimit());
 
-            // TODO(omgronny): Remove these logs after fixing test_archive_failure.
-            YT_LOG_DEBUG("UpdateProgressAndLightAttributes. progress: %v", progress.ToString());
-            YT_LOG_DEBUG("UpdateProgressAndLightAttributes. briefProgress :%v", briefProgress.ToString());
-
             bool archiveUpdated = false;
             if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
-                YT_LOG_DEBUG("UpdateProgressAndLightAttributes. Trying to update operation progress in archive");
                 archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
             }
-
-            YT_LOG_DEBUG("UpdateProgressAndLightAttributes. archiveUpdated: %v", archiveUpdated);
 
             if (!archiveUpdated) {
                 hasSubrequests = true;

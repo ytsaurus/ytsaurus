@@ -263,13 +263,14 @@ public:
         TSharedRef reference,
         bool keepHolder) override
     {
-        return MemoryTracker_->Track(reference, Category_, keepHolder);
+        return MemoryTracker_->Track(std::move(reference), Category_, keepHolder);
     }
+
     virtual TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         bool keepHolder) override
     {
-        return MemoryTracker_->TryTrack(reference, Category_, keepHolder);
+        return MemoryTracker_->TryTrack(std::move(reference), Category_, keepHolder);
     }
 
 private:
@@ -721,14 +722,14 @@ TSharedRef TNodeMemoryTracker::Track(
     EMemoryCategory category,
     bool keepExistingTracking)
 {
-    auto resultRef = DoTryTrackMemory(
-        reference,
+    auto refOrError = DoTryTrackMemory(
+        std::move(reference),
         category,
         keepExistingTracking,
         /*allowOvercommit*/ true);
 
-    YT_VERIFY(resultRef.IsOK());
-    return resultRef.ValueOrThrow();
+    YT_VERIFY(refOrError.IsOK());
+    return refOrError.Value();
 }
 
 TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
@@ -737,7 +738,7 @@ TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
     bool keepExistingTracking)
 {
     return DoTryTrackMemory(
-        reference,
+        std::move(reference),
         category,
         keepExistingTracking,
         /*allowOvercommit*/ false);
@@ -849,7 +850,7 @@ TError TNodeMemoryTracker::TryChangeCategoryUsage(
             if (!guardOrError.IsOK()) {
                 return guardOrError;
             }
-            state->MemoryGuard = std::move(guardOrError.ValueOrThrow());
+            state->MemoryGuard = std::move(guardOrError.Value());
         }
     }
 

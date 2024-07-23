@@ -13,6 +13,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const NControllerAgent::NProto::TUserJobSpec& userJobSpec,
     NJobTrackerClient::TJobId jobId,
+    NJobTrackerClient::EJobType jobType,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController);
 

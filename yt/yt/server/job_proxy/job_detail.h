@@ -42,6 +42,7 @@ public:
     i64 GetStderrSize() const override;
     TSharedRef DumpSensors() override;
     std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override;
+    bool HasInputStatistics() const override;
 
 protected:
     const IJobHostPtr Host_;

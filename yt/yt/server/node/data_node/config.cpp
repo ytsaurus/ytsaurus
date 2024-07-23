@@ -444,12 +444,7 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
-{
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default({
             {
@@ -463,6 +458,19 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
                 .BackoffMultiplier = 2.0,
             },
         });
+    // COMPAT(cherepashka)
+    registrar.Postprocessor([] (TThis* config) {
+        config->HeartbeatExecutor.Period = config->IncrementalHeartbeatPeriod;
+        config->HeartbeatExecutor.Splay = config->IncrementalHeartbeatPeriodSplay;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default();
 
     registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));

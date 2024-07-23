@@ -30,6 +30,8 @@ public:
     //! Splay for cellar node heartbeats.
     TDuration HeartbeatPeriodSplay;
 
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
     REGISTER_YSON_STRUCT(TMasterConnectorConfig);
 
     static void Register(TRegistrar registrar);
@@ -43,7 +45,7 @@ class TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+    std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout of the cellar node heartbeat RPC request.
     TDuration HeartbeatTimeout;

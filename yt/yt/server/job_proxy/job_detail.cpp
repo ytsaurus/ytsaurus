@@ -175,6 +175,11 @@ std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() cons
     return std::nullopt;
 }
 
+bool TJob::HasInputStatistics() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
