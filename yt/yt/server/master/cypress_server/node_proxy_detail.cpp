@@ -271,7 +271,7 @@ void TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::AssembleTree()
 
         for (const auto& [key, id] : children) {
             auto* childNode = GetOrCrash(OldIdToNode_, id);
-            AttachChild(trunkParentNode->GetTrunkNode(), childNode);
+            AttachChildToNode(trunkParentNode->GetTrunkNode(), childNode);
             attachedChildren.Insert(key, childNode->GetTrunkNode());
             ++trunkParentNode->ChildCountDelta();
         }
@@ -742,6 +742,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Opaque)
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Reachable));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ShardId)
         .SetPresent(node->GetTrunkNode()->GetShard() != nullptr));
     descriptors->push_back(EInternedAttributeKey::ResolveCached);
@@ -953,6 +954,11 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         case EInternedAttributeKey::Opaque:
             BuildYsonFluently(consumer)
                 .Value(node->GetOpaque());
+            return true;
+
+        case EInternedAttributeKey::Reachable:
+            BuildYsonFluently(consumer)
+                .Value(node->GetReachable());
             return true;
 
         case EInternedAttributeKey::ShardId:
@@ -1277,6 +1283,11 @@ void TNontemplateCypressNodeProxyBase::DoRemoveSelf(bool recursive, bool force)
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(node);
+
+        // Portal exit nodes are reachable by default, but reachability might be manually disabled.
+        if (node->GetReachable()) {
+            SetUnreachableSubtreeNodes(node);
+        }
     } else {
         TNodeBase::DoRemoveSelf(recursive, force);
     }
@@ -1400,6 +1411,20 @@ TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendan
 TCypressNode* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
 {
     return node->GetParent();
+}
+
+void TNontemplateCypressNodeProxyBase::SetReachableSubtreeNodes(TCypressNode* node)
+{
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto* trunkNode = node->GetTrunkNode();
+    cypressManager->SetReachableSubtreeNodes(trunkNode, Transaction_);
+}
+
+void TNontemplateCypressNodeProxyBase::SetUnreachableSubtreeNodes(TCypressNode* node)
+{
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto* trunkNode = node->GetTrunkNode();
+    cypressManager->SetUnreachableSubtreeNodes(trunkNode, Transaction_);
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
@@ -2161,6 +2186,13 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
                 clonedProxy,
                 recursive);
         }
+    } else if (clonedTrunkNode->GetReachable()) {
+        // Due to the EndCopyInplace verb specifics a subtree becomes immediately visible in trunk.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetReachableSubtreeNodes(clonedTrunkNode, /*transaction*/ nullptr, /*includeRoot*/ false);
+    } else {
+        YT_LOG_WARNING("Copy inplace target node is unreachable (NodeId: %v)",
+            clonedTrunkNode->GetVersionedId());
     }
 
     factory->Commit();
@@ -2673,6 +2705,22 @@ bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
     return true;
 }
 
+void TNontemplateCompositeCypressNodeProxyBase::AttachChild(TCypressNode* child)
+{
+    AttachChildToNode(TrunkNode_, child);
+    if (GetThisImpl()->GetReachable()) {
+        SetReachableSubtreeNodes(child);
+    }
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::DetachChild(TCypressNode* child)
+{
+    DetachChildFromNode(TrunkNode_, child);
+    if (GetThisImpl()->GetReachable()) {
+        SetUnreachableSubtreeNodes(child);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstrap)
@@ -3015,7 +3063,7 @@ bool TCypressMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& 
 
     ++impl->ChildCountDelta();
 
-    AttachChild(TrunkNode_, childImpl);
+    AttachChild(childImpl);
 
     SetModified(EModificationType::Content);
 
@@ -3081,9 +3129,9 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
 
     auto& children = impl->MutableChildren();
 
-    DetachChild(TrunkNode_, oldChildImpl);
+    DetachChild(oldChildImpl);
     children.Set(key, newTrunkChildImpl);
-    AttachChild(TrunkNode_, newChildImpl);
+    AttachChild(newChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(impl);
@@ -3176,7 +3224,7 @@ void TCypressMapNodeProxy::DoRemoveChild(
     } else {
         children.Remove(key, trunkChildImpl);
     }
-    DetachChild(TrunkNode_, childImpl);
+    DetachChild(childImpl);
     --impl->ChildCountDelta();
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -3389,7 +3437,7 @@ void TListNodeProxy::Clear()
     const auto& objectManager = Bootstrap_->GetObjectManager();
     // Detach children.
     for (auto* child : children) {
-        DetachChild(TrunkNode_, child);
+        DetachChild(child);
         objectManager->UnrefObject(child->GetTrunkNode());
     }
 
@@ -3446,7 +3494,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
         list.insert(list.begin() + beforeIndex, trunkChildImpl);
     }
 
-    AttachChild(TrunkNode_, childImpl);
+    AttachChild(childImpl);
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RefObject(childImpl->GetTrunkNode());
 
@@ -3473,7 +3521,7 @@ bool TListNodeProxy::RemoveChild(int index)
     // Remove the child.
     list.erase(list.begin() + index);
     YT_VERIFY(impl->ChildToIndex().erase(trunkChildImpl));
-    DetachChild(TrunkNode_, childImpl);
+    DetachChild(childImpl);
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->UnrefObject(childImpl->GetTrunkNode());
 
@@ -3506,13 +3554,13 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     int index = it->second;
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    DetachChild(TrunkNode_, oldChildImpl);
+    DetachChild(oldChildImpl);
     objectManager->UnrefObject(oldChildImpl->GetTrunkNode());
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
     impl->ChildToIndex().erase(it);
     YT_VERIFY(impl->ChildToIndex().emplace(newTrunkChildImpl, index).second);
-    AttachChild(TrunkNode_, newChildImpl);
+    AttachChild(newChildImpl);
     objectManager->RefObject(newChildImpl->GetTrunkNode());
 
     SetModified(EModificationType::Content);

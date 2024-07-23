@@ -255,22 +255,6 @@ private:
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(originalTargetPath);
 
-        auto sequoiaLinkPath = MangleSequoiaPath(originalLinkPath);
-        implHolder->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
-            NYPath::DirNameAndBaseName(originalLinkPath).second,
-            originalLinkPath);
-
-        const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
-        queueManager->EnqueueWrite(NRecords::TPathToNodeId{
-            .Key = {.Path = sequoiaLinkPath},
-            .NodeId = id.ObjectId,
-        });
-        queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
-            .Key = {.NodeId = id.ObjectId},
-            .Path = originalLinkPath,
-            .TargetPath = originalTargetPath,
-        });
-
         YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
             id,
             originalTargetPath);
@@ -278,12 +262,53 @@ private:
         return implHolder;
     }
 
-    void DoDestroy(TLinkNode* node) override
+    void DoSetReachable(TLinkNode* node) override
     {
+        TBase::DoSetReachable(node);
+
         // TODO(aleksandra-zh, kvk1920 or somebody else): fix this when Sequoia supports branches.
         if (node->IsTrunk()) {
             const auto& cypressManager = GetBootstrap()->GetCypressManager();
-            auto path = cypressManager->GetNodePath(node, {});
+            auto pathRootType = EPathRootType::Other;
+            auto linkPath = cypressManager->GetNodePath(node, /*transaction*/ nullptr, &pathRootType);
+            if (pathRootType == EPathRootType::Other) [[unlikely]] {
+                YT_LOG_ALERT("Attempted to set a dangling link node reachable (NodeId: %v)",
+                    node->GetVersionedId());
+                return;
+            }
+
+            YT_VERIFY(!node->ImmutableSequoiaProperties());
+            node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
+                NYPath::DirNameAndBaseName(linkPath).second,
+                linkPath);
+
+            const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
+            queueManager->EnqueueWrite(NRecords::TPathToNodeId{
+                .Key = {.Path = MangleSequoiaPath(linkPath)},
+                .NodeId = node->GetId(),
+            });
+            queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
+                .Key = {.NodeId = node->GetId()},
+                .Path = linkPath,
+                .TargetPath = node->GetTargetPath(),
+            });
+
+            YT_LOG_DEBUG("Link is reachable (LinkId: %v, LinkPath: %v)",
+                node->GetId(),
+                linkPath);
+        }
+    }
+
+    void DoSetUnreachable(TLinkNode* node) override
+    {
+        TBase::DoSetUnreachable(node);
+
+        // TODO(aleksandra-zh, kvk1920 or somebody else): fix this when Sequoia supports branches.
+        if (node->IsTrunk()) {
+            if (!node->ImmutableSequoiaProperties()) {
+                return;
+            }
+            const auto& path = node->ImmutableSequoiaProperties()->Path;
             const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
             queueManager->EnqueueDelete(NRecords::TPathToNodeIdKey{
                 .Path = MangleSequoiaPath(path),
@@ -291,8 +316,11 @@ private:
             queueManager->EnqueueDelete(NRecords::TNodeIdToPathKey{
                 .NodeId = node->GetId(),
             });
+
+            YT_LOG_DEBUG("Link is unreachable (LinkId: %v, LinkPath: %v)",
+                node->GetId(),
+                path);
         }
-        TBase::DoDestroy(node);
     }
 };
 

@@ -250,6 +250,9 @@ protected:
     TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
     TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
 
+    void SetReachableSubtreeNodes(TCypressNode* node);
+    void SetUnreachableSubtreeNodes(TCypressNode* node);
+
     // TSupportsPermissions members
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
@@ -332,6 +335,9 @@ protected:
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     bool CanHaveChildren() const override;
+
+    void AttachChild(TCypressNode* child);
+    void DetachChild(TCypressNode* child);
 
 private:
     void SetReplicationFactor(int replicationFactor);

@@ -272,6 +272,7 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Account_);
     Save(context, Acd_);
     Save(context, Opaque_);
+    Save(context, Reachable_);
     Save(context, AccessTime_);
     Save(context, TouchTime_);
     Save(context, AccessCounter_);
@@ -304,6 +305,12 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Account_);
     Load(context, Acd_);
     Load(context, Opaque_);
+
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::CypressNodeReachability) {
+        Load(context, Reachable_);
+    }
+
     Load(context, AccessTime_);
     Load(context, TouchTime_);
     Load(context, AccessCounter_);

@@ -177,6 +177,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/logical_type.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/merge_table_schemas.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/name_table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/wire_protocol.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/columnar_statistics.cpp
@@ -222,9 +223,10 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_yson_token.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_type_compatibility.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/infinite_entity.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/yson_format_conversion.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/uuid_text.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/merge_complex_types.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/time_text.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/uuid_text.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/yson_format_conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/packet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/protocol.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/requests.cpp

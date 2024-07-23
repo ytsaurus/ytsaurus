@@ -417,6 +417,7 @@
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
     XX(Racks, racks) \
+    XX(Reachable, reachable) \
     XX(ReadQuorum, read_quorum) \
     XX(ReadRequestRateLimit, read_request_rate_limit) \
     XX(RecursiveCommittedResourceUsage, recursive_committed_resource_usage) \
