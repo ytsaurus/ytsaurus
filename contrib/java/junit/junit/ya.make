@@ -1,5 +1,6 @@
 JAVA_CONTRIB_PROXY()
 
+
 PEERDIR(
     contrib/java/junit/junit/4.13.2
 )

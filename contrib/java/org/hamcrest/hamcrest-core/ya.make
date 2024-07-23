@@ -1,5 +1,6 @@
 JAVA_CONTRIB_PROXY()
 
+
 PEERDIR(
     contrib/java/org/hamcrest/hamcrest-core/2.2
 )
