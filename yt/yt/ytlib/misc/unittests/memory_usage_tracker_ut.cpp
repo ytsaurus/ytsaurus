@@ -225,7 +225,7 @@ public:
         EMemoryCategory category,
         bool keepHolder) override
     {
-        return Underlying_->Track(reference, category, keepHolder);
+        return Underlying_->Track(std::move(reference), category, keepHolder);
     }
 
     TErrorOr<TSharedRef> TryTrack(
@@ -233,7 +233,7 @@ public:
         EMemoryCategory category,
         bool keepHolder) override
     {
-        return Underlying_->TryTrack(reference, category, keepHolder);
+        return Underlying_->TryTrack(std::move(reference), category, keepHolder);
     }
 
 private:
