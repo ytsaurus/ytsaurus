@@ -113,6 +113,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/merge_table_schemas.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_consumer.h>
@@ -9972,24 +9973,47 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
         OutputTables_[0]->TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(sortColumns);
     } else {
-        auto schema = replaceStableNamesWithNames(InputManager->GetInputTables()[0]->Schema)
+        auto resultSchema = replaceStableNamesWithNames(InputManager->GetInputTables()[0]->Schema)
+            ->ToSortedStrippedColumnAttributes();
+        auto canonizedResultSchema = resultSchema
             ->ToStrippedColumnAttributes()
             ->ToCanonical();
 
         for (const auto& table : InputManager->GetInputTables()) {
-            auto canonizedSchema = replaceStableNamesWithNames(table->Schema)
+            auto currentSchema = replaceStableNamesWithNames(table->Schema)
+                ->ToSortedStrippedColumnAttributes();
+            auto currentCanonizedSchema = currentSchema
                 ->ToStrippedColumnAttributes()
                 ->ToCanonical();
-            if (*canonizedSchema != *schema) {
-                THROW_ERROR_EXCEPTION(
-                    "Cannot infer output schema from input in strong schema mode, "
-                    "tables have incompatible schemas")
-                    << TErrorAttribute("lhs_schema", InputManager->GetInputTables()[0]->Schema)
-                    << TErrorAttribute("rhs_schema", table->Schema);
+
+            if (*canonizedResultSchema != *currentCanonizedSchema) {
+                if (Config->EnableMergeSchemasDuringSchemaInfer) {
+                    try {
+                        resultSchema = MergeTableSchemas(
+                            resultSchema,
+                            currentSchema);
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION(
+                            NTableClient::EErrorCode::IncompatibleSchemas,
+                            "Cannot infer output schema from input in strong schema mode, "
+                            "tables have incompatible schemas")
+                            << ex;
+                    }
+                    canonizedResultSchema = resultSchema
+                        ->ToStrippedColumnAttributes()
+                        ->ToCanonical();
+                } else {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::IncompatibleSchemas,
+                        "Cannot infer output schema from input in strong schema mode, "
+                        "because the option enable_merge_schemas_during_schema_infer is disabled")
+                        << TErrorAttribute("lhs_schema", InputManager->GetInputTables()[0]->Schema)
+                        << TErrorAttribute("rhs_schema", table->Schema);
+                }
             }
         }
 
-        OutputTables_[0]->TableUploadOptions.TableSchema = replaceStableNamesWithNames(InputManager->GetInputTables()[0]->Schema)
+        OutputTables_[0]->TableUploadOptions.TableSchema = replaceStableNamesWithNames(resultSchema)
             ->ToSorted(sortColumns)
             ->ToSortedStrippedColumnAttributes()
             ->ToCanonical();
