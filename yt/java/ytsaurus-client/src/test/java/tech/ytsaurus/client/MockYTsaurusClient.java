@@ -17,6 +17,7 @@ import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
+import tech.ytsaurus.client.request.AbstractMultiLookupRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
@@ -176,6 +177,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
             YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request) {
+        return (CompletableFuture<List<UnversionedRowset>>) callMethod("multiLookupRows");
     }
 
     @Override

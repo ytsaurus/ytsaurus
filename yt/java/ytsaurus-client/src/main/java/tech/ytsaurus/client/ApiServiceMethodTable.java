@@ -48,6 +48,7 @@ import tech.ytsaurus.rpcproxy.TReqLookupRows;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqMountTable;
 import tech.ytsaurus.rpcproxy.TReqMoveNode;
+import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
@@ -113,6 +114,7 @@ import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspModifyRows;
 import tech.ytsaurus.rpcproxy.TRspMountTable;
 import tech.ytsaurus.rpcproxy.TRspMoveNode;
+import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspPartitionTables;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
@@ -154,6 +156,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqLookupRows.Builder, TRspLookupRows> LOOKUP_ROWS =
             apiServiceMethod("LookupRows", TReqLookupRows::newBuilder, TRspLookupRows.parser());
+
+    public static final RpcMethodDescriptor<TReqMultiLookup.Builder, TRspMultiLookup> MULTI_LOOKUP_ROWS =
+            apiServiceMethod("MultiLookupRows", TReqMultiLookup::newBuilder, TRspMultiLookup.parser());
 
     public static final RpcMethodDescriptor<TReqVersionedLookupRows.Builder, TRspVersionedLookupRows>
             VERSIONED_LOOKUP_ROWS =

@@ -3,6 +3,7 @@ package tech.ytsaurus.client;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
+import tech.ytsaurus.client.request.AbstractMultiLookupRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
@@ -151,6 +153,7 @@ import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
+import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
@@ -576,6 +579,46 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 ),
                 response -> {
                     logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
+                    return responseReader.apply(response);
+                });
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request) {
+        return multiLookupRowsImpl(request, response -> {
+            List<UnversionedRowset> result = new ArrayList<>(response.body().getSubresponsesCount());
+            int beginAttachmentIndex = 0;
+            for (var subresponse : response.body().getSubresponsesList()) {
+                int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+                // TODO: remove after debugging
+                assert(endAttachmentIndex <= response.attachments().size());
+
+                result.add(
+                        ApiServiceUtil.deserializeUnversionedRowset(
+                                subresponse.getRowsetDescriptor(),
+                                response.attachments().subList(beginAttachmentIndex, endAttachmentIndex)
+                        )
+                );
+
+                beginAttachmentIndex = endAttachmentIndex;
+            }
+            // TODO: remove after debugging
+            assert(beginAttachmentIndex == response.attachments().size());
+            return result;
+        });
+    }
+
+    private <T> CompletableFuture<T> multiLookupRowsImpl(
+            AbstractMultiLookupRequest<?, ?> request,
+            Function<RpcClientResponse<TRspMultiLookup>, T> responseReader
+    ) {
+        return handleHeavyResponse(
+                sendRequest(
+                        request.asMultiLookupWritable(),
+                        ApiServiceMethodTable.MULTI_LOOKUP_ROWS.createRequestBuilder(rpcOptions)
+                ),
+                response -> {
+                    logger.trace("MultiLookup incoming – number of rowset descriptors: {}", response.body().getSubresponsesCount());
                     return responseReader.apply(response);
                 });
     }
