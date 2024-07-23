@@ -19,6 +19,22 @@ import pytest
 import signal
 import threading
 import time
+import random
+import string
+
+
+def _job_id_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> str:
+    return clique.make_query_via_proxy(
+        "select job_id from system.clique where self = 1", **kwargs)[0]["job_id"]
+
+
+def _job_cookie_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> int:
+    return clique.make_query_via_proxy(
+        "select job_cookie from system.clique where self = 1", **kwargs)[0]["job_cookie"]
+
+
+def _generate_session_id() -> str:
+    return ''.join(random.choices(string.ascii_lowercase, k=10))
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
@@ -35,6 +51,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 "expire_after_failed_update_time": 100,
             },
             "operation_id_update_period": 100,
+            "populate_user_with_token": True,
         },
     }
 
@@ -394,6 +411,112 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True) == [{"a": 1}]
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True, https_proxy=True) == [{"a": 1}]
 
+    @authors("gudqeit")
+    def test_http_proxy_banned_username(self):
+        patch = {
+            "yt": {
+                "user_name_blacklist": "banned_user"
+            }
+        }
+        create_user("banned_user")
+        access_control_entry = {"subjects": ["banned_user"], "action": "allow", "permissions": ["read"]}
+
+        with Clique(1, spec={"alias": "*alias", "acl": [access_control_entry]}, config_patch=patch) as clique:
+            response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
+            assert response.status_code == 403
+            assert "X-ClickHouse-Server-Display-Name" in response.headers
+
+    @authors("barykinni")
+    def test_http_proxy_authorization_via_x_click_house_key_header(self):
+        username = "simple-dimple"
+        create_user(username)
+
+        allowance = {"subjects": [username], "action": "allow", "permissions": ["read"]}
+
+        with Clique(1, spec={"acl": [allowance]}) as clique:
+            # We expect token to be used as a username.
+
+            correct_auth_response = clique.make_query_via_proxy(
+                "select currentUser()", headers={"x-ClickHouse-Key": username})
+
+            assert correct_auth_response == [{"currentUser()": username}]
+
+            invalid_key = "mismatched"
+            with raises_yt_error(900):  # user "mismatched" doesn't exist
+                clique.make_query_via_proxy("select currentUser()", headers={"x-ClickHouse-Key": invalid_key})
+
+    @authors("barykinni")
+    def test_same_instance_for_the_same_session_id(self):
+        session_id = _generate_session_id()
+
+        with Clique(2) as clique:
+            NUM_REQUESTS = 10
+
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, session_id=session_id)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 1, "when session_id is provided, proxy must pick same instance every time"
+
+    @authors("barykinni")
+    def test_job_cookie_dominates_session_id(self):
+        with Clique(2, alias="*alias") as clique:
+            NUM_REQUESTS = 10
+            origin_job_cookie = _job_cookie_of_instance_picked_for_the_query(clique)
+
+            for session_id in map(str, range(NUM_REQUESTS)):
+                current_job_cookie = _job_cookie_of_instance_picked_for_the_query(
+                    clique, database=f"alias@{origin_job_cookie}", session_id=session_id)
+
+                assert current_job_cookie == origin_job_cookie, "when job-cookie is provided, proxy must pick exact instance regardless of session-id"
+
+    @authors("barykinni")
+    def test_sticky_cookie_uniform_distribution(self):
+        """
+        If sessions are being uniformly distributed among 3 instances
+        then almost certainly it would take no more than 60 sessions
+        to pick every instance at least once
+
+        (Probability of not picking some instance in 60 sessions is less than 1e-10)
+
+        However in most cases it will take signifficantly less amount of sessions to fulfill an expectation
+        """
+        NUM_INSTANCES = 3
+        MAX_NUM_SESSIONS = 60
+
+        with Clique(NUM_INSTANCES) as clique:
+            picked_instances = set()
+            for session_id in map(str, range(MAX_NUM_SESSIONS)):
+                hit_instance = _job_id_of_instance_picked_for_the_query(clique, session_id=session_id)
+                picked_instances.add(hit_instance)
+
+                if len(picked_instances) == NUM_INSTANCES:
+                    return
+
+            assert False, "sessions must be distributed uniformly among instances"
+
+    @authors("barykinni")
+    def test_rotation_after_instance_fault(self):
+        NUM_INSTANCES = 3
+        NUM_SESSIONS = 12
+        SESSION_IDS = list(map(str, range(NUM_SESSIONS)))
+
+        def get_distribution(clique):
+            return {session_id: _job_cookie_of_instance_picked_for_the_query(clique, session_id=session_id)
+                    for session_id in SESSION_IDS}
+
+        with Clique(NUM_INSTANCES) as clique:
+            initial_distribution = get_distribution(clique)
+
+            clique.resize(NUM_INSTANCES - 1)
+
+            update_distribution = get_distribution(clique)
+
+            rotations = [initial_distribution[session_id]
+                         for session_id in SESSION_IDS
+                         if initial_distribution[session_id] != update_distribution[session_id]]  # instance changed
+
+            assert len(set(rotations)) <= 1, "only sessions attached to the killed instance should rotate"
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
@@ -405,7 +528,6 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "refresh_time": 100,
                 "expire_after_failed_update_time": 100,
             },
-            "populate_user_with_token": True,
         },
     }
 
@@ -489,38 +611,3 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "http_code": 400,
                 "error_code": 1,
             })
-
-    @authors("gudqeit")
-    def test_http_proxy_banned_username(self):
-        patch = {
-            "yt": {
-                "user_name_blacklist": "banned_user"
-            }
-        }
-        create_user("banned_user")
-        access_control_entry = {"subjects": ["banned_user"], "action": "allow", "permissions": ["read"]}
-
-        with Clique(1, spec={"alias": "*alias", "acl": [access_control_entry]}, config_patch=patch) as clique:
-            response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
-            assert response.status_code == 403
-            assert "X-ClickHouse-Server-Display-Name" in response.headers
-
-    @authors("barykinni")
-    def test_http_proxy_authorization_via_x_click_house_key_header(self):
-        username = "simple-dimple"
-        create_user(username)
-
-        allowance = {"subjects": [username], "action": "allow", "permissions": ["read"]}
-
-        with Clique(1, spec={"acl": [allowance]}) as clique:
-            # we expect token to be used as a username
-            # ("populate_user_with_token": True)
-
-            correct_auth_response = clique.make_query_via_proxy(
-                "select currentUser()", headers={"x-ClickHouse-Key": username})
-
-            assert correct_auth_response == [{"currentUser()": username}]
-
-            invalid_key = "mismatched"
-            with raises_yt_error(900):  # user "mismatched" doesn't exist
-                clique.make_query_via_proxy("select currentUser()", headers={"x-ClickHouse-Key": invalid_key})
