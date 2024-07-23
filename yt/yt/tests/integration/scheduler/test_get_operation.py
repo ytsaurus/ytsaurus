@@ -76,6 +76,12 @@ class TestGetOperation(YTEnvSetup):
         },
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_build_progress_period": 100,
+        }
+    }
+
     def setup_method(self, method):
         super(TestGetOperation, self).setup_method(method)
         sync_create_cells(1)
@@ -436,6 +442,7 @@ class TestGetOperation(YTEnvSetup):
 
         wait_breakpoint()
         wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+        wait(lambda: _get_operation_from_cypress(op.id).get("progress", {}).get("jobs", {}).get("running") == 1)
 
         res_api = get_operation(op.id)
         self.clean_build_time(res_api)
@@ -449,6 +456,7 @@ class TestGetOperation(YTEnvSetup):
 
         wait(lambda: _get_operation_from_archive(op.id))
         assert _get_operation_from_archive(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1
+        assert _get_operation_from_archive(op.id).get("progress", {}).get("jobs", {}).get("running") == 1
         release_breakpoint()
         op.track()
 
