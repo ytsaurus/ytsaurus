@@ -421,6 +421,15 @@ TEST_F(TQueryPrepareTest, FailedTypeInference)
         ContainsRegex("Type inference failed"));
 }
 
+TEST_F(TQueryPrepareTest, AdditionPrecedence)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    PreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
+    PreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
+}
+
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -2701,12 +2710,16 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         "a=15;b=11"
     };
 
-    auto result = YsonToRows({
+    auto resultIn = YsonToRows({
         "a=4;b=5",
         "a=-10;b=11"
     }, split);
+    auto resultNotIn = YsonToRows({
+        "a=15;b=11"
+    }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(resultIn));
+    Evaluate("a, b FROM [//t] where a not in (4.0, -10)", split, source, ResultMatcher(resultNotIn));
 }
 
 TEST_F(TQueryEvaluateTest, BigIn)
