@@ -461,8 +461,8 @@ class TestRackDataCenter(YTEnvSetup):
     rack_set = "rack"
     data_center_set = "data_center"
     DELTA_NODE_CONFIG = {
-         "rack": rack_set,
-         "data_center": data_center_set,
+        "rack": rack_set,
+        "data_center": data_center_set,
     }
 
     @authors("proller")
@@ -473,13 +473,14 @@ class TestRackDataCenter(YTEnvSetup):
             data_center_get = get("//sys/racks/{0}/@data_center".format(rack_get))
             assert self.data_center_set == data_center_get
 
+
 class TestRack(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     rack_set = "rack"
     DELTA_NODE_CONFIG = {
-         "rack": rack_set,
+        "rack": rack_set,
     }
 
     @authors("proller")
@@ -489,9 +490,10 @@ class TestRack(YTEnvSetup):
             rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
             assert self.rack_set == rack_get
 
+
 class TestRackCells(TestRack):
-     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 2
+
 
 class TestRackDataCenterCells(TestRackDataCenter):
-     NUM_SECONDARY_MASTER_CELLS = 2
-
+    NUM_SECONDARY_MASTER_CELLS = 2
