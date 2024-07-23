@@ -812,29 +812,29 @@ class TestGetJobStderr(YTEnvSetup):
         assert res.endswith(b"STDERR-BREAKP\n")
         test = get_job_stderr_paged(op.id, job_id, offset=1, limit=100)
         total_size = 204
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 101
-        assert test['data'] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 101
+        assert test["data"] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
         test = get_job_stderr_paged(op.id, job_id, offset=100, limit=200)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
         test = get_job_stderr_paged(op.id, job_id,  offset=200000001, limit=0)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 0
-        assert test['data'] == b''
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 0
+        assert test["data"] == b''
         test = get_job_stderr_paged(op.id, job_id, offset=-100)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'ycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'ycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
         test = get_job_stderr_paged(op.id, job_id, offset=-1000)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\n'
         test = get_job_stderr_paged(op.id, job_id, offset=-1000, limit=100)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 100
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 100
+        assert test["data"] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
 
         release_breakpoint()
         op.track()
@@ -858,29 +858,29 @@ class TestGetJobStderr(YTEnvSetup):
         assert res.endswith(b"STDERR-FINISH\n")
         test = get_job_stderr_paged(op.id, job_id, offset=1, limit=100)
         total_size = 218
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 101
-        assert test['data'] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 101
+        assert test["data"] == b'urrent cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurren'
         test = get_job_stderr_paged(op.id, job_id, offset=100, limit=200)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'nt cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
         test = get_job_stderr_paged(op.id, job_id,  offset=200000001, limit=0)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 0
-        assert test['data'] == b''
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 0
+        assert test["data"] == b''
         test = get_job_stderr_paged(op.id, job_id, offset=-100)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'ent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'ent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
         test = get_job_stderr_paged(op.id, job_id, offset=-1000)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == total_size
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == total_size
+        assert test["data"] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurrent cycle is 5\ncurrent cycle is 6\ncurrent cycle is 7\ncurrent cycle is 8\ncurrent cycle is 9\nSTDERR-BREAKP\nSTDERR-FINISH\n'
         test = get_job_stderr_paged(op.id, job_id, offset=-1000, limit=100)
-        assert test['total_size'] == total_size
-        assert test['end_offset'] == 100
-        assert test['data'] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
+        assert test["total_size"] == total_size
+        assert test["end_offset"] == 100
+        assert test["data"] == b'current cycle is 0\ncurrent cycle is 1\ncurrent cycle is 2\ncurrent cycle is 3\ncurrent cycle is 4\ncurre'
 
     @authors("ignat")
     def test_get_job_stderr_without_cypress(self):

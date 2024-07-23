@@ -923,7 +923,7 @@ std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
             auto req = jobProberServiceProxy.GetStderr();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_job_id(), jobId);
-            if (options.Limit) {
+            if (options.Limit.value_or(0) > 0) {
                 req->set_limit(*options.Limit);
             }
             if (options.Offset) {

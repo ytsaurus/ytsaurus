@@ -366,8 +366,20 @@ struct TListJobsResult
 
 struct TGetJobStderrResponse
 {
+    //   0
+    //   |<-                        stderr full log                  ->|
+    //   [                     [<-       Data        ->]               ]
+    //                         |<-  request.Offset
+    //                         |<-  request.Limit    ->|
+    //                                                 |<- EndOffset
+    //                                                                 |<- TotalSize
+
     TSharedRef Data;
+
+    // Total current stderr size
     i64 TotalSize = 0;
+
+    // Byte number of Data last byte from stderr start
     i64 EndOffset = 0;
 
     static TGetJobStderrResponse MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options = {});
