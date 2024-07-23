@@ -155,7 +155,7 @@ public:
             Bootstrap_,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             New<TMasterHeartbeatReporterCallbacks>(MakeWeak(this)),
-            GetDynamicConfig()->HeartbeatExecutor,
+            Config_->HeartbeatExecutor,
             DataNodeLogger().WithTag("HeartbeatType: Data"));
         HeartbeatReporter_->Initialize();
 
@@ -963,7 +963,7 @@ private:
 
         const auto& dynamicConfig = newNodeConfig->DataNode->MasterConnector;
 
-        HeartbeatReporter_->Reconfigure(dynamicConfig->HeartbeatExecutor);
+        HeartbeatReporter_->Reconfigure(dynamicConfig->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         JobHeartbeatPeriod_ = dynamicConfig->JobHeartbeatPeriod.value_or(*Config_->JobHeartbeatPeriod);
         JobHeartbeatPeriodSplay_ = dynamicConfig->JobHeartbeatPeriodSplay.value_or(Config_->JobHeartbeatPeriodSplay);

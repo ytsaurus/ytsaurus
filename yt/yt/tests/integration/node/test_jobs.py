@@ -251,7 +251,7 @@ class TestJobStatistics(YTEnvSetup):
 
     @authors("artemagafonov")
     def test_vanilla_statistics(self):
-        op = run_test_vanilla("sleep 1", track=True)
+        op = run_test_vanilla("true", track=True)
 
         statistics = op.get_statistics()
         pipes_statistic = statistics["user_job"]["pipes"]

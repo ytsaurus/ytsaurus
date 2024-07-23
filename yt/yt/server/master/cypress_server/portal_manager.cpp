@@ -107,6 +107,12 @@ public:
         SynchronizePortalExitsExecutor_->SetPeriod(config->PortalSynchronizationPeriod);
     }
 
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->CypressManager;
+    }
+
     void OnSynchronizePortalExits()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -563,6 +569,10 @@ private:
                 exitNodeId);
         }
 
+        if (!GetDynamicConfig()->DisableCypressNodeReachability) {
+            node->SetReachable(true);
+        }
+
         if (effectiveAnnotation) {
             node->SetAnnotation(*effectiveAnnotation);
         } else {
@@ -642,6 +652,11 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(exitNode);
+
+        // Portal exit nodes are reachable by default, but reachability might be manually disabled.
+        if (node->GetReachable()) {
+            cypressManager->SetUnreachableSubtreeNodes(node, /*transaction*/ nullptr);
+        }
     }
 };
 

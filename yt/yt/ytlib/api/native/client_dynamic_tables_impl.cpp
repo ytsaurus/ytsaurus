@@ -129,7 +129,7 @@ using namespace NYTree;
 
 const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
 const TString SecondaryIndexAlias = "IndexTable";
-constexpr ssize_t MinPullDataSize = 1_KB;
+constexpr i64 MinPullDataSize = 1_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -455,15 +455,15 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
         .ValueOrThrow();
 }
 
-std::optional<i64> ReserveMemory(
+std::optional<i64> TryReserveMemory(
     IReservingMemoryUsageTrackerPtr& reservingTracker,
     i64 initialAmount,
-    int requestsCount)
+    int requestCount)
 {
     i64 reservedBytes = initialAmount;
     bool memoryReserved = false;
 
-    while (reservedBytes >= MinPullDataSize * requestsCount) {
+    while (reservedBytes >= MinPullDataSize * requestCount) {
         if (reservingTracker->TryReserve(reservedBytes).IsOK()) {
             memoryReserved = true;
             break;
@@ -3346,11 +3346,9 @@ TPullRowsResult TClient::DoPullRows(
         });
     }
 
-    auto reservingTracker = options.MemoryTracker;
-
     i64 dataWeight = options.MaxDataWeight;
-    if (reservingTracker) {
-        auto reserveResult = ReserveMemory(reservingTracker, dataWeight, requests.size());
+    if (auto reservingTracker = options.MemoryTracker) {
+        auto reserveResult = TryReserveMemory(reservingTracker, dataWeight, requests.size());
         if (!reserveResult) {
             THROW_ERROR_EXCEPTION("Failed to reserve memory for pull rows request");
         }
@@ -3365,7 +3363,7 @@ TPullRowsResult TClient::DoPullRows(
     auto outputRowBuffer = New<TRowBuffer>(
         TPullRowsOutputBufferTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
-        reservingTracker);
+        options.MemoryTracker);
 
     std::vector<TIntrusivePtr<TTabletPullRowsSession>> sessions;
     std::vector<TFuture<void>> futureResults;
@@ -3381,7 +3379,7 @@ TPullRowsResult TClient::DoPullRows(
             request,
             Connection_->GetInvoker(),
             dataWeightPerResponse,
-            reservingTracker,
+            options.MemoryTracker,
             Logger));
         futureResults.push_back(sessions.back()->RunRequest());
     }
@@ -3439,8 +3437,8 @@ TPullRowsResult TClient::DoPullRows(
 
     // Return all excessively reserved memory to the parent tracker.
     sessions.clear();
-    if (reservingTracker) {
-        reservingTracker->ReleaseUnusedReservation();
+    if (options.MemoryTracker) {
+        options.MemoryTracker->ReleaseUnusedReservation();
     }
 
     if (tableInfo->IsSorted() && options.OrderRowsByTimestamp) {

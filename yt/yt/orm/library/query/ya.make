@@ -6,7 +6,7 @@ SRCS(
     expression_evaluator.cpp
     filter_introspection.cpp
     filter_matcher.cpp
-    lexicographical_order.cpp
+    misc.cpp
     query_evaluator.cpp
     query_optimizer.cpp
     query_rewriter.cpp

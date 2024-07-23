@@ -71,8 +71,7 @@ public:
                     strongThis->LocateChunksSync(cleanStart);
                 }
             }),
-            "ScraperTask",
-            Logger);
+            Logger.WithTag("AsyncLooper: %v", "ScraperTask"));
     }
 
     //! Starts periodic polling.

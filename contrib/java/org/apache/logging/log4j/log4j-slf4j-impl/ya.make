@@ -1,5 +1,6 @@
 JAVA_CONTRIB_PROXY()
 
+
 PEERDIR(
     contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.23.1
 )

@@ -179,7 +179,7 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         TJobId jobId,
-        NJobTrackerClient::EJobType jobType,
+        EJobType jobType,
         const std::vector<int>& ports,
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
@@ -534,7 +534,7 @@ private:
     const NLogging::TLogger Logger;
 
     const TJobId JobId_;
-    const NJobTrackerClient::EJobType JobType_;
+    const EJobType JobType_;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
     IUserJobReadControllerPtr UserJobReadController_;
@@ -1787,7 +1787,7 @@ private:
 
     bool HasInputStatistics() const override
     {
-        return JobType_ != NJobTrackerClient::EJobType::Vanilla;
+        return JobType_ != EJobType::Vanilla;
     }
 };
 
@@ -1797,7 +1797,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     TJobId jobId,
-    NJobTrackerClient::EJobType jobType,
+    EJobType jobType,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {

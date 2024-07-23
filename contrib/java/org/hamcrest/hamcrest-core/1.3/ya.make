@@ -1,3 +1,4 @@
+
 JAVA_CONTRIB(hamcrest-core-1.3)
 
 LICENSE(BSD-2-Clause)

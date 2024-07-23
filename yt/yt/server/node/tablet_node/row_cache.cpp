@@ -165,7 +165,7 @@ TUpdateCacheStatistics TRowCache::UpdateItems(
 
             compactionRowMerger->AddPartialRow(foundItem->GetVersionedRow());
             compactionRowMerger->AddPartialRow(row);
-            auto mergedRow = compactionRowMerger->BuildMergedRow();
+            auto mergedRow = compactionRowMerger->BuildMergedRow(true);
 
             YT_VERIFY(mergedRow);
             YT_VERIFY(mergedRow.GetKeyCount() > 0);

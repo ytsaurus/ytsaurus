@@ -1,3 +1,4 @@
+
 JAVA_CONTRIB(junit-4.12)
 
 LICENSE(EPL-1.0)

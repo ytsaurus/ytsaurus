@@ -502,6 +502,7 @@ class Clique(object):
         endpoint="/chyt",
         chyt_proxy=False,
         https_proxy=False,
+        session_id: str | None = None,
     ):
         """
         chyt_proxy:
@@ -529,8 +530,13 @@ class Clique(object):
             database = self.alias
 
         params = {"database": database}
+
+        if session_id is not None:
+            params["session_id"] = session_id
+
         if settings is not None:
             update_inplace(params, settings)
+
         print_debug()
         print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
         return self.make_request(

@@ -102,6 +102,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_inherit_attributes_during_copy", &TThis::EnableInheritAttributesDuringCopy)
         .Default(false);
 
+    registrar.Parameter("disable_cypress_node_reachability", &TThis::DisableCypressNodeReachability)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

@@ -6,33 +6,17 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& source, bool isPatch)
+void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& source)
 {
-    if (isPatch) {
-        if (source.IsPure_.has_value()) {
-            destination.IsPure_ = source.IsPure_;
-        }
-    } else {
-        destination.IsPure_ = TFnAttributesOps::GetIsPure(destination) && TFnAttributesOps::GetIsPure(source);
-    }
+    destination.IsPure_ = destination.IsPure_ && source.IsPure_;
     for (const auto& resourceFile : source.ResourceFileList_) {
         destination.ResourceFileList_.push_back(resourceFile);
     }
 }
 
-void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& source)
-{
-    Merge(destination, source, false);
-}
-
-void TFnAttributesOps::MergePatch(TFnAttributes& destination, const TFnAttributes& source)
-{
-    Merge(destination, source, true);
-}
-
 bool TFnAttributesOps::GetIsPure(const TFnAttributes& attributes)
 {
-    return attributes.IsPure_.value_or(false);
+    return attributes.IsPure_;
 }
 
 const std::vector<TString> TFnAttributesOps::GetResourceFileList(const TFnAttributes& attributes)

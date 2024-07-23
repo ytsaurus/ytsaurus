@@ -761,7 +761,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
-            /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
             /*useTtlColumn*/ true,
             /*mergeDeletionsOnFlush*/ mountConfig->MergeDeletionsOnFlush);
@@ -786,7 +785,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
-            /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
         // Retained timestamp according to compactionRowMerger.

@@ -459,6 +459,23 @@ class TestSequoiaQueues(YTEnvSetup):
         remove("//tmp/m2")
         wait(lambda: len(get_row('//tmp/m2')) == 0)
 
+    @authors("danilalexeev")
+    def test_link_integrate_isolate(self):
+        create("table", "//tmp/t1")
+        link("//tmp/t1", "//tmp/a/b/c/d/l1", recursive=True)
+
+        def get_row(path):
+            return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
+
+        try:
+            set("//sys/@config/object_manager/enable_gc", False)
+            wait(lambda: len(get_row('//tmp/a/b/c/d/l1')) == 1)
+            remove("//tmp/a", recursive=True)
+
+            wait(lambda: len(get_row('//tmp/a/b/c/d/l1')) == 0)
+        finally:
+            set("//sys/@config/object_manager/enable_gc", True)
+
     @authors("aleksandra-zh")
     def test_restart(self):
         self._pause_sequoia_queue()
