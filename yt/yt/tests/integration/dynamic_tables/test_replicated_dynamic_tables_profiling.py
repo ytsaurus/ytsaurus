@@ -8,7 +8,7 @@ from yt_env_setup import parametrize_external
 from yt_commands import (
     authors, wait, get, generate_uuid,
     sync_mount_table, sync_unmount_table, create_table_replica, sync_enable_table_replica, sync_disable_table_replica,
-    insert_rows, select_rows, remove)
+    insert_rows, select_rows, remove, generate_timestamp, sync_unfreeze_table)
 
 from flaky import flaky
 import pytest
@@ -100,6 +100,10 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         sync_unmount_table(replica_table_path, driver=self.replica_driver)
 
+        # Sleep before inserting next rows to verify that lag will be computed
+        # correctly after delay between consequent writes.
+        sleep(10)
+
         insert_rows(
             replicated_table_path,
             [{"key": 1, "value1": "test", "value2": 123}],
@@ -125,6 +129,66 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("with_lag", [True, False])
+    @pytest.mark.parametrize("offset_mode", ["row_index", "timestamp"])
+    def test_new_replica_lag(self, offset_mode, with_lag):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED)
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+
+        replica_tags = {
+            "replica_cluster": self.REPLICA_CLUSTER_NAME,
+        }
+
+        def _get_lag_time():
+            return tablet_profiling.get_counter("replica/lag_time", tags=replica_tags)
+
+        first_replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r1",
+            attributes={"mode": "async"})
+        sync_enable_table_replica(first_replica_id)
+        self._create_replica_table("//tmp/r1", first_replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "foo"}], require_sync_replica=False)
+
+        # Sleep before inserting next rows to verify that lag will be computed
+        # correctly after delay between consequent writes.
+        sleep(10)
+
+        assert _get_lag_time() == 0
+
+        attributes = {"mode": "async"}
+        if offset_mode == "row_index":
+            attributes["start_replication_row_indexes"] = [1]
+        else:
+            attributes["start_replication_timestamp"] = generate_timestamp()
+
+        if with_lag:
+            insert_rows("//tmp/t", [{"key": 1, "value1": "foo"}], require_sync_replica=False)
+
+        second_replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes=attributes)
+        sync_enable_table_replica(second_replica_id)
+        self._create_replica_table("//tmp/r2", second_replica_id, schema=self.SIMPLE_SCHEMA_SORTED, mount=False)
+        sync_mount_table("//tmp/r2", freeze=True, driver=self.replica_driver)
+
+        sleep(5)
+
+        if with_lag:
+            assert 5.0 - 3 < _get_lag_time() < 5.0 + 3
+        else:
+            assert _get_lag_time() == 0
+
+        sync_unfreeze_table("//tmp/r2", driver=self.replica_driver)
+        wait(lambda: _get_lag_time() == 0)
 
     @authors("babenko", "gridem")
     @flaky(max_runs=5)
