@@ -199,7 +199,11 @@ void TJobIOConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()
-        .GreaterThan(0);
+        .GreaterThan(0)
+        // NB(arkady-e1ppa): This is default pipe capacity. Without updating process perms
+        // one cannot change capacity to be greater than this number.
+        // TODO(arkady-e1ppa): Consider supporting pipe capacity increases.
+        .LessThanOrEqual(16 * 4096);
 
     registrar.Parameter("use_delivery_fenced_pipe_writer", &TThis::UseDeliveryFencedPipeWriter)
         .Default(false);
