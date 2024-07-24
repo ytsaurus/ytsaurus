@@ -1118,9 +1118,11 @@ private:
                 auto chunkId = chunk->GetId();
                 return chunkReplicaFetcher->GetOnlySequoiaChunkReplicas({chunk->GetId()})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>& replicas) {
+                        auto it = replicas.find(chunkId);
+                        const auto& chunkReplicas = it != replicas.end() ? it->second : TChunkLocationPtrWithReplicaInfoList();
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
-                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, GetOrCrash(replicas, chunkId));
+                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, chunkReplicas);
                             });
                     }));
             }
