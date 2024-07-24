@@ -71,6 +71,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExportedObjectCount)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalExportedObjectCount)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectCount)
@@ -207,6 +209,11 @@ private:
             case EInternedAttributeKey::LeasesState:
                 BuildYsonFluently(consumer)
                     .Value(transaction->GetTransactionLeasesState());
+                return true;
+
+            case EInternedAttributeKey::LocalExportedObjectCount:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->ExportedObjects().size());
                 return true;
 
             default:
