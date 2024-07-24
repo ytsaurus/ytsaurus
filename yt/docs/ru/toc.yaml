@@ -331,6 +331,11 @@ items:
           when: audience == "public"
           items:
             - include: { mode: link, path: yql/toc.yaml }
+      - name: Распределённые блокировки
+        when: audience == "public"
+        items:
+          - name: Обзор
+            href: user-guide/locking/cypress-as-locking-service.md
       - name: Прокси
         when: audience == "public"
         items:
