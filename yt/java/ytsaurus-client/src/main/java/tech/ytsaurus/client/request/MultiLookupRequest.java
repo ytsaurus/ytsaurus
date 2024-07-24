@@ -74,7 +74,7 @@ public class MultiLookupRequest
                             .addAllColumns(subrequest.getLookupColumns())
                             .setKeepMissingRows(subrequest.getKeepMissingRows())
                             .setRowsetDescriptor(rowset)
-                            .setAttachmentCount(rowset.getSerializedSize())
+                            .setAttachmentCount(subAttachments.size())
                             .build()
                     );
                 }

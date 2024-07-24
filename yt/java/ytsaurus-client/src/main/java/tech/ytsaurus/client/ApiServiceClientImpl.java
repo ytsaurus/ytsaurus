@@ -620,6 +620,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             MultiLookupRequest request,
             Function<RpcClientResponse<TRspMultiLookup>, T> responseReader
     ) {
+        for (var subrequest : request.getSubrequests()) {
+            subrequest.convertValues(serializationResolver);
+        }
         return handleHeavyResponse(
                 sendRequest(
                         request.asMultiLookupWritable(),
