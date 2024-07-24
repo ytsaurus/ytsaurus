@@ -129,6 +129,7 @@ TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler
     , WriteTime(profiler.Timer("/table_puller/write_time"))
     , LagTime(profiler.WithDense().TimeGaugeSummary("/table_puller/lag_time"))
     , ThrottleTime(profiler.Timer("/table_puller/throttle_time"))
+    , MemoryUsage(profiler.Counter("/table_puller/memory_usage"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
