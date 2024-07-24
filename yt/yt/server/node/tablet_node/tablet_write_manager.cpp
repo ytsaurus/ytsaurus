@@ -1362,6 +1362,7 @@ private:
         if (Tablet_->IsPhysicallyOrdered()) {
             auto oldTotalRowCount = Tablet_->GetTotalRowCount();
             Tablet_->UpdateTotalRowCount();
+            Tablet_->GetStoreManager()->UpdateCommittedStoreRowCount();
             auto newTotalRowCount = Tablet_->GetTotalRowCount();
             YT_LOG_DEBUG_IF(oldTotalRowCount != newTotalRowCount,
                 "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",

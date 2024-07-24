@@ -38,6 +38,8 @@ public:
         NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) override;
 
+    void UpdateCommittedStoreRowCount() override;
+
     TOrderedDynamicRowRef WriteRow(
         TUnversionedRow row,
         TWriteContext* context);

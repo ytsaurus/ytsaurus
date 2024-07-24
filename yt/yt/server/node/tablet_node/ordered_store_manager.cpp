@@ -135,6 +135,13 @@ bool TOrderedStoreManager::ExecuteWrites(
     return true;
 }
 
+void TOrderedStoreManager::UpdateCommittedStoreRowCount()
+{
+    if (ActiveStore_) {
+        ActiveStore_->UpdateCommittedRowCount();
+    }
+}
+
 TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
     TUnversionedRow row,
     TWriteContext* context)

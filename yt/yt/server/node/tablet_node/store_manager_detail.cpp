@@ -685,6 +685,9 @@ void TStoreManagerBase::SetLastPeriodicRotationTime(TInstant value)
     LastPeriodicRotationTime_ = value;
 }
 
+void TStoreManagerBase::UpdateCommittedStoreRowCount()
+{ }
+
 ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 {
     YT_ABORT();

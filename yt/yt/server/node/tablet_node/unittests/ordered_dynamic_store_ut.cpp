@@ -143,7 +143,13 @@ TEST_F(TOrderedDynamicStoreTest, Reader1)
     WriteRow(BuildRow("a=3;b=2.7"));
 
     auto rows = ReadRows(5, 0, 3, TColumnFilter());
+    EXPECT_EQ(0u, rows.size());
+
+    Store_->UpdateCommittedRowCount();
+
+    rows = ReadRows(5, 0, 3, TColumnFilter());
     EXPECT_EQ(3u, rows.size());
+
     EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$tablet_index\"=5;\"$row_index\"=0;a=1;b=3.14"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$tablet_index\"=5;\"$row_index\"=1;a=2;c=text"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$tablet_index\"=5;\"$row_index\"=2;a=3;b=2.7"));
@@ -152,6 +158,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader1)
 TEST_F(TOrderedDynamicStoreTest, Reader2)
 {
     WriteRow(BuildRow("a=1;b=3.14"));
+    Store_->UpdateCommittedRowCount();
 
     auto rows = ReadRows(5, 1, 2, TColumnFilter());
     EXPECT_EQ(0u, rows.size());
@@ -162,6 +169,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader3)
     WriteRow(BuildRow("a=1;b=3.14"));
     WriteRow(BuildRow("a=2;c=text"));
     WriteRow(BuildRow("a=3;b=2.7"));
+    Store_->UpdateCommittedRowCount();
 
     auto rows = ReadRows(5, 0, 3, TColumnFilter({1,2}));
     EXPECT_EQ(3u, rows.size());
@@ -175,6 +183,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader4)
     WriteRow(BuildRow("a=1;b=3.14"));
     WriteRow(BuildRow("a=2;c=text"));
     WriteRow(BuildRow("a=3;b=2.7"));
+    Store_->UpdateCommittedRowCount();
 
     Store_->SetStartingRowIndex(10);
     auto rows = ReadRows(5, 10, 13, TColumnFilter());
@@ -189,6 +198,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader5)
     WriteRow(BuildRow("a=1;b=3.14"));
     WriteRow(BuildRow("a=2;c=text"));
     WriteRow(BuildRow("a=3;b=2.7"));
+    Store_->UpdateCommittedRowCount();
 
     auto rows = ReadRows(5, 1, 3, TColumnFilter({1}));
     EXPECT_EQ(2u, rows.size());
@@ -209,6 +219,8 @@ TEST_P(TOrderedDynamicStoreReadTest, Read)
     for (int i = 0; i < count; ++i) {
         WriteRow(BuildRow(Format("a=%v", i)));
     }
+
+    Store_->UpdateCommittedRowCount();
 
     int lowerIndex = std::get<1>(GetParam());
     int adjustedLowerIndex = std::min(std::max(0, lowerIndex), count);
