@@ -41,6 +41,9 @@ const (
 
 	NodeNetworkProject    NodeType = "network_project"
 	NodeNetworkProjectMap NodeType = "network_project_map"
+
+	NodeRack       NodeType = "rack"
+	NodeDataCenter NodeType = "data_center"
 )
 
 func (n NodeType) String() string {
