@@ -1018,8 +1018,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
         if (job->HasInputStatistics()) {
             statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
+            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
         }
-        DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
+
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
             auto ypathIndex = ToYPathLiteral(index);
             statistics.AddSample("/data/output/" + ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);

@@ -115,6 +115,7 @@ using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NFS;
+using namespace NProfiling;
 using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NShell;
@@ -611,6 +612,8 @@ private:
     THashMap<TString, ssize_t> EnvironmentIndex_;
 
     std::optional<TExecutorInfo> ExecutorInfo_;
+
+    std::atomic<std::optional<TDuration>> UserContainerFinalizationTime_;
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
@@ -1368,6 +1371,10 @@ private:
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
+        if (auto time = UserContainerFinalizationTime_.load()) {
+            statistics.AddSample("/user_job/finalization_time", time->MilliSeconds());
+        }
+
         try {
             TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
         } catch (const std::exception& ex) {
@@ -1591,11 +1598,15 @@ private:
             .ThrowOnError();
         YT_LOG_INFO("Error actions finished");
 
+        TWallTimer userContainerFinalizationTimer;
+
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitly closed its output pipes
         // but still be doing some computations.
         YT_VERIFY(WaitFor(processFinished).IsOK());
         YT_LOG_INFO("Job process finished (Error: %v)", JobErrorPromise_.ToFuture().TryGet());
+
+        UserContainerFinalizationTime_.store(userContainerFinalizationTimer.GetElapsedTime());
 
         // Abort input pipes unconditionally.
         // If the job didn't read input to the end, pipe writer could be blocked,
