@@ -1460,7 +1460,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_read_spec.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timestamped_schema_utils.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timestamped_schema_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_reader.cpp

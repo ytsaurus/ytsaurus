@@ -3779,7 +3779,7 @@ private:
             options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
         }
         if (request->has_versioned_read_options()) {
-            options.VersionedReadOptions = ConvertTo<TVersionedReadOptions>(TYsonString(request->versioned_read_options()));
+            FromProto(&options.VersionedReadOptions, request->versioned_read_options());
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();

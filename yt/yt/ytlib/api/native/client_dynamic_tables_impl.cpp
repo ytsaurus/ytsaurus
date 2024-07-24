@@ -56,7 +56,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -540,7 +540,7 @@ private:
         auto tableSchema = GetTableSchema(path, tableInfo);
         return TDataSplit{
             .ObjectId = tableInfo->TableId,
-            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIoMode::LatestTimestamp
+            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIOMode::LatestTimestamp
                 ? ToLatestTimestampSchema(tableSchema)
                 : std::move(tableSchema),
             .MountRevision = tableInfo->PrimaryRevision,
