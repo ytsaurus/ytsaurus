@@ -192,6 +192,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         HeartbeatReporter_->Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+
+        YT_LOG_DEBUG("Dynamic config changed");
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const

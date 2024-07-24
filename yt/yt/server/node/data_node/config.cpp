@@ -918,6 +918,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         // COMPAT(gritukan)
         if (!config->MasterConnector->IncrementalHeartbeatPeriod) {
             config->MasterConnector->IncrementalHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
+            // TODO(cherepashka): migrate config
+            config->MasterConnector->HeartbeatExecutor.Period = config->IncrementalHeartbeatPeriod;
         }
         if (!config->MasterConnector->JobHeartbeatPeriod) {
             // This is not a mistake!
