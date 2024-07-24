@@ -158,7 +158,7 @@ public class ApiServiceMethodTable {
             apiServiceMethod("LookupRows", TReqLookupRows::newBuilder, TRspLookupRows.parser());
 
     public static final RpcMethodDescriptor<TReqMultiLookup.Builder, TRspMultiLookup> MULTI_LOOKUP_ROWS =
-            apiServiceMethod("MultiLookupRows", TReqMultiLookup::newBuilder, TRspMultiLookup.parser());
+            apiServiceMethod("MultiLookup", TReqMultiLookup::newBuilder, TRspMultiLookup.parser());
 
     public static final RpcMethodDescriptor<TReqVersionedLookupRows.Builder, TRspVersionedLookupRows>
             VERSIONED_LOOKUP_ROWS =
