@@ -7,6 +7,7 @@ import java.util.concurrent.CompletionException;
 import org.junit.Test;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MultiLookupRequest;
+import tech.ytsaurus.client.request.MultiLookupSubrequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.core.rows.YTreeMapNodeSerializer;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -129,8 +130,8 @@ public class MockYTsaurusClientTest {
     private CompletableFuture<List<List<YTreeMapNode>>> doMultiLookup(MockYTsaurusClient mockClient) {
         return mockClient.multiLookupRows(
                 new MultiLookupRequest().toBuilder()
-                        .addSubrequest(new LookupRowsRequest(path, schema.toLookup()))
-                        .addSubrequest(new LookupRowsRequest(path, schema.toLookup()))
+                        .addSubrequest(new MultiLookupSubrequest(path, schema.toLookup()))
+                        .addSubrequest(new MultiLookupSubrequest(path, schema.toLookup()))
                         .build(),
                 new YTreeMapNodeSerializer());
     }

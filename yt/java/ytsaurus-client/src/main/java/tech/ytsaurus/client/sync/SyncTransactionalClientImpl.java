@@ -21,6 +21,7 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MoveNode;
+import tech.ytsaurus.client.request.MultiLookupRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -113,6 +114,11 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
             YTreeRowSerializer<T> serializer
     ) {
         return client.lookupRows(req, serializer).join();
+    }
+
+    @Override
+    public List<UnversionedRowset> multiLookup(MultiLookupRequest req) {
+        return client.multiLookupRows(req).join();
     }
 
     @Override

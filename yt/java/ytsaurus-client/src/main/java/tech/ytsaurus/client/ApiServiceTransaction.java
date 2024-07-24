@@ -21,7 +21,7 @@ import tech.ytsaurus.client.operations.Spec;
 import tech.ytsaurus.client.operations.SpecPreparationContext;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
-import tech.ytsaurus.client.request.AbstractMultiLookupRequest;
+import tech.ytsaurus.client.request.MultiLookupRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
@@ -325,12 +325,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
-    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request) {
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRequest request) {
         return client.multiLookupRows(request);
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request,
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(MultiLookupRequest request,
                                                           YTreeRowSerializer<T> serializer)
     {
         return client.multiLookupRows(request, serializer);
