@@ -446,6 +446,8 @@ items:
         href: admin-guide/cluster-operations.md
           #      - name: Как построить production-инсталляцию
           #        href: admin-guide/production.md
+      - name: Администрирование нод
+        href: admin-guide/node-maintenance.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
       - name: Расширение мастер-сервера
