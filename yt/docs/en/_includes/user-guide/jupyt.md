@@ -6,14 +6,14 @@ title: Jupyter Notebooks | {{product-name}}
 
 {{product-name}} allows to launch Jupyter Notebooks on the computational resources of the cluster. Functionality can be used on clusters using CRI job environment.
 
-Following actions are required to launch a notebook.
+Following actions are required to launch a notebook:
 
 1. Set the environment variable `JUPYT_CTL_ADDRESS` to the address of JUPYT strawberry controller.
 ```bash
 export JUPYT_CTL_ADDRESS=jupyt.test.yt.mycloud.net
 ```
 
-1. Select docker-image of the jupyter-notebook. You can use [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/) as a image or as a base of the image. Example of such an image is [minimal-notebook](quay.io/jupyter/minimal-notebook).
+1. Select docker-image of the jupyter-notebook. You can use [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/) as an image or as a base of the image. Example of such an image is [minimal-notebook](quay.io/jupyter/minimal-notebook).
 
 1. Create a notebook. To create a notebook you should specify docker-image with the notebook and scheduler pool for the operation.
 ```bash
@@ -37,6 +37,6 @@ foo@bar:~$ yt jupyt ctl get-endpoint test-jupyt
 
 {% note warning "Warning" %}
 
-Notebooks and files created on filesystem are not preserved after job restart. For the reliable storage of the files you should store them in Cypress.
+Notebooks and files created on filesystem are not preserved after job restart. For the reliable storage of the files you should store them in [Cypress](../user-guide/storage/cypress.md).
 
 {% endnote %}
