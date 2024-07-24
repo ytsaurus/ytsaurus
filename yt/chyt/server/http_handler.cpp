@@ -57,7 +57,7 @@ class THttpHandler
 {
 public:
     THttpHandler(THost* host, DB::IServer& server, const DB::HTTPServerRequest& request)
-        : DB::DynamicQueryHandler(server, "handler")
+        : DB::DynamicQueryHandler(server, "query")
         , Host_(host)
         , Server_(server)
     {

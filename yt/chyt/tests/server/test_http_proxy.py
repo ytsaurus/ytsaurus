@@ -517,6 +517,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(rotations)) <= 1, "only sessions attached to the killed instance should rotate"
 
+    @authors("barykinni")
+    def test_query_in_url(self):
+        with Clique(1) as clique:
+            assert clique.make_query_via_proxy("", settings={"query": "SELECT 1 AS a"}) == [{"a": 1}]
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
