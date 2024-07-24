@@ -25,8 +25,6 @@ target_link_libraries(restricted-boost-intrusive INTERFACE
   contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
-  restricted-boost-container_hash
   restricted-boost-move
-  restricted-boost-static_assert
 )
 
