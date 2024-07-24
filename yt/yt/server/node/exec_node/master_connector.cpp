@@ -78,6 +78,8 @@ public:
         DynamicConfig_ = newConfig;
 
         HeartbeatReporter_->Reconfigure(DynamicConfig_->HeartbeatExecutor);
+
+        YT_LOG_DEBUG("Dynamic config changed");
     }
 
     TExecNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
