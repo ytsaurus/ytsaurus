@@ -136,7 +136,7 @@ private:
 };
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 688);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 656);
 
 ////////////////////////////////////////////////////////////////////////////////
 

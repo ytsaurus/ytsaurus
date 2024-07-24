@@ -115,14 +115,20 @@ public:
     {
         // Entries are stored sorted by medium index, changing the index would
         // break internal invariants.
-        DEFINE_BYVAL_RO_PROPERTY(ui16, MediumIndex);
+        DEFINE_BYVAL_RO_PROPERTY(ui8, MediumIndex);
+        static_assert(MaxMediumCount <= std::numeric_limits<decltype(MediumIndex_)>::max());
+
         DEFINE_BYREF_RW_PROPERTY(TReplicationPolicy, Policy);
 
     public:
         TEntry() = default;
         TEntry(int mediumIndex, TReplicationPolicy policy);
 
-        void Persist(const TStreamPersistenceContext& context);
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+
+        void Save(NCypressServer::TBeginCopyContext& context) const;
+        void Load(NCypressServer::TEndCopyContext& context);
 
         bool operator==(const TEntry& rhs) const;
 
@@ -239,7 +245,7 @@ private:
     static auto Find(T& entries, int mediumIndex) -> decltype(entries.begin());
 };
 
-static_assert(sizeof(TChunkReplication) == 40, "TChunkReplication's size is wrong");
+static_assert(sizeof(TChunkReplication) == 24, "TChunkReplication's size is wrong");
 
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 

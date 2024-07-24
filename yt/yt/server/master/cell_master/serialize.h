@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((UnapprovedSequoiaReplicas)                                    (2586))  // aleksandra-zh
     ((ChunkMergerBackoff)                                           (2587))  // cherepashka
     ((ForbiddenErasureCodecs_ForbiddenComprCodecsRefactoring_24_1)  (2588))  // abogutskiy, shakurov
+    ((MediumIndexSizeofReduction)                                   (2589))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
