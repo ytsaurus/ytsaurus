@@ -35,7 +35,7 @@ template <typename... Args>
 
 template <typename TWrappedMessage>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::Visit(TVisitParam target, NYPath::TYPathBuf path)
+void TProtoVisitor<TWrappedMessage>::Visit(TVisitParam&& target, NYPath::TYPathBuf path)
 {
     using TContainerTraits = TProtoVisitorContainerTraits<
         std::remove_cvref_t<TWrappedMessage>,
@@ -44,11 +44,11 @@ void TProtoVisitor<TWrappedMessage>::Visit(TVisitParam target, NYPath::TYPathBuf
     Reset(path);
 
     if constexpr (TContainerTraits::IsScalar) {
-        VisitScalar(target, EVisitReason::TopLevel);
+        VisitScalar(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
     } else if constexpr (TContainerTraits::IsVector) {
-        VisitVector(target, EVisitReason::TopLevel);
+        VisitVector(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
     } else if constexpr (TContainerTraits::IsMap) {
-        VisitMap(target, EVisitReason::TopLevel);
+        VisitMap(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
     } else {
         Throw(EErrorCode::Unimplemented,
             "Cannot visit type %v with a visitor that expects %v",
@@ -59,7 +59,7 @@ void TProtoVisitor<TWrappedMessage>::Visit(TVisitParam target, NYPath::TYPathBuf
 
 template <typename TWrappedMessage>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitScalar(TVisitParam messageScalar, EVisitReason reason)
+void TProtoVisitor<TWrappedMessage>::VisitScalar(TVisitParam&& messageScalar, EVisitReason reason)
 {
     using TContainerTraits = TProtoVisitorContainerTraits<
         std::remove_cvref_t<TWrappedMessage>,
@@ -74,11 +74,11 @@ void TProtoVisitor<TWrappedMessage>::VisitScalar(TVisitParam messageScalar, EVis
 
 template <typename TWrappedMessage>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam messageVector, EVisitReason reason)
+void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam&& messageVector, EVisitReason reason)
 {
     if (PathComplete()) {
         if (VisitEverythingAfterPath_) {
-            VisitWholeVector(messageVector, EVisitReason::AfterPath);
+            VisitWholeVector(std::forward<TVisitParam>(messageVector), EVisitReason::AfterPath);
             return;
         } else {
             Throw(EErrorCode::Unimplemented, "Cannot handle whole message vectors");
@@ -88,8 +88,8 @@ void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam messageVector, EVis
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        CheckAsterisk();
-        VisitWholeVector(messageVector, EVisitReason::Asterisk);
+        AdvanceOverAsterisk();
+        VisitWholeVector(std::forward<TVisitParam>(messageVector), EVisitReason::Asterisk);
     } else {
         int size = messageVector.size();
         auto errorOrIndexParseResult = ParseCurrentListIndex(size);
@@ -121,7 +121,7 @@ void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam messageVector, EVis
 template <typename TWrappedMessage>
 template <typename TVisitParam>
 void TProtoVisitor<TWrappedMessage>::VisitWholeVector(
-    TVisitParam messageVector,
+    TVisitParam&& messageVector,
     EVisitReason reason)
 {
     int size = messageVector.size();
@@ -133,7 +133,7 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeVector(
 
 template <typename TWrappedMessage>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam messageMap, EVisitReason reason)
+void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam&& messageMap, EVisitReason reason)
 {
     using TContainerTraits = TProtoVisitorContainerTraits<
         std::remove_cvref_t<TWrappedMessage>,
@@ -141,7 +141,7 @@ void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam messageMap, EVisitReas
 
     if (PathComplete()) {
         if (VisitEverythingAfterPath_) {
-            VisitWholeMap(messageMap, EVisitReason::AfterPath);
+            VisitWholeMap(std::forward<TVisitParam>(messageMap), EVisitReason::AfterPath);
             return;
         } else {
             Throw(EErrorCode::Unimplemented, "Cannot handle whole message maps");
@@ -151,8 +151,8 @@ void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam messageMap, EVisitReas
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        CheckAsterisk();
-        VisitWholeMap(messageMap, EVisitReason::Asterisk);
+        AdvanceOverAsterisk();
+        VisitWholeMap(std::forward<TVisitParam>(messageMap), EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
 
@@ -187,7 +187,7 @@ void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam messageMap, EVisitReas
 
 template <typename TWrappedMessage>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitWholeMap(TVisitParam messageMap, EVisitReason reason)
+void TProtoVisitor<TWrappedMessage>::VisitWholeMap(TVisitParam&& messageMap, EVisitReason reason)
 {
     for (auto& [key, entry] : messageMap) {
         auto checkpoint = CheckpointBranchedTraversal(key);
@@ -237,7 +237,7 @@ void TProtoVisitor<TWrappedMessage>::VisitRegularMessage(
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        CheckAsterisk();
+        AdvanceOverAsterisk();
         VisitWholeMessage(message, EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
@@ -348,7 +348,7 @@ void TProtoVisitor<TWrappedMessage>::VisitMapField(
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        CheckAsterisk();
+        AdvanceOverAsterisk();
         VisitWholeMapField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
         Expect(NYPath::ETokenType::Literal);
@@ -463,7 +463,7 @@ void TProtoVisitor<TWrappedMessage>::VisitRepeatedField(
     SkipSlash();
 
     if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        CheckAsterisk();
+        AdvanceOverAsterisk();
         VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
         auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
