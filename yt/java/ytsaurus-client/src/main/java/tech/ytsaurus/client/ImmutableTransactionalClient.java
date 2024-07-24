@@ -38,6 +38,11 @@ public interface ImmutableTransactionalClient {
 
     CompletableFuture<List<UnversionedRowset>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request);
 
+    <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            AbstractMultiLookupRequest<?, ?> request,
+            YTreeRowSerializer<T> serializer
+    );
+
     CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request);
 
     @Deprecated

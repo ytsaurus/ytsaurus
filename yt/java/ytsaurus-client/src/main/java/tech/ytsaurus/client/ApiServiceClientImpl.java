@@ -14,6 +14,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -152,6 +153,7 @@ import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
@@ -585,30 +587,36 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(AbstractMultiLookupRequest<?, ?> request) {
-        return multiLookupRowsImpl(request, response -> {
-            List<UnversionedRowset> result = new ArrayList<>(response.body().getSubresponsesCount());
-            int beginAttachmentIndex = 0;
-            for (var subresponse : response.body().getSubresponsesList()) {
-                int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
-                // TODO: remove after debugging
-                assert(endAttachmentIndex <= response.attachments().size());
+        return multiLookupImpl(request, response -> multiLookupResponseReader(
+                response,
+                ApiServiceUtil::deserializeUnversionedRowset
+        ));
+    }
 
-                result.add(
-                        ApiServiceUtil.deserializeUnversionedRowset(
-                                subresponse.getRowsetDescriptor(),
-                                response.attachments().subList(beginAttachmentIndex, endAttachmentIndex)
-                        )
-                );
-
-                beginAttachmentIndex = endAttachmentIndex;
-            }
-            // TODO: remove after debugging
-            assert(beginAttachmentIndex == response.attachments().size());
-            return result;
+    @Override
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            AbstractMultiLookupRequest<?, ?> request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return multiLookupImpl(request, response -> {
+            return multiLookupResponseReader(
+                    response,
+                   (rowsetDescriptor, attachments) ->  {
+                       final ConsumerSourceRet<T> result = ConsumerSource.list();
+                       ApiServiceUtil.deserializeUnversionedRowset(
+                                rowsetDescriptor,
+                                attachments,
+                                serializer,
+                                result,
+                                serializationResolver
+                       );
+                       return result.get();
+                   }
+            );
         });
     }
 
-    private <T> CompletableFuture<T> multiLookupRowsImpl(
+    private <T> CompletableFuture<T> multiLookupImpl(
             AbstractMultiLookupRequest<?, ?> request,
             Function<RpcClientResponse<TRspMultiLookup>, T> responseReader
     ) {
@@ -622,6 +630,32 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                     return responseReader.apply(response);
                 });
     }
+
+    private <T> List<T> multiLookupResponseReader(
+            RpcClientResponse<TRspMultiLookup> response,
+            BiFunction<TRowsetDescriptor, List<byte[]>, T> rowsetDeserializer
+    ) {
+        List<T> result = new ArrayList<>(response.body().getSubresponsesCount());
+        int beginAttachmentIndex = 0;
+        for (var subresponse : response.body().getSubresponsesList()) {
+            int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+            // TODO: remove after debugging
+            assert(endAttachmentIndex <= response.attachments().size());
+
+            result.add(
+                    rowsetDeserializer.apply(
+                            subresponse.getRowsetDescriptor(),
+                            response.attachments().subList(beginAttachmentIndex, endAttachmentIndex)
+                    )
+            );
+
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        // TODO: remove after debugging
+        assert(beginAttachmentIndex == response.attachments().size());
+        return result;
+    }
+
 
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
