@@ -75,7 +75,7 @@ public abstract class AbstractLookupRequestOptionsRequest<
     public abstract void serializeRowsetTo(List<byte[]> attachments);
 
     /**
-     * Base class for builders of LookupRows & MultiLookup requests.
+     * Base class for builders of LookupRows and MultiLookup requests.
      */
     public abstract static class Builder<
             TBuilder extends Builder<TBuilder, TRequest>,

@@ -639,7 +639,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         int beginAttachmentIndex = 0;
         for (var subresponse : response.body().getSubresponsesList()) {
             int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
-            // TODO: remove after debugging
             assert(endAttachmentIndex <= response.attachments().size());
 
             result.add(
@@ -651,7 +650,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
             beginAttachmentIndex = endAttachmentIndex;
         }
-        // TODO: remove after debugging
         assert(beginAttachmentIndex == response.attachments().size());
         return result;
     }
