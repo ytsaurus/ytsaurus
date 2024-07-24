@@ -298,14 +298,8 @@ public:
     {
         YT_VERIFY(!HasMutationContext());
 
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (const auto& chunk : chunks) {
-            if (CanHaveSequoiaReplicas(chunk->GetId())) {
-                sequoiaChunkIds.push_back(chunk->GetId());
-            }
-        }
-
-        auto sequoiaReplicasOrError = WaitForFast(GetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved));
+        auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
+        auto sequoiaReplicasOrError = WaitForFast(DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved));
         return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
     }
 
@@ -334,13 +328,7 @@ public:
         YT_VERIFY(!HasMutationContext());
         Bootstrap_->VerifyPersistentStateRead();
 
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (const auto& chunk : chunks) {
-            if (CanHaveSequoiaReplicas(chunk->GetId())) {
-                sequoiaChunkIds.push_back(chunk->GetId());
-            }
-        }
-
+        auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
         if (sequoiaChunkIds.empty()) {
             TChunkToLocationPtrWithReplicaInfoList result;
             for (const auto& chunk : chunks) {
@@ -351,7 +339,7 @@ public:
             return MakeFuture(std::move(result));
         }
 
-        return GetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved)
+        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved)
             .Apply(BIND([sequoiaChunkIds = std::move(sequoiaChunkIds), chunks = std::move(chunks), this, this_ = MakeStrong(this)] (const TErrorOr<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>>& sequoiaReplicasOrError) mutable {
                 return GetReplicas(
                     chunks,
@@ -382,62 +370,15 @@ public:
         YT_VERIFY(!HasMutationContext());
         Bootstrap_->VerifyPersistentStateRead();
 
-        THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList> result;
-        for (auto chunkId : chunkIds) {
-            result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
-        }
-
-        if (!GetDynamicConfig()->FetchReplicasFromSequoia) {
-            return MakeFuture(std::move(result));
-        }
-
         std::vector<TChunkId> sequoiaChunkIds;
         for (auto chunkId : chunkIds) {
             if (CanHaveSequoiaReplicas(chunkId)) {
                 sequoiaChunkIds.push_back(chunkId);
             }
         }
-
-        if (sequoiaChunkIds.empty()) {
-            return MakeFuture(std::move(result));
-        }
-
-        // TODO(aleksandra-zh)
         SortUnique(sequoiaChunkIds);
 
-        auto unapprovedReplicasFuture = includeUnapproved
-            ? GetUnapprovedSequoiaChunkReplicas(sequoiaChunkIds)
-            : MakeFuture<std::vector<TSequoiaChunkReplica>>({});
-        auto replicasFuture = GetSequoiaChunkReplicas(sequoiaChunkIds);
-        std::vector futures({replicasFuture, unapprovedReplicasFuture});
-        return AllSucceeded(futures)
-            .Apply(BIND([result = std::move(result), this, this_ = MakeStrong(this)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
-                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                for (const auto& replicas : sequoiaReplicas) {
-                    for (const auto& replica : replicas) {
-                        auto chunkId = replica.ChunkId;
-                        auto locationUuid = replica.LocationUuid;
-                        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-                        if (!IsObjectAlive(location)) {
-                            YT_LOG_ALERT("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationUuid: %v)",
-                                chunkId,
-                                locationUuid);
-                            continue;
-                        }
-
-                        TChunkLocationPtrWithReplicaInfo chunkLocationWithReplicaInfo(
-                            location,
-                            replica.ReplicaIndex,
-                            EChunkReplicaState::Generic);
-                        result[chunkId].push_back(chunkLocationWithReplicaInfo);
-                    }
-                }
-
-                return result;
-            })
-            .AsyncViaGuarded(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
-                TError("Error fetching Sequoia replicas")));
+        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved);
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
@@ -484,6 +425,71 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
+
+    TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> DoGetOnlySequoiaChunkReplicas(
+        const std::vector<TChunkId>& sequoiaChunkIds,
+        bool includeUnapproved) const
+    {
+        YT_VERIFY(!HasMutationContext());
+        Bootstrap_->VerifyPersistentStateRead();
+
+        THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList> result;
+        for (auto chunkId : sequoiaChunkIds) {
+            result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
+        }
+
+        if (!GetDynamicConfig()->FetchReplicasFromSequoia) {
+            return MakeFuture(std::move(result));
+        }
+
+        auto unapprovedReplicasFuture = includeUnapproved
+            ? GetUnapprovedSequoiaChunkReplicas(sequoiaChunkIds)
+            : MakeFuture<std::vector<TSequoiaChunkReplica>>({});
+        auto replicasFuture = GetSequoiaChunkReplicas(sequoiaChunkIds);
+        std::vector futures({replicasFuture, unapprovedReplicasFuture});
+        return AllSucceeded(futures)
+            .Apply(BIND([result = std::move(result), this, this_ = MakeStrong(this)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
+                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+                for (const auto& replicas : sequoiaReplicas) {
+                    for (const auto& replica : replicas) {
+                        auto chunkId = replica.ChunkId;
+                        auto locationUuid = replica.LocationUuid;
+                        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+                        if (!IsObjectAlive(location)) {
+                            YT_LOG_ALERT("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationUuid: %v)",
+                                chunkId,
+                                locationUuid);
+                            continue;
+                        }
+
+                        TChunkLocationPtrWithReplicaInfo chunkLocationWithReplicaInfo(
+                            location,
+                            replica.ReplicaIndex,
+                            EChunkReplicaState::Generic);
+                        result[chunkId].push_back(chunkLocationWithReplicaInfo);
+                    }
+                }
+
+                return result;
+            })
+            .AsyncViaGuarded(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                TError("Error fetching Sequoia replicas")));
+    }
+
+    std::vector<TChunkId> FilterSequoiaChunkIds(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const
+    {
+        std::vector<TChunkId> sequoiaChunkIds;
+        for (const auto& chunk : chunks) {
+            if (CanHaveSequoiaReplicas(chunk->GetId())) {
+                sequoiaChunkIds.push_back(chunk->GetId());
+            }
+        }
+
+        SortUnique(sequoiaChunkIds);
+
+        return sequoiaChunkIds;
+    }
 
     const TDynamicSequoiaChunkReplicasConfigPtr& GetDynamicConfig() const
     {
