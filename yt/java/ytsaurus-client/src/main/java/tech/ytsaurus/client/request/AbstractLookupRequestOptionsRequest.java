@@ -5,9 +5,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.SerializationResolver;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.core.tables.TableSchema;
 
 public abstract class AbstractLookupRequestOptionsRequest<
@@ -22,6 +29,9 @@ public abstract class AbstractLookupRequestOptionsRequest<
     // now we have to keep backward compatibility.
     protected boolean keepMissingRows;
 
+    protected final List<UnversionedRow> filters;
+    protected final List<List<?>> unconvertedFilters;
+
     protected AbstractLookupRequestOptionsRequest(Builder<?, ?> builder) {
         super(builder);
         this.path = Objects.requireNonNull(builder.path);
@@ -31,6 +41,29 @@ public abstract class AbstractLookupRequestOptionsRequest<
         }
         this.lookupColumns = new ArrayList<>(Objects.requireNonNull(builder.lookupColumns));
         this.keepMissingRows = builder.keepMissingRows;
+        this.unconvertedFilters = new ArrayList<>(builder.unconvertedFilters);
+        this.filters = new ArrayList<>(builder.filters);
+    }
+
+    public void convertValues(SerializationResolver serializationResolver) {
+        this.filters.addAll(this.unconvertedFilters.stream().map(
+                filter -> convertFilterToRow(filter, serializationResolver)).collect(Collectors.toList()));
+        this.unconvertedFilters.clear();
+    }
+
+    private UnversionedRow convertFilterToRow(List<?> filter, SerializationResolver serializationResolver) {
+        if (filter.size() != schema.getColumns().size()) {
+            throw new IllegalArgumentException("Number of filter columns must match the number key columns");
+        }
+        List<UnversionedValue> row = new ArrayList<>(schema.getColumns().size());
+        ApiServiceUtil.convertKeyColumns(row, schema, filter, serializationResolver);
+        return new UnversionedRow(row);
+    }
+
+    public void serializeRowsetTo(List<byte[]> attachments) {
+        WireProtocolWriter writer = new WireProtocolWriter(attachments);
+        writer.writeUnversionedRowset(filters, new UnversionedRowSerializer(getSchema()));
+        writer.finish();
     }
 
     /**
@@ -70,11 +103,6 @@ public abstract class AbstractLookupRequestOptionsRequest<
     }
 
     /**
-     * Internal method.
-     */
-    public abstract void serializeRowsetTo(List<byte[]> attachments);
-
-    /**
      * Base class for builders of LookupRows and MultiLookup requests.
      */
     public abstract static class Builder<
@@ -90,6 +118,9 @@ public abstract class AbstractLookupRequestOptionsRequest<
         // NB. Java default of keepMissingRows is different from YT default for historical reasons,
         // now we have to keep backward compatibility.
         private boolean keepMissingRows = false;
+
+        private final List<List<?>> unconvertedFilters = new ArrayList<>();
+        private final List<UnversionedRow> filters = new ArrayList<>();
 
         /**
          * Construct empty builder.
@@ -197,6 +228,34 @@ public abstract class AbstractLookupRequestOptionsRequest<
          */
         public List<String> getLookupColumns() {
             return Collections.unmodifiableList(lookupColumns);
+        }
+
+        public TBuilder addFilter(List<?> filter) {
+            unconvertedFilters.add(Objects.requireNonNull(filter));
+            return self();
+        }
+
+        public TBuilder addFilter(Object... filterValues) {
+            return addFilter(Arrays.asList(filterValues));
+        }
+
+        public TBuilder addFilters(Iterable<? extends List<?>> filters) {
+            for (List<?> filter : filters) {
+                addFilter(filter);
+            }
+            return self();
+        }
+
+        TBuilder setUnconvertedFilters(List<List<?>> unconvertedFilters) {
+            this.unconvertedFilters.clear();
+            this.unconvertedFilters.addAll(unconvertedFilters);
+            return self();
+        }
+
+        TBuilder setFilters(List<UnversionedRow> filters) {
+            this.filters.clear();
+            this.filters.addAll(filters);
+            return self();
         }
     }
 }

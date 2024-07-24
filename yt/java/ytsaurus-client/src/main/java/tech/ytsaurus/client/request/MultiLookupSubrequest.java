@@ -24,8 +24,14 @@ public class MultiLookupSubrequest
     @Override
     public Builder toBuilder() {
         return builder()
+                .setFilters(filters)
+                .setUnconvertedFilters(unconvertedFilters)
+                .setPath(path)
+                .setSchema(schema)
+                .addLookupColumns(lookupColumns)
                 .setTimestamp(timestamp)
                 .setRetentionTimestamp(retentionTimestamp)
+                .setKeepMissingRows(keepMissingRows)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -33,12 +39,6 @@ public class MultiLookupSubrequest
                 .setAdditionalData(additionalData);
     }
 
-    @Override
-    public void serializeRowsetTo(List<byte[]> attachments) {
-        WireProtocolWriter writer = new WireProtocolWriter(attachments);
-        writer.writeUnversionedRowset(List.of(), new UnversionedRowSerializer(getSchema()));
-        writer.finish();
-    }
 
     public static class Builder extends BuilderBase<Builder> {
         @Override

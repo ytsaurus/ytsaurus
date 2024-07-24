@@ -25,10 +25,6 @@ public abstract class AbstractLookupRowsRequest<
         super(builder);
     }
 
-    /**
-     * Internal method.
-     */
-    public abstract void convertValues(SerializationResolver serializationResolver);
 
     /**
      * Internal method: prepare request to send over network.
