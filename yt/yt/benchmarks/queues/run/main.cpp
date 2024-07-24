@@ -85,7 +85,6 @@ public:
         Opts_.AddLongOption("mode").StoreResult(&Mode_).DefaultValue("offline");
         Opts_.AddLongOption("use-native-tablet-node-api").StoreTrue(&UseNativeTabletNodeApi_);
         Opts_.AddLongOption("use-pull-queue-consumer").StoreTrue(&UsePullQueueConsumer_);
-        Opts_.AddLongOption("use-yt-consumers").StoreTrue(&UseYTConsumers_);
     }
 
 protected:
@@ -103,18 +102,12 @@ protected:
             "Partition reader config (UseNativeTabletNodeApi: %v, UsePullQueueConsumer: %v)",
             partitionReaderConfig->UseNativeTabletNodeApi,
             partitionReaderConfig->UsePullQueueConsumer);
-        auto partitionReader = (UseYTConsumers_
-            ? CreateMultiQueueConsumerPartitionReader(
+        auto partitionReader = CreateMultiQueueConsumerPartitionReader(
             partitionReaderConfig,
             Client_,
             ConsumerPath_,
             QueuePath_,
-            /*partition_index*/ 0)
-            : CreatePartitionReader(
-                partitionReaderConfig,
-                Client_,
-                ConsumerPath_.GetPath(),
-                /*partition_index*/ 0));
+            /*partition_index*/ 0);
 
         WaitFor(partitionReader->Open())
             .ThrowOnError();
@@ -190,7 +183,6 @@ private:
     ISubConsumerClientPtr ConsumerClient_;
     bool UseNativeTabletNodeApi_;
     bool UsePullQueueConsumer_;
-    bool UseYTConsumers_;
 
     TPeriodicExecutorPtr LagReportingExecutor_;
 
@@ -263,11 +255,7 @@ private:
     {
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
-        if (UseYTConsumers_) {
-            transaction->AdvanceConsumer(ConsumerPath_.GetPath(), QueuePath_, 0, {}, offset);
-        } else {
-            transaction->AdvanceConsumer(ConsumerPath_.GetPath(), 0, {}, offset);
-        }
+        transaction->AdvanceConsumer(ConsumerPath_.GetPath(), QueuePath_, 0, {}, offset);
         WaitFor(transaction->Commit())
             .ThrowOnError();
         YT_LOG_INFO("Advanced consumer out of band (Offset: %v)", offset);
@@ -293,13 +281,11 @@ private:
 
         CreateConsumer();
 
-        ConsumerClient_ = (UseYTConsumers_
-            ? CreateConsumerClient(Client_, ConsumerPath_.GetPath())->GetSubConsumerClient(
+        ConsumerClient_ = CreateConsumerClient(Client_, ConsumerPath_.GetPath())->GetSubConsumerClient(
                 Client_, {
                     .Cluster = *QueuePath_.GetCluster(),
                     .Path = QueuePath_.GetPath(),
-                })
-            : CreateBigRTConsumerClient(Client_, ConsumerPath_.GetPath()));
+                });
 
         if (Mode_ == "online") {
             LagReportingExecutor_ = New<TPeriodicExecutor>(
@@ -351,15 +337,11 @@ private:
             return;
         }
 
-        if (UseYTConsumers_) {
-            CreateYTConsumer();
-            WaitFor(Client_->RegisterQueueConsumer(QueuePath_, ConsumerPath_, /*vital*/ false))
-                .ThrowOnError();
-            // Give registration caches time to sync.
-            TDelayedExecutor::WaitForDuration(TDuration::Seconds(30));
-        } else {
-            CreateBigRTConsumer();
-        }
+        CreateYTConsumer();
+        WaitFor(Client_->RegisterQueueConsumer(QueuePath_, ConsumerPath_, /*vital*/ false))
+            .ThrowOnError();
+        // Give registration caches time to sync.
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(30));
 
         WaitFor(Client_->SetNode(ConsumerPath_.GetPath() + "/@treat_as_queue_consumer", ConvertToYsonString(true)))
             .ThrowOnError();
