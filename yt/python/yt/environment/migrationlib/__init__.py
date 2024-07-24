@@ -359,6 +359,11 @@ class Migration(object):
                         continue
 
                     table_exists = client.exists(table_path)
+
+                    shard_count = shard_count
+                    if table_exists:
+                        shard_count = int(client.get(table_path + "/@tablet_count"))
+
                     tmp_path = "{0}/{1}.tmp.{2}".format(tables_path, table, version)
                     if force and client.exists(tmp_path):
                         client.remove(tmp_path)
