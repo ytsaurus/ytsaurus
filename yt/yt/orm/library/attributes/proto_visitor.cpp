@@ -26,14 +26,28 @@ void TProtoVisitorBase::SkipSlash()
     Throw(EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
 }
 
+void TProtoVisitorBase::Push(TToken token)
+{
+    Visit(token,
+        [this] (int index) { CurrentPath_.Push(index); },
+        [this] (TStringBuf key) { CurrentPath_.Push(key); });
+}
+
 void TProtoVisitorBase::AdvanceOver(TToken token)
 {
     if (!PathComplete()) {
         Tokenizer_.Advance();
     }
-    Visit(token,
-        [this] (int index) { CurrentPath_.Push(index); },
-        [this] (TStringBuf key) { CurrentPath_.Push(key); });
+    Push(token);
+}
+
+void TProtoVisitorBase::AdvanceOverAsterisk()
+{
+    if (!AllowAsterisk_) {
+        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks");
+    }
+
+    Tokenizer_.Advance();
 }
 
 TProtoVisitorBase::TCheckpoint::TCheckpoint(NYPath::TTokenizer& tokenizer)
@@ -62,7 +76,7 @@ void TProtoVisitorBase::TCheckpoint::Defer(std::function<void()> defer)
 TProtoVisitorBase::TCheckpoint TProtoVisitorBase::CheckpointBranchedTraversal(TToken token)
 {
     TCheckpoint result(Tokenizer_);
-    AdvanceOver(token);
+    Push(token);
     result.Defer([this] () { CurrentPath_.Pop(); });
     return result;
 }
@@ -83,13 +97,6 @@ void TProtoVisitorBase::Expect(NYPath::ETokenType type) const
     }
 
     Throw(error);
-}
-
-void TProtoVisitorBase::CheckAsterisk() const
-{
-    if (!AllowAsterisk_) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks");
-    }
 }
 
 bool TProtoVisitorBase::PathComplete() const

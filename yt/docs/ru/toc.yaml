@@ -331,6 +331,11 @@ items:
           when: audience == "public"
           items:
             - include: { mode: link, path: yql/toc.yaml }
+      - name: Распределённые блокировки
+        when: audience == "public"
+        items:
+          - name: Обзор
+            href: user-guide/locking/cypress-as-locking-service.md
       - name: Прокси
         when: audience == "public"
         items:
@@ -363,6 +368,9 @@ items:
       - name: Query tracker
         when: audience == "public"
         href: user-guide/query-tracker.md
+      - name: Работа с Jupyter Notebooks
+        when: audience == "public"
+        href: user-guide/jupyt.md
   - name: API и справочник
     when: audience == "public"
     items:
@@ -446,6 +454,8 @@ items:
         href: admin-guide/cluster-operations.md
           #      - name: Как построить production-инсталляцию
           #        href: admin-guide/production.md
+      - name: Администрирование нод
+        href: admin-guide/node-maintenance.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
       - name: Расширение мастер-сервера

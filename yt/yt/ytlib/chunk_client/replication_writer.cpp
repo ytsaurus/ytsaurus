@@ -836,9 +836,7 @@ private:
     void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        if (IsRegularChunkId(SessionId_.ChunkId)) {
-            YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
-        }
+        YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         const auto& nodeDescriptor = nodeDirectory->GetDescriptor(target);
@@ -852,10 +850,29 @@ private:
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
-            BIND([weak = MakeWeak(node)] (const TError& error) {
-                auto locked = weak.Lock();
-                return locked && locked->IsAlive() &&
-                    error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
+            BIND([sourceNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
+                auto lockedSourceNode = sourceNode.Lock();
+                auto lockedWriter = weakThis.Lock();
+
+                if (!lockedSourceNode || !lockedWriter || !lockedSourceNode->IsAlive()) {
+                    return false;
+                }
+
+                auto innerError = error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive);
+
+                if (!innerError.has_value()) {
+                    return false;
+                }
+
+                auto address = innerError->Attributes().Find<TString>("address");
+                auto needRetry = address->Empty() || std::count_if(
+                    lockedWriter->Nodes_.begin(),
+                    lockedWriter->Nodes_.end(),
+                    [&] (const auto& node) -> bool {
+                        return node->GetDefaultAddress() == address && !node->IsAlive();
+                    }) == 0;
+
+                return needRetry;
             }));
 
         RegisterCandidateNode(channel);

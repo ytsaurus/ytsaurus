@@ -192,6 +192,8 @@ DEFINE_ENUM(EMasterReign,
     ((UnapprovedSequoiaReplicas)                                    (2586))  // aleksandra-zh
     ((ChunkMergerBackoff)                                           (2587))  // cherepashka
     ((ForbiddenErasureCodecs_ForbiddenComprCodecsRefactoring_24_1)  (2588))  // abogutskiy, shakurov
+    ((MediumIndexSizeofReduction)                                   (2589))  // cherepashka
+    ((SecondaryIndexPerUserValidation_24_1)                         (2590))  // sabdenovch
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -220,7 +222,8 @@ DEFINE_ENUM(EMasterReign,
     ((MultipleTableUpdateQueues)                                    (2624))  // babenko
     ((RefactorCrossCellCopyInPreparationForSequoia)                 (2625))  // h0pless
     ((CypressNodeReachability)                                      (2626))  // danilalexeev
-    ((RackDataCenter)                                               (2627))  // proller
+    ((SecondaryIndexPerUserValidation)                              (2627))  // sabdenovch
+    ((RackDataCenter)                                               (2628))  // proller
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

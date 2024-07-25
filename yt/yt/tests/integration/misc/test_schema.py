@@ -914,7 +914,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("tables have incompatible schemas"):
+        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -964,7 +964,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("tables have incompatible schemas"):
+        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1453,7 +1453,7 @@ class TestRequiredOption(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("tables have incompatible schemas"):
+        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
             # Schemas are incompatible
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],

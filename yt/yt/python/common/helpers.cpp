@@ -251,7 +251,11 @@ Py::Callable TPythonClassObject::Get()
 
 PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName)
 {
+#if PY_MAJOR_VERSION < 3
     auto module = PyObjectPtr(PyImport_ImportModuleNoBlock(moduleName.c_str()));
+#else
+    auto module = PyObjectPtr(PyImport_ImportModule(moduleName.c_str()));
+#endif
     if (!module) {
         throw Py::ImportError(Format("No module named %Qv", moduleName));
     }

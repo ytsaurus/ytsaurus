@@ -667,7 +667,7 @@ private:
     void ValidateTotalSliceCountLimit() const
     {
         if (TotalDataSliceCount_ > MaxTotalDataSliceCount_) {
-            THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large.")
+            THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large")
                 << TErrorAttribute("total_data_slice_count", TotalDataSliceCount_)
                 << TErrorAttribute("max_total_data_slice_count", MaxTotalDataSliceCount_)
                 << TErrorAttribute("current_job_count", PreparedJobs_.size());

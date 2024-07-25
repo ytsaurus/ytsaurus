@@ -687,6 +687,8 @@ private:
         HeartbeatReporter_->Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
+
+        YT_LOG_DEBUG("Dynamic config changed");
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

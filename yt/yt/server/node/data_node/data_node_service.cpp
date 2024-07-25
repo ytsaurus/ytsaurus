@@ -560,7 +560,7 @@ private:
                 // the data to disk in FinishChunk(), not in FlushBlocks().
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
                 const auto& counters = result.Value();
-                if (IsJournalChunkId(session->GetChunkId()) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
+                if (IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
                     ioTracker->Enqueue(
                         counters,
                         MakeWriteIOTags("FlushBlocks", session, context));

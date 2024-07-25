@@ -127,7 +127,7 @@ int main(int argc, const char** argv)
         NLastGetopt::TOptsParseResult result(&opts, argc, argv);
 
         if (runThrottle == runAcquire) {
-            THROW_ERROR_EXCEPTION("Either \"--run-throttle-test\" or \"--run-acquire-test\" must be specified.");
+            THROW_ERROR_EXCEPTION("Either \"--run-throttle-test\" or \"--run-acquire-test\" must be specified");
         }
 
         NYT::ERunMode mode;

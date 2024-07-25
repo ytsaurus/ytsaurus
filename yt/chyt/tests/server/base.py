@@ -368,14 +368,24 @@ class Clique(object):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
-        query = query.strip()
-        assert "format" not in query.lower()
-        query_type = query.strip().split(" ", 1)[0]
-        if query.endswith(";"):
-            query = query[:-1]
-        output_present = query_type.lower() in QUERY_TYPES_WITH_OUTPUT
-        if output_present:
-            query = query + " format " + format
+
+        def prepare_query(query):
+            query = query.strip()
+
+            assert "format" not in query.lower()
+            query_type = query.strip().split(" ", 1)[0]
+            if query.endswith(";"):
+                query = query[:-1]
+            output_present = query_type.lower() in QUERY_TYPES_WITH_OUTPUT
+            if output_present:
+                query = query + " format " + format
+
+            return query, output_present
+
+        if len(query) != 0:
+            query, output_present = prepare_query(query)
+        else:
+            params["query"], output_present = prepare_query(params["query"])
 
         params["output_format_json_quote_64bit_integers"] = 0
 

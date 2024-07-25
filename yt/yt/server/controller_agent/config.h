@@ -1218,6 +1218,8 @@ public:
 
     TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
+    bool EnableMergeSchemasDuringSchemaInfer;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

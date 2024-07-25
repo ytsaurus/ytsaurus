@@ -216,6 +216,14 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
 
 class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     @authors("sabdenovch")
+    def test_forbid_create_secondary_index(self):
+        set("//sys/@config/allow_everyone_create_secondary_indices", False)
+        with raises_yt_error("Could not verify permission"):
+            self._create_basic_tables()
+        set("//sys/users/root/@allow_create_secondary_indices", True)
+        create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+
+    @authors("sabdenovch")
     def test_create_index(self):
         table_id, index_table_id, index_id, _ = self._create_basic_tables()
 

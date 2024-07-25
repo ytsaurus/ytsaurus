@@ -86,16 +86,47 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
-    : MediumIndex_(static_cast<ui16>(mediumIndex))
+    : MediumIndex_(static_cast<ui8>(mediumIndex))
     , Policy_(policy)
 { }
 
-void TChunkReplication::TEntry::Persist(const TStreamPersistenceContext& context)
+void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
 {
-    using NYT::Persist;
+    using NYT::Save;
 
-    Persist(context, MediumIndex_);
-    Persist(context, Policy_);
+    Save(context, MediumIndex_);
+    Save(context, Policy_);
+}
+
+void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::MediumIndexSizeofReduction) {
+        Load(context, MediumIndex_);
+    } else {
+        auto mediumIndex = Load<ui16>(context);
+        YT_VERIFY(mediumIndex <= MaxMediumCount);
+        MediumIndex_ = static_cast<ui8>(mediumIndex);
+    }
+    Load(context, Policy_);
+}
+
+void TChunkReplication::TEntry::Save(NCypressServer::TBeginCopyContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, MediumIndex_);
+    Save(context, Policy_);
+}
+
+void TChunkReplication::TEntry::Load(NCypressServer::TEndCopyContext& context)
+{
+    using NYT::Load;
+
+    Load(context, MediumIndex_);
+    Load(context, Policy_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

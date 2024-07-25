@@ -9,7 +9,8 @@ from yt_commands import (
     create_dynamic_table, get_driver, alter_table)
 
 from yt_type_helpers import (
-    make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type)
+    make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
+    struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
 from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
@@ -67,6 +68,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
+            "enable_merge_schemas_during_schema_infer" : True,
         }
     }
 
@@ -1650,9 +1652,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         with pytest.raises(YtError):
             merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_weak")
 
-        with pytest.raises(YtError):
-            merge(in_=["//tmp/input_bad", "//tmp/input_good"], out="//tmp/output_weak")
-
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation_unordered(self, optimize_for):
@@ -2657,6 +2656,646 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         op.track()
 
         assert not op.get_alerts()
+
+##################################################################
+
+
+class TestInferSchemaInMerge(TestSchedulerMergeCommands):
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_infer_schema_from_input_in_merge(self, merge_mode):
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {"name": "a", "type": "int64", "required" : "true"},
+                {"name": "c", "type": "int64", "required" : "true"},
+                {"name": "d", "type": "int32",  "required" : "true"}
+            ]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {"name": "a", "type": "int32",  "required" : "true"},
+                {"name": "b", "type": "int32",  "required" : "true"},
+                {"name": "d", "type": "int32",  "required" : "false"}
+            ]},
+        )
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        rows = [{"a": 1, "c" : 1, "d" : 1}]
+        write_table("//tmp/t1", rows)
+
+        rows = [{"a": 2, "b" : 2, "d" : 2}, {"a": 3, "b" : 3}]
+        write_table("//tmp/t2", rows)
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {"name": "a", "required": True, "type": "int64"},
+                {"name": "b", "required": False, "type": "int32"},
+                {"name": "c", "required": False, "type": "int64"},
+                {"name": "d", "required": False, "type": "int32"}
+            ],
+            strict=True,
+            unique_keys=False,
+        )
+
+        assert normalize_schema(get("//tmp/output/@schema")) == schema_out
+
+        assert sorted_dicts(read_table("//tmp/output")) == [
+            {"a": 1, "c" : 1, "d" : 1},
+            {"a": 2, "b" : 2, "d" : 2},
+            {"a": 3, "b" : 3, 'd': yson.YsonEntity()},
+        ]
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_option_enable_merge_schemas_during_schema_infer(self, merge_mode):
+        set("//sys/controller_agents/config/enable_merge_schemas_during_schema_infer", False)
+
+        wait(lambda: not get("//sys/controller_agents/config/enable_merge_schemas_during_schema_infer"))
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {"name": "a", "type": "int64", "required" : "true"},
+                {"name": "c", "type": "int64", "required" : "true"},
+                {"name": "d", "type": "int32",  "required" : "true"}
+            ]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {"name": "a", "type": "int32",  "required" : "true"},
+                {"name": "b", "type": "int32",  "required" : "true"},
+                {"name": "d", "type": "int32",  "required" : "false"}
+            ]},
+        )
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        rows = [{"a": 1, "c" : 1, "d" : 1}]
+        write_table("//tmp/t1", rows)
+
+        rows = [{"a": 2, "b" : 2, "d" : 2}, {"a": 3, "b" : 3}]
+        write_table("//tmp/t2", rows)
+
+        with pytest.raises(YtError):
+            merge(
+                mode=merge_mode,
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/output",
+                spec={"schema_inference_mode": "from_input"},
+            )
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_infer_non_strict_schema_from_input_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": make_schema(
+                [
+                    {"name": "a", "required": True, "type": "int64"},
+                    {"name": "b", "required": False, "type": "int32"},
+                ],
+                strict=True,
+                unique_keys=False,
+            )},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": make_schema(
+                [
+                    {"name": "a", "required": True, "type": "int32"},
+                    {"name": "b", "required": False, "type": "int64"},
+                ],
+                strict=False,
+                unique_keys=False,
+            )},
+        )
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        rows = [{"a": 1, "b" : 1}]
+        write_table("//tmp/t1", rows)
+
+        rows = [{"a": 2, "b" : 2}, {"a": 3, "b" : 3}]
+        write_table("//tmp/t2", rows)
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {"name": "a", "required": True, "type": "int64"},
+                {"name": "b", "required": False, "type": "int64"},
+            ],
+            strict=False,
+            unique_keys=False,
+        )
+
+        assert normalize_schema(get("//tmp/output/@schema")) == schema_out
+
+        assert sorted_dicts(read_table("//tmp/output")) == [
+            {"a": 1, "b" : 1},
+            {"a": 2, "b" : 2},
+            {"a": 3, "b" : 3},
+        ]
+
+        create(
+            "table",
+            "//tmp/t3",
+            attributes={"schema": make_schema(
+                [
+                    {"name": "a", "required": True, "type": "int32"}
+                ],
+                strict=False,
+                unique_keys=False,
+            )},
+        )
+
+        create(
+            "table",
+            "//tmp/output2"
+        )
+
+        with pytest.raises(YtError):
+            merge(
+                mode=merge_mode,
+                in_=["//tmp/t2", "//tmp/t3"],
+                out="//tmp/output2",
+                spec={"schema_inference_mode": "from_input"},
+            )
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_infer_optional_schema_from_input_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {"name": "a", "type": "int64", "required" : "false"},
+            ]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {
+                    "name": "a",
+                    "type_v3": optional_type(optional_type("int64"))
+                }
+            ]},
+        )
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        rows = [{"a": 1}]
+        write_table("//tmp/t1", rows)
+
+        rows = [{"a": yson.YsonEntity()}]
+        write_table("//tmp/t2", rows)
+
+        with pytest.raises(YtError):
+            merge(
+                mode=merge_mode,
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/output",
+                spec={"schema_inference_mode": "from_input"},
+            )
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_infer_schema_from_input_with_struct_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", "int64"),
+                        ])
+                }
+            ]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", "int64"),
+                            ("b", "int64"),
+                        ])
+                }
+            ]},
+        )
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        rows = [{"struct" : {"a" : 1}}, {"struct" : {"a" : 2}}]
+        write_table("//tmp/t1", rows)
+
+        rows = [{"struct" : {"a" : 3, "b" : 3}}]
+        write_table("//tmp/t2", rows)
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", "int64"),
+                            ("b", optional_type("int64")),
+                        ])
+                }
+            ],
+            unique_keys=False,
+            strict=True,
+        )
+
+        assert normalize_schema_v3(get("//tmp/output/@schema")) == schema_out
+
+        assert read_table("//tmp/output") == [
+            {"struct" : {"a" : 1, "b" : yson.YsonEntity()}},
+            {"struct" : {"a" : 2, "b" : yson.YsonEntity()}},
+            {"struct" : {"a" : 3, "b" : 3}}
+        ]
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_complex_infer_schema_from_input_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("list", list_type("int64"))
+                        ])
+                },
+                {
+                    "name": "list",
+                    "type_v3": list_type("int64")
+                },
+                {
+                    "name": "tuple",
+                    "type_v3": tuple_type(["int64", "string"])
+                }
+            ]},
+        )
+
+        rows = [{"struct" : {"a" : 1, "list" : [1]}, "list" : [1, 2], "tuple" : [0, "0"]}]
+        write_table("//tmp/t1", rows)
+
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {
+                    "name": "list",
+                    "type_v3": list_type("int32")
+                },
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", "int64"),
+                            ("list", list_type(optional_type("int32"))),
+                            ("b", "int64"),
+                        ])
+                },
+                {
+                    "name": "tuple",
+                    "type_v3": tuple_type(["int64", "utf8"])
+                }
+            ]},
+        )
+
+        rows = [{"struct" : {"a" : 1, "list" : [1], "b" : 1}, "list" : [3, 4], "tuple" : [0, "0"]}]
+        write_table("//tmp/t2", rows)
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {
+                    "name": "list",
+                    "type_v3": list_type("int64")
+                },
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("list", list_type(optional_type("int64"))),
+                            ("b", optional_type("int64")),
+                        ])
+                },
+                {
+                    "name": "tuple",
+                    "type_v3": tuple_type(["int64", "string"])
+                }
+            ],
+            unique_keys=False,
+            strict=True,
+        )
+
+        assert normalize_schema_v3(get("//tmp/output/@schema")) == schema_out
+
+        assert read_table("//tmp/output") == [
+            {"struct" : {"a" : 1, "list" : [1], 'b': yson.YsonEntity()}, "list" : [1, 2], "tuple" : [0, "0"]},
+            {"struct" : {"a" : 1, "list" : [1], "b" : 1}, "list" : [3, 4], "tuple" : [0, "0"]}
+        ]
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_variant_infer_schema_from_input_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {
+                    "name": "variant_struct",
+                    "type_v3": variant_struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("list", list_type("int64"))
+                        ])
+                },
+                {
+                    "name": "tagged",
+                    "type_v3": tagged_type("tag", optional_type("int64"))
+                }
+            ]},
+        )
+
+        rows = [{"variant_struct" : ["a", 1], "tagged" : 1}]
+        write_table("//tmp/t1", rows)
+
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {
+                    "name": "variant_struct",
+                    "type_v3": variant_struct_type(
+                        [
+                            ("a", "int8"),
+                            ("list", list_type("int32"))
+                        ])
+                },
+                {
+                    "name": "tagged",
+                    "type_v3": optional_type("int32")
+                }
+            ]},
+        )
+
+        rows = [{"variant_struct" : ["a", 2], "tagged" : 2}]
+        write_table("//tmp/t2", rows)
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {
+                    "name": "tagged",
+                    "type_v3": tagged_type("tag", optional_type("int64"))
+                },
+                {
+                    "name": "variant_struct",
+                    "type_v3": variant_struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("list", list_type("int64"))
+                        ])
+                }
+            ],
+            unique_keys=False,
+            strict=True,
+        )
+
+        assert normalize_schema_v3(get("//tmp/output/@schema")) == schema_out
+
+        assert read_table("//tmp/output") == [
+            {'variant_struct': ['a', 1], 'tagged': 1},
+            {'variant_struct': ['a', 2], 'tagged': 2}
+        ]
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_several_infer_schema_from_input_in_merge(self, merge_mode):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64"))
+                        ])
+                },
+                {"name": "int", "type": "int32"},
+            ]},
+        )
+
+        rows = [{"struct" : {"a" : 1}, "int" : 1}]
+        write_table("//tmp/t1", rows)
+
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("b", "int64")
+                        ])
+                },
+                {
+                    "name": "dict",
+                    "type_v3": dict_type("int32", "string")
+                }
+            ]},
+        )
+
+        rows = [{"struct" : {"a" : 2, "b" : 2}, "dict" : [[2, "two"]]}]
+        write_table("//tmp/t2", rows)
+
+        create(
+            "table",
+            "//tmp/t3",
+            attributes={"schema": [
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("b", "int64"),
+                            ("c", "bool")
+                        ])
+                },
+                {
+                    "name": "dict",
+                    "type_v3": dict_type("int64", "string")
+                }
+            ]},
+        )
+
+        rows = [{"struct" : {"a" : 3, "b" : 3, "c" : True}, "dict" : [[3, "tree"]]}]
+        write_table("//tmp/t3", rows)
+
+        create(
+            "table",
+            "//tmp/output"
+        )
+
+        merge(
+            mode=merge_mode,
+            in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+            out="//tmp/output",
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        schema_out = make_schema(
+            [
+                {
+                    "name": "dict",
+                    "type_v3": optional_type(dict_type("int64", "string"))
+                },
+                {"name": "int", "type_v3": optional_type("int32")},
+                {
+                    "name": "struct",
+                    "type_v3": struct_type(
+                        [
+                            ("a", optional_type("int64")),
+                            ("b", optional_type("int64")),
+                            ("c", optional_type("bool"))
+                        ])
+                }
+            ],
+            unique_keys=False,
+            strict=True,
+        )
+
+        assert normalize_schema_v3(get("//tmp/output/@schema")) == schema_out
+
+        assert read_table("//tmp/output") == [
+            {'struct': {'a': 1, 'b': yson.YsonEntity(), 'c': yson.YsonEntity()}, 'int': 1},
+            {'struct': {'a': 2, 'b': 2, 'c': yson.YsonEntity()}, 'dict': [[2, 'two']]},
+            {'struct': {'a': 3, 'b': 3, 'c': True}, 'dict': [[3, 'tree']]},
+        ]
+
+    @authors("nadya02")
+    def test_sorted_merge_with_infer_schema_from_input(self):
+        create("table", "//tmp/table1", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+            ]
+        })
+        create("table", "//tmp/table2", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+            ]
+        })
+        create("table", "//tmp/table3", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+            ]
+        })
+        write_table("//tmp/table1", [{"a": 1}])
+        write_table("//tmp/table2", [{"a": 2, "b": 2}])
+        write_table("//tmp/table3", [{"a": 3, "b": 2}])
+
+        create("table", "//tmp/table0")
+
+        merge(
+            in_=["//tmp/table3", "//tmp/table2", "//tmp/table1"],
+            out="//tmp/table0",
+            mode="sorted",
+            merge_by=["a"],
+            spec={"schema_inference_mode": "from_input"},
+        )
+
+        expected = [
+            {"a": 1},
+            {"a": 2, "b": 2},
+            {"a": 3, "b": 2},
+        ]
+        assert expected == read_table("//tmp/table0")
 
 ##################################################################
 

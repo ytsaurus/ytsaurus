@@ -1,6 +1,5 @@
 JAVA_CONTRIB_PROXY()
 
-
 PEERDIR(
     contrib/java/com/fasterxml/jackson/core/jackson-core/2.17.1
 )
@@ -104,4 +103,5 @@ RECURSE(
     2.17.0
     2.16.1
     2.17.1
+    2.0.2
 )

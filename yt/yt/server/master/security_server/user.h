@@ -208,6 +208,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval, false);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AllowCreateSecondaryIndices, false);
 
     //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.

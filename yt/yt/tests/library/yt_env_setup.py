@@ -260,6 +260,7 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
+    ENABLE_ALLOW_SECONDARY_INDICES = True
     ENABLE_TLS = False
 
     JOB_PROXY_LOGGING = {"mode": "simple"}
@@ -1581,6 +1582,7 @@ class YTEnvSetup(object):
 
         dynamic_master_config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
         dynamic_master_config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
+        dynamic_master_config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
 
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
