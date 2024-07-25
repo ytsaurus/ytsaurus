@@ -836,9 +836,7 @@ private:
     void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        if (IsRegularChunkId(SessionId_.ChunkId)) {
-            YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
-        }
+        YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         const auto& nodeDescriptor = nodeDirectory->GetDescriptor(target);

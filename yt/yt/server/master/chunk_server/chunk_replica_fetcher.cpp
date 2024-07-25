@@ -144,11 +144,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!IsPhysicalChunkId(chunkId)) {
-            YT_LOG_ALERT("Unexpected chunk is checked for having Sequoia replicas (ChunkId: %v)", chunkId);
-            return false;
-        }
-
         if (IsJournalChunkId(chunkId)) {
             return false;
         }
