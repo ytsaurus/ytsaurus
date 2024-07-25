@@ -1076,6 +1076,7 @@ private:
             KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
             rack = node->GetRack();
         }
+
         if (options.Rack) {
             rack = FindRackByName(*options.Rack);
 
@@ -1083,7 +1084,7 @@ private:
                 if (IsObjectAlive(rack)) {
                     if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
                         THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv",
-                            rack->GetDataCenter()->GetName(), 
+                            rack->GetDataCenter()->GetName(),
                             rack->GetName(),
                             *options.DataCenter);
                     }
