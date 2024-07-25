@@ -179,11 +179,13 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         TJobId jobId,
+        EJobType jobType,
         const std::vector<int>& ports,
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
         , Logger(Host_->GetLogger())
         , JobId_(jobId)
+        , JobType_(jobType)
         , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
@@ -532,6 +534,7 @@ private:
     const NLogging::TLogger Logger;
 
     const TJobId JobId_;
+    const EJobType JobType_;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
     IUserJobReadControllerPtr UserJobReadController_;
@@ -1303,14 +1306,14 @@ private:
             statistics = CustomStatistics_;
         }
 
-        if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
-            result.TotalInputStatistics.DataStatistics = *dataStatistics;
-        }
-
-        statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
-
-        if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
-            result.TotalInputStatistics.CodecStatistics = *codecStatistics;
+        if (HasInputStatistics()) {
+            if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
+                result.TotalInputStatistics.DataStatistics = *dataStatistics;
+            }
+            statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
+            if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
+                result.TotalInputStatistics.CodecStatistics = *codecStatistics;
+            }
         }
 
         if (const auto& timingStatistics = UserJobReadController_->GetTimingStatistics()) {
@@ -1378,10 +1381,12 @@ private:
         if (Prepared_) {
             IJob::TStatistics::TMultiPipeStatistics pipeStatistics;
 
-            pipeStatistics.InputPipeStatistics = {
-                .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
-                .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
-            };
+            if (HasInputStatistics()) {
+                pipeStatistics.InputPipeStatistics = {
+                    .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
+                    .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
+                };
+            }
 
             for (int i = 0; i < std::ssize(TablePipeReaders_); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
@@ -1768,6 +1773,11 @@ private:
             default:                                YT_ABORT();
         }
     }
+
+    bool HasInputStatistics() const override
+    {
+        return JobType_ != EJobType::Vanilla;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1776,6 +1786,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     TJobId jobId,
+    EJobType jobType,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
@@ -1783,6 +1794,7 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
+        jobType,
         std::move(ports),
         std::move(userJobWriteController));
 }

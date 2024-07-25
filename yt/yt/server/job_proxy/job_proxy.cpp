@@ -882,6 +882,7 @@ TJobResult TJobProxy::RunJob()
                 this,
                 jobSpecExt.user_job_spec(),
                 JobId_,
+                GetJobSpecHelper()->GetJobType(),
                 Ports_,
                 std::make_unique<TUserJobWriteController>(this));
         } else {
@@ -1014,7 +1015,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         auto extendedStatistics = job->GetStatistics();
         statistics = std::move(extendedStatistics.Statstics);
 
-        statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
+        if (job->HasInputStatistics()) {
+            statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
+        }
         DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
             auto ypathIndex = ToYPathLiteral(index);
@@ -1032,7 +1035,9 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
             };
 
-            dumpPipeStatistics("/user_job/pipes/input", pipeStatistics->InputPipeStatistics);
+            if (job->HasInputStatistics()) {
+                dumpPipeStatistics("/user_job/pipes/input", *pipeStatistics->InputPipeStatistics);
+            }
             dumpPipeStatistics("/user_job/pipes/output/total", pipeStatistics->TotalOutputPipeStatistics);
             for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, pipeStatistics->OutputPipeStatistics.size()); ++index) {
                 dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), pipeStatistics->OutputPipeStatistics[index]);
