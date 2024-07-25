@@ -26,6 +26,7 @@
     XX(Aliases, aliases) \
     XX(AlienConfigVersions, alien_config_versions) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
+    XX(AllowCreateSecondaryIndices, allow_create_secondary_indices) \
     XX(AllowRegularJobsOnSsdNodes, allow_regular_jobs_on_ssd_nodes) \
     XX(AllowRegularAllocationsOnSsdNodes, allow_regular_allocations_on_ssd_nodes) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \

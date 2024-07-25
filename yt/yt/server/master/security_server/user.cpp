@@ -342,6 +342,7 @@ void TUser::Save(TSaveContext& context) const
     Save(context, Tags_);
     Save(context, LastSeenTime_);
     Save(context, PendingRemoval_);
+    Save(context, AllowCreateSecondaryIndices_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
@@ -372,6 +373,14 @@ void TUser::Load(TLoadContext& context)
     // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::PendingRemovalUserAttribute) {
         Load(context, PendingRemoval_);
+    }
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation ||
+        (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation_24_1 &&
+        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
+    {
+        Load(context, AllowCreateSecondaryIndices_);
     }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);

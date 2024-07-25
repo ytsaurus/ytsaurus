@@ -381,6 +381,7 @@ public:
     bool EnableDynamicTableColumnRenaming;
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
+    bool AllowEveryoneCreateSecondaryIndices;
 
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;
