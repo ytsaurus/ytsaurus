@@ -220,63 +220,69 @@ const TYPath& GetClusterNamePath()
     return path;
 }
 
+const TYPath& GetOperationsArchivePath()
+{
+    static const TYPath path = "//sys/operations_archive";
+    return path;
+}
+
 const TYPath& GetOperationsArchiveOrderedByIdPath()
 {
-    static const TYPath path = "//sys/operations_archive/ordered_by_id";
+    static const TYPath path = GetOperationsArchivePath() + "/ordered_by_id";
     return path;
 }
 
 const TYPath& GetOperationsArchiveOrderedByStartTimePath()
 {
-    static const TYPath path = "//sys/operations_archive/ordered_by_start_time";
+    static const TYPath path = GetOperationsArchivePath() + "/ordered_by_start_time";
     return path;
 }
 
 const TYPath& GetOperationsArchiveOperationAliasesPath()
 {
-    static const TYPath path = "//sys/operations_archive/operation_aliases";
+    static const TYPath path = GetOperationsArchivePath() + "/operation_aliases";
     return path;
 }
 
 const TYPath& GetOperationsArchiveVersionPath()
 {
-    static const TYPath path = "//sys/operations_archive/@version";
+    static const TYPath path = GetOperationsArchivePath() + "/@version";
     return path;
 }
 
 const TYPath& GetOperationsArchiveJobsPath()
 {
-    static const TYPath path = "//sys/operations_archive/jobs";
+    static const TYPath path = GetOperationsArchivePath() + "/jobs";
     return path;
 }
 
 const TYPath& GetOperationsArchiveJobSpecsPath()
 {
-    static const TYPath path = "//sys/operations_archive/job_specs";
+    static const TYPath path = GetOperationsArchivePath() + "/job_specs";
     return path;
 }
 
 const TYPath& GetOperationsArchiveJobStderrsPath()
 {
-    static const TYPath path = "//sys/operations_archive/stderrs";
+    static const TYPath path = GetOperationsArchivePath() + "/stderrs";
     return path;
 }
 
 const TYPath& GetOperationsArchiveJobProfilesPath()
 {
-    static const TYPath path = "//sys/operations_archive/job_profiles";
+    static const TYPath path = GetOperationsArchivePath() + "/job_profiles";
     return path;
 }
 
 const TYPath& GetOperationsArchiveJobFailContextsPath()
 {
-    static const TYPath path = "//sys/operations_archive/fail_contexts";
+    static const TYPath path = GetOperationsArchivePath() + "/fail_contexts";
     return path;
 }
 
 const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
 {
-    static const TYPath path = "//sys/operations_archive/operation_ids";
+    static const TYPath path = GetOperationsArchivePath() + "/operation_ids";
     return path;
 }
 
