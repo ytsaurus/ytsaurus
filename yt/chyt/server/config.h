@@ -175,6 +175,22 @@ public:
 
     bool EnableMinMaxFiltering;
 
+    //! The intent of this optimization is similar to the `optimize_read_in_order` setting in native CH.
+    //! When enabled, some SELECT queries over sorted tables are processed in the order they are stored
+    //! in YT, allowing to avoid reading all data in case of specified LIMIT.
+    //! More specifically, it is enabled for SELECT queries that specify ORDER BY <prefix of storage primary key>
+    //! and LIMIT <limit> when reading from one or multiple concatenated sorted tables.
+    //! The optimization is not applied for queries with JOINs or aggregations.
+    //! Consider disabling this option manually when running queries that specify ORDER BY, a large LIMIT and a
+    //! WHERE condition that requires reading a huge amount of records before queried data is found.
+    //! NB: When using this optimization with floating-point typed key columns with NAN values, the correctness of
+    //! the result cannot be guaranteed. This has to do with the fact that NULLs and NANs are on the opposite ends
+    //! of the sort order in YT, while in CH they are always grouped together in the beginning or end of the result.
+    //! To avoid silent data corruption, you have to explicitly specify NULLS FIRST/LAST when running applicable
+    //! queries on tables with float-typed key columns and this option enabled. NULLS FIRST is required for ASC sort,
+    //! while NULLS LAST is required for DESC sort.
+    bool EnableOptimizeReadInOrder;
+
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
     static void Register(TRegistrar registrar);
@@ -333,9 +349,10 @@ class TSubqueryConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
+    NChunkClient::TFetcherConfigPtr ColumnarStatisticsFetcher;
+    NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
     int MaxJobCountForPool;
-    int MinDataWeightPerThread;
+    i64 MinDataWeightPerThread;
 
     // Two fields below are for the chunk spec fetcher.
     int MaxChunksPerFetch;

@@ -23,8 +23,9 @@ class TJobSizeTracker
     : public IJobSizeTracker
 {
 public:
-    TJobSizeTracker(TResourceVector limitVector, TLogger logger)
-        : LocalLimitVector_(limitVector)
+    TJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, TLogger logger)
+        : Options_(std::move(options))
+        , LocalLimitVector_(limitVector)
         , HysteresizedLocalLimitVector_(limitVector * HysteresisFactor)
         , Logger(logger)
     {
@@ -36,7 +37,6 @@ public:
             HysteresizedLocalLimitVector_);
         SwitchDominantResource(EResourceKind::DataWeight);
         CumulativeLimitVector_ = LocalLimitVector_;
-        (void)InputSliceDataWeight_;
     }
 
     void AccountSlice(TResourceVector vector) override
@@ -114,11 +114,15 @@ public:
 
         if (result) {
             YT_LOG_TRACE(
-                "Overflow detected (ExtraVector: %v, LocalVector: %v, CumulativeVector: %v, LocalGap: %v, "
-                "CumulativeGap: %v, OverflowIsLocal: %v, OverflowResource: %v)",
+                "Overflow detected (ExtraVector: %v, LocalVector: %v, CumulativeVector: %v, LocalLimitVector: %v, "
+                "HysteresizedLocalLimitVector: %v, CumulativeLimitVector: %v, LocalGap: %v, CumulativeGap: %v, OverflowIsLocal: %v, "
+                "OverflowResource: %v)",
                 extraVector,
                 LocalVector_,
                 CumulativeVector_,
+                LocalLimitVector_,
+                HysteresizedLocalLimitVector_,
+                CumulativeLimitVector_,
                 GetLocalGap(),
                 GetCumulativeGap(),
                 result->IsLocal,
@@ -143,6 +147,26 @@ public:
             return;
         }
 
+        if (Options_.LimitProgressionRatio && LimitProgressionLength_ < Options_.LimitProgressionLength) {
+            if (LimitProgressionOffset_ == Options_.LimitProgressionOffset) {
+                ++LimitProgressionLength_;
+                // This method also takes care of clamping.
+                LocalLimitVector_.PartialMultiply(*Options_.LimitProgressionRatio, Options_.GeometricResources, /*clampValue*/ SafeInf64);
+                HysteresizedLocalLimitVector_.PartialMultiply(*Options_.LimitProgressionRatio, Options_.GeometricResources, /*clampValue*/ SafeInf64);
+            } else {
+                ++LimitProgressionOffset_;
+            }
+
+            YT_LOG_TRACE(
+                "Limit progression iteration (LimitProgressionLength: %v/%v, LimitProgressionOffset: %v/%v, LocalLimitVector: %v, HysteresizedLocalLimitVector: %v)",
+                LimitProgressionLength_,
+                Options_.LimitProgressionLength,
+                LimitProgressionOffset_,
+                Options_.LimitProgressionOffset,
+                LocalLimitVector_,
+                HysteresizedLocalLimitVector_);
+        }
+
         if (!typedToken->IsLocal && typedToken->OverflownResource == DominantResource_) {
             LocalVector_ = TResourceVector::Zero();
             CumulativeLimitVector_ += LocalLimitVector_;
@@ -153,13 +177,17 @@ public:
     }
 
 private:
+    const TJobSizeTrackerOptions Options_;
+
     TResourceVector CumulativeVector_ = TResourceVector::Zero();
     TResourceVector CumulativeLimitVector_;
     TResourceVector LocalVector_ = TResourceVector::Zero();
     TResourceVector LocalLimitVector_;
     EResourceKind DominantResource_ = static_cast<EResourceKind>(-1);
     TResourceVector HysteresizedLocalLimitVector_;
-    i64 InputSliceDataWeight_;
+
+    int LimitProgressionLength_ = 1;
+    int LimitProgressionOffset_ = 0;
 
     TLogger Logger;
 
@@ -214,9 +242,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, const TLogger& logger)
+IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const TLogger& logger)
 {
-    return New<TJobSizeTracker>(limitVector, logger);
+    return New<TJobSizeTracker>(limitVector, std::move(options), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

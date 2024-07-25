@@ -378,6 +378,7 @@ class Clique(object):
             query = query + " format " + format
 
         params["output_format_json_quote_64bit_integers"] = 0
+        params["output_format_json_quote_denormals"] = 1
 
         result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout, verify=False)
 
