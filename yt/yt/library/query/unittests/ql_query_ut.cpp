@@ -119,7 +119,7 @@ protected:
     void ExpectPrepareThrowsWithDiagnostics(
         const TString& query,
         TMatcher matcher,
-        NYson::TYsonStringBuf placeholderValues = {},
+        TYsonStringBuf placeholderValues = {},
         int syntaxVersion = 1)
     {
         EXPECT_THROW_THAT(
@@ -485,13 +485,10 @@ TEST_F(TQueryPrepareTest, SelectColumns)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("h", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("a")),
-            TColumnSchema("a", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("c", EValueType::Int64),
             TColumnSchema("d", EValueType::Int64)
         });
@@ -540,13 +537,10 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto tableSchema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(cid))")),
-            TColumnSchema("cid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("pid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("id", EValueType::Int64),
             TColumnSchema("__shard__", EValueType::Int64),
             TColumnSchema("PhraseID", EValueType::Int64),
@@ -565,17 +559,12 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("ExportIDHash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(ExportID))")),
-            TColumnSchema("ExportID", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("GroupExportID", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("PhraseID", EValueType::Uint64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("UpdateTime", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("Shows", EValueType::Int64),
             TColumnSchema("Clicks", EValueType::Int64),
         });
@@ -592,13 +581,10 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(pid))")),
-            TColumnSchema("pid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("__shard__", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("status", EValueType::Int64),
         });
 
@@ -614,13 +600,10 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(cid))")),
-            TColumnSchema("cid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("__shard__", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("value", EValueType::Int64),
         });
 
@@ -977,13 +960,10 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
-            TColumnSchema("a", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
         });
 
@@ -1021,13 +1001,10 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
-            TColumnSchema("a", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
         });
 
@@ -1529,6 +1506,18 @@ TResultMatcher OrderedResultMatcher(
         };
 }
 
+struct TEvaluateOptions
+{
+    i64 InputRowLimit = std::numeric_limits<i64>::max();
+    i64 OutputRowLimit = std::numeric_limits<i64>::max();
+    TYsonStringBuf PlaceholderValues = {};
+    int SyntaxVersion = 1;
+    EExecutionBackend ExecutionBackend = EExecutionBackend::Native;
+    bool UseCanonicalNullRelations = false;
+};
+
+const TResultMatcher AnyMatcher = [] (TRange<TRow>, const TTableSchema&) { };
+
 class TQueryEvaluateTest
     : public ::testing::Test
 {
@@ -1615,12 +1604,7 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        EExecutionBackend executionBackend,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false,
-        int syntaxVersion = 1)
+        TEvaluateOptions options)
     {
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1629,13 +1613,8 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                executionBackend,
-                inputRowLimit,
-                outputRowLimit,
-                false,
-                placeholderValues,
-                useCanonicalNullRelations,
-                syntaxVersion)
+                options,
+                std::nullopt)
             .Get()
             .ValueOrThrow();
     }
@@ -1645,33 +1624,23 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false,
-        int syntaxVersion = 1)
+        TEvaluateOptions evaluateOptions = {})
     {
+        evaluateOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
         EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
-            EExecutionBackend::WebAssembly,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues);
+            evaluateOptions);
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
-            EExecutionBackend::Native,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations,
-            syntaxVersion).first;
+            std::move(evaluateOptions)).first;
     }
 
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
@@ -1679,11 +1648,7 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false,
-        int syntaxVersion = 1)
+        TEvaluateOptions evaluateOptions = {})
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1692,29 +1657,21 @@ protected:
             {"//t", dataSplit}
         };
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
         EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
-            EExecutionBackend::WebAssembly,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations,
-            syntaxVersion);
+            evaluateOptions);
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
-            EExecutionBackend::Native,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations,
-            syntaxVersion);
+            evaluateOptions);
     }
 
     TQueryPtr Evaluate(
@@ -1722,22 +1679,14 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false,
-        int syntaxVersion = 1)
+        TEvaluateOptions evaluateOptions = {})
     {
         return EvaluateWithQueryStatistics(
             query,
             dataSplit,
             owningSourceRows,
             resultMatcher,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations,
-            syntaxVersion).first;
+            std::move(evaluateOptions)).first;
     }
 
     TQueryPtr EvaluateWithSyntaxV2(
@@ -1745,21 +1694,15 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false)
+        TEvaluateOptions evaluateOptions = {})
     {
+        evaluateOptions.SyntaxVersion = 2;
         return EvaluateWithQueryStatistics(
             query,
             dataSplit,
             owningSourceRows,
             resultMatcher,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations,
-            /*syntaxVersion*/ 2).first;
+            std::move(evaluateOptions)).first;
     }
 
     TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
@@ -1767,10 +1710,7 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false)
+        TEvaluateOptions evaluateOptions = {})
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1780,27 +1720,21 @@ protected:
             {"//t", dataSplit}
         };
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
-            EExecutionBackend::Native,
-            inputRowLimit,
-            outputRowLimit,
-            placeholderValues,
-            useCanonicalNullRelations).first;
+            std::move(evaluateOptions)).first;
     }
 
     TQueryPtr EvaluateExpectingError(
         const TString& query,
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false,
-        int syntaxVersion = 1)
+        TEvaluateOptions evaluateOptions = {},
+        TString expectedError = {})
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1809,39 +1743,29 @@ protected:
             {"//t", dataSplit}
         };
 
-        auto resultMatcher = [] (TRange<TRow>, const TTableSchema&) { };
-
+        evaluateOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
         BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
                 dataSplits,
                 owningSources,
-                resultMatcher,
-                EExecutionBackend::WebAssembly,
-                inputRowLimit,
-                outputRowLimit,
-                true,
-                placeholderValues,
-                useCanonicalNullRelations,
-                syntaxVersion)
+                AnyMatcher,
+                evaluateOptions,
+                expectedError)
             .Get()
             .ValueOrThrow();
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
                 dataSplits,
                 owningSources,
-                resultMatcher,
-                EExecutionBackend::Native,
-                inputRowLimit,
-                outputRowLimit,
-                true,
-                placeholderValues,
-                useCanonicalNullRelations,
-                syntaxVersion)
+                AnyMatcher,
+                std::move(evaluateOptions),
+                expectedError)
             .Get()
             .ValueOrThrow().first;
     }
@@ -1849,7 +1773,7 @@ protected:
     TQueryPtr Prepare(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
-        NYson::TYsonStringBuf placeholderValues,
+        TYsonStringBuf placeholderValues,
         int syntaxVersion)
     {
         for (const auto& dataSplit : dataSplits) {
@@ -1876,25 +1800,20 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        EExecutionBackend executionBackend,
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        bool failure,
-        NYson::TYsonStringBuf placeholderValues,
-        bool useCanonicalNullRelations,
-        int syntaxVersion)
+        TEvaluateOptions evaluateOptions,
+        std::optional<TString> expectedError)
     {
-        if (executionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
+        if (evaluateOptions.ExecutionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
             return {};
         }
 
-        auto primaryQuery = Prepare(query, dataSplits, placeholderValues, syntaxVersion);
+        auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, evaluateOptions.SyntaxVersion);
 
         TQueryBaseOptions options;
-        options.InputRowLimit = inputRowLimit;
-        options.OutputRowLimit = outputRowLimit;
-        options.UseCanonicalNullRelations = useCanonicalNullRelations;
-        options.ExecutionBackend = executionBackend;
+        options.InputRowLimit = evaluateOptions.InputRowLimit;
+        options.OutputRowLimit = evaluateOptions.OutputRowLimit;
+        options.UseCanonicalNullRelations = evaluateOptions.UseCanonicalNullRelations;
+        options.ExecutionBackend = evaluateOptions.ExecutionBackend;
 
         size_t sourceIndex = 1;
 
@@ -1955,7 +1874,7 @@ protected:
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
             if (IsTimeDumpEnabled()) {
-                DumpTime(resultStatistics, executionBackend);
+                DumpTime(resultStatistics, evaluateOptions.ExecutionBackend);
             }
 
             auto resultRowset = WaitFor(asyncResultRowset)
@@ -1966,8 +1885,8 @@ protected:
             return std::pair(primaryQuery, resultStatistics);
         };
 
-        if (failure) {
-            EXPECT_THROW(prepareAndExecute(), TErrorException);
+        if (expectedError) {
+            EXPECT_THROW_MESSAGE_HAS_SUBSTR(prepareAndExecute(), TErrorException, *expectedError);
             return {nullptr, TQueryStatistics{}};
         } else {
             return prepareAndExecute();
@@ -2483,10 +2402,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls3)
         split,
         source,
         ResultMatcher(result),
-        std::numeric_limits<i64>::max(),
-        std::numeric_limits<i64>::max(),
-        {},
-        true);
+        {.UseCanonicalNullRelations=true});
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
@@ -2514,7 +2430,11 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpString)
@@ -2542,7 +2462,11 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
@@ -3721,13 +3645,14 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotalsNulls)
         {"t", EValueType::Int64}
     });
 
-    auto resultWithTotals = YsonToRows({
-    }, resultSplit);
+    auto resultWithTotals = YsonToRows({}, resultSplit);
 
-    EXPECT_THROW_THAT(
-        Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
-            source, [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
-        HasSubstr("Null values are forbidden in group key"));
+    EvaluateExpectingError(
+        "x, sum(b) as t FROM [//t] group by a % 2 as x with totals",
+        split,
+        source,
+        /*evaluateOptions*/ {},
+        "Null values are forbidden in group key");
 
     SUCCEED();
 }
@@ -4422,8 +4347,8 @@ TEST_F(TQueryEvaluateTest, If)
         "x=a;t=201."
     }, resultSplit);
 
-    Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as"
-                 " q", split, source, ResultMatcher(result));
+    Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as q",
+        split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -4452,7 +4377,7 @@ TEST_F(TQueryEvaluateTest, InputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit=3});
 
     SUCCEED();
 }
@@ -4482,7 +4407,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit)
         "a=4;b=40"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit=3});
 
     SUCCEED();
 }
@@ -4503,8 +4428,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(YsonToRow(TString() + "x=" + ToString(10000), resultSplit, false));
 
-    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
-             100);
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit=100});
 
     SUCCEED();
 }
@@ -4529,8 +4453,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit3)
         result.push_back(YsonToRow(Format("a=%v", i), resultSplit, false));
     }
 
-    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
-             10);
+    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), {.OutputRowLimit=10});
 
     SUCCEED();
 }
@@ -4565,7 +4488,7 @@ TEST_F(TQueryEvaluateTest, TypeInference)
     }, resultSplit);
 
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
-                 "(a % 2 = 0, double(4), 5) as q", split, source, ResultMatcher(result));
+             "(a % 2 = 0, double(4), 5) as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -4993,12 +4916,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
         "x=4",
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        splits,
-        sources,
-        ResultMatcher(result),
-        std::numeric_limits<i64>::max(), 4);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=4});
 
     SUCCEED();
 }
@@ -5041,12 +4959,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
         "x=1"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        splits,
-        sources,
-        ResultMatcher(result),
-        std::numeric_limits<i64>::max(), 5);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=5});
 
     SUCCEED();
 }
@@ -5092,12 +5005,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "x=3"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        splits,
-        sources,
-        OrderedResultMatcher(result, {"x"}),
-        std::numeric_limits<i64>::max(), 4);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit=4});
 
     result = YsonToRows({
         "x=1",
@@ -5256,7 +5164,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
-        TColumnSchema("x", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("x", EValueType::String, ESortOrder::Ascending),
         TColumnSchema("y", EValueType::String)
     }, 0);
 
@@ -5268,7 +5176,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     });
 
     auto rightSplit = MakeSplit({
-        TColumnSchema("a", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("x", EValueType::String)
     }, 1);
 
@@ -5922,10 +5830,8 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("cid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("pid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("value", EValueType::Int64),
         });
 
@@ -5944,13 +5850,10 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 1, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("__hash__", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(pid) % 64)")),
-            TColumnSchema("pid", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("tag_id", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("value", EValueType::Int64),
         });
 
@@ -5970,15 +5873,11 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 2, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("YTHash", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(ExportID))")),
-            TColumnSchema("ExportID", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("GroupExportID", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("UpdateTime", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("value", EValueType::Int64),
         });
 
@@ -8259,7 +8158,7 @@ TEST_F(TQueryEvaluateTest, DecimalExpr)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result,New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", DecimalLogicalType(5, 2)}
     })));
 }
@@ -8275,7 +8174,7 @@ TEST_F(TQueryEvaluateTest, TypeV1Propagation)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result,New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
     })));
 }
@@ -8775,12 +8674,7 @@ void TQueryEvaluateComplexTest::DoTest(
         }
     };
 
-    auto query = Evaluate(
-        queryString,
-        splits,
-        sources,
-        resultMatcher);
-
+    auto query = Evaluate(queryString, splits, sources, resultMatcher);
     EXPECT_TRUE(query->IsOrdered());
 }
 
@@ -8968,17 +8862,10 @@ TEST_P(TQueryEvaluatePlaceholdersTest, Simple)
 
     const auto& args = GetParam();
     const auto& query = std::get<0>(args);
-    const auto& placeholders = NYson::TYsonStringBuf(std::get<1>(args));
+    const auto& placeholders = TYsonStringBuf(std::get<1>(args));
     const auto& result = std::get<2>(args);
 
-    Evaluate(
-        query,
-        split,
-        source,
-        ResultMatcher(result),
-        std::numeric_limits<i64>::max(),
-        std::numeric_limits<i64>::max(),
-        placeholders);
+    Evaluate(query, split, source, ResultMatcher(result), {.PlaceholderValues=placeholders});
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -9016,14 +8903,9 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
         auto split = MakeSplit({{"a", EValueType::String}, {"b", EValueType::String}, });
         auto source = std::vector<TString>{ R"(a="1";b="2")", };
         auto result = std::vector<TOwningRow>{};
-        Evaluate(
-            "b from [//t] where a = {a}",
-            split,
-            source,
-            ResultMatcher(result),
-            std::numeric_limits<i64>::max(),
-            std::numeric_limits<i64>::max(),
-            NYson::TYsonStringBuf{"{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv});
+        Evaluate("b from [//t] where a = {a}", split, source, ResultMatcher(result), {
+            .PlaceholderValues=TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
+        });
     }
 
     {
@@ -9036,14 +8918,9 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
         };
 
         EXPECT_THROW_THAT(
-            Evaluate(
-                "b from [//t] where a = {a}",
-                split,
-                source,
-                [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { },
-                std::numeric_limits<i64>::max(),
-                std::numeric_limits<i64>::max(),
-                NYson::TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv}),
+            Evaluate("b from [//t] where a = {a}", split, source, AnyMatcher, {
+                .PlaceholderValues=TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv},
+            }),
             HasSubstr("Type mismatch in expression"));
     }
 
@@ -9062,7 +8939,7 @@ TEST_P(TQueryEvaluatePlaceholdersWithIncorrectSyntaxTest, Simple)
 {
     const auto& args = GetParam();
     const auto& query = std::get<0>(args);
-    const auto& placeholders = NYson::TYsonStringBuf(std::get<1>(args));
+    const auto& placeholders = TYsonStringBuf(std::get<1>(args));
     const auto& errorMessage = std::get<2>(args);
 
     ExpectPrepareThrowsWithDiagnostics(
@@ -9208,12 +9085,7 @@ TEST_P(TQueryYsonLengthWithIncorrectSyntaxTest, Simple)
     auto split = MakeSplit({{"any", EValueType::Any},});
     auto source = std::vector<TString>{row,};
 
-    EXPECT_THROW_THAT(
-        Evaluate(
-            "yson_length(any) as length from [//t]",
-            split,
-            source, [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
-        HasSubstr(errorMessage));
+    EvaluateExpectingError("yson_length(any) as length from [//t]", split, source, /*evaluateOptions*/ {}, errorMessage);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -9568,14 +9440,13 @@ TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
 {
     auto split = MakeSplit({{"a", EValueType::Int64},});
     auto source = std::vector<TString>{};
-    auto result = std::vector<TOwningRow>{};
 
     const auto& args = GetParam();
     const auto& query = std::get<0>(args);
     const auto& errorMessage = std::get<1>(args);
 
     EXPECT_THROW_THAT(
-        Evaluate(query, split, source, ResultMatcher(result)),
+        Evaluate(query, split, source, AnyMatcher),
         HasSubstr(errorMessage));
 
     SUCCEED();
@@ -9700,8 +9571,7 @@ TEST_P(TQueryLikeWithIncorrectSyntaxTest, Simple)
         Evaluate(
             query,
             split,
-            source,
-            [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
+            source, AnyMatcher),
         HasSubstr(errorMessage));
 }
 
@@ -9791,17 +9661,14 @@ TEST_F(TQueryEvaluateTest, Greatest)
             {"r2", EValueType::String}
         })));
 
-    Evaluate(
-        "greatest(a) as r1, greatest(5, a) as r2, greatest(0, 7, a) as r3 FROM [//t]",
-        split,
-        source,
-        resultMatcherInt);
+    Evaluate("greatest(a) as r1, greatest(5, a) as r2, greatest(0, 7, a) as r3 FROM [//t]",
+        split, source, resultMatcherInt);
     Evaluate("greatest(b) as r1, greatest(5u, b) as r2 FROM [//t]", split, source, resultMatcherUint);
     Evaluate("greatest(c) as r1, greatest(5., c) as r2 FROM [//t]", split, source, resultMatcherDouble);
     Evaluate("greatest(d) as r1, greatest(%false, d) as r2 FROM [//t]", split, source, resultMatcherBool);
     Evaluate("greatest(e) as r1, greatest('ada', e) as r2 FROM [//t]", split, source, resultMatcherString);
 
-    SUCCEED();
+   SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, GreatestError)
@@ -9881,7 +9748,7 @@ TEST_F(TQueryEvaluateTest, OrderByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] order by a limit 4", split, source,  ResultMatcher(result)),
+    Evaluate("a FROM [//t] order by a limit 4", split, source, ResultMatcher(result)),
     SUCCEED();
 }
 
@@ -9912,7 +9779,7 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
         "a=[2;4;5]",
     }, resultSplit);
 
-    Evaluate("a FROM [//t] group by a order by a limit 4", split, source,  ResultMatcher(result)),
+    Evaluate("a FROM [//t] group by a order by a limit 4", split, source, ResultMatcher(result)),
     SUCCEED();
 }
 
