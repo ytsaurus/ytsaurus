@@ -18,51 +18,51 @@ static void EnsureTypesMatch(EValueType expected, EValueType actual)
     }
 }
 
-i64 GetInt64(const TUnversionedValue& row)
+i64 GetInt64(const TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Int64, row.Type);
-    return row.Data.Int64;
+    EnsureTypesMatch(EValueType::Int64, value.Type);
+    return value.Data.Int64;
 }
 
-ui64 GetUint64(const TUnversionedValue& row)
+ui64 GetUint64(const TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Uint64, row.Type);
-    return row.Data.Uint64;
+    EnsureTypesMatch(EValueType::Uint64, value.Type);
+    return value.Data.Uint64;
 }
 
-double GetDouble(const NTableClient::TUnversionedValue& row)
+double GetDouble(const NTableClient::TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Double, row.Type);
-    return row.Data.Double;
+    EnsureTypesMatch(EValueType::Double, value.Type);
+    return value.Data.Double;
 }
 
-bool GetBoolean(const TUnversionedValue& row)
+bool GetBoolean(const TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Boolean, row.Type);
-    return row.Data.Boolean;
+    EnsureTypesMatch(EValueType::Boolean, value.Type);
+    return value.Data.Boolean;
 }
 
-TString GetString(const TUnversionedValue& row)
+TString GetString(const TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::String, row.Type);
-    return row.AsString();
+    EnsureTypesMatch(EValueType::String, value.Type);
+    return value.AsString();
 }
 
-NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row)
+NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Any, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(row.AsString()));
+    EnsureTypesMatch(EValueType::Any, value.Type);
+    return NYTree::ConvertToNode(NYson::TYsonString(value.AsString()));
 }
 
-NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row)
+NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& value)
 {
-    EnsureTypesMatch(EValueType::Composite, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(row.AsString()));
+    EnsureTypesMatch(EValueType::Composite, value.Type);
+    return NYTree::ConvertToNode(NYson::TYsonString(value.AsString()));
 }
 
-bool IsNull(const NTableClient::TUnversionedValue& row)
+bool IsNull(const NTableClient::TUnversionedValue& value)
 {
-    return row.Type == EValueType::Null;
+    return value.Type == EValueType::Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
