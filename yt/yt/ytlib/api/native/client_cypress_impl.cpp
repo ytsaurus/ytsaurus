@@ -1132,7 +1132,7 @@ TNodeId TClient::DoLinkNode(
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspExists>(0)
             .ValueOrThrow();
         if (!rsp->value()) {
-            THROW_ERROR_EXCEPTION("Target %v for the link %v does not exist.",
+            THROW_ERROR_EXCEPTION("Target %v for the link %v does not exist",
                 srcPath,
                 dstPath);
         }

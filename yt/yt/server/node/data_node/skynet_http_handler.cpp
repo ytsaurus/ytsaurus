@@ -51,23 +51,23 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
     TCgiParameters params(rawQuery);
 
     if (!params.Has("chunk_id")) {
-        THROW_ERROR_EXCEPTION("Missing parameter \"chunk_id\" in URL query string.");
+        THROW_ERROR_EXCEPTION("Missing parameter \"chunk_id\" in URL query string");
     }
 
     *chunkId = TChunkId::FromString(params.Get("chunk_id"));
 
     if (!params.Has("lower_row_index")) {
-        THROW_ERROR_EXCEPTION("Missing parameter \"lower_row_index\" in URL query string.");
+        THROW_ERROR_EXCEPTION("Missing parameter \"lower_row_index\" in URL query string");
     }
     if (!params.Has("upper_row_index")) {
-        THROW_ERROR_EXCEPTION("Missing parameter \"upper_row_index\" in URL query string.");
+        THROW_ERROR_EXCEPTION("Missing parameter \"upper_row_index\" in URL query string");
     }
 
     readRange->LowerLimit().SetRowIndex(FromString<i64>(params.Get("lower_row_index")));
     readRange->UpperLimit().SetRowIndex(FromString<i64>(params.Get("upper_row_index")));
 
     if (!params.Has("start_part_index")) {
-        THROW_ERROR_EXCEPTION("Missing parameter \"start_part_index\" in URL query string.");
+        THROW_ERROR_EXCEPTION("Missing parameter \"start_part_index\" in URL query string");
     }
 
     *partIndex = FromString<i64>(params.Get("start_part_index"));

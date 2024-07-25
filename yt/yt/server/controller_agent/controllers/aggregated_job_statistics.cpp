@@ -96,7 +96,7 @@ void TAggregatedJobStatistics::SerializeLegacy(IYsonConsumer* consumer) const
         consumer,
         [] (const TTaggedSummaries& summaries, IYsonConsumer* consumer) {
             if (summaries.size() == 0) {
-                THROW_ERROR_EXCEPTION("Unreachable code. Summaries cannot be empty.");
+                THROW_ERROR_EXCEPTION("Unreachable code. Summaries cannot be empty");
             }
 
             THashMap<EJobState, THashMap<TString, TSummary>> groupedByJobStateAndType;
