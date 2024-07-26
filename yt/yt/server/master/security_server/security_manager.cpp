@@ -4864,9 +4864,8 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldClusterConfig*/)
     {
-        const auto& oldConfig = oldClusterConfig->SecurityManager;
         const auto& newConfig = GetDynamicConfig();
 
         if (AccountStatisticsGossipExecutor_) {
