@@ -134,6 +134,22 @@ protected:
             Exit(18);
         }
 
+        if (config->Pty != -1) {
+            CloseAllDescriptors({config->Pty});
+            if (setsid() == -1) {
+                THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
+            }
+            if (::ioctl(config->Pty, TIOCSCTTY, 1) == -1) {
+                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal") << TError::FromSystem();
+            }
+            SafeDup2(config->Pty, 0);
+            SafeDup2(config->Pty, 1);
+            SafeDup2(config->Pty, 2);
+            if (config->Pty > 2) {
+                SafeClose(config->Pty);
+            }
+        }
+
         std::vector<const char*> env;
         for (const auto& environment : config->Environment) {
             env.push_back(environment.c_str());
@@ -154,12 +170,14 @@ protected:
         args.push_back(nullptr);
 
         // We are ready to execute user code, send signal to JobProxy.
-        try {
-            auto jobProxyControl = CreateUserJobSynchronizerClient(config->UserJobSynchronizerConnectionConfig);
-            jobProxyControl->NotifyExecutorPrepared();
-        } catch (const std::exception& ex) {
-            LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
-            Exit(5);
+        if (config->Pty == -1) {
+            try {
+                auto jobProxyControl = CreateUserJobSynchronizerClient(config->UserJobSynchronizerConnectionConfig);
+                jobProxyControl->NotifyExecutorPrepared();
+            } catch (const std::exception& ex) {
+                LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
+                Exit(5);
+            }
         }
 
         TryExecve(

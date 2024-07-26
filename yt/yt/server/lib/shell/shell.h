@@ -67,6 +67,9 @@ IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr portoExecutor,
     std::unique_ptr<TShellOptions> options);
 
+IShellPtr CreateShell(
+    std::unique_ptr<TShellOptions> options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NShell

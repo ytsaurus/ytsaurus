@@ -108,7 +108,9 @@ public:
 
         TDelayedExecutor::CancelAndClear(InactivityCookie_);
         YT_UNUSED_FUTURE(Writer_->Abort());
-        Instance_->Destroy();
+        if (Instance_) {
+            Instance_->Destroy();
+        }
         Reader_->SetReadDeadline(TInstant::Now() + TerminatedShellReadTimeout);
         TerminatedPromise_.TrySet();
         YT_LOG_INFO(error, "Shell terminated");
@@ -354,6 +356,196 @@ IShellPtr CreatePortoShell(
     return shell;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TShell
+    : public TShellBase
+{
+public:
+    TShell(
+        std::unique_ptr<TShellOptions> options)
+        : TShellBase(std::move(options))
+        , Process_(New<TSimpleProcess>(Options_->ExePath, false))
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Logger.AddTag("ShellId: %v", Id_);
+    }
+
+    void Spawn()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_VERIFY(!IsRunning_);
+        IsRunning_ = true;
+
+        int uid = Options_->Uid.value_or(::getuid());
+        auto user = SafeGetUsernameByUid(uid);
+        auto home = Options_->WorkingDir;
+
+        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
+            Options_->Term,
+            CurrentHeight_,
+            CurrentWidth_,
+            uid,
+            user,
+            home,
+            InactivityTimeout_,
+            Command_);
+
+        TPty pty(CurrentHeight_, CurrentWidth_);
+
+        Reader_ = pty.CreateMasterAsyncReader();
+        auto bufferingReader = CreateBufferingAdapter(Reader_, ReaderBufferSize);
+        auto expiringReader = CreateExpiringAdapter(bufferingReader, PollTimeout);
+        ConcurrentReader_ = CreateConcurrentAdapter(expiringReader);
+
+        Writer_ = pty.CreateMasterAsyncWriter();
+        ZeroCopyWriter_ = CreateZeroCopyAdapter(Writer_);
+
+        Process_->SetWorkingDirectory(home);
+
+
+        if (Options_->MessageOfTheDay) {
+            auto path = NFS::CombinePaths(home, ".motd");
+
+            try {
+                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TUnbufferedFileOutput output(file);
+                output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error saving shell message file")
+                    << ex
+                    << TErrorAttribute("path", path);
+            }
+        }
+        if (Options_->Bashrc) {
+            auto path = NFS::CombinePaths(home, ".bashrc");
+
+            try {
+                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TUnbufferedFileOutput output(file);
+                output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error saving shell config file")
+                    << ex
+                    << TErrorAttribute("path", path);
+            }
+        }
+
+        {
+            auto executorConfig = New<NUserJob::TUserJobExecutorConfig>();
+
+            if (Options_->Command) {
+                executorConfig->Command = *Options_->Command;
+            }
+
+            executorConfig->Pty = pty.GetSlaveFD();
+            executorConfig->Environment.reserve(Options_->Environment.size() + 6);
+
+            executorConfig->Environment.emplace_back("HOME=" + home);
+            executorConfig->Environment.emplace_back("LOGNAME=" + user);
+            executorConfig->Environment.emplace_back("USER=" + user);
+            executorConfig->Environment.emplace_back("TERM=" + Options_->Term);
+            executorConfig->Environment.emplace_back("LANG=en_US.UTF-8");
+            executorConfig->Environment.emplace_back("YT_SHELL_ID=" + ToString(Id_));
+
+            for (const auto& var : Options_->Environment) {
+                executorConfig->Environment.emplace_back(var);
+            }
+
+            executorConfig->StderrPath = "../stderr";
+            auto executorConfigPath = NFS::CombinePaths(home, ".executor.yson");
+
+            try {
+                TFile configFile(executorConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TUnbufferedFileOutput output(configFile);
+                NYson::TYsonWriter writer(&output, NYson::EYsonFormat::Pretty);
+                Serialize(executorConfig, &writer);
+                writer.Flush();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath) << ex;
+            }
+
+            Process_->AddArguments({"--config", executorConfigPath});
+        }
+        ResizeWindow(CurrentHeight_, CurrentWidth_);
+        Process_->Spawn().Subscribe(BIND(&TShell::Terminate, MakeWeak(this)).Via(GetCurrentInvoker()));
+        YT_LOG_INFO("Shell started");
+
+    }
+    virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ConsumedOffset_ < inputOffset) {
+            // Key sequence from the future is not possible.
+            THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
+                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
+                << TErrorAttribute("actual_input_offset", inputOffset);
+        }
+
+        if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
+            YT_LOG_WARNING(
+                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
+                ConsumedOffset_,
+                inputOffset);
+        }
+
+        size_t offset = ConsumedOffset_ - inputOffset;
+        if (offset < keys.Size()) {
+            ConsumedOffset_ += keys.Size() - offset;
+            WaitFor(ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size())))
+                .ThrowOnError();
+
+            LastActivity_ = TInstant::Now();
+            if (InactivityCookie_) {
+                TDelayedExecutor::CancelAndClear(InactivityCookie_);
+                InactivityCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
+                        .Via(GetCurrentInvoker()),
+                    InactivityTimeout_);
+            }
+        }
+        return ConsumedOffset_;
+    }
+
+    virtual TFuture<void> Shutdown(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsRunning_ && !InactivityCookie_) {
+            auto delay = InactivityTimeout_;
+            InactivityError_ = error;
+            InactivityCookie_ = TDelayedExecutor::Submit(
+                BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
+                    .Via(GetCurrentInvoker()),
+                delay);
+        }
+        return TerminatedPromise_;
+    }
+
+private:
+    const TProcessBasePtr Process_;
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Failed to clean up shell processes");
+        }
+    }
+    void CleanupShellProcesses()
+    {
+        YT_UNUSED_FUTURE(Reader_->Abort());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IShellPtr CreateShell(std::unique_ptr<TShellOptions> options)
+{
+    auto shell = New<TShell>(std::move(options));
+    shell->Spawn();
+    return shell;
+}
+
+
 #else
 
 IShellPtr CreatePortoShell(
@@ -362,6 +554,12 @@ IShellPtr CreatePortoShell(
 {
     THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
 }
+
+IShellPtr CreateShell(std::unique_ptr<TShellOptions> /*options*/)
+{
+    THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
+}
+
 
 #endif
 

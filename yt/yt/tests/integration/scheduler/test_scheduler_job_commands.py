@@ -194,7 +194,7 @@ class TestJobProber(YTEnvSetup):
         job_id = wait_breakpoint()[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
-        r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
+        r = poll_job_shell(job_id, operation="spawn", term="dumb", height=50, width=132)
         shell_id = r["shell_id"]
         self._poll_until_prompt(job_id, shell_id)
 
@@ -202,7 +202,7 @@ class TestJobProber(YTEnvSetup):
         self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n1".format(command)
+        expected = "{0}\ndumb\r\n50\r\n132\r\n1".format(command)
         assert output.startswith(expected)
 
         poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
@@ -408,6 +408,10 @@ class TestJobProber(YTEnvSetup):
                 )
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 assert value == (1 if abort_reason == "user_request" else 0)
+
+
+class TestJobProberNoPorto(TestJobProber):
+    USE_PORTO = False
 
 
 ##################################################################
