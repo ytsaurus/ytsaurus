@@ -10,9 +10,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.TransactionalClient;
-import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.core.DataSize;
-import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
@@ -141,13 +139,12 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
-        yt.createNode(CreateNode.builder()
-                .setPath(getOutputTable())
-                .setType(CypressNodeType.TABLE)
-                .setAttributes(getOutputTableAttributes())
-                .setRecursive(true)
-                .setIgnoreExisting(true)
-                .build()).join();
+        SpecUtils.createOutputTables(
+                yt,
+                specPreparationContext.getTransactionalOptions().orElse(null),
+                List.of(getOutputTable()),
+                getOutputTableAttributes()
+        );
 
         return builder.beginMap()
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
