@@ -1,0 +1,3 @@
+RECURSE(
+    ytsaurus-server-override
+)
