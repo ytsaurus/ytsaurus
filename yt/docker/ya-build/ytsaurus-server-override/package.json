@@ -14,7 +14,7 @@
             "targets": [
                 "yt/yt/server/all",
             ],
-            "build_type": "profile",
+            "build_type": "release",
             "thinlto": true,
             "target-platforms": [
                 "default-linux-x86_64",
