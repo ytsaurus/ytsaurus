@@ -1320,14 +1320,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     TListOperationsCountingFilter countingFilter(options);
 
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
-    auto archiveVersion = TryGetOperationsArchiveVersion();
-    if (options.IncludeArchive && archiveVersion) {
-        idToOperation = DoListOperationsFromArchive(
-            deadline,
-            countingFilter,
-            options,
-            *archiveVersion,
-            Logger);
+    if (options.IncludeArchive) {
+        // NB(omgronny): Call TryGetOperationsArchiveVersion only if IncludeArchive option is true.
+        if (auto archiveVersion = TryGetOperationsArchiveVersion()) {
+            idToOperation = DoListOperationsFromArchive(
+                deadline,
+                countingFilter,
+                options,
+                *archiveVersion,
+                Logger);
+        }
     }
 
     DoListOperationsFromCypress(
