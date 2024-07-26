@@ -23,8 +23,8 @@ class TestQueriesYqlBase(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
-    def _run_simple_query(self, query):
-        query = start_query("yql", query)
+    def _run_simple_query(self, query, **kwargs):
+        query = start_query("yql", query, **kwargs)
         query.track()
         query_info = query.get()
         if query_info["result_count"] == 0:
@@ -34,8 +34,13 @@ class TestQueriesYqlBase(YTEnvSetup):
         else:
             return [query.read_result(i) for i in range(query_info["result_count"])]
 
-    def _test_simple_query(self, query, expected):
-        assert_items_equal(self._run_simple_query(query), expected)
+    def _test_simple_query(self, query, expected, **kwargs):
+        result = self._run_simple_query(query, **kwargs)
+        if expected is None:
+            assert result is None
+            return
+
+        assert_items_equal(result, expected)
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
@@ -48,10 +53,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         })
         rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
         write_table("//tmp/t", rows)
-        query = start_query("yql", "select * from primary.`//tmp/t`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(rows, result)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("mpereskokova")
     def test_simple_insert(self, query_tracker, yql_agent):
@@ -60,17 +62,8 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         })
         rows = [{"a": 42, "b": "foo"}]
 
-        query = start_query("yql", "insert into primary.`//tmp/t`(a, b) values (42, 'foo')")
-        query.track()
-
-        query_info = query.get()
-        assert query_info["result_count"] == 0
-
-        query = start_query("yql", "select * from primary.`//tmp/t`")
-        query.track()
-
-        result = query.read_result(0)
-        assert_items_equal(result, rows)
+        self._test_simple_query("insert into primary.`//tmp/t`(a, b) values (42, 'foo')", None)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("max42")
     def test_issues(self, query_tracker, yql_agent):
@@ -99,29 +92,18 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         write_table("<append=%true>//tmp/t", rows)
         alter_table("//tmp/t", schema=schema_new)
 
-        query = start_query("yql", """select * from primary.`//tmp/t`;
-                                select c, b from primary.`//tmp/t`""")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, rows)
-
-        result = query.read_result(1)
-        assert_items_equal(result, [{"b": "foo", "c": True}])
+        self._test_simple_query("""
+            select * from primary.`//tmp/t`;
+            select c, b from primary.`//tmp/t`
+        """, [rows, [{"b": "foo", "c": True}]])
 
     @authors("mpereskokova")
     def test_calc(self, query_tracker, yql_agent):
-        query = start_query("yql", """select 1;
-                                    select 1 + 1;
-                                    select 2 as b, 1 as a""")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column0": 1}], result)
-
-        result = query.read_result(1)
-        assert_items_equal([{"column0": 2}], result)
-
-        result = query.read_result(2)
-        assert_items_equal([{"a": 1, "b": 2}], result)
+        self._test_simple_query("""
+            select 1;
+            select 1 + 1;
+            select 2 as b, 1 as a
+        """, [[{"column0": 1}], [{"column0": 2}], [{"a": 1, "b": 2}]])
 
 
 class TestComplexQueriesYql(TestQueriesYqlBase):
@@ -135,10 +117,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         rows = [{"a": 42}, {"a": -17}]
         write_table("//tmp/t", rows)
 
-        query = start_query("yql", "select count(*) from `//tmp/t`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column0": 2}], result)
+        self._test_simple_query("select count(*) from primary.`//tmp/t`", [{"column0": 2}])
 
     @authors("mpereskokova")
     def test_union(self, query_tracker, yql_agent):
@@ -154,10 +133,10 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         rows = [{"a": 43}]
         write_table("//tmp/t2", rows)
 
-        query = start_query("yql", "select * from `//tmp/t1` union all select * from `//tmp/t2`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"a": 42}, {"a": 43}], result)
+        self._test_simple_query(
+            "select * from `//tmp/t1` union all select * from `//tmp/t2`",
+            [{"a": 42}, {"a": 43}],
+        )
 
     @authors("mpereskokova")
     @pytest.mark.timeout(150)
@@ -168,10 +147,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         rows = [{"a": 42}, {"a": 43}]
         write_table("//tmp/t1", rows)
 
-        query = start_query("yql", "select sum(1) from (select * from `//tmp/t1`)")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column0": 2}], result)
+        self._test_simple_query("select sum(1) from (select * from `//tmp/t1`)", [{"column0": 2}])
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(150)
@@ -182,10 +158,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         rows = [{"a": 42}, {"a": 43}]
         write_table("//tmp/t1", rows)
 
-        query = start_query("yql", "select sum(a) from `//tmp/t1`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column0": 85}], result)
+        self._test_simple_query("select sum(a) from `//tmp/t1`", [{"column0": 85}])
 
     @authors("aleksandr.gaev")
     def test_zeros_in_settings(self, query_tracker, yql_agent):
@@ -195,10 +168,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         rows = [{"a": 45}]
         write_table("//tmp/t1", rows)
 
-        query = start_query("yql", "select * from `//tmp/t1`", settings={"random_attribute": 0})
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"a": 45}], result)
+        self._test_simple_query("select * from `//tmp/t1`", [{"a": 45}], settings={"random_attribute": 0})
 
 
 class TestExecutionModesYql(TestQueriesYqlBase):
@@ -243,12 +213,7 @@ class TestExecutionModesYql(TestQueriesYqlBase):
         write_table("//tmp/t1", rows)
 
         for mode in ["run", 2]:
-            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
-            query.track()
-            query_info = query.get()
-            assert query_info["result_count"] == 1
-            query_result = query.read_result(0)
-            assert_items_equal(rows, query_result)
+            self._test_simple_query("select * from `//tmp/t1`", rows, settings={"execution_mode": mode})
 
     @authors("aleksandr.gaev")
     def test_unknown_execution_modes(self, query_tracker, yql_agent):
@@ -259,13 +224,11 @@ class TestExecutionModesYql(TestQueriesYqlBase):
         write_table("//tmp/t1", rows)
 
         for mode in ["Validate", "Optimize", "Run"]:
-            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
             with raises_yt_error('Enum value "' + str(mode) + '" is neither in a proper underscore case nor in a format'):
-                query.track()
+                self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": mode})
 
-        query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": 42})
         with raises_yt_error("Error casting"):
-            query.track()
+            self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": 42})
 
 
 class TestYqlPlugin(TestQueriesYqlBase):
@@ -278,10 +241,8 @@ class TestYqlPlugin(TestQueriesYqlBase):
         })
         rows = [{"a": 42}]
         write_table("//tmp/t", rows)
-        query = start_query("yql", "select * from `//tmp/t`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(rows, result)
+
+        self._test_simple_query("select * from `//tmp/t`", rows)
 
     @authors("mpereskokova")
     def test_dyntable_read(self, query_tracker, yql_agent):
@@ -295,14 +256,10 @@ class TestYqlPlugin(TestQueriesYqlBase):
         rows = [{"a": 42, "b": 43, "c": "test"}]
         insert_rows("//tmp/t", rows)
 
-        query = start_query("yql", """select * from `//tmp/t`;
-                                        select c, a from `//tmp/t`""")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, rows)
-
-        result = query.read_result(1)
-        assert_items_equal(result, [{"a": 42, "c": "test"}])
+        self._test_simple_query("""
+            select * from `//tmp/t`;
+            select c, a from `//tmp/t`
+        """, [rows, [{"a": 42, "c": "test"}]])
 
     @authors("mpereskokova")
     def test_pragma_refselect(self, query_tracker, yql_agent):
@@ -316,14 +273,12 @@ class TestYqlPlugin(TestQueriesYqlBase):
         rows = [{"a": 42, "b": 43, "c": "test"}]
         insert_rows("//tmp/t", rows)
 
-        query = start_query("yql", """pragma RefSelect; select * from `//tmp/t`;
-                                        select c, a from `//tmp/t`""")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, rows)
+        self._test_simple_query("""
+            pragma RefSelect;
 
-        result = query.read_result(1)
-        assert_items_equal(result, [{"a": 42, "c": "test"}])
+            select * from `//tmp/t`;
+            select c, a from `//tmp/t`
+        """, [rows, [{"a": 42, "c": "test"}]])
 
 
 class TestYqlAgent(TestQueriesYqlBase):
@@ -357,27 +312,25 @@ class TestYqlAgent(TestQueriesYqlBase):
 
     @authors("mpereskokova")
     def test_files(self, query_tracker, yql_agent):
-        query = start_query("yql", "select FileContent(\"test_file_raw\") as column;", files=[{"name" : "test_file_raw", "content" : "test_content", "type" : "raw_inline_data"}])
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal([{"column": "test_content"}], result)
+        self._test_simple_query(
+            "select FileContent(\"test_file_raw\") as column",
+            [{"column": "test_content"}],
+            files=[{"name": "test_file_raw", "content": "test_content", "type": "raw_inline_data"}],
+        )
 
         # check downloading files by links
         create("file", "//tmp/test_file")
         write_file("//tmp/test_file", b"test_file_content")
         file_link = "http://" + self.Env.get_http_proxy_address() + "/api/v3/read_file?path=//tmp/test_file"
 
-        query = start_query("yql", "select FileContent(\"long_link\"); select FileContent(\"short_link\");", files=[
-            {"name" : "long_link", "content" : file_link, "type" : "url"},
-            {"name" : "short_link", "content" : "yt://primary/tmp/test_file", "type" : "url"}])
-        query.track()
-
-        long_link_result = query.read_result(0)
-        short_link_result = query.read_result(1)
-
-        result = [{"column0": "test_file_content"}]
-        assert_items_equal(result, long_link_result)
-        assert_items_equal(result, short_link_result)
+        self._test_simple_query(
+            "select FileContent(\"long_link\"); select FileContent(\"short_link\")",
+            [[{"column0": "test_file_content"}], [{"column0": "test_file_content"}]],
+            files=[
+                {"name": "long_link", "content": file_link, "type": "url"},
+                {"name": "short_link", "content": "yt://primary/tmp/test_file", "type": "url"},
+            ],
+        )
 
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):
