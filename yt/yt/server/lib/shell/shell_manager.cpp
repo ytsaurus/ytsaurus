@@ -419,7 +419,6 @@ public:
         const NYson::TYsonString& serializedParameters) override
 
     {
-
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TShellParameters parameters;
@@ -522,7 +521,6 @@ public:
 
         resultValue.ShellId = shell->GetId();
         resultValue.ShellIndex = shell->GetIndex();
-DUMP("zzzz shellresp");
         return TPollJobShellResponse {
             .Result = ConvertToYsonString(resultValue),
             .LoggingContext = loggingContext,

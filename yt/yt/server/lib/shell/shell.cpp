@@ -7,10 +7,13 @@
 
 #endif
 
+#include <yt/yt/server/lib/user_job/config.h>
+
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/public.h>
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/pty.h>
 
 #include <yt/yt/core/actions/bind.h>
@@ -366,6 +369,7 @@ public:
         std::unique_ptr<TShellOptions> options)
         : TShellBase(std::move(options))
         , Process_(New<TSimpleProcess>(Options_->ExePath, false))
+    {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Logger.AddTag("ShellId: %v", Id_);
@@ -526,10 +530,7 @@ public:
 
 private:
     const TProcessBasePtr Process_;
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Failed to clean up shell processes");
-        }
-    }
+
     void CleanupShellProcesses()
     {
         YT_UNUSED_FUTURE(Reader_->Abort());
