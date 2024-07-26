@@ -266,6 +266,7 @@
     XX(LeadingPeerId, leading_peer_id) \
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LifeStage, life_stage) \
+    XX(LocalExportedObjectCount, local_exported_object_count) \
     XX(LocalJobs, local_jobs) \
     XX(LocalHealth, local_health) \
     XX(LocalPartLossTime, local_part_loss_time) \

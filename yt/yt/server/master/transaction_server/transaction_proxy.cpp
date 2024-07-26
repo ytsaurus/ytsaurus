@@ -71,6 +71,7 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExportedObjectCount)
             .SetOpaque(true));
+        descriptors->push_back(EInternedAttributeKey::LocalExportedObjectCount);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectCount)
@@ -192,6 +193,11 @@ private:
                     .Value(transaction->GetIsCypressTransaction());
                 return true;
             }
+
+            case EInternedAttributeKey::LocalExportedObjectCount:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->ExportedObjects().size());
+                return true;
 
             default:
                 break;
