@@ -47,7 +47,7 @@ public:
     //! User to impersonate before spawning a child process.
     int Uid = -1;
 
-    int Pty = -1;
+    std::optional<int> Pty = -1;
 
     //! Whether to adjust resource limits to allow core dumps.
     bool EnableCoreDump = false;

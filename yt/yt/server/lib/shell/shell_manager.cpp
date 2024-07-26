@@ -417,7 +417,6 @@ public:
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& serializedParameters) override
-
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -528,7 +527,7 @@ public:
 
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -540,7 +539,7 @@ public:
         IdToShell_.clear();
     }
 
-    virtual TFuture<void> GracefulShutdown(const TError& error) override
+    TFuture<void> GracefulShutdown(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -549,9 +548,8 @@ public:
         for (auto& shell : IdToShell_) {
             futures.push_back(shell.second->Shutdown(error));
         }
-        return AllSet(futures).As<void>();
+        return AllSet(futures).AsVoid();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,24 +562,14 @@ IShellManagerPtr CreateShellManager(const TShellManagerConfig& config)
 #else
 
 IShellManagerPtr CreatePortoShellManager(
+    const TShellManagerConfig& config,
     IPortoExecutorPtr portoExecutor,
-    IInstancePtr rootInstance,
-    const TString& preparationDir,
-    const TString& workingDir,
-    std::optional<int> userId,
-    std::optional<int> groupId,
-    std::optional<TString> messageOfTheDay,
-    std::vector<TString> environment)
+    IInstancePtr rootInstance)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }
 
-IShellManagerPtr CreateShellManager(
-    const TString& workingDir,
-    std::optional<int> userId,
-    std::optional<TString> freezerFullPath,
-    std::optional<TString> messageOfTheDay,
-    std::vector<TString> environment)
+IShellManagerPtr CreateShellManager(const TShellManagerConfig& config)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }

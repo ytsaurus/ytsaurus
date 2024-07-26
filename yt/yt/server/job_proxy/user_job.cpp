@@ -674,26 +674,16 @@ private:
                     shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
                 }
 
-                std::optional<int> shellManagerGid;
-
-// TODO: still need?                 
-                // YT-13790.
-                if (Config_->RootPath) {
-                    shellManagerGid = 1001;
-                }
-
                 TShellManagerConfig config{
                     .PreparationDir = Host_->GetPreparationPath(),
                     .WorkingDir = Host_->GetSlotPath(),
                     .UserId = shellManagerUid,
-                    .GroupId = shellManagerGid,
                     .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
                     .Environment = std::move(shellEnvironment),
                     .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
                 };
 
-
-                ShellManager_ = CreateShellManager(config);
+                ShellManager_ = CreateShellManager(std::move(config));
                 break;
             }
             

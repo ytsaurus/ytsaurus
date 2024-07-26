@@ -365,15 +365,10 @@ class TShell
     : public TShellBase
 {
 public:
-    TShell(
-        std::unique_ptr<TShellOptions> options)
+    explicit TShell(std::unique_ptr<TShellOptions> options)
         : TShellBase(std::move(options))
         , Process_(New<TSimpleProcess>(Options_->ExePath, false))
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Logger.AddTag("ShellId: %v", Id_);
-    }
+    { }
 
     void Spawn()
     {
@@ -446,19 +441,19 @@ public:
             executorConfig->Pty = pty.GetSlaveFD();
             executorConfig->Environment.reserve(Options_->Environment.size() + 6);
 
-            executorConfig->Environment.emplace_back("HOME=" + home);
-            executorConfig->Environment.emplace_back("LOGNAME=" + user);
-            executorConfig->Environment.emplace_back("USER=" + user);
-            executorConfig->Environment.emplace_back("TERM=" + Options_->Term);
-            executorConfig->Environment.emplace_back("LANG=en_US.UTF-8");
-            executorConfig->Environment.emplace_back("YT_SHELL_ID=" + ToString(Id_));
+            executorConfig->Environment.push_back("HOME=" + home);
+            executorConfig->Environment.push_back("LOGNAME=" + user);
+            executorConfig->Environment.push_back("USER=" + user);
+            executorConfig->Environment.push_back("TERM=" + Options_->Term);
+            executorConfig->Environment.push_back("LANG=en_US.UTF-8");
+            executorConfig->Environment.push_back("YT_SHELL_ID=" + ToString(Id_));
 
             for (const auto& var : Options_->Environment) {
-                executorConfig->Environment.emplace_back(var);
+                executorConfig->Environment.push_back(var);
             }
 
-            executorConfig->StderrPath = "../stderr";
-            auto executorConfigPath = NFS::CombinePaths(home, ".executor.yson");
+            executorConfig->StderrPath = "../stderr." + ToString(Id_);
+            auto executorConfigPath = NFS::CombinePaths(home, "../executor."+ToString(Id_)+".yson");
 
             try {
                 TFile configFile(executorConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -477,6 +472,7 @@ public:
         YT_LOG_INFO("Shell started");
 
     }
+
     virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -546,7 +542,6 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> options)
     return shell;
 }
 
-
 #else
 
 IShellPtr CreatePortoShell(
@@ -560,7 +555,6 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> /*options*/)
 {
     THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
 }
-
 
 #endif
 

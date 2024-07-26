@@ -40,7 +40,7 @@ class TestJobProber(YTEnvSetup):
         },
     }
 
-    USE_PORTO = True
+    USE_PORTO = False
 
     @authors("ignat")
     def test_abandon_job(self):
@@ -410,8 +410,8 @@ class TestJobProber(YTEnvSetup):
                 assert value == (1 if abort_reason == "user_request" else 0)
 
 
-class TestJobProberNoPorto(TestJobProber):
-    USE_PORTO = False
+class TestJobProberPorto(TestJobProber):
+    USE_PORTO = True
 
 
 ##################################################################
