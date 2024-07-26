@@ -18,7 +18,7 @@ class TFiber
     , public ITrampoLine
 {
 public:
-    using TCookie = std::list<TFiber*>::iterator;
+    using TCookie = std::list<TWeakPtr<TFiber>>::iterator;
 
     explicit TFiber(EExecutionStackKind stackKind = EExecutionStackKind::Small);
     ~TFiber();

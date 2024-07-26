@@ -121,7 +121,7 @@ public:
         return LeakySingleton<TFiberRegistry>();
     }
 
-    TFiber::TCookie Register(TFiber* fiber)
+    TFiber::TCookie Register(TWeakPtr<TFiber> fiber)
     {
         auto guard = Guard(Lock_);
         return Fibers_.insert(Fibers_.begin(), fiber);
@@ -137,22 +137,24 @@ public:
     {
         auto guard = Guard(Lock_);
         std::vector<TFiberPtr> fibers;
-        for (const auto& fiber : Fibers_) {
-            fibers.push_back(fiber);
+        for (const auto& weakFiber : Fibers_) {
+            if (auto strongFiber = weakFiber.Lock()) {
+                fibers.push_back(strongFiber);
+            }
         }
         return fibers;
     }
 
 private:
     NThreading::TForkAwareSpinLock Lock_;
-    std::list<TFiber*> Fibers_;
+    std::list<TWeakPtr<TFiber>> Fibers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(EExecutionStackKind stackKind)
     : Stack_(CreateExecutionStack(stackKind))
-    , RegistryCookie_(TFiberRegistry::Get()->Register(this))
+    , RegistryCookie_(TFiberRegistry::Get()->Register(MakeWeak(this)))
     , MachineContext_({
         this,
         TArrayRef(static_cast<char*>(Stack_->GetStack()), Stack_->GetSize()),
