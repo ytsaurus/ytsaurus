@@ -61,6 +61,8 @@ public:
     TYsonProducer GetMonitoringProducer() override;
     TPeerIdSet GetAlivePeerIds() override;
 
+    TCellManagerPtr GetCellManager() override;
+
 private:
     class TVotingRound;
 
@@ -718,6 +720,13 @@ TPeerIdSet TDistributedElectionManager::GetAlivePeerIds()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return AlivePeerIds_;
+}
+
+TCellManagerPtr TDistributedElectionManager::GetCellManager()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return CellManager_;
 }
 
 void TDistributedElectionManager::Reset()
