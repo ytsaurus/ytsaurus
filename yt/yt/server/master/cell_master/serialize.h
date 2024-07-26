@@ -256,6 +256,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkMergerBackoff)                                           (2587))  // cherepashka
     ((ForbiddenErasureCodecs_ForbiddenComprCodecsRefactoring_24_1)  (2588))  // abogutskiy, shakurov
     ((MediumIndexSizeofReduction)                                   (2589))  // cherepashka
+    ((SecondaryIndexPerUserValidation_24_1)                         (2590))  // sabdenovch
     // 24.2 starts here.
 );
 

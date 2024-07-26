@@ -4,6 +4,8 @@
 #include "table_manager.h"
 #include "table_node.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/table_server/private.h>
@@ -56,6 +58,8 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
+        ValidateUserAllowedToCreateSecondaryIndex();
+
         auto kind = attributes->GetAndRemove<ESecondaryIndexKind>(
             EInternedAttributeKey::Kind.Unintern(),
             ESecondaryIndexKind::FullSync);
@@ -72,6 +76,22 @@ public:
         auto* indexTable = tableManager->GetTableNodeOrThrow(indexTableId);
 
         return tableManager->CreateSecondaryIndex(hintId, kind, table, indexTable, std::move(predicate));
+    }
+
+    void ValidateUserAllowedToCreateSecondaryIndex()
+    {
+        if (Bootstrap_->GetDynamicConfig()->AllowEveryoneCreateSecondaryIndices) {
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto* user = securityManager->GetAuthenticatedUser();
+
+        THROW_ERROR_EXCEPTION_UNLESS(user->GetAllowCreateSecondaryIndices(),
+            "Could not verify permission to create %Qlv for user %Qv. "
+            "Refer to \"Secondary indices\" article in documentation.",
+            EObjectType::SecondaryIndex,
+            user->GetName());
     }
 
 private:

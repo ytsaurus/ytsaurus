@@ -791,6 +791,10 @@ public:
                     tableType);
             }
 
+            if (table->GetUpstreamReplicaId() || indexTable->GetUpstreamReplicaId()) {
+                THROW_ERROR_EXCEPTION("Cannot create %Qlv on replica tables");
+            }
+
             switch (tableType) {
                 case EObjectType::Table: {
                     break;
