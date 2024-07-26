@@ -199,9 +199,9 @@ private:
         // Collect rows from dynamic state.
 
         auto where = Format("[queue_agent_stage] = \"%v\"", QueueAgentStage_);
-        auto asyncQueueRows = DynamicState_->Queues->Select("*", where);
-        auto asyncConsumerRows = DynamicState_->Consumers->Select("*", where);
-        auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select("*");
+        auto asyncQueueRows = DynamicState_->Queues->Select(where);
+        auto asyncConsumerRows = DynamicState_->Consumers->Select(where);
+        auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
         std::vector<TFuture<void>> futures{
             asyncQueueRows.AsVoid(),

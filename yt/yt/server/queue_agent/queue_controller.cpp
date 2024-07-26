@@ -867,9 +867,7 @@ private:
         }
 
         const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
-        // This config should be initialized when reading from dynamic state.
-        YT_VERIFY(autoTrimConfig);
-        if (!autoTrimConfig->Enable) {
+        if (!autoTrimConfig.Enable) {
             YT_LOG_DEBUG(
                 "Trimming disabled; trimming iteration skipped (AutoTrimConfig: %v)",
                 ConvertToYsonString(autoTrimConfig, EYsonFormat::Text));
@@ -1137,11 +1135,9 @@ private:
         //! Updates partition contexts in accordance with the retained_lifetime_duration parameter.
         //! Only affects the maximum trimmed row count.
         //! Internally, fetches safe row indexes to trim based on the current generated timestamp and the specified duration.
-        void HandleRetainedLifetimeDuration(const std::optional<TQueueAutoTrimConfig>& autoTrimConfig)
+        void HandleRetainedLifetimeDuration(const TQueueAutoTrimConfig& autoTrimConfig)
         {
-            YT_VERIFY(autoTrimConfig);
-
-            const auto& lifetimeDuration = autoTrimConfig->RetainedLifetimeDuration;
+            const auto& lifetimeDuration = autoTrimConfig.RetainedLifetimeDuration;
 
             if (!lifetimeDuration) {
                 return;
@@ -1197,11 +1193,9 @@ private:
 
         //! Updates partition contexts in accordance with the retained_rows parameter.
         //! Only affects the maximum trimmed row count.
-        void HandleRetainedRows(const std::optional<TQueueAutoTrimConfig>& autoTrimConfig)
+        void HandleRetainedRows(const TQueueAutoTrimConfig& autoTrimConfig)
         {
-            YT_VERIFY(autoTrimConfig);
-
-            const auto& retainedRows = autoTrimConfig->RetainedRows;
+            const auto& retainedRows = autoTrimConfig.RetainedRows;
             if (!retainedRows) {
                 return;
             }
