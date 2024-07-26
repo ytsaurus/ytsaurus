@@ -75,13 +75,17 @@ int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
 {
     auto proxy = CreateObjectServiceWriteProxy(Client_, cellTag);
 
-    // COMPAT(shakurov)
-    // Replace this with a newer syntax "&#OBJECT_ID" for redirect suppression.
-    auto req = TObjectYPathProxy::Get("//sys/transactions/" + ToString(TransactionId_) + "/@exported_object_count");
-
+    auto req = TObjectYPathProxy::Get("&#" + ToString(TransactionId_) + "/@local_exported_object_count");
     AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));
 
     auto rspOrError = WaitFor(proxy.Execute(req));
+    // COMPAT(gritukan): Remove it after local_exported_object_count is supported everywhere.
+    if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        req = TObjectYPathProxy::Get("&#" + ToString(TransactionId_) + "/@exported_object_count");
+        AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));
+        rspOrError = WaitFor(proxy.Execute(req));
+    }
+
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting exported object count for transaction %v in cell %v",
         TransactionId_,
         cellTag);

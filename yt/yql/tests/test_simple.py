@@ -23,6 +23,20 @@ class TestQueriesYqlBase(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    def _run_simple_query(self, query):
+        query = start_query("yql", query)
+        query.track()
+        query_info = query.get()
+        if query_info["result_count"] == 0:
+            return None
+        elif query_info["result_count"] == 1:
+            return query.read_result(0)
+        else:
+            return [query.read_result(i) for i in range(query_info["result_count"])]
+
+    def _test_simple_query(self, query, expected):
+        assert_items_equal(self._run_simple_query(query), expected)
+
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
@@ -450,3 +464,181 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
         q.track()
         result = q.read_result(0)
         assert_items_equal([{"b": 43}], result)
+
+
+class TestYqlColumnOrder(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
+    @authors("gritukan", "mpereskokova")
+    @pytest.mark.timeout(300)
+    def test_aggregate_with_as(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        write_table("//tmp/t", [{"a": 42}])
+
+        self._test_simple_query("""
+            select
+                sum(a) as c_a,
+                sum(a) + 1 as c_b,
+                sum(a) + 2 as c_c,
+                sum(a) + 3 as c_d,
+            from primary.`//tmp/t`
+        """, [{"c_a": 42, "c_b": 43, "c_c": 44, "c_d": 45}])
+
+        self._test_simple_query("""
+            select
+                sum(a) as c_d,
+                sum(a) + 1 as c_c,
+                sum(a) + 2 as c_b,
+                sum(a) + 3 as c_a,
+            from primary.`//tmp/t`
+        """, [{"c_a": 45, "c_b": 44, "c_c": 43, "c_d": 42}])
+
+        self._test_simple_query("""
+            select
+                sum(a) as c_d,
+                sum(a) + 1 as c_b,
+                sum(a) + 2 as c_c,
+                sum(a) + 3 as c_a,
+            from primary.`//tmp/t`
+        """, [{"c_a": 45, "c_b": 43, "c_c": 44, "c_d": 42}])
+
+        self._test_simple_query("""
+            select
+                sum(a) as c_c,
+                sum(a) + 1 as c_a,
+                sum(a) + 2 as c_d,
+                sum(a) + 3 as c_b,
+            from primary.`//tmp/t`
+        """, [{"c_a": 43, "c_b": 45, "c_c": 42, "c_d": 44}])
+
+    @authors("gritukan", "mpereskokova")
+    def test_issue_707(self, query_tracker, yql_agent):
+        # https://github.com/ytsaurus/ytsaurus/issues/707
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}]
+        })
+        write_table("//tmp/t", [{"a": 42, "b": "foo", "c": 2.0}])
+
+        self._test_simple_query("""
+            select
+                sum(a) as x,
+                count(*) as y,
+                sum(c) as z
+            from primary.`//tmp/t`
+        """, [{"x": 42, "y": 1, "z": 2.0}])
+        self._test_simple_query("""
+            select
+                sum(a) as z,
+                count(*) as x,
+                sum(c) as y
+            from primary.`//tmp/t`
+        """, [{"x": 1, "y": 2.0, "z": 42}])
+
+    @authors("gritukan", "mpereskokova")
+    @pytest.mark.parametrize("dynamic", [False, True])
+    def test_select_table(self, query_tracker, yql_agent, dynamic):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "string"},
+                {"name": "c", "type": "float"},
+            ],
+            "dynamic": dynamic,
+            "enable_dynamic_store_read": True,
+        })
+        if dynamic:
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", [{"a": 42, "b": "foo", "c": 2.0}])
+        else:
+            write_table("//tmp/t", [{"a": 42, "b": "foo", "c": 2.0}])
+
+        self._test_simple_query("""
+            select *,
+            from primary.`//tmp/t`
+        """, [{"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
+            select a, b, c,
+            from primary.`//tmp/t`
+        """, [{"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
+            select c, a, b
+            from primary.`//tmp/t`
+        """, [{"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
+            select a as b, b as c, c as a,
+            from primary.`//tmp/t`
+        """, [{"a": 2.0, "b": 42, "c": "foo"}])
+        self._test_simple_query("""
+            select c as b, b as a, a as c,
+            from primary.`//tmp/t`
+        """, [{"a": "foo", "b": 2.0, "c": 42}])
+
+        # Multiple outputs
+        self._test_simple_query("""
+            select a, b, c
+            from primary.`//tmp/t`;
+            select a, b, c
+            from primary.`//tmp/t`;
+        """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": 42, "b": "foo", "c": 2.0}]])
+        self._test_simple_query("""
+            select a, b, c
+            from primary.`//tmp/t`;
+            select c, a, b
+            from primary.`//tmp/t`;
+        """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": 42, "b": "foo", "c": 2.0}]])
+
+    @authors("gritukan", "mpereskokova")
+    def test_select_scalars(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select 42 as a, "foo" as b, 2.0 as c
+        """, [{"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
+            select 42 as c, 43 as a, 44 as b
+        """, [{"a": 43, "b": 44, "c": 42}])
+        self._test_simple_query("""
+            select 42 as c, "foo" as a, 2.0 as b
+        """, [{"a": "foo", "b": 2.0, "c": 42}])
+
+        # Error cases
+        with raises_yt_error("duplicate column names"):
+            self._run_simple_query("select 42 as a, 42 as a")
+        with raises_yt_error("duplicate column names"):
+            self._run_simple_query("select 42 as a, 43 as a")
+        with raises_yt_error("duplicate column names"):
+            self._run_simple_query("select 42 as a, \"foo\" as a")
+
+        # Multiple outputs
+        self._test_simple_query("""
+            select 42 as a, "foo" as b, 2.0 as c;
+            select 42 as c, "foo" as a, 2.0 as b;
+        """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": "foo", "b": 2.0, "c": 42}]])
+
+    @authors("gritukan", "mpereskokova")
+    @pytest.mark.timeout(300)
+    def test_different_sources(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}])
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "enable_dynamic_store_read": True,
+        })
+        write_table("//tmp/t2", [{"a": 43, "b": "bar", "c": 3.0}])
+
+        self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t2`
+            union all
+            select a, b, c from primary.`//tmp/t1`
+        """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "bar", "c": 3.0}])
+        self._test_simple_query("""
+            select c, a, b from primary.`//tmp/t2`
+            union all
+            select c, a, b from primary.`//tmp/t1`
+        """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "bar", "c": 3.0}])

@@ -1,0 +1,18 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TQueueAgentObjectMapping
+    descriptor_verbatim: static constexpr TStringBuf Name = "queue_agent_object_mapping";
+    fields:
+      - cpp_name: Object
+        cpp_type: TString
+        column_name: object
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: QueueAgentHost
+        cpp_type: TString
+        column_name: host
+        column_type: String
+        required: True

@@ -102,6 +102,9 @@ struct IElectionManager
      *  This includes both voting and non-voting peers.
      */
     virtual TPeerIdSet GetAlivePeerIds() = 0;
+
+    //! Returns current ell Manager.
+    virtual TCellManagerPtr GetCellManager() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionManager)

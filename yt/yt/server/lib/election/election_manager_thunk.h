@@ -22,6 +22,8 @@ public:
     NYson::TYsonProducer GetMonitoringProducer() override;
     TPeerIdSet GetAlivePeerIds() override;
 
+    TCellManagerPtr GetCellManager() override;
+
     void SetUnderlying(IElectionManagerPtr underlying);
 
 private:

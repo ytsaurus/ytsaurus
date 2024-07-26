@@ -143,6 +143,11 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
                 << ex;
         }
     }
+    {%- if field.required -%}
+    else {
+        THROW_ERROR_EXCEPTION("No such column %Qv", "{{field.column_name}}");
+    }
+    {% endif %}
 {%- endfor %}
     return result;
 }

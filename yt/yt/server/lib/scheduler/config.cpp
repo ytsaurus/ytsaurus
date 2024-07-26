@@ -985,8 +985,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("exec_node_descriptors_update_period", &TThis::ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
+    // COMPAT(ignat): remove option after it will be deployed with `false` default value.
     registrar.Parameter("always_send_controller_agent_descriptors", &TThis::AlwaysSendControllerAgentDescriptors)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("send_full_controller_agent_descriptors_for_allocations", &TThis::SendFullControllerAgentDescriptorsForAllocations)
         .Alias("send_full_controller_agent_descriptors_for_jobs")
         .Default(true);

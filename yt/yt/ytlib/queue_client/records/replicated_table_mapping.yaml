@@ -1,0 +1,39 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TReplicatedTableMapping
+    descriptor_verbatim: static constexpr TStringBuf Name = "replicated_table_mapping";
+    fields:
+      - cpp_name: Cluster
+        cpp_type: TString
+        column_name: cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Path
+        cpp_type: TString
+        column_name: path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Revision
+        cpp_type: std::optional<ui64>
+        column_name: revision
+        column_type: Uint64
+
+      - cpp_name: ObjectType
+        cpp_type: std::optional<TString>
+        column_name: object_type
+        column_type: String
+
+      - cpp_name: Meta
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: meta
+        column_type: Any
+
+      - cpp_name: SynchronizationError
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: synchronization_error
+        column_type: Any
