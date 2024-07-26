@@ -4,9 +4,10 @@ Credits for YQL go to YDB team: https://github.com/ydb-platform/ydb/blob/main/AU
 
 This list is incomplete and will be expanded and revised in the future.
 
+Aleksandr Gaev <aleksandr.gaev@tracto.ai>
+Aleksandr Priymak
 Aleksandra Belousova <sashbel94@gmail.com>
 Aleksandra Zhikhareva <aleksandra-zh@ytsaurus.tech>
-Aleksandr Priymak
 Alexander Dmitriev <monster@yandex-team.com>
 Alexander Kernazhytski
 Alexander Kolodezny <alexkolodezny@yandex-team.com>
@@ -24,7 +25,7 @@ Alexey Shishkin <alex-shishkin@ytsaurus.tech>
 Alexey Tinarsky <tinarsky@gmail.com>
 Amir Shakurov <shakurov@ytsaurus.tech>
 Andrei Tonkikh <andrei.tonkikh@gmail.com>
-Andrey Chulkov <achulkov2@ytsaurus.tech>
+Andrey Chulkov <achulkov2@tracto.ai>, <achulkov2@ytsaurus.tech>
 Andrey Grunau <andozer@ytsaurus.tech>
 Andrey Kashin
 Andrey Lanin <andrey@lanin.dev>
@@ -39,7 +40,9 @@ Artemiy Matrosov
 Bulat Gaifullin <bulatman@yandex-team.com> 
 Diana Arapova
 Dimitris Golear <dgolear@ytsaurus.tech>
+Dmitrii Gadeev <kruft@tracto.ai>
 Dmitrii Kovalkov <dakovalkov@ytsaurus.tech>
+Dmitriy Fedorov <dmifedorov@tracto.ai>
 Dmitry Akulov
 Dmitry Ermolov <dmitry.ermolov@gmail.com>
 Dmitry Orlov <orlovorlov@ytsaurus.tech>
@@ -53,22 +56,25 @@ Fedor Korotkiy
 Fedor Kuranov <deep@ytsaurus.tech>
 George Khalin
 Grigory Demchenko	
-Grigory Reznikov <gritukan@gmail.com>
+Grigory Reznikov <gritukan@tracto.ai>, <gritukan@gmail.com>
 Ignat Kolesnichenko <ignat1990@gmail.com>
 Ilia Pauzner <ilpauzner@gmail.com>
 Ilya Ivanashev
-Ilya Soin
 Ilya Popovnin
+Ilya Soin
+Ivan Bakurskii <isbakurskii@tracto.ai>
 Ivan Barantsev <h0pless@ytsaurus.tech>
 Ivan Pouzyrevsky <sandello@yandex-team.com>, <sandello@gmail.com>
 Ivan Smirnov <ifsmirnov@ytsaurus.tech>
 Kirill Kovalev
-Konstantin Khlebnikov
+Kirill Sibirev <sibirev@tracto.ai>
+Konstantin Khlebnikov <khlebnikov@tracto.ai>
 Konstantin Malov <k-malov@ytsaurus.tech>
 Konstantin Pogorelov <pogorelov@ytsaurus.tech>
 Konstantin Shishov <shishovka@ytsaurus.tech>
 Lev Vysotsky
-Maxim Akhmedov <max42@ytsaurus.tech>
+Maksim Zuev <chiffa@tracto.ai>
+Maxim Akhmedov <max@tracto.ai>, <max42@ytsaurus.tech>
 Maxim Babenko <maxim.babenko@gmail.com>
 Maxim Efremov <ma-efremoff@ytsaurus.tech>
 Maxim Gorbunov <m.v.gorbunov@gmail.com>
@@ -95,10 +101,13 @@ Sergey Zveroboev <szveroboyev@yandex-team.com>
 Stepan Kalinin <mrkastep@gmail.com>
 Timur Iskhakov <me@timur.is>
 Timur Sufiev
+Vadim Skipin
 Vasilii Kalmykov <kvk1920@ytsaurus.tech>
 Vasiliy Morozov <greatdraken@gmail.com>
-Vadim Skipin
 Veronika Ivannikova
+Viktor Rozaev <vrozaev@tracto.ai>
+Vitalii Shevchenko <vitshev@tracto.ai>
+Vladimir Chernitsyn <flunt1k@tracto.ai>
 Vladimir Goncharov
 Vladimir Malinovskii <galqiwi@gmail.com>
 Vladimir Ogorodnikov
