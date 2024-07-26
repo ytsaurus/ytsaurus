@@ -27,7 +27,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 
-
 @NonNullFields
 public class RichYPath implements YPath {
 
@@ -46,6 +45,7 @@ public class RichYPath implements YPath {
     private @Nullable String format;
     private @Nullable Boolean bypassArtifactCache;
     private @Nullable Boolean executable;
+    private @Nullable Boolean create;
 
     private Map<String, YTreeNode> additionalAttributes;
 
@@ -64,6 +64,7 @@ public class RichYPath implements YPath {
         this.format = null;
         this.bypassArtifactCache = null;
         this.executable = null;
+        this.create = null;
 
         this.additionalAttributes = Map.of();
     }
@@ -84,6 +85,7 @@ public class RichYPath implements YPath {
         this.format = other.format;
         this.bypassArtifactCache = other.bypassArtifactCache;
         this.executable = other.executable;
+        this.create = other.create;
 
         this.additionalAttributes = other.additionalAttributes;
     }
@@ -116,6 +118,7 @@ public class RichYPath implements YPath {
                 && Objects.equals(format, richYPath.format)
                 && Objects.equals(bypassArtifactCache, richYPath.bypassArtifactCache)
                 && Objects.equals(executable, richYPath.executable)
+                && Objects.equals(create, richYPath.create)
                 && Objects.equals(additionalAttributes, richYPath.additionalAttributes);
     }
 
@@ -136,6 +139,7 @@ public class RichYPath implements YPath {
                 format,
                 bypassArtifactCache,
                 executable,
+                create,
                 additionalAttributes
         );
     }
@@ -429,6 +433,18 @@ public class RichYPath implements YPath {
     }
 
     @Override
+    public Optional<Boolean> getCreate() {
+        return Optional.ofNullable(create);
+    }
+
+    @Override
+    public YPath create(boolean create) {
+        RichYPath copy = new RichYPath(this);
+        copy.create = create;
+        return copy;
+    }
+
+    @Override
     public Optional<YTreeNode> getAdditionalAttribute(String attributeName) {
         return Optional.ofNullable(additionalAttributes.get(attributeName));
     }
@@ -525,6 +541,7 @@ public class RichYPath implements YPath {
                 .when(bypassArtifactCache != null,
                         b -> b.key("bypass_artifact_cache").value(bypassArtifactCache))
                 .when(executable != null, b -> b.key("executable").value(executable))
+                .when(create != null, b -> b.key("create").value(create))
                 .apply(b -> {
                     for (Map.Entry<String, YTreeNode> node : additionalAttributes.entrySet()) {
                         b.key(node.getKey()).value(node.getValue());
@@ -618,6 +635,7 @@ public class RichYPath implements YPath {
         Optional<Boolean> bypassArtifactCache = Optional.ofNullable(attributes.remove("bypass_artifact_cache"))
                 .map(YTreeNode::boolValue);
         Optional<Boolean> executable = Optional.ofNullable(attributes.remove("executable")).map(YTreeNode::boolValue);
+        Optional<Boolean> create = Optional.ofNullable(attributes.remove("create")).map(YTreeNode::boolValue);
 
         List<RangeCriteria> ranges = new ArrayList<>();
         Optional<YTreeNode> rangesAttribute = Optional.ofNullable(attributes.remove("ranges"));
@@ -682,6 +700,9 @@ public class RichYPath implements YPath {
         if (executable.isPresent()) {
             result = result.withExecutable(executable.get());
         }
+        if (create.isPresent()) {
+            result = result.create(create.get());
+        }
 
         if (!attributes.isEmpty()) {
             result = result.withAdditionalAttributes(attributes);
@@ -711,10 +732,14 @@ enum TokenType {
 
     public static TokenType fromByte(byte sym) {
         switch (sym) {
-            case '/': return Slash;
-            case '@': return At;
-            case '&': return Ampersand;
-            case '*': return Asterisk;
+            case '/':
+                return Slash;
+            case '@':
+                return At;
+            case '&':
+                return Ampersand;
+            case '*':
+                return Asterisk;
             default: {
                 throw new RuntimeException(String.format("Impossible to convert '%s' to TokenType", sym));
             }
