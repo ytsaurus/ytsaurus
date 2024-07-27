@@ -140,9 +140,7 @@ void LogAccess(
     const TAttributeVector& additionalAttributes,
     const std::optional<TStringBuf> methodOverride)
 {
-    YT_ASSERT(bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog);
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
+    YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
@@ -223,9 +221,7 @@ void LogAccess(
     const TStringBuf method,
     const TAttributeVector& additionalAttributes)
 {
-    YT_ASSERT(bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog);
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
+    YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
     LogStructuredEventFluently(ELogLevel::Info)
         .Item("method").Value(method)
@@ -252,9 +248,7 @@ void LogAccess(
     const TStringBuf method,
     const NTransactionServer::TTransaction* transaction)
 {
-    YT_ASSERT(bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog);
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
-    YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
+    YT_ASSERT(IsAccessLogEnabled(bootstrap));
     YT_ASSERT(transaction);
 
     LogStructuredEventFluently(ELogLevel::Info)
