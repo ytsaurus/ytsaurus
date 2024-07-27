@@ -452,7 +452,7 @@ public:
             }
 
             executorConfig->StderrPath = Format("../stderr.%v", Id_);
-            auto executorConfigPath = NFS::CombinePaths(home, Format("../executor/%v.yson", Id_));
+            auto executorConfigPath = NFS::CombinePaths(home, Format("../executor.%v.yson", Id_));
 
             try {
                 TFile configFile(executorConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
