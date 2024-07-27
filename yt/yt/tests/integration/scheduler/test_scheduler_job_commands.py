@@ -40,8 +40,6 @@ class TestJobProber(YTEnvSetup):
         },
     }
 
-    USE_PORTO = False
-
     @authors("ignat")
     def test_abandon_job(self):
         create("table", "//tmp/t1")

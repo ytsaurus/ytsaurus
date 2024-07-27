@@ -134,7 +134,7 @@ protected:
             Exit(18);
         }
 
-        if (config->Pty && config->Pty != -1) {
+        if (config->Pty) {
             CloseAllDescriptors({*config->Pty});
             if (setsid() == -1) {
                 THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
@@ -170,9 +170,10 @@ protected:
         args.push_back(nullptr);
 
         // We are ready to execute user code, send signal to JobProxy.
-        if (config->UserJobSynchronizerConnectionConfig) {
+        // Config is absent for job shell.
+        if (const auto& userJobSynchronizerConnectionConfig = config->UserJobSynchronizerConnectionConfig) {
             try {
-                auto jobProxyControl = CreateUserJobSynchronizerClient(config->UserJobSynchronizerConnectionConfig);
+                auto jobProxyControl = CreateUserJobSynchronizerClient(userJobSynchronizerConnectionConfig);
                 jobProxyControl->NotifyExecutorPrepared();
             } catch (const std::exception& ex) {
                 LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));

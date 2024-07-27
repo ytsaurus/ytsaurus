@@ -27,7 +27,7 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("pty", &TThis::Pty)
-        .Default(-1);
+        .Default();
 
     registrar.Parameter("uid", &TThis::Uid)
         .Default(-1);

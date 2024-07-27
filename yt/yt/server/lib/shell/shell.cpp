@@ -403,7 +403,6 @@ public:
 
         Process_->SetWorkingDirectory(home);
 
-
         if (Options_->MessageOfTheDay) {
             auto path = NFS::CombinePaths(home, ".motd");
 
@@ -452,8 +451,8 @@ public:
                 executorConfig->Environment.push_back(var);
             }
 
-            executorConfig->StderrPath = "../stderr." + ToString(Id_);
-            auto executorConfigPath = NFS::CombinePaths(home, "../executor."+ToString(Id_)+".yson");
+            executorConfig->StderrPath = Format("../stderr.%v", Id_);
+            auto executorConfigPath = NFS::CombinePaths(home, Format("../executor/%v.yson", Id_));
 
             try {
                 TFile configFile(executorConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
