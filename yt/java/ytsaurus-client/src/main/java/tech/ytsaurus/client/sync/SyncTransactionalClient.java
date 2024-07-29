@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.sync;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import tech.ytsaurus.client.operations.MapReduceSpec;
 import tech.ytsaurus.client.operations.MapSpec;
@@ -81,6 +82,11 @@ public interface SyncTransactionalClient {
     );
 
     List<UnversionedRowset> multiLookup(MultiLookupRequest req);
+
+    <T> CompletableFuture<List<List<T>>> multiLookup(
+            MultiLookupRequest req,
+            YTreeRowSerializer<T> serializer
+    );
 
     /**
      * Run map operation. Wait for its completion and check status.

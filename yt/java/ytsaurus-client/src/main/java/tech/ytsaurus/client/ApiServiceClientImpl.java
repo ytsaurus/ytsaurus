@@ -586,7 +586,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRequest request) {
+    public CompletableFuture<List<UnversionedRowset>> multiLookup(MultiLookupRequest request) {
         return multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
@@ -594,7 +594,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+    public <T> CompletableFuture<List<List<T>>> multiLookup(
             MultiLookupRequest request,
             YTreeRowSerializer<T> serializer
     ) {
@@ -626,7 +626,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return handleHeavyResponse(
                 sendRequest(
                         request.asMultiLookupWritable(),
-                        ApiServiceMethodTable.MULTI_LOOKUP_ROWS.createRequestBuilder(rpcOptions)
+                        ApiServiceMethodTable.MULTI_LOOKUP.createRequestBuilder(rpcOptions)
                 ),
                 response -> {
                     logger.trace("MultiLookup incoming – number of rowset descriptors: {}", response.body().getSubresponsesCount());

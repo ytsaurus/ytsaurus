@@ -1,8 +1,12 @@
 package tech.ytsaurus.client.request;
 
+import java.util.Optional;
+
+import javax.annotation.Nullable;
+
 import tech.ytsaurus.client.ApiServiceUtil;
-import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpcproxy.TReqLookupRows;
 import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
@@ -19,12 +23,49 @@ import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
  */
 public abstract class AbstractLookupRowsRequest<
         TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
-        TRequest extends AbstractLookupRowsRequest<TBuilder, TRequest>> extends AbstractLookupRequestOptionsRequest<TBuilder, TRequest> {
+        TRequest extends AbstractLookupRowsRequest<TBuilder, TRequest>> extends AbstractLookupRequest<TBuilder, TRequest>
+{
+
+    @Nullable
+    protected final YtTimestamp timestamp;
+    @Nullable
+    protected final YtTimestamp retentionTimestamp;
+    @Nullable
+    protected final ReplicaConsistency replicaConsistency;
 
     protected AbstractLookupRowsRequest(Builder<?, ?> builder) {
         super(builder);
+        this.timestamp = builder.timestamp;
+        this.retentionTimestamp = builder.retentionTimestamp;
+        this.replicaConsistency = builder.replicaConsistency;
     }
 
+    /**
+     * Get timestamp parameter.
+     *
+     * @see AbstractLookupRowsRequest.Builder#setTimestamp(YtTimestamp)
+     */
+    public Optional<YtTimestamp> getTimestamp() {
+        return Optional.ofNullable(timestamp);
+    }
+
+    /**
+     * Get retention-timestamp parameter.
+     *
+     * @see AbstractLookupRowsRequest.Builder#setRetentionTimestamp(YtTimestamp)
+     */
+    public Optional<YtTimestamp> getRetentionTimestamp() {
+        return Optional.ofNullable(retentionTimestamp);
+    }
+
+    /**
+     * Get replica-consistency parameter.
+     *
+     * @see AbstractLookupRowsRequest.Builder#setReplicaConsistency(ReplicaConsistency)
+     */
+    public Optional<ReplicaConsistency> getReplicaConsistency() {
+        return Optional.ofNullable(replicaConsistency);
+    }
 
     /**
      * Internal method: prepare request to send over network.
@@ -104,12 +145,71 @@ public abstract class AbstractLookupRowsRequest<
     public abstract static class Builder<
             TBuilder extends Builder<TBuilder, TRequest>,
             TRequest extends AbstractLookupRowsRequest<?, TRequest>>
-            extends AbstractLookupRequestOptionsRequest.Builder<TBuilder, TRequest> {
+            extends AbstractLookupRequest.Builder<TBuilder, TRequest> {
+
+        @Nullable
+        private YtTimestamp timestamp;
+        @Nullable
+        private YtTimestamp retentionTimestamp;
+        @Nullable
+        private ReplicaConsistency replicaConsistency;
 
         /**
          * Construct empty builder.
          */
         public Builder() {
+        }
+
+        /**
+         * Set version of a table to be used for lookup request.
+         */
+        public TBuilder setTimestamp(@Nullable YtTimestamp timestamp) {
+            this.timestamp = timestamp;
+            return self();
+        }
+
+        /**
+         * Set lower boundary for value timestamps to be returned.
+         * I.e. values that were written before this timestamp are ignored and not returned.
+         */
+        public TBuilder setRetentionTimestamp(@Nullable YtTimestamp retentionTimestamp) {
+            this.retentionTimestamp = retentionTimestamp;
+            return self();
+        }
+
+        /**
+         * Set requested read consistency for chaos replicas.
+         */
+        public TBuilder setReplicaConsistency(@Nullable ReplicaConsistency replicaConsistency) {
+            this.replicaConsistency = replicaConsistency;
+            return self();
+        }
+
+        /**
+         * Get value of timestamp parameter.
+         *
+         * @see #setTimestamp parameter
+         */
+        public Optional<YtTimestamp> getTimestamp() {
+            return Optional.ofNullable(timestamp);
+        }
+
+        /**
+         * Get value of retention-timestamp parameter.
+         *
+         * @see #setRetentionTimestamp
+         */
+        public Optional<YtTimestamp> getRetentionTimestamp() {
+            return Optional.ofNullable(retentionTimestamp);
+        }
+
+        /**
+         * Get value of requested read consistency for chaos replicas.
+         *
+         * @see #setReplicaConsistency
+         */
+        public Optional<ReplicaConsistency> getReplicaConsistency() {
+            return Optional.ofNullable(replicaConsistency);
         }
 
     }

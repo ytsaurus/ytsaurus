@@ -325,15 +325,15 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
-    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRequest request) {
-        return client.multiLookupRows(request);
+    public CompletableFuture<List<UnversionedRowset>> multiLookup(MultiLookupRequest request) {
+        return client.multiLookup(request);
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookupRows(MultiLookupRequest request,
+    public <T> CompletableFuture<List<List<T>>> multiLookup(MultiLookupRequest request,
                                                           YTreeRowSerializer<T> serializer)
     {
-        return client.multiLookupRows(request, serializer);
+        return client.multiLookup(request, serializer);
     }
 
     @Override

@@ -17,9 +17,9 @@ import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.core.tables.TableSchema;
 
-public abstract class AbstractLookupRequestOptionsRequest<
-        TBuilder extends AbstractLookupRequestOptionsRequest.Builder<TBuilder, TRequest>,
-        TRequest extends AbstractLookupRequestOptionsRequest<TBuilder, TRequest>> extends AbstractTabletReadRequest<TBuilder, TRequest> {
+public abstract class AbstractLookupRequest<
+        TBuilder extends AbstractLookupRequest.Builder<TBuilder, TRequest>,
+        TRequest extends AbstractLookupRequest<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {
 
     protected final String path;
     protected final TableSchema schema;
@@ -32,7 +32,7 @@ public abstract class AbstractLookupRequestOptionsRequest<
     protected final List<UnversionedRow> filters;
     protected final List<List<?>> unconvertedFilters;
 
-    protected AbstractLookupRequestOptionsRequest(Builder<?, ?> builder) {
+    protected AbstractLookupRequest(Builder<?, ?> builder) {
         super(builder);
         this.path = Objects.requireNonNull(builder.path);
         this.schema = Objects.requireNonNull(builder.schema);
@@ -107,12 +107,14 @@ public abstract class AbstractLookupRequestOptionsRequest<
      */
     public abstract static class Builder<
             TBuilder extends Builder<TBuilder, TRequest>,
-            TRequest extends AbstractLookupRequestOptionsRequest<?, TRequest>>
-            extends AbstractTabletReadRequest.Builder<TBuilder, TRequest> {
+            TRequest extends AbstractLookupRequest<?, TRequest>>
+            extends RequestBase.Builder<TBuilder, TRequest> {
+
         @Nullable
         private String path;
         @Nullable
         private TableSchema schema;
+
         private final List<String> lookupColumns = new ArrayList<>();
 
         // NB. Java default of keepMissingRows is different from YT default for historical reasons,
@@ -165,7 +167,7 @@ public abstract class AbstractLookupRequestOptionsRequest<
         }
 
         /**
-         * Add column name to be returned
+         * Add column name to be returned.
          * <p>
          * By default, YT returns all columns of the table.
          * If some columns are unnecessary user can specify only required ones using addLookupColumn(s) method.
@@ -213,7 +215,7 @@ public abstract class AbstractLookupRequestOptionsRequest<
         }
 
         /**
-         * Get value of schema parameter
+         * Get value of schema parameter.
          *
          * @see #setSchema
          */
@@ -222,7 +224,7 @@ public abstract class AbstractLookupRequestOptionsRequest<
         }
 
         /**
-         * Get value of lookup-columns parameter
+         * Get value of lookup-columns parameter.
          *
          * @see #addLookupColumns(String...)
          */

@@ -128,7 +128,7 @@ public class MockYTsaurusClientTest {
     }
 
     private CompletableFuture<List<List<YTreeMapNode>>> doMultiLookup(MockYTsaurusClient mockClient) {
-        return mockClient.multiLookupRows(
+        return mockClient.multiLookup(
                 new MultiLookupRequest().toBuilder()
                         .addSubrequest(new MultiLookupSubrequest(path, schema.toLookup()))
                         .addSubrequest(new MultiLookupSubrequest(path, schema.toLookup()))

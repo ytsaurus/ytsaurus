@@ -1,13 +1,17 @@
 package tech.ytsaurus.client.request;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import tech.ytsaurus.client.rows.UnversionedRowSerializer;
-import tech.ytsaurus.client.rows.WireProtocolWriter;
+import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 
 public class MultiLookupSubrequest
-        extends AbstractLookupRequestOptionsRequest<MultiLookupSubrequest.Builder, MultiLookupSubrequest> {
+        extends AbstractLookupRequest<MultiLookupSubrequest.Builder, MultiLookupSubrequest>
+{
 
     protected MultiLookupSubrequest(BuilderBase<?> builder) {
         super(builder);
@@ -15,6 +19,46 @@ public class MultiLookupSubrequest
 
     public MultiLookupSubrequest(String path, TableSchema schema) {
         this(builder().setPath(path).setSchema(schema));
+    }
+
+    /**
+     * Internal method: prepare request to send over network.
+     */
+    public HighLevelRequest<TReqMultiLookup.Builder> asMultiLookupSubrequestWritable() {
+        //noinspection Convert2Diamond
+        return new HighLevelRequest<TReqMultiLookup.Builder>() {
+            @Override
+            public String getArgumentsLogString() {
+                return MultiLookupSubrequest.this.getArgumentsLogString();
+            }
+
+            @Override
+            public void writeHeaderTo(TRequestHeader.Builder header) {
+                MultiLookupSubrequest.this.writeHeaderTo(header);
+            }
+
+            /**
+             * Internal method: prepare request to send over network.
+             */
+            @Override
+            public void writeTo(RpcClientRequestBuilder<TReqMultiLookup.Builder, ?> builder) {
+                List<byte[]> subAttachments = new ArrayList<>();
+                serializeRowsetTo(subAttachments);
+                builder.attachments().addAll(subAttachments);
+
+                var rowset = ApiServiceUtil.makeRowsetDescriptor(getSchema());
+
+                builder.body().addSubrequests(
+                        TReqMultiLookup.TSubrequest.newBuilder()
+                                .setPath(path)
+                                .addAllColumns(lookupColumns)
+                                .setKeepMissingRows(keepMissingRows)
+                                .setRowsetDescriptor(rowset)
+                                .setAttachmentCount(subAttachments.size())
+                                .build()
+                        );
+            }
+        };
     }
 
     public static Builder builder() {
@@ -29,8 +73,6 @@ public class MultiLookupSubrequest
                 .setPath(path)
                 .setSchema(schema)
                 .addLookupColumns(lookupColumns)
-                .setTimestamp(timestamp)
-                .setRetentionTimestamp(retentionTimestamp)
                 .setKeepMissingRows(keepMissingRows)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
@@ -57,7 +99,7 @@ public class MultiLookupSubrequest
      */
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
-            extends AbstractLookupRequestOptionsRequest.Builder<TBuilder, MultiLookupSubrequest> {
+            extends AbstractLookupRequest.Builder<TBuilder, MultiLookupSubrequest> {
 
         /**
          * Construct empty builder.

@@ -180,12 +180,12 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     }
 
     @Override
-    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRequest request) {
-        return (CompletableFuture<List<UnversionedRowset>>) callMethod("multiLookupRows");
+    public CompletableFuture<List<UnversionedRowset>> multiLookup(MultiLookupRequest request) {
+        return (CompletableFuture<List<UnversionedRowset>>) callMethod("multiLookup");
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+    public <T> CompletableFuture<List<List<T>>> multiLookup(
             MultiLookupRequest request,
             YTreeRowSerializer<T> serializer
     ) {

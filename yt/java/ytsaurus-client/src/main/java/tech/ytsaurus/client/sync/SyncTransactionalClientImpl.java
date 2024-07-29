@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.sync;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
@@ -118,7 +119,15 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
 
     @Override
     public List<UnversionedRowset> multiLookup(MultiLookupRequest req) {
-        return client.multiLookupRows(req).join();
+        return client.multiLookup(req).join();
+    }
+
+    @Override
+    public <T> CompletableFuture<List<List<T>>> multiLookup(
+            MultiLookupRequest req,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return client.multiLookup(req, serializer);
     }
 
     @Override

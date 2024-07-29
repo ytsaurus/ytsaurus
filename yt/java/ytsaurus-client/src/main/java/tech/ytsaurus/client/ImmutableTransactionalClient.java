@@ -36,9 +36,9 @@ public interface ImmutableTransactionalClient {
         return lookupRows(request.build(), serializer);
     }
 
-    CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRequest request);
+    CompletableFuture<List<UnversionedRowset>> multiLookup(MultiLookupRequest request);
 
-    <T> CompletableFuture<List<List<T>>> multiLookupRows(
+    <T> CompletableFuture<List<List<T>>> multiLookup(
             MultiLookupRequest request,
             YTreeRowSerializer<T> serializer
     );
