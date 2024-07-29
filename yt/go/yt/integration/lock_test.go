@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 func TestLockClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "Exclusive/Exclusive", Test: suite.TestExclusiveExclusive},
 		{Name: "Shared/Exclusive", Test: suite.TestSharedExclusive},
 		{Name: "Shared/Shared", Test: suite.TestSharedShared},
@@ -22,63 +23,63 @@ func TestLockClient(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestExclusiveExclusive(t *testing.T, yc yt.Client) {
-	name, tx0, tx1 := s.prepareLockTest(t, yc)
+func (s *Suite) TestExclusiveExclusive(ctx context.Context, t *testing.T, yc yt.Client) {
+	name, tx0, tx1 := s.prepareLockTest(ctx, t, yc)
 
-	_, err := tx0.LockNode(s.Ctx, name, yt.LockExclusive, nil)
+	_, err := tx0.LockNode(ctx, name, yt.LockExclusive, nil)
 	require.NoError(t, err)
 
-	_, err = tx1.LockNode(s.Ctx, name, yt.LockExclusive, nil)
+	_, err = tx1.LockNode(ctx, name, yt.LockExclusive, nil)
 	require.Error(t, err)
 	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict))
 }
 
-func (s *Suite) TestSharedExclusive(t *testing.T, yc yt.Client) {
-	name, tx0, tx1 := s.prepareLockTest(t, yc)
+func (s *Suite) TestSharedExclusive(ctx context.Context, t *testing.T, yc yt.Client) {
+	name, tx0, tx1 := s.prepareLockTest(ctx, t, yc)
 
-	_, err := tx0.LockNode(s.Ctx, name, yt.LockExclusive, nil)
+	_, err := tx0.LockNode(ctx, name, yt.LockExclusive, nil)
 	require.NoError(t, err)
 
-	_, err = tx1.LockNode(s.Ctx, name, yt.LockShared, nil)
+	_, err = tx1.LockNode(ctx, name, yt.LockShared, nil)
 	require.Error(t, err)
 	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict))
 }
 
-func (s *Suite) TestSharedShared(t *testing.T, yc yt.Client) {
-	name, tx0, tx1 := s.prepareLockTest(t, yc)
+func (s *Suite) TestSharedShared(ctx context.Context, t *testing.T, yc yt.Client) {
+	name, tx0, tx1 := s.prepareLockTest(ctx, t, yc)
 
-	_, err := tx0.LockNode(s.Ctx, name, yt.LockShared, nil)
+	_, err := tx0.LockNode(ctx, name, yt.LockShared, nil)
 	require.NoError(t, err)
 
-	_, err = tx1.LockNode(s.Ctx, name, yt.LockShared, nil)
+	_, err = tx1.LockNode(ctx, name, yt.LockShared, nil)
 	require.NoError(t, err)
 }
 
-func (s *Suite) TestSharedAttrSharedAttr(t *testing.T, yc yt.Client) {
-	name, tx0, tx1 := s.prepareLockTest(t, yc)
+func (s *Suite) TestSharedAttrSharedAttr(ctx context.Context, t *testing.T, yc yt.Client) {
+	name, tx0, tx1 := s.prepareLockTest(ctx, t, yc)
 
 	attr := "type"
 	options := &yt.LockNodeOptions{
 		AttributeKey: &attr,
 	}
 
-	_, err := tx0.LockNode(s.Ctx, name, yt.LockShared, options)
+	_, err := tx0.LockNode(ctx, name, yt.LockShared, options)
 	require.NoError(t, err)
 
-	_, err = tx1.LockNode(s.Ctx, name, yt.LockShared, options)
+	_, err = tx1.LockNode(ctx, name, yt.LockShared, options)
 	require.Error(t, err)
 	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict))
 }
 
-func (s *Suite) prepareLockTest(t *testing.T, yc yt.Client) (name ypath.Path, tx0, tx1 yt.Tx) {
+func (s *Suite) prepareLockTest(ctx context.Context, t *testing.T, yc yt.Client) (name ypath.Path, tx0, tx1 yt.Tx) {
 	name = tmpPath()
-	_, err := s.YT.CreateNode(s.Ctx, name, yt.NodeMap, nil)
+	_, err := s.YT.CreateNode(ctx, name, yt.NodeMap, nil)
 	require.NoError(t, err)
 
-	tx0, err = yc.BeginTx(s.Ctx, nil)
+	tx0, err = yc.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
-	tx1, err = yc.BeginTx(s.Ctx, nil)
+	tx1, err = yc.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
 	return

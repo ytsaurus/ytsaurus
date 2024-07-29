@@ -10,6 +10,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -23,7 +25,7 @@ import (
 func TestTransactions(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "CommitTransaction", Test: suite.TestCommitTransaction},
 		{Name: "RollbackTransaction", Test: suite.TestRollbackTransaction},
 		{Name: "TransactionBackgroundPing", Test: suite.TestTransactionBackgroundPing},
@@ -34,35 +36,35 @@ func TestTransactions(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestCommitTransaction(t *testing.T, yc yt.Client) {
-	tx, err := yc.BeginTx(s.Ctx, nil)
+func (s *Suite) TestCommitTransaction(ctx context.Context, t *testing.T, yc yt.Client) {
+	tx, err := yc.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
 	name := tmpPath()
-	_, err = tx.CreateNode(s.Ctx, name, yt.NodeMap, nil)
+	_, err = tx.CreateNode(ctx, name, yt.NodeMap, nil)
 	require.NoError(t, err)
 
-	ok, err := yc.NodeExists(s.Ctx, name, nil)
+	ok, err := yc.NodeExists(ctx, name, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 
 	require.NoError(t, tx.Commit())
 
-	ok, err = yc.NodeExists(s.Ctx, name, nil)
+	ok, err = yc.NodeExists(ctx, name, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
-func (s *Suite) TestRollbackTransaction(t *testing.T, yc yt.Client) {
-	tx, err := yc.BeginTx(s.Ctx, nil)
+func (s *Suite) TestRollbackTransaction(ctx context.Context, t *testing.T, yc yt.Client) {
+	tx, err := yc.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, tx.Abort())
 }
 
-func (s *Suite) TestTransactionBackgroundPing(t *testing.T, yc yt.Client) {
+func (s *Suite) TestTransactionBackgroundPing(ctx context.Context, t *testing.T, yc yt.Client) {
 	lowTimeout := yson.Duration(5 * time.Second)
-	tx, err := yc.BeginTx(s.Ctx, &yt.StartTxOptions{Timeout: &lowTimeout})
+	tx, err := yc.BeginTx(ctx, &yt.StartTxOptions{Timeout: &lowTimeout})
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 10)
@@ -70,8 +72,8 @@ func (s *Suite) TestTransactionBackgroundPing(t *testing.T, yc yt.Client) {
 	require.NoError(t, tx.Commit())
 }
 
-func (s *Suite) TestTransactionAbortByContextCancel(t *testing.T, yc yt.Client) {
-	canceledCtx, cancel := context.WithCancel(s.Ctx)
+func (s *Suite) TestTransactionAbortByContextCancel(ctx context.Context, t *testing.T, yc yt.Client) {
+	canceledCtx, cancel := context.WithCancel(ctx)
 
 	tx, err := yc.BeginTx(canceledCtx, nil)
 	require.NoError(t, err)
@@ -81,13 +83,13 @@ func (s *Suite) TestTransactionAbortByContextCancel(t *testing.T, yc yt.Client) 
 
 	require.Error(t, tx.Commit())
 
-	err = yc.PingTx(s.Ctx, tx.ID(), nil)
+	err = yc.PingTx(ctx, tx.ID(), nil)
 	require.Error(t, err)
 	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
 }
 
-func (s *Suite) TestTransactionAbortCancel(t *testing.T, yc yt.Client) {
-	ctx, cancel := context.WithCancel(s.Ctx)
+func (s *Suite) TestTransactionAbortCancel(ctx context.Context, t *testing.T, yc yt.Client) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	tx, err := yc.BeginTx(ctx, nil)
@@ -101,34 +103,34 @@ func (s *Suite) TestTransactionAbortCancel(t *testing.T, yc yt.Client) {
 	require.NoError(t, tx.Abort())
 }
 
-func (s *Suite) TestNestedTransactions(t *testing.T, yc yt.Client) {
-	rootTx, err := yc.BeginTx(s.Ctx, nil)
+func (s *Suite) TestNestedTransactions(ctx context.Context, t *testing.T, yc yt.Client) {
+	rootTx, err := yc.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
-	nestedTx, err := rootTx.BeginTx(s.Ctx, nil)
+	nestedTx, err := rootTx.BeginTx(ctx, nil)
 	require.NoError(t, err)
 
 	p := tmpPath()
 
-	_, err = nestedTx.CreateNode(s.Ctx, p, yt.NodeMap, nil)
+	_, err = nestedTx.CreateNode(ctx, p, yt.NodeMap, nil)
 	require.NoError(t, err)
 
-	ok, err := rootTx.NodeExists(s.Ctx, p, nil)
+	ok, err := rootTx.NodeExists(ctx, p, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 
 	require.NoError(t, nestedTx.Commit())
 
-	ok, err = rootTx.NodeExists(s.Ctx, p, nil)
+	ok, err = rootTx.NodeExists(ctx, p, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = yc.NodeExists(s.Ctx, p, nil)
+	ok, err = yc.NodeExists(ctx, p, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
-func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
+func (s *Suite) TestExecTx_retries(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	wrapExecTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
@@ -138,7 +140,7 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 	}
 
 	wrapExecTabletTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
-		return yt.ExecTabletTx(s.Ctx, yc, func(ctx context.Context, tx yt.TabletTx) error {
+		return yt.ExecTabletTx(ctx, yc, func(ctx context.Context, tx yt.TabletTx) error {
 			return cb()
 		}, &yt.ExecTabletTxOptions{RetryOptions: opts})
 	}
@@ -152,7 +154,7 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 		t.Run(txType, func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				v := 0
-				err := execTx(s.Ctx, func() error {
+				err := execTx(ctx, func() error {
 					v++
 					if v <= 2 {
 						return xerrors.New("some error")
@@ -165,7 +167,7 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 
 			t.Run("default retry options", func(t *testing.T) {
 				v := 0
-				err := execTx(s.Ctx, func() error {
+				err := execTx(ctx, func() error {
 					v++
 					return xerrors.New("some error")
 				}, nil)
@@ -175,7 +177,7 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 
 			t.Run("no retries", func(t *testing.T) {
 				v := 0
-				err := execTx(s.Ctx, func() error {
+				err := execTx(ctx, func() error {
 					v++
 					return xerrors.New("some error")
 				}, &yt.ExecTxRetryOptionsNone{})
@@ -184,7 +186,8 @@ func (s *Suite) TestExecTx_retries(t *testing.T, yc yt.Client) {
 			})
 
 			t.Run("retry cancellation", func(t *testing.T) {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+				ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
 				defer cancel()
 
 				v := 0
@@ -270,7 +273,7 @@ func TestTxAbortedDuringNetworkPartition(t *testing.T) {
 		{
 			name: "http",
 			prepare: func(t *testing.T) (yt.Tx, chan struct{}) {
-				yc := NewHTTPClient(t)
+				yc := NewHTTPClient(t, env.L)
 
 				drt := &disconnectingRoundTripper{
 					disconnect: make(chan struct{}),
@@ -286,7 +289,7 @@ func TestTxAbortedDuringNetworkPartition(t *testing.T) {
 		{
 			name: "rpc",
 			prepare: func(t *testing.T) (yt.Tx, chan struct{}) {
-				yc := NewRPCClient(t)
+				yc := NewRPCClient(t, env.L)
 
 				disconnect := make(chan struct{})
 				dialer := NewDisconnectingRPCConnDialer(disconnect)

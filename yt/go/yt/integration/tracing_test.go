@@ -37,8 +37,12 @@ func TestTracing(t *testing.T) {
 		opentracing.SetGlobalTracer(opentracing.NoopTracer{})
 	}()
 
+	logger, stopLogger := yttest.NewLogger(t)
+	defer stopLogger()
+
 	env := yttest.New(t, yttest.WithConfig(yt.Config{
 		TraceFn: ytjaeger.TraceFn,
+		Logger:  logger,
 	}))
 
 	var traceParent []string

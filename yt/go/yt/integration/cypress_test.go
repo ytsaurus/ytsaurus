@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -27,7 +29,8 @@ func TestCypress(t *testing.T) {
 		t.Run("Get", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			var attrs struct {
@@ -44,8 +47,8 @@ func TestCypress(t *testing.T) {
 
 		t.Run("Set", func(t *testing.T) {
 			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			err := env.YT.SetNode(ctx, ypath.Path("//@test_cypress_attribute"), "test_value", nil)
@@ -61,7 +64,8 @@ func TestCypress(t *testing.T) {
 		t.Run("MultisetAttributes", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			attrValues := map[string]any{
@@ -86,7 +90,8 @@ func TestCypress(t *testing.T) {
 		t.Run("List", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			var list []struct {
@@ -107,7 +112,8 @@ func TestCypress(t *testing.T) {
 		t.Run("Exists", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			ok, err := env.YT.NodeExists(ctx, ypath.Path("/"), nil)
@@ -122,7 +128,8 @@ func TestCypress(t *testing.T) {
 		t.Run("CreateNode", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -142,7 +149,8 @@ func TestCypress(t *testing.T) {
 		t.Run("LinkNode", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			targetName := tmpPath()
@@ -163,7 +171,8 @@ func TestCypress(t *testing.T) {
 		t.Run("CopyNode", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -185,7 +194,8 @@ func TestCypress(t *testing.T) {
 		t.Run("MoveNode", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -211,7 +221,8 @@ func TestCypress(t *testing.T) {
 		t.Run("RemoveNode", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -234,7 +245,8 @@ func TestCypress(t *testing.T) {
 		t.Run("BinaryPath", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			var value any

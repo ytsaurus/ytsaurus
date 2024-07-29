@@ -16,7 +16,7 @@ import (
 func TestCypressClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "CreateNode", Test: suite.TestCreateNode},
 		{Name: "NodeExists", Test: suite.TestNodeExists},
 		{Name: "RemoveNode", Test: suite.TestRemoveNode},
@@ -32,10 +32,10 @@ func TestCypressClient(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestCreateNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCreateNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -54,10 +54,10 @@ func (s *Suite) TestCreateNode(t *testing.T, yc yt.Client) {
 	require.True(t, ok)
 }
 
-func (s *Suite) TestNodeExists(t *testing.T, yc yt.Client) {
+func (s *Suite) TestNodeExists(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	ok, err := yc.NodeExists(ctx, ypath.Path("/"), nil)
@@ -69,10 +69,10 @@ func (s *Suite) TestNodeExists(t *testing.T, yc yt.Client) {
 	require.False(t, ok)
 }
 
-func (s *Suite) TestRemoveNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestRemoveNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	root := tmpPath()
@@ -99,10 +99,10 @@ func (s *Suite) TestRemoveNode(t *testing.T, yc yt.Client) {
 	require.False(t, ok)
 }
 
-func (s *Suite) TestGetNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestGetNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	var attrs struct {
@@ -117,10 +117,10 @@ func (s *Suite) TestGetNode(t *testing.T, yc yt.Client) {
 	require.NotZero(t, attrs.Revision)
 }
 
-func (s *Suite) TestSetNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestSetNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := ypath.Path("/").Attr(guid.New().String())
@@ -135,10 +135,10 @@ func (s *Suite) TestSetNode(t *testing.T, yc yt.Client) {
 	require.Equal(t, value, cypressValue)
 }
 
-func (s *Suite) TestListNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestListNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	var list []struct {
@@ -158,10 +158,10 @@ func (s *Suite) TestListNode(t *testing.T, yc yt.Client) {
 	}
 }
 
-func (s *Suite) TestMultisetAttributes(t *testing.T, yc yt.Client) {
+func (s *Suite) TestMultisetAttributes(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -189,10 +189,10 @@ func (s *Suite) TestMultisetAttributes(t *testing.T, yc yt.Client) {
 	require.Equal(t, attrs["second_attr"], cypressAttrs.SecondAttr)
 }
 
-func (s *Suite) TestCopyNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCopyNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -212,10 +212,10 @@ func (s *Suite) TestCopyNode(t *testing.T, yc yt.Client) {
 	require.True(t, ok)
 }
 
-func (s *Suite) TestMoveNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestMoveNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -239,10 +239,10 @@ func (s *Suite) TestMoveNode(t *testing.T, yc yt.Client) {
 	require.False(t, ok)
 }
 
-func (s *Suite) TestLinkNode(t *testing.T, yc yt.Client) {
+func (s *Suite) TestLinkNode(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -262,10 +262,10 @@ func (s *Suite) TestLinkNode(t *testing.T, yc yt.Client) {
 	require.Equal(t, yt.NodeLink, typ)
 }
 
-func (s *Suite) TestCreateObject(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCreateObject(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	account := guid.New().String()
@@ -282,10 +282,10 @@ func (s *Suite) TestCreateObject(t *testing.T, yc yt.Client) {
 	require.True(t, ok)
 }
 
-func (s *Suite) TestBinaryPath(t *testing.T, yc yt.Client) {
+func (s *Suite) TestBinaryPath(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	var value any

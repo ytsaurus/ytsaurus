@@ -20,35 +20,35 @@ import (
 func TestReplicatedTables(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "GetInSyncReplicas", Test: suite.TestGetInSyncReplicas},
 	})
 }
 
-func (s *Suite) TestGetInSyncReplicas(t *testing.T, yc yt.Client) {
+func (s *Suite) TestGetInSyncReplicas(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	tablePath := tmpPath()
-	_, err := createReplicatedTable(s.Ctx, yc, tablePath)
+	_, err := createReplicatedTable(ctx, yc, tablePath)
 	require.NoError(t, err)
 
 	replicaPath1 := tmpPath()
-	replicaID1, err := createTableReplica(s.Ctx, yc, tablePath, replicaPath1)
+	replicaID1, err := createTableReplica(ctx, yc, tablePath, replicaPath1)
 	require.NoError(t, err)
 
 	replicaPath2 := tmpPath()
-	replicaID2, err := createTableReplica(s.Ctx, yc, tablePath, replicaPath2)
+	replicaID2, err := createTableReplica(ctx, yc, tablePath, replicaPath2)
 	require.NoError(t, err)
 
-	_, err = createReplicaTable(s.Ctx, yc, replicaPath1, replicaID1)
+	_, err = createReplicaTable(ctx, yc, replicaPath1, replicaID1)
 	require.NoError(t, err)
-	_, err = createReplicaTable(s.Ctx, yc, replicaPath2, replicaID2)
+	_, err = createReplicaTable(ctx, yc, replicaPath2, replicaID2)
 	require.NoError(t, err)
 
-	require.NoError(t, ensureTableReplicaEnabled(s.Ctx, yc, replicaID1))
+	require.NoError(t, ensureTableReplicaEnabled(ctx, yc, replicaID1))
 
-	require.Equal(t, "enabled", getTableReplicaState(s.Ctx, yc, replicaID1))
-	require.Equal(t, "disabled", getTableReplicaState(s.Ctx, yc, replicaID2))
+	require.Equal(t, "enabled", getTableReplicaState(ctx, yc, replicaID1))
+	require.Equal(t, "disabled", getTableReplicaState(ctx, yc, replicaID2))
 
 	keys := []any{
 		&testKey{"foo"},
@@ -60,19 +60,19 @@ func (s *Suite) TestGetInSyncReplicas(t *testing.T, yc yt.Client) {
 		&testRow{"bar", "2"},
 	}
 
-	require.NoError(t, yc.InsertRows(s.Ctx, tablePath, rows, &yt.InsertRowsOptions{
+	require.NoError(t, yc.InsertRows(ctx, tablePath, rows, &yt.InsertRowsOptions{
 		RequireSyncReplica: ptr.Bool(false),
 	}))
 
-	ts, err := yc.GenerateTimestamp(s.Ctx, nil)
+	ts, err := yc.GenerateTimestamp(ctx, nil)
 	require.NoError(t, err)
 
-	ids, err := yc.GetInSyncReplicas(s.Ctx, tablePath, ts, nil, nil)
+	ids, err := yc.GetInSyncReplicas(ctx, tablePath, ts, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, NodeIDSlice{replicaID1, replicaID2}.MakeSet(), NodeIDSlice(ids).MakeSet())
 
 	require.True(t, WaitFor(time.Second*60, func() bool {
-		ids, err = yc.GetInSyncReplicas(s.Ctx, tablePath, ts, keys, nil)
+		ids, err = yc.GetInSyncReplicas(ctx, tablePath, ts, keys, nil)
 		require.NoError(t, err)
 		return reflect.DeepEqual([]yt.NodeID{replicaID1}, ids)
 	}), "replicas sync timed out")

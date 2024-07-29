@@ -65,16 +65,16 @@ func TestErrors(t *testing.T) {
 func TestErrorInterceptor(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "GetNodeErrorInterceptor", Test: suite.TestGetNodeErrorInterceptor},
 		{Name: "LookupErrorInterceptor", Test: suite.TestLookupErrorInterceptor},
 	})
 }
 
-func (s *Suite) TestGetNodeErrorInterceptor(t *testing.T, yc yt.Client) {
+func (s *Suite) TestGetNodeErrorInterceptor(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
@@ -83,10 +83,10 @@ func (s *Suite) TestGetNodeErrorInterceptor(t *testing.T, yc yt.Client) {
 	checkPathError(t, err, p)
 }
 
-func (s *Suite) TestLookupErrorInterceptor(t *testing.T, yc yt.Client) {
+func (s *Suite) TestLookupErrorInterceptor(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	p := tmpPath()
