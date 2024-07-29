@@ -795,7 +795,7 @@ void PrepareArrayForComplexType(
     } else {
         for (int rowIndex = 0; rowIndex < std::ssize(rowsValues[columnIndex]); rowIndex++) {
             if (column->IsNull(rowIndex)) {
-                rowsValues[rowIndex][columnIndex] = MakeUnversionedNullValue(columnId);
+                rowsValues[columnIndex][rowIndex] = MakeUnversionedNullValue(columnId);
             } else {
                 TBuffer valueBuffer;
                 TBufferOutput out(valueBuffer);
