@@ -214,10 +214,6 @@ void ScanOpHelper(
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
-    YT_LOG_DEBUG("Request feature flags: %v. Response feature flags: %v.",
-        ToString(*context->RequestFeatureFlags),
-        ToString(context->ResponseFeatureFlags.Get()));
-
     auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing scan helper");
     });

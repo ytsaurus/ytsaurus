@@ -328,6 +328,8 @@ private:
 
         if (request->has_feature_flags()) {
             FromProto(&requestFeatureFlags, request->feature_flags());
+            YT_LOG_DEBUG("Got request feature flags (Flags: %v)",
+                ToString(requestFeatureFlags));
         }
 
         auto memoryChunkProvider = MemoryProvider_->GetProvider(

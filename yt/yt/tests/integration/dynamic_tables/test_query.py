@@ -848,6 +848,33 @@ class TestQuery(DynamicTablesBase):
         )
         assert sorted_dicts(expected) == sorted_dicts(actual)
 
+    @authors("dtorilov")
+    def test_yt_22385(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+            ],
+            [
+                {"a": 0, "b": 1},
+                {"a": 1, "b": 2},
+            ],
+        )
+
+        expected = [
+            {"t1.a": 0, "t1.b": 1, "t2.a": 0, "t2.b": 1, "t3.a": 0, "t3.b": 1},
+            {"t1.a": 1, "t1.b": 2, "t2.a": 1, "t2.b": 2, "t3.a": 1, "t3.b": 2},
+        ]
+
+        actual = select_rows(
+            "* from [//tmp/t] t1 join [//tmp/t] t2 on (t1.a + 0) = (t2.a) join [//tmp/t] t3 on (t1.a + 0) = (t3.a)",
+            allow_join_without_index=True,
+        )
+        assert sorted_dicts(expected) == sorted_dicts(actual)
+
     @authors("lukyan")
     def test_types(self):
         sync_create_cells(1)
