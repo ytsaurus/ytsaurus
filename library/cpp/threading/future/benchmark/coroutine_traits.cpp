@@ -1,4 +1,5 @@
 #include <library/cpp/threading/future/future.h>
+#include <library/cpp/threading/future/core/coroutine_traits.h>
 
 #include <benchmark/benchmark.h>
 
