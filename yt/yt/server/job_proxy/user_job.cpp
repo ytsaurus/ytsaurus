@@ -1321,16 +1321,16 @@ private:
         }
 
         if (HasInputStatistics()) {
-            if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
+            if (auto dataStatistics = UserJobReadController_->GetDataStatistics()) {
                 result.TotalInputStatistics.DataStatistics = *dataStatistics;
             }
             statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
-            if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
+            if (auto codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
                 result.TotalInputStatistics.CodecStatistics = *codecStatistics;
             }
         }
 
-        if (const auto& timingStatistics = UserJobReadController_->GetTimingStatistics()) {
+        if (auto timingStatistics = UserJobReadController_->GetTimingStatistics()) {
             result.TimingStatistics = *timingStatistics;
         }
 

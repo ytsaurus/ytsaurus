@@ -149,6 +149,10 @@ public interface YPath {
 
     YPath withExecutable(boolean executable);
 
+    Optional<Boolean> getCreate();
+
+    YPath create(boolean create);
+
     Optional<YTreeNode> getAdditionalAttribute(String attributeName);
 
     Map<String, YTreeNode> getAdditionalAttributes();

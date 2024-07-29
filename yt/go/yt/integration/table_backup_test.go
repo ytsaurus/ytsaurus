@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,24 +16,24 @@ import (
 func TestTableBackupClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "BasicBackup", Test: suite.TestBasicBackup, SkipRPC: true},
 	})
 }
 
-func (s *Suite) TestBasicBackup(t *testing.T, yc yt.Client) {
+func (s *Suite) TestBasicBackup(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	var clusterConnection yson.RawValue
-	require.NoError(t, yc.GetNode(s.Ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil))
-	require.NoError(t, yc.SetNode(s.Ctx, ypath.Path("//sys/clusters"), map[string]yson.RawValue{"self": clusterConnection}, nil))
-	require.NoError(t, yc.SetNode(s.Ctx, ypath.Path("//sys/@config/tablet_manager/enable_backups"), true, nil))
+	require.NoError(t, yc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil))
+	require.NoError(t, yc.SetNode(ctx, ypath.Path("//sys/clusters"), map[string]yson.RawValue{"self": clusterConnection}, nil))
+	require.NoError(t, yc.SetNode(ctx, ypath.Path("//sys/@config/tablet_manager/enable_backups"), true, nil))
 
 	src := tmpPath().Child("table")
 	bak := ypath.Path(src + ".bak")
 	res := ypath.Path(src + ".res")
 
-	_, err := yc.CreateNode(s.Ctx, src, yt.NodeTable, &yt.CreateNodeOptions{
+	_, err := yc.CreateNode(ctx, src, yt.NodeTable, &yt.CreateNodeOptions{
 		Recursive: true,
 		Attributes: map[string]any{
 			"dynamic":                   true,
@@ -41,7 +42,7 @@ func (s *Suite) TestBasicBackup(t *testing.T, yc yt.Client) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, src))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, src))
 
 	manifest := yt.BackupManifest{
 		Clusters: map[string][]yt.TableBackupManifest{
@@ -50,9 +51,9 @@ func (s *Suite) TestBasicBackup(t *testing.T, yc yt.Client) {
 			},
 		},
 	}
-	require.NoError(t, yc.CreateTableBackup(s.Ctx, manifest, nil))
+	require.NoError(t, yc.CreateTableBackup(ctx, manifest, nil))
 
-	ok, err := yc.NodeExists(s.Ctx, bak, nil)
+	ok, err := yc.NodeExists(ctx, bak, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -63,12 +64,12 @@ func (s *Suite) TestBasicBackup(t *testing.T, yc yt.Client) {
 			},
 		},
 	}
-	require.NoError(t, yc.RestoreTableBackup(s.Ctx, manifest, &yt.RestoreTableBackupOptions{
+	require.NoError(t, yc.RestoreTableBackup(ctx, manifest, &yt.RestoreTableBackupOptions{
 		Mount: true,
 	}))
-	ok, err = yc.NodeExists(s.Ctx, bak, nil)
+	ok, err = yc.NodeExists(ctx, bak, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	require.NoError(t, waitTabletState(s.Ctx, yc, res, yt.TabletMounted))
+	require.NoError(t, waitTabletState(ctx, yc, res, yt.TabletMounted))
 }

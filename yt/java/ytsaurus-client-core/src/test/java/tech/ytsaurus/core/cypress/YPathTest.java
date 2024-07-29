@@ -427,6 +427,22 @@ public class YPathTest {
     }
 
     @Test
+    public void create() {
+        YPath expected = YPath.simple("//some/table")
+                .create(true);
+        YTreeNode node = expected.toTree();
+
+        Assert.assertEquals(YTree.builder()
+                .beginAttributes()
+                .key("create").value(YTree.booleanNode(true))
+                .endAttributes()
+                .value("//some/table")
+                .build(), node);
+
+        Assert.assertEquals(expected, YPath.fromTree(node));
+    }
+
+    @Test
     public void toStringTest() {
         YPath path = YPath.simple("//home/sankear/table");
         Assert.assertEquals("//home/sankear/table", path.toString());

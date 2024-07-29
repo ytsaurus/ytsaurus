@@ -237,7 +237,12 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
-        SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+        SpecUtils.createOutputTables(
+                yt,
+                specPreparationContext.getTransactionalOptions().orElse(null),
+                getOutputTables(),
+                getOutputTableAttributes()
+        );
         @Nullable final String title;
         List<Title> titles = new ArrayList<>();
         if (mapperSpec != null) {

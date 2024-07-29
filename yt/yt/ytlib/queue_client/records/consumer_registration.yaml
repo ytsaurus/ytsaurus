@@ -1,0 +1,43 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TConsumerRegistration
+    descriptor_verbatim: static constexpr TStringBuf Name = "consumer_registrations";
+    fields:
+      - cpp_name: QueueCluster
+        cpp_type: TString
+        column_name: queue_cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: QueuePath
+        cpp_type: TString
+        column_name: queue_path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: ConsumerCluster
+        cpp_type: TString
+        column_name: consumer_cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: ConsumerPath
+        cpp_type: TString
+        column_name: consumer_path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Vital
+        cpp_type: std::optional<bool>
+        column_name: vital
+        column_type: Boolean
+
+      - cpp_name: Partitions
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: partitions
+        column_type: Any

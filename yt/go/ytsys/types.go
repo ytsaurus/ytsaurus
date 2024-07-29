@@ -150,6 +150,10 @@ func (m *PrimaryMaster) GetAddr() *Addr {
 }
 
 func (m *PrimaryMaster) GetCypressPath() ypath.Path {
+	if m.Path == "" && m.Addr == nil {
+		return ""
+	}
+
 	if m.Path != "" {
 		return m.Path
 	}
@@ -189,6 +193,10 @@ func (m *SecondaryMaster) GetAddr() *Addr {
 }
 
 func (m *SecondaryMaster) GetCypressPath() ypath.Path {
+	if m.Path == "" && m.Addr == nil {
+		return ""
+	}
+
 	if m.Path != "" {
 		return m.Path
 	}
@@ -227,6 +235,10 @@ func (m *TimestampProvider) GetAddr() *Addr {
 }
 
 func (m *TimestampProvider) GetCypressPath() ypath.Path {
+	if m.Path == "" && m.Addr == nil {
+		return ""
+	}
+
 	if m.Path != "" {
 		return m.Path
 	}
@@ -421,6 +433,10 @@ func (p *HTTPProxy) GetAddr() *Addr {
 }
 
 func (p *HTTPProxy) GetCypressPath() ypath.Path {
+	if p.Path == "" && p.Addr == nil {
+		return ""
+	}
+
 	if p.Path != "" {
 		return p.Path
 	}
@@ -465,6 +481,10 @@ func (p *RPCProxy) GetAddr() *Addr {
 }
 
 func (p *RPCProxy) GetCypressPath() ypath.Path {
+	if p.Path == "" && p.Addr == nil {
+		return ""
+	}
+
 	if p.Path != "" {
 		return p.Path
 	}
@@ -513,6 +533,10 @@ func (s *Scheduler) GetAddr() *Addr {
 }
 
 func (s *Scheduler) GetCypressPath() ypath.Path {
+	if s.Path == "" && s.Addr == nil {
+		return ""
+	}
+
 	if s.Path != "" {
 		return s.Path
 	}
@@ -549,6 +573,10 @@ func (a *ControllerAgent) GetAddr() *Addr {
 }
 
 func (a *ControllerAgent) GetCypressPath() ypath.Path {
+	if a.Path == "" && a.Addr == nil {
+		return ""
+	}
+
 	if a.Path != "" {
 		return a.Path
 	}

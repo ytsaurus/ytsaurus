@@ -43,6 +43,11 @@ TPeerIdSet TElectionManagerThunk::GetAlivePeerIds()
     return Underlying_.Acquire()->GetAlivePeerIds();
 }
 
+TCellManagerPtr TElectionManagerThunk::GetCellManager()
+{
+    return Underlying_.Acquire()->GetCellManager();
+}
+
 void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)
 {
     Underlying_.Store(std::move(underlying));

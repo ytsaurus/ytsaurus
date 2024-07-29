@@ -11,10 +11,7 @@
 
 #define YT_LOG_ACCESS(...) \
     do { \
-        if (Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog && \
-            !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader() && \
-            !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery()) \
-        { \
+        if (IsAccessLogEnabled(Bootstrap_)) { \
             LogAccess(Bootstrap_, __VA_ARGS__); \
         } \
     } while (false)
@@ -27,9 +24,7 @@
 //! Evaluates an expression the result of which is to be access-logged later.
 //! Crucially, skips the evaluation if access logging is no-op.
 #define YT_EVALUATE_FOR_ACCESS_LOG(...) \
-    ((Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog && \
-        !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader() && \
-        !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery()) \
+    (IsAccessLogEnabled(Bootstrap_) \
         ? std::optional(__VA_ARGS__) \
         : std::nullopt)
 
@@ -93,3 +88,7 @@ bool IsAccessLoggedType(const NCypressClient::EObjectType type);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
+
+#define ACCESS_LOG_INL_H_
+#include "access_log-inl.h"
+#undef ACCESS_LOG_INL_H_

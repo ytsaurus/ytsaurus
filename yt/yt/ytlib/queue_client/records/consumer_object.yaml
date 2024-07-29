@@ -1,0 +1,54 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TConsumerObject
+    descriptor_verbatim: static constexpr TStringBuf Name = "consumers";
+    fields:
+      - cpp_name: Cluster
+        cpp_type: TString
+        column_name: cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Path
+        cpp_type: TString
+        column_name: path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: RowRevision
+        cpp_type: std::optional<ui64>
+        column_name: row_revision
+        column_type: Uint64
+
+      - cpp_name: Revision
+        cpp_type: std::optional<ui64>
+        column_name: revision
+        column_type: Uint64
+
+      - cpp_name: ObjectType
+        cpp_type: std::optional<TString>
+        column_name: object_type
+        column_type: String
+
+      - cpp_name: TreatAsQueueConsumer
+        cpp_type: std::optional<bool>
+        column_name: treat_as_queue_consumer
+        column_type: Boolean
+
+      - cpp_name: Schema
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: schema
+        column_type: Any
+
+      - cpp_name: QueueAgentStage
+        cpp_type: std::optional<TString>
+        column_name: queue_agent_stage
+        column_type: String
+
+      - cpp_name: SynchronizationError
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: synchronization_error
+        column_type: Any

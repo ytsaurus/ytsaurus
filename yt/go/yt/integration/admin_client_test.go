@@ -16,7 +16,7 @@ import (
 func TestAdminClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "AddRemoveMember", Test: suite.TestAddRemoveMember},
 		{Name: "AddRemoveMaintenance", Test: suite.TestAddRemoveMaintenance},
 		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
@@ -29,30 +29,30 @@ func TestAdminClient(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestAddRemoveMember(t *testing.T, yc yt.Client) {
+func (s *Suite) TestAddRemoveMember(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	group := "group-" + guid.New().String()
-	_ = s.CreateGroup(t, group)
+	_ = s.CreateGroup(ctx, t, group)
 
 	user := "user-" + guid.New().String()
-	_ = s.CreateUser(t, user)
+	_ = s.CreateUser(ctx, t, user)
 
-	require.False(t, s.MemberOf(t, user, group))
+	require.False(t, s.MemberOf(ctx, t, user, group))
 
-	err := yc.AddMember(s.Ctx, group, user, nil)
+	err := yc.AddMember(ctx, group, user, nil)
 	require.NoError(t, err)
-	require.True(t, s.MemberOf(t, user, group))
+	require.True(t, s.MemberOf(ctx, t, user, group))
 
-	err = yc.RemoveMember(s.Ctx, group, user, nil)
+	err = yc.RemoveMember(ctx, group, user, nil)
 	require.NoError(t, err)
-	require.False(t, s.MemberOf(t, user, group))
+	require.False(t, s.MemberOf(ctx, t, user, group))
 }
 
-func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
+func (s *Suite) TestAddRemoveMaintenance(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	// Get node
@@ -108,12 +108,12 @@ func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
 	checkReqs(0)
 }
 
-func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
+func (s *Suite) TestTransferAccountResources(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	mebibyte := 1024 * 1024
 	from := "account-from-" + guid.New().String()
-	_ = s.CreateAccount(t, from, map[string]any{
+	_ = s.CreateAccount(ctx, t, from, map[string]any{
 		"resource_limits": map[string]any{
 			"disk_space_per_medium": map[string]any{
 				"default": 10 * mebibyte,
@@ -124,7 +124,7 @@ func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
 	})
 
 	to := "account-to-" + guid.New().String()
-	_ = s.CreateAccount(t, to, map[string]any{
+	_ = s.CreateAccount(ctx, t, to, map[string]any{
 		"resource_limits": map[string]any{
 			"disk_space_per_medium": map[string]any{
 				"default": 5 * mebibyte,
@@ -134,7 +134,7 @@ func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
 		},
 	})
 
-	err := yc.TransferAccountResources(s.Ctx, from, to, map[string]any{
+	err := yc.TransferAccountResources(ctx, from, to, map[string]any{
 		"disk_space_per_medium": map[string]any{
 			"default": 3 * mebibyte,
 		},
@@ -144,23 +144,23 @@ func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
 
 	require.NoError(t, err)
 
-	require.Equal(t, 7*mebibyte, s.getAccountResourceAttribute(t, yc, from, "disk_space_per_medium/default"))
-	require.Equal(t, 14, s.getAccountResourceAttribute(t, yc, from, "node_count"))
-	require.Equal(t, 21, s.getAccountResourceAttribute(t, yc, from, "chunk_count"))
+	require.Equal(t, 7*mebibyte, s.getAccountResourceAttribute(ctx, t, yc, from, "disk_space_per_medium/default"))
+	require.Equal(t, 14, s.getAccountResourceAttribute(ctx, t, yc, from, "node_count"))
+	require.Equal(t, 21, s.getAccountResourceAttribute(ctx, t, yc, from, "chunk_count"))
 
-	require.Equal(t, 8*mebibyte, s.getAccountResourceAttribute(t, yc, to, "disk_space_per_medium/default"))
-	require.Equal(t, 16, s.getAccountResourceAttribute(t, yc, to, "node_count"))
-	require.Equal(t, 24, s.getAccountResourceAttribute(t, yc, to, "chunk_count"))
+	require.Equal(t, 8*mebibyte, s.getAccountResourceAttribute(ctx, t, yc, to, "disk_space_per_medium/default"))
+	require.Equal(t, 16, s.getAccountResourceAttribute(ctx, t, yc, to, "node_count"))
+	require.Equal(t, 24, s.getAccountResourceAttribute(ctx, t, yc, to, "chunk_count"))
 }
 
-func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
+func (s *Suite) TestTransferPoolResources(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	poolTree := "tree-" + guid.New().String()
-	_ = s.CreatePoolTree(t, poolTree)
+	_ = s.CreatePoolTree(ctx, t, poolTree)
 
 	from := "pool-from-" + guid.New().String()
-	_ = s.CreatePool(t, from, poolTree, map[string]any{
+	_ = s.CreatePool(ctx, t, from, poolTree, map[string]any{
 		"strong_guarantee_resources": map[string]any{"cpu": 10},
 		"integral_guarantees": map[string]any{
 			"resource_flow":             map[string]any{"cpu": 20},
@@ -171,7 +171,7 @@ func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
 	})
 
 	to := "pool-to-" + guid.New().String()
-	_ = s.CreatePool(t, to, poolTree, map[string]any{
+	_ = s.CreatePool(ctx, t, to, poolTree, map[string]any{
 		"strong_guarantee_resources": map[string]any{"cpu": 10},
 		"integral_guarantees": map[string]any{
 			"resource_flow":             map[string]any{"cpu": 20},
@@ -181,7 +181,7 @@ func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
 		"max_operation_count":         50,
 	})
 
-	err := yc.TransferPoolResources(s.Ctx, from, to, poolTree, map[string]any{
+	err := yc.TransferPoolResources(ctx, from, to, poolTree, map[string]any{
 		"strong_guarantee_resources":  map[string]any{"cpu": 4},
 		"resource_flow":               map[string]any{"cpu": 8},
 		"burst_guarantee_resources":   map[string]any{"cpu": 12},
@@ -190,39 +190,39 @@ func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
 	}, nil)
 
 	require.NoError(t, err)
-	require.Equal(t, 6.0, s.getPoolAttribute(t, yc, poolTree, from, "strong_guarantee_resources/cpu"))
-	require.Equal(t, 12.0, s.getPoolAttribute(t, yc, poolTree, from, "integral_guarantees/resource_flow/cpu"))
-	require.Equal(t, 18.0, s.getPoolAttribute(t, yc, poolTree, from, "integral_guarantees/burst_guarantee_resources/cpu"))
-	require.Equal(t, 24.0, s.getPoolAttribute(t, yc, poolTree, from, "max_running_operation_count"))
-	require.Equal(t, 30.0, s.getPoolAttribute(t, yc, poolTree, from, "max_operation_count"))
+	require.Equal(t, 6.0, s.getPoolAttribute(ctx, t, yc, poolTree, from, "strong_guarantee_resources/cpu"))
+	require.Equal(t, 12.0, s.getPoolAttribute(ctx, t, yc, poolTree, from, "integral_guarantees/resource_flow/cpu"))
+	require.Equal(t, 18.0, s.getPoolAttribute(ctx, t, yc, poolTree, from, "integral_guarantees/burst_guarantee_resources/cpu"))
+	require.Equal(t, 24.0, s.getPoolAttribute(ctx, t, yc, poolTree, from, "max_running_operation_count"))
+	require.Equal(t, 30.0, s.getPoolAttribute(ctx, t, yc, poolTree, from, "max_operation_count"))
 
-	require.Equal(t, 14.0, s.getPoolAttribute(t, yc, poolTree, to, "strong_guarantee_resources/cpu"))
-	require.Equal(t, 28.0, s.getPoolAttribute(t, yc, poolTree, to, "integral_guarantees/resource_flow/cpu"))
-	require.Equal(t, 42.0, s.getPoolAttribute(t, yc, poolTree, to, "integral_guarantees/burst_guarantee_resources/cpu"))
-	require.Equal(t, 56.0, s.getPoolAttribute(t, yc, poolTree, to, "max_running_operation_count"))
-	require.Equal(t, 70.0, s.getPoolAttribute(t, yc, poolTree, to, "max_operation_count"))
+	require.Equal(t, 14.0, s.getPoolAttribute(ctx, t, yc, poolTree, to, "strong_guarantee_resources/cpu"))
+	require.Equal(t, 28.0, s.getPoolAttribute(ctx, t, yc, poolTree, to, "integral_guarantees/resource_flow/cpu"))
+	require.Equal(t, 42.0, s.getPoolAttribute(ctx, t, yc, poolTree, to, "integral_guarantees/burst_guarantee_resources/cpu"))
+	require.Equal(t, 56.0, s.getPoolAttribute(ctx, t, yc, poolTree, to, "max_running_operation_count"))
+	require.Equal(t, 70.0, s.getPoolAttribute(ctx, t, yc, poolTree, to, "max_operation_count"))
 }
 
-func (s *Suite) getPoolAttribute(t *testing.T, yc yt.Client, poolTree string, pool string, attribute string) float64 {
+func (s *Suite) getPoolAttribute(ctx context.Context, t *testing.T, yc yt.Client, poolTree string, pool string, attribute string) float64 {
 	t.Helper()
 	var result float64
 	path := ypath.Path("//sys/pool_trees").Child(poolTree).Child(pool).Attr(attribute)
-	require.NoError(t, yc.GetNode(s.Ctx, path, &result, nil))
+	require.NoError(t, yc.GetNode(ctx, path, &result, nil))
 	return result
 }
 
-func (s *Suite) getAccountResourceAttribute(t *testing.T, yc yt.Client, account string, attribute string) int {
+func (s *Suite) getAccountResourceAttribute(ctx context.Context, t *testing.T, yc yt.Client, account string, attribute string) int {
 	t.Helper()
 	var result int
 	path := ypath.Path("//sys/accounts").Child(account).Attr("resource_limits").Child(attribute)
-	require.NoError(t, yc.GetNode(s.Ctx, path, &result, nil))
+	require.NoError(t, yc.GetNode(ctx, path, &result, nil))
 	return result
 }
 
-func (s *Suite) CreateGroup(t *testing.T, name string) yt.NodeID {
+func (s *Suite) CreateGroup(ctx context.Context, t *testing.T, name string) yt.NodeID {
 	t.Helper()
 
-	id, err := s.YT.CreateObject(s.Ctx, yt.NodeGroup, &yt.CreateObjectOptions{
+	id, err := s.YT.CreateObject(ctx, yt.NodeGroup, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
 			"name": name,
 		}})
@@ -231,10 +231,10 @@ func (s *Suite) CreateGroup(t *testing.T, name string) yt.NodeID {
 	return id
 }
 
-func (s *Suite) CreateUser(t *testing.T, user string) yt.NodeID {
+func (s *Suite) CreateUser(ctx context.Context, t *testing.T, user string) yt.NodeID {
 	t.Helper()
 
-	id, err := s.YT.CreateObject(s.Ctx, yt.NodeUser, &yt.CreateObjectOptions{
+	id, err := s.YT.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
 			"name": user,
 		},
@@ -244,11 +244,11 @@ func (s *Suite) CreateUser(t *testing.T, user string) yt.NodeID {
 	return id
 }
 
-func (s *Suite) MemberOf(t *testing.T, user, group string) bool {
+func (s *Suite) MemberOf(ctx context.Context, t *testing.T, user, group string) bool {
 	t.Helper()
 
 	var groups []string
-	err := s.YT.GetNode(s.Ctx, ypath.Path("//sys/users").Child(user).Attr("member_of"), &groups, nil)
+	err := s.YT.GetNode(ctx, ypath.Path("//sys/users").Child(user).Attr("member_of"), &groups, nil)
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -260,11 +260,11 @@ func (s *Suite) MemberOf(t *testing.T, user, group string) bool {
 	return false
 }
 
-func (s *Suite) CreateAccount(t *testing.T, accountName string, attributes map[string]any) yt.NodeID {
+func (s *Suite) CreateAccount(ctx context.Context, t *testing.T, accountName string, attributes map[string]any) yt.NodeID {
 	t.Helper()
 
 	attributes["name"] = accountName
-	id, err := s.YT.CreateObject(s.Ctx, yt.NodeAccount, &yt.CreateObjectOptions{
+	id, err := s.YT.CreateObject(ctx, yt.NodeAccount, &yt.CreateObjectOptions{
 		Attributes: attributes,
 	})
 
@@ -272,12 +272,12 @@ func (s *Suite) CreateAccount(t *testing.T, accountName string, attributes map[s
 	return id
 }
 
-func (s *Suite) CreatePool(t *testing.T, poolName string, poolTree string, attributes map[string]any) yt.NodeID {
+func (s *Suite) CreatePool(ctx context.Context, t *testing.T, poolName string, poolTree string, attributes map[string]any) yt.NodeID {
 	t.Helper()
 
 	attributes["name"] = poolName
 	attributes["pool_tree"] = poolTree
-	id, err := s.YT.CreateObject(s.Ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
+	id, err := s.YT.CreateObject(ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
 		Attributes: attributes,
 	})
 
@@ -285,10 +285,10 @@ func (s *Suite) CreatePool(t *testing.T, poolName string, poolTree string, attri
 	return id
 }
 
-func (s *Suite) CreatePoolTree(t *testing.T, poolTreeName string) yt.NodeID {
+func (s *Suite) CreatePoolTree(ctx context.Context, t *testing.T, poolTreeName string) yt.NodeID {
 	t.Helper()
 
-	id, err := s.YT.CreateObject(s.Ctx, yt.NodeSchedulerPoolTree, &yt.CreateObjectOptions{
+	id, err := s.YT.CreateObject(ctx, yt.NodeSchedulerPoolTree, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
 			"name": poolTreeName,
 		},
@@ -298,10 +298,10 @@ func (s *Suite) CreatePoolTree(t *testing.T, poolTreeName string) yt.NodeID {
 	return id
 }
 
-func (s *Suite) TestCheckPermission(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCheckPermission(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	user := guid.New().String()
@@ -367,11 +367,11 @@ func (s *Suite) TestCheckPermission(t *testing.T, yc yt.Client) {
 	}
 }
 
-func (s *Suite) TestCheckPermissionByACL(t *testing.T, c yt.Client) {
+func (s *Suite) TestCheckPermissionByACL(ctx context.Context, t *testing.T, c yt.Client) {
 	user := "user-" + guid.New().String()
-	_ = s.CreateUser(t, user)
+	_ = s.CreateUser(ctx, t, user)
 
-	response, err := c.CheckPermissionByACL(s.Ctx, user, yt.PermissionRead, []yt.ACE{
+	response, err := c.CheckPermissionByACL(ctx, user, yt.PermissionRead, []yt.ACE{
 		{
 			Action:          yt.ActionAllow,
 			Permissions:     []yt.Permission{yt.PermissionRead},
@@ -382,7 +382,7 @@ func (s *Suite) TestCheckPermissionByACL(t *testing.T, c yt.Client) {
 	require.NoError(t, err)
 	require.Equal(t, yt.ActionAllow, response.Action)
 
-	response, err = c.CheckPermissionByACL(s.Ctx, user, yt.PermissionRead, []yt.ACE{
+	response, err = c.CheckPermissionByACL(ctx, user, yt.PermissionRead, []yt.ACE{
 		{
 			Action:          yt.ActionDeny,
 			Permissions:     []yt.Permission{yt.PermissionRead},
@@ -394,10 +394,10 @@ func (s *Suite) TestCheckPermissionByACL(t *testing.T, c yt.Client) {
 	require.Equal(t, yt.ActionDeny, response.Action)
 }
 
-func (s *Suite) TestCheckColumnPermission(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCheckColumnPermission(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	user1 := guid.New().String()
@@ -492,22 +492,22 @@ func (s *Suite) TestCheckColumnPermission(t *testing.T, yc yt.Client) {
 	require.Equal(t, expectedResponse, response)
 }
 
-func (s *Suite) TestBuildMasterSnapshots(t *testing.T, yc yt.Client) {
+func (s *Suite) TestBuildMasterSnapshots(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	response, err := yc.BuildMasterSnapshots(s.Ctx, nil)
+	response, err := yc.BuildMasterSnapshots(ctx, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, response)
 }
 
-func (s *Suite) TestBuildSnapshot(t *testing.T, yc yt.Client) {
+func (s *Suite) TestBuildSnapshot(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	var cellID guid.GUID
-	err := yc.GetNode(s.Ctx, ypath.Path("//sys/@cluster_connection/primary_master/cell_id"), &cellID, nil)
+	err := yc.GetNode(ctx, ypath.Path("//sys/@cluster_connection/primary_master/cell_id"), &cellID, nil)
 	require.NoError(t, err)
 
-	response, err := yc.BuildSnapshot(s.Ctx, &yt.BuildSnapshotOptions{CellID: &cellID})
+	response, err := yc.BuildSnapshot(ctx, &yt.BuildSnapshotOptions{CellID: &cellID})
 	require.NoError(t, err)
 	require.NotEmpty(t, response)
 }

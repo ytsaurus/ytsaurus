@@ -287,6 +287,7 @@
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LeaseTransactionIds, lease_transaction_ids) \
     XX(LifeStage, life_stage) \
+    XX(LocalExportedObjectCount, local_exported_object_count) \
     XX(LocalJobs, local_jobs) \
     XX(LocalHealth, local_health) \
     XX(LocalPartLossTime, local_part_loss_time) \

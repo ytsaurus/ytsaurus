@@ -2,15 +2,18 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/queue_client/records/consumer_object.record.h>
+#include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
+#include <yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h>
+#include <yt/yt/ytlib/queue_client/records/queue_object.record.h>
+#include <yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/chaos_client/public.h>
-
-#include <yt/yt/client/table_client/public.h>
-#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/hydra/public.h>
 
@@ -19,26 +22,35 @@
 #include <yt/yt/client/queue_client/common.h>
 #include <yt/yt/client/queue_client/config.h>
 
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/schema.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(apachee): Required property in YAML description of queue client records is used
+// to enable validation of specific fields, and is not consistent with the actual
+// schemas of Queue Agent state tables, but since the use of record codegen
+// for those tables is limited to select, insert and delete queries it should be perfectly fine.
+
 //! A simple typed interface for accessing given state table. All methods are thread-safe.
-template <class TRow>
+template <typename TRow, typename TRecordDescriptor>
 class TTableBase
     : public TRefCounted
 {
 public:
     using TRowType = TRow;
+    using TRecord = TRecordDescriptor::TRecord;
+    using TRecordKey = TRecordDescriptor::TKey;
 
     TTableBase(NYPath::TYPath path, NApi::IClientPtr client);
 
-    TFuture<std::vector<TRow>> Select(TStringBuf columns = "*", TStringBuf where = "1 = 1") const;
-
-    TFuture<NApi::TTransactionCommitResult> Insert(std::vector<TRow> rows) const;
-    TFuture<NApi::TTransactionCommitResult> Delete(std::vector<TRow> keys) const;
+    TFuture<std::vector<TRow>> Select(TStringBuf where = "1 = 1") const;
+    TFuture<NApi::TTransactionCommitResult> Insert(TRange<TRow> rows) const;
+    TFuture<NApi::TTransactionCommitResult> Delete(TRange<TRow> keys) const;
 
 private:
     const NYPath::TYPath Path_;
@@ -58,20 +70,13 @@ struct TQueueTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
-    std::optional<TQueueAutoTrimConfig> AutoTrimConfig;
+    TQueueAutoTrimConfig AutoTrimConfig;
     std::optional<THashMap<TString, TQueueStaticExportConfig>> StaticExportConfig;
     std::optional<TString> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;
 
     std::optional<TError> SynchronizationError;
-
-    static std::vector<TQueueTableRow> ParseRowRange(
-        TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable);
-
-    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueTableRow> rows);
-    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueTableRow> keys);
 
     static std::vector<TString> GetCypressAttributeNames();
 
@@ -88,7 +93,7 @@ void Serialize(const TQueueTableRow& row, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueTable
-    : public TTableBase<TQueueTableRow>
+    : public TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>
 {
 public:
     TQueueTable(NYPath::TYPath root, NApi::IClientPtr client);
@@ -111,13 +116,6 @@ struct TConsumerTableRow
 
     std::optional<TError> SynchronizationError;
 
-    static std::vector<TConsumerTableRow> ParseRowRange(
-        TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable);
-
-    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerTableRow> rows);
-    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerTableRow> keys);
-
     static std::vector<TString> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
@@ -133,7 +131,7 @@ void Serialize(const TConsumerTableRow& row, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConsumerTable
-    : public TTableBase<TConsumerTableRow>
+    : public TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>
 {
 public:
     TConsumerTable(NYPath::TYPath root, NApi::IClientPtr client);
@@ -147,19 +145,12 @@ struct TQueueAgentObjectMappingTableRow
 {
     TCrossClusterReference Object;
     TString QueueAgentHost;
-
-    static std::vector<TQueueAgentObjectMappingTableRow> ParseRowRange(
-        TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable);
-
-    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueAgentObjectMappingTableRow> rows);
-    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueAgentObjectMappingTableRow> keys);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentObjectMappingTable
-    : public TTableBase<TQueueAgentObjectMappingTableRow>
+    : public TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>
 {
 public:
     TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
@@ -181,19 +172,12 @@ struct TConsumerRegistrationTableRow
     //! Can be set to indicate the fact that this consumer will only be reading the specified queue partitions.
     //! If null, all partitions are assumed to be read.
     std::optional<std::vector<int>> Partitions;
-
-    static std::vector<TConsumerRegistrationTableRow> ParseRowRange(
-        TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable);
-
-    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerRegistrationTableRow> rows);
-    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerRegistrationTableRow> keys);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConsumerRegistrationTable
-    : public TTableBase<TConsumerRegistrationTableRow>
+    : public TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>
 {
 public:
     // NB: The constructor takes the full path, instead of the root path.
@@ -286,13 +270,6 @@ struct TReplicatedTableMappingTableRow
 
     std::optional<TError> SynchronizationError;
 
-    static std::vector<TReplicatedTableMappingTableRow> ParseRowRange(
-        TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable);
-
-    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TReplicatedTableMappingTableRow> rows);
-    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TReplicatedTableMappingTableRow> keys);
-
     static TReplicatedTableMappingTableRow FromAttributeDictionary(
         const TCrossClusterReference& object,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
@@ -309,7 +286,7 @@ void Serialize(const TReplicatedTableMappingTableRow& row, NYson::IYsonConsumer*
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableMappingTable
-    : public TTableBase<TReplicatedTableMappingTableRow>
+    : public TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>
 {
 public:
     // NB: The constructor takes the full path, instead of the root path.

@@ -317,7 +317,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_segment_meta_in_blocks", &TThis::EnableSegmentMetaInBlocks)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("enable_column_meta_in_chunk_meta", &TThis::EnableColumnMetaInChunkMeta)
         .Default(true);
 

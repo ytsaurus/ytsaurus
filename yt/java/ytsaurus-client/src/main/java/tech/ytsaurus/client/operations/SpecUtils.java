@@ -8,8 +8,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.CreateNode;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
@@ -83,6 +86,7 @@ final class SpecUtils {
 
     static void createOutputTables(
             TransactionalClient yt,
+            @Nullable TransactionalOptions transactionalOptions,
             List<YPath> outputTables,
             Map<String, YTreeNode> outputTableAttributes
     ) {
@@ -93,6 +97,7 @@ final class SpecUtils {
                     .setAttributes(outputTableAttributes)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
+                    .setTransactionalOptions(transactionalOptions)
                     .build()).join();
         }
     }

@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 func TestOrderedTables(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "OrderedDynamicTable_struct", Test: suite.TestOrderedDynamicTable_struct},
 		{Name: "OrderedDynamicTable_map", Test: suite.TestOrderedDynamicTable_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
 	})
@@ -28,23 +29,23 @@ type testOrderedTableRow struct {
 	Value       string `yson:"value"`
 }
 
-func (s *Suite) TestOrderedDynamicTable_struct(t *testing.T, yc yt.Client) {
+func (s *Suite) TestOrderedDynamicTable_struct(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testTable := tmpPath().Child("table")
 	tableSchema := schema.MustInfer(&testOrderedTableRow{})
-	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, tableSchema))
+	require.NoError(t, migrate.Create(ctx, yc, testTable, tableSchema))
 
-	require.NoError(t, yc.ReshardTable(s.Ctx, testTable, &yt.ReshardTableOptions{
+	require.NoError(t, yc.ReshardTable(ctx, testTable, &yt.ReshardTableOptions{
 		TabletCount: ptr.Int(6),
 	}))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
 
 	rows := []any{&testOrderedTableRow{TabletIndex: 2, Value: "hello"}}
-	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+	require.NoError(t, yc.InsertRows(ctx, testTable, rows, nil))
 
-	r, err := yc.SelectRows(s.Ctx, fmt.Sprintf("* from [%s] where [$tablet_index] = 2", testTable), nil)
+	r, err := yc.SelectRows(ctx, fmt.Sprintf("* from [%s] where [$tablet_index] = 2", testTable), nil)
 	require.NoError(t, err)
 
 	var row testOrderedTableRow
@@ -55,7 +56,7 @@ func (s *Suite) TestOrderedDynamicTable_struct(t *testing.T, yc yt.Client) {
 	require.NoError(t, r.Err())
 }
 
-func (s *Suite) TestOrderedDynamicTable_map(t *testing.T, yc yt.Client) {
+func (s *Suite) TestOrderedDynamicTable_map(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testTable := tmpPath().Child("table")
@@ -64,18 +65,18 @@ func (s *Suite) TestOrderedDynamicTable_map(t *testing.T, yc yt.Client) {
 		"$row_index":    1, // has not effect
 		"value":         "hello",
 	})
-	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, tableSchema))
+	require.NoError(t, migrate.Create(ctx, yc, testTable, tableSchema))
 
-	require.NoError(t, yc.ReshardTable(s.Ctx, testTable, &yt.ReshardTableOptions{
+	require.NoError(t, yc.ReshardTable(ctx, testTable, &yt.ReshardTableOptions{
 		TabletCount: ptr.Int(6),
 	}))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
 
 	rows := []any{map[string]any{"$tablet_index": 2, "value": "hello"}}
-	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+	require.NoError(t, yc.InsertRows(ctx, testTable, rows, nil))
 
-	r, err := yc.SelectRows(s.Ctx, fmt.Sprintf("* from [%s] where [$tablet_index] = 2", testTable), nil)
+	r, err := yc.SelectRows(ctx, fmt.Sprintf("* from [%s] where [$tablet_index] = 2", testTable), nil)
 	require.NoError(t, err)
 
 	var row map[string]any

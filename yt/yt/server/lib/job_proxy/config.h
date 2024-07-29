@@ -287,6 +287,10 @@ public:
 
     TJobProxyTestingConfigPtr TestingConfig;
 
+    bool UseRetryingChannels;
+
+    NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -315,6 +319,10 @@ public:
     NYTree::INodePtr JobEnvironment;
 
     TJobProxyTestingConfigPtr TestingConfig;
+
+    bool UseRetryingChannels;
+
+    NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

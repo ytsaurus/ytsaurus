@@ -17,7 +17,7 @@ import (
 func TestMountClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "Mount", Test: suite.TestMount},
 		{Name: "Remount", Test: suite.TestRemount},
 		{Name: "Freeze", Test: suite.TestFreeze},
@@ -25,79 +25,79 @@ func TestMountClient(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestMount(t *testing.T, yc yt.Client) {
+func (s *Suite) TestMount(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testSchema := schema.MustInfer(&testSchemaRow{})
 
 	p := tmpPath().Child("table")
-	require.NoError(t, migrate.Create(s.Ctx, yc, p, testSchema))
+	require.NoError(t, migrate.Create(ctx, yc, p, testSchema))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, p))
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, p))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, p))
 
-	require.NoError(t, migrate.UnmountAndWait(s.Ctx, yc, p))
-	require.NoError(t, migrate.UnmountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.UnmountAndWait(ctx, yc, p))
+	require.NoError(t, migrate.UnmountAndWait(ctx, yc, p))
 }
 
-func (s *Suite) TestRemount(t *testing.T, yc yt.Client) {
+func (s *Suite) TestRemount(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testSchema := schema.MustInfer(&testSchemaRow{})
 
 	p := tmpPath().Child("table")
-	require.NoError(t, migrate.Create(s.Ctx, yc, p, testSchema))
+	require.NoError(t, migrate.Create(ctx, yc, p, testSchema))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, p))
-	require.NoError(t, yc.RemountTable(s.Ctx, p, nil))
-	require.NoError(t, waitTabletState(s.Ctx, yc, p, yt.TabletMounted))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, p))
+	require.NoError(t, yc.RemountTable(ctx, p, nil))
+	require.NoError(t, waitTabletState(ctx, yc, p, yt.TabletMounted))
 
-	require.NoError(t, migrate.UnmountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.UnmountAndWait(ctx, yc, p))
 }
 
-func (s *Suite) TestFreeze(t *testing.T, yc yt.Client) {
+func (s *Suite) TestFreeze(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testSchema := schema.MustInfer(&testSchemaRow{})
 
 	p := tmpPath().Child("table")
-	require.NoError(t, migrate.Create(s.Ctx, yc, p, testSchema))
+	require.NoError(t, migrate.Create(ctx, yc, p, testSchema))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, p))
 
-	require.NoError(t, migrate.FreezeAndWait(s.Ctx, yc, p))
-	require.NoError(t, migrate.FreezeAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.FreezeAndWait(ctx, yc, p))
+	require.NoError(t, migrate.FreezeAndWait(ctx, yc, p))
 
-	require.NoError(t, migrate.UnfreezeAndWait(s.Ctx, yc, p))
-	require.NoError(t, migrate.UnfreezeAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.UnfreezeAndWait(ctx, yc, p))
+	require.NoError(t, migrate.UnfreezeAndWait(ctx, yc, p))
 
-	require.NoError(t, migrate.UnmountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.UnmountAndWait(ctx, yc, p))
 }
 
-func (s *Suite) TestReshard(t *testing.T, yc yt.Client) {
+func (s *Suite) TestReshard(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
 	testSchema := schema.MustInfer(&testReshardRow{})
 
 	p := tmpPath().Child("table")
-	require.NoError(t, migrate.Create(s.Ctx, yc, p, testSchema))
+	require.NoError(t, migrate.Create(ctx, yc, p, testSchema))
 
-	require.Error(t, yc.ReshardTable(s.Ctx, p, &yt.ReshardTableOptions{
+	require.Error(t, yc.ReshardTable(ctx, p, &yt.ReshardTableOptions{
 		PivotKeys: [][]any{{"a"}},
 	}), "first pivot key must match that of the first tablet in the resharded range")
 
-	require.Error(t, yc.ReshardTable(s.Ctx, p, &yt.ReshardTableOptions{
+	require.Error(t, yc.ReshardTable(ctx, p, &yt.ReshardTableOptions{
 		PivotKeys: [][]any{{}, {"b"}, {"a"}},
 	}), "pivot keys must be strictly increasing")
 
-	require.Error(t, yc.ReshardTable(s.Ctx, p, &yt.ReshardTableOptions{
+	require.Error(t, yc.ReshardTable(ctx, p, &yt.ReshardTableOptions{
 		PivotKeys: []any{
 			[]any{},
 			testReshardRow{A: "c", B: 420},
 		},
 	}), "only slices could be used as pivot keys")
 
-	require.NoError(t, yc.ReshardTable(s.Ctx, p, &yt.ReshardTableOptions{
+	require.NoError(t, yc.ReshardTable(ctx, p, &yt.ReshardTableOptions{
 		PivotKeys: []any{
 			[]any{},
 			[]any{"a"},
@@ -105,12 +105,12 @@ func (s *Suite) TestReshard(t *testing.T, yc yt.Client) {
 		},
 	}))
 
-	require.NoError(t, yc.ReshardTable(s.Ctx, p, &yt.ReshardTableOptions{
+	require.NoError(t, yc.ReshardTable(ctx, p, &yt.ReshardTableOptions{
 		TabletCount: ptr.Int(6),
 	}))
 
-	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, p))
-	require.NoError(t, migrate.UnmountAndWait(s.Ctx, yc, p))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, p))
+	require.NoError(t, migrate.UnmountAndWait(ctx, yc, p))
 }
 
 type testSchemaRow struct {

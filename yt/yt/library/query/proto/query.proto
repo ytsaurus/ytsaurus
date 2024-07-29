@@ -282,7 +282,7 @@ message TQueryOptions
 
 message TFeatureFlags
 {
-    optional bool with_totals_finalizes_aggregated_on_coordinator = 1 [default = false];
+    optional bool with_totals_finalizes_aggregated_on_coordinator = 1;
 }
 
 message TDataSource
