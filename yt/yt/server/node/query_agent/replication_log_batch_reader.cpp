@@ -1,6 +1,7 @@
 #include "replication_log_batch_reader.h"
 
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -26,45 +27,50 @@ TColumnFilter TReplicationLogBatchReaderBase::CreateColumnFilter() const
     return TColumnFilter();
 }
 
-void TReplicationLogBatchReaderBase::ReadReplicationBatch(
-    i64* currentRowIndex,
+TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBatch(
+    i64 startRowIndex,
     TTimestamp upperTimestamp,
-    i64 maxDataWeight,
-    i64* totalRowCount,
-    i64* batchRowCount,
-    i64* batchDataWeight,
-    TTimestamp* maxTimestamp,
-    bool* readAllRows)
+    i64 maxDataWeight)
 {
-    auto prevTimestamp = MinTimestamp;
+    auto currentRowIndex = startRowIndex;
+
+    i64 batchDataWeight = 0;
+    i64 readRowCount = 0;
     int timestampCount = 0;
+    int batchRowCount = 0;
     int discardedByProgress = 0;
-    auto startRowIndex = *currentRowIndex;
+    auto readAllRows = true;
+
+    auto prevTimestamp = MinTimestamp;
+    auto maxTimestamp = NullTimestamp;
+
     auto columnFilter = CreateColumnFilter();
-    *readAllRows = true;
+
     std::vector<TUnversionedRow> readerRows;
 
     if (maxDataWeight > TableMountConfig_->MaxDataWeightPerReplicationCommit) {
         maxDataWeight = TableMountConfig_->MaxDataWeightPerReplicationCommit;
     }
 
-    while (*readAllRows) {
+    while (readAllRows) {
         i64 readAmount = 2 * TableMountConfig_->MaxRowsPerReplicationCommit;
         auto batchFetcher = MakeBatchFetcher(
-            MakeBoundKey(*currentRowIndex),
-            MakeBoundKey(*currentRowIndex + readAmount),
+            MakeBoundKey(currentRowIndex),
+            MakeBoundKey(currentRowIndex + readAmount),
             columnFilter);
 
         bool needCheckNextRange = false;
+        auto rowBuffer = New<TRowBuffer>();
 
-        while (*readAllRows) {
-            auto batch = batchFetcher->ReadNextRowBatch(*currentRowIndex);
+        while (readAllRows) {
+            auto batch = batchFetcher->ReadNextRowBatch(currentRowIndex);
             if (!batch) {
                 YT_LOG_DEBUG("Received empty batch from tablet reader (TabletId: %v, StartRowIndex: %v)",
                     TabletId_,
-                    *currentRowIndex);
+                    currentRowIndex);
                 break;
             }
+
             needCheckNextRange = true;
 
             auto range = batch->MaterializeRows();
@@ -75,8 +81,8 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
                 TTimestamp timestamp;
                 i64 rowDataWeight;
 
-                if (!ToTypeErasedRow(replicationLogRow, &replicationRow, &timestamp, &rowDataWeight)) {
-                    ++*currentRowIndex;
+                if (!ToTypeErasedRow(replicationLogRow, rowBuffer, &replicationRow, &timestamp, &rowDataWeight)) {
+                    ++currentRowIndex;
                     ++discardedByProgress;
                     continue;
                 }
@@ -88,29 +94,29 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
                     YT_VERIFY(upperTimestamp == NullTimestamp || timestamp != upperTimestamp);
 
                     if (upperTimestamp != NullTimestamp && timestamp > upperTimestamp) {
-                        *maxTimestamp = std::max(*maxTimestamp, upperTimestamp);
-                        *readAllRows = false;
+                        maxTimestamp = std::max(maxTimestamp, upperTimestamp);
+                        readAllRows = false;
 
                         YT_LOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached "
                             "(TabletId: %v, Timestamp: %v, UpperTimestamp: %v, LastTimestamp: %v)",
                             TabletId_,
                             timestamp,
                             upperTimestamp,
-                            *maxTimestamp);
+                            maxTimestamp);
                         break;
                     }
 
-                    if (*batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit ||
-                        *batchDataWeight >= maxDataWeight ||
+                    if (batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit ||
+                        batchDataWeight >= maxDataWeight ||
                         timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit)
                     {
-                        *readAllRows = false;
+                        readAllRows = false;
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
                             "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
                             TabletId_,
                             timestamp,
-                            *batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
-                            *batchDataWeight >= maxDataWeight,
+                            batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
+                            batchDataWeight >= maxDataWeight,
                             timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit);
                         break;
                     }
@@ -119,17 +125,18 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
                 }
 
                 WriteTypeErasedRow(replicationRow);
+                rowBuffer->Clear();
 
-                *maxTimestamp = std::max(*maxTimestamp, timestamp);
+                maxTimestamp = std::max(maxTimestamp, timestamp);
                 prevTimestamp = timestamp;
 
-                *batchRowCount += 1;
-                *batchDataWeight += rowDataWeight;
+                batchRowCount += 1;
+                batchDataWeight += rowDataWeight;
 
-                ++*currentRowIndex;
+                ++currentRowIndex;
             }
 
-            *totalRowCount += readerRows.size();
+            readRowCount += readerRows.size();
         }
 
         if (!needCheckNextRange) {
@@ -141,12 +148,21 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
         "ResponseRowCount: %v, ResponseDataWeight: %v, RowsDiscardedByProgress: %v, TimestampCount: %v)",
         TabletId_,
         startRowIndex,
-        *currentRowIndex,
-        *totalRowCount,
-        *batchRowCount,
-        *batchDataWeight,
+        currentRowIndex,
+        readRowCount,
+        batchRowCount,
+        batchDataWeight,
         discardedByProgress,
         timestampCount);
+
+    return TReplicationLogBatchDescriptor{
+        .ReadRowCount = readRowCount,
+        .ResponseRowCount = batchRowCount,
+        .ResponseDataWeight = batchDataWeight,
+        .MaxTimestamp = maxTimestamp,
+        .ReadAllRows = readAllRows,
+        .EndReplicationRowIndex = currentRowIndex,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
