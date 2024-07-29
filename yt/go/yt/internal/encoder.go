@@ -194,6 +194,19 @@ func (e *Encoder) LinkNode(
 	return
 }
 
+func (e *Encoder) Concatenate(
+	ctx context.Context,
+	src []ypath.YPath,
+	dst ypath.YPath,
+	options *yt.ConcatenateOptions,
+) (err error) {
+	call := e.newCall(NewConcatenateParams(src, dst, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
 func (e *Encoder) LockNode(
 	ctx context.Context,
 	path ypath.YPath,

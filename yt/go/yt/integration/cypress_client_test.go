@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ func TestCypressClient(t *testing.T) {
 		{Name: "CopyNode", Test: suite.TestCopyNode},
 		{Name: "MoveNode", Test: suite.TestMoveNode},
 		{Name: "LinkNode", Test: suite.TestLinkNode},
+		{Name: "Concatenate", Test: suite.TestConcatenate, SkipRPC: true}, // TODO: need WriteTable in RPC
 		{Name: "CreateObject", Test: suite.TestCreateObject},
 		{Name: "BinaryPath", Test: suite.TestBinaryPath},
 	})
@@ -260,6 +262,54 @@ func (s *Suite) TestLinkNode(t *testing.T, yc yt.Client) {
 	err = yc.GetNode(ctx, link.SuppressSymlink().Attr("type"), &typ, nil)
 	require.NoError(t, err)
 	require.Equal(t, yt.NodeLink, typ)
+}
+
+func (s *Suite) TestConcatenate(t *testing.T, yc yt.Client) {
+	t.Parallel()
+	var err error
+
+	ctx, cancel := context.WithTimeout(s.Ctx, time.Second*30)
+	defer cancel()
+
+	src1 := tmpPath()
+	src2 := tmpPath()
+	dst := tmpPath()
+	opts := &yt.CreateNodeOptions{Recursive: true}
+
+	_, err = yc.CreateNode(ctx, dst, yt.NodeTable, opts)
+	require.NoError(t, err)
+
+	_, err = yc.CreateNode(ctx, src1, yt.NodeTable, opts)
+	require.NoError(t, err)
+	w1, err := yc.WriteTable(ctx, src1, nil)
+	require.NoError(t, err)
+	err = w1.Write(exampleRow{A: "111"})
+	require.NoError(t, err)
+	require.NoError(t, w1.Commit())
+
+	_, err = yc.CreateNode(ctx, src2, yt.NodeTable, opts)
+	require.NoError(t, err)
+	w2, err := yc.WriteTable(ctx, src2, nil)
+	require.NoError(t, err)
+	err = w2.Write(exampleRow{A: "222"})
+	require.NoError(t, err)
+	require.NoError(t, w2.Commit())
+
+	err = yc.Concatenate(ctx, []ypath.YPath{src1, src2}, dst, nil)
+	require.NoError(t, err)
+
+	rdr, err := yc.ReadTable(ctx, dst, nil)
+	require.NoError(t, err)
+
+	// check result
+	var lst []string
+	for rdr.Next() {
+		var row exampleRow
+		require.NoError(t, rdr.Scan(&row))
+		lst = append(lst, row.A)
+	}
+	sort.Strings(lst)
+	require.Equal(t, []string{"111", "222"}, lst)
 }
 
 func (s *Suite) TestCreateObject(t *testing.T, yc yt.Client) {

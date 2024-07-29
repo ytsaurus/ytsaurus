@@ -14,6 +14,7 @@ const (
 	MethodCopyNode                  Method = "CopyNode"
 	MethodMoveNode                  Method = "MoveNode"
 	MethodLinkNode                  Method = "LinkNode"
+	MethodConcatenate               Method = "Concatenate"
 	MethodCheckPermission           Method = "CheckPermission"
 	MethodCheckPermissionByACL      Method = "CheckPermissionByAcl"
 	MethodSelectRows                Method = "SelectRows"
