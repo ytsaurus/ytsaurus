@@ -28,11 +28,11 @@ static Platform::RWMutex memoriesMutex;
 static std::vector<Memory*> memories;
 
 static thread_local Memory* CurrentMemory = nullptr;
-void Memory::setCurrentMemory(Memory* memory)
+__attribute__((__noinline__)) void Memory::setCurrentMemory(Memory* memory)
 {
 	CurrentMemory = memory;
 }
-Memory* Memory::getCurrentMemory()
+__attribute__((__noinline__)) Memory* Memory::getCurrentMemory()
 {
 	return CurrentMemory;
 }
