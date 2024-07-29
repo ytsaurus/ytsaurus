@@ -458,29 +458,29 @@ class TestRackDataCenter(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    rack_set = "rack"
-    data_center_set = "data_center"
+    RACK_SET = "rack"
+    DATA_CENTER_SET = "data_center"
     DELTA_NODE_CONFIG = {
-        "rack": rack_set,
-        "data_center": data_center_set,
+        "rack": RACK_SET,
+        "data_center": DATA_CENTER_SET,
     }
 
     @authors("proller")
     def test_node_rack(self):
         for node in ls("//sys/cluster_nodes"):
             rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
-            assert self.rack_set == rack_get
+            assert self.RACK_SET == rack_get
             data_center_get = get("//sys/racks/{0}/@data_center".format(rack_get))
-            assert self.data_center_set == data_center_get
+            assert self.DATA_CENTER_SET == data_center_get
 
 
 class TestRack(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    rack_set = "rack"
+    RACK_SET = "rack"
     DELTA_NODE_CONFIG = {
-        "rack": rack_set,
+        "rack": RACK_SET,
     }
 
     @authors("proller")
@@ -488,7 +488,7 @@ class TestRack(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         for node in ls("//sys/cluster_nodes"):
             rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
-            assert self.rack_set == rack_get
+            assert self.RACK_SET == rack_get
 
 
 class TestRackCells(TestRack):

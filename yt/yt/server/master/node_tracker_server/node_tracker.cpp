@@ -1055,6 +1055,10 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
+        if (options.DataCenter && !options.Rack) {
+          THROW_ERROR_EXCEPTION("Data center %Qv defined without rack", options.DataCenter);
+        }
+
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (options.LeaseTransactionId) {
@@ -1081,8 +1085,11 @@ private:
             rack = FindRackByName(*options.Rack);
 
             if (options.DataCenter) {
+                auto* dataCenter = FindDataCenterByName(*options.DataCenter);
+
                 if (IsObjectAlive(rack)) {
-                    if (*options.DataCenter != rack->GetDataCenter()->GetName()) {
+                    const auto rackDataCenter = rack->GetDataCenter();
+                    if (rackDataCenter && dataCenter != rackDataCenter) {
                         THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv",
                             rack->GetDataCenter()->GetName(),
                             rack->GetName(),
@@ -1090,14 +1097,12 @@ private:
                     }
                 }
 
-                auto* dataCenter = FindDataCenterByName(*options.DataCenter);
                 if (!IsObjectAlive(dataCenter)) {
                     CreateDataCenterObject(*options.DataCenter);
                     dataCenter = GetDataCenterByName(*options.DataCenter);
                 }
             }
 
-            rack = FindRackByName(*options.Rack);
             if (!IsObjectAlive(rack)) {
                 CreateRackObject(*options.Rack, options.DataCenter);
                 rack = GetRackByName(*options.Rack);
@@ -1296,8 +1301,8 @@ private:
                 ? std::make_optional(TYsonString(request->cypress_annotations(), EYsonType::Node))
                 : std::nullopt,
             .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
-            .Rack = request->has_rack() ? std::make_optional(request->rack()) : std::nullopt,
-            .DataCenter = request->has_data_center() ? std::make_optional(request->data_center()) : std::nullopt,
+            .Rack = YT_PROTO_OPTIONAL((*request), rack),
+            .DataCenter = YT_PROTO_OPTIONAL((*request), data_center),
         };
 
         EnsureNodeObjectCreated(options);
