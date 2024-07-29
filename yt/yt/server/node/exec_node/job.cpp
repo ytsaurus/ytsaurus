@@ -2784,6 +2784,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
+
+        proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
+        proxyConfig->RetryingChannelConfig = proxyDynamicConfig->RetryingChannelConfig;
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
