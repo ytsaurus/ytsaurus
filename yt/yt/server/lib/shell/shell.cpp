@@ -409,7 +409,7 @@ public:
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
-                output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+                output.Write(*Options_->MessageOfTheDay);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell message file")
                     << ex
@@ -422,7 +422,7 @@ public:
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
-                output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+                output.Write(*Options_->Bashrc);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
                     << ex

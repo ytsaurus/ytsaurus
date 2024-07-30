@@ -414,9 +414,9 @@ public:
 
     }
 
-    NApi::TPollJobShellResponse PollJobShell(
-        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
-        const NYson::TYsonString& serializedParameters) override
+    TPollJobShellResponse PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& serializedParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -510,12 +510,6 @@ public:
                 shell->Terminate(TError("Shell %v terminated by user request", shell->GetId()));
                 break;
             }
-
-            default:
-                THROW_ERROR_EXCEPTION(
-                    "Unknown operation %Qlv for shell %v",
-                    parameters.Operation,
-                    parameters.ShellId);
         }
 
         resultValue.ShellId = shell->GetId();
@@ -533,8 +527,8 @@ public:
 
         YT_LOG_INFO("Shell manager is terminating");
         Terminated_ = true;
-        for (auto& shell : IdToShell_) {
-            shell.second->Terminate(error);
+        for (auto& [_, shell] : IdToShell_) {
+            shell->Terminate(error);
         }
         IdToShell_.clear();
     }
@@ -545,8 +539,8 @@ public:
 
         YT_LOG_INFO("Shell manager is shutting down");
         std::vector<TFuture<void>> futures;
-        for (auto& shell : IdToShell_) {
-            futures.push_back(shell.second->Shutdown(error));
+        for (auto& [_, shell] : IdToShell_) {
+            futures.push_back(shell->Shutdown(error));
         }
         return AllSet(futures).AsVoid();
     }
