@@ -91,6 +91,9 @@ public:
     std::vector<TDqYtBackendPtr> YtBackends;
     TDqYtCoordinatorPtr YtCoordinator;
 
+    //! Address resolver used in Dq operation. Is taken from singletons config if not set.
+    std::optional<NNet::TAddressResolverConfigPtr> AddressResolver;
+
     //! Dq Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
     NYTree::INodePtr ICSettings;
 
