@@ -169,13 +169,13 @@ protected:
         std::optional<int> shellIndex)
     {
         if (shellId) {
-            if (auto shell = Find(*shellIndex); shell) {
+            if (auto shell = Find(*shellId)) {
                 return shell;
             }
         }
 
         if (shellIndex) {
-            if (auto shell = Find(*shellIndex); shell) {
+            if (auto shell = Find(*shellIndex)) {
                 return shell;
             }
         }
