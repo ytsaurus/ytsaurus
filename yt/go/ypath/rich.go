@@ -75,6 +75,7 @@ type Rich struct {
 	Columns  []string       `yson:"columns,attr,omitempty"`
 	Schema   *schema.Schema `yson:"schema,attr,omitempty"`
 	FileName string         `yson:"file_name,attr,omitempty"`
+	Create   bool           `yson:"create,attr,omitempty"`
 
 	Teleport bool `yson:"teleport,attr,omitempty"`
 	Foreign  bool `yson:"foreign,attr,omitempty"`
@@ -143,6 +144,12 @@ func (r *Rich) SetAppend() *Rich {
 // AddRange adds element to ranges attribute of to p.
 func (r *Rich) AddRange(rr Range) *Rich {
 	r.Ranges = append(r.Ranges, rr)
+	return r
+}
+
+// SetCreate sets create attribute of p.
+func (r *Rich) SetCreate() *Rich {
+	r.Create = true
 	return r
 }
 
