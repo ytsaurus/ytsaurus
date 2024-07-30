@@ -485,7 +485,6 @@ class TestRack(YTEnvSetup):
 
     @authors("proller")
     def test_node_rack(self):
-        nodes = ls("//sys/cluster_nodes")
         for node in ls("//sys/cluster_nodes"):
             rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
             assert self.RACK_SET == rack_get
