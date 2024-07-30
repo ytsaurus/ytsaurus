@@ -514,14 +514,16 @@ void AddFilterConditions(
             builder.AddWhereConjunct("-[minus_start_time] <= " + ToString(toTime));
         }
 
-        if (table == FinishedQueriesByUserAndStartTimeTable) {
-            placeholdersFluentMap.Item("User").Value(user);
-            builder.AddWhereConjunct("user = {User}");
-        } else if (table == FinishedQueriesByAcoAndStartTimeTable) {
-            placeholdersFluentMap.Item("acosForUser").DoListFor(acosForUser, [] (TFluentList fluent, const TString& aco) {
-                fluent.Item().Value(aco);
-            });
-            builder.AddWhereConjunct("access_control_object IN {acosForUser}");
+        if (!isSuperuser) {
+            if (table == FinishedQueriesByUserAndStartTimeTable) {
+                placeholdersFluentMap.Item("User").Value(user);
+                builder.AddWhereConjunct("user = {User}");
+            } else if (table == FinishedQueriesByAcoAndStartTimeTable) {
+                placeholdersFluentMap.Item("acosForUser").DoListFor(acosForUser, [] (TFluentList fluent, const TString& aco) {
+                    fluent.Item().Value(aco);
+                });
+                builder.AddWhereConjunct("access_control_object IN {acosForUser}");
+            }
         }
     }
 
@@ -1121,9 +1123,9 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
                 if (isSuperuser && !options.UserFilter) {
                     GetQueriesByStartTime<TFinishedQueryByStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, "finished_queries_by_start_time", results, isSuperuser);
                 } else {
-                    GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByUserAndStartTimeTable, results);
+                    GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByUserAndStartTimeTable, results, isSuperuser);
                     if (!acosForUser.empty()) {
-                        GetQueriesByStartTime<TFinishedQueryByAcoAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByAcoAndStartTimeTable, results);
+                        GetQueriesByStartTime<TFinishedQueryByAcoAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByAcoAndStartTimeTable, results, isSuperuser);
                     }
                     if (options.CursorDirection != EOperationSortDirection::None) {
                         auto compare = [&] (const std::pair<TTimestamp, TQueryId>& lhs, const std::pair<TTimestamp, TQueryId>& rhs) {
