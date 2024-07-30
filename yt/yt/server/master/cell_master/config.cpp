@@ -373,6 +373,11 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_drop_column", &TThis::EnableDynamicTableDropColumn)
         .Default(false);
+    registrar.Parameter("allow_everyone_create_secondary_indices", &TThis::AllowEveryoneCreateSecondaryIndices)
+        .Default(false);
+    registrar.Parameter("enable_boomerangs_identity", &TThis::EnableBoomerangsIdentity)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Parameter("chunk_manager", &TThis::ChunkManager)
         .DefaultNew();

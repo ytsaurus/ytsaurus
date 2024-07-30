@@ -65,9 +65,9 @@ target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
-  contrib-libs-protobuf
   yt_proto-yt-formats
   cpp-mapreduce-interface
+  contrib-libs-protobuf
 )
 
 target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE

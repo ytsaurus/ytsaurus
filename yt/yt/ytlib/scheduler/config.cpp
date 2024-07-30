@@ -199,7 +199,11 @@ void TJobIOConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()
-        .GreaterThan(0);
+        .GreaterThan(0)
+        // NB(arkady-e1ppa): This is default pipe capacity. Without updating process perms
+        // one cannot change capacity to be greater than this number.
+        // TODO(arkady-e1ppa): Consider supporting pipe capacity increases.
+        .LessThanOrEqual(16 * 4096);
 
     registrar.Parameter("use_delivery_fenced_pipe_writer", &TThis::UseDeliveryFencedPipeWriter)
         .Default(false);
@@ -353,7 +357,7 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_min_data_weight_per_chunk", &TThis::ShallowMergeMinDataWeightPerChunk)
         .Default(64_KB);
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Disabled);
+        .Default(ESingleChunkTeleportStrategy::Enabled);
 
     registrar.Preprocessor([] (TAutoMergeConfig* config) {
         config->JobIO->TableWriter->DesiredChunkWeight = 8_GB;
@@ -1399,7 +1403,7 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
 void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Disabled);
+        .Default(ESingleChunkTeleportStrategy::Enabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

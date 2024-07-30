@@ -122,6 +122,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         })
         sync_mount_table("//sys/queue_agents/queues")
 
+        insert_rows("//sys/queue_agents/queues", [{"path": "//tmp/q"}])
+
         orchid.wait_fresh_pass()
         assert_yt_error(orchid.get_pass_error(), "No such column")
 

@@ -257,6 +257,12 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_config", &TThis::TestingConfig)
         .DefaultNew();
 
+    registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
+        .Default(false);
+
+    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -292,6 +298,17 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing_config", &TThis::TestingConfig)
         .DefaultNew();
+
+    registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
+        .Default(false);
+
+    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+        .DefaultCtor([] {
+            auto config = New<NRpc::TRetryingChannelConfig>();
+            config->RetryBackoffTime = TDuration::Seconds(1);
+            config->RetryAttempts = 10;
+            return config;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

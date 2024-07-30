@@ -49,6 +49,7 @@ type Pinger struct {
 	stop     *StopGroup
 	txID     yt.TxID
 	config   *yt.Config
+	options  *yt.PingTxOptions
 }
 
 func NewPinger(
@@ -57,6 +58,7 @@ func NewPinger(
 	txID yt.TxID,
 	config *yt.Config,
 	stop *StopGroup,
+	opts *yt.PingTxOptions,
 ) *Pinger {
 	return &Pinger{
 		yc:       yc,
@@ -65,6 +67,7 @@ func NewPinger(
 		stop:     stop,
 		txID:     txID,
 		config:   config,
+		options:  opts,
 
 		finished:     make(chan struct{}),
 		finishFailed: make(chan struct{}),
@@ -273,7 +276,7 @@ func (p *Pinger) Run() {
 			return
 
 		case <-ticker.C:
-			err := p.yc.PingTx(leaseCtx, p.txID, nil)
+			err := p.yc.PingTx(leaseCtx, p.txID, p.options)
 			if err != nil {
 				p.OnTxError(err)
 			} else {

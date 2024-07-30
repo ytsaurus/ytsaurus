@@ -109,6 +109,7 @@ import tech.ytsaurus.client.request.TableReplicaMode;
 import tech.ytsaurus.client.request.TableReq;
 import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TabletInfoReplica;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
@@ -874,11 +875,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return resultingSpec;
     }
 
-    private CompletableFuture<YTreeNode> prepareSpec(Spec spec) {
+    private CompletableFuture<YTreeNode> prepareSpec(Spec spec, @Nullable TransactionalOptions transactionalOptions) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     YTreeBuilder builder = YTree.builder();
-                    spec.prepare(builder, this, new SpecPreparationContext(config));
+                    spec.prepare(builder, this, new SpecPreparationContext(config, transactionalOptions));
                     return patchSpec(builder.build().mapNode());
                 },
                 prepareSpecExecutor);
@@ -904,7 +905,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             BaseOperation<T> req,
             EOperationType type
     ) {
-        return prepareSpec(req.getSpec()).thenCompose(
+        return prepareSpec(req.getSpec(), req.getTransactionalOptions().orElse(null)).thenCompose(
                 preparedSpec -> startPreparedOperation(preparedSpec, req, type)
         );
     }

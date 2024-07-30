@@ -20,6 +20,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
+using NProtoBuf::EnumValueDescriptor;
 using NProtoBuf::FieldDescriptor;
 using NProtoBuf::Message;
 
@@ -427,100 +428,29 @@ TErrorOr<TString> MapKeyFieldToString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template <typename T>
-T ConvertToScalarValue(const NYTree::INodePtr& node, const T& defaultValue)
-{
-    if (node->GetType() == ENodeType::Entity) {
-        return defaultValue;
-    }
-    return ConvertTo<T>(node);
-}
-
-int ConvertToEnumValue(const NYTree::INodePtr& node, const FieldDescriptor* field)
-{
-    YT_VERIFY(field->cpp_type() == FieldDescriptor::CPPTYPE_ENUM);
-    if (node->GetType() == ENodeType::Entity) {
-        return field->default_value_enum()->number();
-    }
-    return ConvertToProtobufEnumValue<int>(ReflectProtobufEnumType(field->enum_type()), node);
-}
-
-} // namespace
-
 TError SetScalarField(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
     const NYTree::INodePtr& value)
 {
-    const auto* reflection = message->GetReflection();
-    try {
-        switch (fieldDescriptor->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetInt32(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
-                break;
-            case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetInt64(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetUInt32(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetUInt64(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
-                break;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetDouble(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
-                break;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetFloat(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
-                break;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetBool(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
-                break;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                reflection->SetEnumValue(
-                    message,
-                    fieldDescriptor,
-                    ConvertToEnumValue(value, fieldDescriptor));
-                break;
-            case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetString(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
-                break;
-            default:
-                return TError(EErrorCode::Unimplemented,
-                    "Cannot convert yson value to a proto field of type %v",
-                    fieldDescriptor->type_name());
-        }
-    } catch (std::exception& ex) {
-        return TError("Failed to convert yson value to a proto field") << ex;
+    switch (value->GetType()) {
+        case NYTree::ENodeType::String:
+            return SetScalarField(message, fieldDescriptor, value->AsString()->GetValue());
+        case NYTree::ENodeType::Int64:
+            return SetScalarField(message, fieldDescriptor, value->AsInt64()->GetValue());
+        case NYTree::ENodeType::Uint64:
+            return SetScalarField(message, fieldDescriptor, value->AsUint64()->GetValue());
+        case NYTree::ENodeType::Double:
+            return SetScalarField(message, fieldDescriptor, value->AsDouble()->GetValue());
+        case NYTree::ENodeType::Boolean:
+            return SetScalarField(message, fieldDescriptor, value->AsBoolean()->GetValue());
+        case NYTree::ENodeType::Entity:
+            return SetDefaultScalarFieldValue(message, fieldDescriptor);
+        default:
+            return TError(EErrorCode::Unimplemented,
+                "Cannot convert yson value of type %v to a proto field",
+                value->GetType());
     }
-
-    return TError();
 }
 
 TError SetScalarRepeatedFieldEntry(
@@ -529,82 +459,24 @@ TError SetScalarRepeatedFieldEntry(
     int index,
     const NYTree::INodePtr& value)
 {
-    const auto* reflection = message->GetReflection();
-    try {
-        switch (fieldDescriptor->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                reflection->SetRepeatedInt32(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
-                break;
-            case FieldDescriptor::CPPTYPE_INT64:
-                reflection->SetRepeatedInt64(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->SetRepeatedUInt32(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->SetRepeatedUInt64(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
-                break;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->SetRepeatedDouble(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
-                break;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->SetRepeatedFloat(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
-                break;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->SetRepeatedBool(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
-                break;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                reflection->SetRepeatedEnumValue(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToEnumValue(value, fieldDescriptor));
-                break;
-            case FieldDescriptor::CPPTYPE_STRING:
-                reflection->SetRepeatedString(
-                    message,
-                    fieldDescriptor,
-                    index,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
-                break;
-            default:
-                return TError(EErrorCode::Unimplemented,
-                    "Cannot convert yson value to a proto field of type %v",
-                    fieldDescriptor->type_name());
-        }
-    } catch (std::exception& ex) {
-        return TError("Failed to convert yson value to a proto field") << ex;
+    switch (value->GetType()) {
+        case NYTree::ENodeType::String:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsString()->GetValue());
+        case NYTree::ENodeType::Int64:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsInt64()->GetValue());
+        case NYTree::ENodeType::Uint64:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsUint64()->GetValue());
+        case NYTree::ENodeType::Double:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsDouble()->GetValue());
+        case NYTree::ENodeType::Boolean:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsBoolean()->GetValue());
+        case NYTree::ENodeType::Entity:
+            return SetDefaultScalarRepeatedFieldEntryValue(message, fieldDescriptor, index);
+        default:
+            return TError(EErrorCode::Unimplemented,
+                "Cannot convert yson value of type %v to a proto field",
+                value->GetType());
     }
-
-    return TError();
 }
 
 TError AddScalarRepeatedFieldEntry(
@@ -612,73 +484,24 @@ TError AddScalarRepeatedFieldEntry(
     const FieldDescriptor* fieldDescriptor,
     const NYTree::INodePtr& value)
 {
-    const auto* reflection = message->GetReflection();
-    try {
-        switch (fieldDescriptor->cpp_type()) {
-            case FieldDescriptor::CPPTYPE_INT32:
-                reflection->AddInt32(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int32()));
-                break;
-            case FieldDescriptor::CPPTYPE_INT64:
-                reflection->AddInt64(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_int64()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT32:
-                reflection->AddUInt32(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint32()));
-                break;
-            case FieldDescriptor::CPPTYPE_UINT64:
-                reflection->AddUInt64(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_uint64()));
-                break;
-            case FieldDescriptor::CPPTYPE_DOUBLE:
-                reflection->AddDouble(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_double()));
-                break;
-            case FieldDescriptor::CPPTYPE_FLOAT:
-                reflection->AddFloat(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue<double>(value, fieldDescriptor->default_value_float()));
-                break;
-            case FieldDescriptor::CPPTYPE_BOOL:
-                reflection->AddBool(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_bool()));
-                break;
-            case FieldDescriptor::CPPTYPE_ENUM:
-                reflection->AddEnumValue(
-                    message,
-                    fieldDescriptor,
-                    ConvertToEnumValue(value, fieldDescriptor));
-                break;
-            case FieldDescriptor::CPPTYPE_STRING:
-                reflection->AddString(
-                    message,
-                    fieldDescriptor,
-                    ConvertToScalarValue(value, fieldDescriptor->default_value_string()));
-                break;
-            default:
-                return TError(EErrorCode::Unimplemented,
-                    "Cannot convert yson value to a proto field of type %v",
-                    fieldDescriptor->type_name());
-        }
-    } catch (std::exception& ex) {
-        return TError("Failed to convert yson value to a proto field") << ex;
+    switch (value->GetType()) {
+        case NYTree::ENodeType::String:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsString()->GetValue());
+        case NYTree::ENodeType::Int64:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsInt64()->GetValue());
+        case NYTree::ENodeType::Uint64:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsUint64()->GetValue());
+        case NYTree::ENodeType::Double:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsDouble()->GetValue());
+        case NYTree::ENodeType::Boolean:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsBoolean()->GetValue());
+        case NYTree::ENodeType::Entity:
+            return AddDefaultScalarFieldEntryValue(message, fieldDescriptor);
+        default:
+            return TError(EErrorCode::Unimplemented,
+                "Cannot convert yson value of type %v to a proto field",
+                value->GetType());
     }
-
-    return TError();
 }
 
 std::pair<int, TError> FindAttributeDictionaryEntry(
@@ -779,5 +602,407 @@ TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <typename T>
+const EnumValueDescriptor* LookupEnumValue(
+    const FieldDescriptor* fieldDescriptor,
+    const T& value)
+{
+    const auto* enumDescriptor = fieldDescriptor->enum_type();
+    if constexpr (std::is_integral_v<T>) {
+        return enumDescriptor->FindValueByNumber(value);
+    } else { // TString
+        auto decoded = TryDecodeEnumValue(value);
+        for (int i = 0; i < enumDescriptor->value_count(); ++i) {
+            const auto* enumValueDescriptor = enumDescriptor->value(i);
+            if (enumValueDescriptor->options().HasExtension(NYT::NYson::NProto::enum_value_name) &&
+                enumValueDescriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name) == value)
+            {
+                return enumValueDescriptor;
+            }
+            if (decoded.has_value() && enumValueDescriptor->name() == decoded.value()) {
+                return enumValueDescriptor;
+            }
+            if (enumValueDescriptor->name() == value) {
+                return enumValueDescriptor;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+} // namespace
+
+#define BEGIN_SWITCH(snakeType) \
+    const auto* reflection = message->GetReflection(); \
+    switch (fieldDescriptor->cpp_type()) { \
+        static_assert(true)
+
+#define _CAST(snakeType) \
+    snakeType castValue; \
+    if (!TryIntegralCast(value, &castValue)) { \
+        return TError(EErrorCode::InvalidData, \
+            "Value %v does not fit in " #snakeType, \
+            value); \
+    } \
+    static_assert(true)
+
+#define _CAST_ENUM() \
+    const EnumValueDescriptor* enumValue = LookupEnumValue(fieldDescriptor, value); \
+    if (enumValue == nullptr) { \
+        return TError(EErrorCode::InvalidData, \
+            "Failed to convert %v to a %v enum", \
+            value, \
+            fieldDescriptor->enum_type()->full_name()); \
+    } \
+    static_assert(true)
+
+#define CASE_SCALAR_WITH_CAST(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST(snakeType); \
+                reflection->Set##camelType(message, fieldDescriptor, castValue); \
+            } \
+            break;
+
+#define CASE_SCALAR_DIRECT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->Set##camelType(message, fieldDescriptor, value); \
+            break
+
+#define CASE_SCALAR_ENUM() \
+        case FieldDescriptor::CPPTYPE_ENUM: \
+            { \
+                _CAST_ENUM(); \
+                reflection->SetEnum(message, fieldDescriptor, enumValue); \
+            } \
+            break
+
+#define CASE_SCALAR_DEFAULT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->Set##camelType( \
+                message, \
+                fieldDescriptor, \
+                fieldDescriptor->default_value_##snakeType());  \
+            break
+
+#define CASE_REPEATED_WITH_CAST(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST(snakeType); \
+                reflection->SetRepeated##camelType(message, fieldDescriptor, index, castValue); \
+            } \
+            break
+
+#define CASE_REPEATED_DIRECT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->SetRepeated##camelType(message, fieldDescriptor, index, value); \
+            break
+
+#define CASE_REPEATED_ENUM() \
+            case FieldDescriptor::CPPTYPE_ENUM: \
+            { \
+                _CAST_ENUM(); \
+                reflection->SetRepeatedEnum(message, fieldDescriptor, index, enumValue); \
+            } \
+            break
+
+#define CASE_REPEATED_DEFAULT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->SetRepeated##camelType( \
+                message, \
+                fieldDescriptor, \
+                index, \
+                fieldDescriptor->default_value_##snakeType());  \
+            break
+
+#define CASE_ADD_WITH_CAST(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST(snakeType); \
+                reflection->Add##camelType(message, fieldDescriptor, castValue); \
+            } \
+            break
+
+#define CASE_ADD_DIRECT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->Add##camelType(message, fieldDescriptor, value); \
+            break
+
+#define CASE_ADD_ENUM() \
+        case FieldDescriptor::CPPTYPE_ENUM: \
+        { \
+            _CAST_ENUM(); \
+            reflection->AddEnum(message, fieldDescriptor, enumValue); \
+        } \
+        break
+
+#define CASE_ADD_DEFAULT(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            reflection->Add##camelType( \
+                message, \
+                fieldDescriptor, \
+                fieldDescriptor->default_value_##snakeType());  \
+            break
+
+#define END_SWITCH(snakeType) \
+        default: \
+            return TError(EErrorCode::InvalidData, \
+                "Cannot convert " #snakeType " to a proto field of type %v", \
+                fieldDescriptor->type_name()); \
+    } \
+    return TError()
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    i64 value)
+{
+    BEGIN_SWITCH(i64);
+        CASE_SCALAR_WITH_CAST(i32, Int32, INT32);
+        CASE_SCALAR_DIRECT(i64, Int64, INT64);
+        CASE_SCALAR_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_SCALAR_WITH_CAST(ui64, UInt64, UINT64);
+        CASE_SCALAR_DIRECT(double, Double, DOUBLE);
+        CASE_SCALAR_DIRECT(float, Float, FLOAT);
+        CASE_SCALAR_ENUM();
+    END_SWITCH(i64);
+}
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    ui64 value)
+{
+    BEGIN_SWITCH(ui64);
+        CASE_SCALAR_WITH_CAST(i32, Int32, INT32);
+        CASE_SCALAR_WITH_CAST(i64, Int64, INT64);
+        CASE_SCALAR_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_SCALAR_DIRECT(ui64, UInt64, UINT64);
+        CASE_SCALAR_DIRECT(double, Double, DOUBLE);
+        CASE_SCALAR_DIRECT(float, Float, FLOAT);
+        CASE_SCALAR_ENUM();
+    END_SWITCH(ui64);
+}
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    double value)
+{
+    BEGIN_SWITCH(double);
+        CASE_SCALAR_DIRECT(double, Double, DOUBLE);
+        CASE_SCALAR_DIRECT(float, Float, FLOAT);
+    END_SWITCH(double);
+}
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    bool value)
+{
+    BEGIN_SWITCH(bool);
+        CASE_SCALAR_DIRECT(bool, Bool, BOOL);
+    END_SWITCH(bool);
+}
+
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_SCALAR_DIRECT(TString, String, STRING);
+        CASE_SCALAR_ENUM();
+    END_SWITCH(TString);
+}
+
+TError SetDefaultScalarFieldValue(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor)
+{
+    BEGIN_SWITCH(default);
+        CASE_SCALAR_DEFAULT(int32, Int32, INT32);
+        CASE_SCALAR_DEFAULT(int64, Int64, INT64);
+        CASE_SCALAR_DEFAULT(uint32, UInt32, UINT32);
+        CASE_SCALAR_DEFAULT(uint64, UInt64, UINT64);
+        CASE_SCALAR_DEFAULT(double, Double, DOUBLE);
+        CASE_SCALAR_DEFAULT(float, Float, FLOAT);
+        CASE_SCALAR_DEFAULT(bool, Bool, BOOL);
+        CASE_SCALAR_DEFAULT(string, String, STRING);
+        CASE_SCALAR_DEFAULT(enum, Enum, ENUM);
+    END_SWITCH(default);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    i64 value)
+{
+    BEGIN_SWITCH(i64);
+        CASE_REPEATED_WITH_CAST(i32, Int32, INT32);
+        CASE_REPEATED_DIRECT(i64, Int64, INT64);
+        CASE_REPEATED_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_REPEATED_WITH_CAST(ui64, UInt64, UINT64);
+        CASE_REPEATED_DIRECT(double, Double, DOUBLE);
+        CASE_REPEATED_DIRECT(float, Float, FLOAT);
+        CASE_REPEATED_ENUM();
+    END_SWITCH(i64);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    ui64 value)
+{
+    BEGIN_SWITCH(ui64);
+        CASE_REPEATED_WITH_CAST(i32, Int32, INT32);
+        CASE_REPEATED_WITH_CAST(i64, Int64, INT64);
+        CASE_REPEATED_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_REPEATED_DIRECT(ui64, UInt64, UINT64);
+        CASE_REPEATED_DIRECT(double, Double, DOUBLE);
+        CASE_REPEATED_DIRECT(float, Float, FLOAT);
+        CASE_REPEATED_ENUM();
+    END_SWITCH(ui64);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    double value)
+{
+    BEGIN_SWITCH(double);
+        CASE_REPEATED_DIRECT(double, Double, DOUBLE);
+        CASE_REPEATED_DIRECT(float, Float, FLOAT);
+    END_SWITCH(double);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    bool value)
+{
+    BEGIN_SWITCH(bool);
+        CASE_REPEATED_DIRECT(bool, Bool, BOOL);
+    END_SWITCH(bool);
+}
+
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_REPEATED_DIRECT(TString, String, STRING);
+        CASE_REPEATED_ENUM();
+    END_SWITCH(TString);
+}
+
+TError SetDefaultScalarRepeatedFieldEntryValue(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index)
+{
+    BEGIN_SWITCH(default);
+        CASE_REPEATED_DEFAULT(int32, Int32, INT32);
+        CASE_REPEATED_DEFAULT(int64, Int64, INT64);
+        CASE_REPEATED_DEFAULT(uint32, UInt32, UINT32);
+        CASE_REPEATED_DEFAULT(uint64, UInt64, UINT64);
+        CASE_REPEATED_DEFAULT(double, Double, DOUBLE);
+        CASE_REPEATED_DEFAULT(float, Float, FLOAT);
+        CASE_REPEATED_DEFAULT(bool, Bool, BOOL);
+        CASE_REPEATED_DEFAULT(string, String, STRING);
+        CASE_REPEATED_DEFAULT(enum, Enum, ENUM);
+    END_SWITCH(default);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    i64 value)
+{
+    BEGIN_SWITCH(i64);
+        CASE_ADD_WITH_CAST(i32, Int32, INT32);
+        CASE_ADD_DIRECT(i64, Int64, INT64);
+        CASE_ADD_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_ADD_WITH_CAST(ui64, UInt64, UINT64);
+        CASE_ADD_DIRECT(double, Double, DOUBLE);
+        CASE_ADD_DIRECT(float, Float, FLOAT);
+        CASE_ADD_ENUM();
+    END_SWITCH(i64);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    ui64 value)
+{
+    BEGIN_SWITCH(ui64);
+        CASE_ADD_WITH_CAST(i32, Int32, INT32);
+        CASE_ADD_WITH_CAST(i64, Int64, INT64);
+        CASE_ADD_WITH_CAST(ui32, UInt32, UINT32);
+        CASE_ADD_DIRECT(ui64, UInt64, UINT64);
+        CASE_ADD_DIRECT(double, Double, DOUBLE);
+        CASE_ADD_DIRECT(float, Float, FLOAT);
+        CASE_ADD_ENUM();
+    END_SWITCH(ui64);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    double value)
+{
+    BEGIN_SWITCH(double);
+        CASE_ADD_DIRECT(double, Double, DOUBLE);
+        CASE_ADD_DIRECT(float, Float, FLOAT);
+    END_SWITCH(double);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    bool value)
+{
+    BEGIN_SWITCH(bool);
+        CASE_ADD_DIRECT(bool, Bool, BOOL);
+    END_SWITCH(bool);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_ADD_DIRECT(TString, String, STRING);
+        CASE_ADD_ENUM();
+    END_SWITCH(TString);
+}
+
+TError AddDefaultScalarFieldEntryValue(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor)
+{
+    BEGIN_SWITCH(default);
+        CASE_ADD_DEFAULT(int32, Int32, INT32);
+        CASE_ADD_DEFAULT(int64, Int64, INT64);
+        CASE_ADD_DEFAULT(uint32, UInt32, UINT32);
+        CASE_ADD_DEFAULT(uint64, UInt64, UINT64);
+        CASE_ADD_DEFAULT(double, Double, DOUBLE);
+        CASE_ADD_DEFAULT(float, Float, FLOAT);
+        CASE_ADD_DEFAULT(bool, Bool, BOOL);
+        CASE_ADD_DEFAULT(string, String, STRING);
+        CASE_ADD_DEFAULT(enum, Enum, ENUM);
+    END_SWITCH(default);
+}
 
 } // namespace NYT::NOrm::NAttributes

@@ -1,15 +1,17 @@
 package integration
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
-	"go.ytsaurus.tech/yt/go/ytlog"
 	"go.ytsaurus.tech/yt/go/yttest"
 )
 
@@ -23,13 +25,13 @@ func NewSuite(t *testing.T) *Suite {
 
 type ClientTest struct {
 	Name    string
-	Test    func(t *testing.T, yc yt.Client)
+	Test    func(ctx context.Context, t *testing.T, yc yt.Client)
 	SkipRPC bool
 }
 
-func RunClientTests(t *testing.T, tests []ClientTest) {
-	httpClient := NewHTTPClient(t)
-	rpcClient := NewRPCClient(t)
+func (s *Suite) RunClientTests(t *testing.T, tests []ClientTest) {
+	httpClient := NewHTTPClient(t, s.L)
+	rpcClient := NewRPCClient(t, s.L)
 
 	for _, tc := range []struct {
 		name   string
@@ -44,7 +46,8 @@ func RunClientTests(t *testing.T, tests []ClientTest) {
 					t.Skip("rpc test is skipped")
 				} else {
 					t.Run(test.Name, func(t *testing.T) {
-						test.Test(t, tc.client)
+						ctx := ctxlog.WithFields(s.Ctx, log.String("subtest_name", t.Name()))
+						test.Test(ctx, t, tc.client)
 					})
 				}
 			}
@@ -52,19 +55,19 @@ func RunClientTests(t *testing.T, tests []ClientTest) {
 	}
 }
 
-func NewHTTPClient(t *testing.T) yt.Client {
+func NewHTTPClient(t *testing.T, l log.Structured) yt.Client {
 	t.Helper()
 
-	yc, err := ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
+	yc, err := ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
 	require.NoError(t, err)
 
 	return yc
 }
 
-func NewRPCClient(t *testing.T) yt.Client {
+func NewRPCClient(t *testing.T, l log.Structured) yt.Client {
 	t.Helper()
 
-	yc, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
+	yc, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
 	require.NoError(t, err)
 
 	return yc

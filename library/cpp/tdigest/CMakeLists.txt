@@ -34,6 +34,7 @@ target_link_libraries(library-cpp-tdigest PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  cpp-protobuf-runtime
   contrib-libs-protobuf
 )
 

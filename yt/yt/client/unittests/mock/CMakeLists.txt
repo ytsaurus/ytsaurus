@@ -30,5 +30,6 @@ target_link_libraries(client-unittests-mock PUBLIC
 
 target_sources(client-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/mock/client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/mock/table_reader.cpp
 )
 

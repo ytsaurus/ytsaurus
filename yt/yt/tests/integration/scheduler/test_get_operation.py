@@ -76,12 +76,6 @@ class TestGetOperation(YTEnvSetup):
         },
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_build_progress_period": 100,
-        }
-    }
-
     def setup_method(self, method):
         super(TestGetOperation, self).setup_method(method)
         sync_create_cells(1)

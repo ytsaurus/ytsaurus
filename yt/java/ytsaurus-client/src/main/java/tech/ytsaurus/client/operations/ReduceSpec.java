@@ -155,7 +155,12 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
-        SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+        SpecUtils.createOutputTables(
+                yt,
+                specPreparationContext.getTransactionalOptions().orElse(null),
+                getOutputTables(),
+                getOutputTableAttributes()
+        );
 
         var formatContext = FormatContext.builder()
                 .setInputTableCount(getInputTables().size())

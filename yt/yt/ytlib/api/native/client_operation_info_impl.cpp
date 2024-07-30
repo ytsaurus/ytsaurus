@@ -96,13 +96,17 @@ static const THashSet<TString> ArchiveOnlyAttributes = {
 bool TClient::DoesOperationsArchiveExist()
 {
     // NB: we suppose that archive should exist and work correctly if this map node is presented.
-    return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
+    TNodeExistsOptions nodeExistsOptions;
+    nodeExistsOptions.ReadFrom = EMasterChannelKind::LocalCache;
+    return WaitFor(NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
         .ValueOrThrow();
 }
 
 std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
-    auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+    TGetNodeOptions getNodeOptions;
+    getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
+    auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
@@ -1316,14 +1320,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     TListOperationsCountingFilter countingFilter(options);
 
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
-    auto archiveVersion = TryGetOperationsArchiveVersion();
-    if (options.IncludeArchive && archiveVersion) {
-        idToOperation = DoListOperationsFromArchive(
-            deadline,
-            countingFilter,
-            options,
-            *archiveVersion,
-            Logger);
+    if (options.IncludeArchive) {
+        // NB(omgronny): Call TryGetOperationsArchiveVersion only if IncludeArchive option is true.
+        if (auto archiveVersion = TryGetOperationsArchiveVersion()) {
+            idToOperation = DoListOperationsFromArchive(
+                deadline,
+                countingFilter,
+                options,
+                *archiveVersion,
+                Logger);
+        }
     }
 
     DoListOperationsFromCypress(

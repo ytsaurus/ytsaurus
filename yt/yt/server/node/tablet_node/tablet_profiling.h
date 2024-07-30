@@ -117,6 +117,7 @@ struct TPullRowsCounters
     NProfiling::TCounter RowCount;
     NProfiling::TCounter WastedRowCount;
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NProfiling::TCounter MemoryUsage;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

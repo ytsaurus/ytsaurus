@@ -49,6 +49,9 @@ message TReqReturnBoomerang
     required NYT.NProto.TGuid boomerang_mutation_id = 3;
     required string boomerang_mutation_type = 4;
     required bytes boomerang_mutation_data = 5;
+
+    optional string user = 6;
+    optional string user_tag = 7;
 }
 
 message TReqRemoveStuckBoomerangWaves

@@ -2116,6 +2116,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "sampling": {"sampling_rate": 0.5, "io_block_size": 10 ** 5},
                 "job_count": 10,
                 "combine_chunks": True,
+                "force_transform": True,
                 "enable_job_splitting": False,
             },
         )
@@ -3657,6 +3658,19 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         merge(mode="ordered", in_=["//tmp/in"], out="//tmp/out")
 
         assert read_table("//tmp/out") == [{"value": i} for i in range(m, n)]
+
+    @authors("gritukan")
+    def test_merge_native_and_external_into_external(self):
+        create("table", "//tmp/in1", attributes={"external_cell_tag": 10})
+        write_table("//tmp/in1", [{"a": 1}])
+
+        create("table", "//tmp/in2", attributes={"external_cell_tag": 11})
+        write_table("//tmp/in2", [{"a": 2}])
+
+        create("table", "//tmp/out", attributes={"external_cell_tag": 12})
+        merge(mode="ordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
+
+        assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
 
 
 class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):

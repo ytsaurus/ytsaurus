@@ -57,6 +57,8 @@ func NewLogger(t testing.TB) (logger *zaplog.Logger, stop func()) {
 		),
 		zap.AddCallerSkip(1))
 
+	l = l.With(zap.String("test_name", t.Name()))
+
 	return &zaplog.Logger{L: l}, func() {
 		writer.Stop()
 	}

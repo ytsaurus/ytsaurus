@@ -1,11 +1,18 @@
 import os
-from enum import StrEnum, auto
+import typing
+from enum import auto, StrEnum
+
+import ymake
 
 import _dart_fields as df
-import ymake
 import ytest
+from _common import (
+    rootrel_arc_src,
+    sort_uniq,
+    strip_roots,
+    to_yesno,
+)
 from _dart_fields import create_dart_record
-from _common import rootrel_arc_src, to_yesno, strip_roots, sort_uniq
 
 
 # 1 is 60 files per chunk for TIMEOUT(60) - default timeout for SIZE(SMALL)
@@ -20,29 +27,30 @@ class TsTestType(StrEnum):
     PLAYWRIGHT = auto()
     ESLINT = auto()
     TSC_TYPECHECK = auto()
+    TS_STYLELINT = auto()
 
 
 TS_TEST_FIELDS_BASE = (
-    df.BinaryPath.value4,
-    df.BuildFolderPath.value,
-    df.ForkMode.value2,
+    df.BinaryPath.normalized,
+    df.BuildFolderPath.normalized,
+    df.ForkMode.test_fork_mode,
     df.NodejsRootVarName.value,
-    df.ScriptRelPath.value2,
-    df.SourceFolderPath.value,
-    df.SplitFactor.value2,
-    df.TestData.value7,
-    df.TestedProjectName.value7,
+    df.ScriptRelPath.first_flat,
+    df.SourceFolderPath.normalized,
+    df.SplitFactor.from_unit,
+    df.TestData.from_unit,
+    df.TestedProjectName.filename_without_ext,
     df.TestEnv.value,
     df.TestName.value,
     df.TestRecipes.value,
-    df.TestTimeout.value3,
+    df.TestTimeout.from_unit,
 )
 
 TS_TEST_SPECIFIC_FIELDS = {
     TsTestType.JEST: (
-        df.Size.value2,
-        df.Tag.value2,
-        df.Requirements.value4,
+        df.Size.from_unit,
+        df.Tag.from_unit,
+        df.Requirements.from_unit,
         df.ConfigPath.value,
         df.TsTestDataDirs.value,
         df.TsTestDataDirsRename.value,
@@ -50,8 +58,8 @@ TS_TEST_SPECIFIC_FIELDS = {
         df.TsTestForPath.value,
     ),
     TsTestType.HERMIONE: (
-        df.Tag.value3,
-        df.Requirements.value5,
+        df.Tag.from_unit_fat_external_no_retries,
+        df.Requirements.from_unit_with_full_network,
         df.ConfigPath.value,
         df.TsTestDataDirs.value,
         df.TsTestDataDirsRename.value,
@@ -59,9 +67,9 @@ TS_TEST_SPECIFIC_FIELDS = {
         df.TsTestForPath.value,
     ),
     TsTestType.PLAYWRIGHT: (
-        df.Size.value2,
-        df.Tag.value2,
-        df.Requirements.value4,
+        df.Size.from_unit,
+        df.Tag.from_unit,
+        df.Requirements.from_unit,
         df.ConfigPath.value,
         df.TsTestDataDirs.value,
         df.TsTestDataDirsRename.value,
@@ -69,17 +77,22 @@ TS_TEST_SPECIFIC_FIELDS = {
         df.TsTestForPath.value,
     ),
     TsTestType.ESLINT: (
-        df.Size.value2,
-        df.TestCwd.value3,
-        df.Tag.value2,
-        df.Requirements.value4,
+        df.Size.from_unit,
+        df.TestCwd.moddir,
+        df.Tag.from_unit,
+        df.Requirements.from_unit,
         df.EslintConfigPath.value,
     ),
     TsTestType.TSC_TYPECHECK: (
-        df.Size.value2,
-        df.TestCwd.value3,
-        df.Tag.value2,
-        df.Requirements.value4,
+        df.Size.from_unit,
+        df.TestCwd.moddir,
+        df.Tag.from_unit,
+        df.Requirements.from_unit,
+    ),
+    TsTestType.TS_STYLELINT: (
+        df.TsStylelintConfig.value,
+        df.TestFiles.stylesheets,
+        df.NodeModulesBundleFilename.value,
     ),
 }
 
@@ -174,7 +187,7 @@ def _create_erm_json(unit):
     return ErmJsonLite.load(path)
 
 
-def _get_pm_type(unit) -> str:
+def _get_pm_type(unit) -> typing.Literal["pnpm", "npm"]:
     resolved = unit.get("PM_TYPE")
     if not resolved:
         raise Exception("PM_TYPE is not set yet. Macro _SET_PACKAGE_MANAGER() should be called before.")
@@ -193,6 +206,7 @@ def _create_pm(unit):
     sources_path = _get_source_path(unit)
     module_path = unit.get("TS_TEST_FOR_PATH") if unit.get("TS_TEST_FOR") else unit.get("MODDIR")
 
+    # noinspection PyPep8Naming
     PackageManager = get_package_manager_type(_get_pm_type(unit))
 
     return PackageManager(
@@ -359,11 +373,14 @@ def on_ts_configure(unit):
 
         _filter_inputs_by_rules_from_tsconfig(unit, tsconfig)
 
-    _setup_eslint(unit)
-    _setup_tsc_typecheck(unit)
-
+    # Code navigation
     if unit.get("TS_YNDEXING") == "yes":
         unit.on_do_ts_yndexing()
+
+    # Style tests
+    _setup_eslint(unit)
+    _setup_tsc_typecheck(unit)
+    _setup_stylelint(unit)
 
 
 @_with_report_configure_error
@@ -434,7 +451,7 @@ def _setup_eslint(unit):
     if unit.get("_NO_LINT_VALUE") == "none":
         return
 
-    test_files = df.TestFiles.value8(unit, (), {})[df.TestFiles.KEY]
+    test_files = df.TestFiles.ts_lint_srcs(unit, (), {})[df.TestFiles.KEY]
     if not test_files:
         return
 
@@ -447,7 +464,7 @@ def _setup_eslint(unit):
     from lib.nots.package_manager import constants
 
     peers = _create_pm(unit).get_peers_from_package_json()
-    deps = df.CustomDependencies.value5(unit, (peers,), {})[df.CustomDependencies.KEY].split()
+    deps = df.CustomDependencies.nots_with_recipies(unit, (peers,), {})[df.CustomDependencies.KEY].split()
 
     if deps:
         joined_deps = "\n".join(deps)
@@ -465,7 +482,7 @@ def _setup_eslint(unit):
     dart_record[df.TestFiles.KEY] = test_files
     dart_record[df.NodeModulesBundleFilename.KEY] = constants.NODE_MODULES_WORKSPACE_BUNDLE_FILENAME
 
-    extra_deps = df.CustomDependencies.value3(unit, (), {})[df.CustomDependencies.KEY].split()
+    extra_deps = df.CustomDependencies.test_depends_only(unit, (), {})[df.CustomDependencies.KEY].split()
     dart_record[df.CustomDependencies.KEY] = " ".join(sort_uniq(deps + extra_deps))
     dart_record[df.LintFileProcessingTime.KEY] = str(ESLINT_FILE_PROCESSING_TIME_DEFAULT)
 
@@ -475,6 +492,7 @@ def _setup_eslint(unit):
     unit.set(["TEST_RECIPES_VALUE", user_recipes])
 
 
+@_with_report_configure_error
 def _setup_tsc_typecheck(unit):
     if not _is_tests_enabled(unit):
         return
@@ -482,7 +500,7 @@ def _setup_tsc_typecheck(unit):
     if unit.get("_TS_TYPECHECK_VALUE") == "none":
         return
 
-    test_files = df.TestFiles.value7(unit, (), {})[df.TestFiles.KEY]
+    test_files = df.TestFiles.ts_input_files(unit, (), {})[df.TestFiles.KEY]
     if not test_files:
         return
 
@@ -508,7 +526,7 @@ def _setup_tsc_typecheck(unit):
     from lib.nots.package_manager import constants
 
     peers = _create_pm(unit).get_peers_from_package_json()
-    deps = df.CustomDependencies.value5(unit, (peers,), {})[df.CustomDependencies.KEY].split()
+    deps = df.CustomDependencies.nots_with_recipies(unit, (peers,), {})[df.CustomDependencies.KEY].split()
 
     if deps:
         joined_deps = "\n".join(deps)
@@ -526,7 +544,7 @@ def _setup_tsc_typecheck(unit):
     dart_record[df.TestFiles.KEY] = test_files
     dart_record[df.NodeModulesBundleFilename.KEY] = constants.NODE_MODULES_WORKSPACE_BUNDLE_FILENAME
 
-    extra_deps = df.CustomDependencies.value3(unit, (), {})[df.CustomDependencies.KEY].split()
+    extra_deps = df.CustomDependencies.test_depends_only(unit, (), {})[df.CustomDependencies.KEY].split()
     dart_record[df.CustomDependencies.KEY] = " ".join(sort_uniq(deps + extra_deps))
     dart_record[df.TsConfigPath.KEY] = tsconfig_path
 
@@ -534,6 +552,51 @@ def _setup_tsc_typecheck(unit):
     if data:
         unit.set_property(["DART_DATA", data])
     unit.set(["TEST_RECIPES_VALUE", user_recipes])
+
+
+@_with_report_configure_error
+def _setup_stylelint(unit):
+    if not _is_tests_enabled(unit):
+        return
+
+    if unit.get("_TS_STYLELINT_VALUE") == "no":
+        return
+
+    test_files = df.TestFiles.stylesheets(unit, (), {})[df.TestFiles.KEY]
+    if not test_files:
+        return
+
+    from lib.nots.package_manager import constants
+
+    recipes_value = unit.get("TEST_RECIPES_VALUE")
+    unit.on_setup_install_node_modules_recipe()
+    unit.on_setup_extract_output_tars_recipe([unit.get("MODDIR")])
+
+    test_type = TsTestType.TS_STYLELINT
+
+    peers = _create_pm(unit).get_peers_from_package_json()
+
+    deps = df.CustomDependencies.nots_with_recipies(unit, (peers,), {})[df.CustomDependencies.KEY].split()
+    if deps:
+        joined_deps = "\n".join(deps)
+        logger.info(f"{test_type} deps: \n{joined_deps}")
+        unit.ondepends(deps)
+
+    flat_args = (test_type,)
+    spec_args = dict(nm_bundle=constants.NODE_MODULES_WORKSPACE_BUNDLE_FILENAME)
+
+    dart_record = create_dart_record(
+        TS_TEST_FIELDS_BASE + TS_TEST_SPECIFIC_FIELDS[test_type], unit, flat_args, spec_args
+    )
+
+    extra_deps = df.CustomDependencies.test_depends_only(unit, (), {})[df.CustomDependencies.KEY].split()
+    dart_record[df.CustomDependencies.KEY] = " ".join(sort_uniq(deps + extra_deps))
+
+    data = ytest.dump_test(unit, dart_record)
+    if data:
+        unit.set_property(["DART_DATA", data])
+
+    unit.set(["TEST_RECIPES_VALUE", recipes_value])
 
 
 def _resolve_module_files(unit, mod_dir, file_paths):
@@ -716,7 +779,7 @@ def on_ts_test_for_configure(unit, test_runner, default_config, node_modules_fil
         config_path = os.path.join(for_mod_path, default_config)
         unit.set(["TS_TEST_CONFIG_PATH", config_path])
 
-    test_files = df.TestFiles.value6(unit, (), {})[df.TestFiles.KEY]
+    test_files = df.TestFiles.ts_test_srcs(unit, (), {})[df.TestFiles.KEY]
     if not test_files:
         ymake.report_configure_error("No tests found")
         return
@@ -724,7 +787,7 @@ def on_ts_test_for_configure(unit, test_runner, default_config, node_modules_fil
     from lib.nots.package_manager import constants
 
     peers = _create_pm(unit).get_peers_from_package_json()
-    deps = df.CustomDependencies.value5(unit, (peers,), {})[df.CustomDependencies.KEY].split()
+    deps = df.CustomDependencies.nots_with_recipies(unit, (peers,), {})[df.CustomDependencies.KEY].split()
 
     if deps:
         joined_deps = "\n".join(deps)
@@ -743,7 +806,7 @@ def on_ts_test_for_configure(unit, test_runner, default_config, node_modules_fil
     dart_record[df.TestFiles.KEY] = test_files
     dart_record[df.NodeModulesBundleFilename.KEY] = constants.NODE_MODULES_WORKSPACE_BUNDLE_FILENAME
 
-    extra_deps = df.CustomDependencies.value3(unit, (), {})[df.CustomDependencies.KEY].split()
+    extra_deps = df.CustomDependencies.test_depends_only(unit, (), {})[df.CustomDependencies.KEY].split()
     dart_record[df.CustomDependencies.KEY] = " ".join(sort_uniq(deps + extra_deps))
     if test_runner == TsTestType.HERMIONE:
         dart_record[df.Size.KEY] = "LARGE"

@@ -577,7 +577,7 @@ relational-op-expr
         {
             $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
         }
-    | unary-expr[expr] KwBetween const-tuple[lower] KwAnd const-tuple[upper]
+    | additive-op-expr[expr] KwBetween const-tuple[lower] KwAnd const-tuple[upper]
         {
             TExpressionList lowerExpr;
             for (const auto& value : $lower) {
@@ -593,13 +593,18 @@ relational-op-expr
                 MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::GreaterOrEqual, $expr, lowerExpr),
                 MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::LessOrEqual, $expr, upperExpr));
         }
-    | unary-expr[expr] KwBetween LeftParenthesis const-range-list[ranges] RightParenthesis
+    | additive-op-expr[expr] KwBetween LeftParenthesis const-range-list[ranges] RightParenthesis
         {
             $$ = MakeExpression<TBetweenExpression>(head, @$, $expr, $ranges);
         }
-    | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
+    | additive-op-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
+        }
+    | additive-op-expr[expr] KwNot KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
+        {
+            $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not,
+                MakeExpression<TInExpression>(head, @$, $expr, $args));
         }
     | bitor-op-expr
         { $$ = $1; }

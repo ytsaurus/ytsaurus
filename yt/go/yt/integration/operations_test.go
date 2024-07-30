@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce"
@@ -24,7 +26,8 @@ func TestOperation(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -82,7 +85,8 @@ func TestOperationWithStderr(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -132,7 +136,8 @@ func TestListOperations(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -184,7 +189,8 @@ func TestListAllOperations(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*4)
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*4)
 	defer cancel()
 
 	opAnnotation := guid.New().String()
@@ -226,7 +232,8 @@ func TestListAllJobs(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
 	defer cancel()
 
 	s := spec.Vanilla().AddVanillaTask("job", 10)

@@ -218,6 +218,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/replication_log_batch_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/session_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/tablet_replication_log_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/background_activity_orchid.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/backing_store_cleaner.cpp

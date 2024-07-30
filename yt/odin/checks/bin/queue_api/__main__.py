@@ -60,7 +60,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
         try:
             client.create("queue_consumer", consumer_path)
         except Exception as ex:
-            logger.warning("Failed to create queue_consumer using queue_consumer type handler: ", ex)
+            logger.warning("Failed to create queue_consumer using queue_consumer type handler: %s", ex)
 
             client.create("table", consumer_path, attributes={
                 "dynamic": True,

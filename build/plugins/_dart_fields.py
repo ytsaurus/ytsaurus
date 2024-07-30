@@ -5,13 +5,14 @@ import operator
 import os
 import re
 import shlex
-import six
 import sys
 from functools import reduce
 
+import six
+import ymake
+
 import _common
 import lib.test_const as consts
-import ymake
 
 
 CANON_RESULT_FILE_NAME = 'result.json'
@@ -275,27 +276,21 @@ class BinaryPath:
     KEY = 'BINARY-PATH'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def normalized(cls, unit, flat_args, spec_args):
         unit_path = _common.get_norm_unit_path(unit)
-        return {cls.KEY: "{}/{}".format(unit_path, unit.filename())}
+        return {cls.KEY: os.path.join(unit_path, unit.filename())}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def stripped(cls, unit, flat_args, spec_args):
         unit_path = unit.path()
         binary_path = os.path.join(unit_path, unit.filename())
         if binary_path:
             return {cls.KEY: _common.strip_roots(binary_path)}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def stripped_without_pkg_ext(cls, unit, flat_args, spec_args):
         value = _common.strip_roots(os.path.join(unit.path(), unit.filename()).replace(".pkg", ""))
         return {cls.KEY: value}
-
-    # TODO replace with `value`
-    @classmethod
-    def value4(cls, unit, flat_args, spec_args):
-        test_dir = _common.get_norm_unit_path(unit)
-        return {cls.KEY: os.path.join(test_dir, unit.filename())}
 
 
 class Blob:
@@ -310,11 +305,11 @@ class BuildFolderPath:
     KEY = 'BUILD-FOLDER-PATH'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def normalized(cls, unit, flat_args, spec_args):
         return {cls.KEY: _common.get_norm_unit_path(unit)}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def stripped(cls, unit, flat_args, spec_args):
         return {cls.KEY: _common.strip_roots(unit.path())}
 
 
@@ -350,21 +345,21 @@ class CustomDependencies:
     KEY = 'CUSTOM-DEPENDENCIES'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def all_standard(cls, unit, flat_args, spec_args):
         custom_deps = ' '.join(spec_args.get('DEPENDS', []) + get_values_list(unit, 'TEST_DEPENDS_VALUE'))
         return {cls.KEY: custom_deps}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def depends_only(cls, unit, flat_args, spec_args):
         return {cls.KEY: " ".join(spec_args.get('DEPENDS', []))}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def test_depends_only(cls, unit, flat_args, spec_args):
         custom_deps = get_values_list(unit, 'TEST_DEPENDS_VALUE')
         return {cls.KEY: " ".join(custom_deps)}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def depends_with_linter(cls, unit, flat_args, spec_args):
         deps = []
         _, linter = flat_args
         deps.append(os.path.dirname(linter))
@@ -372,7 +367,7 @@ class CustomDependencies:
         return {cls.KEY: " ".join(deps)}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def nots_with_recipies(cls, unit, flat_args, spec_args):
         deps = flat_args[0]
         recipes_lines = format_recipes(unit.get("TEST_RECIPES_VALUE")).strip().splitlines()
         if recipes_lines:
@@ -395,7 +390,7 @@ class ForkMode:
     KEY = 'FORK-MODE'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_and_unit(cls, unit, flat_args, spec_args):
         fork_mode = []
         if 'FORK_SUBTESTS' in spec_args:
             fork_mode.append('subtests')
@@ -406,7 +401,7 @@ class ForkMode:
         return {cls.KEY: fork_mode}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def test_fork_mode(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.get('TEST_FORK_MODE')}
 
 
@@ -574,6 +569,10 @@ class NodejsRootVarName:
 class NodeModulesBundleFilename:
     KEY = 'NODE-MODULES-BUNDLE-FILENAME'
 
+    @classmethod
+    def value(cls, unit, flat_args, spec_args):
+        return {cls.KEY: spec_args.get('nm_bundle')}
+
 
 class PythonPaths:
     KEY = 'PYTHON-PATHS'
@@ -588,12 +587,12 @@ class Requirements:
     KEY = 'REQUIREMENTS'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         test_requirements = spec_args.get('REQUIREMENTS', []) + get_values_list(unit, 'TEST_REQUIREMENTS_VALUE')
         return {cls.KEY: serialize_list(test_requirements)}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def with_maybe_fuzzing(cls, unit, flat_args, spec_args):
         test_requirements = serialize_list(
             spec_args.get('REQUIREMENTS', []) + get_values_list(unit, 'TEST_REQUIREMENTS_VALUE')
         )
@@ -604,17 +603,17 @@ class Requirements:
             return {cls.KEY: test_requirements}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def from_macro_args(cls, unit, flat_args, spec_args):
         value = " ".join(spec_args.get('REQUIREMENTS', []))
         return {cls.KEY: value}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         requirements = get_values_list(unit, 'TEST_REQUIREMENTS_VALUE')
         return {cls.KEY: serialize_list(requirements)}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def from_unit_with_full_network(cls, unit, flat_args, spec_args):
         requirements = sorted(set(["network:full"] + get_values_list(unit, "TEST_REQUIREMENTS_VALUE")))
         return {cls.KEY: serialize_list(requirements)}
 
@@ -632,19 +631,19 @@ class ScriptRelPath:
     KEY = 'SCRIPT-REL-PATH'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def second_flat(cls, unit, flat_args, spec_args):
         return {cls.KEY: flat_args[1]}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def first_flat(cls, unit, flat_args, spec_args):
         return {cls.KEY: flat_args[0]}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def pytest(cls, unit, flat_args, spec_args):
         return {cls.KEY: 'py3test.bin' if (unit.get("PYTHON3") == 'yes') else "pytest.bin"}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def junit(cls, unit, flat_args, spec_args):
         return {cls.KEY: 'junit5.test' if unit.get('MODULE_TYPE') == 'JUNIT5' else 'junit.test'}
 
 
@@ -652,11 +651,11 @@ class Size:
     KEY = 'SIZE'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         return {cls.KEY: ''.join(spec_args.get('SIZE', [])) or unit.get('TEST_SIZE_NAME')}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.get('TEST_SIZE_NAME')}
 
 
@@ -672,11 +671,11 @@ class SourceFolderPath:
     KEY = 'SOURCE-FOLDER-PATH'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def normalized(cls, unit, flat_args, spec_args):
         return {cls.KEY: _common.get_norm_unit_path(unit)}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def test_dir(cls, unit, flat_args, spec_args):
         test_dir = _common.get_norm_unit_path(unit)
         test_files = flat_args[1:]
         if test_files:
@@ -688,12 +687,12 @@ class SplitFactor:
     KEY = 'SPLIT-FACTOR'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         value = ''.join(spec_args.get('SPLIT_FACTOR', [])) or unit.get('TEST_SPLIT_FACTOR')
         return {cls.KEY: value}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.get('TEST_SPLIT_FACTOR')}
 
 
@@ -701,17 +700,17 @@ class Tag:
     KEY = 'TAG'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         tags = serialize_list(sorted(_get_test_tags(unit, spec_args)))
         return {cls.KEY: tags}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         tags = serialize_list(get_values_list(unit, "TEST_TAGS_VALUE"))
         return {cls.KEY: tags}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def from_unit_fat_external_no_retries(cls, unit, flat_args, spec_args):
         tags = sorted(set(["ya:fat", "ya:external", "ya:noretries"] + get_values_list(unit, "TEST_TAGS_VALUE")))
         return {cls.KEY: serialize_list(tags)}
 
@@ -756,19 +755,19 @@ class TestCwd:
     KEY = 'TEST-CWD'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         test_cwd = unit.get('TEST_CWD_VALUE')  # TODO: validate test_cwd value
         return {cls.KEY: test_cwd}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def keywords_replaced(cls, unit, flat_args, spec_args):
         test_cwd = unit.get('TEST_CWD_VALUE') or ''
         if test_cwd:
             test_cwd = test_cwd.replace("$TEST_CWD_VALUE", "").replace('"MACRO_CALLS_DELIM"', "").strip()
         return {cls.KEY: test_cwd}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def moddir(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.get("MODDIR")}
 
 
@@ -776,7 +775,7 @@ class TestData:
     KEY = 'TEST-DATA'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         test_data = sorted(
             _common.filter_out_by_keyword(
                 spec_args.get('DATA', []) + get_norm_paths(unit, 'TEST_DATA_VALUE'), 'AUTOUPDATED'
@@ -785,7 +784,7 @@ class TestData:
         return {cls.KEY: serialize_list(test_data)}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit_with_canonical(cls, unit, flat_args, spec_args):
         test_data = sorted(
             _common.filter_out_by_keyword(
                 spec_args.get('DATA', []) + get_norm_paths(unit, 'TEST_DATA_VALUE'), 'AUTOUPDATED'
@@ -798,7 +797,7 @@ class TestData:
         return {cls.KEY: value}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def ktlint(cls, unit, flat_args, spec_args):
         if unit.get('_USE_KTLINT_OLD') == 'yes':
             extra_test_data = serialize_list([KTLINT_OLD_EDITOR_CONFIG])
         else:
@@ -811,13 +810,13 @@ class TestData:
         return {cls.KEY: extra_test_data}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def java_style(cls, unit, flat_args, spec_args):
         ymake_java_test = unit.get('YMAKE_JAVA_TEST') == 'yes'
         if ymake_java_test:
             return {cls.KEY: java_srcdirs_to_data(unit, 'ALL_SRCDIRS')}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def from_unit_with_canonical(cls, unit, flat_args, spec_args):
         test_data = get_norm_paths(unit, 'TEST_DATA_VALUE')
         data, _ = get_canonical_test_resources(unit)
         test_data += data
@@ -825,7 +824,7 @@ class TestData:
         return {cls.KEY: value}
 
     @classmethod
-    def value6(cls, unit, flat_args, spec_args):
+    def java_test(cls, unit, flat_args, spec_args):
         test_data = get_norm_paths(unit, 'TEST_DATA_VALUE')
         test_data.append('arcadia/build/scripts/run_junit.py')
         test_data.append('arcadia/build/scripts/unpacking_jtest_runner.py')
@@ -845,12 +844,28 @@ class TestData:
         return {cls.KEY: value}
 
     @classmethod
-    def value7(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         return {cls.KEY: serialize_list(get_values_list(unit, "TEST_DATA_VALUE"))}
 
 
 class TsConfigPath:
     KEY = 'TS_CONFIG_PATH'
+
+
+class TsStylelintConfig:
+    KEY = 'TS_STYLELINT_CONFIG'
+
+    @classmethod
+    def value(cls, unit, flat_args, spec_args):
+        test_config = unit.get('_TS_STYLELINT_CONFIG')
+        abs_test_config = unit.resolve(unit.resolve_arc_path(test_config))
+        if not abs_test_config:
+            ymake.report_configure_error(
+                f"Config for stylelint not found: {test_config}.\n"
+                "Set the correct value in `TS_STYLELINT(<config_filename>)` macro in the `ya.make` file."
+            )
+
+        return {cls.KEY: test_config}
 
 
 class TsTestDataDirs:
@@ -890,16 +905,16 @@ class TestedProjectName:
     KEY = 'TESTED-PROJECT-NAME'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def unit_name(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.name()}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def normalized_basename(cls, unit, flat_args, spec_args):
         test_dir = _common.get_norm_unit_path(unit)
         return {cls.KEY: os.path.basename(test_dir)}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def test_dir(cls, unit, flat_args, spec_args):
         test_dir = _common.get_norm_unit_path(unit)
         test_files = flat_args[1:]
         if test_files:
@@ -907,21 +922,21 @@ class TestedProjectName:
         return {cls.KEY: os.path.basename(test_dir)}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def path_filename_basename(cls, unit, flat_args, spec_args):
         binary_path = os.path.join(unit.path(), unit.filename())
         return {cls.KEY: os.path.basename(binary_path)}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def normalized(cls, unit, flat_args, spec_args):
         return {cls.KEY: _common.get_norm_unit_path(unit)}
 
     @classmethod
-    def value6(cls, unit, flat_args, spec_args):
+    def path_filename_basename_without_pkg_ext(cls, unit, flat_args, spec_args):
         value = os.path.basename(os.path.join(unit.path(), unit.filename()).replace(".pkg", ""))
         return {cls.KEY: value}
 
     @classmethod
-    def value7(cls, unit, flat_args, spec_args):
+    def filename_without_ext(cls, unit, flat_args, spec_args):
         return {cls.KEY: os.path.splitext(unit.filename())[0]}
 
 
@@ -943,12 +958,12 @@ class TestFiles:
         return {cls.KEY: value, cls.KEY2: value}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def flat_args_wo_first(cls, unit, flat_args, spec_args):
         value = serialize_list(flat_args[1:])
         return {cls.KEY: value, cls.KEY2: value}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def java_style(cls, unit, flat_args, spec_args):
         test_files = flat_args[1:]
         check_level = flat_args[1]
         allowed_levels = {
@@ -964,31 +979,38 @@ class TestFiles:
         return {cls.KEY: value, cls.KEY2: value}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
+    def normalized(cls, unit, flat_args, spec_args):
         value = serialize_list([_common.get_norm_unit_path(unit, unit.filename())])
         return {cls.KEY: value, cls.KEY2: value}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def test_srcs(cls, unit, flat_args, spec_args):
         test_files = get_values_list(unit, 'TEST_SRCS_VALUE')
         return {cls.KEY: serialize_list(test_files)}
 
     @classmethod
-    def value6(cls, unit, flat_args, spec_args):
+    def ts_test_srcs(cls, unit, flat_args, spec_args):
         test_files = get_values_list(unit, "_TS_TEST_SRCS_VALUE")
         test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
         return {cls.KEY: serialize_list(test_files)}
 
     @classmethod
-    def value7(cls, unit, flat_args, spec_args):
+    def ts_input_files(cls, unit, flat_args, spec_args):
         typecheck_files = get_values_list(unit, "TS_INPUT_FILES")
         test_files = [_common.resolve_common_const(f) for f in typecheck_files]
         return {cls.KEY: serialize_list(test_files)}
 
     @classmethod
-    def value8(cls, unit, flat_args, spec_args):
+    def ts_lint_srcs(cls, unit, flat_args, spec_args):
         test_files = get_values_list(unit, "_TS_LINT_SRCS_VALUE")
         test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
+        return {cls.KEY: serialize_list(test_files)}
+
+    @classmethod
+    def stylesheets(cls, unit, flat_args, spec_args):
+        test_files = get_values_list(unit, "_TS_STYLELINT_FILES")
+        test_files = _resolve_module_files(unit, unit.get("MODDIR"), test_files)
+
         return {cls.KEY: serialize_list(test_files)}
 
 
@@ -1039,34 +1061,32 @@ class TestName:
         return {cls.KEY: flat_args[0]}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def first_flat_with_bench(cls, unit, flat_args, spec_args):
         return {cls.KEY: flat_args[0] + '_bench'}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def first_flat(cls, unit, flat_args, spec_args):
         return {cls.KEY: flat_args[0].lower()}
 
     @classmethod
-    def value4(cls, unit, flat_args, spec_args):
-        unit_path = unit.path()
-        binary_path = os.path.join(unit_path, unit.filename())
-        test_name = os.path.basename(binary_path)
+    def filename_without_ext(cls, unit, flat_args, spec_args):
+        test_name = os.path.basename(os.path.join(unit.path(), unit.filename()))
         return {cls.KEY: os.path.splitext(test_name)[0]}
 
     @classmethod
-    def value5(cls, unit, flat_args, spec_args):
+    def normalized_joined_dir_basename(cls, unit, flat_args, spec_args):
         path = _common.get_norm_unit_path(unit)
         value = '-'.join([os.path.basename(os.path.dirname(path)), os.path.basename(path)])
         return {cls.KEY: value}
 
     @classmethod
-    def value6(cls, unit, flat_args, spec_args):
+    def normalized_joined_dir_basename_deps(cls, unit, flat_args, spec_args):
         path = _common.get_norm_unit_path(unit)
         value = '-'.join([os.path.basename(os.path.dirname(path)), os.path.basename(path), 'dependencies']).strip('-')
         return {cls.KEY: value}
 
     @classmethod
-    def value7(cls, unit, flat_args, spec_args):
+    def filename_without_pkg_ext(cls, unit, flat_args, spec_args):
         test_name = os.path.basename(os.path.join(unit.path(), unit.filename()).replace(".pkg", ""))
         return {cls.KEY: os.path.splitext(test_name)[0]}
 
@@ -1101,12 +1121,12 @@ class TestTimeout:
     KEY = 'TEST-TIMEOUT'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         test_timeout = ''.join(spec_args.get('TIMEOUT', [])) or unit.get('TEST_TIMEOUT') or ''
         return {cls.KEY: test_timeout}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_unit_with_default(cls, unit, flat_args, spec_args):
         timeout = list(filter(None, [unit.get(["TEST_TIMEOUT"])]))
         if timeout:
             timeout = timeout[0]
@@ -1115,7 +1135,7 @@ class TestTimeout:
         return {cls.KEY: timeout}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         return {cls.KEY: unit.get('TEST_TIMEOUT')}
 
 
@@ -1191,17 +1211,17 @@ class YtSpec:
     KEY = 'YT-SPEC'
 
     @classmethod
-    def value(cls, unit, flat_args, spec_args):
+    def from_macro_args_and_unit(cls, unit, flat_args, spec_args):
         value = serialize_list(spec_args.get('YT_SPEC', []) + get_unit_list_variable(unit, 'TEST_YT_SPEC_VALUE'))
         return {cls.KEY: value}
 
     @classmethod
-    def value2(cls, unit, flat_args, spec_args):
+    def from_unit(cls, unit, flat_args, spec_args):
         yt_spec = get_values_list(unit, 'TEST_YT_SPEC_VALUE')
         if yt_spec:
             return {cls.KEY: serialize_list(yt_spec)}
 
     @classmethod
-    def value3(cls, unit, flat_args, spec_args):
+    def from_unit_list_var(cls, unit, flat_args, spec_args):
         yt_spec_values = get_unit_list_variable(unit, 'TEST_YT_SPEC_VALUE')
         return {cls.KEY: serialize_list(yt_spec_values)}

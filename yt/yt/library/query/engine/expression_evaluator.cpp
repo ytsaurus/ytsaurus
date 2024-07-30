@@ -46,20 +46,6 @@ TExpressionEvaluatorPtr TExpressionEvaluator::Create(
     return New<TExpressionEvaluator>(std::move(image), std::move(variables));
 }
 
-TValue TExpressionEvaluator::Evaluate(TRow row, const TRowBufferPtr& rowBuffer) const
-{
-    TValue value;
-    Instance_.Run(
-        Variables_.GetLiteralValues(),
-        Variables_.GetOpaqueData(),
-        Variables_.GetOpaqueDataSizes(),
-        &value,
-        row.Elements(),
-        rowBuffer);
-
-    return value;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedExpressionEvaluator

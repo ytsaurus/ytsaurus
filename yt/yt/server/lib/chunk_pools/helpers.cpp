@@ -134,11 +134,10 @@ void ValidateLogger(const NLogging::TLogger& logger)
     YT_VERIFY(logger);
     const auto& tag = logger.GetTag();
     YT_VERIFY(tag.find("Name:") != TString::npos);
-    // OperationId for YT controlelers, QueryId for CHYT.
+    // OperationId for YT controllers, QueryId for CHYT.
     YT_VERIFY(tag.find("OperationId:") != TString::npos || tag.find("QueryId:") != TString::npos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-

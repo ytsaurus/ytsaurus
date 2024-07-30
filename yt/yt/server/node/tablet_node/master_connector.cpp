@@ -143,6 +143,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         HeartbeatReporter_->Reconfigure(newNodeConfig->TabletNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+
+        YT_LOG_DEBUG("Dynamic config changed");
     }
 
     void AddTabletInfoToHeartbeatRequest(TCellTag cellTag, TTabletNodeTrackerServiceProxy::TReqHeartbeatPtr heartbeatRequest) const

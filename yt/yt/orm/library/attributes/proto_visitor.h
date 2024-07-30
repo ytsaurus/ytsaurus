@@ -63,8 +63,14 @@ protected:
 
     using TToken = std::variant<int, TStringBuf>;
 
+    // Pushes the token onto the current path.
+    void Push(TToken token);
+
     // Advances the tokenizer and pushes the token onto the current path.
     virtual void AdvanceOver(TToken token);
+
+    // Throws if we don't support asterisks. Advances the tokenizer.
+    virtual void AdvanceOverAsterisk();
 
     class TCheckpoint
     {
@@ -80,13 +86,12 @@ protected:
     };
 
     // Called when visiting a path that can branch (asterisks and "after path" traversals).
-    // Checkpoint destructor resets the tokenizer and current path.
+    // Pushes the token onto the current path.
+    // Checkpoint destructor restores the tokenizer and current path.
     virtual TCheckpoint CheckpointBranchedTraversal(TToken token);
 
     // Throws if the token type is wrong.
     void Expect(NYPath::ETokenType type) const;
-    // Throws if we don't support asterisks.
-    virtual void CheckAsterisk() const;
     // Returns true if the tokenizer has completed the path.
     bool PathComplete() const;
     // Prepares working set for a new traversal.
@@ -193,29 +198,29 @@ public:
     using TMessageReturn = typename TTraits::TMessageReturn;
 
     template <typename TVisitParam>
-    void Visit(TVisitParam target, NYPath::TYPathBuf path);
+    void Visit(TVisitParam&& target, NYPath::TYPathBuf path);
 
 protected:
     /// Outer containers section.
     // The parameter is a message pointer or reference.
     template <typename TVisitParam>
-    void VisitScalar(TVisitParam messageScalar, EVisitReason reason);
+    void VisitScalar(TVisitParam&& messageScalar, EVisitReason reason);
 
     // The parameter is a vector of message pointers or references.
     template <typename TVisitParam>
-    void VisitVector(TVisitParam messageVector, EVisitReason reason);
+    void VisitVector(TVisitParam&& messageVector, EVisitReason reason);
 
     // Called for asterisks and visits after the path.
     template <typename TVisitParam>
-    void VisitWholeVector(TVisitParam messageVector, EVisitReason reason);
+    void VisitWholeVector(TVisitParam&& messageVector, EVisitReason reason);
 
     // The parameter is a map of message pointers or references.
     template <typename TVisitParam>
-    void VisitMap(TVisitParam messageMap, EVisitReason reason);
+    void VisitMap(TVisitParam&& messageMap, EVisitReason reason);
 
     // Called for asterisks and visits after the path.
     template <typename TVisitParam>
-    void VisitWholeMap(TVisitParam messageMap, EVisitReason reason);
+    void VisitWholeMap(TVisitParam&& messageMap, EVisitReason reason);
 
     /// Message section.
     // Generic message dispatcher. Called for the initial message of the visit and every recursion.

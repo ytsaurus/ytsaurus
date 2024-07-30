@@ -71,7 +71,7 @@ TEST_F(TApiTestBase, TestCreateInvalidNode)
 using TLookupFilterTestParam = std::tuple<
     std::vector<TString>,
     TString,
-    TColumnFilter::TIndexes,
+    std::vector<int>,
     TString,
     TString,
     TString>;
@@ -282,7 +282,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         keyString);
 
     TLookupRowsOptions options;
-    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
+    options.ColumnFilter = TColumnFilter(columnFilter);
 
     auto rowset = WaitFor(Client_->LookupRows(
         Table_,
@@ -336,7 +336,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         keyString);
 
     TVersionedLookupRowsOptions options;
-    options.ColumnFilter = TColumnFilter(std::move(columnFilter));
+    options.ColumnFilter = TColumnFilter(columnFilter);
 
     auto rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,

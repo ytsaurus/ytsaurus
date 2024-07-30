@@ -126,16 +126,20 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeIntListArray(const std::vector<std::vector<int32_t>>& data)
+std::string MakeIntListArray(const std::vector<std::optional<std::vector<int32_t>>>& data)
 {
     auto* pool = arrow::default_memory_pool();
     auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
     auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
-        Verify(listBuilder->Append());
-        for (const auto& value : list) {
-            Verify(valueBuilder->Append(value));
+        if (list) {
+            Verify(listBuilder->Append());
+            for (const auto& value : *list) {
+                Verify(valueBuilder->Append(value));
+            }
+        } else {
+            Verify(listBuilder->AppendNull());
         }
     }
 
@@ -392,15 +396,17 @@ TEST(TArrowParserTest, ListOfIntegers)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    auto data = MakeIntListArray({{1, 2, 3}, {4, 5}});
+    auto data = MakeIntListArray({std::vector{1, 2, 3}, std::nullopt, std::vector{4, 5}});
     parser->Read(data);
     parser->Finish();
 
     auto firstNode = GetComposite(collectedRows.GetRowValue(0, "list"));
     ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[1;2;3;]");
 
-    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[4;5;]");
+    ASSERT_EQ(EValueType::Null, collectedRows.GetRowValue(1, "list").Type);
+
+    auto thirdNode = GetComposite(collectedRows.GetRowValue(2, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(thirdNode), "[4;5;]");
 }
 
 TEST(TArrowParserTest, ListOfStrings)

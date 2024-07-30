@@ -13,3 +13,4 @@
 # changes in this file.
 
 add_subdirectory(interop)
+add_subdirectory(runtime)

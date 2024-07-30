@@ -836,9 +836,7 @@ private:
     void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
-        if (IsRegularChunkId(SessionId_.ChunkId)) {
-            YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
-        }
+        YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         const auto& nodeDescriptor = nodeDirectory->GetDescriptor(target);
@@ -852,10 +850,30 @@ private:
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
-            BIND([weak = MakeWeak(node)] (const TError& error) {
-                auto locked = weak.Lock();
-                return locked && locked->IsAlive() &&
-                    error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
+            BIND([weakNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
+                auto node = weakNode.Lock();
+                auto this_ = weakThis.Lock();
+
+                if (!node || !this_ || !node->IsAlive()) {
+                    return false;
+                }
+
+                auto innerError = error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive);
+
+                if (!innerError) {
+                    return false;
+                }
+
+                // TODO(don-dron): Come up with a more accurate solution.
+                auto address = innerError->Attributes().Find<TString>("address");
+                auto needRetry = address->Empty() || std::count_if(
+                    this_->Nodes_.begin(),
+                    this_->Nodes_.end(),
+                    [&] (const auto& node) {
+                        return node->GetDefaultAddress() == address && !node->IsAlive();
+                    }) == 0;
+
+                return needRetry;
             }));
 
         RegisterCandidateNode(channel);

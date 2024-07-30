@@ -583,7 +583,7 @@ void TQueueAgent::Profile()
             taggedCounters.PartitionCount += snapshot->PartitionCount;
 
             const auto& autoTrimConfig = snapshot->Row.AutoTrimConfig;
-            if (autoTrimConfig && autoTrimConfig->Enable) {
+            if (autoTrimConfig.Enable) {
                 ++taggedCounters.TrimmedQueueCount;
             }
 

@@ -4,20 +4,25 @@ RECURSE(
 )
 
 IF (NOT OPENSOURCE)
+    IF (NOT USE_VANILLA_PROTOC)
+        RECURSE(
+            blob/tools
+            blob/tools/file-yt
+            blob/tools/file-yt/tests
+            blob
+            blob/protos
+            skynet_table
+            lambda
+        )
+    ENDIF()
+
     RECURSE(
-        blob
-        blob/protos
-        blob/tools
-        blob/tools/file-yt
-        blob/tools/file-yt/tests
         blob_table
         get_gpu_cluster
         cypress_path
         lazy_sort
-        lambda
         llvm_profile
         path_template
-        skynet_table
         table_schema
     )
 ENDIF()

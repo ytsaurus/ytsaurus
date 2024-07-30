@@ -722,6 +722,26 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
             /*cellSizes*/ std::vector<i64>{100, 0}),
+        std::tuple( // INTENTIONAL CALL FOR FULLRECOMPUTE
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=25; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=25; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=25; partition_count=1}};"
+            "{tablet_index=4; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=25; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                    "{cell_index=2; memory_size=0; node_address=stranger}];"
+            "nodes=[{node_address=home; memory_used=100};"
+                    "{node_address=stranger; memory_used=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=3; cell_index=2};"
+                                "{tablet_index=4; cell_index=2}]",
+            /*moveActionLimit*/ 2,
+            /*distribution*/ std::vector<int>{2, 2},
+            /*cellSizes*/ std::vector<i64>{50, 50}),
         std::tuple( // DISABLE BALANCING HARD
             "{config={groups={default={parameterized={metric=\"1\"}}}};"
             "tables=[{in_memory_mode=uncompressed;"

@@ -1801,6 +1801,16 @@ private:
         ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
             .ValueOrThrow();
 
+        if (ChangelogStore_->IsReadOnly()) {
+            auto cellManager = ElectionManager_->GetCellManager();
+            auto selfPeerId = cellManager->GetSelfPeerId();
+            auto voting = cellManager->GetPeerConfig(selfPeerId)->Voting;
+
+            if (voting) {
+                THROW_ERROR_EXCEPTION("Changelog store is in read-only for a voting peer");
+            }
+        }
+
         auto optionalElectionPriority = ChangelogStore_->GetElectionPriority();
         if (optionalElectionPriority) {
             YT_LOG_INFO("Changelog election priority is available (ElectionPriority: %v)",

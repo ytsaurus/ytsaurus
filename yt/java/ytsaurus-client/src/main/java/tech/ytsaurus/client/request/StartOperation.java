@@ -65,6 +65,9 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         sb.append("OperationType: ").append(type).append("; ");
+        if (transactionalOptions != null) {
+            transactionalOptions.writeArgumentsLogString(sb);
+        }
         super.writeArgumentsLogString(sb);
     }
 

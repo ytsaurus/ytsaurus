@@ -55,7 +55,6 @@ target_link_libraries(unittester-formats PUBLIC
   yt-client-formats
   yt-library-formats
   yt-library-named_value
-  yt-yt-ytlib
   libs-apache-arrow
   library-cpp-resource
   contrib-libs-protobuf
@@ -80,7 +79,6 @@ target_proto_messages(unittester-formats PRIVATE
 target_sources(unittester-formats PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.cpp

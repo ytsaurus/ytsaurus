@@ -354,6 +354,9 @@ items:
        - name: Query Tracker
          when: audience == "public"
          href: user-guide/query-tracker.md
+       - name: Jupyter Notebooks
+         when: audience == "public"
+         href: user-guide/jupyt.md
    - name: API and reference
      when: audience == "public"
      items:

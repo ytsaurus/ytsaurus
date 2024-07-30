@@ -303,6 +303,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/memory_reserve_factor_x10000", "Internal statistics", ""},
         {"user_job/woodpecker", "Not used", ""},
 
+        {"user_job/finalization_time", "Finalization time of the process after closing stderr and stdout pipes.", "ms"},
+
         {"user_job/tmpfs_volumes/*/size", "Current (or final) amount of tmpfs used by user job in this volume", "bytes"},
         {"user_job/tmpfs_volumes/*/max_size", "Maximum amount of tmpfs used by user job in this volume during execution", "bytes"},
 

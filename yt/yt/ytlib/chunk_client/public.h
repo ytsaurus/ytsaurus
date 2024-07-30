@@ -138,6 +138,7 @@ DEFINE_BIT_ENUM(EChunkFeatures,
     ((SlimBlockFormat)          (0x0008))
     ((UnversionedHunks)         (0x0010))
     ((CompressedHunkValues)     (0x0020))
+    ((NoColumnMetaInChunkMeta)  (0x0040))
 );
 
 DEFINE_ENUM(EChunkClientFeature,

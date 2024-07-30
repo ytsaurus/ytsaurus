@@ -2,21 +2,22 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/client/queue_client/config.h>
 
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/check_schema_compatibility.h>
-
-#include <yt/yt/client/queue_client/config.h>
+#include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -45,12 +46,222 @@ namespace {
 template <class T>
 std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
 {
-    std::optional<TString> stringValue;
     if (optionalValue) {
-        stringValue = FormatEnum(*optionalValue);
+        return FormatEnum(*optionalValue);
     }
-    return stringValue;
+    return std::nullopt;
 }
+
+template <class T>
+std::optional<T> MapStringToEnum(const std::optional<TString>& optionalString)
+{
+    if (optionalString) {
+        return ParseEnum<T>(*optionalString);
+    }
+    return std::nullopt;
+}
+
+template <typename T>
+std::optional<TYsonString> ToOptionalYsonString(const std::optional<T>& value)
+{
+    if (value) {
+        return ConvertToYsonString(*value);
+    }
+    return std::nullopt;
+}
+
+template <typename T>
+std::optional<T> FromOptionalYsonString(const std::optional<TYsonString>& value)
+{
+    if (value) {
+        return ConvertTo<T>(*value);
+    }
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
+{
+    return TQueueTableRow{
+        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .RowRevision = record.RowRevision,
+        .Revision = record.Revision,
+        .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
+        .Dynamic = record.Dynamic,
+        .Sorted = record.Sorted,
+        .AutoTrimConfig = FromOptionalYsonString<TQueueAutoTrimConfig>(record.AutoTrimConfig).value_or(TQueueAutoTrimConfig()),
+        .StaticExportConfig = FromOptionalYsonString<THashMap<TString, TQueueStaticExportConfig>>(record.StaticExportConfig),
+        .QueueAgentStage = record.QueueAgentStage,
+        .ObjectId = record.ObjectId,
+        .QueueAgentBanned = record.QueueAgentBanned,
+        .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
+    };
+}
+
+NRecords::TQueueObjectKey RecordKeyFromRow(const TQueueTableRow& row)
+{
+    return NRecords::TQueueObjectKey{
+        .Cluster = row.Ref.Cluster,
+        .Path = row.Ref.Path,
+    };
+}
+
+NRecords::TQueueObject RecordFromRow(const TQueueTableRow& row)
+{
+    return NRecords::TQueueObject{
+        .Key = RecordKeyFromRow(row),
+        .RowRevision = row.RowRevision,
+        .Revision = row.Revision,
+        .ObjectType = MapEnumToString(row.ObjectType),
+        .Dynamic = row.Dynamic,
+        .Sorted = row.Sorted,
+        .AutoTrimConfig = ConvertToYsonString(row.AutoTrimConfig),
+        .StaticExportConfig = ToOptionalYsonString(row.StaticExportConfig),
+        .QueueAgentStage = row.QueueAgentStage,
+        .ObjectId = row.ObjectId,
+        .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
+        .QueueAgentBanned = row.QueueAgentBanned,
+    };
+}
+
+TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
+{
+    std::optional<TTableSchema> schema;
+    if (record.Schema) {
+        auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(*record.Schema);
+        YT_VERIFY(workaroundVector.size() == 1);
+        schema = workaroundVector.back();
+    }
+
+    return TConsumerTableRow{
+        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .RowRevision = record.RowRevision,
+        .Revision = record.Revision,
+        .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
+        .TreatAsQueueConsumer = record.TreatAsQueueConsumer,
+        .Schema = std::move(schema),
+        .QueueAgentStage = record.QueueAgentStage,
+        .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
+    };
+}
+
+NRecords::TConsumerObjectKey RecordKeyFromRow(const TConsumerTableRow& row)
+{
+    return NRecords::TConsumerObjectKey{
+        .Cluster = row.Ref.Cluster,
+        .Path = row.Ref.Path,
+    };
+}
+NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
+{
+    std::optional<TYsonString> schema;
+    if (row.Schema) {
+        // NB(max42): Enclosing into a list is a workaround for storing YSON with top-level attributes.
+        schema = ConvertToYsonString(std::array{*row.Schema});
+    }
+
+    return NRecords::TConsumerObject{
+        .Key = RecordKeyFromRow(row),
+        .RowRevision = row.RowRevision,
+        .Revision = row.Revision,
+        .ObjectType = MapEnumToString(row.ObjectType),
+        .TreatAsQueueConsumer = row.TreatAsQueueConsumer,
+        .Schema = schema,
+        .QueueAgentStage = row.QueueAgentStage,
+        .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
+    };
+}
+
+TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistration& record)
+{
+    const auto& key = record.Key;
+    return TConsumerRegistrationTableRow{
+        .Queue = TCrossClusterReference{key.QueueCluster, key.QueuePath},
+        .Consumer = TCrossClusterReference{key.ConsumerCluster, key.ConsumerPath},
+        .Vital = record.Vital.value_or(false),
+        .Partitions = FromOptionalYsonString<std::vector<int>>(record.Partitions),
+    };
+}
+
+NRecords::TConsumerRegistrationKey RecordKeyFromRow(const TConsumerRegistrationTableRow& row)
+{
+    return NRecords::TConsumerRegistrationKey{
+        .QueueCluster = row.Queue.Cluster,
+        .QueuePath = row.Queue.Path,
+        .ConsumerCluster = row.Consumer.Cluster,
+        .ConsumerPath = row.Consumer.Path,
+    };
+}
+
+NRecords::TConsumerRegistration RecordFromRow(const TConsumerRegistrationTableRow& row)
+{
+    return NRecords::TConsumerRegistration{
+        .Key = RecordKeyFromRow(row),
+        .Vital = row.Vital,
+        .Partitions = ToOptionalYsonString(row.Partitions),
+    };
+}
+
+TQueueAgentObjectMappingTableRow RowFromRecord(const NRecords::TQueueAgentObjectMapping& record)
+{
+    return TQueueAgentObjectMappingTableRow{
+        .Object = TCrossClusterReference::FromString(record.Key.Object),
+        .QueueAgentHost = record.QueueAgentHost,
+    };
+}
+
+NRecords::TQueueAgentObjectMappingKey RecordKeyFromRow(const TQueueAgentObjectMappingTableRow& row)
+{
+    return NRecords::TQueueAgentObjectMappingKey{
+        .Object = ToString(row.Object),
+    };
+}
+
+NRecords::TQueueAgentObjectMapping RecordFromRow(const TQueueAgentObjectMappingTableRow& row)
+{
+    return NRecords::TQueueAgentObjectMapping{
+        .Key = RecordKeyFromRow(row),
+        .QueueAgentHost = row.QueueAgentHost,
+    };
+}
+
+TReplicatedTableMappingTableRow RowFromRecord(const NRecords::TReplicatedTableMapping& record)
+{
+    return TReplicatedTableMappingTableRow{
+        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .Revision = record.Revision,
+        .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
+        .Meta = FromOptionalYsonString<TGenericReplicatedTableMetaPtr>(record.Meta).value_or(nullptr),
+        .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
+    };
+}
+
+NRecords::TReplicatedTableMappingKey RecordKeyFromRow(const TReplicatedTableMappingTableRow& row)
+{
+    return NRecords::TReplicatedTableMappingKey{
+        .Cluster = row.Ref.Cluster,
+        .Path = row.Ref.Path,
+    };
+}
+
+NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTableRow& row)
+{
+    std::optional<TYsonString> meta;
+    if (row.Meta) {
+        meta = ConvertToYsonString(row.Meta);
+    }
+
+    return NRecords::TReplicatedTableMapping{
+        .Key = RecordKeyFromRow(row),
+        .Revision = row.Revision,
+        .ObjectType = MapEnumToString(row.ObjectType),
+        .Meta = std::move(meta),
+        .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Returns remote client from client directory for the given cluster.
 //! Falls back to the given local client if cluster is null or the corresponding client is not found.
@@ -74,16 +285,16 @@ IClientPtr GetRemoteClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRow>
-TTableBase<TRow>::TTableBase(TYPath path, NApi::IClientPtr client)
+template <typename TRow, typename TRecordDescriptor>
+TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, NApi::IClientPtr client)
     : Path_(std::move(path))
     , Client_(std::move(client))
 { }
 
-template <class TRow>
-TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringBuf where) const
+template <typename TRow, typename TRecordDescriptor>
+TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBuf where) const
 {
-    TString query = Format("%v from [%v] where %v", columns, Path_, where);
+    TString query = Format("* from [%v] where %v", Path_, where);
 
     YT_LOG_DEBUG(
         "Invoking select query (Query: %v)",
@@ -91,187 +302,54 @@ TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringB
 
     return Client_->SelectRows(query)
         .Apply(BIND([&] (const TSelectRowsResult& result) {
-            const auto& rowset = result.Rowset;
-            return TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable());
+            std::vector<TRecord> records = ToRecords<TRecord>(result.Rowset);
+
+            std::vector<TRow> rows;
+            rows.reserve(records.size());
+            for (const auto& record : records) {
+                rows.push_back(RowFromRecord(record));
+            }
+
+            return rows;
         }));
 }
 
-template <class TRow>
-TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> rows) const
+template <typename TRow, typename TRecordDescriptor>
+TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Insert(TRange<TRow> rows) const
 {
+    std::vector<TRecord> records;
+    records.reserve(rows.size());
+    for (const auto& row : rows) {
+        records.push_back(RecordFromRow(row));
+    }
+
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
-        .Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
-            auto rowset = TRow::InsertRowRange(rows);
-            transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetRows(), {.RequireSyncReplica = false});
+        .Apply(BIND([records = std::move(records), path = Path_] (const ITransactionPtr& transaction) {
+            auto recordsRange = FromRecords(TRange(records));
+
+            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false});
             return transaction->Commit();
         }));
 }
 
-template <class TRow>
-TFuture<TTransactionCommitResult> TTableBase<TRow>::Delete(std::vector<TRow> keys) const
+template <typename TRow, typename TRecordDescriptor>
+TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TRange<TRow> keys) const
 {
+    std::vector<TRecordKey> recordKeys;
+    recordKeys.reserve(keys.size());
+    for (const auto& key : keys) {
+        recordKeys.push_back(RecordKeyFromRow(key));
+    }
+
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
-        .Apply(BIND([keys = std::move(keys), path = Path_] (const ITransactionPtr& transaction) {
-            auto rowset = TRow::DeleteRowRange(keys);
-            transaction->DeleteRows(path, rowset->GetNameTable(), rowset->GetRows(), {.RequireSyncReplica = false});
+        .Apply(BIND([recordKeys = std::move(recordKeys), path = Path_] (const ITransactionPtr& transaction) {
+            auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
+            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false});
             return transaction->Commit();
         }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TQueueTableDescriptor
-{
-    static constexpr TStringBuf Name = "queues";
-    static NTableClient::TTableSchemaPtr Schema;
-};
-
-TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
-    TColumnSchema("cluster", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("path", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("row_revision", EValueType::Uint64),
-    TColumnSchema("revision", EValueType::Uint64),
-    TColumnSchema("object_type", EValueType::String),
-    TColumnSchema("dynamic", EValueType::Boolean),
-    TColumnSchema("sorted", EValueType::Boolean),
-    TColumnSchema("auto_trim_config", EValueType::Any),
-    TColumnSchema("static_export_config", EValueType::Any),
-    TColumnSchema("queue_agent_stage", EValueType::String),
-    TColumnSchema("object_id", EValueType::String),
-    TColumnSchema("synchronization_error", EValueType::Any),
-    TColumnSchema("queue_agent_banned", EValueType::Boolean),
-});
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
-    TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable)
-{
-    std::vector<TQueueTableRow> typedRows;
-    typedRows.reserve(rows.size());
-
-    auto clusterId = nameTable->GetIdOrThrow("cluster");
-    auto pathId = nameTable->GetIdOrThrow("path");
-
-    auto objectTypeId = nameTable->FindId("object_type");
-    auto rowRevisionId = nameTable->FindId("row_revision");
-    auto revisionId = nameTable->FindId("revision");
-    auto dynamicId = nameTable->FindId("dynamic");
-    auto sortedId = nameTable->FindId("sorted");
-    auto autoTrimConfigId = nameTable->FindId("auto_trim_config");
-    auto staticExportConfigId = nameTable->FindId("static_export_config");
-    auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
-    auto objectIdFieldId = nameTable->FindId("object_id");
-    auto queueAgentBannedId = nameTable->FindId("queue_agent_banned");
-    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
-
-    for (const auto& row : rows) {
-        auto& typedRow = typedRows.emplace_back();
-        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
-
-        auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
-            if (id && row[*id].Type != EValueType::Null) {
-                return row[*id];
-            }
-            return std::nullopt;
-        };
-
-        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
-            if (auto value = findValue(id)) {
-                valueToSet = FromUnversionedValue<T>(*value);
-            }
-        };
-
-        setSimpleOptional(rowRevisionId, typedRow.RowRevision);
-        setSimpleOptional(revisionId, typedRow.Revision);
-
-        if (auto type = findValue(objectTypeId)) {
-            // TODO(max42): possible exception here is not handled well.
-            typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
-        }
-
-        setSimpleOptional(dynamicId, typedRow.Dynamic);
-        setSimpleOptional(sortedId, typedRow.Sorted);
-
-        if (auto autoTrimConfig = findValue(autoTrimConfigId)) {
-            typedRow.AutoTrimConfig = ConvertTo<TQueueAutoTrimConfig>(TYsonStringBuf(autoTrimConfig->AsStringBuf()));
-        } else {
-            typedRow.AutoTrimConfig = TQueueAutoTrimConfig();
-        }
-
-        if (auto queueAgentBanned = findValue(queueAgentBannedId)) {
-            typedRow.QueueAgentBanned = queueAgentBanned->Data.Boolean;
-        }
-
-        // TODO(achulkov2): Use setSimpleOptional?
-        if (auto staticExportConfig = findValue(staticExportConfigId)) {
-            typedRow.StaticExportConfig = ConvertTo<THashMap<TString, TQueueStaticExportConfig>>(TYsonStringBuf(staticExportConfig->AsStringBuf()));
-        }
-
-        setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
-        setSimpleOptional(objectIdFieldId, typedRow.ObjectId);
-        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
-    }
-
-    return typedRows;
-}
-
-IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows)
-{
-    auto nameTable = TNameTable::FromSchema(*TQueueTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : rows) {
-        auto rowBuffer = New<TRowBuffer>();
-        TUnversionedRowBuilder rowBuilder;
-
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
-        rowBuilder.AddValue(ToUnversionedValue(row.RowRevision, rowBuffer, nameTable->GetIdOrThrow("row_revision")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
-        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Dynamic, rowBuffer, nameTable->GetIdOrThrow("dynamic")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Sorted, rowBuffer, nameTable->GetIdOrThrow("sorted")));
-
-        std::optional<TYsonString> autoTrimConfigYson;
-        if (row.AutoTrimConfig) {
-            autoTrimConfigYson = ConvertToYsonString(row.AutoTrimConfig);
-        }
-        rowBuilder.AddValue(ToUnversionedValue(autoTrimConfigYson, rowBuffer, nameTable->GetIdOrThrow("auto_trim_config")));
-
-        std::optional<TYsonString> staticExportConfigYson;
-        if (row.StaticExportConfig) {
-            staticExportConfigYson = ConvertToYsonString(row.StaticExportConfig);
-        }
-        rowBuilder.AddValue(ToUnversionedValue(staticExportConfigYson, rowBuffer, nameTable->GetIdOrThrow("static_export_config")));
-
-        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
-        rowBuilder.AddValue(ToUnversionedValue(row.ObjectId, rowBuffer, nameTable->GetIdOrThrow("object_id")));
-        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
-        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentBanned, rowBuffer, nameTable->GetIdOrThrow("queue_agent_banned")));
-
-        rowsBuilder.AddRow(rowBuilder.GetRow());
-    }
-
-    return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow> keys)
-{
-    auto nameTable = TNameTable::FromSchema(*TQueueTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : keys) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Cluster, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Path, nameTable->GetIdOrThrow("path")));
-
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
-    }
-
-    return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
-}
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
@@ -305,7 +383,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
-        .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config"),
+        .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config").value_or(TQueueAutoTrimConfig()),
         .StaticExportConfig = cypressAttributes->Find<THashMap<TString, TQueueStaticExportConfig>>("static_export_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
@@ -335,142 +413,13 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TTableBase<TQueueTableRow>;
+template class TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>;
 
 TQueueTable::TQueueTable(TYPath root, IClientPtr client)
-    : TTableBase<TQueueTableRow>(root + "/" + TQueueTableDescriptor::Name, std::move(client))
+    : TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>(root + "/" + NRecords::TQueueObjectDescriptor::Name, std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TConsumerTableDescriptor
-{
-    static constexpr TStringBuf Name = "consumers";
-    static NTableClient::TTableSchemaPtr Schema;
-};
-
-TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
-    TColumnSchema("cluster", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("path", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("row_revision", EValueType::Uint64),
-    TColumnSchema("revision", EValueType::Uint64),
-    TColumnSchema("object_type", EValueType::String),
-    TColumnSchema("treat_as_queue_consumer", EValueType::Boolean),
-    TColumnSchema("schema", EValueType::Any),
-    TColumnSchema("queue_agent_stage", EValueType::String),
-    TColumnSchema("synchronization_error", EValueType::Any),
-});
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
-    TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable)
-{
-    // TODO(max42): eliminate copy-paste?
-    std::vector<TConsumerTableRow> typedRows;
-    typedRows.reserve(rows.size());
-
-    auto clusterId = nameTable->GetIdOrThrow("cluster");
-    auto pathId = nameTable->GetIdOrThrow("path");
-
-    auto rowRevisionId = nameTable->FindId("row_revision");
-    auto revisionId = nameTable->FindId("revision");
-    auto objectTypeId = nameTable->FindId("object_type");
-    auto treatAsQueueConsumerId = nameTable->FindId("treat_as_queue_consumer");
-    auto schemaId = nameTable->FindId("schema");
-    auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
-    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
-
-    for (const auto& row : rows) {
-        auto& typedRow = typedRows.emplace_back();
-        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
-
-        auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
-            for (const auto& value : row) {
-                if (id && value.Type != EValueType::Null && value.Id == *id) {
-                    return value;
-                }
-            }
-            return std::nullopt;
-        };
-
-        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
-            if (auto value = findValue(id)) {
-                valueToSet = FromUnversionedValue<T>(*value);
-            }
-        };
-
-        setSimpleOptional(rowRevisionId, typedRow.RowRevision);
-        setSimpleOptional(revisionId, typedRow.Revision);
-
-        if (auto type = findValue(objectTypeId)) {
-            // TODO(max42): possible exception here is not handled well.
-            typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
-        }
-
-        setSimpleOptional(treatAsQueueConsumerId, typedRow.TreatAsQueueConsumer);
-
-        if (auto schemaValue = findValue(schemaId)) {
-            auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(TYsonStringBuf(schemaValue->AsStringBuf()));
-            YT_VERIFY(workaroundVector.size() == 1);
-            typedRow.Schema = workaroundVector.back();
-        }
-
-        setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
-        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
-    }
-
-    return typedRows;
-}
-
-IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow> rows)
-{
-    auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : rows) {
-        auto rowBuffer = New<TRowBuffer>();
-        TUnversionedRowBuilder rowBuilder;
-
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
-        rowBuilder.AddValue(ToUnversionedValue(row.RowRevision, rowBuffer, nameTable->GetIdOrThrow("row_revision")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
-        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
-        rowBuilder.AddValue(ToUnversionedValue(row.TreatAsQueueConsumer, rowBuffer, nameTable->GetIdOrThrow("treat_as_queue_consumer")));
-
-        std::optional<TYsonString> schemaYson;
-        if (row.Schema) {
-            // Enclosing into a list is a workaround for storing YSON with top-level attributes.
-            schemaYson = ConvertToYsonString(std::vector{row.Schema});
-        }
-
-        rowBuilder.AddValue(ToUnversionedValue(schemaYson, rowBuffer, nameTable->GetIdOrThrow("schema")));
-        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
-        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
-
-        rowsBuilder.AddRow(rowBuilder.GetRow());
-    }
-
-    return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTableRow> keys)
-{
-    auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : keys) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Cluster, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Path, nameTable->GetIdOrThrow("path")));
-
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
-    }
-
-    return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());
-}
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
@@ -521,77 +470,13 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TTableBase<TConsumerTableRow>;
+template class TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>;
 
 TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
-    : TTableBase<TConsumerTableRow>(root + "/" + TConsumerTableDescriptor::Name, std::move(client))
+    : TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>(root + "/" + NRecords::TConsumerObjectDescriptor::Name, std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TQueueAgentObjectMappingTableDescriptor
-{
-    static constexpr TStringBuf Name = "queue_agent_object_mapping";
-    static NTableClient::TTableSchemaPtr Schema;
-};
-
-TTableSchemaPtr TQueueAgentObjectMappingTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
-    TColumnSchema("object", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("host", EValueType::String),
-});
-
-std::vector<TQueueAgentObjectMappingTableRow> TQueueAgentObjectMappingTableRow::ParseRowRange(
-    TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable)
-{
-    // TODO(max42): eliminate copy-paste?
-    std::vector<TQueueAgentObjectMappingTableRow> typedRows;
-    typedRows.reserve(rows.size());
-
-    auto objectId = nameTable->GetIdOrThrow("object");
-    auto hostId = nameTable->GetIdOrThrow("host");
-
-    for (const auto& row : rows) {
-        auto& typedRow = typedRows.emplace_back();
-        typedRow.Object = TCrossClusterReference::FromString(FromUnversionedValue<TString>(row[objectId]));
-        typedRow.QueueAgentHost = FromUnversionedValue<TString>(row[hostId]);
-    }
-
-    return typedRows;
-}
-
-IUnversionedRowsetPtr TQueueAgentObjectMappingTableRow::InsertRowRange(TRange<TQueueAgentObjectMappingTableRow> rows)
-{
-    auto nameTable = TNameTable::FromSchema(*TQueueAgentObjectMappingTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : rows) {
-        auto rowBuffer = New<TRowBuffer>();
-        TUnversionedRowBuilder rowBuilder;
-
-        rowBuilder.AddValue(ToUnversionedValue(ToString(row.Object), rowBuffer, nameTable->GetIdOrThrow("object")));
-        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentHost, rowBuffer, nameTable->GetIdOrThrow("host")));
-
-        rowsBuilder.AddRow(rowBuilder.GetRow());
-    }
-
-    return CreateRowset(TQueueAgentObjectMappingTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-NApi::IUnversionedRowsetPtr TQueueAgentObjectMappingTableRow::DeleteRowRange(TRange<TQueueAgentObjectMappingTableRow> keys)
-{
-    auto nameTable = TNameTable::FromSchema(*TQueueAgentObjectMappingTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : keys) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(ToString(row.Object), nameTable->GetIdOrThrow("object")));
-
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
-    }
-
-    return CreateRowset(TQueueAgentObjectMappingTableDescriptor::Schema, rowsBuilder.Build());
-}
 
 THashMap<TCrossClusterReference, TString> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
@@ -605,123 +490,18 @@ THashMap<TCrossClusterReference, TString> TQueueAgentObjectMappingTable::ToMappi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TTableBase<TQueueAgentObjectMappingTableRow>;
+template class TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>;
 
 TQueueAgentObjectMappingTable::TQueueAgentObjectMappingTable(TYPath root, IClientPtr client)
-    : TTableBase<TQueueAgentObjectMappingTableRow>(root + "/" + TQueueAgentObjectMappingTableDescriptor::Name, std::move(client))
+    : TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>(root + "/" + NRecords::TQueueAgentObjectMappingDescriptor::Name, std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TConsumerRegistrationTableDescriptor
-{
-    static constexpr TStringBuf Name = "consumer_registrations";
-    static NTableClient::TTableSchemaPtr Schema;
-};
-
-TTableSchemaPtr TConsumerRegistrationTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
-    TColumnSchema("queue_cluster", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("queue_path", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("vital", EValueType::Boolean),
-    TColumnSchema("partitions", EValueType::Any),
-});
-
-std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseRowRange(
-    TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable)
-{
-    // TODO(max42): eliminate copy-paste?
-    std::vector<TConsumerRegistrationTableRow> typedRows;
-    typedRows.reserve(rows.size());
-
-    auto queueClusterId = nameTable->GetIdOrThrow("queue_cluster");
-    auto queuePathId = nameTable->GetIdOrThrow("queue_path");
-    auto consumerClusterId = nameTable->GetIdOrThrow("consumer_cluster");
-    auto consumerPathId = nameTable->GetIdOrThrow("consumer_path");
-
-    auto vitalId = nameTable->FindId("vital");
-    auto partitionsId = nameTable->FindId("partitions");
-
-    for (const auto& row : rows) {
-        auto& typedRow = typedRows.emplace_back();
-        // TODO(max42): mark all relevant fields in schemas of dynamic state tables as required.
-        typedRow.Queue = TCrossClusterReference{row[queueClusterId].AsString(), row[queuePathId].AsString()};
-        typedRow.Consumer = TCrossClusterReference{row[consumerClusterId].AsString(), row[consumerPathId].AsString()};
-
-        auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
-            if (id && row[*id].Type != EValueType::Null) {
-                return row[*id];
-            }
-            return std::nullopt;
-        };
-
-        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
-            if (auto value = findValue(id)) {
-                valueToSet = FromUnversionedValue<T>(*value);
-            }
-        };
-
-        if (auto value = findValue(vitalId)) {
-            YT_VERIFY(value->Type == EValueType::Boolean);
-            typedRow.Vital = FromUnversionedValue<bool>(*value);
-        } else {
-            typedRow.Vital = false;
-        }
-
-        setSimpleOptional(partitionsId, typedRow.Partitions);
-    }
-
-    return typedRows;
-}
-
-IUnversionedRowsetPtr TConsumerRegistrationTableRow::InsertRowRange(TRange<TConsumerRegistrationTableRow> rows)
-{
-    auto nameTable = TNameTable::FromSchema(*TConsumerRegistrationTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : rows) {
-        auto rowBuffer = New<TRowBuffer>();
-        TUnversionedRowBuilder rowBuilder;
-
-        rowBuilder.AddValue(ToUnversionedValue(row.Queue.Cluster, rowBuffer, nameTable->GetIdOrThrow("queue_cluster")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Queue.Path, rowBuffer, nameTable->GetIdOrThrow("queue_path")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Cluster, rowBuffer, nameTable->GetIdOrThrow("consumer_cluster")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Path, rowBuffer, nameTable->GetIdOrThrow("consumer_path")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Vital, rowBuffer, nameTable->GetIdOrThrow("vital")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Partitions, rowBuffer, nameTable->GetIdOrThrow("partitions")));
-
-        rowsBuilder.AddRow(rowBuilder.GetRow());
-    }
-
-    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-NApi::IUnversionedRowsetPtr TConsumerRegistrationTableRow::DeleteRowRange(TRange<TConsumerRegistrationTableRow> keys)
-{
-    auto nameTable = TNameTable::FromSchema(*TConsumerRegistrationTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : keys) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Cluster, nameTable->GetIdOrThrow("queue_cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Path, nameTable->GetIdOrThrow("queue_path")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Cluster, nameTable->GetIdOrThrow("consumer_cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Path, nameTable->GetIdOrThrow("consumer_path")));
-
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
-    }
-
-    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template class TTableBase<TConsumerRegistrationTableRow>;
+template class TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>;
 
 TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath path, IClientPtr client)
-    : TTableBase<TConsumerRegistrationTableRow>(std::move(path), std::move(client))
+    : TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>(std::move(path), std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -763,21 +543,6 @@ void TGenericReplicatedTableMeta::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReplicatedTableMappingTableDescriptor
-{
-    static constexpr TStringBuf Name = "replicated_table_mapping";
-    static NTableClient::TTableSchemaPtr Schema;
-};
-
-TTableSchemaPtr TReplicatedTableMappingTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
-    TColumnSchema("cluster", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("path", EValueType::String, ESortOrder::Ascending),
-    TColumnSchema("revision", EValueType::Uint64),
-    TColumnSchema("object_type", EValueType::String),
-    TColumnSchema("meta", EValueType::Any),
-    TColumnSchema("synchronization_error", EValueType::Any),
-});
-
 TGenericReplicatedTableMetaPtr ParseReplicatedTableMeta(EObjectType objectType, const IAttributeDictionaryPtr& cypressAttributes)
 {
     auto genericReplicatedTableMeta = New<TGenericReplicatedTableMeta>();
@@ -809,100 +574,6 @@ TReplicatedTableMappingTableRow TReplicatedTableMappingTableRow::FromAttributeDi
         .Meta = ParseReplicatedTableMeta(objectType, cypressAttributes),
         .SynchronizationError = TError(),
     };
-}
-
-std::vector<TReplicatedTableMappingTableRow> TReplicatedTableMappingTableRow::ParseRowRange(
-    TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable)
-{
-    std::vector<TReplicatedTableMappingTableRow> typedRows;
-    typedRows.reserve(rows.size());
-
-    auto clusterId = nameTable->GetIdOrThrow("cluster");
-    auto pathId = nameTable->GetIdOrThrow("path");
-
-    auto objectTypeId = nameTable->FindId("object_type");
-    auto revisionId = nameTable->FindId("revision");
-    auto metaId = nameTable->FindId("meta");
-    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
-
-    for (const auto& row : rows) {
-        auto& typedRow = typedRows.emplace_back();
-        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
-
-        auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
-            if (id && row[*id].Type != EValueType::Null) {
-                return row[*id];
-            }
-            return std::nullopt;
-        };
-
-        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
-            if (auto value = findValue(id)) {
-                valueToSet = FromUnversionedValue<T>(*value);
-            }
-        };
-
-        setSimpleOptional(revisionId, typedRow.Revision);
-
-        if (auto type = findValue(objectTypeId)) {
-            // TODO(max42): possible exception here is not handled well.
-            typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
-        }
-
-        if (auto meta = findValue(metaId)) {
-            typedRow.Meta = ConvertTo<TGenericReplicatedTableMetaPtr>(TYsonStringBuf(meta->AsStringBuf()));
-        }
-
-        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
-    }
-
-    return typedRows;
-}
-
-IUnversionedRowsetPtr TReplicatedTableMappingTableRow::InsertRowRange(TRange<TReplicatedTableMappingTableRow> rows)
-{
-    auto nameTable = TNameTable::FromSchema(*TReplicatedTableMappingTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : rows) {
-        auto rowBuffer = New<TRowBuffer>();
-        TUnversionedRowBuilder rowBuilder;
-
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
-        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
-        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
-
-        std::optional<TYsonString> metaYson;
-        if (row.Meta) {
-            metaYson = ConvertToYsonString(row.Meta);
-        }
-        rowBuilder.AddValue(ToUnversionedValue(metaYson, rowBuffer, nameTable->GetIdOrThrow("meta")));
-
-        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
-
-        rowsBuilder.AddRow(rowBuilder.GetRow());
-    }
-
-    return CreateRowset(TReplicatedTableMappingTableDescriptor::Schema, rowsBuilder.Build());
-}
-
-
-NApi::IUnversionedRowsetPtr TReplicatedTableMappingTableRow::DeleteRowRange(TRange<TReplicatedTableMappingTableRow> keys)
-{
-    auto nameTable = TNameTable::FromSchema(*TReplicatedTableMappingTableDescriptor::Schema);
-
-    TUnversionedRowsBuilder rowsBuilder;
-    for (const auto& row : keys) {
-        TUnversionedOwningRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Cluster, nameTable->GetIdOrThrow("cluster")));
-        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Path, nameTable->GetIdOrThrow("path")));
-
-        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
-    }
-
-    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
@@ -978,10 +649,10 @@ void Serialize(const TReplicatedTableMappingTableRow& row, IYsonConsumer* consum
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TTableBase<TReplicatedTableMappingTableRow>;
+template class TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>;
 
 TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client)
-    : TTableBase<TReplicatedTableMappingTableRow>(std::move(path), std::move(client))
+    : TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>(std::move(path), std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
