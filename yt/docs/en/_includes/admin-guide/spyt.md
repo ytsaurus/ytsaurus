@@ -2,7 +2,7 @@
 
 To install SPYT on the {{product-name}} cluster, push a `SPYT` resource to K8s.
 
-You can find an example of the specification [here](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_spyt.yaml):
+You can find an example of the specification [here](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_spyt.yaml):
 ```yaml
 apiVersion: cluster.ytsaurus.tech/v1
 kind: Spyt

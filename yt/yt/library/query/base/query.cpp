@@ -872,6 +872,16 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
                 break;
             }
 
+            case EValueType::Any: {
+                proto->set_any_value(data.String, value.Length);
+                break;
+            }
+
+            case EValueType::Composite: {
+                THROW_ERROR_EXCEPTION("Unsupported value type")
+                    << TErrorAttribute("type", value.Type);
+            }
+
             default:
                 YT_ABORT();
         }
@@ -992,6 +1002,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 result->Value = MakeUnversionedStringValue(ext.string_value());
             } else if (ext.has_boolean_value()) {
                 result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
+            } else if (ext.has_any_value()) {
+                result->Value = MakeUnversionedAnyValue(ext.any_value());
             } else {
                 result->Value = MakeUnversionedSentinelValue(EValueType::Null);
             }

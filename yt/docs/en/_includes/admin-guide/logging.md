@@ -91,7 +91,7 @@ The main types of structured logs:
 
 {% include [Notes](access-log-note.md) %}
 
-### HTTP Proxy request дog { #http_proxy_log }
+### HTTP Proxy request log { #http_proxy_log }
 
 This log contains entries for all requests handled by the HTTP proxy.
 

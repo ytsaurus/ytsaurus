@@ -103,7 +103,7 @@ struct IElectionManager
      */
     virtual TPeerIdSet GetAlivePeerIds() = 0;
 
-    //! Returns current ell Manager.
+    //! Returns current Cell Manager.
     virtual TCellManagerPtr GetCellManager() = 0;
 };
 

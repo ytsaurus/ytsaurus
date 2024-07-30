@@ -57,6 +57,9 @@ message TReqReplicateTransactions
     optional NYT.NProto.TGuid boomerang_mutation_id = 5;
     optional string boomerang_mutation_type = 6;
     optional bytes boomerang_mutation_data = 7;
+
+    optional string user = 8;
+    optional string user_tag = 9;
 }
 
 message TRspReplicateTransactions

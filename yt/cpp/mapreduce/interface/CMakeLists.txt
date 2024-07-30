@@ -89,7 +89,7 @@ target_link_libraries(cpp-mapreduce-interface PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  contrib-libs-protobuf
+  cpp-protobuf-runtime
   library-cpp-type_info
   cpp-threading-future
   cpp-yson-node

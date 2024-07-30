@@ -670,7 +670,6 @@ PEERDIR(
     yt/yt/library/xor_filter
     yt/yt/client
     yt/yt/library/formats
-    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/web_assembly/api

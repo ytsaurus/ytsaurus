@@ -34,11 +34,18 @@ func emit(f file, out io.Writer) error {
 			if field.omitnil {
 				write("if o.%s != nil {", field.fieldName)
 			}
+			if field.omitempty {
+				write("default%s := yt.%s{}", field.typ, field.typ)
+				write("if o.%s != default%s {", field.fieldName, field.typ)
+			}
 
 			write("w.MapKeyString(%q)", field.httpName)
 			write("w.Any(o.%s)", field.fieldName)
 
 			if field.omitnil {
+				write("}")
+			}
+			if field.omitempty {
 				write("}")
 			}
 		}

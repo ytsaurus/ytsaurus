@@ -43,15 +43,15 @@ func main() {
 
 	var buf bytes.Buffer
 	if err = emit(f, &buf); err != nil {
-		fatalf("%v", err)
+		fatalf("emit error: %v", err)
 	}
 
 	fmtbuf, err := format.Source(buf.Bytes())
 	if err != nil {
-		fatalf("%v", err)
+		fatalf("source error: %v", err)
 	}
 
 	if err = os.WriteFile(*flagOutput, fmtbuf, 0644); err != nil {
-		fatalf("%v", err)
+		fatalf("write file error: %v", err)
 	}
 }

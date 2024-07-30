@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"reflect"
 	"strconv"
 	"strings"
@@ -17,7 +18,9 @@ var fset = token.NewFileSet()
 type optionField struct {
 	fieldName string
 	httpName  string
+	typ       string
 	omitnil   bool
+	omitempty bool
 }
 
 type optionsType struct {
@@ -47,6 +50,7 @@ func parseOptions(typeSpec *ast.TypeSpec) (option *optionsType, err error) {
 		} else {
 			var f optionField
 			f.fieldName = field.Names[0].Name
+			f.typ = types.ExprString(field.Type)
 
 			if field.Tag == nil {
 				continue
@@ -72,6 +76,9 @@ func parseOptions(typeSpec *ast.TypeSpec) (option *optionsType, err error) {
 			for _, p := range params {
 				if p == "omitnil" {
 					f.omitnil = true
+				}
+				if p == "omitempty" {
+					f.omitempty = true
 				}
 			}
 

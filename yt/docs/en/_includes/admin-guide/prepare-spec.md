@@ -1,6 +1,6 @@
 # Getting the {{product-name}} specification ready
 
-You can find an example of the minimum specification [here](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml).
+You can find an example of the minimum specification [here](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml).
 
 {% cut "Sample specification" %}
 
@@ -111,7 +111,7 @@ spec:
 
 {% endcut %}
 
-Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
+Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
 
 <small>Table 1 — Basic `Ytsaurus` specification fields </small>
 
@@ -193,7 +193,7 @@ There are recommendations for disk layout and location configuration on a separa
 
 ## Job environment
 
-`Exec Nodes` are able to execute jobs in isolated containers to handle operation option `docker_image`. Required configurations are located in sections `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#execnodesspec). See sample [cluster config](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
+`Exec Nodes` are able to execute jobs in isolated containers to handle operation option `docker_image`. Required configurations are located in sections `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). See sample [cluster config](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
 
 ## Setting up tablet cell bundles
 

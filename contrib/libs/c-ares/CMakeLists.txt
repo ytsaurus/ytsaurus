@@ -46,22 +46,36 @@ target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__addrinfo_localhost.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__buf.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__close_sockets.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__get_hostent.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__hosts_file.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__htable.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__htable_asvp.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__htable_stvp.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__htable_strvp.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__htable_szvp.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__iface_ips.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__llist.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__parse_into_addrinfo.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__read_line.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__readaddrinfo.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__slist.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__socket.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__sortaddrinfo.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__threads.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__timeval.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_android.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_cancel.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_create_query.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_data.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_destroy.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_dns_mapping.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_dns_name.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_dns_parse.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_dns_record.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_dns_write.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_epoll.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_kqueue.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_poll.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_select.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_thread.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_wake_pipe.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_event_win32.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_expand_name.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_expand_string.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_fds.c
@@ -76,8 +90,7 @@ target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_getsock.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_init.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_library_init.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_mkquery.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_nowarn.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_math.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_options.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_parse_a_reply.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_parse_aaaa_reply.c
@@ -92,18 +105,21 @@ target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_parse_uri_reply.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_platform.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_process.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_qcache.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_query.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_rand.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_search.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_send.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_str.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_strcasecmp.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_strdup.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_strerror.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_strsplit.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_sysconfig.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_sysconfig_files.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_timeout.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_update_servers.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares_version.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/atomic.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/bitncmp.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/inet_net_pton.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/inet_ntop.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/windows_port.c

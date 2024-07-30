@@ -98,7 +98,7 @@ int TPeerChannel::GetInflightRequestCount()
     return Underlying_->GetInflightRequestCount();
 }
 
-IMemoryUsageTrackerPtr TPeerChannel::GetChannelMemoryTracker()
+const IMemoryUsageTrackerPtr& TPeerChannel::GetChannelMemoryTracker()
 {
     return Underlying_->GetChannelMemoryTracker();
 }

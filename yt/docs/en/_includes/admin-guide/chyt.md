@@ -8,7 +8,7 @@ The `strawberry controller` must be created on the cluster. You can configure it
 
 {% endnote %}
 
-You can find an example of the specification [here](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_chyt.yaml):
+You can find an example of the specification [here](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_chyt.yaml):
 ```yaml
 apiVersion: cluster.ytsaurus.tech/v1
 kind: Chyt

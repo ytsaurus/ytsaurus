@@ -1801,12 +1801,14 @@ private:
         ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
             .ValueOrThrow();
 
-        const auto& cellManager = ElectionManager_->GetCellManager();
-        auto selfPeerId = cellManager->GetSelfPeerId();
-        auto voting = cellManager->GetPeerConfig(selfPeerId)->Voting;
+        if (ChangelogStore_->IsReadOnly()) {
+            auto cellManager = ElectionManager_->GetCellManager();
+            auto selfPeerId = cellManager->GetSelfPeerId();
+            auto voting = cellManager->GetPeerConfig(selfPeerId)->Voting;
 
-        if (ChangelogStore_->IsReadOnly() && voting) {
-            THROW_ERROR_EXCEPTION("Changelog store is in read-only for a voting peer");
+            if (voting) {
+                THROW_ERROR_EXCEPTION("Changelog store is in read-only for a voting peer");
+            }
         }
 
         auto optionalElectionPriority = ChangelogStore_->GetElectionPriority();
