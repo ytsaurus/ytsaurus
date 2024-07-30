@@ -1118,7 +1118,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
             {
                 std::vector<std::pair<TTimestamp, TQueryId>> results;
-                if (isSuperuser) {
+                if (isSuperuser && !options.UserFilter) {
                     GetQueriesByStartTime<TFinishedQueryByStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, "finished_queries_by_start_time", results, isSuperuser);
                 } else {
                     GetQueriesByStartTime<TFinishedQueryByUserAndStartTime>(StateClient_, StateRoot_, options, timestamp, user, acosForUser, FinishedQueriesByUserAndStartTimeTable, results);
