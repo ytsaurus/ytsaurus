@@ -52,11 +52,16 @@ func NewTx(
 		return nil, err
 	}
 
+	pingerOpts := &yt.PingTxOptions{TransactionOptions: opts.TransactionOptions}
+	if pingerOpts.TransactionOptions != nil {
+		pingerOpts.TransactionID = yt.TxID{}
+	}
+
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  e,
 		log:     log,
-		pinger:  internal.NewPinger(ctx, &e, txID, config, stop),
+		pinger:  internal.NewPinger(ctx, &e, txID, config, stop, pingerOpts),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)

@@ -49,7 +49,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 
 	tx.txID, err = tx.StartTabletTx(ctx, startOptions)
 	tx.ctx = ctx
-	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.config, c.stop)
+	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.config, c.stop, nil)
 
 	go tx.pinger.Run()
 
