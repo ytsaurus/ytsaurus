@@ -850,25 +850,26 @@ private:
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
-            BIND([sourceNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
-                auto lockedSourceNode = sourceNode.Lock();
-                auto lockedWriter = weakThis.Lock();
+            BIND([weakNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
+                auto node = weakNode.Lock();
+                auto this_ = weakThis.Lock();
 
-                if (!lockedSourceNode || !lockedWriter || !lockedSourceNode->IsAlive()) {
+                if (!node || !this_ || !node->IsAlive()) {
                     return false;
                 }
 
                 auto innerError = error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive);
 
-                if (!innerError.has_value()) {
+                if (!innerError) {
                     return false;
                 }
 
+                // TODO(don-dron): Come up with a more accurate solution.
                 auto address = innerError->Attributes().Find<TString>("address");
                 auto needRetry = address->Empty() || std::count_if(
-                    lockedWriter->Nodes_.begin(),
-                    lockedWriter->Nodes_.end(),
-                    [&] (const auto& node) -> bool {
+                    this_->Nodes_.begin(),
+                    this_->Nodes_.end(),
+                    [&] (const auto& node) {
                         return node->GetDefaultAddress() == address && !node->IsAlive();
                     }) == 0;
 

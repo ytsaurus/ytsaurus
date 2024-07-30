@@ -37,7 +37,7 @@ public:
 
     int GetInflightRequestCount() override;
 
-    IMemoryUsageTrackerPtr GetChannelMemoryTracker() override;
+    const IMemoryUsageTrackerPtr& GetChannelMemoryTracker() override;
 
 private:
     NRpc::IChannelPtr Underlying_;
