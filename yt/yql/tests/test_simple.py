@@ -67,9 +67,8 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
 
     @authors("max42")
     def test_issues(self, query_tracker, yql_agent):
-        query = start_query("yql", "select * from primary.`//tmp/nonexistent`")
         with raises_yt_error(30000):
-            query.track()
+            self._run_simple_query("select * from primary.`//tmp/nonexistent`")
 
     @authors("max42")
     def test_schemaful_read(self, query_tracker, yql_agent):
@@ -406,17 +405,12 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
 
     @authors("mpereskokova")
     def test_yql_agent_impersonation_deny(self, query_tracker, yql_agent):
-        q = start_query("yql", "select a + 1 as b from primary.`//tmp/t`;", authenticated_user="denied_user")
         with raises_yt_error("failed"):
-            q.track()
-        assert q.get_state() == "failed"
+            self._run_simple_query("select a + 1 as b from primary.`//tmp/t`;", authenticated_user="denied_user")
 
     @authors("mpereskokova")
     def test_yql_agent_impersonation_allow(self, query_tracker, yql_agent):
-        q = start_query("yql", "select a + 1 as b from primary.`//tmp/t`;", authenticated_user="allowed_user")
-        q.track()
-        result = q.read_result(0)
-        assert_items_equal([{"b": 43}], result)
+        self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], authenticated_user="allowed_user")
 
 
 class TestYqlColumnOrder(TestQueriesYqlBase):
