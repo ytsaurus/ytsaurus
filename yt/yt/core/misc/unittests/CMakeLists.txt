@@ -120,6 +120,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sliding_window_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/spsc_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistic_path_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/string_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
