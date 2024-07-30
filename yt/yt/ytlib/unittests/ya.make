@@ -7,6 +7,7 @@ ALLOCATOR(YT)
 SRCS(
     misc/test_connection.cpp
 
+    arrow_writer_ut.cpp
     chunk_client_fetcher_ut.cpp
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
