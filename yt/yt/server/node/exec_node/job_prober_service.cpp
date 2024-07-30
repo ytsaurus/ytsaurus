@@ -84,10 +84,11 @@ private:
             job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         }
 
-        auto stderrResp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()}).value_or(NApi::TGetJobStderrResponse{});
-        response->set_stderr_data(TString{stderrResp.Data.ToStringBuf()});
-        response->set_total_size(stderrResp.TotalSize);
-        response->set_end_offset(stderrResp.EndOffset);
+        auto rsp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()})
+                            .value_or(NApi::TGetJobStderrResponse{});
+        response->set_stderr_data(rsp.Data.data(), rsp.Data.size());
+        response->set_total_size(rsp.TotalSize);
+        response->set_end_offset(rsp.EndOffset);
         context->Reply();
     }
 

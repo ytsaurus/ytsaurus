@@ -49,7 +49,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         }
 
         {
-            // before start
+            // Before start.
             const auto data = writer.GetCurrentData({.Offset = -50000});
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
@@ -57,7 +57,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         }
 
         {
-            // Requested more than have
+            // Requested more than have.
             const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 250});
             ASSERT_EQ(data.Data.size(), size_t(44));
             ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("100\n"));
@@ -66,7 +66,7 @@ TEST(TStderrWriterTest, TestPagedLog)
         }
 
         {
-            // Range after end
+            // Range after end.
             const auto data = writer.GetCurrentData({.Limit = 123, .Offset = 300});
             ASSERT_EQ(data.Data.ToStringBuf(), "");
             ASSERT_EQ(data.EndOffset, 0);
@@ -95,14 +95,14 @@ TEST(TStderrWriterTest, TestPagedLog)
     const auto lastByte = static_cast<decltype(NApi::TGetJobStderrResponse::TotalSize)>(reference.Str().size());
 
     {
-        // Full log requested
+        // Full log requested.
         const auto data = writer.GetCurrentData({});
         ASSERT_EQ(data.EndOffset, lastByte);
         ASSERT_EQ(data.TotalSize, lastByte);
     }
 
     {
-        // 0..123 requested
+        // 0..123 requested.
         // BUG/TODO to simplify logic we use only tail - but tail does not contain requested data
         const auto data = writer.GetCurrentData({.Limit = 123});
         ASSERT_EQ(data.Data.ToStringBuf(), "");
@@ -118,7 +118,7 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     {
-        // last 50 bytes requested
+        // Last 50 bytes requested.
         const auto data = writer.GetCurrentData({.Offset = -50});
         ASSERT_EQ(data.Data.size(), size_t(50));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("2000\n"));
@@ -127,7 +127,7 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     {
-        // before start
+        // Before start.
         const auto data = writer.GetCurrentData({.Offset = -50000});
         ASSERT_TRUE(data.Data.ToStringBuf().StartsWith("1901\n"));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("2000\n"));
@@ -137,7 +137,6 @@ TEST(TStderrWriterTest, TestPagedLog)
 
     {
         const auto data = writer.GetCurrentData({.Limit = 50, .Offset = 8850});
-        // DUMP("d", data.Data, data.EndOffset, data.TotalSize);
         ASSERT_EQ(data.Data.size(), size_t(50));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("1999\n2"));
         ASSERT_EQ(data.EndOffset, 8900);
@@ -145,7 +144,7 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     {
-        // Requested more than have
+        // Requested more than have.
         const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 8850});
         ASSERT_EQ(data.Data.size(), size_t(54));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("2000\n"));
@@ -154,7 +153,7 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     {
-        // Requested pos before tail start (8404)
+        // Requested pos before tail start (8404).
         const auto data = writer.GetCurrentData({.Limit = 100, .Offset = 8350});
         ASSERT_EQ(data.Data.size(), size_t(46));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("1909\n1"));
@@ -206,7 +205,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
         }
 
         {
-            // before start
+            // Before start.
             const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Offset = -50000});
             ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
@@ -214,7 +213,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
         }
 
         {
-            // Requested more than have
+            // Requested more than have.
             const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string,{.Limit = 100, .Offset = 250});
             ASSERT_EQ(data.Data.size(), size_t(44));
             ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("100\n"));
@@ -223,7 +222,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
         }
 
         {
-            // Range after end
+            // Range after end.
             const auto data = NApi::TGetJobStderrResponse::MakeJobStderr( string, {.Limit = 123, .Offset = 300});
             ASSERT_EQ(data.Data.ToStringBuf(), "");
             ASSERT_EQ(data.EndOffset, 0);

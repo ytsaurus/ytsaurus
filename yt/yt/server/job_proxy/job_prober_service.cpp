@@ -73,7 +73,7 @@ private:
             .Limit = context->Request().limit(),
             .Offset = context->Request().offset(),
         });
-        response->set_stderr_data(TString{stderrData.Data.ToStringBuf()});
+        response->set_stderr_data(stderrData.Data.data(), stderrData.Data.size());
         response->set_end_offset(stderrData.EndOffset);
         response->set_total_size(stderrData.TotalSize);
 

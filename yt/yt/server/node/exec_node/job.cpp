@@ -1379,7 +1379,7 @@ void TJob::ReportStderr()
         return;
     }
     HandleJobReport(TNodeJobReport()
-        .Stderr(TString{maybeStderr->Data.ToStringBuf()}));
+        .Stderr({maybeStderr->Data.data(), maybeStderr->Data.size()}));
 }
 
 void TJob::ReportFailContext()

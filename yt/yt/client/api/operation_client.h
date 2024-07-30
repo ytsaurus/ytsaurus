@@ -376,10 +376,10 @@ struct TGetJobStderrResponse
 
     TSharedRef Data;
 
-    // Total current stderr size
+    // Total current stderr size.
     i64 TotalSize = 0;
 
-    // Byte number of Data last byte from stderr start
+    // Index of the last byte of the result in the full stderr.
     i64 EndOffset = 0;
 
     static TGetJobStderrResponse MakeJobStderr(const TSharedRef& data, const TGetJobStderrOptions& options = {});
