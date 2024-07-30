@@ -5,7 +5,7 @@ RECURSE(
     operations_core_http
 )
 
-IF (NOT OPENSOURCE)
+IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
     RECURSE(
         check_initialized
         check_initialized/test_program
@@ -13,13 +13,13 @@ IF (NOT OPENSOURCE)
         crash_writer_on_exception/test_program
         error_exit
         error_exit/test_program
-        job_on_exit_function
         parallel_cache_upload
         parallel_cache_upload/test_program
-        portals
-        proto_lib
         remote_copy
         remote_copy/recipe
+        job_on_exit_function
+        portals
+        proto_lib
         server_yt_name_conflicts
     )
 ENDIF()
