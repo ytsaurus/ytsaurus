@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 
@@ -121,10 +123,12 @@ public:
         TRowBatchReadOptions rowBatchReadOptions,
         TReplicationProgress progress,
         IWireProtocolWriter* writer,
+        IReservingMemoryUsageTrackerPtr memoryUsageTracker,
         NLogging::TLogger logger)
         : TReplicationLogBatchReaderBase(
             tabletSnapshot->Settings.MountConfig,
             tabletSnapshot->TabletId,
+            std::move(memoryUsageTracker),
             std::move(logger))
         , TablerSnapshotPtr_(std::move(tabletSnapshot))
         , ChunkReadOptions_(std::move(chunkReaderOptions))
@@ -168,6 +172,7 @@ public:
         const TReplicationProgress& progress,
         const IReplicationLogParserPtr& logParser,
         IWireProtocolWriter* writer,
+        const IReservingMemoryUsageTrackerPtr& memoryUsageTracker,
         const NLogging::TLogger& logger)
         : TTabletRowBatchReader(
             tabletSnapshot,
@@ -175,6 +180,7 @@ public:
             rowBatchReadOptions,
             progress,
             writer,
+            memoryUsageTracker,
             logger)
     {
         ValidateOrderedTabletReplicationProgress(progress);
@@ -225,9 +231,9 @@ protected:
         return true;
     }
 
-    void WriteTypeErasedRow(TTypeErasedRow row) override
+    size_t WriteTypeErasedRow(TTypeErasedRow row) override
     {
-        Writer_->WriteSchemafulRow(TUnversionedRow(std::move(row)));
+        return Writer_->WriteSchemafulRow(TUnversionedRow(std::move(row)));
     }
 
 private:
@@ -246,6 +252,7 @@ public:
         const TReplicationProgress& progress,
         IReplicationLogParserPtr logParser,
         IWireProtocolWriter* writer,
+        const IReservingMemoryUsageTrackerPtr& memoryUsageTracker,
         const NLogging::TLogger& logger)
         : TTabletRowBatchReader(
             tabletSnapshot,
@@ -253,6 +260,7 @@ public:
             rowBatchReadOptions,
             progress,
             writer,
+            memoryUsageTracker,
             logger)
         , LogParser_(std::move(logParser))
     { }
@@ -282,9 +290,9 @@ public:
         return progressTimestamp && *progressTimestamp < *timestamp;
     }
 
-    void WriteTypeErasedRow(TTypeErasedRow row) override
+    size_t WriteTypeErasedRow(TTypeErasedRow row) override
     {
-        Writer_->WriteVersionedRow(TVersionedRow(std::move((row))));
+        return Writer_->WriteVersionedRow(TVersionedRow(std::move((row))));
     }
 
 private:
@@ -302,6 +310,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     const TRowBatchReadOptions& rowBatchReadOptions,
     const TReplicationProgress& progress,
     const IReplicationLogParserPtr& logParser,
+    const IReservingMemoryUsageTrackerPtr& memoryUsageTracker,
     TLogger logger,
     i64 startRowIndex,
     TTimestamp upperTimestamp,
@@ -316,6 +325,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             progress,
             logParser,
             writer,
+            memoryUsageTracker,
             logger)
             .ReadReplicationBatch(
                 startRowIndex,
@@ -329,6 +339,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             progress,
             logParser,
             writer,
+            memoryUsageTracker,
             logger)
             .ReadReplicationBatch(
                 startRowIndex,

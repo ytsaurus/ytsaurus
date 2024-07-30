@@ -117,6 +117,7 @@ TPullRowsCounters::TPullRowsCounters(const NProfiling::TProfiler& profiler)
     , RowCount(profiler.Counter("/pull_rows/row_count"))
     , WastedRowCount(profiler.Counter("/pull_rows/needless_row_count"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/pull_rows/chunk_reader_statistics"))
+    , MemoryUsage(profiler.Counter("/pull_rows/memory_usage"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

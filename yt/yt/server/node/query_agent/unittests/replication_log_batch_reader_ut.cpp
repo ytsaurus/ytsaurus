@@ -1,11 +1,13 @@
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/node/query_agent/replication_log_batch_reader.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
 namespace {
@@ -13,8 +15,15 @@ namespace {
 using namespace NYT::NQueryAgent;
 using namespace NTableClient;
 using namespace NLogging;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+IReservingMemoryUsageTrackerPtr CreateReservingMemoryTracker(INodeMemoryTrackerPtr& nodeMemoryTracker)
+{
+    auto memoryUsageTracker = nodeMemoryTracker->WithCategory(EMemoryCategory::ChaosReplicationOutgoing);
+    return CreateResevingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
+}
 
 struct TFakeRow
 {
@@ -63,10 +72,12 @@ public:
         TTableMountConfigPtr mountConfig,
         TTabletId tabletId,
         TLogger logger,
+        INodeMemoryTrackerPtr nodeMemoryTracker,
         const std::vector<TFakeRow>& replicationLogFakeRows)
         : TReplicationLogBatchReaderBase(
             std::move(mountConfig),
             std::move(tabletId),
+            CreateReservingMemoryTracker(nodeMemoryTracker),
             std::move(logger))
         , ReplicationLogRows_(BuildReplicationLogRows(replicationLogFakeRows))
     { }
@@ -124,9 +135,10 @@ protected:
         return true;
     }
 
-    void WriteTypeErasedRow(TTypeErasedRow row) override
+    size_t WriteTypeErasedRow(TTypeErasedRow row) override
     {
         ProcessedRows_.push_back(TUnversionedRow(std::move(row))[2].Data.Int64);
+        return 1;
     }
 
 private:
@@ -182,9 +194,11 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
     TLogger logger;
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+
     std::vector<TFakeRow> transactions;
 
-    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
 
     auto result = reader.ReadReplicationBatch(
         0,
@@ -198,6 +212,8 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     EXPECT_EQ(result.ResponseDataWeight, 0ll);
     EXPECT_EQ(result.MaxTimestamp, 0ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
+
+    nodeMemoryTracker->ClearTrackers();
 }
 
 TEST(TReplicationLogBatchReaderTest, TestReadAll)
@@ -207,12 +223,14 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
     TLogger logger;
+
     std::vector<TFakeRow> replicationLogRows;
     AppendReplicationLogRows(1, 10, 10, &replicationLogRows);
     AppendReplicationLogRows(2, 10, 10, &replicationLogRows);
     AppendReplicationLogRows(3, 10, 10, &replicationLogRows);
-    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, replicationLogRows);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, replicationLogRows);
 
     auto result = reader.ReadReplicationBatch(
         0,
@@ -226,6 +244,8 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     EXPECT_EQ(result.MaxTimestamp, 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
     CheckReaderContinious(reader, 30);
+
+    nodeMemoryTracker->ClearTrackers();
 }
 
 TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
@@ -235,12 +255,14 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
     TLogger logger;
+
     std::vector<TFakeRow> transactions;
     AppendReplicationLogRows(1, 10, 10, &transactions);
     AppendReplicationLogRows(2, 10, 10, &transactions);
     AppendReplicationLogRows(3, 10, 10, &transactions);
-    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
 
     auto result = reader.ReadReplicationBatch(
         0,
@@ -270,6 +292,8 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     EXPECT_EQ(reader.GetReadsCount(), 3);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
     CheckReaderContinious(reader, 30);
+
+    nodeMemoryTracker->ClearTrackers();
 }
 
 TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
@@ -279,12 +303,14 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
     TLogger logger;
+
     std::vector<TFakeRow> transactions;
     AppendReplicationLogRows(1, 10, 100, &transactions);
     AppendReplicationLogRows(2, 10, 10, &transactions);
     AppendReplicationLogRows(3, 10, 10, &transactions);
-    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
 
     auto result = reader.ReadReplicationBatch(
         0,
@@ -314,6 +340,8 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     EXPECT_EQ(reader.GetReadsCount(), 7);
     EXPECT_EQ(result.EndReplicationRowIndex, 120);
     CheckReaderContinious(reader, 120);
+
+    nodeMemoryTracker->ClearTrackers();
 }
 
 } // namespace

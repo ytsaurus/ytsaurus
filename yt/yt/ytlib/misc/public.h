@@ -41,6 +41,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((JobInputChunkMetaCache)     (26))
     ((TableReplication)           (27))
     ((ChaosReplicationIncoming)   (28))
+    ((ChaosReplicationOutgoing)   (29))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

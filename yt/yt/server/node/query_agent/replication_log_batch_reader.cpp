@@ -11,14 +11,19 @@ using namespace NTabletNode;
 using namespace NTableClient;
 using namespace NLogging;
 
+// Default chunk reading size.
+static constexpr i64 MinBatchWeight = 16_MB;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicationLogBatchReaderBase::TReplicationLogBatchReaderBase(
     TTableMountConfigPtr mountConfig,
     TTabletId tabletId,
+    IReservingMemoryUsageTrackerPtr memoryUsageTracker,
     TLogger logger)
     : TableMountConfig_(std::move(mountConfig))
     , TabletId_(std::move(tabletId))
+    , MemoryUsageTracker_(std::move(memoryUsageTracker))
     , Logger(std::move(logger))
 { }
 
@@ -52,6 +57,16 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
         maxDataWeight = TableMountConfig_->MaxDataWeightPerReplicationCommit;
     }
 
+    while (true) {
+        if (MemoryUsageTracker_->TryReserve(maxDataWeight).IsOK()) {
+            break;
+        }
+
+        if (maxDataWeight /= 2; maxDataWeight <= MinBatchWeight) {
+            THROW_ERROR_EXCEPTION("Failed to reserve memory for pull rows request");
+        }
+    }
+
     while (readAllRows) {
         i64 readAmount = 2 * TableMountConfig_->MaxRowsPerReplicationCommit;
         auto batchFetcher = MakeBatchFetcher(
@@ -60,7 +75,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
             columnFilter);
 
         bool needCheckNextRange = false;
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(MemoryUsageTracker_);
 
         while (readAllRows) {
             auto batch = batchFetcher->ReadNextRowBatch(currentRowIndex);
@@ -124,7 +139,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                     ++timestampCount;
                 }
 
-                WriteTypeErasedRow(replicationRow);
+                MemoryUsageTracker_->Acquire(WriteTypeErasedRow(replicationRow));
                 rowBuffer->Clear();
 
                 maxTimestamp = std::max(maxTimestamp, timestamp);

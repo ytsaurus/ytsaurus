@@ -193,6 +193,10 @@ public:
             Bootstrap_
                 ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Query))
+        , PullRowsMemoryTracker_(
+                        Bootstrap_
+                ->GetNodeMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::ChaosReplicationOutgoing))
         , DistributedSessionManager_(CreateDistributedSessionManager(
             bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
@@ -253,6 +257,7 @@ private:
     const TFunctionImplCachePtr FunctionImplCache_;
     const IEvaluatorPtr Evaluator_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+    const IMemoryUsageTrackerPtr PullRowsMemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
     const IRequestQueueProviderPtr MultireadRequestQueueProvider_ = CreateMultireadRequestQueueProvider();
     const IDistributedSessionManagerPtr DistributedSessionManager_;
@@ -613,6 +618,8 @@ private:
                     chunkReadOptions,
                     startReplicationRowIndex);
 
+                auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(currentProfilingUser);
+
                 if (startRowIndex) {
                     result = ReadReplicationBatch(
                         tabletSnapshot,
@@ -620,6 +627,9 @@ private:
                         rowBatchReadOptions,
                         progress,
                         logParser,
+                        CreateResevingMemoryUsageTracker(
+                            PullRowsMemoryTracker_,
+                            counters->MemoryUsage),
                         Logger,
                         *startRowIndex,
                         upperTimestamp,
@@ -650,7 +660,6 @@ private:
                 auto endProgress = AdvanceReplicationProgress(progress, result.MaxTimestamp);
 
                 // TODO(savrus, akozhikhov): Use Finally here to track failed requests.
-                auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());
                 counters->DataWeight.Increment(result.ResponseDataWeight);
                 counters->RowCount.Increment(result.ResponseRowCount);
                 counters->WastedRowCount.Increment(result.ReadRowCount - result.ResponseRowCount);
