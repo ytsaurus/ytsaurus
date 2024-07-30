@@ -187,6 +187,8 @@ def get_dynamic_master_config():
     cell_master = {
         alert_update_period = 500;
     };
+
+    enable_boomerangs_identity = %true;
 }
 """)
 

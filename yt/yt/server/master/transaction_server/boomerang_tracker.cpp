@@ -22,6 +22,7 @@
 
 namespace NYT::NTransactionServer {
 
+using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
@@ -226,22 +227,34 @@ void TBoomerangTracker::RemoveBoomerangWave(TBoomerangWaveId waveId)
 
 void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* request)
 {
+    // TODO(shakurov): use mutation idempotizer.
     TMutationRequest mutationRequest{
         .Reign = GetCurrentMutationContext()->Request().Reign,
         .Type = request->boomerang_mutation_type(),
         .Data = TSharedRef::FromString(request->boomerang_mutation_data()),
-        .MutationId = FromProto<TMutationId>(request->boomerang_mutation_id())
+        .MutationId = FromProto<TMutationId>(request->boomerang_mutation_id()),
     };
 
-    // TODO(shakurov): use mutation idempotizer.
-
     TMutationContext mutationContext(GetCurrentMutationContext(), &mutationRequest);
+
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
 
     {
-        const auto& automaton = hydraFacade->GetAutomaton();
         TMutationContextGuard mutationContextGuard(&mutationContext);
+
         TBoomerangMutationGuard boomerangMutationGuard;
+
+        std::optional<NSecurityServer::TAuthenticatedUserGuard> userGuard;
+        if (request->has_user()) {
+            auto identity = ParseAuthenticationIdentityFromProto(*request);
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* user = securityManager->FindUserByName(identity.User, /*activeLifeStageOnly*/ true);
+            if (IsObjectAlive(user)) {
+                userGuard.emplace(Bootstrap_->GetSecurityManager(), user, identity.UserTag);
+            }
+        }
+
+        const auto& automaton = hydraFacade->GetAutomaton();
         StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);
     }
 
