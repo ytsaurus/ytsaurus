@@ -153,7 +153,7 @@ Publishes as docker images.
 - Reduced the size of query_tracker docker images
 
 **Related issues:**
-- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+- [Problems with QT ACOs](https://github.com/ytsaurus/ytsaurus-k8s-operator/issues/176)
 
 In case of an error when starting query
 ```
@@ -186,7 +186,7 @@ NB:
 - Before updating, please read the QT documentation, which contains information about the new query access control.
 
 New related issues:
-- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+- [Problems with QT ACOs](https://github.com/ytsaurus/ytsaurus-k8s-operator/issues/176)
 
 In case of an error when starting query
 ```
@@ -381,7 +381,7 @@ Publishes as docker images.
 
 ## Kubernetes operator
 
-Publishes as a helm-chart on [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart).
+Publishes as a helm-chart on [Github Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
 
 **Current release:** 0.6.0
 

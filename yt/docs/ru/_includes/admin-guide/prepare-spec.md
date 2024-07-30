@@ -1,6 +1,6 @@
 # Подготовка спецификации {{product-name}}
 
-Пример минимальной спецификации можно найти [по ссылке](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml).
+Пример минимальной спецификации можно найти [по ссылке](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml).
 
 {% cut "Пример спецификации" %}
 
@@ -111,7 +111,7 @@ spec:
 
 {% endcut %}
 
-В таблице 1 приведены некоторые общие настройки `Ytsaurus`. Полное описание: [YtsaurusSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
+В таблице 1 приведены некоторые общие настройки `Ytsaurus`. Полное описание: [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
 
 <small>Таблица 1 — Базовые поля спецификации `Ytsaurus` </small>
 
@@ -193,7 +193,7 @@ spec:
 
 ## Среда исполнения операций
 
-`Exec Nodes` могут запускать джобы в изолированных контейнерах для обработки опции операции `docker_image`. Требуемые настройки заключены в секциях `jobResources` и `jobEnvironment` в [ExecNodeSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#execnodesspec). Пример [настройки кластера](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
+`Exec Nodes` могут запускать джобы в изолированных контейнерах для обработки опции операции `docker_image`. Требуемые настройки заключены в секциях `jobResources` и `jobEnvironment` в [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). Пример [настройки кластера](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
 
 ## Настройка таблет-селл бандлов
 
