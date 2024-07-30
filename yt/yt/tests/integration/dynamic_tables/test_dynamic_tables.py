@@ -3255,7 +3255,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "tablet_node" : {
                 "statistics_reporter" : {
                     "enable" : True,
-                    "period": 1,
                     "table_path": statistics_path,
                     "periodic_options": {
                         "period": 1,
