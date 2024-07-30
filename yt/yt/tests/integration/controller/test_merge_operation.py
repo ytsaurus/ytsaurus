@@ -2117,6 +2117,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "sampling": {"sampling_rate": 0.5, "io_block_size": 10 ** 5},
                 "job_count": 10,
                 "combine_chunks": True,
+                "force_transform": True,
                 "enable_job_splitting": False,
             },
         )
