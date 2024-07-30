@@ -8,7 +8,7 @@
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
-#include <yt/yt/core/rpc/public.h>
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NCellMaster {
 
@@ -28,7 +28,7 @@ class TMultiPhaseCellSyncSession
 public:
     TMultiPhaseCellSyncSession(
         TBootstrap* bootstrap,
-        NRpc::TRequestId requestId); // For logging purposes only.
+        NLogging::TLogger logger);
 
     void SetSyncWithUpstream(bool syncWithUpstream);
 
@@ -41,7 +41,8 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const NRpc::TRequestId RequestId_;
+    const NLogging::TLogger Logger;
+
     int PhaseNumber_ = 0;
     bool SyncWithUpstream_ = false;
     NObjectClient::TCellTagList SyncedWithCellTags_;

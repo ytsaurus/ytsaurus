@@ -1,7 +1,6 @@
 #include "multi_phase_cell_sync_session.h"
 
 #include "private.h"
-
 #include "bootstrap.h"
 #include "multicell_manager.h"
 
@@ -16,13 +15,11 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellMasterLogger;
-
-///////////////////////////////////////////////////////////////////////////////
-
-TMultiPhaseCellSyncSession::TMultiPhaseCellSyncSession(TBootstrap* bootstrap, TRequestId requestId)
+TMultiPhaseCellSyncSession::TMultiPhaseCellSyncSession(
+    TBootstrap* bootstrap,
+    NLogging::TLogger logger)
     : Bootstrap_(bootstrap)
-    , RequestId_(requestId)
+    , Logger(std::move(logger))
 { }
 
 void TMultiPhaseCellSyncSession::SetSyncWithUpstream(bool syncWithUpstream)
@@ -69,8 +66,7 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
         return VoidFuture;
     }
 
-    YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells (RequestId: %v, CellTags: %v)",
-        RequestId_,
+    YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells (CellTags: %v)",
         syncCellTags);
 
     return AllSucceeded(std::move(syncFutures));

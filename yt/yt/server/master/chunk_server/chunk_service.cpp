@@ -153,6 +153,7 @@ private:
     TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
     std::atomic<bool> EnableCypressTransactionsInSequoia_;
+    std::atomic<bool> EnableBoomerangsIdentity_;
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
@@ -212,71 +213,75 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkService;
     }
 
-    void UpdateTransactionMirroringToSequoia()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
-        EnableCypressTransactionsInSequoia_.store(
-            newConfig->Enable && newConfig->EnableCypressTransactionsInSequoia,
-            std::memory_order::release);
-    }
-
-    bool GetEnableCypressTransactionsInSequoia() const noexcept
+    bool AreCypressTransactionsInSequoiaEnabled() const noexcept
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire);
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
+    bool IsBoomerangsIdentityEnabled() const noexcept
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return EnableBoomerangsIdentity_.load(std::memory_order::acquire);
+    }
+
+    void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        UpdateTransactionMirroringToSequoia();
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        EnableBoomerangsIdentity_.store(
+            config->EnableBoomerangsIdentity,
+            std::memory_order::release);
 
-        const auto& config = GetDynamicConfig();
+        const auto& sequoiaManagerConfig = config->SequoiaManager;
+        EnableCypressTransactionsInSequoia_.store(
+            sequoiaManagerConfig->Enable && sequoiaManagerConfig->EnableCypressTransactionsInSequoia,
+            std::memory_order::release);
+
+        const auto& chunkServiceConfig = config->ChunkService;
+        const auto& oldChunkServiceConfig = oldConfig->ChunkService;
 
         try {
             auto* methodInfo = GetMethodInfoOrThrow(RPC_SERVICE_METHOD_DESC(ExecuteBatch).Method);
-            auto weightThrottlerConfig = config->DefaultRequestWeightThrottlerConfig;
+            auto weightThrottlerConfig = chunkServiceConfig->DefaultRequestWeightThrottlerConfig;
             auto* requestQueue = methodInfo->GetDefaultRequestQueue();
             requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue");
         }
 
-        const auto& oldConfig = oldClusterConfig->ChunkService;
-
         auto configureRequestQueueProvider = [&] (const auto& queueProvider) {
             // Avoid unnecessary reconfiguration of request queues as it might create
             // significant load on the automaton thread.
             bool shouldReconfigureQueues = false;
 
-            if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
+            if (oldChunkServiceConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
                 // Either an epoch change or irrelevant modification to the config.
 
                 queueProvider->UpdateDefaultConfigs({
-                    config->DefaultPerUserRequestWeightThrottlerConfig,
-                    config->DefaultPerUserRequestBytesThrottlerConfig});
+                    chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig,
+                    chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig});
                 // Crucial on epoch change for guaranteeing up-to-date configuration.
                 shouldReconfigureQueues = true;
             } else {
-                if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig != config->DefaultPerUserRequestWeightThrottlerConfig ||
-                    oldConfig->DefaultPerUserRequestBytesThrottlerConfig != config->DefaultPerUserRequestBytesThrottlerConfig)
+                if (oldChunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig != chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig ||
+                    oldChunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig != chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig)
                 {
                     queueProvider->UpdateDefaultConfigs({
-                        config->DefaultPerUserRequestWeightThrottlerConfig,
-                        config->DefaultPerUserRequestBytesThrottlerConfig});
+                        chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig,
+                        chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig});
                     shouldReconfigureQueues = true;
                 }
 
-                if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
-                    oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
+                if (oldChunkServiceConfig->EnablePerUserRequestWeightThrottling != chunkServiceConfig->EnablePerUserRequestWeightThrottling ||
+                    oldChunkServiceConfig->EnablePerUserRequestBytesThrottling != chunkServiceConfig->EnablePerUserRequestBytesThrottling)
                 {
                     queueProvider->UpdateThrottlingEnabledFlags(
-                        config->EnablePerUserRequestWeightThrottling,
-                        config->EnablePerUserRequestBytesThrottling);
+                        chunkServiceConfig->EnablePerUserRequestWeightThrottling,
+                        chunkServiceConfig->EnablePerUserRequestBytesThrottling);
                     shouldReconfigureQueues = true;
                 }
             }
@@ -677,7 +682,9 @@ private:
 
         SortUnique(cellTagsToSyncWith);
 
-        auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, context->GetRequestId());
+        auto syncSession = New<TMultiPhaseCellSyncSession>(
+            Bootstrap_,
+            ChunkServerLogger().WithTag("RequestId: %v", context->GetRequestId()));
         WaitFor(syncSession->Sync(cellTagsToSyncWith))
             .ThrowOnError();
 
@@ -782,7 +789,8 @@ private:
             context,
             chunkManager->CreateExecuteBatchMutation(context),
             enableMutationBoomerangs,
-            GetEnableCypressTransactionsInSequoia());
+            AreCypressTransactionsInSequoiaEnabled(),
+            IsBoomerangsIdentityEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -812,7 +820,8 @@ private:
             context,
             chunkManager->CreateAttachChunkTreesMutation(context),
             enableMutationBoomerangs,
-            GetEnableCypressTransactionsInSequoia());
+            AreCypressTransactionsInSequoiaEnabled(),
+            IsBoomerangsIdentityEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
@@ -858,7 +867,8 @@ private:
             context,
             chunkManager->CreateCreateChunkListsMutation(context),
             enableMutationBoomerangs,
-            GetEnableCypressTransactionsInSequoia());
+            AreCypressTransactionsInSequoiaEnabled(),
+            IsBoomerangsIdentityEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
@@ -908,7 +918,8 @@ private:
             context,
             chunkManager->CreateCreateChunkMutation(context),
             enableMutationBoomerangs,
-            GetEnableCypressTransactionsInSequoia());
+            AreCypressTransactionsInSequoiaEnabled(),
+            IsBoomerangsIdentityEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)

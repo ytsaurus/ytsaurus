@@ -283,6 +283,7 @@ private:
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
+    std::atomic<bool> EnableBoomerangsIdentity_ = false;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
     static IInvokerPtr GetRpcInvoker()
@@ -355,15 +356,14 @@ public:
         , TraceContext_(TryGetCurrentTraceContext())
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
-        , UserName_(RpcContext_->GetAuthenticationIdentity().User)
+        , Identity_(RpcContext_->GetAuthenticationIdentity())
         , RequestId_(RpcContext_->GetRequestId())
         , CodicilData_(Format("RequestId: %v, %v",
             RequestId_,
-            RpcContext_->GetAuthenticationIdentity()))
+            Identity_))
+        , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
-        , CellSyncSession_(New<TMultiPhaseCellSyncSession>(
-            Bootstrap_,
-            RequestId_))
+        , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
           // Copy so it doesn't change mid-execution of this particular session.
         , EnableLocalReadExecutor_(Owner_->EnableLocalReadExecutor_.load())
     { }
@@ -385,7 +385,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return UserName_;
+        return Identity_.User;
     }
 
     void RunRpc()
@@ -457,9 +457,10 @@ private:
 
     NCellMaster::TBootstrap* const Bootstrap_;
     const int TotalSubrequestCount_;
-    const TString& UserName_;
+    const NRpc::TAuthenticationIdentity& Identity_;
     const TRequestId RequestId_;
     const TString CodicilData_;
+    const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
     const bool EnableLocalReadExecutor_;
@@ -560,8 +561,6 @@ private:
     std::atomic<bool> Enqueued_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    const NLogging::TLogger& Logger = ObjectServerLogger();
 
 
     void GuardedRunRpc()
@@ -734,8 +733,7 @@ private:
                 multicellSyncExt.suppress_upstream_sync(),
                 multicellSyncExt.suppress_transaction_coordinator_sync());
 
-            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
-                RequestId_,
+            YT_LOG_DEBUG("Serving subrequest from cache (SubrequestIndex: %v, Key: %v)",
                 subrequestIndex,
                 key);
 
@@ -1158,10 +1156,15 @@ private:
                     subrequest.RemoteTransactionReplicationSession = New<TTransactionReplicationSessionWithBoomerangs>(
                         Bootstrap_,
                         std::move(writeSubrequestTransactions),
-                        TInitiatorRequestLogInfo(RequestId_, subrequestIndex),
+                        TTransactionReplicationInitiatorRequestInfo{
+                            .Identity = Identity_,
+                            .RequestId = RequestId_,
+                            .SubrequestIndex = subrequestIndex,
+                        },
                         Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
-                        std::move(subrequest.Mutation));
-                } else {
+                        Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
+                }
+                if (subrequest.Mutation) {
                     // Pre-phase-two.
                     subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation));
                 }
@@ -1178,8 +1181,12 @@ private:
             RemoteTransactionReplicationSession_ = New<TTransactionReplicationSessionWithoutBoomerangs>(
                 Bootstrap_,
                 std::move(transactionsToReplicateWithoutBoomerangs),
-                TInitiatorRequestLogInfo(RequestId_),
-                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
+                TTransactionReplicationInitiatorRequestInfo{
+                    .Identity = Identity_,
+                    .RequestId = RequestId_,
+                },
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
+                Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -1352,9 +1359,8 @@ private:
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
+            YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
                 "%v%v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
-                RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
@@ -1383,8 +1389,7 @@ private:
             batch.BatchReq->Invoke().Subscribe(
                 BIND([=, this, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (batchRspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v, SubrequestIndexes: %v)",
-                            RequestId_,
+                        YT_LOG_DEBUG("Forwarded request succeeded (ForwardedRequestId: %v, SubrequestIndexes: %v)",
                             batch.BatchReq->GetRequestId(),
                             batch.Indexes);
 
@@ -1408,8 +1413,7 @@ private:
                     } else {
                         const auto& forwardingError = batchRspOrError;
 
-                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
-                            RequestId_,
+                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (ForwardedRequestId: %v, SubrequestIndexes: %v)",
                             batch.BatchReq->GetRequestId(),
                             batch.Indexes);
 
@@ -1517,7 +1521,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         if (!User_) {
-            auto* user = securityManager->GetUserByNameOrThrow(UserName_, /*activeLifeStageOnly*/ true);
+            auto* user = securityManager->GetUserByNameOrThrow(Identity_.User, /*activeLifeStageOnly*/ true);
             User_ = TEphemeralObjectPtr<TUser>(user);
 
             const auto& config = Owner_->GetDynamicConfig();
@@ -1550,7 +1554,7 @@ private:
             NeedsUserAccessValidation_ = false;
             auto error = securityManager->CheckUserAccess(User_.Get());
             if (!error.IsOK()) {
-                Owner_->SetStickyUserError(UserName_, error);
+                Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
         }
@@ -1564,7 +1568,7 @@ private:
                     User_->GetName())
                     << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(cellTag))
                     << TErrorAttribute("cell_tag", cellTag);
-                Owner_->SetStickyUserError(UserName_, error);
+                Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
             RequestQueueSizeIncreased_ = true;
@@ -1750,8 +1754,7 @@ private:
 
     void ForwardSubrequestToLeader(TSubrequest* subrequest)
     {
-        YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
-            RequestId_);
+        YT_LOG_DEBUG("Performing leader fallback");
 
         subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
@@ -2094,8 +2097,7 @@ private:
         ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
 
         if (response.subresponses_size() == 0) {
-            YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
-                RequestId_);
+            YT_LOG_DEBUG("Dropping request since no subresponses are available");
             return;
         }
 
@@ -2112,7 +2114,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!LocalExecutionInterrupted_.exchange(true)) {
-            YT_LOG_DEBUG("Request interrupted (RequestId: %v)", RequestId_);
+            YT_LOG_DEBUG("Request interrupted");
         }
     }
 
@@ -2167,7 +2169,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
+        YT_LOG_DEBUG("Backoff alarm triggered");
 
         BackoffAlarmTriggered_.store(true);
 
@@ -2180,9 +2182,8 @@ private:
 
         int result = ++ReplyLockCount_;
         YT_VERIFY(result > 1);
-        YT_LOG_TRACE("Reply lock acquired (LockCount: %v, RequestId: %v)",
-            result,
-            RequestId_);
+        YT_LOG_TRACE("Reply lock acquired (LockCount: %v)",
+            result);
     }
 
     bool ReleaseReplyLock()
@@ -2191,9 +2192,8 @@ private:
 
         int result = --ReplyLockCount_;
         YT_VERIFY(result >= 0);
-        YT_LOG_TRACE("Reply lock released (LockCount: %v, RequestId: %v)",
-            result,
-            RequestId_);
+        YT_LOG_TRACE("Reply lock released (LockCount: %v)",
+            result);
         return ScheduleReplyIfNeeded();
     }
 
@@ -2219,8 +2219,7 @@ private:
 
         auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
-            YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying (RequestId: %v)",
-                RequestId_);
+            YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying");
             NConcurrency::TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded), MakeStrong(this)),
                 Owner_->ScheduleReplyRetryBackoff_.load(),
@@ -2234,8 +2233,7 @@ private:
         }
 
         if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
-            YT_LOG_DEBUG("Local execution interrupted due to backoff alarm (RequestId: %v)",
-                RequestId_);
+            YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
             LocalExecutionInterrupted_.store(true);
             return ReleaseUltimateReplyLock();
         }
@@ -2298,19 +2296,22 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& config = GetDynamicConfig();
-    EnableTwoLevelCache_ = config->EnableTwoLevelCache;
-    EnableLocalReadExecutor_ = config->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
-    ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
+    const auto& objectServiceConfig = GetDynamicConfig();
+    EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
+    EnableLocalReadExecutor_ = objectServiceConfig->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
+    ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
         std::memory_order::release);
+    EnableBoomerangsIdentity_.store(
+        Bootstrap_->GetConfigManager()->GetConfig()->EnableBoomerangsIdentity,
+        std::memory_order::release);
 
-    LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
-    LocalReadOffloadPool_->Configure(config->LocalReadOffloadThreadCount);
-    ProcessSessionsExecutor_->SetPeriod(config->ProcessSessionsPeriod);
+    LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);
+    LocalReadOffloadPool_->Configure(objectServiceConfig->LocalReadOffloadThreadCount);
+    ProcessSessionsExecutor_->SetPeriod(objectServiceConfig->ProcessSessionsPeriod);
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
