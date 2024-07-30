@@ -210,7 +210,7 @@ TFeatureFlags MostArchaicFeatureFlags()
 TString ToString(const TFeatureFlags& featureFlags)
 {
     return Format(
-        "[WithTotalsFinalizesAggregatedOnCoordinator: %v]",
+        "{WithTotalsFinalizesAggregatedOnCoordinator: %v}",
         featureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 }
 

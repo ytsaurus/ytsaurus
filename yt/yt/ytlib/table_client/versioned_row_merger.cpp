@@ -27,11 +27,11 @@ static constexpr auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedRowMerger
+class TLegacyVersionedRowMerger
     : public IVersionedRowMerger
 {
 public:
-    TVersionedRowMerger(
+    TLegacyVersionedRowMerger(
         TRowBufferPtr rowBuffer,
         int columnCount,
         int keyColumnCount,
@@ -243,8 +243,6 @@ public:
             // For aggregate columns merge values before MajorTimestamp_ and leave other values.
             int id = partialValueIt->Id;
             if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
-
-                // TODO(lukyan): Use MajorTimestamp_ == int max for MergeRowsOnFlush_.
                 while (retentionBeginIt != ColumnValues_.begin() && retentionBeginIt->Timestamp >= MajorTimestamp_ && !MergeRowsOnFlush_)
                 {
                     --retentionBeginIt;
@@ -495,7 +493,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     std::optional<int> ttlColumnIndex,
     bool mergeDeletionsOnFlush)
 {
-    return std::make_unique<TVersionedRowMerger>(
+    return std::make_unique<TLegacyVersionedRowMerger>(
         rowBuffer,
         columnCount,
         keyColumnCount,
@@ -508,6 +506,539 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
         ttlColumnIndex,
         mergeDeletionsOnFlush,
         /*runtimeData*/ std::nullopt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNewVersionedRowMerger
+    : public IVersionedRowMerger
+{
+public:
+    TNewVersionedRowMerger(
+        TRowBufferPtr rowBuffer,
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+        int columnCount,
+        int keyColumnCount,
+        const TColumnFilter& columnFilter,
+        // Keep all versions not older (newer or equal to) than all versiones timestamp.
+        TTimestamp allVersionsTimestamp,
+        // Remove versions older than retention timestamp.
+        TTimestamp retentionTimestamp,
+        // There are no timestamps older than major timestamp in other stores.
+        // Compact aggregate values older than major timestamp timestamp.
+        TTimestamp majorTimestamp,
+        // Timestamp range of all rows are exclusive to current merge session.
+        // FlushMode assumes that timestamp range in store is not intersected with any other for given key range.
+        // Adjacent delete timestamps and aggregates (before allVersionsTimestamp) can be merged.
+        // Major timestamp should be zero in flush mode.
+        bool flushMode)
+        : RowBuffer_(std::move(rowBuffer))
+        , ColumnEvaluator_(std::move(columnEvaluator))
+        , AllVersionsTimestamp_(allVersionsTimestamp)
+        , RetentionTimestamp_(retentionTimestamp)
+        , MajorTimestamp_(majorTimestamp)
+        , FlushMode_(flushMode)
+    {
+        YT_VERIFY(RetentionTimestamp_ <= AllVersionsTimestamp_);
+        YT_VERIFY(MajorTimestamp_ <= AllVersionsTimestamp_);
+
+        // Flush mode cannot be replaced with MajorTimestamp == Max.
+        // In case of MajorTimestamp all delete timestamps before MajorTimestamp can be removed.
+        // In case of FlushMode last delete timesamp before AllVersionsTimestamp must be kept
+        // because there can be writes before it in chunks.
+
+        int resultKeyColumnCount = 0;
+        int resultValueColumnCount = 0;
+
+        ColumnIdToIndex_.resize(columnCount, -1);
+
+        int columnIndex = 0;
+        auto addColumn = [&] (int id) {
+            ColumnIdToIndex_[id] = columnIndex++;
+
+            if (id < keyColumnCount) {
+                ++resultKeyColumnCount;
+            } else {
+                ++resultValueColumnCount;
+            }
+        };
+
+        if (columnFilter.IsUniversal()) {
+            for (int id = 0; id < columnCount; ++id) {
+                addColumn(id);
+            }
+        } else {
+            for (int id : columnFilter.GetIndexes()) {
+                addColumn(id);
+            }
+        }
+
+        Keys_.resize(resultKeyColumnCount);
+        Values_.resize(resultValueColumnCount);
+
+        for (int id = keyColumnCount; id < columnCount; ++id) {
+            if (ColumnIdToIndex_[id] == -1) {
+                continue;
+            }
+
+            YT_VERIFY(ColumnIdToIndex_[id] >= resultKeyColumnCount);
+            int valueIndex = ColumnIdToIndex_[id] - resultKeyColumnCount;
+
+            if (ColumnEvaluator_->IsAggregate(id)) {
+                AggregateColumnIndexes_.push_back(valueIndex);
+            } else {
+                ReplacingColumnIndexes_.push_back(valueIndex);
+            }
+        }
+    }
+
+    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit) override
+    {
+        if (!row) {
+            return;
+        }
+
+        if (!Started_) {
+            Started_ = true;
+
+            for (const auto& key : row.Keys()) {
+                YT_VERIFY(key.Id < ColumnIdToIndex_.size());
+                auto index = ColumnIdToIndex_[key.Id];
+                if (index != -1) {
+                    YT_VERIFY(index >= 0 && index < std::ssize(Keys_));
+                    Keys_[index] = key;
+                }
+            }
+        }
+
+        for (const auto& value : row.Values()) {
+            YT_VERIFY(value.Id < ColumnIdToIndex_.size());
+            auto index = ColumnIdToIndex_[value.Id];
+
+            if (value.Timestamp >= upperTimestampLimit) {
+                continue;
+            }
+
+            if (index != -1) {
+                YT_VERIFY(index >= std::ssize(Keys_));
+                YT_VERIFY(index - std::ssize(Keys_) < std::ssize(Values_));
+                Values_[index - std::ssize(Keys_)].push_back(value);
+            } else {
+                // Save timestamps of filtered out columns.
+                WriteTimestamps_.push_back(value.Timestamp);
+            }
+        }
+
+        for (auto timestamp : row.WriteTimestamps()) {
+            if (timestamp < upperTimestampLimit) {
+                WriteTimestamps_.push_back(timestamp);
+            }
+        }
+
+        for (auto timestamp : row.DeleteTimestamps()) {
+            if (timestamp < upperTimestampLimit) {
+                DeleteTimestamps_.push_back(timestamp);
+            }
+        }
+    }
+
+    TMutableVersionedRow BuildMergedRow(bool produceEmptyRow) override
+    {
+        if (!Started_) {
+            return {};
+        }
+
+        auto baseDeleteTimestamp = GetBaseDeleteTimestamp();
+        auto retentionTimestamp = std::max(RetentionTimestamp_, baseDeleteTimestamp);
+
+        // Filter write timestamps of filtered out columns.
+        WriteTimestamps_.erase(
+            std::remove_if(WriteTimestamps_.begin(), WriteTimestamps_.end(), [&] (auto timestamp) {
+                return Precedes(timestamp, retentionTimestamp);
+            }),
+            WriteTimestamps_.end());
+
+        std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end());
+
+        // Apply retention config for write timestamps of filtered out columns.
+        {
+            auto endOneVersionTimestampIt = LowerBound(WriteTimestamps_.begin(), WriteTimestamps_.end(), AllVersionsTimestamp_);
+
+            if (WriteTimestamps_.begin() < endOneVersionTimestampIt) {
+                --endOneVersionTimestampIt;
+                WriteTimestamps_.erase(WriteTimestamps_.begin(), endOneVersionTimestampIt);
+            }
+        }
+
+        for (auto index : ReplacingColumnIndexes_) {
+            auto& values = Values_[index];
+
+            auto valueIt = values.data();
+            auto endValueIt = SortUniqueValues(valueIt, valueIt + values.size());
+
+            // Skip versions before base delete timestamp.
+            while (valueIt != endValueIt && Precedes(valueIt->Timestamp, baseDeleteTimestamp)) {
+                ++valueIt;
+            }
+
+            valueIt = CompactReplacingValues(valueIt, endValueIt);
+            values.erase(std::move(valueIt, endValueIt, values.begin()), values.end());
+        }
+
+        for (auto index : AggregateColumnIndexes_) {
+            auto& values = Values_[index];
+
+            auto valueIt = values.data();
+            auto endValueIt = SortUniqueValues(valueIt, valueIt + values.size());
+
+            // Skip versions before base delete timestamp.
+            while (valueIt != endValueIt && Precedes(valueIt->Timestamp, baseDeleteTimestamp)) {
+                ++valueIt;
+            }
+
+            valueIt = CompactAggregateValues(valueIt, endValueIt);
+            values.erase(std::move(valueIt, endValueIt, values.begin()), values.end());
+        }
+
+        int resultValueCount = 0;
+        for (int index = 0; index < std::ssize(Values_); ++index) {
+            auto& values = Values_[index];
+
+            for (int j = 1; j < std::ssize(values); ++j) {
+                YT_VERIFY(Precedes(values[j - 1].Timestamp, values[j].Timestamp));
+            }
+
+            // Reverse timestamps.
+            std::reverse(values.begin(), values.end());
+
+            resultValueCount += std::ssize(values);
+
+            // Save output values timestamps.
+            for (const auto& value : values) {
+                WriteTimestamps_.push_back(value.Timestamp);
+            }
+        }
+
+        std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end());
+
+        WriteTimestamps_.erase(
+            std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
+            WriteTimestamps_.end());
+
+        // Remove redundant delete timestamps between subsequent write timestamps.
+        if (FlushMode_) {
+            RemoveDeletesBetweenSubsequentWrites();
+        }
+
+        if (!produceEmptyRow &&
+            resultValueCount == 0 &&
+            WriteTimestamps_.empty() &&
+            DeleteTimestamps_.empty())
+        {
+            Cleanup();
+            return {};
+        }
+
+        // Reverse write and delete timestamps list to make them appear in descending order.
+        std::reverse(WriteTimestamps_.begin(), WriteTimestamps_.end());
+        std::reverse(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
+
+         // Construct output row.
+        auto row = RowBuffer_->AllocateVersioned(
+            Keys_.size(),
+            resultValueCount,
+            WriteTimestamps_.size(),
+            DeleteTimestamps_.size());
+
+        // Construct output keys.
+        std::copy(Keys_.begin(), Keys_.end(), row.BeginKeys());
+
+        auto valuesIt = row.BeginValues();
+        for (int index = 0; index < std::ssize(Values_); ++index) {
+            valuesIt = std::copy(Values_[index].begin(), Values_[index].end(), valuesIt);
+        }
+
+        // Construct output timestamps.
+        std::copy(WriteTimestamps_.begin(), WriteTimestamps_.end(), row.BeginWriteTimestamps());
+        std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
+
+        Cleanup();
+
+        return row;
+    }
+
+    void Reset() override
+    {
+        YT_ASSERT(!Started_);
+        RowBuffer_->Clear();
+    }
+
+private:
+    const TRowBufferPtr RowBuffer_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+
+    const TTimestamp AllVersionsTimestamp_;
+    const TTimestamp RetentionTimestamp_;
+
+    // Major timestamp is upper exclusive timestamp for merge session.
+    // There are no timestamps older than this in other stores (not in current merge session).
+    const TTimestamp MajorTimestamp_;
+    const bool FlushMode_;
+
+    std::vector<int> ColumnIdToIndex_;
+    std::vector<TUnversionedValue> Keys_;
+
+    std::vector<std::vector<TVersionedValue>> Values_;
+    std::vector<int> ReplacingColumnIndexes_;
+    std::vector<int> AggregateColumnIndexes_;
+
+    std::vector<TTimestamp> WriteTimestamps_;
+    std::vector<TTimestamp> DeleteTimestamps_;
+
+    bool Started_ = false;
+
+    void Cleanup()
+    {
+        for (int index = 0; index < std::ssize(Values_); ++index) {
+            Values_[index].clear();
+        }
+
+        WriteTimestamps_.clear();
+        DeleteTimestamps_.clear();
+
+        Started_ = false;
+    }
+
+    // Use separate function to force particular relation operator.
+    // Separate function also useful to mark all timestamp comparisons.
+    static bool Precedes(TTimestamp a, TTimestamp b)
+    {
+        return a < b;
+    }
+
+    // TODO(lukyan): Move calculations to AddPartialRow.
+    TTimestamp GetBaseDeleteTimestamp()
+    {
+        // Sort delete timestamps in ascending order and remove duplicates.
+        std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
+        DeleteTimestamps_.erase(
+            std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
+            DeleteTimestamps_.end());
+
+        auto deleteTimestampIt = DeleteTimestamps_.begin();
+        // Depends on condition for Retention timestamp.
+        while (deleteTimestampIt != DeleteTimestamps_.end() &&
+            Precedes(*deleteTimestampIt, AllVersionsTimestamp_))
+        {
+            ++deleteTimestampIt;
+        }
+
+        TTimestamp baseDeleteTimestamp = NullTimestamp;
+
+        if (deleteTimestampIt > DeleteTimestamps_.begin()) {
+            baseDeleteTimestamp = deleteTimestampIt[-1];
+
+            // Preserve last delete timestamp preceding all versions timestamp
+            // if it is greater than major timestamp.
+            // Timestamp must be preserved because of older writes in other chunks.
+            if (!Precedes(baseDeleteTimestamp, MajorTimestamp_)) {
+                --deleteTimestampIt;
+            } else {
+                YT_VERIFY(Precedes(baseDeleteTimestamp, AllVersionsTimestamp_));
+                YT_VERIFY(Precedes(baseDeleteTimestamp, MajorTimestamp_));
+            }
+
+            DeleteTimestamps_.erase(DeleteTimestamps_.begin(), deleteTimestampIt);
+        }
+
+        return baseDeleteTimestamp;
+    }
+
+    void RemoveDeletesBetweenSubsequentWrites()
+    {
+        auto nextWriteTimestampIt = WriteTimestamps_.begin();
+        auto deleteTimestampOutputIt = DeleteTimestamps_.begin();
+        bool deleteTimestampStored = false;
+
+        for (auto deleteTimestamp : DeleteTimestamps_) {
+            while (nextWriteTimestampIt != WriteTimestamps_.end() && !Precedes(deleteTimestamp, *nextWriteTimestampIt)) {
+                deleteTimestampStored = false;
+                nextWriteTimestampIt++;
+            }
+
+            if (!deleteTimestampStored) {
+                *deleteTimestampOutputIt++ = deleteTimestamp;
+                deleteTimestampStored = true;
+            }
+        }
+
+        DeleteTimestamps_.erase(deleteTimestampOutputIt, DeleteTimestamps_.end());
+    }
+
+    // Cannot use TRange/TMutableRange beacuse of invalid iterators in case of empty range.
+    static TVersionedValue* SortUniqueValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
+    {
+        // Common for values.
+        std::sort(
+            valueIt,
+            valueItEnd,
+            [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                return Precedes(lhs.Timestamp, rhs.Timestamp);
+            });
+
+        auto endValueIt = std::unique(
+            valueIt,
+            valueItEnd,
+            [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                return lhs.Timestamp == rhs.Timestamp;
+            });
+
+        return endValueIt;
+    }
+
+    TVersionedValue* CompactReplacingValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
+    {
+        // Skip versions before retention timestamp.
+        while (valueIt != valueItEnd && Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+            ++valueIt;
+        }
+
+        auto endOneVersionValueIt = valueIt;
+
+        while (endOneVersionValueIt < valueItEnd &&
+            Precedes(endOneVersionValueIt->Timestamp, AllVersionsTimestamp_))
+        {
+            ++endOneVersionValueIt;
+        }
+
+        if (valueIt < endOneVersionValueIt) {
+            valueIt = endOneVersionValueIt - 1;
+        }
+
+        return valueIt;
+    }
+
+    TVersionedValue ApplyAggregation(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
+    {
+        auto state = *valueIt++;
+        auto id = state.Id;
+        // Aggregation result gets last timestamp.
+        state.Timestamp = valueItEnd[-1].Timestamp;
+
+        // The very first aggregated value determines the final aggregation mode.
+        // Preserve initial aggregate flag.
+        auto initialAggregateFlags = state.Flags & EValueFlags::Aggregate;
+
+        for (; valueIt < valueItEnd; ++valueIt) {
+            const auto& value = *valueIt;
+
+            // Do no expect any tombstones.
+            YT_ASSERT(value.Type != EValueType::TheBottom);
+            // Only expect overwrites at the very beginning.
+            YT_ASSERT(Any(value.Flags & EValueFlags::Aggregate));
+
+            ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
+
+            // Preserve aggregate flag in aggregate functions.
+            state.Flags &= ~EValueFlags::Aggregate;
+            state.Flags |= initialAggregateFlags;
+        }
+
+        // Value is not finalized yet. Further merges may happen.
+        YT_ASSERT((state.Flags & EValueFlags::Aggregate) == initialAggregateFlags);
+
+        return state;
+    }
+
+    TVersionedValue* CompactAggregateValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
+    {
+        // Skip versions before retention timestamp.
+        while (valueIt != valueItEnd && Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+            ++valueIt;
+        }
+
+        auto compactAggregatesTimestamp = FlushMode_ ? AllVersionsTimestamp_ : MajorTimestamp_;
+
+        auto endCompactValueIt = valueIt;
+
+        // Determine merged values range (common with nested merge).
+        while (endCompactValueIt < valueItEnd &&
+            Precedes(endCompactValueIt->Timestamp, compactAggregatesTimestamp))
+        {
+            // Override non-delta.
+            if (None(endCompactValueIt->Flags & EValueFlags::Aggregate)) {
+                valueIt = endCompactValueIt;
+            }
+
+            ++endCompactValueIt;
+        }
+
+        if (valueIt < endCompactValueIt) {
+            auto state = ApplyAggregation(valueIt, endCompactValueIt);
+            valueIt = endCompactValueIt - 1;
+            *valueIt = state;
+        }
+
+        return valueIt;
+    }
+};
+
+std::pair<TTimestamp, TTimestamp> GetPivotTimestamps(TTimestamp currentTimestamp, TRetentionConfigPtr config)
+{
+    if (!config) {
+        return {0, 0};
+    }
+
+    auto minTtl = config->MinDataTtl.Seconds() << NTransactionClient::TimestampCounterWidth;
+    auto maxTtl = config->MaxDataTtl.Seconds() << NTransactionClient::TimestampCounterWidth;
+
+    auto allVersionsTimestamp = currentTimestamp > minTtl ? currentTimestamp - minTtl : 0;
+
+    TTimestamp retentionTimestamp;
+    if (config->MinDataVersions > 0) {
+        retentionTimestamp = 0;
+    } else {
+        // Consider config->MaxDataTtl as config->MaxDataTtl + config->MinDataTtl to guarantee stable
+        // repeatable read.
+        maxTtl += minTtl;
+
+        retentionTimestamp = currentTimestamp > maxTtl ? currentTimestamp - maxTtl : 0;
+    }
+
+    return {retentionTimestamp, allVersionsTimestamp};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
+    TRowBufferPtr rowBuffer,
+    int columnCount,
+    int keyColumnCount,
+    const TColumnFilter& columnFilter,
+    TRetentionConfigPtr config,
+    TTimestamp currentTimestamp,
+    TTimestamp majorTimestamp,
+    NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+    bool mergeRowsOnFlush)
+{
+    if (config && config->IgnoreMajorTimestamp) {
+        mergeRowsOnFlush = true;
+    }
+
+    // Lookup mode is redundant because behaviour can be achieved with universal retention config.
+    // Universal retention config is one with infinity min data TTL.
+
+    auto [retentionTimestamp, allVersionsTimestamp] = GetPivotTimestamps(currentTimestamp, config);
+    return std::make_unique<TNewVersionedRowMerger>(
+        rowBuffer,
+        columnEvaluator,
+        columnCount,
+        keyColumnCount,
+        columnFilter,
+        allVersionsTimestamp,
+        retentionTimestamp,
+        std::min(majorTimestamp, allVersionsTimestamp),
+        mergeRowsOnFlush);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -526,6 +1057,10 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     bool useTtlColumn,
     bool mergeDeletionsOnFlush)
 {
+    if (useTtlColumn && tableSchema->GetTtlColumnIndex()) {
+        rowMergerType = ERowMergerType::Legacy;
+    }
+
     switch (rowMergerType) {
         case ERowMergerType::Legacy:
             return CreateLegacyVersionedRowMerger(
@@ -568,7 +1103,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 }
             }
 
-            return std::make_unique<TVersionedRowMerger>(
+            return std::make_unique<TLegacyVersionedRowMerger>(
                 std::move(rowBuffer),
                 tableSchema->GetColumnCount(),
                 tableSchema->GetKeyColumnCount(),
@@ -583,6 +1118,17 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 std::move(watermarkRuntimeData));
         }
 
+        case ERowMergerType::New:
+            return CreateNewVersionedRowMerger(
+                rowBuffer,
+                tableSchema->GetColumnCount(),
+                tableSchema->GetKeyColumnCount(),
+                columnFilter,
+                config,
+                currentTimestamp,
+                majorTimestamp,
+                columnEvaluator,
+                mergeRowsOnFlush);
         default:
             YT_ABORT();
     }

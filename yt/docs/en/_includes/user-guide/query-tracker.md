@@ -174,7 +174,7 @@ A few things to keep in mind:
 + The query creator always has access to their queries.
 + If a query doesn't have an ACO, the default `nobody` ACO is used for verification.
 
-For convenience, yt-k8s-operator creates the following ACOs:
+For convenience, ytsaurus-k8s-operator creates the following ACOs:
 + `nobody`. Doesn't grant any permissions.
 + `everyone`. Grants `Use` and `Read` permissions to all users.
 + `everyone-use`. Grants `Use` permissions to all users.

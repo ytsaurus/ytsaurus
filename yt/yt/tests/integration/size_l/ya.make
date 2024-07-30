@@ -6,16 +6,14 @@ ENV(YT_TEST_FILTER=LARGE)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
-REQUIREMENTS(
-    cpu:28
-)
-
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
-        ram:40
+        cpu:42
+        ram:52
     )
 ELSE()
     REQUIREMENTS(
+        cpu:28
         ram:16
     )
 ENDIF()

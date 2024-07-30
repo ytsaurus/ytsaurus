@@ -14,8 +14,11 @@ func writeTransactionOptions(w *yson.Writer, o *yt.TransactionOptions) {
 	if o == nil {
 		return
 	}
-	w.MapKeyString("transaction_id")
-	w.Any(o.TransactionID)
+	defaultTxID := yt.TxID{}
+	if o.TransactionID != defaultTxID {
+		w.MapKeyString("transaction_id")
+		w.Any(o.TransactionID)
+	}
 	w.MapKeyString("ping")
 	w.Any(o.Ping)
 	w.MapKeyString("ping_ancestor_transactions")

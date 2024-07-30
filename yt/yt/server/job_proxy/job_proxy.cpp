@@ -733,7 +733,13 @@ TJobResult TJobProxy::RunJob()
             auto tvmBridgeClient = CreateBusClient(Config_->TvmBridgeConnection);
             auto tvmBridgeChannel = NRpc::NBus::CreateBusChannel(tvmBridgeClient);
 
-            TvmBridge_ = NAuth::CreateTvmBridge(GetControlInvoker(), tvmBridgeChannel, Config_->TvmBridge);
+            if (Config_->UseRetryingChannels) {
+                tvmBridgeChannel = CreateRetryingChannel(
+                    Config_->RetryingChannelConfig,
+                    std::move(tvmBridgeChannel));
+            }
+
+            TvmBridge_ = NAuth::CreateTvmBridge(GetControlInvoker(), std::move(tvmBridgeChannel), Config_->TvmBridge);
             NAuth::TNativeAuthenticationManager::Get()->SetTvmService(TvmBridge_);
         }
 
@@ -769,6 +775,12 @@ TJobResult TJobProxy::RunJob()
             supervisorChannel = CreateServiceTicketInjectingChannel(
                 std::move(supervisorChannel),
                 NAuth::TAuthenticationOptions::FromServiceTicketAuth(serviceTicketAuth));
+        }
+
+        if (Config_->UseRetryingChannels) {
+            supervisorChannel = CreateRetryingChannel(
+                Config_->RetryingChannelConfig,
+                std::move(supervisorChannel));
         }
 
         if (Config_->DnsOverRpcResolver) {

@@ -50,7 +50,7 @@ import (
 //
 // Do not use this options directly. Use Transaction instead.
 type TransactionOptions struct {
-	TransactionID                      TxID `http:"transaction_id"`
+	TransactionID                      TxID `http:"transaction_id,omitempty"`
 	Ping                               bool `http:"ping"`
 	PingAncestors                      bool `http:"ping_ancestor_transactions"`
 	SuppressTransactionCoordinatorSync bool `http:"suppress_transaction_coordinator_sync"`

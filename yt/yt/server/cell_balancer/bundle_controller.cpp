@@ -53,6 +53,8 @@ static const TYPath BundleAttributeMuteTabletCellsCheck("mute_tablet_cells_check
 
 static const TString SensorTagInstanceSize = "instance_size";
 
+static constexpr int DefaultMaxSize = 1'000'000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleAlertCounters
@@ -1147,11 +1149,17 @@ private:
     static TIndexedEntries<TEntryInfo> CypressList(const IClientBasePtr& transaction, const TYPath& path)
     {
         TListNodeOptions options;
+        options.MaxSize = DefaultMaxSize;
         options.Attributes = TEntryInfo::GetAttributes();
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
         auto entryList = ConvertTo<IListNodePtr>(yson);
+
+        if (entryList->Attributes().Get("incomplete", false)) {
+            THROW_ERROR_EXCEPTION("Cypress list received incomplete results")
+                << TErrorAttribute("path", path);
+        }
 
         TIndexedEntries<TEntryInfo> result;
         for (const auto& entry : entryList->GetChildren()) {
@@ -1172,11 +1180,17 @@ private:
     static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TYPath& path)
     {
         TGetNodeOptions options;
+        options.MaxSize = DefaultMaxSize;
         options.Attributes = TEntryInfo::GetAttributes();
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();
         auto entryMap = ConvertTo<IMapNodePtr>(yson);
+
+        if (entryMap->Attributes().Get("incomplete", false)) {
+            THROW_ERROR_EXCEPTION("Cypress get received incomplete results")
+                << TErrorAttribute("path", path);
+        }
 
         TIndexedEntries<TEntryInfo> result;
         for (const auto& [name, entry] : entryMap->GetChildren()) {

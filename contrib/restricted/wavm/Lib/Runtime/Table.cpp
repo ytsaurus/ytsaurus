@@ -26,11 +26,11 @@ static Platform::RWMutex tablesMutex;
 static std::vector<Table*> tables;
 
 static thread_local Table* CurrentTable = nullptr;
-void Table::setCurrentTable(Table* table)
+__attribute__((__noinline__)) void Table::setCurrentTable(Table* table)
 {
 	CurrentTable = table;
 }
-Table* Table::getCurrentTable()
+__attribute__((__noinline__)) Table* Table::getCurrentTable()
 {
 	return CurrentTable;
 }

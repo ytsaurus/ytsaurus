@@ -163,10 +163,10 @@ TSequoiaContextGuard::TSequoiaContextGuard(ISecurityManagerPtr securityManager)
 { }
 
 TSequoiaContextGuard::TSequoiaContextGuard(
-        ISequoiaContextPtr context,
-        ISecurityManagerPtr securityManager,
-        TAuthenticationIdentity identity,
-        TTraceContextPtr traceContext)
+    ISequoiaContextPtr context,
+    ISecurityManagerPtr securityManager,
+    TAuthenticationIdentity identity,
+    TTraceContextPtr traceContext)
     : UserGuard_(std::move(securityManager), std::move(identity))
     , TraceContextGuard_(std::move(traceContext))
 {

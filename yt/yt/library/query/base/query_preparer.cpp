@@ -276,9 +276,9 @@ void BuildRow(
                 value = CastValueWithCheck(value, argTypes[i]);
             } else {
                 THROW_ERROR_EXCEPTION("Types mismatch in tuple")
-                << TErrorAttribute("source", source)
-                << TErrorAttribute("actual_type", valueType)
-                << TErrorAttribute("expected_type", argTypes[i]);
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", valueType)
+                    << TErrorAttribute("expected_type", argTypes[i]);
             }
         }
         rowBuilder->AddValue(value);
@@ -2426,9 +2426,9 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
                     value = CastValueWithCheck(value, argTypes[i]);
                 } else {
                     THROW_ERROR_EXCEPTION("Types mismatch in tuple")
-                    << TErrorAttribute("source", source)
-                    << TErrorAttribute("actual_type", valueType)
-                    << TErrorAttribute("expected_type", argTypes[i]);
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("actual_type", valueType)
+                        << TErrorAttribute("expected_type", argTypes[i]);
                 }
             }
             rowBuilder.AddValue(value);

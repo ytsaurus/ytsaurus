@@ -20,14 +20,12 @@ namespace NYT::NTransactionServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// Used by replication sessions below for logging purposes. Using logger tags
-// could've been more elegant but not every user of these classes can afford it.
-struct TInitiatorRequestLogInfo
+//! Used by replication sessions below for logging and identity propagation purposes.
+struct TTransactionReplicationInitiatorRequestInfo
 {
-    explicit TInitiatorRequestLogInfo(NRpc::TRequestId requestId = {}, int subrequestIndex = -1);
-
+    NRpc::TAuthenticationIdentity Identity;
     NRpc::TRequestId RequestId;
-    int SubrequestIndex;
+    std::optional<int> SubrequestIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +64,9 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NCellMaster::TBootstrap* const Bootstrap_;
-    TInitiatorRequestLogInfo InitiatorRequest_;
+    const std::optional<TTransactionReplicationInitiatorRequestInfo> RequestInfo_;
+
+    const NLogging::TLogger Logger;
 
     std::vector<TTransactionId> AllTransactionIds_;
     TMutableRange<TTransactionId> LocalTransactionIds_;
@@ -86,13 +86,18 @@ protected:
     // have Sequoia bit in their ID and when dedicated system transaction type
     // is disabled both of them have a type "transaction". The following flag is
     // necessary just for this case.
-    bool MirroringToSequoiaEnabled_;
+    const bool MirroringToSequoiaEnabled_;
+
+    // COMPAT(babenko)
+    bool EnableBoomerangsIdentity_;
 
     TTransactionReplicationSessionBase(
         NCellMaster::TBootstrap* bootstrap,
         std::vector<TTransactionId> transactionIds,
-        const TInitiatorRequestLogInfo& logInfo,
-        bool enableMirroringToSequoia);
+        std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
+        bool enableMirroringToSequoia,
+        // COMPAT(babenko)
+        bool enableBoomerangsIdentity);
 
     [[noreturn]] void LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const;
 
@@ -108,6 +113,8 @@ protected:
 
     virtual void ConstructReplicationRequests() = 0;
     std::vector<NRpc::TRequestId> DoConstructReplicationRequests();
+
+    TError WrapError(TError error) const;
 
 private:
     void Initialize();
@@ -131,15 +138,7 @@ class TTransactionReplicationSessionWithoutBoomerangs
     : public TTransactionReplicationSessionBase
 {
 public:
-    //! Constructs a replication session.
-    /*!
-     *  May throw if called in between epochs.
-     */
-    TTransactionReplicationSessionWithoutBoomerangs(
-        NCellMaster::TBootstrap* bootstrap,
-        std::vector<TTransactionId> transactionIds,
-        const TInitiatorRequestLogInfo& logInfo,
-        bool enableMirroringToSequoia);
+    using TTransactionReplicationSessionBase::TTransactionReplicationSessionBase;
 
     //! Returns a future that will be set when all necessary syncs with
     //! transaction coordinator cells are done and all transactions are
@@ -223,12 +222,7 @@ public:
      *
      *  May throw if called in between epochs.
      */
-    TTransactionReplicationSessionWithBoomerangs(
-        NCellMaster::TBootstrap* bootstrap,
-        std::vector<TTransactionId> transactionIds,
-        const TInitiatorRequestLogInfo& logInfo,
-        bool enableMirroringToSequoia,
-        std::unique_ptr<NHydra::TMutation> mutation = {});
+    using TTransactionReplicationSessionBase::TTransactionReplicationSessionBase;
 
     void SetMutation(std::unique_ptr<NHydra::TMutation> mutation);
 
@@ -290,8 +284,8 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    NRpc::TRequestId requestId,
-    bool enableMirroringToSequoia);
+    bool enableMirroringToSequoia,
+    bool enableBoomerangsIdentity);
 
 //! Returns a future that will set when the provided mutation has been applied
 //!  (after all necessary preliminary steps for applying it has been taken).
@@ -307,7 +301,8 @@ void RunTransactionReplicationSessionAndReply(
     const NRpc::IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
     bool enableMutationBoomerangs,
-    bool enableMirroringToSequoia);
+    bool enableMirroringToSequoia,
+    bool enableBoomerangsIdentity);
 
 ////////////////////////////////////////////////////////////////////////////////
 

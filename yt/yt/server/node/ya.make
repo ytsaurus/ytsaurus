@@ -97,6 +97,7 @@ SRCS(
     query_agent/replication_log_batch_reader.cpp
     query_agent/session.cpp
     query_agent/session_manager.cpp
+    query_agent/tablet_replication_log_reader.cpp
 
     tablet_node/automaton.cpp
     tablet_node/background_activity_orchid.cpp

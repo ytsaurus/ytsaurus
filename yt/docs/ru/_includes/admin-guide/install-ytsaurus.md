@@ -10,11 +10,11 @@
 
 ## Kubernetes оператор { #operator }
 
-Команда {{product-name}} поддерживает и развивает собственный k8s-оператор. Код оператора доступен в [github](https://github.com/ytsaurus/yt-k8s-operator).
+Команда {{product-name}} поддерживает и развивает собственный k8s-оператор. Код оператора доступен в [github](https://github.com/ytsaurus/ytsaurus-k8s-operator).
 
-Релизы оператора выкладываются в [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/k8s-operator).
+Релизы оператора выкладываются в [Github Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/k8s-operator).
 
-Дополнительно выкладываются [helm-чарты](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart), позволяющие установить все необходимые компоненты.
+Дополнительно выкладываются [helm-чарты](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart), позволяющие установить все необходимые компоненты.
 
 ### Установка оператора
 
@@ -43,7 +43,7 @@ $ kubectl create namespace <namespace>
 $ kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
-[Подготовьте спецификацию](../../admin-guide/prepare-spec.md) `Ytsaurus` ресурса и загрузите ее в k8s ([пример спецификации](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml)):
+[Подготовьте спецификацию](../../admin-guide/prepare-spec.md) `Ytsaurus` ресурса и загрузите ее в k8s ([пример спецификации](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml)):
 ```bash
 $ kubectl apply -f my_ytsaurus_spec.yaml -n <namespace>
 ```

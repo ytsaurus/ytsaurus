@@ -17,7 +17,7 @@ import (
 func TestLowLevelSchedulerClient(t *testing.T) {
 	suite := NewSuite(t)
 
-	RunClientTests(t, []ClientTest{
+	suite.RunClientTests(t, []ClientTest{
 		{Name: "StartOperation", Test: suite.TestStartOperation},
 		{Name: "AbortOperation", Test: suite.TestAbortOperation},
 		{Name: "ResumeOperation", Test: suite.TestResumeOperation},
@@ -30,11 +30,11 @@ func TestLowLevelSchedulerClient(t *testing.T) {
 	})
 }
 
-func (s *Suite) TestStartOperation(t *testing.T, yc yt.Client) {
+func (s *Suite) TestStartOperation(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -46,22 +46,22 @@ func (s *Suite) TestStartOperation(t *testing.T, yc yt.Client) {
 		},
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	rows := scanRows(t, s.Env, out)
+	rows := scanRows(ctx, t, s.YT, out)
 	require.Len(t, rows, 1)
 	require.Equal(t, Row{"a": int64(1)}, rows[0])
 }
 
-func (s *Suite) TestAbortOperation(t *testing.T, yc yt.Client) {
+func (s *Suite) TestAbortOperation(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -73,30 +73,30 @@ func (s *Suite) TestAbortOperation(t *testing.T, yc yt.Client) {
 		},
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateRunning)
+	err = waitOpState(ctx, yc, opID, yt.StateRunning)
 	require.NoError(t, err)
 
-	tctx, cancel := context.WithTimeout(s.Ctx, time.Second*10)
+	tctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	err = waitOpState(tctx, yc, opID, yt.StateCompleted)
 	require.Error(t, err, "operation should not be completed after 10 seconds")
 
-	err = yc.AbortOperation(s.Ctx, opID, nil)
+	err = yc.AbortOperation(ctx, opID, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateAborted)
+	err = waitOpState(ctx, yc, opID, yt.StateAborted)
 	require.NoError(t, err)
 }
 
-func (s *Suite) TestResumeOperation(t *testing.T, yc yt.Client) {
+func (s *Suite) TestResumeOperation(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -108,35 +108,35 @@ func (s *Suite) TestResumeOperation(t *testing.T, yc yt.Client) {
 		},
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateRunning)
+	err = waitOpState(ctx, yc, opID, yt.StateRunning)
 	require.NoError(t, err)
 
-	err = yc.SuspendOperation(s.Ctx, opID, &yt.SuspendOperationOptions{
+	err = yc.SuspendOperation(ctx, opID, &yt.SuspendOperationOptions{
 		AbortRunningJobs: true,
 	})
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 3)
 
-	err = yc.ResumeOperation(s.Ctx, opID, nil)
+	err = yc.ResumeOperation(ctx, opID, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	rows := scanRows(t, s.Env, out)
+	rows := scanRows(ctx, t, s.YT, out)
 	require.Len(t, rows, 1)
 	require.Equal(t, Row{"a": int64(1)}, rows[0])
 }
 
-func (s *Suite) TestFailedOperation(t *testing.T, yc yt.Client) {
+func (s *Suite) TestFailedOperation(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -149,18 +149,18 @@ func (s *Suite) TestFailedOperation(t *testing.T, yc yt.Client) {
 		"max_failed_job_count": 1,
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateFailed)
+	err = waitOpState(ctx, yc, opID, yt.StateFailed)
 	require.NoError(t, err)
 }
 
-func (s *Suite) TestCompleteOperation(t *testing.T, yc yt.Client) {
+func (s *Suite) TestCompleteOperation(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -173,30 +173,30 @@ func (s *Suite) TestCompleteOperation(t *testing.T, yc yt.Client) {
 		"max_failed_job_count": 10000,
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateRunning)
+	err = waitOpState(ctx, yc, opID, yt.StateRunning)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 5)
 
-	status, err := yc.GetOperation(s.Ctx, opID, nil)
+	status, err := yc.GetOperation(ctx, opID, nil)
 	require.NoError(t, err)
 	require.Equal(t, yt.StateRunning, status.State)
 
-	err = yc.CompleteOperation(s.Ctx, opID, nil)
+	err = yc.CompleteOperation(ctx, opID, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 }
 
-func (s *Suite) TestUpdateOperationParameters(t *testing.T, yc yt.Client) {
+func (s *Suite) TestUpdateOperationParameters(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -208,38 +208,38 @@ func (s *Suite) TestUpdateOperationParameters(t *testing.T, yc yt.Client) {
 		},
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateRunning)
+	err = waitOpState(ctx, yc, opID, yt.StateRunning)
 	require.NoError(t, err)
 
 	annotation := guid.New().String()
-	err = yc.UpdateOperationParameters(s.Ctx, opID, map[string]any{
+	err = yc.UpdateOperationParameters(ctx, opID, map[string]any{
 		"annotations": map[string]any{
 			"test-annotations": annotation,
 		},
 	}, nil)
 	require.NoError(t, err)
 
-	status, err := yc.GetOperation(s.Ctx, opID, nil)
+	status, err := yc.GetOperation(ctx, opID, nil)
 	require.NoError(t, err)
 	require.Equal(t, yt.StateRunning, status.State)
 	require.Contains(t, status.RuntimeParameters.Annotations, "test-annotations")
 	require.Equal(t, annotation, status.RuntimeParameters.Annotations["test-annotations"])
 
-	err = yc.AbortOperation(s.Ctx, opID, nil)
+	err = yc.AbortOperation(ctx, opID, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateAborted)
+	err = waitOpState(ctx, yc, opID, yt.StateAborted)
 	require.NoError(t, err)
 }
 
-func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
+func (s *Suite) TestListOperations(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	poolTree := "default"
 	pool := "default"
@@ -255,13 +255,13 @@ func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
 		"pool":       pool,
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	result, err := yc.ListOperations(s.Ctx, &yt.ListOperationsOptions{PoolTree: &poolTree, Pool: &pool})
+	result, err := yc.ListOperations(ctx, &yt.ListOperationsOptions{PoolTree: &poolTree, Pool: &pool})
 	require.NoError(t, err)
 
 	opIDs := make([]yt.OperationID, 0, len(result.Operations))
@@ -272,11 +272,11 @@ func (s *Suite) TestListOperations(t *testing.T, yc yt.Client) {
 	require.Contains(t, opIDs, opID)
 }
 
-func (s *Suite) TestListJobs(t *testing.T, yc yt.Client) {
+func (s *Suite) TestListJobs(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -288,22 +288,22 @@ func (s *Suite) TestListJobs(t *testing.T, yc yt.Client) {
 		},
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	result, err := yc.ListJobs(s.Ctx, opID, nil)
+	result, err := yc.ListJobs(ctx, opID, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, result.Jobs)
 }
 
-func (s *Suite) TestGetOperationByAlias(t *testing.T, yc yt.Client) {
+func (s *Suite) TestGetOperationByAlias(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
-	out := makeTable(t, s.Env, nil)
+	in := makeTable(ctx, t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(ctx, t, s.Env, nil)
 
 	spec := map[string]any{
 		"input_table_paths":  []ypath.Path{in},
@@ -316,19 +316,19 @@ func (s *Suite) TestGetOperationByAlias(t *testing.T, yc yt.Client) {
 		"alias": "*test-alias",
 	}
 
-	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
 	require.NoError(t, err)
 
-	status, err := yc.GetOperationByAlias(s.Ctx, "*test-alias", &yt.GetOperationOptions{
+	status, err := yc.GetOperationByAlias(ctx, "*test-alias", &yt.GetOperationOptions{
 		IncludeRuntime: ptr.Bool(true),
 	})
 	require.NoError(t, err)
 	require.Equal(t, opID, status.ID)
 
-	_, err = yc.GetOperationByAlias(s.Ctx, "*fake-alias", &yt.GetOperationOptions{
+	_, err = yc.GetOperationByAlias(ctx, "*fake-alias", &yt.GetOperationOptions{
 		IncludeRuntime: ptr.Bool(true),
 	})
 	require.Error(t, err)
@@ -336,15 +336,15 @@ func (s *Suite) TestGetOperationByAlias(t *testing.T, yc yt.Client) {
 
 type Row map[string]any
 
-func makeTable(t *testing.T, env *yttest.Env, rows []Row) ypath.Path {
+func makeTable(ctx context.Context, t *testing.T, env *yttest.Env, rows []Row) ypath.Path {
 	t.Helper()
 
 	p := env.TmpPath()
 
-	_, err := env.YT.CreateNode(env.Ctx, p, yt.NodeTable, nil)
+	_, err := env.YT.CreateNode(ctx, p, yt.NodeTable, nil)
 	require.NoError(t, err)
 
-	w, err := env.YT.WriteTable(env.Ctx, p, nil)
+	w, err := env.YT.WriteTable(ctx, p, nil)
 	require.NoError(t, err)
 	for _, r := range rows {
 		require.NoError(t, w.Write(r))
@@ -354,10 +354,10 @@ func makeTable(t *testing.T, env *yttest.Env, rows []Row) ypath.Path {
 	return p
 }
 
-func scanRows(t *testing.T, env *yttest.Env, p ypath.Path) []Row {
+func scanRows(ctx context.Context, t *testing.T, yc yt.Client, p ypath.Path) []Row {
 	t.Helper()
 
-	r, err := env.YT.ReadTable(env.Ctx, p, nil)
+	r, err := yc.ReadTable(ctx, p, nil)
 	require.NoError(t, err)
 	defer func() { _ = r.Close() }()
 

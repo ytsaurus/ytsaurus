@@ -38,7 +38,7 @@ SRCS(
     ../misc/whoami.cpp
 )
 
-IF (NOT OPENSOURCE)
+IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
     SRCS(../misc/tvm_auth.cpp)
 ENDIF()
 

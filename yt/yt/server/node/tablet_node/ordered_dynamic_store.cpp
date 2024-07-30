@@ -231,7 +231,7 @@ private:
             return;
         }
 
-        auto barrierFuture = Store_->Tablet_->RuntimeData()->PreparedTransactionBarrier.GetBarrierFuture();
+        auto barrierFuture = Store_->RuntimeData_->PreparedTransactionBarrier.GetBarrierFuture();
         if (auto optionalError = barrierFuture.TryGet(); optionalError && optionalError->IsOK()) {
             // Don't wait for barrier if the future is already set (e.g. no transaction is in prepared state).
             AdjustUpperRowIndex();

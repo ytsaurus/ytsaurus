@@ -66,7 +66,7 @@ func (c *client) BeginTabletTx(
 
 	tx.txID, tx.txStartTimestamp, err = tx.startTabletTx(ctx, startOptions)
 	tx.ctx = ctx
-	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.conf, c.stop)
+	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.conf, c.stop, nil)
 
 	go tx.pinger.Run()
 

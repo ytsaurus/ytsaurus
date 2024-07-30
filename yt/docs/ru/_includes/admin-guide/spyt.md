@@ -2,7 +2,7 @@
 
 Для установки SPYT на кластер {{product-name}} необходимо запушить в k8s ресурс типа `Spyt`.
 
-Пример спецификации можно найти [по ссылке](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_spyt.yaml):
+Пример спецификации можно найти [по ссылке](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_spyt.yaml):
 ```yaml
 apiVersion: cluster.ytsaurus.tech/v1
 kind: Spyt

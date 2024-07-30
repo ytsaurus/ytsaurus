@@ -534,6 +534,7 @@
   "library/cpp/porto/proto/CMakeLists.txt":"",
   "library/cpp/protobuf/CMakeLists.txt":"",
   "library/cpp/protobuf/interop/CMakeLists.txt":"",
+  "library/cpp/protobuf/runtime/CMakeLists.txt":"",
   "library/cpp/regex/CMakeLists.txt":"",
   "library/cpp/regex/pcre/CMakeLists.txt":"",
   "library/cpp/resource/CMakeLists.txt":"",

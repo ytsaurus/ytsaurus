@@ -26,7 +26,7 @@ Go to [link](https://ytsaurus.tech/#demo ) to get access to it.
 
 ## Kubernetes
 
-To deploy {{product-name}} in Kubernetes, it is recommended to use the [operator](https://github.com/ytsaurus/yt-k8s-operator). Ready-made docker images with operator, UI, server components and examples can be found in [Github Packages](https://github.com/orgs/ytsaurus/packages).
+To deploy {{product-name}} in Kubernetes, it is recommended to use the [operator](https://github.com/ytsaurus/ytsaurus-k8s-operator). Ready-made docker images with operator, UI, server components and examples can be found in [Github Packages](https://github.com/orgs/ytsaurus/packages).
 
 ### Deployment in a Kubernetes cluster
 
@@ -53,7 +53,7 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
-Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_demo.yaml) , correct as necessary and upload to the cluster `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
+Download [specification](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_demo.yaml) , correct as necessary and upload to the cluster `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 It is necessary to specify guarantees or resource limits in the `execNodes` section, the specified values will be reflected in the node configuration, and will be visible to the scheduler. For reliable data storage, be sure to allocate persistent volumes.
 
@@ -92,7 +92,7 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 
 #### Starting {{product-name}} cluster
 
-Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_local.yaml) to the cluster via `kubectl apply -f cluster_v1_local.yaml`.
+Download [specification](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_local.yaml) to the cluster via `kubectl apply -f cluster_v1_local.yaml`.
 
 If the download was successful, after a while the list of running hearths will look like this:
 

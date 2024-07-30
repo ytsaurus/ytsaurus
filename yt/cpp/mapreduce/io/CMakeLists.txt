@@ -25,7 +25,7 @@ target_link_libraries(cpp-mapreduce-io PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  contrib-libs-protobuf
+  cpp-protobuf-runtime
   library-cpp-yson
   cpp-yson-node
   cpp-mapreduce-common

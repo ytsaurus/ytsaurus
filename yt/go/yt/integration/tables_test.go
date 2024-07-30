@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
@@ -60,6 +62,8 @@ func TestTables(t *testing.T) {
 	}
 
 	t.Run("WriteReadTable", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
 		name := tmpPath()
 
 		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
@@ -69,6 +73,8 @@ func TestTables(t *testing.T) {
 	})
 
 	t.Run("WriteWithSchema", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
 		name := tmpPath()
 
 		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, &yt.CreateNodeOptions{
@@ -82,6 +88,8 @@ func TestTables(t *testing.T) {
 	})
 
 	t.Run("AppendToTable", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
 		name := tmpPath()
 
 		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)
@@ -130,6 +138,8 @@ func TestTables(t *testing.T) {
 	})
 
 	t.Run("Rollback", func(t *testing.T) {
+		ctx := ctxlog.WithFields(ctx, log.String("subtest_name", t.Name()))
+
 		name := tmpPath()
 
 		_, err := env.YT.CreateNode(ctx, name, yt.NodeTable, nil)

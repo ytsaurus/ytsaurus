@@ -32,6 +32,23 @@ TExpressionEvaluator::TExpressionEvaluator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TValue TExpressionEvaluator::Evaluate(TRow row, const TRowBufferPtr& rowBuffer) const
+{
+    auto value = MakeUnversionedNullValue();
+
+    Instance_.Run(
+        Variables_.GetLiteralValues(),
+        Variables_.GetOpaqueData(),
+        Variables_.GetOpaqueDataSizes(),
+        &value,
+        row.Elements(),
+        rowBuffer);
+
+    return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_WEAK IExpressionEvaluatorCachePtr CreateExpressionEvaluatorCache(
     TExpressionEvaluatorCacheConfigPtr /*config*/,
     TConstTypeInferrerMapPtr /*typeInferrers*/,

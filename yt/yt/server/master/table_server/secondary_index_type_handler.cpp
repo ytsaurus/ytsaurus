@@ -89,7 +89,7 @@ public:
 
         THROW_ERROR_EXCEPTION_UNLESS(user->GetAllowCreateSecondaryIndices(),
             "Could not verify permission to create %Qlv for user %Qv. "
-            "Refer to \"Secondary indices\" article in documentation.",
+            "Refer to \"Secondary indices\" article in documentation",
             EObjectType::SecondaryIndex,
             user->GetName());
     }

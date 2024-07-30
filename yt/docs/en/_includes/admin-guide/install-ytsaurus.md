@@ -10,11 +10,11 @@ Before using the operator, make sure you have the [kubectl](https://kubernetes.i
 
 ## Kubernetes operator { #operator }
 
-The {{product-name}} team supports and develops its own K8s operator. The operator code is available on [GitHub](https://github.com/ytsaurus/yt-k8s-operator).
+The {{product-name}} team supports and develops its own K8s operator. The operator code is available on [GitHub](https://github.com/ytsaurus/ytsaurus-k8s-operator).
 
-Operator releases are posted on [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/k8s-operator).
+Operator releases are posted on [Github Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/k8s-operator).
 
-Additionally, [helm charts](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart) are laid out so you can install all the components you need.
+Additionally, [helm charts](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart) are laid out so you can install all the components you need.
 
 ### Installing the operator
 
@@ -43,7 +43,7 @@ Create a secret containing the login, password, and token of the cluster adminis
 $ kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
-[Prepare the `Ytsaurus` specification](../../admin-guide/prepare-spec.md) for the resource and upload it to K8s ([sample specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml)):
+[Prepare the `Ytsaurus` specification](../../admin-guide/prepare-spec.md) for the resource and upload it to K8s ([sample specification](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml)):
 ```bash
 $ kubectl apply -f my_ytsaurus_spec.yaml -n <namespace>
 ```

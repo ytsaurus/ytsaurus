@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 	"go.ytsaurus.tech/yt/go/yttest"
@@ -22,7 +24,8 @@ func TestFiles(t *testing.T) {
 		t.Run("WriteReadFile", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -49,7 +52,8 @@ func TestFiles(t *testing.T) {
 		t.Run("ReadFileError", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
@@ -62,7 +66,8 @@ func TestFiles(t *testing.T) {
 		t.Run("WriteFileError", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 			defer cancel()
 
 			name := tmpPath()
