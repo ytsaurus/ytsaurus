@@ -331,6 +331,23 @@ func TestHighLevelTableWriter(t *testing.T) {
 
 		checkTable(t, tmpTableName, testSize, schema.Schema{Strict: ptr.Bool(false)})
 	})
+
+	t.Run("RetryableWrite", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithRetries(3))
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+	})
 }
 
 type testTimeTypes struct {
