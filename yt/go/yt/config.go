@@ -43,6 +43,11 @@ type Config struct {
 	// If not set, default role is used.
 	ProxyRole string
 
+	// HostsPath specifies the path used to discover HTTP proxies.
+	//
+	// If not set, defaults to "hosts".
+	HostsPath string
+
 	// UseTLS enables TLS for all connections to cluster.
 	//
 	// This option is supported only in HTTP client.
