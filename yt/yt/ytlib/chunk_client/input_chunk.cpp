@@ -208,11 +208,7 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
     Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
     Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 300303) {
-        Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
-    }
+    Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
 
     // COMPAT(achulkov2): This is ESnpashotVersion::ChunkSliceStatistics.
     if (context.GetVersion() >= 301507) {
