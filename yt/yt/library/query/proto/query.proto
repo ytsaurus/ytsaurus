@@ -36,6 +36,7 @@ message TLiteralExpression
     optional double double_value = 3;
     optional bytes string_value = 4;
     optional bool boolean_value = 5;
+    optional bytes any_value = 6;
 }
 
 message TReferenceExpression

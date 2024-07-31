@@ -2265,6 +2265,36 @@ class TestQuery(DynamicTablesBase):
                              "(0, A.value) = (B.[$tablet_index], B.[$row_index]) limit 10")
         assert expected == actual
 
+    @authors("dtorilov")
+    def test_yson_string_to_any(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "k", "type": "any", "sort_order": "ascending"},
+                {"name": "v", "type": "any"},
+            ],
+            [
+                {"k": [0, 1, 2], "v": 0},
+                {"k": [1, 2, 3], "v": 1},
+                {"k": [2, 3, 4], "v": "two"},
+                {"k": [3, 4, 5], "v": "three"},
+                {"k": [4, 5, 6], "v": 4},
+            ],
+            "scan",
+        )
+
+        expected = [{"v": "two"}, {"v": "three"}]
+        actual = select_rows("""
+            v
+            from [//tmp/t]
+            where
+                (k >= yson_string_to_any('[1;2;4]')) and
+                (k <= yson_string_to_any('[3;4;5]')) and
+                (v = yson_string_to_any('two') or v = yson_string_to_any('three'))
+            limit 3""")
+        assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
