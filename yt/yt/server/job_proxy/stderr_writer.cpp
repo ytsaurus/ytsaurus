@@ -164,7 +164,7 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
                 limit = limit - (currentFirstAbsolutePos - offset);
                 if (limit < 0) {
                     return {
-                        .Data = {},
+                        .Data = TSharedRef{},
                         .TotalSize = TotalSize_,
                         .EndOffset = offset + options.Limit.value_or(0),
                     };

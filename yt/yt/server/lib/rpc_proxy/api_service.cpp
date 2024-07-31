@@ -3190,8 +3190,7 @@ private:
             operationIdOrAlias,
             jobId,
             options.Limit,
-            options.Offset
-        );
+            options.Offset);
 
         ExecuteCall(
             context,

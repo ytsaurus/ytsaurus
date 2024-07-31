@@ -253,7 +253,7 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
 
     if (firstPos >= data.size()) {
         return {
-            .Data = {},
+            .Data = TSharedRef{},
             .TotalSize = totalSize,
             .EndOffset = 0,
         };
