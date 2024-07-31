@@ -66,12 +66,17 @@ jobs:
       - build
     outputs:
       image-tag: stable-${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: stable-${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Parse tag
         id: tag
         run: |
-          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
+          IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})
+          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${GITHUB_SHA}
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
   release:
     name: Release
@@ -82,6 +87,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
