@@ -5,7 +5,6 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
-#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/client/table_client/helpers.h>
