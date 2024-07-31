@@ -2,6 +2,8 @@
 
 #include "evaluation_helpers.h"
 
+#include <library/cpp/yt/memory/chunked_memory_pool_allocator.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,12 +75,13 @@ private:
     const size_t RowSize_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
 
-    TExpressionContext DataContext_;
-    TMutableRange<TPIValue> Data_;
+    TExpressionContext RowsContext_;
 
-    std::vector<TExpressionContext> Contexts_;
-    std::vector<int> EmptyContextIds_;
-    std::vector<TRowAndBuffer> Heap_;
+    std::vector<TExpressionContext> StringLikeValueContexts_;
+    std::vector<int> StringLikeValueEmptyContextIds_;
+
+    TChunkedMemoryPool HeapPool_;
+    std::vector<TRowAndBuffer, TChunkedMemoryPoolAllocator<TRowAndBuffer>> Heap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
