@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/client/transaction_client/config.h>
+
 namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +18,10 @@ public:
 
     NBus::TBusConfigPtr BusClient;
 
+    //! Clock server cell tag
+    NObjectClient::TCellTag ClockClusterTag;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    std::vector<NTransactionClient::TAlienTimestampProviderConfigPtr> AlienProviders;
 
     REGISTER_YSON_STRUCT(TTimestampProviderConfig);
 

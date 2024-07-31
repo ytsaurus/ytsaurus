@@ -1,6 +1,7 @@
 #include "timestamp_proxy_service.h"
 #include "private.h"
 
+#include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/client/transaction_client/timestamp_service_proxy.h>
 
@@ -10,6 +11,7 @@
 
 namespace NYT::NTransactionServer {
 
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTransactionClient;
 
@@ -21,6 +23,7 @@ class TTimestampProxyService
 public:
     explicit TTimestampProxyService(
         ITimestampProviderPtr provider,
+        TAlienRemoteTimestampProvidersMap alienProviders,
         IAuthenticatorPtr authenticator)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
@@ -29,6 +32,7 @@ public:
             NullRealmId,
             std::move(authenticator))
         , Provider_(std::move(provider))
+        , AlienProviders_(std::move(alienProviders))
     {
         YT_VERIFY(Provider_);
 
@@ -39,6 +43,7 @@ public:
 
 private:
     const ITimestampProviderPtr Provider_;
+    const TAlienRemoteTimestampProvidersMap AlienProviders_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
@@ -46,7 +51,22 @@ private:
         int count = request->count();
         context->SetRequestInfo("Count: %v", count);
 
-        Provider_->GenerateTimestamps(count).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
+        auto provider = Provider_;
+        if (request->has_clock_cluster_tag()) {
+            auto clockClusterTag =  FromProto<TCellTag>(request->clock_cluster_tag());
+
+            context->SetRequestInfo("ClockClusterTag: %v", clockClusterTag);
+
+            auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
+            if (foreignProviderPtr == AlienProviders_.end()) {
+                context->Reply(TError("Unknown clock cluster tag: %v", clockClusterTag));
+                return;
+            }
+
+            provider = foreignProviderPtr->second;
+        }
+
+        provider->GenerateTimestamps(count).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
                 context->SetResponseInfo("Timestamp: %v", timestamp);
@@ -57,14 +77,17 @@ private:
             }
         }));
     }
-
 };
 
 IServicePtr CreateTimestampProxyService(
     ITimestampProviderPtr provider,
+    TAlienRemoteTimestampProvidersMap alienProviders,
     IAuthenticatorPtr authenticator)
 {
-    return New<TTimestampProxyService>(std::move(provider), std::move(authenticator));
+    return New<TTimestampProxyService>(
+        std::move(provider),
+        std::move(alienProviders),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

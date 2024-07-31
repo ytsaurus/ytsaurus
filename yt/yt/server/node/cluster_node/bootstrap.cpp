@@ -205,11 +205,12 @@ using namespace NExecNode;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NIO;
 using namespace NJobAgent;
 using namespace NJobProxy;
 using namespace NMonitoring;
+using namespace NNet;
 using namespace NNodeTrackerClient;
-using namespace NObjectClient;
 using namespace NObjectClient;
 using namespace NOrchid;
 using namespace NProfiling;
@@ -218,15 +219,10 @@ using namespace NRpc;
 using namespace NScheduler;
 using namespace NTableClient;
 using namespace NTabletNode;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
-using namespace NHiveClient;
-using namespace NHiveServer;
-using namespace NObjectClient;
-using namespace NTableClient;
-using namespace NNet;
 using namespace NThreading;
 using namespace NYTree;
-using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -957,8 +953,12 @@ private:
         }
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
-            CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
-        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, /*authenticator*/ nullptr));
+            Connection_->GetChannelFactory());
+
+        RpcServer_->RegisterService(CreateTimestampProxyService(
+            timestampProvider,
+            /*alienProviders*/ {},
+            /*authenticator*/ nullptr));
 
         RpcServer_->RegisterService(CreateRestartService(
             RestartManager_,
