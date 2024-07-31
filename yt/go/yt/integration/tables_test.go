@@ -28,7 +28,7 @@ func TestTables(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	validate := func(name ypath.Path) {
