@@ -74,28 +74,6 @@ struct TProtoVisitorTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Classification of containers passed to TProtoVisitor::Visit. Make sure to drop qualifications on
-// the template parameters with std::remove_cvref_t to avoid mismatches. If the parameter is neither
-// scalar, not vector, nor map, Visit throws.
-
-// Specializations are provided for TVisitParam in:
-// - TWrappedMessage[*] (scalar)
-// - std::vector/TCompactVector<TWrappedMessage[*]> (vector)
-// - std::[unordered_]map/THashMap<$TKey, TWrappedMessage[*]> (map)
-
-template <typename TWrappedMessage, typename TVisitParam>
-struct TProtoVisitorContainerTraits
-{
-    static constexpr bool IsScalar = false;
-    static constexpr bool IsVector = false;
-    static constexpr bool IsMap = false;
-
-    // The actual message is given by value or reference.
-    static constexpr bool TakeAddress = false;
-
-    using TMapKey = void;
-};
-
 } // namespace NYT::NOrm::NAttributes
 
 #define PROTO_VISITOR_TRAITS_INL_H_
