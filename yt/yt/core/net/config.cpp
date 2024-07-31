@@ -18,7 +18,7 @@ void TDialerConfig::Register(TRegistrar registrar)
         .GreaterThan(0.0)
         .Default(2.0);
     registrar.Parameter("connect_timeout", &TThis::ConnectTimeout)
-        .Default();
+        .Default(TDuration::Seconds(15));
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxRto < config->MinRto) {
