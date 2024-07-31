@@ -76,6 +76,9 @@ def run_check(yt_client, logger, options, states):
     def is_replica_cluster():
         return options["cluster_name"] in options["replica_clusters"]
 
+    def is_chaos_meta_cluster():
+        return options["cluster_name"] in options["choas_metaclusters"]
+
     def create_collocation():
         assert is_meta_cluster()
 
@@ -302,7 +305,7 @@ def run_check(yt_client, logger, options, states):
             raise ManuallyDisabledReplicationError
 
     def check_replication_not_banned():
-        assert is_meta_cluster()
+        assert is_meta_cluster() or is_chaos_meta_cluster()
 
         has_banned_at_mark = yt_client.exists(BANNED_REPLICATION_TIMESTAMP_PATH)
 
@@ -340,19 +343,21 @@ def run_check(yt_client, logger, options, states):
     replica_table_path_templ = TABLE_PATH_TEMPLATE.format(epoch=current_epoch)
 
     try:
-        if is_meta_cluster():
+        if is_meta_cluster() or is_chaos_meta_cluster():
             check_replication_not_banned()
         if is_replica_cluster():
             check_incoming_replication_enabled()
 
-        for_each_table(maybe_create_table)
+        # TODO(akozhikhov): Add checks for chaos replication.
+        if not is_chaos_meta_cluster():
+            for_each_table(maybe_create_table)
 
-        if is_meta_cluster():
-            for_each_table(mix_replica_modes_up)
-            check_collocated_tables_synchronized()
+            if is_meta_cluster():
+                for_each_table(mix_replica_modes_up)
+                check_collocated_tables_synchronized()
 
-        if is_replica_cluster():
-            for_each_table(check_replication)
+            if is_replica_cluster():
+                for_each_table(check_replication)
 
         exit_code = 0
     except MetaClusterError:

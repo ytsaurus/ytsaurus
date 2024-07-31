@@ -86,14 +86,12 @@ struct ISession
     virtual TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
-        i64 cumulativeBlockSize,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
     virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
         int startBlockIndex,
         int blockCount,
-        i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.

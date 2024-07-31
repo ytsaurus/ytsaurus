@@ -15,7 +15,7 @@ SRCS(
     http2.go
     pipe.go
     server.go
-    testsync.go
+    timer.go
     transport.go
     write.go
     writesched.go
