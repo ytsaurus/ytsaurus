@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/kafka_proxy/records/kafka_message.record.h>
@@ -803,30 +804,26 @@ private:
                 if (!rowsetOrError.IsOK()) {
                     topicPartitionResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
                 } else {
-                    auto rows = rowsetOrError.Value()->GetRows();
+                    auto rowset = rowsetOrError.Value();
 
                     YT_LOG_DEBUG("Rows were fetched (Topic: %v, PartitionIndex: %v, Count: %v)",
                         topic.Topic,
                         partition.Partition,
-                        rows.size());
+                        rowset->GetRows().size());
 
-                    if (rows.size() > 0) {
+                    auto messages = ConvertQueueRowsToMessages(rowset);
+
+                    if (messages.size() > 0) {
                         topicPartitionResponse.Records = std::vector<TRecord>{};
-                        topicPartitionResponse.Records->reserve(rows.size());
+                        topicPartitionResponse.Records->reserve(messages.size());
 
                         auto offset = rowsetOrError.Value()->GetStartOffset();
 
-                        for (auto row : rows) {
+                        for (auto& message : messages) {
                             topicPartitionResponse.Records->push_back(TRecord{
                                 .FirstOffset = offset,
                                 .MagicByte = 1,
-                                .Messages = {
-                                    NKafka::TMessage{
-                                        .Key = "",
-                                        // TODO(nadya73): convert it to yson/json.
-                                        .Value = ToString(row),
-                                    }
-                                }
+                                .Messages = {std::move(message)},
                             });
                             ++offset;
                         }
