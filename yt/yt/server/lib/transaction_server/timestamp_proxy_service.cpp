@@ -1,4 +1,5 @@
 #include "timestamp_proxy_service.h"
+#include "public.h"
 #include "private.h"
 
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -59,7 +60,9 @@ private:
 
             auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
             if (foreignProviderPtr == AlienProviders_.end()) {
-                context->Reply(TError("Unknown clock cluster tag %v", clockClusterTag));
+                context->Reply(TError(
+                    EErrorCode::UnknownClockClusterTag,
+                    "Unknown clock cluster tag %v", clockClusterTag));
                 return;
             }
 

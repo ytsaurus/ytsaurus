@@ -687,6 +687,9 @@ class YTInstance(object):
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
 
+    def rewrite_timestamp_provider_configs(self):
+        self._prepare_timestamp_providers(self._cluster_configuration["timestamp_provider"], force_overwrite=True)
+
     def get_node_address(self, index, with_port=True, config_service="node"):
         node_config = self.configs[config_service][index]
         node_address = node_config["address_resolver"]["localhost_fqdn"]
@@ -1358,11 +1361,16 @@ class YTInstance(object):
             lambda: self._wait_for(queue_agents_ready, "queue_agent", max_wait_time=20),
             sync)
 
-    def _prepare_timestamp_providers(self, timestamp_provider_configs):
+    def _prepare_timestamp_providers(self, timestamp_provider_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["timestamp_provider"] = []
+            self.config_paths["timestamp_provider"] = []
+            self._service_processes["timestamp_provider"] = []
+
         for timestamp_provider_index in xrange(self.yt_config.timestamp_provider_count):
             timestamp_provider_config_name = "timestamp_provider-{0}.yson".format(timestamp_provider_index)
             config_path = os.path.join(self.configs_path, timestamp_provider_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Timestamp provider config {0} not found. It is possible that you requested "
                                   "more timestamp providers than configs exist".format(config_path))

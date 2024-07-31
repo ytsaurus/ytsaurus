@@ -4786,6 +4786,7 @@ class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
 
 class ChaosClockBase(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 1
+    NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
 
     DELTA_NODE_CONFIG = {
@@ -4795,6 +4796,46 @@ class ChaosClockBase(ChaosTestBase):
             }
         }
     }
+
+    @classmethod
+    def add_alien_clocks_to_ts_configs(
+        cls,
+        timestamp_providers_configs,
+        self_clock_cluster_tag,
+        alien_clock_cluster_tag,
+        alien_clock_configs
+    ):
+        alien_clock_configs = alien_clock_configs[alien_clock_configs["cell_tag"]]
+        alien_clock_addresses = [f"localhost:{clock_config['rpc_port']}" for clock_config in alien_clock_configs]
+
+        for timestamp_providers_config in timestamp_providers_configs:
+            timestamp_providers_config["alien_timestamp_providers"] = [
+                {
+                    "clock_cluster_tag": alien_clock_cluster_tag,
+                    "timestamp_provider": {
+                        "addresses": alien_clock_addresses
+                    },
+                }
+            ]
+            timestamp_providers_config["clock_cluster_tag"] = self_clock_cluster_tag
+
+    @classmethod
+    def modify_timestamp_providers_configs(cls, timestamp_providers_configs, clock_configs, yt_configs):
+        cls.add_alien_clocks_to_ts_configs(
+            timestamp_providers_configs[0],
+            yt_configs[0].primary_cell_tag,
+            yt_configs[1].primary_cell_tag,
+            clock_configs[1]
+        )
+
+        cls.add_alien_clocks_to_ts_configs(
+            timestamp_providers_configs[1],
+            yt_configs[1].primary_cell_tag,
+            yt_configs[0].primary_cell_tag,
+            clock_configs[0]
+        )
+
+        return True
 
     def _create_single_peer_chaos_cell(self, name="c", clock_cluster_tag=None):
         cluster_names = self.get_cluster_names()
