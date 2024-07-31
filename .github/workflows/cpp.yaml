@@ -3,8 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
+      - members/mpereskokova/test_qt
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -68,15 +67,7 @@ jobs:
       - name: Calculate docker tag
         id: tag
         run: |
-          if [[ $GITHUB_REF =~ main$ ]];
-          then
-            IMAGE_TAG=dev
-          elif [[ $GITHUB_REF =~ stable ]];
-          then
-            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
-          else
-            IMAGE_TAG=dev-test
-          fi
+          IMAGE_TAG=test
 
           NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${GITHUB_SHA}
 
@@ -139,7 +130,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: true
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -152,7 +143,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -217,25 +208,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
