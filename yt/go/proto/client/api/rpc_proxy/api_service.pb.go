@@ -21174,7 +21174,7 @@ type TReqStartQuery struct {
 	Draft                *bool                                 `protobuf:"varint,5,opt,name=draft" json:"draft,omitempty"`
 	Annotations          []byte                                `protobuf:"bytes,6,opt,name=annotations" json:"annotations,omitempty"` // YSON
 	Files                []*TReqStartQuery_TQueryFile          `protobuf:"bytes,7,rep,name=files" json:"files,omitempty"`
-	AccessControlObject  *string                               `protobuf:"bytes,8,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT
+	AccessControlObject  *string                               `protobuf:"bytes,8,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT(mpereskokova)
 	AccessControlObjects *TReqStartQuery_TAccessControlObjects `protobuf:"bytes,9,opt,name=access_control_objects,json=accessControlObjects" json:"access_control_objects,omitempty"`
 }
 
@@ -21718,7 +21718,7 @@ type TQuery struct {
 	FinishTime           *uint64                     `protobuf:"varint,6,opt,name=finish_time,json=finishTime" json:"finish_time,omitempty"` // TInstant
 	Settings             []byte                      `protobuf:"bytes,7,opt,name=settings" json:"settings,omitempty"`                        // YSON
 	User                 *string                     `protobuf:"bytes,8,opt,name=user" json:"user,omitempty"`
-	AccessControlObject  *string                     `protobuf:"bytes,9,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT
+	AccessControlObject  *string                     `protobuf:"bytes,9,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT(mpereskokova)
 	State                *EQueryState                `protobuf:"varint,10,opt,name=state,enum=NYT.NApi.NRpcProxy.NProto.EQueryState" json:"state,omitempty"`
 	ResultCount          *int64                      `protobuf:"varint,11,opt,name=result_count,json=resultCount" json:"result_count,omitempty"`
 	Progress             []byte                      `protobuf:"bytes,12,opt,name=progress" json:"progress,omitempty"` // YSON
@@ -22194,7 +22194,7 @@ type TReqAlterQuery struct {
 	QueryTrackerStage    *string                               `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
 	QueryId              *misc.TGuid                           `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
 	Annotations          []byte                                `protobuf:"bytes,3,opt,name=annotations" json:"annotations,omitempty"`                                              // YSON
-	AccessControlObject  *string                               `protobuf:"bytes,4,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT
+	AccessControlObject  *string                               `protobuf:"bytes,4,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"` // COMPAT(mpereskokova)
 	AccessControlObjects *TReqAlterQuery_TAccessControlObjects `protobuf:"bytes,5,opt,name=access_control_objects,json=accessControlObjects" json:"access_control_objects,omitempty"`
 }
 
