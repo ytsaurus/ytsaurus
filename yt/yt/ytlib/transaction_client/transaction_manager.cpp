@@ -699,7 +699,6 @@ private:
                     ClockClusterTag_ = Owner_->ClockManager_->GetCurrentClockTag();
                     YT_LOG_DEBUG("Generating transaction start timestamp (ClockClusterTag: %v)",
                         ClockClusterTag_);
-                    auto connection = TryLockConnection().ValueOrThrow();
                     return connection->GetTimestampProvider()->GenerateTimestamps(1, ClockClusterTag_)
                         .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
                 }
@@ -779,8 +778,12 @@ private:
 
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
-        auto connection = TryLockConnection()
-            .ValueOrThrow();
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture(TError(std::move(connectionOrError)));
+        }
+
+        auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         if (options.StartCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
@@ -940,8 +943,12 @@ private:
             Id_,
             CoordinatorCellId_);
 
-        auto connection = TryLockConnection()
-            .ValueOrThrow();
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture<TTransactionCommitResult>(TError(std::move(connectionOrError)));
+        }
+
+        auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
             CoordinatorMasterCellTag_);
@@ -1143,8 +1150,12 @@ private:
             Id_,
             cellId);
 
-        auto connection = TryLockConnection()
-            .ValueOrThrow();
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture(TError(std::move(connectionOrError)));
+        }
+
+        auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         if (options.EnableRetries) {
@@ -1334,6 +1345,7 @@ private:
 
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
+        asyncResults.reserve(participantIds.size());
         for (auto cellId : participantIds) {
             asyncResults.push_back(SendAbortToCell(cellId, options));
         }
@@ -1357,8 +1369,12 @@ private:
             Id_,
             cellId);
 
-        auto connection = TryLockConnection()
-            .ValueOrThrow();
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture(TError(std::move(connectionOrError)));
+        }
+
+        auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
         TCypressTransactionServiceProxy proxy(channel);
         auto req = proxy.AbortTransaction();
