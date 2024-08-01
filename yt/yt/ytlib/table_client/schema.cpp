@@ -84,10 +84,28 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TColumnMismatchCallback = void(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn);
+using TBadColumnCallback = void(const TColumnSchema& column);
+
+void ThrowExpectedKeyColumn(const TColumnSchema& tableColumn)
+{
+    THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
+        tableColumn.Name());
+}
+
+void ThrowExpectedTypeMatch(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn)
+{
+    THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in the table, %v in the index table",
+        indexColumn.Name(),
+        *tableColumn.LogicalType(),
+        *indexColumn.LogicalType());
+};
+
 void ValidateIndexSchema(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
-    std::function<void(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn)> typeMismatchCallback)
+    std::function<TColumnMismatchCallback> typeMismatchCallback = ThrowExpectedTypeMatch,
+    std::function<TBadColumnCallback> tableKeyIsNotIndexKeyCallback = ThrowExpectedKeyColumn)
 {
     THROW_ERROR_EXCEPTION_IF(!tableSchema.IsSorted(),
         "Table must be sorted");
@@ -115,8 +133,7 @@ void ValidateIndexSchema(
         }
 
         if (!indexColumn->SortOrder()) {
-            THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
-                tableColumn.Name());
+            tableKeyIsNotIndexKeyCallback(tableColumn);
         }
     }
 
@@ -162,14 +179,7 @@ void ValidateIndexSchema(
 
 void ValidateFullSyncIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
 {
-    auto typeMismatchCallback = [] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in the table, %v in the index table",
-            indexColumn.Name(),
-            *tableColumn.LogicalType(),
-            *indexColumn.LogicalType());
-    };
-
-    ValidateIndexSchema(tableSchema, indexTableSchema, typeMismatchCallback);
+    ValidateIndexSchema(tableSchema, indexTableSchema);
 }
 
 bool IsValidUnfoldedColumnPair(const TLogicalTypePtr& tableColumnType, const TLogicalTypePtr& indexColumnType)
@@ -183,7 +193,7 @@ bool IsValidUnfoldedColumnPair(const TLogicalTypePtr& tableColumnType, const TLo
         return false;
     }
 
-    tableColumnElementType = tableColumnType->UncheckedAsListTypeRef().GetElement();
+    tableColumnElementType = tableColumnElementType->UncheckedAsListTypeRef().GetElement();
 
     return *tableColumnElementType == *indexColumnType;
 }
@@ -193,11 +203,9 @@ const TColumnSchema& FindUnfoldingColumnAndValidate(const TTableSchema& tableSch
     const TColumnSchema* unfoldedColumn = nullptr;
 
     auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
-        THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType()),
-            "Type mismatch for column %Qv: %v in the table, %v in the index table",
-            indexColumn.Name(),
-            *tableColumn.LogicalType(),
-            *indexColumn.LogicalType());
+        if (!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType())) {
+            ThrowExpectedTypeMatch(indexColumn, tableColumn);
+        }
 
         THROW_ERROR_EXCEPTION_IF(unfoldedColumn,
             "Expected a single unfolded column, found at least two: %v, %v",
@@ -245,6 +253,12 @@ void ValidateColumnsAreInIndexLockGroup(
             tableColumn.Lock(),
             firstTableValueColumnInIndex->Lock());
     }
+}
+
+void ValidateUniqueIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+{
+    auto allowSortednessMismatch = [] (const TColumnSchema&) { };
+    ValidateIndexSchema(tableSchema, indexTableSchema, ThrowExpectedTypeMatch, allowSortednessMismatch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
