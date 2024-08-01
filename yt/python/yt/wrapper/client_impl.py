@@ -688,6 +688,22 @@ class YtClient(ClientState):
             job_id, path,
             client=self)
 
+    def dump_orc(
+            self,
+            table, output_file):
+        """
+        Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
+
+        :param table: table
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param output_file: path to output file
+        :type output_file: str
+
+        """
+        return client_api.dump_orc(
+            table, output_file,
+            client=self)
+
     def dump_parquet(
             self,
             table, output_file):
@@ -2944,6 +2960,22 @@ class YtClient(ClientState):
         """
         return client_api.update_operation_parameters(
             operation_id, parameters,
+            client=self)
+
+    def upload_orc(
+            self,
+            table, input_file):
+        """
+        Upload `ORC <https://orc.apache.org/>` file as a table
+
+        :param table: table
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param input_file: path to input file
+        :type input_file: str
+
+        """
+        return client_api.upload_orc(
+            table, input_file,
             client=self)
 
     def upload_parquet(

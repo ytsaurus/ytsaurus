@@ -1110,8 +1110,8 @@ def dump_parquet(table, output_file, client=None):
 
     if not yson.HAS_PARQUET:
         raise YtError(
-            'Parquet binding required.'
-            'Parquet binding is shipped as additional package and '
+            'YSON binding required.'
+            'binding is shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
     yson.dump_parquet(output_file, stream)
@@ -1132,6 +1132,46 @@ def upload_parquet(table, input_file, client=None):
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
     stream = yson.upload_parquet(input_file)
+    schema = stream.get_schema()
+    table = TablePath(table, client=client)
+    table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
+    write_table(table, stream, raw=True, format="arrow", client=client)
+
+
+def dump_orc(table, output_file, client=None):
+    """Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
+
+    :param table: table
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param output_file: path to output file
+    :type output_file: str
+    """
+    stream = read_table(table, raw=True, format="arrow", client=client)
+
+    if not yson.HAS_PARQUET:
+        raise YtError(
+            'YSON binding required.'
+            'binding is shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
+
+    yson.dump_orc(output_file, stream)
+
+
+def upload_orc(table, input_file, client=None):
+    """Upload `ORC <https://orc.apache.org/>` file as a table
+
+    :param table: table
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_file: path to input file
+    :type input_file: str
+    """
+    if not yson.HAS_PARQUET:
+        raise YtError(
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
+
+    stream = yson.upload_orc(input_file)
     schema = stream.get_schema()
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))

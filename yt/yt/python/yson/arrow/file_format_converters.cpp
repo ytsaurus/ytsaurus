@@ -13,10 +13,127 @@
 
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
 
+#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.h>
+
+#include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
 namespace NYT::NPython {
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ThrowOnError(const arrow::Status& status) {
+    if (!status.ok()) {
+        throw Py::TypeError(status.message());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IFormatWriter
+{
+    virtual arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) = 0;
+    virtual arrow::Status Close() = 0;
+    virtual ~IFormatWriter() = default;
+};
+
+class TParquetWriter
+    : public IFormatWriter
+{
+public:
+    TParquetWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+    {
+        auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
+        if (!outputFileOrError.ok()) {
+            throw Py::TypeError(outputFileOrError.status().message());
+        }
+        auto outputFile = outputFileOrError.ValueOrDie();
+
+        auto properties =
+            parquet::WriterProperties::Builder().compression(arrow::Compression::SNAPPY)->build();
+
+        ThrowOnError(parquet::arrow::FileWriter::Open(
+            schema,
+            arrow::default_memory_pool(),
+            outputFile,
+            properties,
+            &Writer_));
+    }
+
+    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    {
+        return Writer_->WriteTable(table, chunkSize);
+    }
+
+    arrow::Status Close() override
+    {
+        return Writer_->Close();
+    }
+
+    ~TParquetWriter() = default;
+
+private:
+    std::unique_ptr<parquet::arrow::FileWriter> Writer_;
+};
+
+class TOrcWriter
+    : public IFormatWriter
+{
+public:
+    TOrcWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+        : OutputStream_(liborc::writeLocalFile(outputFilePath))
+    {
+        auto orcSchemaOrError = arrow::adapters::orc::GetOrcType(schema);
+        ThrowOnError(orcSchemaOrError.status());
+        OrcSchema_ = std::move(orcSchemaOrError.ValueOrDie());
+        Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), liborc::WriterOptions{});
+    }
+
+    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    {
+        const int columnCount = table.num_columns();
+        i64 rowCount = table.num_rows();
+
+        std::vector<int> chunkOffsets(columnCount, 0);
+        std::vector<int64_t> indexOffsets(columnCount, 0);
+
+        auto batch = Writer_->createRowBatch(chunkSize);
+
+        auto* root = arrow::internal::checked_cast<liborc::StructVectorBatch*>(batch.get());
+
+        while (rowCount > 0) {
+            for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+                ThrowOnError(arrow::adapters::orc::WriteBatch(
+                    *(table.column(columnIndex)),
+                    chunkSize,
+                    &chunkOffsets[columnIndex],
+                    &indexOffsets[columnIndex],
+                    root->fields[columnIndex]));
+            }
+            root->numElements = root->fields[0]->numElements;
+            Writer_->add(*batch);
+            batch->clear();
+            rowCount -= chunkSize;
+        }
+        return arrow::Status::OK();
+    }
+
+    arrow::Status Close() override
+    {
+        Writer_->close();
+        return arrow::Status::OK();
+    }
+
+    ~TOrcWriter() = default;
+
+private:
+    std::unique_ptr<liborc::Type> OrcSchema_;
+    std::unique_ptr<liborc::Writer> Writer_;
+    std::unique_ptr<liborc::OutputStream> OutputStream_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,13 +203,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<::arrow::Array> ConvertDictionaryToDense(const ::arrow::Array& array)
+std::shared_ptr<arrow::Array> ConvertDictionaryToDense(const arrow::Array& array)
 {
-    const ::arrow::DictionaryType& dictType =
-        static_cast<const ::arrow::DictionaryType&>(*array.type());
+    const arrow::DictionaryType& dictType =
+        static_cast<const arrow::DictionaryType&>(*array.type());
 
     auto castOutputOrError =
-        ::arrow::compute::Cast(array.data(), dictType.value_type(), ::arrow::compute::CastOptions());
+        arrow::compute::Cast(array.data(), dictType.value_type(), arrow::compute::CastOptions());
 
     if (!castOutputOrError.ok()) {
         throw Py::TypeError(castOutputOrError.status().message());
@@ -173,22 +290,13 @@ std::shared_ptr<arrow::RecordBatch> GetNextBatch(const std::shared_ptr<arrow::ip
     return ConvertDictionaryArrays(batchOrError.ValueOrDie());
 }
 
-void ThrowOnError(const arrow::Status& status) {
-    if (!status.ok()) {
-        throw Py::TypeError(status.message());
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
+void DumpFile(
+    const std::string& outputFilePath,
+    IInputStream* stream,
+    EFileFormat format)
 {
-    auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
-    if (!outputFileOrError.ok()) {
-        throw Py::TypeError(outputFileOrError.status().message());
-    }
-    auto outputFile = outputFileOrError.ValueOrDie();
-
     TPipeForRecordBatchStreamReader pipe(stream);
     std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe);
     if (!batchReader) {
@@ -197,13 +305,15 @@ void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
 
     std::unique_ptr<parquet::arrow::FileWriter> writer;
 
-    std::shared_ptr<parquet::WriterProperties> props =
-        parquet::WriterProperties::Builder().compression(arrow::Compression::SNAPPY)->build();
-
     auto schema = ConvertDictionarySchema(batchReader->schema());
-
-    ThrowOnError(parquet::arrow::FileWriter::Open(*schema, arrow::default_memory_pool(),
-        outputFile, props, &writer));
+    std::unique_ptr<IFormatWriter> formatWriter;
+    switch (format) {
+        case EFileFormat::Parquet:
+            formatWriter = std::make_unique<TParquetWriter>(*schema, outputFilePath);
+            break;
+        case EFileFormat::ORC:
+            formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath);
+    }
 
     do {
         auto batch = GetNextBatch(batchReader);
@@ -215,14 +325,14 @@ void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
                 throw Py::TypeError(tableOrError.status().message());
             }
             auto table = tableOrError.ValueOrDie();
-            ThrowOnError(writer->WriteTable(*table.get(), batch->num_rows()));
+            ThrowOnError(formatWriter->WriteTable(*table.get(), batch->num_rows()));
 
             batch = GetNextBatch(batchReader);
         }
 
     } while (batchReader = GetNextBatchReader(pipe));
 
-    ThrowOnError(writer->Close());
+    ThrowOnError(formatWriter->Close());
 }
 
 } // namespace
@@ -238,7 +348,23 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
     ValidateArgumentsEmpty(args, kwargs);
 
-    WriteParquet(outputFilePath, stream.get());
+    DumpFile(outputFilePath, stream.get(), EFileFormat::Parquet);
+
+    return Py::None();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
+{
+    auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_file"));
+
+    auto streamArg = ExtractArgument(args, kwargs, "stream");
+    auto stream = CreateInputStreamWrapper(streamArg);
+
+    ValidateArgumentsEmpty(args, kwargs);
+
+    DumpFile(outputFilePath, stream.get(), EFileFormat::ORC);
 
     return Py::None();
 }
@@ -254,7 +380,21 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath);
+    iter->Initialize(inputFilePath, EFileFormat::Parquet);
+
+    return pythonIter;
+}
+
+Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
+{
+    auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
+
+    ValidateArgumentsEmpty(args, kwargs);
+
+    Py::Callable classType(TArrowRawIterator::type());
+    Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
+    auto* iter = pythonIter.getCxxObject();
+    iter->Initialize(inputFilePath, EFileFormat::ORC);
 
     return pythonIter;
 }

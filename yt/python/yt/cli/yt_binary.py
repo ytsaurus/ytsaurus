@@ -554,6 +554,28 @@ def add_upload_parquet_parser(add_parser):
     parser.add_argument("--input-file", type=str, required=True)
 
 
+@copy_docstring_from(yt.dump_orc)
+def dump_orc(**kwargs):
+    yt.dump_orc(**kwargs)
+
+
+def add_dump_orc_parser(add_parser):
+    parser = add_parser("dump-orc", dump_orc)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--output-file", type=str, required=True)
+
+
+@copy_docstring_from(yt.upload_orc)
+def upload_orc(**kwargs):
+    yt.upload_orc(**kwargs)
+
+
+def add_upload_orc_parser(add_parser):
+    parser = add_parser("upload-orc", upload_orc)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--input-file", type=str, required=True)
+
+
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -2726,6 +2748,10 @@ def _prepare_parser():
     add_dump_parquet_parser(add_parser)
 
     add_upload_parquet_parser(add_parser)
+
+    add_dump_orc_parser(add_parser)
+
+    add_upload_orc_parser(add_parser)
 
     if HAS_SKY_SHARE:
         add_sky_share_parser(add_parser)
