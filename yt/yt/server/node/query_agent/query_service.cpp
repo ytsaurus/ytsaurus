@@ -411,6 +411,9 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
             .ReadSessionId = TReadSessionId::Create(),
             .MultiplexingBand = EMultiplexingBand::Interactive,
+            .MemoryUsageTracker = Bootstrap_
+                ->GetNodeMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::Lookup),
         };
 
         TRetentionConfigPtr retentionConfig;
