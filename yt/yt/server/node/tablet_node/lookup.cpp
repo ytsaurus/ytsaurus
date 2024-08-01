@@ -1937,6 +1937,9 @@ void TTabletLookupSession<TPipeline>::FinishSession(const TErrorOr<std::vector<T
     auto hunksDecodingDuration = Timer_.GetElapsedTime();
     Timer_.Restart();
     auto compressedResult = LookupSession_->ResponseCodec_->Compress(rowsetOrError.Value());
+    compressedResult = TrackMemory(
+        LookupSession_->ChunkReadOptions_.MemoryUsageTracker,
+        std::move(compressedResult));
 
     if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
         throttler->Acquire(GetFoundDataWeight());
