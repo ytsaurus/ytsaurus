@@ -2458,7 +2458,6 @@ def add_flow_remove_pipeline_spec_parser(add_parser):
     parser = add_parser("remove-pipeline-spec", yt.remove_pipeline_spec,
                         help="Remove YT Flow pipeline spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
-    add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--force", action="store_true",
@@ -2490,7 +2489,6 @@ def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
     parser = add_parser("remove-pipeline-dynamic-spec", yt.remove_pipeline_dynamic_spec,
                         help="Remove YT Flow pipeline dynamic spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
-    add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path to part of the spec")
