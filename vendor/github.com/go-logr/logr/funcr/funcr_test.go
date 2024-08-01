@@ -840,7 +840,7 @@ func TestSanitize(t *testing.T) {
 
 func TestEnabled(t *testing.T) {
 	t.Run("default V", func(t *testing.T) {
-		log := newSink(func(prefix, args string) {}, NewFormatter(Options{}))
+		log := newSink(func(_, _ string) {}, NewFormatter(Options{}))
 		if !log.Enabled(0) {
 			t.Errorf("expected true")
 		}
@@ -849,7 +849,7 @@ func TestEnabled(t *testing.T) {
 		}
 	})
 	t.Run("V=9", func(t *testing.T) {
-		log := newSink(func(prefix, args string) {}, NewFormatter(Options{Verbosity: 9}))
+		log := newSink(func(_, _ string) {}, NewFormatter(Options{Verbosity: 9}))
 		if !log.Enabled(8) {
 			t.Errorf("expected true")
 		}
