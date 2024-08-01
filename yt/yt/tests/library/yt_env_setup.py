@@ -855,7 +855,7 @@ class YTEnvSetup(object):
         yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
         yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
         yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 2000, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 5000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
