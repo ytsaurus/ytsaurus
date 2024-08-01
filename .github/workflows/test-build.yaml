@@ -1,0 +1,39 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - users/kozubaeff/test-ci
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 32GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 558GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT24H
+
