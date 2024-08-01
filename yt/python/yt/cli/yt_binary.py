@@ -2222,19 +2222,21 @@ if HAS_IDM_CLI_HELPERS:
 
 @copy_docstring_from(yt.add_maintenance)
 def add_maintenance(**kwargs):
-    print_to_output(yt.add_maintenance(**kwargs))
+    response = yt.add_maintenance(**kwargs)
+    print_to_output(yson.dumps(response))
 
 
 @copy_docstring_from(yt.remove_maintenance)
 def remove_maintenance(**kwargs):
-    print_to_output(yt.remove_maintenance(**kwargs))
+    response = yt.remove_maintenance(**kwargs)
+    print_to_output(yson.dumps(response))
 
 
 def add_maintenance_request_parsers(add_parser):
     parser = add_parser("add-maintenance", add_maintenance)
-    parser.add_argument("--component", type=str)
-    parser.add_argument("--address", type=str)
-    parser.add_argument("--type", type=str)
+    parser.add_argument("-c", "--component", type=str)
+    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("-t", "--type", type=str)
     parser.add_argument("--comment", type=str)
 
     parser = add_parser("remove-maintenance", remove_maintenance)
