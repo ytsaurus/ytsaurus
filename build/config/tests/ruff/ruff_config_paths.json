@@ -3,6 +3,7 @@
     "crypta": "crypta/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
     "maps/sprav/snezhana/": "maps/sprav/snezhana/pyproject.toml",
+    "maps/sprav/chainification/": "maps/sprav/chainification/pyproject.toml",
     "sprav/mining/": "sprav/mining/pyproject.toml",
     "taxi/": "taxi/pyproject.toml",
     "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
