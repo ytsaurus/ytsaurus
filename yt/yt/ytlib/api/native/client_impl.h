@@ -916,6 +916,7 @@ private:
 
     const IMemoryUsageTrackerPtr LookupMemoryTracker_;
     const IMemoryUsageTrackerPtr QueryMemoryTracker_;
+    const IMemoryUsageTrackerPtr ReadTableMemoryTracker_;
     const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;

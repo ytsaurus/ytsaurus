@@ -162,6 +162,7 @@ TClient::TClient(
     }
     , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
     , QueryMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Query))
+    , ReadTableMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::ReadTable))
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))

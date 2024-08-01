@@ -23,7 +23,8 @@ TFuture<ITableReaderPtr> CreateTableReader(
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter = {},
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
+    IMemoryUsageTrackerPtr readTableMemoryTracker = GetNullMemoryUsageTracker());
 
 ////////////////////////////////////////////////////////////////////////////////
 

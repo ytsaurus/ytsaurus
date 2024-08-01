@@ -154,6 +154,14 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("total", &TThis::Total)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
@@ -229,8 +237,16 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("zookeeper_proxy", &TThis::ZookeeperProxy)
         .Default();
 
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
+    });
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Setting sane total memory limit for http proxy.
+        config->MemoryLimits->Total = 40_GB;
     });
 
     registrar.Postprocessor([] (TThis* config) {
@@ -287,6 +303,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .DefaultNew();
+
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
 
     // COMPAT(gritukan, levysotsky)
