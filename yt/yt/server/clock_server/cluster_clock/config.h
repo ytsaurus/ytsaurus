@@ -55,6 +55,9 @@ public:
 
     NBus::TBusConfigPtr BusClient;
 
+    //! Primary master cell tag
+    NObjectClient::TCellTag ClockClusterTag;
+
     REGISTER_YSON_STRUCT(TClusterClockConfig);
 
     static void Register(TRegistrar registrar);

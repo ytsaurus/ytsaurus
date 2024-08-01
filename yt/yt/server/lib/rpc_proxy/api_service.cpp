@@ -1234,15 +1234,19 @@ private:
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
-                            !providerResult.FindMatching(NTransactionServer::EErrorCode::UnknownClockClusterTag))
+                            !(providerResult.FindMatching(NRpc::EErrorCode::UnknownClockClusterTag) ||
+                                providerResult.FindMatching(NRpc::EErrorCode::ClockClusterTagMismatch)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }
-                        YT_LOG_DEBUG("Unknown clock cluster tag %v, trying to generate timestamps via direct call",
+
+                        YT_LOG_DEBUG(
+                            providerResult,
+                            "Wrong clock cluster tag %v, trying to generate timestamps via direct call",
                             clockClusterTag);
 
                         auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
-                        return alienClient->GenerateTimestamps(count);
+                        return alienClient->GenerateTimestamps(count, clockClusterTag);
                     }));
             },
             [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {

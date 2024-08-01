@@ -1,5 +1,4 @@
 #include "timestamp_proxy_service.h"
-#include "public.h"
 #include "private.h"
 
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -53,15 +52,16 @@ private:
         context->SetRequestInfo("Count: %v", count);
 
         auto provider = Provider_;
+        auto clockClusterTag = InvalidCellTag;
         if (request->has_clock_cluster_tag()) {
-            auto clockClusterTag =  FromProto<TCellTag>(request->clock_cluster_tag());
+            clockClusterTag = FromProto<TCellTag>(request->clock_cluster_tag());
 
             context->SetRequestInfo("ClockClusterTag: %v", clockClusterTag);
 
             auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
             if (foreignProviderPtr == AlienProviders_.end()) {
                 context->Reply(TError(
-                    EErrorCode::UnknownClockClusterTag,
+                    NRpc::EErrorCode::UnknownClockClusterTag,
                     "Unknown clock cluster tag %v", clockClusterTag));
                 return;
             }
@@ -69,11 +69,14 @@ private:
             provider = foreignProviderPtr->second;
         }
 
-        provider->GenerateTimestamps(count).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
+        provider->GenerateTimestamps(count, clockClusterTag).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
                 context->SetResponseInfo("Timestamp: %v", timestamp);
                 response->set_timestamp(timestamp);
+                if (clockClusterTag != InvalidCellTag) {
+                    response->set_clock_cluster_tag(ToProto<int>(clockClusterTag));
+                }
                 context->Reply();
             } else {
                 context->Reply(result);
