@@ -270,6 +270,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("timestamp_manager", &TThis::TimestampManager)
         .DefaultNew();
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default(InvalidCellTag);
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider);
     registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .Default();

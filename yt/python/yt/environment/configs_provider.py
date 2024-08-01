@@ -364,7 +364,10 @@ def _build_master_configs(yt_config,
             config["secondary_masters"] = [connection_configs[tag]
                                            for tag in connection_configs["secondary_cell_tags"]]
 
-            config["enable_timestamp_manager"] = (yt_config.clock_count == 0)
+            config["enable_timestamp_manager"] = ((yt_config.clock_count == 0) and not yt_config.has_ground)
+
+            if yt_config.has_ground:
+                config["clock_cluster_tag"] = yt_config.clock_cluster_tag
 
             if yt_config.discovery_server_count > 0:
                 discovery_server_config = {}

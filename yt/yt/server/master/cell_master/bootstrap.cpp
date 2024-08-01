@@ -947,6 +947,9 @@ void TBootstrap::DoInitialize()
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
+        YT_LOG_DEBUG("Initializing internal clocks (ClockClusterTag: %v)",
+            GetCellTag());
+
         TimestampManager_ = New<TTimestampManager>(
             Config_->TimestampManager,
             HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
@@ -954,7 +957,7 @@ void TBootstrap::DoInitialize()
             HydraFacade_->GetAutomaton(),
             GetCellTag(),
             /*authenticator*/ nullptr,
-            InvalidCellTag);
+            GetCellTag());
     }
 
     auto localTransactionParticipantProvider = CreateTransactionParticipantProvider(
@@ -1090,9 +1093,20 @@ void TBootstrap::InitializeTimestampProvider()
     if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(Config_->TimestampProvider, ChannelFactory_);
 
+        auto nativeClockClusterTag = Config_->ClockClusterTag;
+        if (nativeClockClusterTag == InvalidCellTag) {
+            nativeClockClusterTag = GetCellTag();
+        }
+
+        auto alienProviders = CreateAlienTimestampProvidersMap(
+            /*configs*/ {}, // Add alien ts-providers to master config if needed
+            TimestampProvider_,
+            nativeClockClusterTag,
+            ChannelFactory_);
+
         RpcServer_->RegisterService(CreateTimestampProxyService(
             TimestampProvider_,
-            /*alienProviders*/ {},
+            std::move(alienProviders),
             /*authenticator*/ nullptr));
     } else {
         auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);

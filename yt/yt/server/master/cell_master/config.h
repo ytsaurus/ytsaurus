@@ -287,6 +287,8 @@ public:
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
+    //! Clock server cell tag
+    NObjectClient::TCellTag ClockClusterTag;
 
     TDiscoveryServersConfigPtr DiscoveryServer;
 

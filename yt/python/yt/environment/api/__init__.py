@@ -27,6 +27,8 @@ class LocalYtConfig(object):
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(1)
+    has_ground = attr.ib(False)
+    clock_cluster_tag = attr.ib(1)
 
     """High level node settings"""
     jobs_environment_type = attr.ib(None)
