@@ -670,34 +670,72 @@ public:
             }
         }
 
-        for (auto index : ReplacingColumnIndexes_) {
-            auto& values = Values_[index];
+        for (auto columnIndex : ReplacingColumnIndexes_) {
+            auto& values = Values_[columnIndex];
+            auto [valueIt, valueItEnd] = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
 
-            auto valueIt = values.data();
-            auto endValueIt = SortUniqueValues(valueIt, valueIt + values.size());
+            auto endOneVersionValueIt = valueIt;
 
-            // Skip versions before base delete timestamp.
-            while (valueIt != endValueIt && Precedes(valueIt->Timestamp, baseDeleteTimestamp)) {
-                ++valueIt;
+            while (endOneVersionValueIt < valueItEnd &&
+                Precedes(endOneVersionValueIt->Timestamp, AllVersionsTimestamp_))
+            {
+                ++endOneVersionValueIt;
             }
 
-            valueIt = CompactReplacingValues(valueIt, endValueIt);
-            values.erase(std::move(valueIt, endValueIt, values.begin()), values.end());
+            if (valueIt < endOneVersionValueIt) {
+                valueIt = endOneVersionValueIt - 1;
+                // Apply retention in the end symmetrically with logic for aggregate columns.
+                if (Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+                    ++valueIt;
+                }
+            }
+
+            values.erase(values.begin(), valueIt);
         }
 
-        for (auto index : AggregateColumnIndexes_) {
-            auto& values = Values_[index];
+        auto compactAggregatesTimestamp = FlushMode_ ? AllVersionsTimestamp_ : MajorTimestamp_;
 
-            auto valueIt = values.data();
-            auto endValueIt = SortUniqueValues(valueIt, valueIt + values.size());
+        auto getAggregationRange = [&] (TValuesRange values) -> TValuesRange {
+            auto [valueIt, valueItEnd] = values;
 
-            // Skip versions before base delete timestamp.
-            while (valueIt != endValueIt && Precedes(valueIt->Timestamp, baseDeleteTimestamp)) {
-                ++valueIt;
+            auto endCompactValueIt = valueIt;
+
+            // Determine merged values range (common with nested merge).
+            while (endCompactValueIt < valueItEnd &&
+                Precedes(endCompactValueIt->Timestamp, compactAggregatesTimestamp))
+            {
+                // Override non-delta.
+                if (None(endCompactValueIt->Flags & EValueFlags::Aggregate)) {
+                    valueIt = endCompactValueIt;
+                }
+
+                ++endCompactValueIt;
             }
 
-            valueIt = CompactAggregateValues(valueIt, endValueIt);
-            values.erase(std::move(valueIt, endValueIt, values.begin()), values.end());
+            return {valueIt, endCompactValueIt};
+        };
+
+        for (auto columnIndex : AggregateColumnIndexes_) {
+            auto& values = Values_[columnIndex];
+            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
+            auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
+
+            if (valueIt < endCompactValueIt) {
+                auto state = ApplyAggregation(valueIt, endCompactValueIt);
+                valueIt = endCompactValueIt - 1;
+                *valueIt = state;
+
+                // FIXME(lukyan): Fix case when major timestamp is lower then retention timestamp.
+                // Consider retention timestamp equal to major timestamp minus max data TTL for aggregate columns.
+
+                // Apply retention timestamp after aggregation to make result stable regardless of compaction
+                // period (no compaction for a long time or it was performed many times).
+                if (Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+                    ++valueIt;
+                }
+            }
+
+            values.erase(values.begin(), valueIt);
         }
 
         int resultValueCount = 0;
@@ -743,7 +781,7 @@ public:
         std::reverse(WriteTimestamps_.begin(), WriteTimestamps_.end());
         std::reverse(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
 
-         // Construct output row.
+        // Construct output row.
         auto row = RowBuffer_->AllocateVersioned(
             Keys_.size(),
             resultValueCount,
@@ -774,6 +812,8 @@ public:
     }
 
 private:
+    using TValuesRange = std::pair<TVersionedValue*, TVersionedValue*>;
+
     const TRowBufferPtr RowBuffer_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -875,10 +915,11 @@ private:
         DeleteTimestamps_.erase(deleteTimestampOutputIt, DeleteTimestamps_.end());
     }
 
-    // Cannot use TRange/TMutableRange beacuse of invalid iterators in case of empty range.
-    static TVersionedValue* SortUniqueValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
+    static TValuesRange SortUniqueValuesAndSkipDeletedPrefix(std::vector<TVersionedValue>* values, TTimestamp baseDeleteTimestamp)
     {
-        // Common for values.
+        auto valueIt = values->data();
+        auto valueItEnd = valueIt + values->size();
+
         std::sort(
             valueIt,
             valueItEnd,
@@ -886,36 +927,21 @@ private:
                 return Precedes(lhs.Timestamp, rhs.Timestamp);
             });
 
-        auto endValueIt = std::unique(
+        valueItEnd = std::unique(
             valueIt,
             valueItEnd,
             [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
                 return lhs.Timestamp == rhs.Timestamp;
             });
 
-        return endValueIt;
-    }
+        values->erase(valueItEnd, values->end());
 
-    TVersionedValue* CompactReplacingValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
-    {
-        // Skip versions before retention timestamp.
-        while (valueIt != valueItEnd && Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+        // Skip versions before base delete timestamp.
+        while (valueIt != valueItEnd && Precedes(valueIt->Timestamp, baseDeleteTimestamp)) {
             ++valueIt;
         }
 
-        auto endOneVersionValueIt = valueIt;
-
-        while (endOneVersionValueIt < valueItEnd &&
-            Precedes(endOneVersionValueIt->Timestamp, AllVersionsTimestamp_))
-        {
-            ++endOneVersionValueIt;
-        }
-
-        if (valueIt < endOneVersionValueIt) {
-            valueIt = endOneVersionValueIt - 1;
-        }
-
-        return valueIt;
+        return {valueIt, valueItEnd};
     }
 
     TVersionedValue ApplyAggregation(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
@@ -934,7 +960,7 @@ private:
 
             // Do no expect any tombstones.
             YT_ASSERT(value.Type != EValueType::TheBottom);
-            // Only expect overwrites at the very beginning.
+            // Overwrites are expected at the very beginning only.
             YT_ASSERT(Any(value.Flags & EValueFlags::Aggregate));
 
             ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
@@ -948,38 +974,6 @@ private:
         YT_ASSERT((state.Flags & EValueFlags::Aggregate) == initialAggregateFlags);
 
         return state;
-    }
-
-    TVersionedValue* CompactAggregateValues(TVersionedValue* valueIt, TVersionedValue* valueItEnd)
-    {
-        // Skip versions before retention timestamp.
-        while (valueIt != valueItEnd && Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
-            ++valueIt;
-        }
-
-        auto compactAggregatesTimestamp = FlushMode_ ? AllVersionsTimestamp_ : MajorTimestamp_;
-
-        auto endCompactValueIt = valueIt;
-
-        // Determine merged values range (common with nested merge).
-        while (endCompactValueIt < valueItEnd &&
-            Precedes(endCompactValueIt->Timestamp, compactAggregatesTimestamp))
-        {
-            // Override non-delta.
-            if (None(endCompactValueIt->Flags & EValueFlags::Aggregate)) {
-                valueIt = endCompactValueIt;
-            }
-
-            ++endCompactValueIt;
-        }
-
-        if (valueIt < endCompactValueIt) {
-            auto state = ApplyAggregation(valueIt, endCompactValueIt);
-            valueIt = endCompactValueIt - 1;
-            *valueIt = state;
-        }
-
-        return valueIt;
     }
 };
 
