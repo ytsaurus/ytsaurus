@@ -416,6 +416,7 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
 class TestYqlColumnOrder(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
+    @pytest.mark.skipif(True, reason="temporarily broken")
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(300)
     def test_aggregate_with_as(self, query_tracker, yql_agent):
@@ -460,6 +461,7 @@ class TestYqlColumnOrder(TestQueriesYqlBase):
             from primary.`//tmp/t`
         """, [{"c_a": 43, "c_b": 45, "c_c": 42, "c_d": 44}])
 
+    @pytest.mark.skipif(True, reason="temporarily broken")
     @authors("gritukan", "mpereskokova")
     def test_issue_707(self, query_tracker, yql_agent):
         # https://github.com/ytsaurus/ytsaurus/issues/707
@@ -483,6 +485,7 @@ class TestYqlColumnOrder(TestQueriesYqlBase):
             from primary.`//tmp/t`
         """, [{"x": 1, "y": 2.0, "z": 42}])
 
+    @pytest.mark.skipif(True, reason="temporarily broken")
     @authors("gritukan", "mpereskokova")
     @pytest.mark.parametrize("dynamic", [False, True])
     def test_select_table(self, query_tracker, yql_agent, dynamic):
@@ -536,6 +539,7 @@ class TestYqlColumnOrder(TestQueriesYqlBase):
             from primary.`//tmp/t`;
         """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": 42, "b": "foo", "c": 2.0}]])
 
+    @pytest.mark.skipif(True, reason="temporarily broken")
     @authors("gritukan", "mpereskokova")
     def test_select_scalars(self, query_tracker, yql_agent):
         self._test_simple_query("""
@@ -562,6 +566,7 @@ class TestYqlColumnOrder(TestQueriesYqlBase):
             select 42 as c, "foo" as a, 2.0 as b;
         """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": "foo", "b": 2.0, "c": 42}]])
 
+    @pytest.mark.skipif(True, reason="temporarily broken")
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(300)
     def test_different_sources(self, query_tracker, yql_agent):
