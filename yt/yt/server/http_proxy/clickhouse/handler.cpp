@@ -116,6 +116,8 @@ public:
         , ForceUpdateCounter_(forceUpdateCounter)
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
+        , IsLegacyQueryHandler_(!bootstrap->IsChytApiServerAddress(req->GetRemoteAddress()) && req->GetUrl().Path.StartsWith("/query"))
+        , AllowGetRequests_(!IsLegacyQueryHandler_) // In case of the non-legacy handler GET-requests are allowed by default.
         , Handler_(handler)
         , ChannelFactory_(CreateTcpBusChannelFactory(New<NBus::TBusConfig>()))
     {
@@ -219,8 +221,11 @@ private:
 
     std::optional<size_t> JobCookie_;
 
+    // "/query" handler in YT http proxy is considered to be legacy.
+    bool IsLegacyQueryHandler_;
+
     // For backward compatibility we allow GET requests when Auth is performed via token or cgi parameters.
-    bool AllowGetRequests_ = false;
+    bool AllowGetRequests_;
 
     // Token is provided via header "Authorization" or via cgi parameter "password".
     // If empty, the authentication will be performed via Cookie.
@@ -346,10 +351,6 @@ private:
             }
 
             ProxiedRequestBody_ = Request_->ReadAll();
-            if (!ProxiedRequestBody_) {
-                ReplyWithError(EStatusCode::BadRequest, TError("Body should not be empty"));
-                return false;
-            }
 
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
             // User authentication is done on proxy only. We do not need to send the token to the clique.
@@ -994,7 +995,12 @@ private:
 
         TErrorOr<IResponsePtr> responseOrError;
         YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
-            responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+            EMethod forwardedMethod = IsLegacyQueryHandler_
+                ? EMethod::Post // In the legacy version all methods transform to POST.
+                : Request_->GetMethod();
+
+            auto forwardedQueryResult = HttpClient_->Request(forwardedMethod, ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_);
+            responseOrError = WaitFor(forwardedQueryResult);
         }
 
         if (responseOrError.IsOK()) {

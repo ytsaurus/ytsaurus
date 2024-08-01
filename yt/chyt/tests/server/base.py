@@ -364,7 +364,7 @@ class Clique(object):
         return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
     def make_request(self, url, query, headers, format="JSON", params=None, verbose=False,
-                     only_rows=True, full_response=False, timeout=None):
+                     only_rows=True, full_response=False, timeout=None, method="POST"):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
@@ -389,7 +389,7 @@ class Clique(object):
 
         params["output_format_json_quote_64bit_integers"] = 0
 
-        result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout, verify=False)
+        result = requests.request(method=method, url=url, data=query, headers=headers, params=params, timeout=timeout, verify=False)
 
         inner_errors = []
 
@@ -513,6 +513,7 @@ class Clique(object):
         chyt_proxy=False,
         https_proxy=False,
         session_id: str | None = None,
+        method="POST",
     ):
         """
         chyt_proxy:
@@ -558,6 +559,7 @@ class Clique(object):
             verbose=verbose,
             only_rows=only_rows,
             full_response=full_response,
+            method=method,
         )
 
     def make_query(

@@ -326,6 +326,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->HeapProfiler);
 }
 
+bool TBootstrap::IsChytApiServerAddress(const NNet::TNetworkAddress& address) const
+{
+    return (ChytApiHttpServer_ && address == ChytApiHttpServer_->GetAddress())
+        || (ChytApiHttpsServer_ && address == ChytApiHttpsServer_->GetAddress());
+}
+
 TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::SetupClients()

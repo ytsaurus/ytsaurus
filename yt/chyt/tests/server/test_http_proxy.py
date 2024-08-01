@@ -522,6 +522,25 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("", settings={"query": "SELECT 1 AS a"}) == [{"a": 1}]
 
+    @authors("barykinni")
+    def test_http_method_forward(self):
+        with Clique(1) as clique:
+            def get_setting_readonly(method, endpoint, token="") -> int:
+                return clique.make_query_via_proxy("SELECT getSetting('readonly') AS a", method=method, endpoint=endpoint, headers={"x-ClickHouse-Key": token})[0]["a"]
+
+            assert get_setting_readonly("POST", "/chyt") == 0
+            assert get_setting_readonly("GET", "/chyt") != 0
+
+            assert get_setting_readonly("POST", "/query") == 0
+
+            # In the proxy's legacy endpoint GET transforms into POST.
+            # Moreover in the legacy version GET-method is not allowed unless token is provided.
+
+            # Either user will be populated with |token| or user will be empty
+            # (depends on |populate_user_from_token|)
+            # in both cases user is 'root'.
+            assert get_setting_readonly("GET", "/query", token="root") == 0
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
