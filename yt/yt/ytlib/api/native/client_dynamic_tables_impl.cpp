@@ -357,6 +357,10 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
                 unfoldedColumn = &FindUnfoldingColumnAndValidate(tableSchema, indexTableSchema);
                 break;
 
+            case ESecondaryIndexKind::Unique:
+                ValidateUniqueIndexSchema(tableSchema, indexTableSchema);
+                break;
+
             default:
                 THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", it->Kind);
         }

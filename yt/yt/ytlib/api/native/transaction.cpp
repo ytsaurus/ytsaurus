@@ -1953,7 +1953,7 @@ private:
             return;
         }
 
-        std::vector<std::unique_ptr<TSecondaryIndexModifier>> indexModifiers;
+        std::vector<ISecondaryIndexModifierPtr> indexModifiers;
         std::vector<TFuture<void>> lookupRowsEvents;
 
         for (auto& [tableId, mergedRows] : mergedRowsByTable) {
@@ -1971,19 +1971,22 @@ private:
             auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
 
-            auto indexModifier = std::make_unique<TSecondaryIndexModifier>(
+            auto indexModifier = CreateSecondaryIndexModifier(
+                this,
                 mountInfo,
                 std::move(indexTableInfos),
                 mergedRows,
                 connection->GetExpressionEvaluatorCache(),
                 Logger);
 
-            lookupRowsEvents.push_back(indexModifier->LookupRows(this));
+            lookupRowsEvents.push_back(indexModifier->LookupRows());
             indexModifiers.push_back(std::move(indexModifier));
         }
 
         WaitFor(AllSucceeded(std::move(lookupRowsEvents)))
             .ThrowOnError();
+
+        std::vector<TFuture<void>> modificationsEnqueuedEvents;
 
         for (const auto& modifier : indexModifiers) {
             TModifyRowsOptions modifyRowsOptions{
@@ -1991,22 +1994,25 @@ private:
                 .AllowMissingKeyColumns=true,
             };
 
-            modifier->OnIndexModifications([&] (
-                TYPath path,
-                TNameTablePtr nameTable,
-                TSharedRange<TRowModification> modifications)
-            {
-                EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-                    this,
-                    connection,
-                    std::move(path),
-                    std::move(nameTable),
-                    &HunkMemoryPool_,
-                    std::move(modifications),
-                    modifyRowsOptions));
-            });
+            modificationsEnqueuedEvents.push_back(
+                modifier->OnIndexModifications([&] (
+                    TYPath path,
+                    TNameTablePtr nameTable,
+                    TSharedRange<TRowModification> modifications)
+                {
+                    EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                        this,
+                        connection,
+                        std::move(path),
+                        std::move(nameTable),
+                        &HunkMemoryPool_,
+                        std::move(modifications),
+                        modifyRowsOptions));
+                }));
         }
 
+        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedEvents)))
+            .ThrowOnError();
     }
 
     TFuture<void> DoPrepareRequests()
