@@ -1234,8 +1234,8 @@ private:
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
-                            !(providerResult.FindMatching(NRpc::EErrorCode::UnknownClockClusterTag) ||
-                                providerResult.FindMatching(NRpc::EErrorCode::ClockClusterTagMismatch)))
+                            !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
+                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }

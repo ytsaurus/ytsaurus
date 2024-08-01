@@ -173,7 +173,7 @@ private:
             ClockClusterTag_ != requestClockClusterTag)
         {
             context->Reply(TError(
-                NRpc::EErrorCode::ClockClusterTagMismatch,
+                NTransactionClient::EErrorCode::ClockClusterTagMismatch,
                 "Different clock cluster tag")
                 << TErrorAttribute("clock_cluster_tag", ClockClusterTag_)
                 << TErrorAttribute("request_clock_cluster_tag", requestClockClusterTag));

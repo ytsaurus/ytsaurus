@@ -61,7 +61,7 @@ private:
             auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
             if (foreignProviderPtr == AlienProviders_.end()) {
                 context->Reply(TError(
-                    NRpc::EErrorCode::UnknownClockClusterTag,
+                    NTransactionClient::EErrorCode::UnknownClockClusterTag,
                     "Unknown clock cluster tag %v", clockClusterTag));
                 return;
             }
