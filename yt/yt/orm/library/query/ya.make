@@ -11,6 +11,7 @@ SRCS(
     query_evaluator.cpp
     query_optimizer.cpp
     query_rewriter.cpp
+    type_inference.cpp
 )
 
 PEERDIR(

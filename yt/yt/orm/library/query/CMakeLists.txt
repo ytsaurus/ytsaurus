@@ -40,5 +40,6 @@ target_sources(orm-library-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_optimizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_rewriter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/type_inference.cpp
 )
 
