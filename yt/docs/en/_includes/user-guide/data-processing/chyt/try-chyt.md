@@ -111,6 +111,33 @@ Besides that, you need to change the driver properties:
 
 The JDBC driver can be used as a basis for using [DBeaver](https://dbeaver.io), an open-source database management program. DBeaver 6.1.5 was used for testing. If the ClickHouse-JDBC driver is not installed automatically, [download](https://github.com/yandex/clickhouse-jdbc) it manually. You must use a driver version higher than 0.1.55.
 
+### Datagrip connection { #jdbc-datagrip }
+
+#### Create a new connection
+
+`New` → `Data Source` → `ClickHouse`
+
+DataGrip works well with CHYT via ClickHouse datasource. Therefore, pick it for further setting up.
+
+### General settings tab
+
+* URL: `jdbc:clickhouse://{YT_PROXY}:80/query?database=*{CHYT_ALIAS}`
+* Authentication: `No auth`.
+* database: query - should be set automatically from url
+
+### Advanced settings tab
+
+* web_context: `/query`
+* custom_http_params: `database=*{CHYT_ALIAS},password={YT_TOKEN}`
+* database: ''. It is important to leave the field database EMPTY on advanced settings tab. Therefore, just remove *{CHYT_ALIAS} that was automatically set.
+* use_time_zone: `GMT`. Add your time zone if needed.
+
+### Check driver version
+
+`Drivers` → `Clickhouse` → `Driver files`
+
+Choose driver version <= 0.5.0
+
 ## CLI and Python API { #cli-and-api }
 
 CHYT has the official Python API and the official command line utility. For more information, see [CLI and Python API](../../../../user-guide/data-processing/chyt/cli-and-api.md).

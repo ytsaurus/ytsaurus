@@ -111,6 +111,32 @@ port = 80
 
 JDBC-драйвер можно использовать как основу при использовании open-source программы для работы с базами данных [DBeaver](https://dbeaver.io). Тестирование проводилось на версии DBeaver 6.1.5. В случае если ClickHouse-JDBC драйвер не устанавливается автоматически, его необходимо [скачать](https://github.com/yandex/clickhouse-jdbc) вручную. При этом необходимо использовать версию драйвера старше 0.1.55.
 
+### Datagrip connection { #jdbc-datagrip }
+
+#### Создание нового подключения
+
+`New` → `Data Source` → `ClickHouse`
+
+DataGrip хорошо работает с CHYT через источник данных ClickHouse. Поэтому выберите его для дальнейшей настройки.
+
+### Общие настройки вкладки
+
+* URL: `jdbc:clickhouse://{YT_PROXY}:80/query?database=*{CHYT_ALIAS}`
+* Authentication: `No auth`.
+* database: query - должен быть установлен автоматически из URL
+
+### Вкладка Advanced settings
+
+* web_context: `/query`
+* custom_http_params: `database=*{CHYT_ALIAS},password={YT_TOKEN}`
+* database: ``. Важно оставить поле database пустым на вкладке Advanced settings. Поэтому просто удалите *{CHYT_ALIAS}, который был автоматически установлен.
+* use_time_zone: `GMT`. Добавьте свой часовой пояс, если это необходимо.
+
+### Проверка версии драйвера
+`Drivers` → `Clickhouse` → `Driver files`
+
+Выберите версию драйвера <= 0.5.0
+
 ## CLI и Python API { #cli-and-api }
 
 У CHYT есть официальный API для языка Python и официальная утилита командной строки. Подробнее можно прочитать [CLI и Python API](../../../../user-guide/data-processing/chyt/cli-and-api.md).
