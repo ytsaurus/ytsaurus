@@ -8,6 +8,8 @@ from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
 from yt_queries import start_query, list_queries, get_query_tracker_info
 
+from yt.common import date_string_to_timestamp_mcs
+
 from yt.test_helpers import assert_items_equal
 
 from collections import Counter
@@ -22,7 +24,7 @@ def expect_queries(queries, list_result, incomplete=False):
     except AssertionError:
         timestamp = list_result["timestamp"]
         print_debug(f"Assertion failed, dumping content of dynamic tables by timestamp {timestamp}")
-        for table in ("active_queries", "finished_queries", "finished_queries_by_start_time"):
+        for table in ("active_queries", "finished_queries", "finished_queries_by_start_time", "finished_queries_by_aco_and_start_time", "finished_queries_by_user_and_start_time"):
             print_debug(f"{table}:")
             select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
         raise
@@ -456,13 +458,13 @@ class TestAccessControl(YTEnvSetup):
     @authors("aleksandr.gaev")
     def test_get_query_tracker_info(self, query_tracker):
         assert get_query_tracker_info() == \
-            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': ['everyone-share', 'nobody']}
+            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
 
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == \
             {'cluster_name': '', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': []}
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone-share', 'nobody']}
+        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
 
 
 class TestShare(YTEnvSetup):
@@ -480,6 +482,49 @@ class TestShare(YTEnvSetup):
         q.get(authenticated_user="u2")
         expect_queries([q], list_queries(authenticated_user="u1"))
         expect_queries([], list_queries(authenticated_user="u2"))
+
+
+class TestIndexTables(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    @authors("mpereskokova")
+    def test_start_query(self, query_tracker):
+        create_user("user")
+
+        q = start_query("mock", "complete_after", settings={"duration": 0}, access_control_objects=["everyone", "everyone-share"], authenticated_user="user")
+        q.track()
+        q_info = q.get()
+
+        queries_by_aco = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+        assert len(queries_by_aco) == 2
+
+        assert queries_by_aco[0]["query_id"] == q_info["id"]
+        assert queries_by_aco[0]["access_control_object"] == "everyone"
+        assert queries_by_aco[0]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
+
+        assert queries_by_aco[1]["query_id"] == q_info["id"]
+        assert queries_by_aco[1]["access_control_object"] == "everyone-share"
+        assert queries_by_aco[1]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
+
+        queries_by_user = list(select_rows("* from [//sys/query_tracker/finished_queries_by_user_and_start_time]"))
+        assert len(queries_by_user) == 1
+
+        assert queries_by_user[0]["user"] == "user"
+        assert queries_by_user[0]["minus_start_time"] == -date_string_to_timestamp_mcs(q_info["start_time"])
+
+    @authors("mpereskokova")
+    def test_list_queries(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+
+        q1 = start_query("mock", "complete_after", settings={"duration": 0}, access_control_objects=["everyone"], authenticated_user="u2")
+        q2 = start_query("mock", "complete_after", settings={"duration": 0}, access_control_objects=["everyone", "everyone-share"], authenticated_user="u1")
+        q1.track()
+        q2.track()
+
+        expect_queries([q2, q1], list_queries(authenticated_user="u1", limit=2))
 
 
 class TestMultipleAccessControl(YTEnvSetup):
