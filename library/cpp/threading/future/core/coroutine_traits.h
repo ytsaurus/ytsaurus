@@ -57,8 +57,8 @@ namespace NThreading {
     struct TFutureAwaitable {
         NThreading::TFuture<T> Future;
 
-        TFutureAwaitable(NThreading::TFuture<T> future)
-            : Future{future}
+        TFutureAwaitable(NThreading::TFuture<T> future) noexcept
+            : Future{std::move(future)}
         {
         }
 
