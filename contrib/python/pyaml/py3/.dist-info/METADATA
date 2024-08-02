@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyaml
-Version: 24.4.0
+Version: 24.7.0
 Summary: PyYAML-based module to produce a bit more pretty and readable YAML-serialized data
 Home-page: https://github.com/mk-fg/pretty-yaml
 Author: Mike Kazantsev
@@ -58,6 +58,10 @@ easily diff'ed, manipulated and re-used, but maybe with occasional issues.
 So please do not rely on the thing to produce output that can always be
 deserialized exactly to what was exported, at least - use PyYAML directly
 for that (but maybe with options from the next section).
+
+Output also isn't guaranteed to be stable between module versions,
+as new representation tweaks get added occasionally, but these can usually
+be disabled via module parameters, to get output stability over improvements.
 
 
 What this module does and why
