@@ -1997,7 +1997,7 @@ private:
             };
 
             modificationsEnqueuedEvents.push_back(
-                modifier->OnIndexModifications([&] (
+                modifier->OnIndexModifications([&, modifyRowsOptions=std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
                     TSharedRange<TRowModification> modifications)
