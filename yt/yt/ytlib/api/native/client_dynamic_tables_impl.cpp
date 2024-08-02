@@ -412,7 +412,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     }
 
     THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
-        "Misuse of operator WITH INDEX, tables %v and %v have no shared columns",
+        "Misuse of operator WITH INDEX: tables %v and %v have no shared columns",
         query.Table.Path,
         index.Path);
 
