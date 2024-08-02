@@ -17,8 +17,6 @@ namespace NYT::NLogTailer {
 class TBootstrap
 {
 public:
-    static constexpr int InterruptionExitCode = 0;
-
     explicit TBootstrap(TLogTailerBootstrapConfigPtr config);
 
     void Run();
@@ -31,7 +29,7 @@ public:
 
     const TLogTailerPtr& GetLogTailer() const;
 
-    void Abort(int exitCode = 0);
+    [[noreturn]] void Abort(int exitCode);
 
 private:
     const TLogTailerBootstrapConfigPtr Config_;
@@ -49,7 +47,7 @@ private:
 
     TLogTailerPtr LogTailer_;
 
-    std::atomic<int> SigintCounter_ = {0};
+    std::atomic<int> SigintCounter_ = 0;
 
     void SigintHandler();
 };

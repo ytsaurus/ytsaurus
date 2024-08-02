@@ -201,7 +201,7 @@ void TBootstrap::HandleSigint()
     }
     if (SigintCounter_ > 1) {
         WriteToStderr("*** Immediately stopping server due to second SIGINT ***\n");
-        _exit(GracefulInterruptionExitCode);
+        _exit(ToUnderlying(EServerExitCode::GracefulInterruption));
     }
     WriteToStderr("*** Gracefully stopping server due to SIGINT ***\n");
     YT_LOG_INFO("Stopping server due to SIGINT");
@@ -210,7 +210,7 @@ void TBootstrap::HandleSigint()
     TDelayedExecutor::Submit(
         BIND([] {
             WriteToStderr("*** Interuption timed out ***\n");
-            _exit(InterruptionTimedOutExitCode);
+            _exit(ToUnderlying(EServerExitCode::InterruptionTimedOut));
         }),
         Config_->InterruptionTimeout,
         GetControlInvoker());
@@ -241,7 +241,7 @@ void TBootstrap::HandleSigint()
         }
         NLogging::TLogManager::Get()->Shutdown();
         WriteToStderr("*** Server gracefully stopped ***\n");
-        _exit(GracefulInterruptionExitCode);
+        _exit(ToUnderlying(EServerExitCode::GracefulInterruption));
     }).Via(GetControlInvoker())));
 }
 

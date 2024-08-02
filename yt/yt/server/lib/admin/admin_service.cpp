@@ -12,6 +12,8 @@
 #include <yt/yt/core/logging/fluent_log.h>
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 namespace NYT::NAdmin {
 
 using namespace NConcurrency;
@@ -55,7 +57,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Die)
     {
-        _exit(request->exit_code());
+        AbortProcess(request->exit_code());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteCoreDump)

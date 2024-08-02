@@ -2,15 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/bus/tcp/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/server/lib/user_job/public.h>
 
-namespace NYT::NUserJob {
+namespace NYT::NExec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,8 +19,9 @@ DEFINE_REFCOUNTED_TYPE(IUserJobSynchronizerClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TUserJobSynchronizerConnectionConfigPtr connectionConfig);
+IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(
+    NUserJob::TUserJobSynchronizerConnectionConfigPtr connectionConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJob
+} // namespace NYT::NExec
