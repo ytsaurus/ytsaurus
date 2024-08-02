@@ -791,6 +791,7 @@ private:
             {"start_time", ConvertToNode(TInstant::Now())},
             {"clique_id", ConvertToNode(Config_->CliqueId)},
             {"clique_incarnation", ConvertToNode(Config_->CliqueIncarnation)},
+            {"query_sticky_group_size", ConvertToNode(Config_->QueryStickyGroupSize)},
         });
 
         WaitFor(Discovery_->Enter(ToString(Config_->InstanceId), attributes))

@@ -23,9 +23,20 @@ import random
 import string
 
 
-def _job_id_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> str:
-    return clique.make_query_via_proxy(
-        "select job_id from system.clique where self = 1", **kwargs)[0]["job_id"]
+def _job_id_of_instance_picked_for_the_query(clique: Clique, query_in_url: bool = False, seed: str = "job_id", **kwargs) -> str:
+    """
+    seed:
+        to produce different queries with the same result.
+        (simply use it as a column name)
+    """
+    query = f"select job_id as {seed} from system.clique where self = 1"
+    if query_in_url:
+        if "settings" not in kwargs or kwargs["settings"] is None:
+            kwargs["settings"] = {}
+        kwargs["settings"]["query"] = query
+        query = ""
+
+    return clique.make_query_via_proxy(query, **kwargs)[0][seed]
 
 
 def _job_cookie_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> int:
@@ -33,8 +44,12 @@ def _job_cookie_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> in
         "select job_cookie from system.clique where self = 1", **kwargs)[0]["job_cookie"]
 
 
-def _generate_session_id() -> str:
+def _generate_string() -> str:
     return ''.join(random.choices(string.ascii_lowercase, k=10))
+
+
+def _generate_session_id() -> str:
+    return _generate_string()
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
@@ -540,6 +555,142 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # (depends on |populate_user_from_token|)
             # in both cases user is 'root'.
             assert get_setting_readonly("GET", "/query", token="root") == 0
+
+    @authors("barykinni")
+    def test_sticky_group_pick_consistency(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 1,
+            }
+        }
+
+        NUM_REQUESTS = 5
+
+        with Clique(2, config_patch=patch) as clique:
+            for query_in_url in [False, True]:
+                query_seed = _generate_string()
+
+                picked_instances = [_job_id_of_instance_picked_for_the_query(clique, query_in_url=query_in_url, seed=query_seed)
+                                    for _ in range(NUM_REQUESTS)]
+
+                assert len(set(picked_instances)) == 1, "must pick same instance for the same query when QueryStickyGroupSize=1"
+
+    @authors("barykinni")
+    def test_sticky_group_size_correctness(self):
+        """
+        When doing same queries
+        proxy must coinflip between two instances
+        and must not consider the last one.
+        """
+
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 2,
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(3, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "QueryStickyGroupSize=2, therefore must pick exactly two instances"
+
+    @authors("barykinni")
+    def test_session_id_dominates_sticky_group(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 1,
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            # Same query but different session-ids.
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, session_id=_generate_session_id(), seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "Session mechanics are higher priority than sticky-group"
+
+    @authors("barykinni")
+    def test_sticky_group_uniform_distribution(self):
+        """
+        Every instance can be picked using sticky-group technology.
+        (similar to test_sticky_cookie_uniform_distribution,
+        take a look at this test for more details)
+        """
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 2,  # one is the loneliest number, so let it be 2 =)
+            }
+        }
+
+        NUM_INSTANCES = 3
+        MAX_NUM_QUERIES = 60
+
+        with Clique(NUM_INSTANCES, config_patch=patch) as clique:
+            picked_instances = set()
+            for _ in range(MAX_NUM_QUERIES):
+                hit_instance = _job_id_of_instance_picked_for_the_query(clique, seed=_generate_string())
+
+                picked_instances.add(hit_instance)
+
+                if len(picked_instances) == NUM_INSTANCES:
+                    return
+
+            assert False, "queries must be distributed uniformly among instances"
+
+    @authors("barykinni")
+    def test_sticky_group_size_in_url_dominates_config(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 2,
+            }
+        }
+
+        NUM_REQUESTS = 6
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            # Sticky group size is 2 in the config and 1 in the URL-parameter.
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed, settings={"chyt.query_sticky_group_size": "1"})
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 1, "QueryStickyGroupSize must be populated with value from URL parameter when specified"
+
+    @authors("barykinni")
+    def test_disable_sticky_group_manually(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 0,  # Sticky-group technology is disabled.
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "Proxy must use default random stategy when QueryStickyGroupSize=0 (and there are no other strategies)"
+
+    @authors("barykinni")
+    def test_sticky_group_corner_cases(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("SELECT 1", settings={"chyt.query_sticky_group_size": "abracadabra"})
+
+            # QueryStickyGroupSize is greater than a number of instances but that's ok.
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"chyt.query_sticky_group_size": "2"}) == [{"a": 1}]
 
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
