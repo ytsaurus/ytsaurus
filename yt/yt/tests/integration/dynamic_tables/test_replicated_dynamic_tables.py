@@ -2736,8 +2736,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replicate_timestamp_column(self, preserve_timestamps, schema):
         self._create_cells()
 
-        schema = [{"name": "$timestamp", "type": "uint64"}] + SIMPLE_SCHEMA_ORDERED
-
         self._create_replicated_table("//tmp/t", schema=schema)
         replica_id1 = create_table_replica(
             "//tmp/t",
