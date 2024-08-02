@@ -341,7 +341,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert len(gateway_config["remote_file_patterns"]) == 1
             assert gateway_config["remote_file_patterns"][0]["pattern"] == "yt://([a-zA-Z0-9\\-_]+)/([^&@?]+)$"
             assert gateway_config["yt_log_level"] == "YL_DEBUG"
-            assert gateway_config["execute_udf_locally_if_possible"]
+            assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
             assert len(gateway_config["default_settings"]) == 58
