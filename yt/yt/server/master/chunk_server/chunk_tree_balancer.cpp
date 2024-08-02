@@ -253,7 +253,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
                         chunkList->Children().size() - mergedCount);
                     Callbacks_->AttachToChunkList(
                         lastChunkList,
-                        MakeRange(chunkList->Children()).Slice(mergedCount, mergedCount + count));
+                        TRange(chunkList->Children()).Slice(mergedCount, mergedCount + count));
                     mergedCount += count;
                 }
             }

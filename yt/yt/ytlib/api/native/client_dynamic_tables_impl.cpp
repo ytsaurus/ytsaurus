@@ -2912,7 +2912,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         .SessionId = sessionId.Underlying(),
     };
 
-    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+    auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
     auto sessionRowset = WaitFor(transaction->LookupRows(
         producerPath.GetPath(),
@@ -2949,7 +2949,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         resultRecord.UserMeta = ConvertToYsonString(options.UserMeta);
     }
 
-    auto resultRows = FromRecords(MakeRange(std::array{resultRecord}));
+    auto resultRows = FromRecords(TRange(std::array{resultRecord}));
 
     transaction->WriteRows(producerPath.GetPath(), nameTable, resultRows);
     WaitFor(transaction->Commit())
@@ -3000,7 +3000,7 @@ void TClient::DoRemoveQueueProducerSession(
         .SessionId = sessionId.Underlying(),
     };
 
-    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+    auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
     transaction->DeleteRows(producerPath.GetPath(), nameTable, keys);
 

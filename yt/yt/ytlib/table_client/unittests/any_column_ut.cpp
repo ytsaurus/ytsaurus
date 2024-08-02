@@ -64,7 +64,7 @@ TEST(TAnyColumnTest, Simple)
     TDataBlockWriter blockWriter;
     auto columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
 
-    columnWriter->WriteUnversionedValues(MakeRange(expected));
+    columnWriter->WriteUnversionedValues(TRange(expected));
     columnWriter->FinishCurrentSegment();
 
     auto block = blockWriter.DumpBlock(0, 8);

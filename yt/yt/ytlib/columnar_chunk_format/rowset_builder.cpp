@@ -1770,7 +1770,7 @@ public:
             TReadSpan readSpan{CurrentResultOffset_, CurrentResultOffset_ + readCount - leftCount};
             // TODO(lukyan): Use separate version for one range.
             // It will reduce function size and improve compiler optimizations.
-            auto readList = MakeRange(&readSpan, 1);
+            auto readList = TRange(&readSpan, 1);
             auto batchSize = this->ReadRowsWithoutKeys(rows, readList, dataWeight, GetKeyColumnCount(), readerStatistics);
 
             {
@@ -1955,7 +1955,7 @@ private:
         if (keyFilterStatistics && falsePositiveCount > 0) {
             keyFilterStatistics->FalsePositiveEntryCount.fetch_add(falsePositiveCount, std::memory_order::relaxed);
         }
-        ReadList_ = MakeMutableRange(ReadListHolder_.GetData(), it);
+        ReadList_ = TMutableRange(ReadListHolder_.GetData(), it);
     }
 };
 
@@ -2042,19 +2042,19 @@ public:
         auto sentinelRowIndexesCount = readListSlice.end() - spanEnd;
 
         // Make range to optimize access in TCompactVector.
-        auto keyColumnIndexes = MakeRange(KeyColumnIndexes_);
+        auto keyColumnIndexes = TRange(KeyColumnIndexes_);
 
         // Now all spans are not empty.
         auto batchSize = this->ReadRowsWithoutKeys(
             rows + sentinelRowIndexesCount,
-            MakeRange(readListSlice.begin(), spanEnd),
+            TRange(readListSlice.begin(), spanEnd),
             dataWeight,
             std::ssize(keyColumnIndexes),
             readerStatistics);
 
         SetRowsWithoutValuesToSentinels(rows + sentinelRowIndexesCount, batchSize);
 
-        InsertSentinelRows(MakeRange(sentinelRowIndexes, sentinelRowIndexesCount), rows);
+        InsertSentinelRows(TRange(sentinelRowIndexes, sentinelRowIndexesCount), rows);
 
         for (int rowIndex = 0; rowIndex < readRowCount; ++rowIndex) {
             if (rows[rowIndex]) {
@@ -2176,7 +2176,7 @@ private:
             ++offset;
         }
 
-        ReadList_ = MakeMutableRange(ReadListHolder_.GetData(), it);
+        ReadList_ = TMutableRange(ReadListHolder_.GetData(), it);
 
 #ifndef NDEBUG
         for (size_t index = 1; index < ReadList_.size(); ++index) {
@@ -2271,7 +2271,7 @@ public:
         const auto* readListIt = ReadList_.begin();
 
         // Make range to optimize access to TCompactVector.
-        auto keyColumnIndexes = MakeRange(KeyColumnIndexes_);
+        auto keyColumnIndexes = TRange(KeyColumnIndexes_);
 
         for (; readListIt != ReadList_.end(); ++readListIt) {
             auto [rowIndexHint, keyIndex] = *readListIt;
@@ -2330,7 +2330,7 @@ public:
             }
         }
 
-        ReadList_ = MakeRange(readListIt, ReadList_.end());
+        ReadList_ = TRange(readListIt, ReadList_.end());
 
         return readCount - (rowsEnd - rows);
     }
@@ -2434,7 +2434,7 @@ private:
         const NTableClient::TKeyFilterStatisticsPtr& /*keyFilterStatistics*/) override
     {
         auto initialControlSpan = initialWindow.Control;
-        ReadList_ = MakeMutableRange(KeysWithHints_.RowIndexesToKeysIndexes)
+        ReadList_ = TMutableRange(KeysWithHints_.RowIndexesToKeysIndexes)
             .Slice(initialControlSpan.Lower, initialControlSpan.Upper);
     }
 };

@@ -104,7 +104,7 @@ public:
         // We divide key space into segments between teleport chunks. Then we build jobs independently
         // on each segment.
         for (const auto& chunk : teleportChunks) {
-            auto maxKey = RowBuffer_->CaptureRow(MakeRange(chunk->BoundaryKeys()->MaxKey.Begin(), PrimaryComparator_.GetLength()));
+            auto maxKey = RowBuffer_->CaptureRow(TRange(chunk->BoundaryKeys()->MaxKey.Begin(), PrimaryComparator_.GetLength()));
             TeleportChunkUpperBounds_.emplace_back(TKeyBound::FromRow() <= maxKey);
         }
 
@@ -1023,7 +1023,7 @@ private:
                 ++endIndex;
             }
 
-            auto primaryEndpoints = MakeRange(endpoints).Slice(primaryIndex, endIndex);
+            auto primaryEndpoints = TRange(endpoints).Slice(primaryIndex, endIndex);
 
             if (primaryEndpoints.empty()) {
                 continue;

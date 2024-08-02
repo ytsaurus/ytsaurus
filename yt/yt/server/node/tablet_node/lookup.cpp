@@ -451,7 +451,7 @@ protected:
     void WriteRow(TVersionedRow lookupedRow)
     {
         if (lookupedRow) {
-            for (const auto& value : MakeRange(lookupedRow.BeginValues(), lookupedRow.EndValues())) {
+            for (const auto& value : TRange(lookupedRow.BeginValues(), lookupedRow.EndValues())) {
                 YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
             }
         }

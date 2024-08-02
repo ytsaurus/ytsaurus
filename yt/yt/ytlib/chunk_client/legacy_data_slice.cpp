@@ -577,9 +577,9 @@ void SetLimitsFromShortenedBoundaryKeys(
     auto chunk = dataSlice->GetSingleUnversionedChunk();
     if (const auto& boundaryKeys = chunk->BoundaryKeys()) {
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MinKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ false);
+            rowBuffer->CaptureRow(TRange(boundaryKeys->MinKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ false);
         dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MaxKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ true);
+            rowBuffer->CaptureRow(TRange(boundaryKeys->MaxKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ true);
     }
 }
 

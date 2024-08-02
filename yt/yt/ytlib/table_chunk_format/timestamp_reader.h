@@ -193,7 +193,7 @@ public:
     TRange<std::pair<ui32, ui32>> GetTimestampIndexRanges(i64 rowCount) const
     {
         YT_VERIFY(rowCount <= PreparedRowCount_);
-        return MakeRange(
+        return TRange(
             TimestampIndexRanges_.data(),
             TimestampIndexRanges_.data() + rowCount);
     }

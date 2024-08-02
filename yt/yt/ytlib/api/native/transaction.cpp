@@ -1830,7 +1830,7 @@ private:
             .SessionId = sessionId.Underlying(),
         };
 
-        auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+        auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
         auto sessionRowset = WaitFor(LookupRows(
             producerPath.GetPath(),
@@ -1901,7 +1901,7 @@ private:
             updatedSession.UserMeta = ConvertToYsonString(options.UserMeta);
         }
 
-        auto updatedSessionRows = FromRecords(MakeRange(std::array{updatedSession}));
+        auto updatedSessionRows = FromRecords(TRange(std::array{updatedSession}));
         WriteRows(producerPath.GetPath(), producerNameTable, updatedSessionRows);
 
         return TPushQueueProducerResult{

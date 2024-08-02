@@ -42,7 +42,7 @@ TKeySetReader::TKeySetReader(const TSharedRef& compressedData)
 
 TRange<TLegacyKey> TKeySetReader::GetKeys() const
 {
-    return MakeRange(Keys_);
+    return TRange(Keys_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

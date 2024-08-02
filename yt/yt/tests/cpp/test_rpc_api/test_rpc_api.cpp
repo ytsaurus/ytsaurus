@@ -434,7 +434,7 @@ TEST_F(TAnyTypeTest, YsonValidation)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
         std::vector<TUnversionedRow> rows{owningRow};
         YT_VERIFY(writer->Write(rows));
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -467,7 +467,7 @@ TEST_F(TAnyTypeTest, CompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
         std::vector<TUnversionedRow> rows{owningRow};
         YT_VERIFY(writer->Write(rows));
         WaitFor(writer->Close())
@@ -504,7 +504,7 @@ TEST_F(TAnyTypeTest, IncompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
         std::vector<TUnversionedRow> rows{owningRow};
         YT_VERIFY(writer->Write(rows));
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -591,7 +591,7 @@ TEST_F(TSkiffTest, ErroneousSkiffReading_YTADMINREQ_32428)
         auto aColumnId = writer->GetNameTable()->GetIdOrRegisterName("a");
 
         auto value = MakeUnversionedInt64Value(1, aColumnId);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
 
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
@@ -679,7 +679,7 @@ TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
         auto value = MakeUnversionedInt64Value(1, columnId);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
 
         YT_VERIFY(writer->Write({owningRow}));
         WaitFor(writer->Close())
@@ -935,7 +935,7 @@ TEST_F(TArrowTest, ReadWithoutSystemColumns)
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
         auto value = MakeUnversionedInt64Value(1, columnId);
-        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+        TUnversionedOwningRow owningRow(TRange(&value, 1));
 
         YT_VERIFY(writer->Write({owningRow}));
         WaitFor(writer->Close())

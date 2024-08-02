@@ -200,7 +200,7 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
         TUnversionedRowBuilder builder;
         builder.AddValue(value);
         TUnversionedRow row = builder.GetRow();
-        writer->WriteUnversionedValues(MakeRange(&row, 1));
+        writer->WriteUnversionedValues(TRange(&row, 1));
     }
 
     writer->FinishBlock(/*blockIndex*/ 0);
@@ -215,7 +215,7 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     reader->SetCurrentBlock(MergeRefsToRef<TTag>(block.Data), /*blockIndex*/ 0);
 
     auto columns = std::make_unique<IUnversionedColumnarRowBatch::TColumn[]>(reader->GetBatchColumnCount());
-    reader->ReadColumnarBatch(MakeMutableRange(columns.get(), reader->GetBatchColumnCount()), values.size());
+    reader->ReadColumnarBatch(TMutableRange(columns.get(), reader->GetBatchColumnCount()), values.size());
 
     struct TOwner
     {

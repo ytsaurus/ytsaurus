@@ -190,7 +190,7 @@ inline TRange<NTableClient::TVersionedValue> FindValues(
             return columnId < value.Id;
         });
 
-    return MakeRange(lower, upper);
+    return TRange(lower, upper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

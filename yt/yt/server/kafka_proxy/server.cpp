@@ -890,7 +890,7 @@ private:
                     }
                 }
 
-                auto rows = FromRecords(MakeRange(messages));
+                auto rows = FromRecords(TRange(messages));
                 transaction->WriteRows(path.GetPath(), nameTable, rows);
             }
 

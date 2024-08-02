@@ -280,7 +280,7 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
 
     {
         auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
-            MakeRange(columnMetas->columns(timestampReaderIndex).segments()),
+            TRange(columnMetas->columns(timestampReaderIndex).segments()),
             blockProvider);
 
         YT_VERIFY(!blockIds.empty());
@@ -296,7 +296,7 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
         bool valueColumn = columnIndex >= chunkSchema->GetKeyColumnCount();
 
         auto blockIds = preparedColumns[columnIndex].PrepareMetas(
-            MakeRange(columnMetas->columns(columnIndex).segments()),
+            TRange(columnMetas->columns(columnIndex).segments()),
             type,
             valueColumn,
             static_cast<bool>(chunkSchemaColumns[columnIndex].Aggregate()),

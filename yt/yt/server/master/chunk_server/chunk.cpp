@@ -891,13 +891,13 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Ini
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetStoredReplicas() const
 {
-    return MakeRange(StoredReplicas);
+    return TRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableStoredReplicas()
 {
-    return MakeMutableRange(StoredReplicas);
+    return TMutableRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
@@ -917,13 +917,13 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Rem
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetLastSeenReplicas() const
 {
-    return MakeRange(LastSeenReplicas);
+    return TRange(LastSeenReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableLastSeenReplicas()
 {
-    return MakeMutableRange(LastSeenReplicas);
+    return TMutableRange(LastSeenReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>

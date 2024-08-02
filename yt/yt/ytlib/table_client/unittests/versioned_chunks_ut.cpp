@@ -1278,14 +1278,14 @@ protected:
                 key[i] = row.Keys()[i];
             }
 
-            while (CompareValueRanges(MakeRange(key), currentRange->second.Elements()) >= 0) {
+            while (CompareValueRanges(TRange(key), currentRange->second.Elements()) >= 0) {
                 ++currentRange;
                 if (currentRange == ranges.end()) {
                     return expectedRows;
                 }
             }
 
-            if (CompareValueRanges(MakeRange(key), currentRange->first.Elements()) < 0) {
+            if (CompareValueRanges(TRange(key), currentRange->first.Elements()) < 0) {
                 continue;
             }
 

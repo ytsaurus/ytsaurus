@@ -89,7 +89,7 @@ Y_FORCE_INLINE TResult TCompartmentFunction<TResult(TArgs...)>::operator()(TArgs
         std::array<TWavmPodValue, sizeof...(TArgs)> arguments;
 
         ConvertToWavmArguments(
-            MakeMutableRange(arguments.data(), arguments.size()),
+            TMutableRange(arguments.data(), arguments.size()),
             args...);
 
         if constexpr (std::is_same_v<TResult, void>) {
@@ -98,7 +98,7 @@ Y_FORCE_INLINE TResult TCompartmentFunction<TResult(TArgs...)>::operator()(TArgs
                 RuntimeType_,
                 RuntimeFunction_,
                 nullptr,
-                MakeRange(arguments.data(),
+                TRange(arguments.data(),
                 arguments.size()));
 
             return;
@@ -112,7 +112,7 @@ Y_FORCE_INLINE TResult TCompartmentFunction<TResult(TArgs...)>::operator()(TArgs
             RuntimeType_,
             RuntimeFunction_,
             &result,
-            MakeRange(arguments.data(),
+            TRange(arguments.data(),
             arguments.size()));
 
         return TResult(result.Data);

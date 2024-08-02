@@ -102,7 +102,7 @@ public:
             YT_ASSERT(static_cast<int>(key.GetCount()) >= chunkKeyColumnCount);
             auto& request = KeyRequests_.emplace_back(
                 systemBlockMetas[metaIndex].BlockIndex,
-                GetFarmFingerprint(MakeRange(key.Begin(), chunkKeyColumnCount)),
+                GetFarmFingerprint(TRange(key.Begin(), chunkKeyColumnCount)),
                 startSlotIndex,
                 &systemBlockMetas[metaIndex].FormatDetail);
 

@@ -261,8 +261,8 @@ struct TExpressionFragmentPrinter
         YT_ASSERT(DebugExpressions[id].Args.size() % 2 == 0);
 
         auto whenThenExpressionsLength = DebugExpressions[id].Args.size() / 2;
-        auto conditions = MakeRange(DebugExpressions[id].Args.data(), whenThenExpressionsLength);
-        auto results = MakeRange(DebugExpressions[id].Args.data() + whenThenExpressionsLength, whenThenExpressionsLength);
+        auto conditions = TRange(DebugExpressions[id].Args.data(), whenThenExpressionsLength);
+        auto results = TRange(DebugExpressions[id].Args.data() + whenThenExpressionsLength, whenThenExpressionsLength);
 
         for (size_t index = 0; index < whenThenExpressionsLength; ++index) {
             Builder->AppendString(" WHEN ");

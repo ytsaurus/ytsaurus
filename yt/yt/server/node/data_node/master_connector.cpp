@@ -388,7 +388,7 @@ public:
         if (!response.replica_announcement_requests().empty()) {
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
-                MakeRange(response.replica_announcement_requests()),
+                TRange(response.replica_announcement_requests()),
                 response.revision(),
                 /*onFullHeartbeat*/ true);
         }
@@ -508,7 +508,7 @@ public:
         if (!response.replica_announcement_requests().empty()) {
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
-                MakeRange(response.replica_announcement_requests()),
+                TRange(response.replica_announcement_requests()),
                 response.revision(),
                 /*onFullHeartbeat*/ false);
         }
@@ -838,7 +838,7 @@ private:
         if (replicaAnnouncements.has_non_sequoia_announcements()) {
             const auto& nonSequoiaAnnouncements = replicaAnnouncements.non_sequoia_announcements();
             allyReplicaManager->ScheduleAnnouncements(
-                MakeRange(nonSequoiaAnnouncements.replica_announcement_requests()),
+                TRange(nonSequoiaAnnouncements.replica_announcement_requests()),
                 nonSequoiaAnnouncements.revision(),
                 onFullHeartbeat);
         }
@@ -846,7 +846,7 @@ private:
         if (replicaAnnouncements.has_sequoia_announcements()) {
             const auto& sequoiaAnnouncements = replicaAnnouncements.sequoia_announcements();
             allyReplicaManager->ScheduleAnnouncements(
-                MakeRange(sequoiaAnnouncements.replica_announcement_requests()),
+                TRange(sequoiaAnnouncements.replica_announcement_requests()),
                 sequoiaAnnouncements.revision(),
                 onFullHeartbeat);
         }

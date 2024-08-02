@@ -1464,7 +1464,7 @@ public:
         if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
             AttachToChunkList(
                 newChunkList,
-                MakeRange(chunkList->Children()).Slice(chunkList->GetTrimmedChildCount(), chunkList->Children().size()));
+                TRange(chunkList->Children()).Slice(chunkList->GetTrimmedChildCount(), chunkList->Children().size()));
 
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;

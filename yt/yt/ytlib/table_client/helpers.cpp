@@ -535,7 +535,7 @@ void TReaderVirtualValues::FillRleColumn(IUnversionedColumnarRowBatch::TColumn* 
             /*valueCount*/ 1,
             value.Type,
             /*baseValue*/ 0,
-            MakeRange(&value.Data.Uint64, 1));
+            TRange(&value.Data.Uint64, 1));
         rleColumn->Values->ZigZagEncoded = false;
     } else if (IsStringLikeType(value.Type)) {
         ReadColumnarStringValues(
@@ -543,14 +543,14 @@ void TReaderVirtualValues::FillRleColumn(IUnversionedColumnarRowBatch::TColumn* 
             /*startIndex*/ 0,
             /*valueCount*/ 1,
             value.Length,
-            MakeRange<ui32>(reinterpret_cast<const ui32*>(&Zero_), 1),
+            TRange<ui32>(reinterpret_cast<const ui32*>(&Zero_), 1),
             TRef(value.Data.String, value.Length));
     } else if (value.Type == EValueType::Double) {
         ReadColumnarFloatingPointValues(
             rleColumn,
             /*startIndex*/ 0,
             /*valueCount*/ 1,
-            MakeRange(&value.Data.Double, 1));
+            TRange(&value.Data.Double, 1));
     } else if (value.Type == EValueType::Boolean) {
         ReadColumnarBooleanValues(
             rleColumn,

@@ -432,7 +432,7 @@ private:
             partition->GetTablet()->GetLoggingTag(),
             slot->GetCellId(),
             MakeFormattableView(
-                MakeRange(
+                TRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));

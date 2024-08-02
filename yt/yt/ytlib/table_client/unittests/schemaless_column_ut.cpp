@@ -56,8 +56,8 @@ TEST(TSchemalessColumnTest, Simple)
     auto columnWriter = CreateSchemalessColumnWriter(0, &blockWriter);
 
     // Make two separate writes.
-    columnWriter->WriteUnversionedValues(MakeRange(expected.data(), 2));
-    columnWriter->WriteUnversionedValues(MakeRange(expected.data() + 2, 2));
+    columnWriter->WriteUnversionedValues(TRange(expected.data(), 2));
+    columnWriter->WriteUnversionedValues(TRange(expected.data() + 2, 2));
     columnWriter->FinishCurrentSegment();
 
     auto block = blockWriter.DumpBlock(0, 8);
