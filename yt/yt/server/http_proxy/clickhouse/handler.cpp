@@ -283,36 +283,40 @@ private:
         RequestErrors_.emplace_back(error);
     }
 
-    bool ParseTokenFromAuthorizationHeader(const TString& authorization)
+    struct TUserAndToken
     {
+        TString User;
+        TString Token;
+    };
+
+    TErrorOr<TUserAndToken> ParseUserAndTokenFromAuthorizationHeader(const TString& authorization) const
+    {
+        TErrorOr<TUserAndToken> result;
+
         YT_LOG_DEBUG("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
         auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
         if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
-            Token_ = authorizationTypeAndCredentials[1];
+            result = TUserAndToken{.Token=std::move(authorizationTypeAndCredentials[1])};
+
         } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
             const auto& credentials = authorizationTypeAndCredentials[1];
-            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
-            if (fooAndToken.size() == 2) {
-                // First component (that should be username) is ignored.
-                Token_ = fooAndToken[1];
+            auto credentialsDecoded = Base64Decode(credentials);
+            auto userAndToken = SplitString(credentialsDecoded, ":", 2);
+            if (userAndToken.size() == 2) {
+                result = TUserAndToken{.User=std::move(userAndToken[0]), .Token=std::move(userAndToken[1])};
             } else {
-                ReplyWithError(
-                    EStatusCode::Unauthorized,
-                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
-                return false;
+                return TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)", credentialsDecoded);
             }
+
         } else {
-            ReplyWithError(
-                EStatusCode::Unauthorized,
-                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                    authorizationType,
-                    authorizationTypeAndCredentials.size()));
-            return false;
+            return TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
+                            authorizationType, authorizationTypeAndCredentials.size());
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
-        return true;
+
+        return result;
     }
 
     bool TryPrepare()
@@ -320,7 +324,7 @@ private:
         try {
             CgiParameters_ = TCgiParameters(Request_->GetUrl().RawQuery);
 
-            if (!TryProcessHeaders()) {
+            if (!TryGetAuthorizationAndCliqueSpecification()) {
                 return false;
             }
 
@@ -329,10 +333,6 @@ private:
             }
 
             if (!TryCheckMethod()) {
-                return false;
-            }
-
-            if (!TryParseDatabase()) {
                 return false;
             }
 
@@ -367,7 +367,10 @@ private:
             // Remove 'Expect' header to prevent such response status.
             ProxiedRequestHeaders_->Remove("Expect");
 
-            CgiParameters_.EraseAll("database");
+            if (IsLegacyQueryHandler_) {
+                // Don't forward, in legacy version it is used for clique-alias.
+                CgiParameters_.EraseAll("database");
+            }
             CgiParameters_.EraseAll("query_id");
             CgiParameters_.EraseAll("span_id");
             CgiParameters_.EraseAll("user");
@@ -510,40 +513,133 @@ private:
         return true;
     }
 
-    bool TryProcessHeaders()
+    TErrorOr<TUserAndToken> ParseUserAndTokenFromHeaders() const
+    {
+        TErrorOr<TUserAndToken> result = TUserAndToken();
+
+        const auto& headers = Request_->GetHeaders();
+
+        const auto* authorization = headers->Find("Authorization");
+        const auto* xClickHouseKey = headers->Find("X-ClickHouse-Key");
+        const auto* xClickHouseUser = headers->Find("X-ClickHouse-User");
+
+        auto hasHeader = [](const TString* headerValue) -> bool {
+            return headerValue && !headerValue->empty();
+        };
+
+        if (hasHeader(authorization)) {
+            result = ParseUserAndTokenFromAuthorizationHeader(*authorization);
+        } else if (hasHeader(xClickHouseKey) || hasHeader(xClickHouseUser)) {
+            result = TUserAndToken{
+                xClickHouseUser ? *xClickHouseUser : "",
+                xClickHouseKey ? *xClickHouseKey : ""
+            };
+        } else if (CgiParameters_.Has("user") || CgiParameters_.Has("password")) {
+            result = TUserAndToken{CgiParameters_.Get("user"), CgiParameters_.Get("password")};
+        }
+
+        if (result.IsOK()) {
+            YT_LOG_DEBUG("Authorization data fetched (User: %v, Token: %v)", result.Value().User, result.Value().Token);
+        } else {
+            YT_LOG_DEBUG(result, "Failed to fetch authorization data");
+        }
+
+        return result;
+    }
+
+    struct TCliqueAliasAndJobCookie
+    {
+        TString CliqueAlias;
+        std::optional<size_t> JobCookie;
+    };
+
+    TErrorOr<TCliqueAliasAndJobCookie> ParseCliqueAliasAndInstanceCookie(TString cliqueAliasAndInstanceCookie) const
+    {
+        TCliqueAliasAndJobCookie result;
+
+        if (cliqueAliasAndInstanceCookie.Contains("@")) {
+            auto separatorIndex = cliqueAliasAndInstanceCookie.find_last_of("@");
+
+            auto jobCookieString = cliqueAliasAndInstanceCookie.substr(
+                separatorIndex + 1,
+                cliqueAliasAndInstanceCookie.size() - separatorIndex - 1);
+            size_t jobCookie = 0;
+
+            if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
+                return TError("Error while parsing instance cookie %Qv", jobCookieString);
+            }
+
+            result = TCliqueAliasAndJobCookie{cliqueAliasAndInstanceCookie.substr(0, separatorIndex), jobCookie};
+            YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", jobCookie);
+        } else {
+            result = TCliqueAliasAndJobCookie{std::move(cliqueAliasAndInstanceCookie)};
+        }
+
+        if (result.CliqueAlias.StartsWith("*")) {
+            result.CliqueAlias.erase(0, 1);
+        }
+
+        return result;
+    }
+
+    bool TryGetAuthorizationAndCliqueSpecification()
     {
         try {
-            const auto* authorization = Request_->GetHeaders()->Find("Authorization");
-            const auto* xClickHouseKey = Request_->GetHeaders()->Find("X-ClickHouse-Key");
+            auto userAndToken = ParseUserAndTokenFromHeaders();
+            if (!userAndToken.IsOK()) {
+                ReplyWithError(EStatusCode::Unauthorized, std::move(userAndToken));
+                return false;
+            }
 
-            if (authorization && !authorization->empty()) {
-                if (!ParseTokenFromAuthorizationHeader(*authorization)) {
-                    return false;
-                }
-                if (!Token_.empty()) {
-                    AllowGetRequests_ = true;
-                }
-            } else if (xClickHouseKey && !xClickHouseKey->empty()) {
-                // store header value as-is
-                Token_ = *xClickHouseKey;
-                if (!Token_.empty()) {
-                    AllowGetRequests_ = true;
-                }
-            } else if (CgiParameters_.Has("password")) {
-                Token_ = CgiParameters_.Get("password");
-                if (!Token_.empty()) {
-                    AllowGetRequests_ = true;
-                }
-            } else if (const auto* user = Request_->GetHeaders()->Find("X-Yt-User")) {
-                if (Config_->IgnoreMissingCredentials) {
-                    User_ = *user;
+            auto [user, token] = std::move(userAndToken.Value());
+
+            if (token.empty()) {
+                if (const auto* user = Request_->GetHeaders()->Find("X-Yt-User")) {
+                    if (Config_->IgnoreMissingCredentials) {
+                        User_ = *user;
+                    }
                 }
             }
+
+            // In the legacy version an empty token disallows GET-requests.
+            AllowGetRequests_ = !IsLegacyQueryHandler_ || !token.empty();
+
+            // Get clique alias and job cookie.
+            TString cliqueAliasAndInstanceCookiePacked;
+
+            if (CgiParameters_.Has("chyt.clique_alias")) { // first-priority header
+                cliqueAliasAndInstanceCookiePacked = CgiParameters_.Get("chyt.clique_alias");
+            } else {
+                cliqueAliasAndInstanceCookiePacked = IsLegacyQueryHandler_
+                    ? TString(CgiParameters_.Get("database"))
+                    : std::move(user);
+            }
+
+            auto cliqueAliasAndInstanceCookie = ParseCliqueAliasAndInstanceCookie(std::move(cliqueAliasAndInstanceCookiePacked));
+            if (!cliqueAliasAndInstanceCookie.IsOK()) {
+                ReplyWithError(EStatusCode::BadRequest, std::move(cliqueAliasAndInstanceCookie));
+                return false;
+            }
+            auto [cliqueAlias, jobCookie] = std::move(cliqueAliasAndInstanceCookie.Value());
+
+            if (cliqueAlias.empty()) {
+                ReplyWithError(
+                    EStatusCode::BadRequest,
+                    TError("Clique alias should be specified using 'chyt.clique_alias' url parameter or via 'user' authorization field"));
+                return false;
+            }
+
+            Token_ = std::move(token);
+            CliqueAlias_ = std::move(cliqueAlias);
+            JobCookie_ = jobCookie;
+
+            YT_LOG_DEBUG("Clique is defined by alias (CliqueAlias: %v)", CliqueAlias_);
+
             return true;
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::BadRequest,
-                TError("Error while parsing request headers")
+                TError("Error while fetching authorization and clique-specification data")
                     << ex);
             return false;
         }
@@ -763,55 +859,19 @@ private:
         }
     }
 
-    bool TryParseDatabase()
+    TYsonString GetOperationYson()
     {
+        auto getOperationYsonFromCache = [&]() {
+            // Operation-cache wants alias to start with asterisk
+            return WaitFor(OperationCache_->Get(GetOperationAlias())).ValueOrThrow();
+        };
+
         try {
-            auto cliqueAliasAndInstanceCookie = CgiParameters_.Get("database");
-
-            TString cliqueAlias;
-
-            if (cliqueAliasAndInstanceCookie.Contains("@")) {
-                auto separatorIndex = cliqueAliasAndInstanceCookie.find_last_of("@");
-                cliqueAlias = cliqueAliasAndInstanceCookie.substr(0, separatorIndex);
-
-                auto jobCookieString = cliqueAliasAndInstanceCookie.substr(
-                    separatorIndex + 1,
-                    cliqueAliasAndInstanceCookie.size() - separatorIndex - 1);
-                size_t jobCookie = 0;
-                if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
-                    ReplyWithError(
-                        EStatusCode::BadRequest,
-                        TError("Error while parsing instance cookie %v", jobCookieString));
-                    return false;
-                }
-                JobCookie_ = jobCookie;
-                YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
-            } else {
-                cliqueAlias = cliqueAliasAndInstanceCookie;
-            }
-
-            if (cliqueAlias.StartsWith("*")) {
-                cliqueAlias.erase(0, 1);
-                YT_LOG_DEBUG("Strip asterisk from clique alias provided by user (%v)", cliqueAlias);
-            }
-
-            if (cliqueAlias.empty()) {
-                ReplyWithError(
-                    EStatusCode::BadRequest,
-                    TError("Clique alias should be specified using the `database` CGI parameter"));
-                return false;
-            }
-
-            CliqueAlias_ = std::move(cliqueAlias);
-            YT_LOG_DEBUG("Clique is defined by alias (%v)", CliqueAlias_);
-
-            return true;
-        } catch (const std::exception& ex) {
-            ReplyWithError(
-                EStatusCode::BadRequest,
-                TError("Error parsing database specification")
-                    << ex);
-            return false;
+            return getOperationYsonFromCache();
+        } catch(const std::exception& ex) {
+            YT_LOG_DEBUG("Failed to get operation yson from old operation cache, therefore invalidate cache and retry (Error: %v)", ex.what());
+            OperationCache_->InvalidateActive(GetOperationAlias());
+            return getOperationYsonFromCache();
         }
     }
 
@@ -832,9 +892,7 @@ private:
         YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", CliqueAlias_);
 
         try {
-            // Operation-cache wants alias to start with an asterisk.
-            auto operationYson = WaitFor(OperationCache_->Get(GetOperationAlias()))
-                .ValueOrThrow();
+            auto operationYson = GetOperationYson();
 
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 

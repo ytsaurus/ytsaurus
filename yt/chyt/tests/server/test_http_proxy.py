@@ -14,6 +14,8 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 from yt_env_setup import Restarter, SCHEDULERS_SERVICE
 
+from requests.auth import HTTPBasicAuth
+
 import os
 import pytest
 import signal
@@ -87,7 +89,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                     database_alias = "*" * int(add_asterisk) + "test_alias"
 
                     proxy_response = clique.make_query_via_proxy(
-                        "select * from system.clique", database=database_alias + "@" + str(job_cookie)
+                        "select * from system.clique", alias=database_alias + "@" + str(job_cookie)
                     )
 
                     for instance_response in proxy_response:
@@ -99,11 +101,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
                 with raises_yt_error(QueryFailedError):  # operation-id is no longer supported
                     clique.make_query_via_proxy(
-                        "select * from system.clique", database=clique.op.id + "@" + str(job_cookie)
+                        "select * from system.clique", alias=clique.op.id + "@" + str(job_cookie)
                     )
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select * from system.clique", database="*test_alias@aaa")
+                clique.make_query_via_proxy("select * from system.clique", alias="*test_alias@aaa")
 
     @authors("dakovalkov", "gudqeit")
     @pytest.mark.parametrize("discovery_version", [1, 2])
@@ -292,29 +294,29 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         )
 
         with Clique(1, alias="*alias") as clique:
-            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-            assert clique.make_query_via_proxy("select 1 as a", database="alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="*alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="alias")[0] == {"a": 1}
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0]
+                clique.make_query_via_proxy("select 1 as a", alias=clique.op.id)[0]
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*alia")
+                clique.make_query_via_proxy("select 1 as a", alias="*alia")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*")
+                clique.make_query_via_proxy("select 1 as a", alias="*")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="**")
+                clique.make_query_via_proxy("select 1 as a", alias="**")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="")
+                clique.make_query_via_proxy("select 1 as a", alias="")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="1-2-3-4")
+                clique.make_query_via_proxy("select 1 as a", alias="1-2-3-4")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="1-2-3-x")
+                clique.make_query_via_proxy("select 1 as a", alias="1-2-3-x")
 
             clique.op.suspend()
 
@@ -322,7 +324,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             time.sleep(1)
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*alias")
+                clique.make_query_via_proxy("select 1 as a", alias="*alias")
 
             clique.op.resume()
 
@@ -334,7 +336,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         time.sleep(1)
 
         with raises_yt_error(QueryFailedError):
-            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="*alias")[0] == {"a": 1}
 
     @authors("dakovalkov")
     def test_expect_100_continue(self):
@@ -416,9 +418,18 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("barykinni")
     def test_legacy_endpoint(self):
-        with Clique(1) as clique:
+        alias = "alias"
+
+        with Clique(1, alias=alias) as clique:
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query") == [{"a": 1}]
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query", https_proxy=True) == [{"a": 1}]
+
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": alias}, endpoint="/query", autofill_clique_alias=False) == [{"a": 1}]
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": "abracadabra"}, endpoint="/query", autofill_clique_alias=False)
+
+            # Alias-parameter dominates database-parameter.
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": "abracadabra"}, endpoint="/query", alias=alias) == [{"a": 1}]
 
     @authors("barykinni")
     def test_chyt_proxy(self):
@@ -480,7 +491,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for session_id in map(str, range(NUM_REQUESTS)):
                 current_job_cookie = _job_cookie_of_instance_picked_for_the_query(
-                    clique, database=f"alias@{origin_job_cookie}", session_id=session_id)
+                    clique, alias=f"alias@{origin_job_cookie}", session_id=session_id)
 
                 assert current_job_cookie == origin_job_cookie, "when job-cookie is provided, proxy must pick exact instance regardless of session-id"
 
@@ -536,6 +547,40 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     def test_query_in_url(self):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("", settings={"query": "SELECT 1 AS a"}) == [{"a": 1}]
+
+    @authors("barykinni")
+    def test_different_ways_to_pass_alias(self):
+        alias = "alias"
+
+        with Clique(1, alias=alias) as clique:
+            # Shortcut.
+            def make_query_via_proxy(*args, **kwargs):
+                """in this test we make only modern queries (/chyt-endpoint) and we set clique-alias manually"""
+                return clique.make_query_via_proxy(*args, endpoint="/chyt", autofill_clique_alias=False, **kwargs)
+
+            # Pass alias in X-clickHouse-User.
+            assert make_query_via_proxy("SELECT 1 AS a", headers={"X-ClickHouse-User": alias}) == [{"a": 1}]
+
+            # Pass alias in 'user' url param.
+            assert make_query_via_proxy("SELECT 1 AS a", settings={"user": alias}) == [{"a": 1}]
+
+            # Pass alias in 'Authorization: Basic'.
+            # Actual user will be populated from token (i.e. 'root').
+            assert make_query_via_proxy("SELECT 1 AS a", auth=HTTPBasicAuth(alias, "root")) == [{"a": 1}]
+
+            # Passing alias in 'database'-param is not supported in new version.
+            with raises_yt_error(QueryFailedError):
+                make_query_via_proxy("SELECT 1 AS a", settings={"database": alias})
+
+            # 'chyt.clique_alias' dominates other clique-alias-headers.
+            assert make_query_via_proxy("SELECT 1 AS a", alias=alias, settings={"user": "abracadabra"}) == [{"a": 1}]
+
+            with raises_yt_error(QueryFailedError):
+                # Swapped 'alias' and 'user'-param.
+                make_query_via_proxy("SELECT 1 AS a", alias="abracadabra", settings={"user": alias})
+
+            # Job cookie still works.
+            assert make_query_via_proxy("SELECT 1 AS a", settings={"user": alias + "@0"}) == [{"a": 1}]
 
     @authors("barykinni")
     def test_http_method_forward(self):
@@ -749,7 +794,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("invalid query")
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1", database='*invalid_database')
+                clique.make_query_via_proxy("select 1", alias='*invalid_database')
 
             to_barrier = write_log_barrier(self.proxy_address)
 

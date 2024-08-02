@@ -364,7 +364,7 @@ class Clique(object):
         return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
     def make_request(self, url, query, headers, format="JSON", params=None, verbose=False,
-                     only_rows=True, full_response=False, timeout=None, method="POST"):
+                     only_rows=True, full_response=False, timeout=None, method="POST", auth=None):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
@@ -389,7 +389,7 @@ class Clique(object):
 
         params["output_format_json_quote_64bit_integers"] = 0
 
-        result = requests.request(method=method, url=url, data=query, headers=headers, params=params, timeout=timeout, verify=False)
+        result = requests.request(method=method, url=url, data=query, headers=headers, params=params, timeout=timeout, verify=False, auth=auth)
 
         inner_errors = []
 
@@ -507,13 +507,15 @@ class Clique(object):
         only_rows=True,
         full_response=False,
         headers=None,
-        database=None,
+        alias=None,
         user="root",
         endpoint="/chyt",
         chyt_proxy=False,
         https_proxy=False,
         session_id: str | None = None,
         method="POST",
+        autofill_clique_alias=True,
+        auth=None,
     ):
         """
         chyt_proxy:
@@ -521,12 +523,31 @@ class Clique(object):
             Note: at this moment the only valid for chyt-proxy endpoint is "/".
         https_proxy:
             Use https proxy instead of http one.
+        autofill_clique_alias:
+            fill corresponding query's field with 'self.alias' value
         """
 
+        # Configure headers.
         if headers is None:
             headers = {}
         headers["X-Yt-User"] = user
 
+        # Fill alias if necessary.
+        if alias is None and autofill_clique_alias:
+            alias = self.alias
+
+        # Configure params.
+        params = {}
+
+        if alias is not None:
+            params["chyt.clique_alias"] = alias
+        if session_id is not None:
+            params["session_id"] = session_id
+
+        if settings is not None:
+            update_inplace(params, settings)
+
+        # Configure url.
         if chyt_proxy:
             address = (self.chyt_https_address if https_proxy
                        else self.chyt_http_address)
@@ -537,19 +558,8 @@ class Clique(object):
         assert address is not None
         url = address + endpoint
 
-        if database is None:
-            database = self.alias
+        print_debug("\nQuerying proxy {0} with the following data:\n> {1}".format(url, query))
 
-        params = {"database": database}
-
-        if session_id is not None:
-            params["session_id"] = session_id
-
-        if settings is not None:
-            update_inplace(params, settings)
-
-        print_debug()
-        print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
         return self.make_request(
             url,
             query,
@@ -560,6 +570,7 @@ class Clique(object):
             only_rows=only_rows,
             full_response=full_response,
             method=method,
+            auth=auth,
         )
 
     def make_query(
