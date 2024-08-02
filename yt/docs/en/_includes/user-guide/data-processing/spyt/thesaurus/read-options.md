@@ -32,4 +32,12 @@ df.write.transaction(transaction.getId.toString).yt(tmpPath)
 transaction.commit().get(10, TimeUnit.SECONDS)
 ```
 
+## Schema v3
 
+Read tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of type_v1.
+Setup in [Spark configuration](../cluster/configuration.md) or write option.
+
+Python example:
+```python
+spark.read.option("parsing_type_v3", "true").yt("//sys/spark/examples/example_yson")
+```
