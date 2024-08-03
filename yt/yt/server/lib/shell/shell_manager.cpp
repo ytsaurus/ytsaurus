@@ -442,6 +442,7 @@ public:
                     options->Term = *parameters.Term;
                 }
                 options->Uid = UserId_;
+                options->Gid = GroupId_;
                 if (parameters.Height != 0) {
                     options->Height = parameters.Height;
                 }
@@ -453,6 +454,7 @@ public:
                     parameters.Environment.begin(),
                     parameters.Environment.end());
                 options->Environment = Environment_;
+                options->PreparationDir = PreparationDir_;
                 options->WorkingDir = WorkingDir_;
                 if (parameters.Command) {
                     options->Command = parameters.Command;
@@ -467,6 +469,9 @@ public:
                 loggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
                     .Item("shell_id").Value(options->Id)
                     .Finish();
+
+                options->Index = NextShellIndex_++;
+
                 shell = CreateShell(std::move(options));
                 Register(shell);
                 shell->ResizeWindow(parameters.Height, parameters.Width);
