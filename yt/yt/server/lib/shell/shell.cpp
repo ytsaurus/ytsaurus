@@ -472,7 +472,7 @@ public:
 
     }
 
-    virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
+    ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -508,7 +508,7 @@ public:
         return ConsumedOffset_;
     }
 
-    virtual TFuture<void> Shutdown(const TError& error) override
+    TFuture<void> Shutdown(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

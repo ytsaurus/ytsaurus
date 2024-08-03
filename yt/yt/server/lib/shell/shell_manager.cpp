@@ -411,7 +411,6 @@ public:
         Environment_.emplace_back(Format("G_HOME=%v", WorkingDir_));
         auto tmpDirPath = NFS::CombinePaths(WorkingDir_, "tmp");
         Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
-
     }
 
     TPollJobShellResponse PollJobShell(
@@ -518,7 +517,6 @@ public:
             .Result = ConvertToYsonString(resultValue),
             .LoggingContext = loggingContext,
         };
-
     }
 
     void Terminate(const TError& error) override
@@ -539,10 +537,11 @@ public:
 
         YT_LOG_INFO("Shell manager is shutting down");
         std::vector<TFuture<void>> futures;
+        futures.reserve(IdToShell_.size());
         for (auto& [_, shell] : IdToShell_) {
             futures.push_back(shell->Shutdown(error));
         }
-        return AllSet(futures).AsVoid();
+        return AllSucceeded(futures);
     }
 };
 
