@@ -22,14 +22,16 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <library/cpp/yt/mlock/mlock.h>
-
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
+
+#include <library/cpp/yt/system/exit.h>
 
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
@@ -290,7 +292,7 @@ protected:
 
         // XXX(babenko): ASAN complains about memory leak on graceful exit.
         // Must try to resolve them later.
-        Exit(0);
+        AbortProcess(ToUnderlying(EProcessExitCode::OK));
     }
 
 private:
