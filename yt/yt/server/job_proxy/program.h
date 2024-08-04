@@ -7,12 +7,15 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/shutdown.h>
+
+#include <library/cpp/yt/system/exit.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
@@ -105,7 +108,7 @@ protected:
 
 #ifdef _asan_enabled_
         // TODO(babenko): fix leaks.
-        Abort(EProgramExitCode::OK);
+        Abort(ToUnderlying(EProcessExitCode::OK));
 #endif
     }
 

@@ -290,7 +290,7 @@ protected:
 
         // XXX(babenko): ASAN complains about memory leak on graceful exit.
         // Must try to resolve them later.
-        _exit(0);
+        Exit(0);
     }
 
 private:

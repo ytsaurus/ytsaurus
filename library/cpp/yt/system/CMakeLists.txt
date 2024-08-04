@@ -17,5 +17,6 @@ target_link_libraries(cpp-yt-system PUBLIC
   yutil
 )
 target_sources(cpp-yt-system PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/system/exit.cpp
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/system/thread_id.cpp
 )

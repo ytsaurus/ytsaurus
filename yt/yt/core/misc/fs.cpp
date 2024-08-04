@@ -6,6 +6,7 @@
 #include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+#include <library/cpp/yt/system/exit.h>
 
 #include <util/folder/dirut.h>
 #include <util/folder/iterator.h>
@@ -824,7 +825,7 @@ void WrapIOErrors(std::function<void()> func)
         switch (status) {
             case ENOMEM:
                 fprintf(stderr, "Out-of-memory condition detected during I/O operation; terminating\n");
-                _exit(9);
+                AbortProcess(ToUnderlying(EProcessExitCode::OutOfMemory));
                 break;
 
             case EIO:

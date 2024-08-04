@@ -13,6 +13,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #include <util/datetime/base.h>
 #include <util/stream/file.h>
 #include <util/stream/output.h>
@@ -49,7 +51,7 @@ void CollectAndDumpMemoryProfile(const TString& memoryProfilePath)
 void MemoryProfileTimeoutHandler(int /*signal*/)
 {
     WriteToStderr("*** Process hung during dumping heap profile ***\n");
-    ::_exit(1);
+    AbortProcess(ToUnderlying(EProcessExitCode::GenericError));
 }
 
 void SetupMemoryProfileTimeout(int timeout)
@@ -125,16 +127,16 @@ private:
             CollectAndDumpMemoryProfile(heapDumpPath);
 
             Cerr << "TTCMallocLimitHandler: Heap profile written" << Endl;
-            ::_exit(0);
+            AbortProcess(ToUnderlying(EProcessExitCode::OK));
         }
 
         if (childPid < 0) {
             Cerr << "TTCMallocLimitHandler: Fork failed: " << LastSystemErrorText() << Endl;
-            ::_exit(1);
+            AbortProcess(ToUnderlying(EProcessExitCode::GenericError));
         }
 
         ExecWaitForChild(childPid);
-        ::_exit(0);
+        AbortProcess(ToUnderlying(EProcessExitCode::OK));
     }
 
     TString GetHeapDumpPath() const
@@ -164,7 +166,7 @@ DEFINE_REFCOUNTED_TYPE(TTCMallocLimitHandler);
 template <class TMallocExtension>
 concept CSupportsLimitHandler = requires (TMallocExtension extension)
 {
-    { extension.GetSoftMemoryLimitHandler() };
+    { extension.GetSoftMemoryLimitHandler };
 };
 
 template <typename TMallocExtension, typename THandler>
@@ -183,11 +185,11 @@ void SetSoftMemoryLimitHandler(THandler handler)
 
 namespace {
 
-YT_DEFINE_GLOBAL(TAtomicIntrusivePtr<TTCMallocLimitHandler>, LimitHandler);
+static TAtomicIntrusivePtr<TTCMallocLimitHandler> LimitHandler;
 
 void HandleTCMallocLimit()
 {
-    if (auto handler = LimitHandler().Acquire()) {
+    if (auto handler = LimitHandler.Acquire()) {
         handler->Fire();
     }
 }
@@ -197,12 +199,12 @@ void HandleTCMallocLimit()
 void EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions options)
 {
     {
-        if (LimitHandler().Acquire()) {
+        if (LimitHandler.Acquire()) {
             return;
         }
 
         TAtomicIntrusivePtr<TTCMallocLimitHandler>::TRawPtr expected = nullptr;
-        LimitHandler().CompareAndSwap(expected, New<TTCMallocLimitHandler>(options));
+        LimitHandler.CompareAndSwap(expected, New<TTCMallocLimitHandler>(options));
     }
 
     SetSoftMemoryLimitHandler<tcmalloc::MallocExtension>(&HandleTCMallocLimit);
@@ -210,7 +212,7 @@ void EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions options)
 
 void DisableTCMallocLimitHandler()
 {
-    LimitHandler().Reset();
+    LimitHandler.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

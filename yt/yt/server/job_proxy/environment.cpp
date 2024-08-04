@@ -32,6 +32,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #include <sys/stat.h>
 
 namespace NYT::NJobProxy {
@@ -582,7 +584,7 @@ private:
         YT_LOG_ERROR(error, "Fatal error during Porto polling");
 
         NLogging::TLogManager::Get()->Shutdown();
-        _exit(static_cast<int>(EJobProxyExitCode::PortoManagementFailed));
+        AbortProcess(ToUnderlying(EJobProxyExitCode::PortoManagementFailed));
     }
 };
 

@@ -29,11 +29,11 @@ inline const NProfiling::TProfiler ClickHouseYtProfiler = ClickHouseProfiler.Wit
 //! Profiler exporting raw ClickHouse metrics.
 inline const NProfiling::TProfiler ClickHouseNativeProfiler = ClickHouseProfiler.WithPrefix("/native");
 
-// Set 0 to not see graceful exits in failed jobs.
-constexpr int GracefulInterruptionExitCode = 0;
-constexpr int MemoryLimitExceededExitCode = 42;
-constexpr int InterruptionTimedOutExitCode = 43;
-constexpr int InvokerLivenessCheckerExitCode = 44;
+DEFINE_ENUM(EServerExitCode,
+    ((GracefulInterruption)    (  0))
+    ((InterruptionTimedOut)    (100))
+    ((InvokerLivenessChecker)  (101))
+);
 
 constexpr int SentinelMaxStringLength = 50;
 

@@ -13,13 +13,13 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+#include <library/cpp/yt/system/exit.h>
 
 #include <util/folder/dirut.h>
 
 #include <util/generic/guid.h>
 
 #include <util/string/ascii.h>
-
 #include <util/string/util.h>
 
 #include <util/system/env.h>

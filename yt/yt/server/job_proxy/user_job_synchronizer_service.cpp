@@ -18,7 +18,7 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
-using namespace NUserJob;
+using namespace NExec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
