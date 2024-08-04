@@ -98,7 +98,7 @@ bool TClient::DoesOperationsArchiveExist()
     // NB: we suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
     nodeExistsOptions.ReadFrom = EMasterChannelKind::LocalCache;
-    return WaitFor(NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
+    return WaitFor(GetOperationsArchiveClient()->NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
         .ValueOrThrow();
 }
 
@@ -106,7 +106,7 @@ std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
     TGetNodeOptions getNodeOptions;
     getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
-    auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
+    auto asyncVersionResult = GetOperationsArchiveClient()->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
