@@ -1105,6 +1105,10 @@ public:
     //! If |false| replication to the cluster shall be banned by replicating clusters.
     bool EnableIncomingReplication;
 
+    //! Set of replica clusters that are preferred for serving sync replicas.
+    //! NB: This options overrides corresponding option of a replicated table.
+    THashSet<TString> PreferredSyncReplicaClusters;
+
     REGISTER_YSON_STRUCT(TReplicatorHintConfig);
 
     static void Register(TRegistrar registrar);
