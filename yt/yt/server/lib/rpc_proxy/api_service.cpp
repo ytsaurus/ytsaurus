@@ -3355,8 +3355,8 @@ private:
     }
 
     template <class TContext, class TRequest>
-    static void LookupRowsPrologue(
-        const TIntrusivePtr<TContext>& /*context*/,
+    void LookupRowsPrologue(
+        const TIntrusivePtr<TContext>& context,
         const TRequest* request,
         TNameTablePtr* nameTable,
         TSharedRange<TUnversionedRow>* keys,
@@ -3393,6 +3393,14 @@ private:
         options->EnablePartialResult = request->enable_partial_result();
         if (request->has_use_lookup_cache()) {
             options->UseLookupCache = request->use_lookup_cache();
+        }
+
+        // COMPAT(babenko): this is a temporarily 24.1 hack
+        static std::atomic<bool> EnablePartialResultTriggered;
+        if (options->EnablePartialResult && !EnablePartialResultTriggered.exchange(true)) {
+            YT_LOG_ALERT("EnablePartialResult option is set (RequestId: %v, User: %v)",
+                context->GetRequestId(),
+                context->GetAuthenticationIdentity());
         }
     }
 
