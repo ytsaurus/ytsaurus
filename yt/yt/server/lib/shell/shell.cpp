@@ -469,7 +469,6 @@ public:
         ResizeWindow(CurrentHeight_, CurrentWidth_);
         Process_->Spawn().Subscribe(BIND(&TShell::Terminate, MakeWeak(this)).Via(GetCurrentInvoker()));
         YT_LOG_INFO("Shell started");
-
     }
 
     ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override

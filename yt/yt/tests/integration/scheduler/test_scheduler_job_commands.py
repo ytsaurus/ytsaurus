@@ -313,6 +313,32 @@ class TestJobProber(YTEnvSetup):
         expected = "C\r\n" * 10
         assert output == expected
 
+    @authors("proller")
+    def test_poll_job_shell_strace(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="bash -xec ' capsh --print && strace /usr/bin/df && echo JOB_FINISHED_OK '",
+        )
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+        print("zzzz output=", output)
+        assert output.endswith("JOB_FINISHED_OK\r\n")
+
     @authors("ignat")
     def test_poll_job_shell_permissions(self):
         create_user("u1")
