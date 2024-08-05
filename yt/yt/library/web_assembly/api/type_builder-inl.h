@@ -40,8 +40,8 @@ Y_FORCE_INLINE TWebAssemblyRuntimeType TFunctionTypeBuilder<IsIntrinsic, TResult
 {
     static const auto typeId = [] {
         std::array<EWebAssemblyValueType, sizeof...(TArguments)> argumentTypes;
-        InferTypes<TArguments...>(MakeMutableRange(argumentTypes));
-        return GetTypeId(IsIntrinsic, InferType<TResult>(), MakeRange(argumentTypes));
+        InferTypes<TArguments...>(TMutableRange(argumentTypes));
+        return GetTypeId(IsIntrinsic, InferType<TResult>(), TRange(argumentTypes));
     }();
     return typeId;
 }

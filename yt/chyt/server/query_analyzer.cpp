@@ -834,7 +834,7 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
 
-        FillDataSliceDescriptors(spec, miscExtMap, MakeRange(stripes));
+        FillDataSliceDescriptors(spec, miscExtMap, TRange(stripes));
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = protoSpec.SerializeAsString();

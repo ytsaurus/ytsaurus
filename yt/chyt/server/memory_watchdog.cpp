@@ -11,6 +11,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #include <Common/MemoryTracker.h>
 #include <Common/CurrentMetrics.h>
 
@@ -106,7 +108,7 @@ void TMemoryWatchdog::CheckRss(size_t rss)
 
     NYT::NLogging::TLogManager::Get()->Shutdown();
     ExitCallback_.Run();
-    _exit(MemoryLimitExceededExitCode);
+    AbortProcess(ToUnderlying(EProcessExitCode::OutOfMemory));
 }
 
 void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)

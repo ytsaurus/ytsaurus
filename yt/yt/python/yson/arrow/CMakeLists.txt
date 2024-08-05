@@ -64,7 +64,7 @@ target_link_libraries(python-yson-arrow.global PUBLIC
 )
 
 target_sources(python-yson-arrow.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/parquet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/file_format_converters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/arrow_raw_iterator.cpp
 )
 

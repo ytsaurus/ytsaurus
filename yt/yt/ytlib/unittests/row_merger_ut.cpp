@@ -1436,23 +1436,264 @@ TEST_F(TVersionedRowMergerTest, ResetAggregate2New)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
-TEST_P(TVersionedRowMergerTest, ExpiredAggregate)
+TEST_P(TVersionedRowMergerTest, ExpiredAggregateMaxTtlBeforeMajor)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
-    config->MinDataTtl = TimestampToDuration(0);
-    config->MaxDataTtl = TimestampToDuration(100000000000ULL);
+    config->MinDataTtl = TimestampToDuration(10000000000ULL);
+    config->MaxDataTtl = TimestampToDuration(200000000000ULL);
 
     auto merger = GetTypicalMerger(
         GetParam(),
         config,
         300000000000ULL,
-        0,
+        150000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1"));
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
 
-    EXPECT_FALSE(merger->BuildMergedRow());
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=70000000000;aggregate=true> 1"));
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 1"));
+                EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=120000000000;aggregate=true> 1")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=70000000000;aggregate=true> 1"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 1"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=120000000000;aggregate=true> 3")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+}
+
+TEST_F(TVersionedRowMergerTest, ExpiredAggregateMaxTtlAfterMajorLegacy)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 0;
+    config->MinDataTtl = TimestampToDuration(10000000000ULL);
+    config->MaxDataTtl = TimestampToDuration(100000000000ULL);
+
+    auto merger = GetTypicalMerger(
+        ERowMergerType::Legacy,
+        config,
+        300000000000ULL,
+        100000000000ULL,
+        GetAggregateSumSchema());
+
+    // Values which older than max data TTL are expired.
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    // If there is one value younger than max data TTL no values are expired.
+    // It is caused by off-by-one error.
+    // When applying retention config `(retentionBeginIt - 1)->Timestamp` expression is used.
+    // After loop `retentionBeginIt->Timestamp` expression is used.
+    // And it is used under condition `retentionBeginIt < ColumnValues_.end()`.
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10; <id=3;ts=50000000000;aggregate=true> 1")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10;")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    // Two values younger than max data TTL.
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=230000000000;aggregate=true> 10000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=230000000000;aggregate=true> 10000; <id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10; <id=3;ts=50000000000;aggregate=true> 1")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=230000000000;aggregate=true> 10000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=230000000000;aggregate=true> 10000; <id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+}
+
+TEST_F(TVersionedRowMergerTest, ExpiredAggregateMaxTtlAfterMajorNew)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 0;
+    config->MinDataTtl = TimestampToDuration(10000000000ULL);
+    config->MaxDataTtl = TimestampToDuration(100000000000ULL);
+
+    auto merger = GetTypicalMerger(
+        ERowMergerType::New,
+        config,
+        300000000000ULL,
+        100000000000ULL,
+        GetAggregateSumSchema());
+
+    // Values which older than max data TTL are expired.
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=120000000000;aggregate=true> 10")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10;")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10;")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    // Two values younger than max data TTL.
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50000000000;aggregate=true> 1;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=120000000000;aggregate=true> 10;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=230000000000;aggregate=true> 10000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=230000000000;aggregate=true> 10000; <id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100; <id=3;ts=120000000000;aggregate=true> 10;")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=170000000000;aggregate=true> 100;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=210000000000;aggregate=true> 1000;"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=230000000000;aggregate=true> 10000;"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0",
+                "<id=3;ts=230000000000;aggregate=true> 10000; <id=3;ts=210000000000;aggregate=true> 1000; <id=3;ts=170000000000;aggregate=true> 100")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
 }
 
 TEST_P(TVersionedRowMergerTest, MergeAggregates1)

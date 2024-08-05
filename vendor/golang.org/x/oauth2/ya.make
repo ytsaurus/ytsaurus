@@ -10,15 +10,6 @@ SRCS(
     transport.go
 )
 
-GO_TEST_SRCS(
-    deviceauth_test.go
-    oauth2_test.go
-    token_test.go
-    transport_test.go
-)
-
-GO_XTEST_SRCS(example_test.go)
-
 END()
 
 RECURSE(
@@ -34,7 +25,6 @@ RECURSE(
     github
     gitlab
     google
-    gotest
     heroku
     hipchat
     instagram

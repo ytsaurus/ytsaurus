@@ -1093,7 +1093,7 @@ private:
             YT_VERIFY(!partitions.empty());
 
             auto splits = SplitTablet(
-                MakeRange(partitions),
+                TRange(partitions),
                 ranges,
                 rowBuffer,
                 Config_->MaxSubsplitsPerTablet,

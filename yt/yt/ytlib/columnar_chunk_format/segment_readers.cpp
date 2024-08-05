@@ -108,7 +108,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         writeTimestampPerRowDiffsView.UnpackTo(writeTimestampOffsets + 1);
 
         auto expectedCount = meta->ExpectedWritesPerRow;
-        DiffsToOffsets(MakeMutableRange(writeTimestampOffsets + 1, meta->RowCount), expectedCount);
+        DiffsToOffsets(TMutableRange(writeTimestampOffsets + 1, meta->RowCount), expectedCount);
 
 #ifndef NDEBUG
         for (size_t index = 0; index < writeTimestampPerRowDiffsView.GetSize(); ++index) {
@@ -135,7 +135,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         deleteTimestampPerRowDiffsView.UnpackTo(deleteTimestampOffsets + 1);
 
         auto expectedCount = meta->ExpectedDeletesPerRow;
-        DiffsToOffsets(MakeMutableRange(deleteTimestampOffsets + 1, meta->RowCount), expectedCount);
+        DiffsToOffsets(TMutableRange(deleteTimestampOffsets + 1, meta->RowCount), expectedCount);
 
 #ifndef NDEBUG
         for (size_t index = 0; index < deleteTimestampPerRowDiffsView.GetSize(); ++index) {
@@ -290,7 +290,7 @@ ui32 DoInitTimestampOffsets(
 
         auto count = segmentUpper - segmentLower;
         DiffsToOffsets(
-            MakeMutableRange(output, count),
+            TMutableRange(output, count),
             expectedPerRow,
             offset + expectedPerRow * segmentLower - startSegmentOffset);
 
@@ -392,7 +392,7 @@ void TScanTimestampExtractor::InitSegment(
         slice.GetSpans());
 
     WriteTimestamps_.Resize(writeTimestampCount);
-    auto writeTimestamps = MakeMutableRange(WriteTimestamps_.GetData(), writeTimestampCount);
+    auto writeTimestamps = TMutableRange(WriteTimestamps_.GetData(), writeTimestampCount);
 
     InitDictValues(
         writeTimestamps,
@@ -414,7 +414,7 @@ void TScanTimestampExtractor::InitSegment(
         slice.GetSpans());
 
     DeleteTimestamps_.Resize(deleteTimestampCount);
-    auto deleteTimestamps = MakeMutableRange(DeleteTimestamps_.GetData(), deleteTimestampCount);
+    auto deleteTimestamps = TMutableRange(DeleteTimestamps_.GetData(), deleteTimestampCount);
 
     InitDictValues(
         deleteTimestamps,

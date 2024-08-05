@@ -369,7 +369,7 @@ TConstExpressionPtr EliminatePredicate(
                 bounds.push_back(getBounds(keyRange, minCommonPrefixSize));
             }
 
-            return EliminateInExpression(MakeRange(lookupKeys), inExpr, keyColumns, minCommonPrefixSize, &bounds);
+            return EliminateInExpression(TRange(lookupKeys), inExpr, keyColumns, minCommonPrefixSize, &bounds);
         }
 
         return expr;

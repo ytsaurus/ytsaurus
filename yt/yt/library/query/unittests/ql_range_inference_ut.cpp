@@ -193,12 +193,12 @@ std::vector<TRowRange> GetRangesFromConstraints(
 
             TRowRange rowRange;
             if (prefixSize < keyColumnCount) {
-                auto lowerBound = MakeLowerBound(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Lower);
-                auto upperBound = MakeUpperBound(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Upper);
+                auto lowerBound = MakeLowerBound(buffer.Get(), TRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Lower);
+                auto upperBound = MakeUpperBound(buffer.Get(), TRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Upper);
 
                 rowRange = std::pair(lowerBound, upperBound);
             } else {
-                rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
+                rowRange = RowRangeFromPrefix(buffer.Get(), TRange(boundRow.Begin(), prefixSize));
             }
 
             if (resultRanges.empty() || resultRanges.back().second < rowRange.first) {

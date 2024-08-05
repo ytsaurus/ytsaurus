@@ -9,10 +9,4 @@ SRCS(
     transport.go
 )
 
-GO_TEST_SRCS(token_test.go)
-
 END()
-
-RECURSE(
-    gotest
-)

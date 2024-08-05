@@ -141,9 +141,8 @@ class TAny:
     scalar_types = [TInt64, TUint64, TBoolean, TString]
 
     def random():
-        if random.randint(0, len(TAny.scalar_types)) == 0:
-            return [{},{}]
-        return random.choice(TAny.scalar_types).random()
+        types = random.sample(TAny.scalar_types, random.randint(0, len(TAny.scalar_types)))
+        return [t.random() for t in types]
     def str():
         return "any"
     def comparable():

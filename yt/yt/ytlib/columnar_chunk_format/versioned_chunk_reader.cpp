@@ -212,7 +212,7 @@ std::vector<TSpanMatching> BuildReadWindows(
 
     return DoBuildReadWindows(
         chunkMeta,
-        MakeRange(static_cast<const TItem*>(keys.begin()), keys.size()),
+        TRange(static_cast<const TItem*>(keys.begin()), keys.size()),
         TPredicate{chunkMeta->GetChunkKeyColumnCount()});
 }
 
@@ -630,7 +630,7 @@ TCompactVector<ui16, 8> ExtractKeyColumnIndexes(
             keyColumnIndexes[index] = index;
         }
     } else {
-        auto indexes = MakeRange(columnFilter.GetIndexes());
+        auto indexes = TRange(columnFilter.GetIndexes());
         for (auto index : indexes) {
             if (index < tableKeyColumnCount) {
                 keyColumnIndexes.push_back(index);

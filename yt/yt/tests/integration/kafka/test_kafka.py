@@ -8,16 +8,58 @@ from yt_commands import (
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
     make_ace, select_rows, sync_unmount_table)
 
+import yt.yson
+
 from confluent_kafka import (
     Consumer, TopicPartition, Producer, KafkaError)
 
 from confluent_kafka.serialization import StringSerializer
 
+import builtins
 import functools
 import time
 
 ##################################################################
 
+
+class KafkaMessageHelper:
+    def __init__(self, kafka_message):
+        self.kafka_message = kafka_message
+
+    def assert_matching(self, expected_key: str | bytes, expected_value: dict | str | bytes, is_kafka_message: bool, checked_sys_fields: list[str] | None = None):
+        if isinstance(expected_key, str):
+            expected_key = expected_key.encode("utf-8")
+        if isinstance(expected_value, str):
+            expected_value = expected_value.encode("utf-8")
+
+        if checked_sys_fields is None:
+            checked_sys_fields = []
+
+        assert self.kafka_message.key() == expected_key
+        if is_kafka_message:
+            assert isinstance(expected_value, bytes), "type of \"expected_value\" should be \"str\" or \"bytes\" if \"is_kafka_message\" is True"
+            assert self.kafka_message.value() == expected_value
+        else:
+            assert isinstance(expected_value, dict), "type of \"expected_value\" should be \"dict\" if \"is_kafka_message\" is False"
+
+            kafka_value = yt.yson.loads(self.kafka_message.value())
+
+            fields = builtins.set(kafka_value.keys()) | builtins.set(expected_value.keys())
+            filtered_fields = {field for field in fields if not field.startswith("$") or field in checked_sys_fields}
+
+            filtered_kafka_value = {checked_field: kafka_value.get(checked_field, None) for checked_field in filtered_fields}
+            filtered_value = {checked_field: expected_value.get(checked_field, None) for checked_field in filtered_fields}
+
+            assert filtered_kafka_value == filtered_value
+
+
+class KafkaMessageListHelper(list):
+    def assert_matching(self, messages: list[dict], is_kafka_message: bool):
+        for kafka_message, message in zip(self, messages):
+            kafka_message.assert_matching(message["key"], message["value"], is_kafka_message)
+
+
+##################################################################
 
 def _get_token(token, config):
     return token, time.time() + 3600
@@ -122,11 +164,6 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
 
             messages += [msg]
 
-            assert msg.key().decode() == ""
-            # value = yson.loads(msg.value().decode())
-            # assert value["surname"] == f"foo-{message_count}"
-            # assert value["number"] == message_count
-
             if len(messages) >= message_count:
                 break
 
@@ -134,6 +171,7 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
 
         c.close()
 
+        messages = KafkaMessageListHelper([KafkaMessageHelper(message) for message in messages])
         return messages
 
     @authors("nadya73")
@@ -303,3 +341,53 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         set(f"{queue_path}/@inherit_acl", True)
 
         _check_rows(rows_count)
+
+    @authors("apachee")
+    def test_fetch(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+        kafka_queue_path = "primary://tmp/kafka_queue"
+        consumer_path = "primary://tmp/consumer"
+        kafka_consumer_path = "primary://tmp/kafka_consumer"
+
+        TestKafkaProxy._create_queue(queue_path)
+        TestKafkaProxy._create_kafka_queue(kafka_queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
+        self._create_registered_consumer(kafka_consumer_path, kafka_queue_path)
+
+        queue_rows = [
+            {"surname": "foo-0", "number": 0},
+            {"surname": "foo-1", "number": 1},
+            {"surname": "foo-2", "number": 2},
+        ]
+
+        kafka_queue_rows = [
+            {"key": "foo", "value": "foo-value"},
+            {"key": "bar", "value": "bar-value"},
+            {"key": "baz", "value": "baz-value"},
+        ]
+
+        insert_rows(queue_path, queue_rows)
+        insert_rows(kafka_queue_path, kafka_queue_rows)
+
+        def generic_queue_message(row):
+            return {
+                "key": "",
+                "value": row,
+            }
+
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3)
+        messages.assert_matching([generic_queue_message(row) for row in queue_rows], False)
+
+        messages = self._consume_messages(kafka_queue_path, consumer_path, token, message_count=3)
+        messages.assert_matching([
+            {
+                "key": row["key"],
+                "value": row["value"],
+            } for row in kafka_queue_rows
+        ], True)

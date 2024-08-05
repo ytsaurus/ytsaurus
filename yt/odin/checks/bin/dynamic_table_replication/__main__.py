@@ -14,7 +14,7 @@ import random
 COLLOCATION_SIZE = 2
 
 REPLICATED_TABLE_PATH_TEMPLATE = "//sys/admin/odin/dynamic_table_replication/replicated_table_{epoch}_{{index}}"
-TABLE_PATH_TEMPLATE = "//sys/admin/odin/dynamic_table_replication/table_{epoch}_{{index}}"
+TABLE_PATH_TEMPLATE = "//sys/admin/odin/dynamic_table_replication/table_{epoch}_{{index}}_{{metacluster}}"
 
 TABLE_SCHEMA = [
     {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -40,19 +40,27 @@ def run_check(yt_client, logger, options, states):
     class YtMetaClusterClientWrapper(object):
         def __init__(self, _yt_client):
             self._yt_client = _yt_client
+            self._cluster_name = self._yt_client.config["proxy"]["url"].split('.')[0]
 
         def __getattr__(self, name):
             def _yt(method, *args, **kwargs):
                 try:
                     joined_args = ', '.join(map(lambda a: "'%s'" % a, args))
                     if kwargs:
-                        logger.info('Request to metacluster: yt.{}({}, **{})'.format(method, joined_args, kwargs))
+                        logger.info('Request to metacluster {}: yt.{}({}, **{})'.format(
+                            self._cluster_name,
+                            method,
+                            joined_args,
+                            kwargs))
                         return getattr(self._yt_client, method)(*args, **kwargs)
                     else:
-                        logger.info('Request to metacluster: yt.{}({})'.format(method, joined_args))
+                        logger.info('Request to metacluster {}: yt.{}({})'.format(
+                            self._cluster_name,
+                            method,
+                            joined_args))
                         return getattr(self._yt_client, method)(*args)
                 except Exception as e:
-                    logger.warning("Exception upon access to metacluster: {}".format(e))
+                    logger.warning("Exception upon access to metacluster {}: {}".format(self._cluster_name, e))
                     raise MetaClusterError(e)
 
             return _yt.__get__(name)
@@ -71,7 +79,7 @@ def run_check(yt_client, logger, options, states):
             func(index)
 
     def is_meta_cluster():
-        return options["cluster_name"] == options["metacluster"]
+        return options["cluster_name"] in options["metaclusters"]
 
     def is_replica_cluster():
         return options["cluster_name"] in options["replica_clusters"]
@@ -120,10 +128,13 @@ def run_check(yt_client, logger, options, states):
             replicas = yt_client.get("{}/@replicas".format(replicated_table_path))
             replica_clusters = [replicas[replica]["cluster_name"] for replica in replicas]
 
-            replica_table_path = replica_table_path_templ.format(index=index)
+            replica_table_path = replica_table_path_templ.format(index=index, metacluster=options["cluster_name"])
 
             for cluster in options["replica_clusters"]:
                 if cluster in replica_clusters:
+                    continue
+                if cluster in options["metaclusters"] and cluster != options["cluster_name"]:
+                    # Do not interwine meta clusters.
                     continue
 
                 logger.info("Creating table replica for table {} for cluster {}".format(replicated_table_path, cluster))
@@ -139,13 +150,13 @@ def run_check(yt_client, logger, options, states):
         if created:
             create_collocation()
 
-    def maybe_create_replica_table(index):
+    def maybe_create_replica_table(index, metacluster):
         assert is_replica_cluster()
 
         replicated_table_path = replicated_table_path_templ.format(index=index)
-        replica_table_path = replica_table_path_templ.format(index=index)
+        replica_table_path = replica_table_path_templ.format(index=index, metacluster=metacluster)
 
-        metacluster_client = YtMetaClusterClientWrapper(Yt(proxy=options["metacluster"], token=yt_client.config["token"]))
+        metacluster_client = YtMetaClusterClientWrapper(Yt(proxy=metacluster, token=yt_client.config["token"]))
 
         # This also ensures that table replica is created.
         if metacluster_client.get("{}/@tablet_state".format(replicated_table_path)) != "mounted":
@@ -184,7 +195,12 @@ def run_check(yt_client, logger, options, states):
             max_sync_replica_count = random.randint(min_sync_replica_count, 3)
             maybe_create_replicated_table(index, min_sync_replica_count, max_sync_replica_count)
         if is_replica_cluster():
-            maybe_create_replica_table(index)
+            if is_meta_cluster():
+                # Do not interwine meta clusters.
+                maybe_create_replica_table(index, options["cluster_name"])
+            else:
+                for metacluster in options["metaclusters"]:
+                    maybe_create_replica_table(index, metacluster)
 
     def mix_replica_modes_up(index):
         assert is_meta_cluster()
@@ -233,13 +249,13 @@ def run_check(yt_client, logger, options, states):
 
         wait_for_result(_check, "collocated tables to get synchronized")
 
-    def check_replication(index):
+    def do_check_replication(index, metacluster):
         assert is_replica_cluster()
 
         replicated_table_path = replicated_table_path_templ.format(index=index)
-        replica_table_path = replica_table_path_templ.format(index=index)
+        replica_table_path = replica_table_path_templ.format(index=index, metacluster=metacluster)
 
-        metacluster_client = YtMetaClusterClientWrapper(Yt(proxy=options["metacluster"], token=yt_client.config["token"]))
+        metacluster_client = YtMetaClusterClientWrapper(Yt(proxy=metacluster, token=yt_client.config["token"]))
         replicas = metacluster_client.get("{}/@replicas".format(replicated_table_path))
 
         row = {}
@@ -250,7 +266,7 @@ def run_check(yt_client, logger, options, states):
         if not any(replicas[replica_id]["mode"] == "sync" for replica_id in replicas.keys()):
             insert_options["require_sync_replica"] = False
 
-        logger.info("Writing a row into replicated table {}".format(replicated_table_path))
+        logger.info("Writing a row into replicated table {} of cluster {}".format(replicated_table_path, metacluster))
 
         def _write():
             try:
@@ -291,6 +307,19 @@ def run_check(yt_client, logger, options, states):
                         return False
                 raise e
         wait_for_result(_lookup, "lookup from metacluster")
+
+    def check_replication(index):
+        assert is_replica_cluster()
+
+        if not options["metaclusters"]:
+            return
+
+        if is_meta_cluster():
+            # Do not interwine meta clusters.
+            do_check_replication(index, options["cluster_name"])
+        else:
+            metacluster = random.choice(options["metaclusters"])
+            do_check_replication(index, metacluster)
 
     def check_incoming_replication_enabled():
         assert is_replica_cluster()

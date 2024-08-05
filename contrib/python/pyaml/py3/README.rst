@@ -34,6 +34,10 @@ So please do not rely on the thing to produce output that can always be
 deserialized exactly to what was exported, at least - use PyYAML directly
 for that (but maybe with options from the next section).
 
+Output also isn't guaranteed to be stable between module versions,
+as new representation tweaks get added occasionally, but these can usually
+be disabled via module parameters, to get output stability over improvements.
+
 
 What this module does and why
 -----------------------------

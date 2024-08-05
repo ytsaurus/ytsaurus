@@ -1464,7 +1464,7 @@ public:
         if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
             AttachToChunkList(
                 newChunkList,
-                MakeRange(chunkList->Children()).Slice(chunkList->GetTrimmedChildCount(), chunkList->Children().size()));
+                TRange(chunkList->Children()).Slice(chunkList->GetTrimmedChildCount(), chunkList->Children().size()));
 
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
@@ -5400,7 +5400,6 @@ private:
             YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
             return;
         }
-
 
         if (ChunksBeingPurged_) {
             YT_LOG_DEBUG("Chunks are still being purged");

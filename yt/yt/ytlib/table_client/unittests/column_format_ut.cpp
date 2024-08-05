@@ -108,7 +108,7 @@ TVersionedRow TVersionedColumnTestBase::CreateRowWithValues(const std::vector<TV
 
 void TVersionedColumnTestBase::WriteSegment(IValueColumnWriter* columnWriter, const std::vector<TVersionedRow>& rows)
 {
-    columnWriter->WriteVersionedValues(MakeRange(rows));
+    columnWriter->WriteVersionedValues(TRange(rows));
     columnWriter->FinishCurrentSegment();
 }
 
@@ -132,7 +132,7 @@ void TVersionedColumnTestBase::Validate(
     reader->SkipToRowIndex(beginRowIndex);
     reader->ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow>(actual.data(), actual.size()),
-        MakeRange(timestampIndexRanges),
+        TRange(timestampIndexRanges),
         false);
 
 

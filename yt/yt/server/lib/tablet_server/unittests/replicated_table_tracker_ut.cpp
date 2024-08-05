@@ -758,9 +758,21 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
     Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
 
+    Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {Cluster2};
+
+    Sleep(SleepPeriod);
+    Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
+
     options = Host_->GetTableOptions(tableId);
     options->PreferredSyncReplicaClusters = {};
     Host_->SetTableOptions(tableId, std::move(options));
+
+    Sleep(SleepPeriod);
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeRemained(replica2);
+
+    Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {};
 
     Sleep(SleepPeriod);
     Host_->ValidateReplicaModeRemained(replica1);

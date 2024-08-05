@@ -357,7 +357,7 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_min_data_weight_per_chunk", &TThis::ShallowMergeMinDataWeightPerChunk)
         .Default(64_KB);
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Enabled);
+        .Default(ESingleChunkTeleportStrategy::Disabled);
 
     registrar.Preprocessor([] (TAutoMergeConfig* config) {
         config->JobIO->TableWriter->DesiredChunkWeight = 8_GB;
@@ -1403,7 +1403,7 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
 void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Enabled);
+        .Default(ESingleChunkTeleportStrategy::Disabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

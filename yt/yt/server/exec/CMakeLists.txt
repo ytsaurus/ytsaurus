@@ -30,6 +30,7 @@ target_link_libraries(yt-server-exec PUBLIC
 )
 
 target_sources(yt-server-exec PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
 )
 

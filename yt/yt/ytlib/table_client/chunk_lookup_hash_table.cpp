@@ -234,7 +234,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
                 auto key = blockReader.GetKey();
-                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(MakeRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
+                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(TRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
                 blockReader.NextRow();
             }
         };

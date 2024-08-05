@@ -32,6 +32,7 @@ target_link_libraries(orm-library-query PUBLIC
 )
 
 target_sources(orm-library-query PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/computed_fields_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/expression_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_introspection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_matcher.cpp
@@ -39,5 +40,6 @@ target_sources(orm-library-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_optimizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_rewriter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/type_inference.cpp
 )
 

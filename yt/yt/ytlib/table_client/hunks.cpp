@@ -992,7 +992,7 @@ public:
             columnarStatisticsThunk->MergeTo(HunkChunkWriterStatistics_);
         }
 
-        ready &= Underlying_->Write(MakeRange(ScratchRows_));
+        ready &= Underlying_->Write(TRange(ScratchRows_));
         return ready;
     }
 
@@ -1859,7 +1859,7 @@ protected:
 private:
     static IRowBatchPtr MakeBatch(TSharedRange<TMutableRow> mutableRows)
     {
-        auto range = MakeRange<TImmutableRow>(mutableRows.Begin(), mutableRows.Size());
+        auto range = TRange<TImmutableRow>(mutableRows.Begin(), mutableRows.Size());
         return CreateBatchFromRows(MakeSharedRange(
             range,
             std::move(mutableRows.ReleaseHolder())));
@@ -2087,7 +2087,7 @@ public:
         // Fetched but not decodable rows.
         addRows(this->EncodedRows_.begin() + this->CurrentEncodedRowIndex_, this->EncodedRows_.end());
 
-        return this->Underlying_->GetInterruptDescriptor(MakeRange(underlyingUnreadRows));
+        return this->Underlying_->GetInterruptDescriptor(TRange(underlyingUnreadRows));
     }
 
     const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override

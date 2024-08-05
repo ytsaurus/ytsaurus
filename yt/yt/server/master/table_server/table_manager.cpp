@@ -833,6 +833,12 @@ public:
                         *indexTableSchema);
                     break;
 
+                case ESecondaryIndexKind::Unique:
+                    ValidateUniqueIndexSchema(
+                        *tableSchema,
+                        *indexTableSchema);
+                    break;
+
                 default:
                     YT_ABORT();
             }

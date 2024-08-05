@@ -1183,8 +1183,8 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Mount(
-            MakeRange(GET_FROM_REPLICATABLE(stores)),
-            MakeRange(GET_FROM_REPLICATABLE(hunk_chunks)),
+            TRange(GET_FROM_REPLICATABLE(stores)),
+            TRange(GET_FROM_REPLICATABLE(hunk_chunks)),
             /*createDynamicStore*/ !freeze && !isSmoothMoveTarget,
             mountHint);
 
@@ -1772,11 +1772,11 @@ private:
 
         const auto& structuredLogger = tablet->GetStructuredLogger();
         structuredLogger->OnTabletUnlocked(
-            MakeRange(storesToAdd),
+            TRange(storesToAdd),
             updateMode == EUpdateMode::Overwrite,
             transactionId);
 
-        storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
+        storeManager->BulkAddStores(TRange(storesToAdd), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
 
@@ -2842,7 +2842,7 @@ private:
             tablet->GetLoggingTag(),
             partitionId,
             MakeFormattableView(
-                MakeRange(
+                TRange(
                     tablet->PartitionList().data() + partitionIndex,
                     tablet->PartitionList().data() + partitionIndex + pivotKeys.size()),
                 TPartitionIdFormatter()),
@@ -2873,7 +2873,7 @@ private:
 
         auto originalPartitionIds = Format("%v",
             MakeFormattableView(
-                MakeRange(
+                TRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));

@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package attribute_test
 
@@ -75,9 +64,19 @@ func TestEmit(t *testing.T) {
 			want: "true",
 		},
 		{
+			name: `test Key.Emit() can emit a string representing self.INT64SLICE`,
+			v:    attribute.Int64SliceValue([]int64{1, 42}),
+			want: `[1,42]`,
+		},
+		{
 			name: `test Key.Emit() can emit a string representing self.INT64`,
 			v:    attribute.Int64Value(42),
 			want: "42",
+		},
+		{
+			name: `test Key.Emit() can emit a string representing self.FLOAT64SLICE`,
+			v:    attribute.Float64SliceValue([]float64{1.0, 42.5}),
+			want: `[1,42.5]`,
 		},
 		{
 			name: `test Key.Emit() can emit a string representing self.FLOAT64`,
@@ -88,6 +87,11 @@ func TestEmit(t *testing.T) {
 			name: `test Key.Emit() can emit a string representing self.STRING`,
 			v:    attribute.StringValue("foo"),
 			want: "foo",
+		},
+		{
+			name: `test Key.Emit() can emit a string representing self.STRINGSLICE`,
+			v:    attribute.StringSliceValue([]string{"foo", "bar"}),
+			want: `["foo","bar"]`,
 		},
 	} {
 		t.Run(testcase.name, func(t *testing.T) {
