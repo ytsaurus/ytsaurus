@@ -672,12 +672,12 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         """
         patch = {
             "yt": {
-                "query_sticky_group_size": 2,  # one is the loneliest number, so let it be 2 =)
+                "query_sticky_group_size": 1,
             }
         }
 
-        NUM_INSTANCES = 3
-        MAX_NUM_QUERIES = 60
+        NUM_INSTANCES = 2
+        MAX_NUM_QUERIES = 25
 
         with Clique(NUM_INSTANCES, config_patch=patch) as clique:
             picked_instances = set()
