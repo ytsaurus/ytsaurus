@@ -136,9 +136,9 @@ Table representation in YSON format:
 
 The values are specified in parentheses by default.
 - **format** (`binary`) — describes the YSON variant to be used in generating data. Specifying the variant is only important when setting the output format in relation to the system, while for the input format the system reads all the YSON varieties homogeneously:
-   - `binary` — binary
-   - `text` — text without formatting
-   - `pretty` — text with formatting
+  - `binary` — binary
+  - `text` — text without formatting
+  - `pretty` — text with formatting
 - **skip_null_values** (`%false`) — enable skipping `null` values in schematized tables. By default, all values are written.
 - **enable_string_to_all_conversion** (`false`) — enable conversion of string values to numeric and boolean types. For example, `"42u"` is converted to `42u`, and `"false"` is converted to `%false`.
 - **enable_all_to_string_conversion** (`false`) — enable conversion of numeric and boolean values to string type. For example, `3.14` becomes `"3.14"`, and `%false` becomes `"false"`.
@@ -146,12 +146,13 @@ The values are specified in parentheses by default.
 - **enable_integral_to_double_conversion** (`false`) — enable conversion of `uint64` and `int64` to `double`. For example, integer `42` becomes decimal number `42.0`.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
 - **complex_type_mode** (`named`) — representation of composite types, structs, and variants.
-   Possible values are `named` and `positional`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+  Possible values are `named` and `positional`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
 - **string_keyed_dict_mode** (`positional`) — representation of dictionaries with string keys. Possible values are `named` and `positional`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
 - **decimal_mode** (`binary`) — representation of the `decimal` type.
-   Possible values are `text` and `binary`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+  Possible values are `text` and `binary`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
 - **time_mode** (`binary`) — representation of `date`, `datetime`, and `timestamp` types. Possible values are `text` and `binary`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
 - **uuid_mode** (`binary`) — representation of the `uuid` type. Possible values are `binary`, `text_yql`, and `text_yt`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+- **sort_keys** (`%false`) — output keys in dictionaries in a sorted order. Possible values are `%true` and `%false`.
 
 ## JSON { #json }
 
@@ -241,12 +242,12 @@ Table representation in JSON format:
 
 The values are specified in parentheses by default.
 - **format** (`text`) — describes the JSON format in which data is to be generated. Matters only when the output format is specified relative to the system. For the input format, all JSON varieties are read by the system homogeneously:
-   - `text` — text without formatting
-   - `pretty` — text with formatting
+  - `text` — text without formatting
+  - `pretty` — text with formatting
 - **attributes_mode** (`on_demand`) — attribute mode:
-   - `always` — each node turns into a map with `\$value` and `\$attributes`.
-   - `never` — attributes are ignored.
-   - `on_demand` — only nodes with non-empty attributes are converted to a map with `\$value` and `\$attributes`.
+  - `always` — each node turns into a map with `\$value` and `\$attributes`.
+  - `never` — attributes are ignored.
+  - `on_demand` — only nodes with non-empty attributes are converted to a map with `\$value` and `\$attributes`.
 - **encode_utf8** (`true`) — enable UTF-8 character interpretation in bytes with corresponding numbers.
 - **string_length_limit** — limit on the length of the string in bytes. If the limit is exceeded, the string is trimmed and the result is written as `{$incomplete: true, $value:...}`.
 - **stringify** (`false`) — enable conversion of all scalar types to strings.
@@ -380,9 +381,9 @@ The values are specified in parentheses by default.
 - **escaping_symbol** (`\`) – escape character.
 - **columns** – list of columns to be formatted, for example `<columns=[columnA;columnB]>schemaful_dsv`.
 - **missing_value_mode** (`fail`) — behavior in the absence of a value (`NULL`):
-   - `skip_row` — skip a row.
-   - `fail` — stop the operation if the specified column is missing in one of the rows.
-   - `print_sentinel` — instead of missing values, set `missing_value_sentinel`, whose default is an empty string.
+  - `skip_row` — skip a row.
+  - `fail` — stop the operation if the specified column is missing in one of the rows.
+  - `print_sentinel` — instead of missing values, set `missing_value_sentinel`, whose default is an empty string.
 - **missing_value_sentinel** (`empty line`) — value of the missing column for **print_sentinel** mode.
 - **enable_column_names_header** (`false`) — can only be used for generating data in SCHEMAFUL_DSV format, but not for parsing such data. If the value is `%true`, the first row will have column names instead of values.
 - **enable_string_to_all_conversion** (`false`) — enable conversion of string values to numeric and boolean types. For example, `"42u"` is converted to `42u`, and `"false"` is converted to `%false`.
@@ -425,7 +426,7 @@ Reading a table in Arrow format returns a concatenation of multiple [IPC Streami
 <EOS 0x00000000>
 ```
 
-This returns a concatenation of multiple streams instead of a single stream, because {{product-name}} can store the same column differently across different chunks. For example, column data can be stored either explicitly in its entirety or as a dictionary (similar to an [Arrow dictionary](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout)). When representing data in Arrow format, we store the encoding as a dictionary and return a concatenation of multiple streams if a column is encoded in its entirety in one chunk and as a dictionary in another.
+ This returns a concatenation of multiple streams instead of a single stream, because {{product-name}} can store the same column differently across different chunks. For example, column data can be stored either explicitly in its entirety or as a dictionary (similar to an [Arrow dictionary](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout)). When representing data in Arrow format, we store the encoding as a dictionary and return a concatenation of multiple streams if a column is encoded in its entirety in one chunk and as a dictionary in another.
 
 Limitations and notes:
 
@@ -445,7 +446,7 @@ Table reads currently support the following types:
 
 - `string` is displayed as [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE).
 - `integer` is displayed as one of the [arrow::integer](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5UINT8E) types depending on its
-   bit count and signedness.
+bit count and signedness.
 - `boolean` is displayed as [arrow::bool](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4BOOLE).
 - `float` is displayed as [arrow::float](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5FLOATE).
 - `double` is displayed as [arrow::double](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DOUBLEE).
@@ -495,6 +496,12 @@ yt map --input-format arrow --output-format arrow  --src "//path/to/input_table"
 
 If you pass multiple tables as input to an Arrow operation, it will output a stream of multiple concatenated IPC Streaming Format streams, where each segment of the stream may belong to one of the tables. The table index is passed as [schema metadata](https://arrow.apache.org/docs/format/Columnar.html#schema-message) under the name `TableId`. Learn more about [Arrow metadata](https://arrow.apache.org/docs/format/Columnar.html#custom-application-metadata).
 
+## PARQUET { #PARQUET }
+
+You can work with [parquet](https://parquet.apache.org/docs) from the command line:
+
+- [dump-parquet](https://pydoc.ytsaurus.tech/yt.cli.html#yt.cli.yt_binary.dump_parquet): download a table locally as a parquet file.
+- [upload-parquet](https://pydoc.ytsaurus.tech/yt.cli.html#yt.cli.yt_binary.upload_parquet): upload a local parquet file to YT as a static schematized table.
 
 ## PROTOBUF { #PROTOBUF }
 
