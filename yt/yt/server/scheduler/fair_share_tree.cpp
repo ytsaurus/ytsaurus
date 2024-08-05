@@ -170,9 +170,9 @@ private:
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
     IOperationStrategyHost* host,
     const TFairShareStrategyOperationControllerConfigPtr& config,
-    int NodeShardCount)
+    const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host, config, NodeShardCount))
+    , Controller_(New<TFairShareStrategyOperationController>(host, config, nodeShardInvokers))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const

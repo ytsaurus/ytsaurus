@@ -17,7 +17,7 @@ public:
     TFairShareStrategyOperationController(
         IOperationStrategyHost* operation,
         const TFairShareStrategyOperationControllerConfigPtr& config,
-        int nodeShardCount);
+        const std::vector<IInvokerPtr>& nodeShardInvokers);
 
     void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
     void OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext);
@@ -84,16 +84,15 @@ private:
         char Padding[CacheLineSize];
 
         int ConcurrentScheduleAllocationCalls = 0;
+        int MaxConcurrentControllerScheduleAllocationCalls = 0;
         TDuration ConcurrentScheduleAllocationExecDuration;
+        TDuration MaxConcurrentControllerScheduleAllocationExecDuration;
 
         TDuration ScheduleAllocationExecDurationEstimate;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
-    const int NodeShardCount_;
-
-    std::atomic<int> MaxConcurrentControllerScheduleAllocationCallsPerNodeShard_;
-    std::atomic<TDuration> MaxConcurrentControllerScheduleAllocationExecDurationPerNodeShard_;
+    const std::vector<IInvokerPtr> NodeShardInvokers_;
 
     std::atomic<bool> EnableConcurrentScheduleAllocationExecDurationThrottling_ = false;
 
