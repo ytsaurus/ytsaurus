@@ -134,7 +134,7 @@ public:
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
         , Logger(logger.WithTag("AsyncDialerSession: %v", Id_))
-        , Timeout_(Config_->MinRto * GetRandomVariation())
+        , ReconnectTimeout_(Config_->MinRto * GetRandomVariation())
     { }
 
     ~TAsyncDialerSession()
@@ -151,10 +151,7 @@ public:
 
         YT_VERIFY(!Dialed_);
         Dialed_ = true;
-
-        if (Config_->ConnectTimeout) {
-            Deadline_ = Config_->ConnectTimeout->ToDeadLine();
-        }
+        Deadline_ = Config_->ConnectTimeout.ToDeadLine();
 
         Connect(guard);
     }
@@ -207,8 +204,8 @@ private:
     SOCKET Socket_ = INVALID_SOCKET;
     bool Dialed_ = false;
     bool Finished_ = false;
-    TDuration Timeout_;
-    std::optional<TInstant> Deadline_;
+    TDuration ReconnectTimeout_;
+    TInstant Deadline_;
     TDelayedExecutorCookie TimeoutCookie_;
     TPollablePtr Pollable_;
 
@@ -292,15 +289,13 @@ private:
             return;
         }
 
-        if (Config_->EnableAggressiveReconnect || Deadline_) {
-            auto deadline = Min(
-                Deadline_.value_or(TInstant::Max()),
-                Config_->EnableAggressiveReconnect ? Timeout_.ToDeadLine() : TInstant::Max());
+        auto deadline = Min(
+            Deadline_,
+            Config_->EnableAggressiveReconnect ? ReconnectTimeout_.ToDeadLine() : TInstant::Max());
 
-            TimeoutCookie_ = TDelayedExecutor::Submit(
-                BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                deadline);
-        }
+        TimeoutCookie_ = TDelayedExecutor::Submit(
+            BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
+            deadline);
     }
 
     void OnConnected(TPollable* pollable)
@@ -364,11 +359,11 @@ private:
 
         CloseSocket();
 
-        if (Timeout_ < Config_->MaxRto) {
-            Timeout_ *= Config_->RtoScale * GetRandomVariation();
+        if (ReconnectTimeout_ < Config_->MaxRto) {
+            ReconnectTimeout_ *= Config_->RtoScale * GetRandomVariation();
         }
 
-        if (Deadline_ && TInstant::Now() >= *Deadline_) {
+        if (TInstant::Now() >= Deadline_) {
             auto error = TError(NRpc::EErrorCode::TransportError, "Connect timeout")
                 << TErrorAttribute("timeout", Config_->ConnectTimeout);
             YT_LOG_ERROR(error);
@@ -378,8 +373,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Connect timeout; trying to reconnect (Timeout: %v)",
-            Timeout_);
+        YT_LOG_DEBUG("Connect timeout; trying to reconnect (Reconnect timeout: %v)",
+            ReconnectTimeout_);
 
         Connect(guard);
     }
