@@ -536,7 +536,9 @@ bool TSlotManager::IsEnabled() const
     }
 
     auto volumeManager = RootVolumeManager_.Acquire();
-    auto isVolumeManagerEnabled = JobEnvironmentType_ != EJobEnvironmentType::Porto || volumeManager && volumeManager->IsEnabled();
+    auto isVolumeManagerEnabled =
+        JobEnvironmentType_ && JobEnvironmentType_ != EJobEnvironmentType::Porto ||
+        volumeManager && volumeManager->IsEnabled();
 
     return
         JobProxyReady_.load() &&
