@@ -1,4 +1,4 @@
-#include "ch_yt_converter.h"
+#include "ch_to_yt_converter.h"
 
 #include "std_helpers.h"
 #include "config.h"
@@ -57,7 +57,7 @@ using namespace NTableClient;
 using namespace NYson;
 
 // Used only for YT_LOG_FATAL below.
-static const TLogger Logger("CHYTConverter");
+static const TLogger Logger("CHToYTConverter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -775,7 +775,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCHYTConverter::TImpl
+class TCHToYTConverter::TImpl
 {
 public:
     TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
@@ -1052,27 +1052,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCHYTConverter::TCHYTConverter(
+TCHToYTConverter::TCHToYTConverter(
     DB::DataTypePtr dataType,
     TCompositeSettingsPtr settings)
     : Impl_(std::make_unique<TImpl>(std::move(dataType), std::move(settings)))
 { }
 
-TLogicalTypePtr TCHYTConverter::GetLogicalType() const
+TLogicalTypePtr TCHToYTConverter::GetLogicalType() const
 {
     return Impl_->GetLogicalType();
 }
 
-TUnversionedValueRange TCHYTConverter::ConvertColumnToUnversionedValues(
+TUnversionedValueRange TCHToYTConverter::ConvertColumnToUnversionedValues(
     const DB::ColumnPtr& column)
 {
     return Impl_->ConvertColumnToUnversionedValues(column);
 }
 
-TCHYTConverter::~TCHYTConverter() = default;
+TCHToYTConverter::~TCHToYTConverter() = default;
 
-TCHYTConverter::TCHYTConverter(
-    TCHYTConverter&& other)
+TCHToYTConverter::TCHToYTConverter(
+    TCHToYTConverter&& other)
     : Impl_(std::move(other.Impl_))
 { }
 

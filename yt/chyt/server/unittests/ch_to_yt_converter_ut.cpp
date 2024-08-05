@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/chyt/server/ch_yt_converter.h>
+#include <yt/chyt/server/ch_to_yt_converter.h>
 #include <yt/chyt/server/data_type_boolean.h>
 #include <yt/chyt/server/config.h>
 
@@ -67,7 +67,7 @@ std::vector<TStringBuf> ToStringBufs(std::vector<TString>& ysonStrings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCHYTConversionTest
+class TCHToYTConversionTest
     : public ::testing::Test
 {
 public:
@@ -121,7 +121,7 @@ public:
 
 protected:
     TCompositeSettingsPtr Settings_;
-    std::optional<TCHYTConverter> Converter_;
+    std::optional<TCHToYTConverter> Converter_;
 
 private:
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
@@ -132,7 +132,7 @@ private:
     }
 };
 
-TEST_F(TCHYTConversionTest, Int16)
+TEST_F(TCHToYTConversionTest, Int16)
 {
     auto dataType = std::make_shared<DB::DataTypeInt16>();
 
@@ -155,7 +155,7 @@ TEST_F(TCHYTConversionTest, Int16)
     ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::Int16), expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, Boolean)
+TEST_F(TCHToYTConversionTest, Boolean)
 {
     auto dataType = GetDataTypeBoolean();
 
@@ -179,7 +179,7 @@ TEST_F(TCHYTConversionTest, Boolean)
     EXPECT_THROW(Converter_->ConvertColumnToUnversionedValues(invalidColumn), std::exception);
 }
 
-TEST_F(TCHYTConversionTest, Float32)
+TEST_F(TCHToYTConversionTest, Float32)
 {
     auto dataType = std::make_shared<DB::DataTypeFloat32>();
 
@@ -198,7 +198,7 @@ TEST_F(TCHYTConversionTest, Float32)
     ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::Float), expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, String)
+TEST_F(TCHToYTConversionTest, String)
 {
     auto dataType = std::make_shared<DB::DataTypeString>();
 
@@ -219,7 +219,7 @@ TEST_F(TCHYTConversionTest, String)
     EXPECT_EQ(actualValues[1].Data.String, column->getDataAt(1).data);
 }
 
-TEST_F(TCHYTConversionTest, Decimal)
+TEST_F(TCHToYTConversionTest, Decimal)
 {
     std::vector<TString> expectedValues = {
         "0",
@@ -266,7 +266,7 @@ TEST_F(TCHYTConversionTest, Decimal)
     }
 }
 
-TEST_F(TCHYTConversionTest, NullableDecimal)
+TEST_F(TCHToYTConversionTest, NullableDecimal)
 {
     std::vector<TString> expectedValues = {
         "0",
@@ -321,7 +321,7 @@ TEST_F(TCHYTConversionTest, NullableDecimal)
     }
 }
 
-TEST_F(TCHYTConversionTest, NullableInt64)
+TEST_F(TCHToYTConversionTest, NullableInt64)
 {
     auto dataType = DB::makeNullable(std::make_shared<DB::DataTypeInt64>());
 
@@ -348,7 +348,7 @@ TEST_F(TCHYTConversionTest, NullableInt64)
     ExpectConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, ArrayInt32)
+TEST_F(TCHToYTConversionTest, ArrayInt32)
 {
     auto dataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeInt32>());
 
@@ -371,7 +371,7 @@ TEST_F(TCHYTConversionTest, ArrayInt32)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, ArrayNullableString)
+TEST_F(TCHToYTConversionTest, ArrayNullableString)
 {
     auto dataType = std::make_shared<DB::DataTypeArray>(DB::makeNullable(std::make_shared<DB::DataTypeString>()));
 
@@ -400,7 +400,7 @@ TEST_F(TCHYTConversionTest, ArrayNullableString)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, TupleUInt32StringBoolean)
+TEST_F(TCHToYTConversionTest, TupleUInt32StringBoolean)
 {
     auto dataType = std::make_shared<DB::DataTypeTuple>(std::vector<DB::DataTypePtr>{
         std::make_shared<DB::DataTypeUInt32>(),
@@ -429,7 +429,7 @@ TEST_F(TCHYTConversionTest, TupleUInt32StringBoolean)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, NamedTupleInt8Double)
+TEST_F(TCHToYTConversionTest, NamedTupleInt8Double)
 {
     auto dataType = std::make_shared<DB::DataTypeTuple>(std::vector<DB::DataTypePtr>{
         std::make_shared<DB::DataTypeInt8>(),
@@ -459,7 +459,7 @@ TEST_F(TCHYTConversionTest, NamedTupleInt8Double)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, LowCadrinalityString)
+TEST_F(TCHToYTConversionTest, LowCadrinalityString)
 {
     auto dataType = std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeString>());
 
@@ -484,7 +484,7 @@ TEST_F(TCHYTConversionTest, LowCadrinalityString)
     ExpectConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, LowCadrinalityNullable)
+TEST_F(TCHToYTConversionTest, LowCadrinalityNullable)
 {
     auto dataType = std::make_shared<DB::DataTypeLowCardinality>(
             std::make_shared<DB::DataTypeNullable>(
@@ -511,7 +511,7 @@ TEST_F(TCHYTConversionTest, LowCadrinalityNullable)
     ExpectConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, LowCadrinalityComposite)
+TEST_F(TCHToYTConversionTest, LowCadrinalityComposite)
 {
     auto dataType = std::make_shared<DB::DataTypeArray>(
             std::make_shared<DB::DataTypeLowCardinality>(
@@ -534,7 +534,7 @@ TEST_F(TCHYTConversionTest, LowCadrinalityComposite)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TCHYTConversionTest, UnsupportedTypesToString)
+TEST_F(TCHToYTConversionTest, UnsupportedTypesToString)
 {
     auto dataTypeMap = std::make_shared<DB::DataTypeMap>(
         std::make_shared<DB::DataTypeString>(),

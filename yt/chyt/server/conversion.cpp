@@ -1,7 +1,7 @@
 #include "conversion.h"
 
-#include "yt_ch_converter.h"
-#include "ch_yt_converter.h"
+#include "yt_to_ch_converter.h"
+#include "ch_to_yt_converter.h"
 #include "config.h"
 #include "helpers.h"
 
@@ -27,7 +27,7 @@ static const TLogger Logger("Conversion");
 
 DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool enableReadOnlyConversions)
 {
-    TYTCHConverter converter(descriptor, settings, enableReadOnlyConversions);
+    TYTToCHConverter converter(descriptor, settings, enableReadOnlyConversions);
     return converter.GetDataType();
 }
 
@@ -97,7 +97,7 @@ EValueType ToValueType(DB::Field::Types::Which which)
 
 TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TCompositeSettingsPtr& settings)
 {
-    TCHYTConverter converter(type, settings);
+    TCHToYTConverter converter(type, settings);
     return converter.GetLogicalType();
 }
 
@@ -148,7 +148,7 @@ DB::Field ToField(
     const NTableClient::TLogicalTypePtr& type)
 {
     auto settings = New<TCompositeSettings>();
-    TYTCHConverter convertor(TComplexTypeFieldDescriptor(type), settings);
+    TYTToCHConverter convertor(TComplexTypeFieldDescriptor(type), settings);
 
     convertor.ConsumeUnversionedValues(TRange(&value, 1));
     auto resultColumn = convertor.FlushColumn();
@@ -244,7 +244,7 @@ DB::Block ToBlock(
     auto block = headerBlock.cloneEmpty();
 
     // Indexed by column indices.
-    std::vector<TYTCHConverter> converters;
+    std::vector<TYTToCHConverter> converters;
     converters.reserve(readSchema.GetColumnCount());
 
     for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
@@ -344,7 +344,7 @@ TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
     YT_VERIFY(std::ssize(columns) == columnCount);
     YT_VERIFY(extraColumnCapacity >= 0);
 
-    std::vector<TCHYTConverter> converters;
+    std::vector<TCHToYTConverter> converters;
     converters.reserve(columnCount);
     for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
         converters.emplace_back(dataTypes[columnIndex], settings);

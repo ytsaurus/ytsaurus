@@ -21,20 +21,20 @@ namespace NYT::NClickHouseServer {
 //! Second is less obvious: even if you do not care about actual conversion, but rather
 //! interested in performing data type conversion (TLogicalTypePtr -> DB::DataTypePtr),
 //! you may instantiate this class and access GetDataType().
-class TYTCHConverter
+class TYTToCHConverter
 {
 public:
     //! `enableReadOnlyConversions` option enables read-only compatibility conversion options:
     //! - optional<T> -> T' when Nullable(T') is not available in CH;
     //! - dict<K,V> -> List(Tuple(K',V'));
-    TYTCHConverter(
+    TYTToCHConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
         TCompositeSettingsPtr settings,
         bool enableReadOnlyConversions = true);
 
-    TYTCHConverter(TYTCHConverter&& other);
+    TYTToCHConverter(TYTToCHConverter&& other);
 
-    ~TYTCHConverter();
+    ~TYTToCHConverter();
 
     DB::ColumnPtr FlushColumn();
 

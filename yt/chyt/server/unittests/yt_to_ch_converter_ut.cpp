@@ -4,7 +4,7 @@
 #include <yt/chyt/server/conversion.h>
 #include <yt/chyt/server/data_type_boolean.h>
 #include <yt/chyt/server/helpers.h>
-#include <yt/chyt/server/yt_ch_converter.h>
+#include <yt/chyt/server/yt_to_ch_converter.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
@@ -74,7 +74,7 @@ using TYsonStringBufs = std::vector<TYsonStringBuf>;
 using TUnversionedValues = std::vector<TUnversionedValue>;
 using TYTColumn = IUnversionedColumnarRowBatch::TColumn*;
 
-void DoConsume(TYTCHConverter& converter, TYsonStringBufs ysons)
+void DoConsume(TYTToCHConverter& converter, TYsonStringBufs ysons)
 {
     for (const auto& yson : ysons) {
         if (!yson) {
@@ -85,12 +85,12 @@ void DoConsume(TYTCHConverter& converter, TYsonStringBufs ysons)
     }
 }
 
-void DoConsume(TYTCHConverter& converter, TUnversionedValues values)
+void DoConsume(TYTToCHConverter& converter, TUnversionedValues values)
 {
     converter.ConsumeUnversionedValues(values);
 }
 
-void DoConsume(TYTCHConverter& converter, TYTColumn ytColumn)
+void DoConsume(TYTToCHConverter& converter, TYTColumn ytColumn)
 {
     converter.ConsumeYtColumn(*ytColumn);
 }
@@ -109,7 +109,7 @@ void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFiel
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TYTCHConversionTest
+class TYTToCHConversionTest
     : public ::testing::Test
 {
 public:
@@ -125,7 +125,7 @@ protected:
     template <class TExpectedColumnType = void>
     void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, std::vector<DB::Field> expectedFields) const
     {
-        TYTCHConverter converter(descriptor, Settings_);
+        TYTToCHConverter converter(descriptor, Settings_);
         DoConsume(converter, input);
         auto column = converter.FlushColumn();
 
@@ -138,7 +138,7 @@ protected:
 
     void ExpectTypeConversion(TComplexTypeFieldDescriptor descriptor, const DB::DataTypePtr& expectedDataType) const
     {
-        TYTCHConverter converter(descriptor, Settings_);
+        TYTToCHConverter converter(descriptor, Settings_);
         ValidateTypeEquality(converter.GetDataType(), expectedDataType);
     }
 };
@@ -257,7 +257,7 @@ bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYTCHConversionTest, AnyPassthrough)
+TEST_F(TYTToCHConversionTest, AnyPassthrough)
 {
     std::vector<TString> ysons = {
         "42",
@@ -294,7 +294,7 @@ TEST_F(TYTCHConversionTest, AnyPassthrough)
     }
 }
 
-TEST_F(TYTCHConversionTest, SimpleTypes)
+TEST_F(TYTToCHConversionTest, SimpleTypes)
 {
     // Prepare test values as YSON.
     std::vector<TString> ysonStringsInt8 = {
@@ -420,14 +420,14 @@ TEST_F(TYTCHConversionTest, SimpleTypes)
     testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
 }
 
-TEST_F(TYTCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
+TEST_F(TYTToCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
 {
     auto intValue = MakeUnversionedInt64Value(42);
     auto nullValue = MakeUnversionedNullValue();
 
     auto logicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TComplexTypeFieldDescriptor descriptor(logicalType);
-    TYTCHConverter converter(descriptor, Settings_);
+    TYTToCHConverter converter(descriptor, Settings_);
 
     std::vector<TUnversionedValue> values = {intValue, nullValue};
 
@@ -440,7 +440,7 @@ TEST_F(TYTCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
     });
 }
 
-TEST_F(TYTCHConversionTest, OptionalSimpleType)
+TEST_F(TYTToCHConversionTest, OptionalSimpleType)
 {
     // Nesting level is the number of optional<> wrappers around int.
 
@@ -492,7 +492,7 @@ TEST_F(TYTCHConversionTest, OptionalSimpleType)
     }
 }
 
-TEST_F(TYTCHConversionTest, NullAndVoid)
+TEST_F(TYTToCHConversionTest, NullAndVoid)
 {
     // Nesting level is the number of optional<> wrappers around null or void.
 
@@ -546,7 +546,7 @@ TEST_F(TYTCHConversionTest, NullAndVoid)
     }
 }
 
-TEST_F(TYTCHConversionTest, ListInt32)
+TEST_F(TYTToCHConversionTest, ListInt32)
 {
     std::vector<TString> ysonStringsListInt32 = {
         "[42;57]",
@@ -579,7 +579,7 @@ TEST_F(TYTCHConversionTest, ListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, ListListInt32)
+TEST_F(TYTToCHConversionTest, ListListInt32)
 {
     std::vector<TString> ysonStringsListListInt32 = {
         "[[42;57];[-1]]",
@@ -612,7 +612,7 @@ TEST_F(TYTCHConversionTest, ListListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, ListAny)
+TEST_F(TYTToCHConversionTest, ListAny)
 {
     std::vector<TString> ysonStringsListAny = {
         "[#; 42; []; [[];[]]; x]",
@@ -643,7 +643,7 @@ TEST_F(TYTCHConversionTest, ListAny)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, OptionalListOptionalInt32)
+TEST_F(TYTToCHConversionTest, OptionalListOptionalInt32)
 {
     std::vector<TString> ysonStringsOptionalListOptionalInt32 = {
         "[#]",
@@ -676,7 +676,7 @@ TEST_F(TYTCHConversionTest, OptionalListOptionalInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, DictIntString)
+TEST_F(TYTToCHConversionTest, DictIntString)
 {
     std::vector<TString> ysonStringsDictIntString = {
         "[[42; foo]; [27; bar]]",
@@ -708,7 +708,7 @@ TEST_F(TYTCHConversionTest, DictIntString)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, OptionalTupleInt32String)
+TEST_F(TYTToCHConversionTest, OptionalTupleInt32String)
 {
     std::vector<TString> ysonStringsOptionalTupleInt32String = {
         "[42; xyz]",
@@ -739,7 +739,7 @@ TEST_F(TYTCHConversionTest, OptionalTupleInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, OptionalStructInt32String)
+TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
 {
     std::vector<TString> ysonStringsOptionalStructInt32String = {
         "{key=42;value=xyz}",
@@ -784,7 +784,7 @@ TEST_F(TYTCHConversionTest, OptionalStructInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TYTCHConversionTest, Decimal)
+TEST_F(TYTToCHConversionTest, Decimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -856,7 +856,7 @@ TEST_F(TYTCHConversionTest, Decimal)
 }
 
 // Mostly copy-pasted from TestDecimal.
-TEST_F(TYTCHConversionTest, OptionalDecimal)
+TEST_F(TYTToCHConversionTest, OptionalDecimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -929,7 +929,7 @@ TEST_F(TYTCHConversionTest, OptionalDecimal)
 }
 
 // Mostly copy-pasted from TestDecimal.
-TEST_F(TYTCHConversionTest, ListDecimal)
+TEST_F(TYTToCHConversionTest, ListDecimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -999,7 +999,7 @@ TEST_F(TYTCHConversionTest, ListDecimal)
     }
 }
 
-TEST_F(TYTCHConversionTest, AnyUpcast)
+TEST_F(TYTToCHConversionTest, AnyUpcast)
 {
     // This is a pretty tricky scenario. Any column may be read from chunks originally
     // from the table having concrete type for this column. In this case we interpret
@@ -1037,7 +1037,7 @@ TEST_F(TYTCHConversionTest, AnyUpcast)
     ExpectDataConversion(anyDescriptor, ytAnyColumn, {DB::Field("{\"a\"=1;}"), DB::Field("[]")});
 }
 
-TEST_F(TYTCHConversionTest, IntegerUpcast)
+TEST_F(TYTToCHConversionTest, IntegerUpcast)
 {
     // Similar as previous for integers, e.g. int16 -> int32.
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
@@ -1055,7 +1055,7 @@ TEST_F(TYTCHConversionTest, IntegerUpcast)
     ExpectDataConversion<DB::ColumnInt32>(int32Descriptor, ytInt16Column, {DB::Field(42), DB::Field(-17)});
 }
 
-TEST_F(TYTCHConversionTest, ReadOnlyConversions)
+TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
 {
     std::vector<TColumnSchema> readOnlyColumnSchemas{
         TColumnSchema(
@@ -1070,14 +1070,14 @@ TEST_F(TYTCHConversionTest, ReadOnlyConversions)
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        EXPECT_THROW(TYTCHConverter(descriptor, Settings_, /*enableReadOnlyConversions*/ false), std::exception)
+        EXPECT_THROW(TYTToCHConverter(descriptor, Settings_, /*enableReadOnlyConversions*/ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBenchmarkYTCHConversion
+class TBenchmarkYTToCHConversion
     : public ::testing::Test
 {
 public:
@@ -1092,7 +1092,7 @@ protected:
     TCompositeSettingsPtr Settings_;
 };
 
-TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedSmall)
+TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1107,13 +1107,13 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedSmall)
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
     for (int i = 0; i < 10000; i++) {
-        TYTCHConverter converter(descriptor, Settings_);
+        TYTToCHConverter converter(descriptor, Settings_);
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }
 }
 
-TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedMedium)
+TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedMedium)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1128,13 +1128,13 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedMedium)
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
     for (int i = 0; i < 10000; i++) {
-        TYTCHConverter converter(descriptor, Settings_);
+        TYTToCHConverter converter(descriptor, Settings_);
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }
 }
 
-TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedBig)
+TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedBig)
 {
     std::vector<TString> ysons;
     for (int i = 0; i < 10000; i++) {
@@ -1149,7 +1149,7 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedBig)
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
     for (int i = 0; i < 10000; i++) {
-        TYTCHConverter converter(descriptor, Settings_);
+        TYTToCHConverter converter(descriptor, Settings_);
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }

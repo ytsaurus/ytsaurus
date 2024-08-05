@@ -1,4 +1,4 @@
-#include "yt_ch_converter.h"
+#include "yt_to_ch_converter.h"
 
 #include "config.h"
 #include "columnar_conversion.h"
@@ -1037,7 +1037,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYTCHConverter::TImpl
+class TYTToCHConverter::TImpl
 {
 public:
     TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool enableReadOnlyConversions)
@@ -1308,48 +1308,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYTCHConverter::TYTCHConverter(
+TYTToCHConverter::TYTToCHConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings,
     bool enableReadOnlyConversions)
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), enableReadOnlyConversions))
 { }
 
-void TYTCHConverter::ConsumeUnversionedValues(TUnversionedValueRange values)
+void TYTToCHConverter::ConsumeUnversionedValues(TUnversionedValueRange values)
 {
     return Impl_->ConsumeUnversionedValues(values);
 }
 
-void TYTCHConverter::ConsumeYson(TYsonStringBuf yson)
+void TYTToCHConverter::ConsumeYson(TYsonStringBuf yson)
 {
     return Impl_->ConsumeYson(yson);
 }
 
-DB::ColumnPtr TYTCHConverter::FlushColumn()
+DB::ColumnPtr TYTToCHConverter::FlushColumn()
 {
     return Impl_->FlushColumn();
 }
 
-DB::DataTypePtr TYTCHConverter::GetDataType() const
+DB::DataTypePtr TYTToCHConverter::GetDataType() const
 {
     return Impl_->GetDataType();
 }
 
-void TYTCHConverter::ConsumeNulls(int count)
+void TYTToCHConverter::ConsumeNulls(int count)
 {
     return Impl_->ConsumeNulls(count);
 }
 
-void TYTCHConverter::ConsumeYtColumn(
+void TYTToCHConverter::ConsumeYtColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
 {
     return Impl_->ConsumeYtColumn(column);
 }
 
-TYTCHConverter::~TYTCHConverter() = default;
+TYTToCHConverter::~TYTToCHConverter() = default;
 
-TYTCHConverter::TYTCHConverter(
-    TYTCHConverter&& other)
+TYTToCHConverter::TYTToCHConverter(
+    TYTToCHConverter&& other)
     : Impl_(std::move(other.Impl_))
 { }
 

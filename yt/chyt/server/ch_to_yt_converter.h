@@ -22,16 +22,16 @@ namespace NYT::NClickHouseServer {
 //! Second is less obvious: even if you do not care about actual conversion, but rather
 //! interested in performing data type conversion (DB::DataTypePtr -> TLogicalTypePtr),
 //! you may instantiate this class and access GetLogicalType().
-class TCHYTConverter
+class TCHToYTConverter
 {
 public:
-    TCHYTConverter(
+    TCHToYTConverter(
         DB::DataTypePtr dataType,
         TCompositeSettingsPtr settings);
 
-    TCHYTConverter(TCHYTConverter&& other);
+    TCHToYTConverter(TCHToYTConverter&& other);
 
-    ~TCHYTConverter();
+    ~TCHToYTConverter();
 
     //! Convert CH column to range of unversioned values. All values will have
     //! id = 0. Values are valid until next call of this method.

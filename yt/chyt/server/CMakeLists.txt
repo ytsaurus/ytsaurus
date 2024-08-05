@@ -57,7 +57,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_input_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_output_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_yt_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_server.cpp
@@ -119,7 +119,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/user_defined_sql_objects_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_ch_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
 )
 
