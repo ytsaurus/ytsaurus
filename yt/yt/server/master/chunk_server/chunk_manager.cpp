@@ -1216,16 +1216,12 @@ public:
                 continue;
             }
 
-            auto isImaginary = location->IsImaginary();
-
-            // No Sequoia replicas for imaginary locations.
-            if (canHaveSequoiaReplicas && !isImaginary) {
+            if (canHaveSequoiaReplicas) {
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunk->GetId();
                 replica.ReplicaIndex = replicaIndex;
-                replica.NodeId = GetChunkLocationNodeId(storedReplica);
-                auto* realLocation = location->AsReal();
-                replica.LocationUuid = realLocation->GetUuid();
+                replica.NodeId = storedReplica.GetPtr()->GetNode()->GetId();
+                replica.LocationUuid = location->GetUuid();
                 sequoiaReplicas.push_back(replica);
             } else {
                 TChunkIdWithIndex chunkIdWithIndexes(chunk->GetId(), replicaIndex);
@@ -2517,28 +2513,11 @@ private:
         TNode* node,
         const TChunkReplicaWithLocation& replica)
     {
-        if (node->UseImaginaryChunkLocations()) {
-            int mediumIndex = replica.GetMediumIndex();
-            if (!FindMediumByIndex(mediumIndex)) {
-                YT_LOG_ERROR(
-                    "Imaginary chunk locations are used, "
-                    "but chunk confirmation request contains invalid medium index "
-                    "(ChunkId: %v, NodeId: %v, MediumIndex: %v)",
-                    chunk->GetId(),
-                    node->GetId(),
-                    replica.GetMediumIndex());
-                return nullptr;
-            }
-            return node->GetOrCreateImaginaryChunkLocation(mediumIndex);
-        }
-
         auto locationUuid = replica.GetChunkLocationUuid();
 
         if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
             YT_LOG_ALERT(
-                "Real chunk locations are used but chunk confirmation request "
-                "does not have location UUID "
-                "(ChunkId: %v, NodeId: %v)",
+                "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v)",
                 chunk->GetId(),
                 node->GetId());
             return nullptr;
@@ -2548,7 +2527,8 @@ private:
         if (auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid)) {
             if (location->GetNode() == nullptr) {
                 YT_LOG_ALERT(
-                    "Chunk location without a node encountered (LocationUuid: %v, NodeId: %v, Address: %v)",
+                    "Chunk location without a node encountered "
+                    "(LocationUuid: %v, NodeId: %v, Address: %v)",
                     locationUuid,
                     node->GetId(),
                     node->GetDefaultAddress());
@@ -2559,8 +2539,7 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Real chunk locations are used "
-            "but chunk confirmation request has invalid location UUID "
+            "Chunk confirmation request has invalid location UUID "
             "(ChunkId: %v, NodeId: %v, LocationUuid: %v)",
             chunk->GetId(),
             node->GetId(),
@@ -2803,7 +2782,6 @@ private:
             return;
         }
 
-        auto isImaginary = location->IsImaginary();
         for (auto replica : location->Replicas()) {
             auto* chunk = replica.GetPtr();
 
@@ -2816,13 +2794,10 @@ private:
                 approved);
 
             auto chunkId = chunk->GetId();
-            if (!isImaginary) {
-                auto* realLocation = location->AsReal();
-                if (approved && ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
-                    YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
-                        chunkId,
-                        realLocation->GetUuid());
-                }
+            if (approved && ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, location)) {
+                YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
+                    chunkId,
+                    location->GetUuid());
             }
 
             if (chunk->IsBlob()) {
@@ -2833,13 +2808,12 @@ private:
         for (const auto& destroyedReplicasSet : location->DestroyedReplicas()) {
             for (auto replica : destroyedReplicasSet) {
                 auto chunkId = replica.Id;
-                if (!isImaginary) {
-                    auto* realLocation = location->AsReal();
-                    if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, realLocation)) {
-                        YT_LOG_INFO("Removing destroyed Sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
-                            chunkId,
-                            realLocation->GetUuid());
-                    }
+                if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, location)) {
+                    YT_LOG_INFO(
+                        "Removing destroyed Sequoia replica in a non-Sequoia way "
+                        "(ChunkId: %v, LocationUuid: %v)",
+                        chunkId,
+                        location->GetUuid());
                 }
             }
         }
@@ -3017,51 +2991,15 @@ private:
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) override
     {
-        // COMPAT(kvk1920)
-        if (node->UseImaginaryChunkLocations()) {
-            for (const auto& stats : request->per_medium_chunk_counts()) {
-                auto mediumIndex = stats.medium_index();
-                if (!FindMediumByIndex(mediumIndex)) {
-                    YT_LOG_DEBUG(
-                        "Cannot create imaginary chunk location with unknown medium "
-                        "(NodeId: %v, MediumIndex: %v)",
-                        node->GetId(),
-                        mediumIndex);
-                    continue;
-                }
-                auto* location = node->GetOrCreateImaginaryChunkLocation(mediumIndex);
-                location->ReserveReplicas(stats.chunk_count());
-            }
-        } else {
-            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-            for (const auto& stats : request->per_location_chunk_counts()) {
-                auto locationUuid = FromProto<TChunkLocationUuid>(stats.location_uuid());
-                auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
-                location->ReserveReplicas(stats.chunk_count());
-            }
-
-            if (request->per_location_chunk_counts().empty()) {
-                // COMPAT(kvk1920): Remove after 23.2.
-                // Heuristic estimation for the case of new masters and old data nodes.
-                TCompactMediumMap<int> locationCountByMedium;
-                TCompactMediumMap<int> replicaCountByMedium;
-                for (const auto* location : node->ChunkLocations()) {
-                    ++locationCountByMedium[location->GetEffectiveMediumIndex()];
-                }
-                for (const auto& stats : request->per_medium_chunk_counts()) {
-                    replicaCountByMedium[stats.medium_index()] = stats.chunk_count();
-                }
-                for (auto* location : node->ChunkLocations()) {
-                    auto mediumIndex = location->GetEffectiveMediumIndex();
-                    auto estimatedReplicaCount = replicaCountByMedium[mediumIndex] / locationCountByMedium[mediumIndex];
-                    location->ReserveReplicas(estimatedReplicaCount);
-                }
-            }
+        for (const auto& stats : request->per_location_chunk_counts()) {
+            auto locationUuid = FromProto<TChunkLocationUuid>(stats.location_uuid());
+            auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
+            location->ReserveReplicas(stats.chunk_count());
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        // We checked everything in TDataNodeTracker::ProcessFullHeartbeat.
+        // We've checked everything in TDataNodeTracker::ProcessFullHeartbeat.
         auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
@@ -3463,13 +3401,13 @@ private:
     }
 
     std::vector<TChunk*> ProcessAddedReplicas(
-        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         TNode* node,
         const auto& addedReplicas)
     {
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
-            if (!node->UseImaginaryChunkLocations() && chunkInfo.caused_by_medium_change()) {
+            if (chunkInfo.caused_by_medium_change()) {
                 auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
                 if (IsObjectAlive(chunk)) {
                     if (chunk->IsBlob()) {
@@ -3490,12 +3428,12 @@ private:
     }
 
     void ProcessRemovedReplicas(
-        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         TNode* node,
         const auto& removedReplicas)
     {
         for (const auto& chunkInfo : removedReplicas) {
-            if (!node->UseImaginaryChunkLocations() && chunkInfo.caused_by_medium_change()) {
+            if (chunkInfo.caused_by_medium_change()) {
                 continue;
             }
 
@@ -4479,39 +4417,15 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        const auto& config = GetDynamicConfig();
-
-        // COMPAT(kvk1920)
-        if (config->EnableMoreChunkConfirmationChecks) {
-            // Seems like a bug on client's side.
-            if (subrequest->location_uuids_supported() && subrequest->replicas().empty()) {
-                THROW_ERROR_EXCEPTION(
-                    "Chunk confirmation request supports location uuid "
-                    "but doesn't have any replica with location uuid");
-            }
+        if (!subrequest->location_uuids_supported()) {
+            THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
         }
 
-        // COMPAT(kvk1920)
-        if (!config->EnableChunkConfirmationWithoutLocationUuid) {
-            if (!subrequest->location_uuids_supported()) {
-                THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
-            }
-
-            if (subrequest->replicas().empty() && !subrequest->legacy_replicas().empty()) {
-                THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
-            }
-        } else {
-            const auto& configManager = Bootstrap_->GetConfigManager();
-            const auto& clusterConfig = configManager->GetConfig();
-            const auto& nodeTrackerConfig = clusterConfig->NodeTracker;
-
-            THROW_ERROR_EXCEPTION_IF(nodeTrackerConfig->EnableRealChunkLocations,
-                "Chunk confirmation without location uuids is not allowed after "
-                "real chunk locations have been enabled");
+        if (subrequest->replicas().empty() && !subrequest->legacy_replicas().empty()) {
+            THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
         }
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
-        // COMPAT(kvk1920)
         if (!subrequest->location_uuids_supported()) {
             auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
 
@@ -4522,8 +4436,7 @@ private:
                     continue;
                 }
 
-                THROW_ERROR_EXCEPTION_UNLESS(node->UseImaginaryChunkLocations(),
-                    "Cannot confirm chunk without location uuids after real chunk locations have been enabled");
+                THROW_ERROR_EXCEPTION("Cannot confirm chunk without location uuids");
 
                 replicas.emplace_back(replica, TChunkLocationUuid());
             }
@@ -5682,40 +5595,10 @@ private:
 
     std::pair<TChunkLocation*, TDomesticMedium*> FindLocationAndMediumOnProcessChunk(
         TNode* node,
-        TRealChunkLocation* realLocation,
+        TChunkLocation* realLocation,
         TChunkIdWithIndexes chunkIdWithIndexes,
         EChunkReplicaEventType reason)
     {
-        if (node->UseImaginaryChunkLocations()) {
-            auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
-            if (!IsObjectAlive(medium)) {
-                YT_LOG_ALERT(
-                    "Cannot process chunk event with unknown medium "
-                    "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    chunkIdWithIndexes.Id,
-                    chunkIdWithIndexes.MediumIndex,
-                    reason);
-                return {nullptr, nullptr};
-            }
-            if (medium->IsOffshore()) {
-                YT_LOG_ALERT(
-                    "Cannot process chunk event with offshore medium "
-                    "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, "
-                    "MediumType: %v, ChunkEventType: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    chunkIdWithIndexes.Id,
-                    chunkIdWithIndexes.MediumIndex,
-                    medium->GetType(),
-                    reason);
-                return {nullptr, nullptr};
-            }
-            auto* location = node->GetOrCreateImaginaryChunkLocation(chunkIdWithIndexes.MediumIndex);
-            return {location, medium->AsDomestic()};
-        }
-
         int mediumIndex = realLocation->GetEffectiveMediumIndex();
         auto* medium = FindMediumByIndex(mediumIndex);
         if (!IsObjectAlive(medium)) {
@@ -5748,7 +5631,7 @@ private:
 
     TChunk* ProcessAddedChunk(
         TNode* node,
-        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
@@ -5777,13 +5660,12 @@ private:
                 counters->AddedDestroyedReplicas.Increment();
             }
 
-            auto isImaginary = location->IsImaginary();
-            if (!isImaginary && ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkIdWithIndexes.Id, location->AsReal()->GetUuid())) {
+            if (ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkIdWithIndexes.Id, location->GetUuid())) {
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunkIdWithIndexes.Id;
                 replica.ReplicaIndex = chunkIdWithIndexes.ReplicaIndex;
                 replica.NodeId = nodeId;
-                replica.LocationUuid = location->AsReal()->GetUuid();
+                replica.LocationUuid = location->GetUuid();
                 SequoiaChunkPurgatory_[chunkIdWithIndexes.Id].push_back(replica);
                 YT_LOG_DEBUG(
                     "Sequoia chunk replica added to purgatory (NodeId: %v, Address: %v, ChunkId: %v)",
@@ -5830,7 +5712,7 @@ private:
 
     TChunk* ProcessRemovedChunk(
         TNode* node,
-        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         const TChunkRemoveInfo& chunkInfo)
     {
         auto nodeId = node->GetId();

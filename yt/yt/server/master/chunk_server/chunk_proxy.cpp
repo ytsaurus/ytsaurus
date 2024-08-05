@@ -255,7 +255,7 @@ private:
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
         const TNode* node,
-        const TRealChunkLocation* location,
+        const TChunkLocation* location,
         int replicaIndex,
         EChunkReplicaState replicaState,
         int mediumIndex)
@@ -302,7 +302,7 @@ private:
                     chunkManager,
                     chunkId,
                     location->GetNode(),
-                    location->IsImaginary() ? nullptr : location->AsReal(),
+                    location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
                     location->GetEffectiveMediumIndex());

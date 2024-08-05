@@ -15,13 +15,13 @@ namespace NYT::NChunkServer {
 struct IChunkReplicaFetcher
     : public virtual TRefCounted
 {
-    virtual bool CanHaveSequoiaReplicas(TRealChunkLocation* location) const = 0;
+    virtual bool CanHaveSequoiaReplicas(TChunkLocation* location) const = 0;
 
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const = 0;
 
     virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const = 0;
-    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const = 0;
+    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const = 0;
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,

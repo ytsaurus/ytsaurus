@@ -77,7 +77,7 @@ using TChunkLocationId = NObjectClient::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TRealChunkLocation, TChunkLocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TChunkLocation, TChunkLocationId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TObjectIdEntropyHash)
@@ -86,7 +86,7 @@ DECLARE_ENTITY_TYPE(TDomesticMedium, TMediumId, NObjectClient::TObjectIdEntropyH
 DECLARE_ENTITY_TYPE(TS3Medium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 
-DECLARE_MASTER_OBJECT_TYPE(TRealChunkLocation)
+DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
@@ -94,8 +94,6 @@ DECLARE_MASTER_OBJECT_TYPE(TDomesticMedium)
 DECLARE_MASTER_OBJECT_TYPE(TS3Medium)
 
 class TChunkLocation;
-class TRealChunkLocation;
-class TImaginaryChunkLocation;
 
 using TChunkLocationList = TCompactVector<TChunkLocation*, TypicalReplicaCount>;
 

@@ -465,11 +465,11 @@ public:
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
-        node->ClearChunkLocations();
-
-        if (!node->UseImaginaryChunkLocations()) {
-            node->ChunkLocations().reserve(chunkLocationUuids.size());
+        for (auto* location : node->ChunkLocations()) {
+            location->SetState(EChunkLocationState::Dangling);
+            location->SetNode(nullptr);
         }
+        node->ChunkLocations().clear();
 
         for (auto locationUuid : chunkLocationUuids) {
             auto* location = FindChunkLocationByUuid(locationUuid);
@@ -488,8 +488,10 @@ public:
                     locationUuid,
                     existingNode->GetDefaultAddress());
             } else {
+                // Location is not dangling anymore.
                 location->SetNode(node);
-                node->AddRealChunkLocation(location);
+                location->SetState(EChunkLocationState::Offline);
+                node->ChunkLocations().push_back(location);
             }
         }
 
@@ -500,37 +502,38 @@ public:
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
-        for (auto* location : node->RealChunkLocations()) {
+        for (auto* location : node->ChunkLocations()) {
+            YT_VERIFY(location->GetState() == EChunkLocationState::Offline);
             location->SetState(EChunkLocationState::Online);
         }
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TChunkLocation);
 
-    TEntityMap<TRealChunkLocation>* MutableChunkLocations() override
+    TEntityMap<TChunkLocation>* MutableChunkLocations() override
     {
         return &ChunkLocationMap_;
     }
 
-    TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) override
     {
         auto it = ChunkLocationUuidToLocation_.find(locationUuid);
         return it == ChunkLocationUuidToLocation_.end() ? nullptr : it->second;
     }
 
-    TRealChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) override
     {
         return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
     }
 
-    TRealChunkLocation* CreateChunkLocation(
+    TChunkLocation* CreateChunkLocation(
         TChunkLocationUuid locationUuid,
         TObjectId hintId) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto locationId = objectManager->GenerateId(EObjectType::ChunkLocation, hintId);
 
-        auto locationHolder = TPoolAllocator::New<TRealChunkLocation>(locationId);
+        auto locationHolder = TPoolAllocator::New<TChunkLocation>(locationId);
         auto* location = ChunkLocationMap_.Insert(locationId, std::move(locationHolder));
         location->SetUuid(locationUuid);
 
@@ -549,7 +552,7 @@ public:
         return location;
     }
 
-    void DestroyChunkLocation(TRealChunkLocation* location) override
+    void DestroyChunkLocation(TChunkLocation* location) override
     {
         auto* node = location->GetNode();
 
@@ -565,7 +568,7 @@ public:
                     location->GetUuid(),
                     node->GetDefaultAddress());
             }
-            node->RemoveRealChunkLocation(location);
+            std::erase(node->ChunkLocations(), location);
             location->SetNode(nullptr);
         }
 
@@ -586,7 +589,7 @@ private:
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    NHydra::TEntityMap<TRealChunkLocation> ChunkLocationMap_;
+    NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     TChunkLocationUuidMap ChunkLocationUuidToLocation_;
     std::array<TChunkLocationUuidMap, ChunkLocationShardCount> ShardedChunkLocationUuidToLocation_;
 
@@ -616,7 +619,7 @@ private:
         return ShardedChunkLocationUuidToLocation_[shardIndex];
     }
 
-    void RegisterChunkLocationUuid(TRealChunkLocation* location)
+    void RegisterChunkLocationUuid(TChunkLocation* location)
     {
         auto uuid = location->GetUuid();
         EmplaceOrCrash(ChunkLocationUuidToLocation_, uuid, location);
@@ -775,29 +778,29 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        for (auto* location : node->RealChunkLocations()) {
+        for (auto* location : node->ChunkLocations()) {
             location->SetState(EChunkLocationState::Offline);
         }
     }
 
     void OnNodeZombified(TNode* node)
     {
-        auto& realLocations = node->RealChunkLocations();
-        for (auto* location : realLocations) {
+        for (auto* location : node->ChunkLocations()) {
             location->SetNode(nullptr);
+            location->SetState(EChunkLocationState::Dangling);
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* location : realLocations) {
+            for (auto* location : node->ChunkLocations()) {
                 objectManager->RemoveObject(location);
             }
         }
 
-        node->ClearChunkLocations();
+        node->ChunkLocations().clear();
     }
 
-    void UpdateLocationDiskFamilyAlert(TRealChunkLocation* location)
+    void UpdateLocationDiskFamilyAlert(TChunkLocation* location)
     {
         int mediumIndex = location->Statistics().medium_index();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -957,7 +960,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TRealChunkLocation, ChunkLocationMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TChunkLocation, ChunkLocationMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

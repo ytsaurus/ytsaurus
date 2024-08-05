@@ -16,7 +16,9 @@ message TReqMaterializeNode
     repeated int32 flavors = 6; // ENodeFlavor
     repeated NYT.NProto.TGuid chunk_location_uuids = 7;
     required string host_name = 8;
-    required bool use_imaginary_chunk_locations = 9;
+
+    // COMPAT(kvk1920): remove after 24.2.
+    optional bool use_imaginary_chunk_locations = 9;
 
     // COMPAT(gritukan)
     required bool exec_node_is_not_data_node = 10;

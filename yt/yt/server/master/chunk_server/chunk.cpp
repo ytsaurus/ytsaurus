@@ -295,7 +295,7 @@ void TChunk::AddReplica(
     data->AddStoredReplica(replica);
     if (!medium->GetTransient()) {
         auto lastSeenReplicas = data->MutableLastSeenReplicas();
-        auto nodeId = GetChunkLocationNodeId(replica);
+        auto nodeId = replica.GetPtr()->GetNode()->GetId();
         if (IsErasure()) {
             lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
         } else {

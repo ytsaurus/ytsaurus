@@ -18,7 +18,7 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TChunkLocationUuidMap = THashMap<TChunkLocationUuid, TRealChunkLocation*>;
+using TChunkLocationUuidMap = THashMap<TChunkLocationUuid, TChunkLocation*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +63,9 @@ struct IDataNodeTracker
         const std::vector<TChunkLocationUuid>& chunkLocationUuids) = 0;
     virtual void MakeLocationsOnline(TNode* node) = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TRealChunkLocation);
-    virtual TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
-    virtual TRealChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TChunkLocation);
+    virtual TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
+    virtual TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
 
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMap() const = 0;
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMapShard(int shardIndex) const = 0;

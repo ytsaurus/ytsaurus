@@ -254,10 +254,10 @@ private:
 
             YT_VERIFY(node->GetLocalState() == ENodeState::BeingDisposed);
             auto locationIndex = node->GetNextDisposedLocationIndex();
-            if (locationIndex < std::ssize(node->RealChunkLocations())) {
+            if (locationIndex < std::ssize(node->ChunkLocations())) {
                 StartLocationDisposal(node, locationIndex);
             } else {
-                YT_VERIFY(locationIndex == std::ssize(node->RealChunkLocations()));
+                YT_VERIFY(locationIndex == std::ssize(node->ChunkLocations()));
                 if (config->Testing->DisableDisposalFinishing) {
                     continue;
                 }
@@ -276,7 +276,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto* location = node->RealChunkLocations()[locationIndex];
+        auto* location = node->ChunkLocations()[locationIndex];
         if (location->GetBeingDisposed()) {
             return;
         }
@@ -339,7 +339,7 @@ private:
                         return;
                     }
 
-                    auto* location = node->RealChunkLocations()[locationIndex];
+                    auto* location = node->ChunkLocations()[locationIndex];
                     location->SetBeingDisposed(false);
                     return;
                 }
@@ -448,9 +448,9 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto locationIndex = node->GetNextDisposedLocationIndex();
             YT_VERIFY(locationIndex == request->location_index());
-            YT_VERIFY(locationIndex < std::ssize(node->RealChunkLocations()));
+            YT_VERIFY(locationIndex < std::ssize(node->ChunkLocations()));
 
-            auto* location = node->RealChunkLocations()[locationIndex];
+            auto* location = node->ChunkLocations()[locationIndex];
             if (IsLeader()) {
                 YT_VERIFY(location->GetBeingDisposed());
             }
@@ -484,13 +484,6 @@ private:
 
         if (node->GetLocalState() != ENodeState::BeingDisposed) {
             return;
-        }
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        if (node->UseImaginaryChunkLocations()) {
-            for (auto* location : node->ChunkLocations()) {
-                chunkManager->DisposeLocation(location);
-            }
         }
 
         DoFinishNodeDisposal(node);

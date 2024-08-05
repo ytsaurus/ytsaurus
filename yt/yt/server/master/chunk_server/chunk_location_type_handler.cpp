@@ -18,7 +18,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocationTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TRealChunkLocation>
+    : public TObjectTypeHandlerWithMapBase<TChunkLocation>
 {
 public:
     TChunkLocationTypeHandler(
@@ -54,17 +54,17 @@ public:
 private:
     const IDataNodeTrackerInternalPtr NodeTrackerInternal_;
 
-    TCellTagList DoGetReplicationCellTags(const TRealChunkLocation* /*location*/) override
+    TCellTagList DoGetReplicationCellTags(const TChunkLocation* /*location*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    IObjectProxyPtr DoGetProxy(TRealChunkLocation* location, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TChunkLocation* location, TTransaction* /*transaction*/) override
     {
         return CreateChunkLocationProxy(Bootstrap_, &Metadata_, location);
     }
 
-    void DoZombifyObject(TRealChunkLocation* location) noexcept override
+    void DoZombifyObject(TChunkLocation* location) noexcept override
     {
         NodeTrackerInternal_->DestroyChunkLocation(location);
 

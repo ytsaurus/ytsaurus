@@ -263,7 +263,7 @@ private:
     bool TryScheduleRemovalJob(
         IJobSchedulingContext* context,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
-        TRealChunkLocation* location);
+        TChunkLocation* location);
     bool TryScheduleRepairJob(
         IJobSchedulingContext* context,
         EChunkRepairQueue repairQueue,

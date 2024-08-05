@@ -169,27 +169,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
-    DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TRealChunkLocation*>, RealChunkLocations);
-
-    //! Detaches real locations from this node. Deletes imaginary locations.
-    void ClearChunkLocations();
-
-    // COMPAT(kvk1920)
-    void AddRealChunkLocation(NChunkServer::TRealChunkLocation* location);
-    void RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location);
-
-    // COMPAT(kvk1920)
-    // NB: This field is loaded during TNodeTracker::LoadKeys().
-    DEFINE_BYREF_RW_PROPERTY(bool, UseImaginaryChunkLocations);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
-    // COMPAT(shakurov)
-    DEFINE_BYREF_RW_PROPERTY(TMediumMap<std::unique_ptr<NChunkServer::TImaginaryChunkLocation>>, ImaginaryChunkLocations);
 
-    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocation(int mediumIndex, bool ignoreHydraContext = false);
-    // COMPAT(danilalexeev)
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    NChunkServer::TImaginaryChunkLocation* GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(int mediumIndex);
-    NChunkServer::TImaginaryChunkLocation* GetImaginaryChunkLocation(int mediumIndex);
+    // COMPAT(kvk1920): remove after 24.2.
+    DEFINE_BYVAL_RW_PROPERTY(bool, UseImaginaryChunkLocations);
 
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
 

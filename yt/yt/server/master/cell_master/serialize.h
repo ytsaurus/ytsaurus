@@ -226,6 +226,7 @@ DEFINE_ENUM(EMasterReign,
     ((CypressNodeReachability)                                      (2626))  // danilalexeev
     ((SecondaryIndexPerUserValidation)                              (2627))  // sabdenovch
     ((SecondaryIndexUnique)                                         (2628))  // sabdenovch
+    ((DropImaginaryChunkLocations)                                  (2629))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

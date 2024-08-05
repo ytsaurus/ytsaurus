@@ -34,7 +34,7 @@ void TNodeDirectoryBuilder::Add(TNodePtrWithReplicaAndMediumIndex node)
 
 void TNodeDirectoryBuilder::Add(TChunkLocationPtrWithReplicaInfo location)
 {
-    Add(GetChunkLocationNode(location));
+    Add(location.GetPtr()->GetNode());
 }
 
 void TNodeDirectoryBuilder::Add(TRange<TNodePtrWithReplicaAndMediumIndex> nodes)

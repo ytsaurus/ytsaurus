@@ -94,7 +94,6 @@ def get_dynamic_master_config():
         node_statistics_gossip_period = 1000;
         total_node_statistics_update_period = 1000;
         enable_node_cpu_statistics = %true;
-        enable_real_chunk_locations = %true;
         forbid_maintenance_attribute_writes = %false;
         node_disposal_tick_period = 100;
     };

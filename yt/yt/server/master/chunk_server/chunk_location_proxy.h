@@ -13,7 +13,7 @@ namespace NYT::NChunkServer {
 NObjectServer::IObjectProxyPtr CreateChunkLocationProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
-    TRealChunkLocation* location);
+    TChunkLocation* location);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -101,9 +101,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
-    registrar.Parameter("enable_real_chunk_locations", &TThis::EnableRealChunkLocations)
-        .Default(true);
-
     registrar.Parameter("forbid_maintenance_attribute_writes", &TThis::ForbidMaintenanceAttributeWrites)
         .Default(false);
 

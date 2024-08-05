@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
-    create_domestic_medium, create, write_table, read_table,
+    create_domestic_medium,
     set_node_banned, build_snapshot, get_active_primary_master_leader_address)
 
 from yt_helpers import profiler_factory
@@ -102,42 +102,6 @@ class TestChunkLocations(YTEnvSetup):
         assert not exists(medium_override_path)
 
     @authors("kvk1920")
-    def test_enable_real_chunk_locations(self):
-        create("table", "//tmp/t")
-        table_content = [{"a": 1, "b": "abc"}, {"a": 2, "b": "bca"}]
-        write_table("//tmp/t", table_content)
-        nodes = ls("//sys/data_nodes")
-
-        def check(use_imaginary_locations=False):
-            assert all(get(f"//sys/data_nodes/{node}/@use_imaginary_chunk_locations") == use_imaginary_locations
-                       for node in nodes)
-            assert read_table("//tmp/t") == table_content
-
-        check()
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", False)
-        check()
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
-        check()
-
-        with Restarter(self.Env, NODES_SERVICE):
-            set("//sys/@config/node_tracker/enable_real_chunk_locations", False)
-
-        check(use_imaginary_locations=True)
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
-        check(use_imaginary_locations=True)
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", False)
-        check(use_imaginary_locations=True)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
-
-        check()
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", False)
-        check()
-        set("//sys/@config/node_tracker/enable_real_chunk_locations", True)
-        check()
-
-    @authors("kvk1920")
     def test_sharded_location_map(self):
         LOCATION_SHARD_COUNT = 256
         locations = ls("//sys/chunk_locations")
@@ -180,7 +144,6 @@ class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "node_tracker": {
-            "enable_real_chunk_locations": True,
             "enable_per_location_node_disposal": True,
             "node_disposal_tick_period": 100,
             "max_concurrent_node_unregistrations": 100

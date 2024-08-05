@@ -612,81 +612,6 @@ TString TNode::GetObjectPath() const
     return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
 }
 
-void TNode::AddRealChunkLocation(NChunkServer::TRealChunkLocation* location)
-{
-    RealChunkLocations_.push_back(location);
-    if (!UseImaginaryChunkLocations_) {
-        ChunkLocations_.push_back(location);
-    }
-}
-
-void TNode::RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location)
-{
-    auto it = std::find(RealChunkLocations_.begin(), RealChunkLocations_.end(), location);
-    YT_VERIFY(it != RealChunkLocations_.end());
-
-    if (std::distance(RealChunkLocations_.begin(), it) < NextDisposedLocationIndex_) {
-        --NextDisposedLocationIndex_;
-    }
-    RealChunkLocations_.erase(it);
-
-    if (!UseImaginaryChunkLocations_) {
-        std::erase(ChunkLocations_, location);
-    }
-}
-
-void TNode::ClearChunkLocations()
-{
-    ChunkLocations_.clear();
-    ImaginaryChunkLocations_.clear();
-
-    for (auto* location : RealChunkLocations_) {
-        location->SetNode(nullptr);
-        location->SetState(EChunkLocationState::Dangling);
-    }
-    RealChunkLocations_.clear();
-}
-
-TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumIndex, bool ignoreHydraContext)
-{
-    YT_VERIFY(ignoreHydraContext || NHydra::HasHydraContext());
-    YT_VERIFY(UseImaginaryChunkLocations_);
-
-    auto [it, inserted] = ImaginaryChunkLocations_.emplace(
-        mediumIndex,
-        std::unique_ptr<TImaginaryChunkLocation>());
-
-    auto& location = it->second;
-
-    if (inserted) {
-        location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
-        ChunkLocations_.push_back(location.get());
-    }
-
-    return location.get();
-}
-
-TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(int mediumIndex)
-{
-    {
-        auto guard = ReaderGuard(SpinLock_);
-        if (ImaginaryChunkLocations_.contains(mediumIndex)) {
-            return GetImaginaryChunkLocation(mediumIndex);
-        }
-    }
-    {
-        auto guard = WriterGuard(SpinLock_);
-        return GetOrCreateImaginaryChunkLocation(mediumIndex, /*ignoreHydraContext*/ true);
-    }
-}
-
-TImaginaryChunkLocation* TNode::GetImaginaryChunkLocation(int mediumIndex)
-{
-    YT_VERIFY(UseImaginaryChunkLocations_);
-
-    return GetOrCrash(ImaginaryChunkLocations_, mediumIndex).get();
-}
-
 void TNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);
@@ -698,25 +623,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, MulticellDescriptors_);
     Save(context, UserTags_);
     Save(context, NodeTags_);
-    Save(context, RealChunkLocations_);
-    // TODO(shakurov): introduce TNonNullableUniquePtrSerializer and rewrite this.
-    TSizeSerializer::Save(context, ImaginaryChunkLocations_.size());
-    std::vector<int> mediumIndexes;
-    mediumIndexes.reserve(ImaginaryChunkLocations_.size());
-    std::transform(
-        ImaginaryChunkLocations_.begin(),
-        ImaginaryChunkLocations_.end(),
-        std::back_inserter(mediumIndexes),
-        [] (const auto& pair) {
-            return pair.first;
-        });
-    std::sort(mediumIndexes.begin(), mediumIndexes.end());
-    for (auto mediumIndex : mediumIndexes) {
-        Save(context, mediumIndex);
-        auto it = ImaginaryChunkLocations_.find(mediumIndex);
-        YT_ASSERT(it != ImaginaryChunkLocations_.end());
-        Save(context, *it->second);
-    }
+    Save(context, ChunkLocations_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, ClusterNodeStatistics_);
@@ -743,6 +650,19 @@ void TNode::Save(TSaveContext& context) const
     Save(context, LastGossipState_);
 }
 
+namespace {
+
+// COMPAT(kvk1920): remove after 24.2.
+struct TRealChunkLocationPtrSerializer
+{
+    static void Load(TLoadContext& context, TChunkLocation*& locationPtr)
+    {
+        locationPtr = TChunkLocation::LoadPtr(context);
+    }
+};
+
+} // namespace
+
 void TNode::Load(TLoadContext& context)
 {
     TObject::Load(context);
@@ -753,36 +673,19 @@ void TNode::Load(TLoadContext& context)
     Load(context, MulticellDescriptors_);
     Load(context, UserTags_);
     Load(context, NodeTags_);
-    Load(context, RealChunkLocations_);
 
-    // NB: unlike real chunk locations that are serialized as part of an
-    // entity map, imaginary chunk locations aren't objects and need to be
-    // serialized as part of their respective nodes.
-    auto imaginaryLocationCount = TSizeSerializer::Load(context);
-    ChunkLocations_.reserve(imaginaryLocationCount);
-    for (size_t i = 0; i < imaginaryLocationCount; ++i) {
-        auto mediumIndex = Load<int>(context);
-        auto [it, inserted] = ImaginaryChunkLocations_.emplace(mediumIndex, nullptr);
-        auto& location = it->second;
-        // NB: location may already be present as it's created on-demand when
-        // loading pointers to imaginary locations.
-        if (inserted) {
-            location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
-            if (UseImaginaryChunkLocations_) {
-                ChunkLocations_.push_back(location.get());
-            }
-        }
-        YT_VERIFY(location);
-        Load(context, *location);
-        YT_VERIFY(location->GetNode() == this);
-    }
+    // COMPAT(kvk1920): should be replaced with |Load(context, ChunkLocations_)|
+    // after 24.2.
+    // NB: in most places Load<TChunkLocation*> means loading of either real or
+    // imaginary location. But not here. This is the only place where we are
+    // loading |TRealChunkLocation*|.
+    TVectorSerializer<TRealChunkLocationPtrSerializer>::Load(context, ChunkLocations_);
 
-    if (!UseImaginaryChunkLocations_) {
-        ChunkLocations_.reserve(RealChunkLocations_.size());
-        std::copy(
-            RealChunkLocations_.begin(),
-            RealChunkLocations_.end(),
-            std::back_inserter(ChunkLocations_));
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
+        auto imaginaryLocationCount = TSizeSerializer::Load(context);
+        YT_LOG_FATAL_IF(imaginaryLocationCount > 0,
+            "Node with imaginary locations encountered");
     }
 
     Load(context, RegisterTime_);
@@ -826,20 +729,12 @@ TChunkPtrWithReplicaInfo TNode::PickRandomReplica(int mediumIndex)
 {
     YT_VERIFY(!HasMutationContext());
 
-    if (UseImaginaryChunkLocations_) {
-        auto it = ImaginaryChunkLocations_.find(mediumIndex);
-        if (it == ImaginaryChunkLocations_.end()) {
-            return TChunkPtrWithReplicaInfo();
-        }
-        return it->second->PickRandomReplica();
-    }
-
-    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> feasibleLocations;
+    TCompactVector<TChunkLocation*, TypicalChunkLocationCount> feasibleLocations;
     std::copy_if(
-        RealChunkLocations_.begin(),
-        RealChunkLocations_.end(),
+        ChunkLocations_.begin(),
+        ChunkLocations_.end(),
         std::back_inserter(feasibleLocations),
-        [&] (TRealChunkLocation* location) {
+        [&] (TChunkLocation* location) {
             return
                 location->GetEffectiveMediumIndex() == mediumIndex &&
                 !location->Replicas().empty();

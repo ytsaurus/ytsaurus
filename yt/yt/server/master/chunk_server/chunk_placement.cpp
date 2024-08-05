@@ -177,7 +177,7 @@ public:
         int mediumIndex = medium->GetIndex();
         for (auto replica : replicas) {
             if (replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex) {
-                auto* node = GetChunkLocationNode(replica);
+                auto* node = replica.GetPtr()->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
@@ -797,11 +797,11 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
             }
 
             if (replicaIndex == GenericChunkReplicaIndex) {
-                if (GetChunkLocationNode(replica) == node) {
+                if (replica.GetPtr()->GetNode() == node) {
                     return true;
                 }
             } else if (replica.GetReplicaIndex() == replicaIndex) {
-                return GetChunkLocationNode(replica) == node;
+                return replica.GetPtr()->GetNode() == node;
             }
         }
 
@@ -922,7 +922,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
             continue;
         }
 
-        if (const auto* rack = GetChunkLocationNode(replica)->GetRack()) {
+        if (const auto* rack = replica.GetPtr()->GetNode()->GetRack()) {
             ++perRackCounters[rack->GetIndex()];
             if (const auto* dataCenter = rack->GetDataCenter()) {
                 ++perDataCenterCounters[dataCenter];

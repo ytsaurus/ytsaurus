@@ -11,11 +11,11 @@ namespace NYT::NChunkServer {
 struct IDataNodeTrackerInternal
     : public virtual TRefCounted
 {
-    virtual NHydra::TEntityMap<TRealChunkLocation>* MutableChunkLocations() = 0;
-    virtual TRealChunkLocation* CreateChunkLocation(
+    virtual NHydra::TEntityMap<TChunkLocation>* MutableChunkLocations() = 0;
+    virtual TChunkLocation* CreateChunkLocation(
         TChunkLocationUuid locationUuid,
         NObjectClient::TObjectId hintId) = 0;
-    virtual void DestroyChunkLocation(TRealChunkLocation* location) = 0;
+    virtual void DestroyChunkLocation(TChunkLocation* location) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTrackerInternal)

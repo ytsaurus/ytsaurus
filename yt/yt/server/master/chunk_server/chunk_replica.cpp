@@ -42,15 +42,10 @@ void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaAndMediumIndex
 
 void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaIndex value, TStringBuf /*spec*/)
 {
-    if (value.GetPtr()->IsImaginary()) {
-        builder->AppendFormat("%v(%v)",
-            GetChunkLocationNodeId(value),
-            value.GetPtr()->GetEffectiveMediumIndex());
-    } else {
-        builder->AppendFormat("%v(%v)",
-            GetChunkLocationNodeId(value),
-            value.GetPtr()->AsReal()->GetUuid());
-    }
+    auto* location = value.GetPtr();
+    builder->AppendFormat("%v(%v)",
+        location->GetNode()->GetId(),
+        location->GetUuid());
     if (value.GetReplicaIndex() != GenericChunkReplicaIndex) {
         builder->AppendFormat("/%v", value.GetReplicaIndex());
     }
