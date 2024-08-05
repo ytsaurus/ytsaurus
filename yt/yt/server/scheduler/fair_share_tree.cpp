@@ -2701,7 +2701,7 @@ private:
 
         auto rootElement = treeSnapshot->RootElement();
         auto accumulatedResourceUsageMap = AccumulatedPoolResourceUsageForMetering_.ExtractPoolResourceUsages();
-        rootElement->BuildResourceMetering(/*parentKey*/ std::nullopt, accumulatedResourceUsageMap, meteringMap);
+        rootElement->BuildResourceMetering(/*lowestMeteredAncestorKey*/ {}, accumulatedResourceUsageMap, meteringMap);
 
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }

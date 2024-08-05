@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "job_metrics.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
@@ -27,7 +28,6 @@ public:
     TMeteringStatistics& operator+=(const TMeteringStatistics& other);
     TMeteringStatistics& operator-=(const TMeteringStatistics& other);
 
-    void AccountChild(const TMeteringStatistics& child);
     void DiscountChild(const TMeteringStatistics& child);
 };
 
@@ -40,7 +40,7 @@ struct TMeteringKey
 {
     // NB(mrkastep) Use negative AbcId as default in order to be able to log root pools without ABC
     // e.g. personal experimental pools.
-    int AbcId;
+    int AbcId = UndefinedAbcId;
     TString TreeId;
     TString PoolId;
     THashMap<TString, TString> MeteringTags;
