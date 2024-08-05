@@ -795,7 +795,7 @@ class TestGetJobStderr(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
         wait(
-            lambda: retry(lambda: get_job_stderr_paged(op.id, job_id, limit=0, offset=-50))["data"].endswith(
+            lambda: retry(lambda: get_job_stderr_paged(op.id, job_id))["data"].endswith(
                 b"STDERR-BREAKP\n"
             )
         )
@@ -841,7 +841,7 @@ class TestGetJobStderr(YTEnvSetup):
         clean_operations()
 
         wait(
-            lambda: retry(lambda: get_job_stderr_paged(op.id, job_id, limit=0, offset=-50))["data"].endswith(
+            lambda: retry(lambda: get_job_stderr_paged(op.id, job_id))["data"].endswith(
                 b"STDERR-FINISH\n"
             )
         )
