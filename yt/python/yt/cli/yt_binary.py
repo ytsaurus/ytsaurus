@@ -2238,6 +2238,8 @@ if HAS_IDM_CLI_HELPERS:
             action="store_true", default=False)
         parser.add_argument("--erase", "-e", action="store_true",
                             help="Erase all existing permissions from destination object")
+        parser.add_argument("--dst-cluster", default="",
+                            help="Destination cluster override; by default copying is done within a single cluster")
         parser.add_argument(
             "--dry-run", action="store_true", dest="dry_run",
             help="Do not make real changes", default=False)
