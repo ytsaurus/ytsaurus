@@ -101,7 +101,7 @@ type Oplet struct {
 	// ytOpControllerSpeclet is a parsed part of the persistentState.ytOpSpeclet with controller specific options.
 	ytOpControllerSpeclet any
 
-	// secrets is an unparsed document with secrets from the corresponding cypress node.
+	// secrets is a map with secrets from the corresponding cypress node.
 	secrets map[string]any
 	// ytOpSecretsRevision is the revision of the document with secrets taken from persistentState.
 	ytOpSecretsRevision yt.Revision
@@ -583,21 +583,6 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
 	}
 
-	var secrets map[string]any
-	var secretsRevision yt.Revision
-	if node.Secrets != nil {
-		err = yson.Unmarshal(node.Secrets.Value, &secrets)
-		if err != nil {
-			return oplet.setBroken("secrets are broken")
-		}
-		secretsRevision = node.Secrets.Revision
-		oplet.ytOpSecretsRevision = node.PersistentState.SecretsRevision
-	} else {
-		// The document with secrets doesn't exist, let's fallback to an empty map.
-		secrets = make(map[string]any)
-		secretsRevision = 0
-	}
-
 	controllerSpeclet, err := oplet.c.ParseSpeclet(node.Speclet.Value)
 	if err != nil {
 		return oplet.setBroken("failed to parse controller speclet from node",
@@ -640,6 +625,20 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 			err = nil
 		}
 	}
+
+	// Handle secrets.
+	var secrets map[string]any
+	var secretsRevision yt.Revision
+	if node.Secrets != nil {
+		err = yson.Unmarshal(node.Secrets.Value, &secrets)
+		if err != nil {
+			return oplet.setBroken("secrets are broken")
+		}
+		secretsRevision = node.Secrets.Revision
+		oplet.secrets = secrets
+		oplet.ytOpSecretsRevision = oplet.persistentState.SecretsRevision
+	}
+
 	oplet.infoState = node.InfoState
 	oplet.flushedInfoState = node.InfoState
 	oplet.flushedStateRevision = node.Revision
@@ -652,7 +651,6 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 	oplet.strawberrySpeclet = strawberrySpeclet
 	oplet.controllerSpeclet = controllerSpeclet
 
-	oplet.secrets = secrets
 	oplet.persistentState.SecretsRevision = secretsRevision
 
 	oplet.l.Info("strawberry operation state updated from cypress",

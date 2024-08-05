@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"go.ytsaurus.tech/yt/go/yt"
 	"golang.org/x/exp/slices"
 	"reflect"
 	"regexp"
@@ -49,7 +50,7 @@ func validateSecrets(secrets any) error {
 		typeName := reflect.TypeOf(secrets).String()
 		return unexpectedTypeError(typeName)
 	}
-	allowedTypes := []string{"string", "int64", "bool", "float64"}
+	allowedTypes := []string{"string", "int64", "uint64", "bool", "float64"}
 	for _, v := range secretsMap {
 		if vType := reflect.TypeOf(v).String(); !slices.Contains(allowedTypes, vType) {
 			return unexpectedTypeError(vType)
@@ -88,4 +89,27 @@ func transformToStringSlice(value any) (any, error) {
 	}
 
 	return transformedAttributes, nil
+}
+
+func getCreateSecretNodeOptions(secrets map[string]any, txOptions *yt.TransactionOptions) *yt.CreateNodeOptions {
+	return &yt.CreateNodeOptions{
+		Attributes: map[string]any{
+			"value": secrets,
+			"acl": []yt.ACE{
+				{
+					Action:   yt.ActionAllow,
+					Subjects: []string{"owner"},
+					Permissions: []yt.Permission{
+						yt.PermissionAdminister,
+						yt.PermissionRead,
+						yt.PermissionWrite,
+						yt.PermissionRemove,
+					},
+				},
+			},
+			"inherit_acl": false,
+		},
+		Force:              true,
+		TransactionOptions: txOptions,
+	}
 }
