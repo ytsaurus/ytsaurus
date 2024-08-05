@@ -340,9 +340,6 @@ class YTEnvSetup(object):
     NODE_USE_DIRECT_IO_FOR_READS = "never"
 
     # COMPAT(kvk1920)
-    TEST_LOCATION_AWARE_REPLICATOR = False
-
-    # COMPAT(kvk1920)
     TEST_MAINTENANCE_FLAGS = False
 
     WAIT_FOR_DYNAMIC_CONFIG = True
@@ -1592,9 +1589,6 @@ class YTEnvSetup(object):
         # COMPAT(kvk1920)
         if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
             dynamic_master_config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
-
-        if self.TEST_LOCATION_AWARE_REPLICATOR:
-            assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
 
         if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
             dynamic_master_config["node_tracker"]["forbid_maintenance_attribute_writes"] = True

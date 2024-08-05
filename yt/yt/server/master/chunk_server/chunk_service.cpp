@@ -938,13 +938,11 @@ private:
 
         const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
         // COMPAT(kvk1920)
-        if (!chunkManagerConfig->EnableChunkConfirmationWithoutLocationUuid) {
-            YT_LOG_ALERT_UNLESS(
-                request->location_uuids_supported(),
-                "Chunk confirmation request without location uuids is received");
-        }
+        YT_LOG_ALERT_UNLESS(
+            request->location_uuids_supported(),
+            "Chunk confirmation request without location uuids is received");
 
-        if (chunkManagerConfig->SequoiaChunkReplicas->Enable && request->location_uuids_supported()) {
+        if (chunkManagerConfig->SequoiaChunkReplicas->Enable) {
             auto allReplicas = request->replicas();
             context->Request().mutable_replicas()->Clear();
             context->Request().mutable_legacy_replicas()->Clear();

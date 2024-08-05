@@ -220,6 +220,15 @@ public:
 
     void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
     {
+        if (!context->Request().chunk_locations_supported()) {
+            YT_LOG_ALERT("Node does not support real chunk locations (Address: %v)",
+                address);
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Node does not support chunk locations"));
+            return;
+        }
+
         if (PendingRegisterNodeAddresses_.contains(address)) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -974,6 +983,9 @@ private:
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
+    // COMPAT(kvk1920): remove after 24.2.
+    std::vector<TObjectId> NodesWithImaginaryLocations_;
+
     struct TNodeObjectCreationOptions
     {
         std::optional<TNodeId> NodeId;
@@ -1215,22 +1227,6 @@ private:
 
         auto* node = GetNodeByAddress(address);
 
-        // COMPAT(kvk1920)
-        if (GetDynamicConfig()->EnableRealChunkLocations) {
-            if (!request->chunk_locations_supported() &&
-                !request->suppress_unsupported_chunk_locations_alert())
-            {
-                YT_LOG_ALERT(
-                    "Real chunk locations are enabled but node does not support them "
-                    "(NodeId: %v, NodeAddress: %v)",
-                    node->GetId(),
-                    address);
-            }
-            node->UseImaginaryChunkLocations() = !request->chunk_locations_supported();
-        } else {
-            node->UseImaginaryChunkLocations() = true;
-        }
-
         if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
             OnNodePendingRestartUpdated(node);
 
@@ -1258,13 +1254,12 @@ private:
         YT_LOG_INFO(
             "Node registered "
             "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
-            "LeaseTransactionId: %v, UseImaginaryChunkLocations: %v)",
+            "LeaseTransactionId: %v)",
             node->GetId(),
             options.DefaultAddress,
             options.Tags,
             options.Flavors,
-            options.LeaseTransactionId,
-            node->UseImaginaryChunkLocations());
+            options.LeaseTransactionId);
 
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
@@ -1290,6 +1285,13 @@ private:
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
+        // COMPAT(kvk1920)
+        // Failure here means we received Hive message of older version and node
+        // used imaginary chunk locations.
+        YT_VERIFY(
+            !request->has_use_imaginary_chunk_locations() ||
+            !request->use_imaginary_chunk_locations());
+
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
@@ -1311,8 +1313,6 @@ private:
         EnsureNodeObjectCreated(options);
 
         auto* node = GetNodeByAddress(address);
-
-        node->UseImaginaryChunkLocations() = request->use_imaginary_chunk_locations();
 
         if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
             OnNodePendingRestartUpdated(node);
@@ -1341,13 +1341,11 @@ private:
 
         YT_LOG_INFO(
             "Node replicated "
-            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
-            "UseImaginaryChunkLocations: %v)",
+            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v)",
             node->GetId(),
             options.DefaultAddress,
             options.Tags,
-            options.Flavors,
-            node->UseImaginaryChunkLocations());
+            options.Flavors);
 
         CheckNodeOnline(node);
     }
@@ -1708,17 +1706,6 @@ private:
         RackMap_.SaveKeys(context);
         DataCenterMap_.SaveKeys(context);
         HostMap_.SaveKeys(context);
-
-        // COMPAT(kvk1920): Remove after real chunk locations are enabled everywhere.
-        // We need to know if node uses imaginary chunk locations before loading TChunkLocationPtrWithSomething
-        // but the order of different LoadValues() is unspecified. So we just load this information
-        // during keys loading.
-        THashMap<TObjectId, bool> useImaginaryLocationsMap;
-        useImaginaryLocationsMap.reserve(NodeMap_.size());
-        for (auto [nodeId, node] : NodeMap_) {
-            useImaginaryLocationsMap[nodeId] = node->UseImaginaryChunkLocations();
-        }
-        Save(context, useImaginaryLocationsMap);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1739,10 +1726,14 @@ private:
         DataCenterMap_.LoadKeys(context);
         HostMap_.LoadKeys(context);
 
-        auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
-        for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
-            auto* node = NodeMap_.Get(nodeId);
-            node->UseImaginaryChunkLocations() = useImaginaryLocations;
+        // COMPAT(kvk1920)
+        if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
+            auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
+            for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
+                if (useImaginaryLocations) {
+                    NodesWithImaginaryLocations_.push_back(nodeId);
+                }
+            }
         }
     }
 
@@ -1791,6 +1782,8 @@ private:
         for (auto& nodeSet : NodesWithFlavor_) {
             nodeSet.clear();
         }
+
+        NodesWithImaginaryLocations_.clear();
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1864,6 +1857,60 @@ private:
         {
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(it->second, it);
         }
+
+        // COMPAT(kvk1920)
+        for (auto objectId : NodesWithImaginaryLocations_) {
+            auto* node = NodeMap_.Get(objectId);
+            if (!node->Flavors().contains(ENodeFlavor::Data)) {
+                continue;
+            }
+
+
+
+            auto localState = node->GetLocalState();
+            switch (localState) {
+                case ENodeState::Offline:
+                    // OK, locations aren't used.
+                    break;
+
+                // These cases looks impossible.
+                case ENodeState::Unknown:
+                    break;
+                case ENodeState::Mixed:
+                    break;
+
+                case ENodeState::Online:
+                    // Node uses real chunk locations. There can be chunks in
+                    // these locations so we cannot just delete them.
+                    [[fallthrough]];
+
+                case ENodeState::Registered:
+                    // Node has been already registered with using imaginary
+                    // locations which means that all following data node
+                    // heartbeats will use imaginary locations.
+                    [[fallthrough]];
+
+                case ENodeState::Unregistered:
+                    // Node is going to be disposed right now, locations are
+                    // still being used.
+
+                    // NB: looks like it's not possible because node has such a
+                    // state during single mutation. State switches to "Offline"
+                    // at the end of mutation, so...
+
+                    [[fallthrough]];
+
+                case ENodeState::BeingDisposed:
+                    // Node disposal is scheduled, locations are being used.
+
+                    YT_LOG_FATAL(
+                        "Cannot load snapshot because data node still uses imaginary locations "
+                        "(NodeAddress: %v, LocalState: %v)",
+                        node->GetDefaultAddress(),
+                        localState);
+            }
+        }
+        NodesWithImaginaryLocations_.clear();
 
         YT_LOG_INFO("Finished initializing nodes");
     }
@@ -2010,14 +2057,14 @@ private:
         auto* transaction = node->GetLeaseTransaction();
         YT_VERIFY(transaction);
         YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
-        YT_VERIFY(TransactionToNodeMap_.emplace(transaction, node).second);
+        EmplaceOrCrash(TransactionToNodeMap_, transaction, node);
     }
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
         auto* transaction = node->GetLeaseTransaction();
         if (transaction) {
-            YT_VERIFY(TransactionToNodeMap_.erase(transaction) == 1);
+            EraseOrCrash(TransactionToNodeMap_, transaction);
         }
         node->SetLeaseTransaction(nullptr);
         return transaction;
@@ -2288,7 +2335,8 @@ private:
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
 
-        for (const auto* location : node->RealChunkLocations()) {
+        request.mutable_chunk_location_uuids()->Reserve(node->ChunkLocations().size());
+        for (const auto* location : node->ChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
 
@@ -2402,11 +2450,13 @@ private:
         request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
-        for (const auto* location : node->RealChunkLocations()) {
+
+        request.mutable_chunk_location_uuids()->Reserve(node->ChunkLocations().size());
+        for (const auto* location : node->ChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
+
         request.set_host_name(node->GetHost()->GetName());
-        request.set_use_imaginary_chunk_locations(node->UseImaginaryChunkLocations());
         request.set_exec_node_is_not_data_node(node->GetExecNodeIsNotDataNode());
         auto state = node->GetLocalState();
         auto materializedState = (state == ENodeState::Online || state == ENodeState::Registered)
