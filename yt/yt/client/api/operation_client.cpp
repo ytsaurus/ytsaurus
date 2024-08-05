@@ -243,12 +243,8 @@ TGetJobStderrResponse TGetJobStderrResponse::MakeJobStderr(const TSharedRef& dat
     };
 
     size_t firstPos = 0;
-    if (offset >= 0) {
+    if (offset > 0) {
         firstPos = offset;
-    } else if (-offset > static_cast<i64>(data.size())) {
-        firstPos = 0;
-    } else {
-        firstPos = data.size() + offset;
     }
 
     if (firstPos >= data.size()) {

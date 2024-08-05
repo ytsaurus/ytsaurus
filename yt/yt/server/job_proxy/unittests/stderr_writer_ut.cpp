@@ -43,7 +43,7 @@ TEST(TStderrWriterTest, TestPagedLog)
 
         {
             const auto data = writer.GetCurrentData({.Offset = -50});
-            ASSERT_EQ(data.Data.ToStringBuf(), reference.Str().substr(reference.Str().size() - 50, 50));
+            ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
             ASSERT_EQ(data.TotalSize, lastByte);
         }
@@ -118,9 +118,8 @@ TEST(TStderrWriterTest, TestPagedLog)
     }
 
     {
-        // Last 50 bytes requested.
+        // Ignore offset.
         const auto data = writer.GetCurrentData({.Offset = -50});
-        ASSERT_EQ(data.Data.size(), size_t(50));
         ASSERT_TRUE(data.Data.ToStringBuf().EndsWith("2000\n"));
         ASSERT_EQ(data.EndOffset, lastByte);
         ASSERT_EQ(data.TotalSize, lastByte);
@@ -199,7 +198,7 @@ TEST(TStderrWriterTest, TestPagedLogOneBuffer)
 
         {
             const auto data = NApi::TGetJobStderrResponse::MakeJobStderr(string, {.Offset = -50} );
-            ASSERT_EQ(data.Data.ToStringBuf(), reference.Str().substr(reference.Str().size() - 50, 50));
+            ASSERT_EQ(data.Data.ToStringBuf(), reference.Str());
             ASSERT_EQ(data.EndOffset, lastByte);
             ASSERT_EQ(data.TotalSize, lastByte);
         }

@@ -154,7 +154,7 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
     auto data = stringStream.Str();
     auto endOffset = TotalSize_;
     const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
-    i64 dataBeginOffset;
+    i64 dataBeginOffset = 0;
     if (offset >= 0) {
         if (offset >= currentFirstAbsolutePos) {
             dataBeginOffset = offset - currentFirstAbsolutePos;
@@ -170,12 +170,6 @@ NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStd
                     };
                 }
             }
-        }
-    } else {
-        if (-offset >= static_cast<i64>(data.size())) {
-            dataBeginOffset = 0;
-        } else {
-            dataBeginOffset = data.size() + offset;
         }
     }
     if (offset || limit) {
