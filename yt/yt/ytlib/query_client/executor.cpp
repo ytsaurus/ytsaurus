@@ -334,7 +334,7 @@ public:
             auto flags = MostArchaicFeatureFlags();
             if (response->has_feature_flags()) {
                 FromProto(&flags, response->feature_flags());
-                auto& Logger = this_->Logger;
+                const auto& Logger = this_->Logger;
                 YT_LOG_DEBUG("Got response feature flags (Flags: %v)",
                     ToString(flags));
             }
