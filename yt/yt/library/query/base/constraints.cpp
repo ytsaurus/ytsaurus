@@ -319,7 +319,7 @@ TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
                     return;
                 }
 
-                for (const auto& item : MakeRange(constraints[ref.ColumnId]).Slice(ref.StartIndex, ref.EndIndex)) {
+                for (const auto& item : TRange(constraints[ref.ColumnId]).Slice(ref.StartIndex, ref.EndIndex)) {
                     result.AppendString("\n");
                     addOffset(ref.ColumnId);
                     TColumnConstraint columnConstraint{item.GetLowerBound(), item.GetUpperBound()};
@@ -359,7 +359,7 @@ ui64 TReadRangesGenerator::EstimateExpansion(TConstraintRef constraintRef, ui32 
         return 1;
     }
 
-    auto intervals = MakeRange(Constraints_[columnId])
+    auto intervals = TRange(Constraints_[columnId])
         .Slice(constraintRef.StartIndex, constraintRef.EndIndex);
 
     ui64 result = 0;

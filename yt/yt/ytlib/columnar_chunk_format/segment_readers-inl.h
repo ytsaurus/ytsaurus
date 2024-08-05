@@ -158,7 +158,7 @@ TRange<TTimestamp> TScanTimestampExtractor::GetWriteTimestamps(
     TChunkedMemoryPool* /*memoryPool*/) const
 {
     auto [begin, end] = GetWriteTimestampsSpan(rowIndex);
-    return MakeRange(WriteTimestamps_.GetData() + begin, WriteTimestamps_.GetData() + end);
+    return TRange(WriteTimestamps_.GetData() + begin, WriteTimestamps_.GetData() + end);
 }
 
 TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
@@ -166,7 +166,7 @@ TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
     TChunkedMemoryPool* /*memoryPool*/) const
 {
     auto [begin, end] = GetDeleteTimestampsSpan(rowIndex);
-    return MakeRange(DeleteTimestamps_.GetData() + begin, DeleteTimestamps_.GetData() + end);
+    return TRange(DeleteTimestamps_.GetData() + begin, DeleteTimestamps_.GetData() + end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,7 +406,7 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetWriteTimestamps(
         *timestamps++ = BaseTimestamp_ + TimestampsDict_[WriteTimestampIds_[it]];
     }
 
-    return MakeRange(startTimestamps, timestamps);
+    return TRange(startTimestamps, timestamps);
 }
 
 TRange<TTimestamp> TLookupTimestampExtractor::GetDeleteTimestamps(
@@ -421,7 +421,7 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetDeleteTimestamps(
         *timestamps++ = BaseTimestamp_ + TimestampsDict_[DeleteTimestampIds_[it]];
     }
 
-    return MakeRange(startTimestamps, timestamps);
+    return TRange(startTimestamps, timestamps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

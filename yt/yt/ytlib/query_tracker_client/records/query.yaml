@@ -223,10 +223,10 @@ types:
     fields:
       # Key.
 
-      - cpp_name: StartTime
-        cpp_type: TInstant
-        column_name: start_time
-        column_type: Timestamp
+      - cpp_name: MinusStartTime
+        cpp_type: i64
+        column_name: minus_start_time
+        column_type: Int64
         sort_order: Ascending
 
       - cpp_name: QueryId
@@ -252,6 +252,91 @@ types:
         cpp_type: NYson::TYsonString
         column_name: access_control_objects
         column_type: Any
+
+      - cpp_name: State
+        cpp_type: NQueryTrackerClient::EQueryState
+        column_name: state
+        column_type: String
+
+      - cpp_name: FilterFactors
+        cpp_type: TString
+        column_name: filter_factors
+        column_type: String
+
+
+  - type_name: TFinishedQueryByAcoAndStartTime
+    fields:
+      # Key.
+
+      - cpp_name: AccessControlObject
+        cpp_type: TString
+        column_name: access_control_object
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: MinusStartTime
+        cpp_type: i64
+        column_name: minus_start_time
+        column_type: Int64
+        sort_order: Ascending
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Engine
+        cpp_type: NQueryTrackerClient::EQueryEngine
+        column_name: engine
+        column_type: String
+
+      - cpp_name: User
+        cpp_type: TString
+        column_name: user
+        column_type: String
+
+      - cpp_name: State
+        cpp_type: NQueryTrackerClient::EQueryState
+        column_name: state
+        column_type: String
+
+      - cpp_name: FilterFactors
+        cpp_type: TString
+        column_name: filter_factors
+        column_type: String
+
+
+  - type_name: TFinishedQueryByUserAndStartTime
+    fields:
+      # Key.
+
+      - cpp_name: User
+        cpp_type: TString
+        column_name: user
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: MinusStartTime
+        cpp_type: i64
+        column_name: minus_start_time
+        column_type: Int64 
+        sort_order: Ascending
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Engine
+        cpp_type: NQueryTrackerClient::EQueryEngine
+        column_name: engine
+        column_type: String
 
       - cpp_name: State
         cpp_type: NQueryTrackerClient::EQueryState

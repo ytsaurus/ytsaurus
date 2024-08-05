@@ -120,7 +120,7 @@ struct TIOEngineSensors final
     TRequestSensors WriteSensors;
     TRequestSensors SyncSensors;
     TRequestSensors DataSyncSensors;
-    TRequestSensors IoSubmitSensors;
+    TRequestSensors IOSubmitSensors;
 
     std::atomic<i64> TotalReadBytesCounter = 0;
     std::atomic<i64> TotalWrittenBytesCounter = 0;

@@ -226,22 +226,22 @@ private:
         std::vector<TSharedRef> data;
 
         data.push_back(BitpackVector(
-            MakeRange(Dictionary_),
+            TRange(Dictionary_),
             MaxSegmentTimestamp_ - MinSegmentTimestamp_,
             &rawMeta.TimestampsDictSize,
             &rawMeta.TimestampsDictWidth));
         size += data.back().Size();
 
-        data.push_back(BitpackVector(MakeRange(WriteTimestampIds_), Dictionary_.size(), &rawMeta.WriteTimestampSize, &rawMeta.WriteTimestampWidth));
+        data.push_back(BitpackVector(TRange(WriteTimestampIds_), Dictionary_.size(), &rawMeta.WriteTimestampSize, &rawMeta.WriteTimestampWidth));
         size += data.back().Size();
 
-        data.push_back(BitpackVector(MakeRange(DeleteTimestampIds_), Dictionary_.size(), &rawMeta.DeleteTimestampSize, &rawMeta.DeleteTimestampWidth));
+        data.push_back(BitpackVector(TRange(DeleteTimestampIds_), Dictionary_.size(), &rawMeta.DeleteTimestampSize, &rawMeta.DeleteTimestampWidth));
         size += data.back().Size();
 
-        data.push_back(BitpackVector(MakeRange(WriteTimestampCounts_), maxWriteIndex, &rawMeta.WriteOffsetDiffsSize, &rawMeta.WriteOffsetDiffsWidth));
+        data.push_back(BitpackVector(TRange(WriteTimestampCounts_), maxWriteIndex, &rawMeta.WriteOffsetDiffsSize, &rawMeta.WriteOffsetDiffsWidth));
         size += data.back().Size();
 
-        data.push_back(BitpackVector(MakeRange(DeleteTimestampCounts_), maxDeleteIndex, &rawMeta.DeleteOffsetDiffsSize, &rawMeta.DeleteOffsetDiffsWidth));
+        data.push_back(BitpackVector(TRange(DeleteTimestampCounts_), maxDeleteIndex, &rawMeta.DeleteOffsetDiffsSize, &rawMeta.DeleteOffsetDiffsWidth));
         size += data.back().Size();
 
         TSegmentMeta segmentMeta;
@@ -266,7 +266,7 @@ private:
 
         CurrentBlockSegments_.push_back(segmentMeta);
 
-        BlockWriter_->WriteSegment(MakeRange(data));
+        BlockWriter_->WriteSegment(TRange(data));
 
         if (BlockWriter_->GetEnableSegmentMetaInBlocks()) {
             VerifyRawSegmentMeta(segmentMeta, data, rawMeta);

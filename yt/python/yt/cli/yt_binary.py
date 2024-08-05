@@ -554,6 +554,28 @@ def add_upload_parquet_parser(add_parser):
     parser.add_argument("--input-file", type=str, required=True)
 
 
+@copy_docstring_from(yt.dump_orc)
+def dump_orc(**kwargs):
+    yt.dump_orc(**kwargs)
+
+
+def add_dump_orc_parser(add_parser):
+    parser = add_parser("dump-orc", dump_orc)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--output-file", type=str, required=True)
+
+
+@copy_docstring_from(yt.upload_orc)
+def upload_orc(**kwargs):
+    yt.upload_orc(**kwargs)
+
+
+def add_upload_orc_parser(add_parser):
+    parser = add_parser("upload-orc", upload_orc)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--input-file", type=str, required=True)
+
+
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -1058,6 +1080,7 @@ def add_select_rows_parser(add_parser):
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--print-statistics", default=None, action="store_true")
     parser.add_argument("--syntax-version", type=int)
+    parser.add_argument("--udf-registry-path", type=str)
 
     error_message = "Use 'select-rows' instead of 'select'"
 
@@ -1088,6 +1111,7 @@ def add_explain_query_parser(add_parser):
     parser.add_argument("--execution-pool", type=str)
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--syntax-version", type=int)
+    parser.add_argument("--udf-registry-path", type=str)
 
 
 @copy_docstring_from(yt.lookup_rows)
@@ -2222,19 +2246,21 @@ if HAS_IDM_CLI_HELPERS:
 
 @copy_docstring_from(yt.add_maintenance)
 def add_maintenance(**kwargs):
-    print_to_output(yt.add_maintenance(**kwargs))
+    response = yt.add_maintenance(**kwargs)
+    print_to_output(yson.dumps(response))
 
 
 @copy_docstring_from(yt.remove_maintenance)
 def remove_maintenance(**kwargs):
-    print_to_output(yt.remove_maintenance(**kwargs))
+    response = yt.remove_maintenance(**kwargs)
+    print_to_output(yson.dumps(response))
 
 
 def add_maintenance_request_parsers(add_parser):
     parser = add_parser("add-maintenance", add_maintenance)
-    parser.add_argument("--component", type=str)
-    parser.add_argument("--address", type=str)
-    parser.add_argument("--type", type=str)
+    parser.add_argument("-c", "--component", type=str)
+    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("-t", "--type", type=str)
     parser.add_argument("--comment", type=str)
 
     parser = add_parser("remove-maintenance", remove_maintenance)
@@ -2456,7 +2482,6 @@ def add_flow_remove_pipeline_spec_parser(add_parser):
     parser = add_parser("remove-pipeline-spec", yt.remove_pipeline_spec,
                         help="Remove YT Flow pipeline spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
-    add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--force", action="store_true",
@@ -2488,7 +2513,6 @@ def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
     parser = add_parser("remove-pipeline-dynamic-spec", yt.remove_pipeline_dynamic_spec,
                         help="Remove YT Flow pipeline dynamic spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
-    add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path to part of the spec")
@@ -2726,6 +2750,10 @@ def _prepare_parser():
     add_dump_parquet_parser(add_parser)
 
     add_upload_parquet_parser(add_parser)
+
+    add_dump_orc_parser(add_parser)
+
+    add_upload_orc_parser(add_parser)
 
     if HAS_SKY_SHARE:
         add_sky_share_parser(add_parser)

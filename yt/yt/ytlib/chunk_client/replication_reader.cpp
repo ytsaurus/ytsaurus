@@ -1641,7 +1641,7 @@ private:
 
         YT_LOG_DEBUG("Best peers selected (Peers: %v)",
             MakeFormattableView(
-                MakeRange(peerAndSuccessfulProbeResults.begin(), peerAndSuccessfulProbeResults.begin() + count),
+                TRange(peerAndSuccessfulProbeResults.begin(), peerAndSuccessfulProbeResults.begin() + count),
                 [] (auto* builder, const auto& peerAndSuccessfulProbeResult) {
                     const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
                     builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v}",
@@ -2857,7 +2857,7 @@ public:
         }
 
         auto writer = CreateWireProtocolWriter();
-        writer->WriteUnversionedRowset(MakeRange(LookupKeys_));
+        writer->WriteUnversionedRowset(TRange(LookupKeys_));
         Keyset_ = writer->Finish();
     }
 

@@ -168,7 +168,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
     batch.push_back(
         CopyAndConvertFromPI(
             &outputContext,
-            MakeRange(values, closure->RowSize),
+            TRange(values, closure->RowSize),
             EAddressSpace::WebAssembly));
 
     // NB: Flags are neither set from TCG value nor cleared during row allocation.
@@ -306,7 +306,7 @@ void ScanOpHelper(
                 *rowSchemaInformation,
                 compartment);
             auto copiedRangesPointersGuard = CopyIntoCompartment(
-                MakeRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
+                TRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
                 compartment);
             auto** valuesOffset = std::bit_cast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
             interrupt |= consumeRows(consumeRowsClosure, &scanContext, valuesOffset, values.size());
@@ -494,7 +494,7 @@ void MultiJoinOpHelper(
     TRowsConsumer consumeRowsFunction)
 {
     auto comparers = NDetail::MakeJoinComparersCallbacks(
-        MakeRange(
+        TRange(
             ConvertPointerFromWasmToHost(comparersOffsets, parameters->Items.size()),
             parameters->Items.size()));
     auto collectRows = PrepareFunction(collectRowsFunction);
@@ -731,7 +731,7 @@ void MultiJoinOpHelper(
             bool finished = false;
             if (auto* compartment = GetCurrentCompartment()) {
                 auto guard = CopyIntoCompartment(
-                    MakeRange(std::bit_cast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
+                    TRange(std::bit_cast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
                     compartment);
                 auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
                 finished = consumeRows(consumeRowsClosure, &intermediateContext, offset, joinedRows.size());
@@ -1010,7 +1010,7 @@ bool ArrayJoinOpHelper(
 
     if (auto* compartment = GetCurrentCompartment()) {
         auto guard = CopyIntoCompartment(
-            MakeRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
+            TRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
             compartment);
         auto** begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
         return consumeRows(consumeRowsClosure, context, begin, filteredRows.size());
@@ -1429,7 +1429,7 @@ void TGroupByClosure::FlushWithBatching(
     auto guard = TCopyGuard();
     if (auto* compartment = GetCurrentCompartment()) {
         i64 length = end - begin;
-        guard = CopyIntoCompartment(MakeRange(std::bit_cast<uintptr_t*>(begin), length), compartment);
+        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(begin), length), compartment);
         begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
         end = begin + length;
     }
@@ -1682,7 +1682,7 @@ void OrderOpHelper(
     auto guard = TCopyGuard();
     auto** begin = rows.data();
     if (auto* compartment = GetCurrentCompartment()) {
-        guard = CopyIntoCompartment(MakeRange(std::bit_cast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
+        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
         begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
     }
 
@@ -2471,7 +2471,7 @@ TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
     });
 
     // TODO(dtorilov): Do not convert twice.
-    auto asPIRange = BorrowFromNonPI(MakeRange(asRange.Begin(), asRange.End()));
+    auto asPIRange = BorrowFromNonPI(TRange(asRange.Begin(), asRange.End()));
 
     return GetFarmFingerprint(asPIRange.Begin(), asPIRange.Begin() + asPIRange.Size());
 }
@@ -2488,7 +2488,7 @@ extern "C" void MakeMap(
         THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
     }
 
-    auto arguments = MakeRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
+    auto arguments = TRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -2553,7 +2553,7 @@ extern "C" void MakeList(
     TValue* args,
     int argCount)
 {
-    auto arguments = MakeRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
+    auto arguments = TRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);

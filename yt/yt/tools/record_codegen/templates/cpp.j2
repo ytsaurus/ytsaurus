@@ -76,7 +76,7 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
         ToUnversionedValue({{field.cpp_name}}, rowBuffer, {{loop.index0}}),
 {%- endfor %}
     };
-    return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
+    return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
 }
 
 {{type.type_name}}Key {{type.type_name}}Key::FromKey(TLegacyKey key)
@@ -120,7 +120,7 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
             ),
 {%- endfor %}
     };
-    return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
+    return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
 }
 
 {{type.type_name}} {{type.type_name}}::FromUnversionedRow(

@@ -539,6 +539,79 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         assert [[], [200]] == get("//tmp/t/@pivot_keys")
 
+    @authors("h0tmi")
+    @pytest.mark.parametrize(
+        "config_source",
+        [
+            "group",
+            "global",
+        ],
+    )
+    def test_uniform_tables_distribution(self, config_source):
+        cells = sync_create_cells(2)
+
+        parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
+
+        tables = ["//tmp/t1", "//tmp/t2"]
+
+        for table in tables:
+            self._create_sorted_table(table)
+
+        self._set_default_metric(parameterized_balancing_metric)
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": True,
+        }
+
+        for table in tables:
+            set(table + "/@tablet_balancer_config", config)
+
+        factors = {
+            "cell_factor" : 1,
+            "node_factor" : 1,
+            "table_cell_factor" : 1,
+            "table_node_factor" : 1,
+        }
+
+        if config_source == "group":
+            set(
+                "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/factors",
+                factors
+            )
+        else:
+            set(
+                "//sys/tablet_balancer/config/parameterized_factors",
+                factors
+            )
+
+        for table in tables:
+            sync_reshard_table(table, [[], [10]])
+        for table in tables:
+            sync_mount_table(table, cell_id=cells[0])
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]  # 2 rows
+        rows.extend([{"key": i, "value": str(i)} for i in range(9, 10)])  # 1 row
+        rows.extend([{"key": i, "value": str(i)} for i in range(11, 12)])  # 1 row
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+
+        for table in tables:
+            insert_rows(table, rows)
+        for table in tables:
+            sync_flush_table(table)
+
+        for table in tables:
+            wait(lambda: not all(t["cell_id"] == cells[0] for t in get(table + "/@tablets")))
+
+        wait(lambda: all(get("#{0}/@state".format(action)) in ("completed", "failed")
+             for action in ls("//sys/tablet_actions")))
+
+        for table in tables:
+            tablets = get(table + "/@tablets")
+            assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
 ##################################################################
 

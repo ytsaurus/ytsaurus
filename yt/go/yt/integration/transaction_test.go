@@ -134,15 +134,25 @@ func (s *Suite) TestExecTx_retries(ctx context.Context, t *testing.T, yc yt.Clie
 	t.Parallel()
 
 	wrapExecTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
-		return yt.ExecTx(ctx, yc, func(ctx context.Context, tx yt.Tx) error {
+		err := yt.ExecTx(ctx, yc, func(ctx context.Context, tx yt.Tx) error {
 			return cb()
 		}, &yt.ExecTxOptions{RetryOptions: opts})
+		if err != nil {
+			ctxlog.Debug(ctx, s.L.Logger(), "yt.ExecTx error", log.Error(err))
+		}
+
+		return err
 	}
 
 	wrapExecTabletTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
-		return yt.ExecTabletTx(ctx, yc, func(ctx context.Context, tx yt.TabletTx) error {
+		err := yt.ExecTabletTx(ctx, yc, func(ctx context.Context, tx yt.TabletTx) error {
 			return cb()
 		}, &yt.ExecTabletTxOptions{RetryOptions: opts})
+		if err != nil {
+			ctxlog.Debug(ctx, s.L.Logger(), "yt.ExecTabletTx error", log.Error(err))
+		}
+
+		return err
 	}
 
 	wrappers := map[string]func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error{

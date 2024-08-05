@@ -42,7 +42,7 @@ SRCS(
     block_input_stream.cpp
     block_output_stream.cpp
     bootstrap.cpp
-    ch_yt_converter.cpp
+    ch_to_yt_converter.cpp
     clickhouse_config.cpp
     clickhouse_invoker.cpp
     clickhouse_server.cpp
@@ -105,7 +105,7 @@ SRCS(
     user_defined_sql_objects_storage.cpp
     version.cpp
     virtual_column.cpp
-    yt_ch_converter.cpp
+    yt_to_ch_converter.cpp
     yt_database.cpp
 )
 

@@ -116,6 +116,9 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 FROM base-ytsaurus-python-packages AS query-tracker-bloated
 
+# Libpython shared objects. TODO(aleksandr.gaev) use stubs instead.
+RUN apt-get install -y libpython3.8 libpython3.9 libpython3.10 libpython3.11 libpython3.12
+
 # Query tracker binaries.
 COPY ./ytserver-all /usr/bin/ytserver-all
 RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker

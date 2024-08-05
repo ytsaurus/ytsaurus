@@ -447,7 +447,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
 
     std::vector<TGroup> groupedByPartitions;
 
-    GroupRangesByPartition(ranges, MakeRange(partitions), [&] (TShardIt shardIt, TItemIt itemIt, TItemIt itemItEnd) {
+    GroupRangesByPartition(ranges, TRange(partitions), [&] (TShardIt shardIt, TItemIt itemIt, TItemIt itemItEnd) {
         YT_VERIFY(itemIt != itemItEnd);
 
         if (shardIt == partitions.end()) {
@@ -484,7 +484,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
     // Calculate touched shards (partitions an) count.
     for (auto [partitionIt, beginIt, endIt] : groupedByPartitions) {
         GroupByShards(
-            MakeRange(beginIt, endIt),
+            TRange(beginIt, endIt),
             GetSampleKeys(*partitionIt),
             TPredicate{},
             [&] (TRangeIt /*rangesIt*/, TRangeIt /*rangesItEnd*/, TSampleIt sampleIt, TSampleIt sampleItEnd) {
@@ -547,7 +547,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
             endIt - begin(ranges));
 
 
-        auto slice = MakeRange(beginIt, endIt);
+        auto slice = TRange(beginIt, endIt);
 
         // Do not need to crop. Already cropped in GroupRangesByPartition.
 
@@ -609,7 +609,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
                 lower = std::max<TRow>(lower, rangesIt->first);
                 upper = std::min<TRow>(upper, (rangesItEnd - 1)->second);
 
-                ForEachRange(MakeRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
+                ForEachRange(TRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
                     group.push_back(item);
                 });
 

@@ -93,8 +93,8 @@ private:
         ui32 maxOffsetDelta;
         PrepareDiffFromExpected(&Offsets_, &expectedBytesPerRow, &maxOffsetDelta);
 
-        segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(Offsets_), maxOffsetDelta));
-        segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(ValueCounts_), MaxValueCount_));
+        segmentInfo.Data.push_back(BitPackUnsignedVector(TRange(Offsets_), maxOffsetDelta));
+        segmentInfo.Data.push_back(BitPackUnsignedVector(TRange(ValueCounts_), MaxValueCount_));
 
         auto data = DataBuffer_->Finish();
         segmentInfo.Data.insert(segmentInfo.Data.end(), data.begin(), data.end());

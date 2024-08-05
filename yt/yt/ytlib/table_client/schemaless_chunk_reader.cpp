@@ -1042,8 +1042,8 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
         end = begin;
     }
 
-    LowerBoundCmpRange_ = MakeRange(begin, begin);
-    UpperBoundCmpRange_ = MakeRange(end, end);
+    LowerBoundCmpRange_ = TRange(begin, begin);
+    UpperBoundCmpRange_ = TRange(end, end);
 
     if (LowerBound_) {
         auto* lowerBoundCmpEnd = std::lower_bound(begin, end, nullptr,
@@ -1054,7 +1054,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
                 return result == 0;
             });
 
-        LowerBoundCmpRange_ = MakeRange(begin, lowerBoundCmpEnd);
+        LowerBoundCmpRange_ = TRange(begin, lowerBoundCmpEnd);
     }
     if (UpperBound_) {
         auto* upperBoundCmpBegin = std::lower_bound(begin, end, nullptr,
@@ -1064,10 +1064,10 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
                 return result != 0;
             });
 
-        UpperBoundCmpRange_ = MakeRange(upperBoundCmpBegin, end);
+        UpperBoundCmpRange_ = TRange(upperBoundCmpBegin, end);
     }
 
-    PrefixRange_ = MakeRange(begin, end);
+    PrefixRange_ = TRange(begin, end);
 }
 
 void THorizontalSchemalessLookupChunkReaderBase::ComputeBlockIndexes(TRange<TLegacyKey> keys)
@@ -1492,7 +1492,7 @@ public:
             }
         }
 
-        if (HasColumnsInMapping(MakeRange(columnIdMapping).Slice(
+        if (HasColumnsInMapping(TRange(columnIdMapping).Slice(
             size_t(schemafulColumnCount),
             columnIdMapping.size())))
         {
@@ -1612,7 +1612,7 @@ public:
             RequestFirstBlocks()
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 FeedBlocksToReaders();
-                Initialize(MakeRange(KeyColumnReaders_));
+                Initialize(TRange(KeyColumnReaders_));
                 RowIndex_ = LowerRowIndex_;
                 LowerKeyLimitReached_ = !LowerLimit_.KeyBound();
 
@@ -1737,7 +1737,7 @@ private:
                     &RootColumns_.emplace());
             }
 
-            return MakeRange(*RootColumns_);
+            return TRange(*RootColumns_);
         }
 
         TRange<TDictionaryId> GetRetiringDictionaryIds() const override
@@ -1811,7 +1811,7 @@ private:
 
             // We could have overcome upper limit, we must check it.
             if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.KeyBound()) {
-                auto keyRange = MakeRange(keys.data() + deltaIndex, keys.data() + keys.size());
+                auto keyRange = TRange(keys.data() + deltaIndex, keys.data() + keys.size());
 
                 adjustRowLimit(keyRange);
             }

@@ -168,6 +168,37 @@ func (c *Config) GetProxy() (string, error) {
 	return "", xerrors.New("YT proxy is not set (either Config.Proxy or YT_PROXY must be set)")
 }
 
+func (c *Config) getTokenFileFromEnv() (string, error) {
+	if tokenFile := os.Getenv("YT_TOKEN_FILE"); tokenFile != "" {
+		if strings.HasPrefix(tokenFile, "~/") {
+			u, err := user.Current()
+			if err != nil {
+				return "", err
+			}
+			return filepath.Join(u.HomeDir, tokenFile[2:]), nil
+		}
+		return tokenFile, nil
+	}
+	return "", nil
+}
+
+func (c *Config) getPathToTokenFile() (string, error) {
+	tokenFile, err := c.getTokenFileFromEnv()
+	if err != nil {
+		return "", err
+	}
+
+	if tokenFile != "" {
+		return tokenFile, nil
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(u.HomeDir, ".yt", "token"), nil
+}
+
 func (c *Config) GetToken() string {
 	if c.Token != "" {
 		return c.Token
@@ -178,12 +209,12 @@ func (c *Config) GetToken() string {
 	}
 
 	if c.ReadTokenFromFile {
-		u, err := user.Current()
+		tokenFile, err := c.getPathToTokenFile()
 		if err != nil {
 			return ""
 		}
 
-		token, err := os.ReadFile(filepath.Join(u.HomeDir, ".yt", "token"))
+		token, err := os.ReadFile(tokenFile)
 		if err != nil {
 			return ""
 		}

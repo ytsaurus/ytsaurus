@@ -786,7 +786,7 @@ private:
                 weight += rowWeight;
             }
 
-            auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
+            auto range = TRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
             for (const auto& columnWriter : ValueColumnWriters_) {
                 columnWriter->WriteVersionedValues(range);
             }

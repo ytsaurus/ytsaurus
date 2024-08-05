@@ -39,7 +39,7 @@ TRange<TMeta> TColumnBase::GetSegmentMetas() const
     auto blockMeta = BlockRef_->BlockSegmentsMeta.Begin();
     auto* offsets = reinterpret_cast<const ui32*>(blockMeta);
 
-    auto result = MakeRange(
+    auto result = TRange(
         reinterpret_cast<const TMeta*>(blockMeta + offsets[IndexInGroup_]),
         reinterpret_cast<const TMeta*>(blockMeta + offsets[IndexInGroup_ + 1]));
 

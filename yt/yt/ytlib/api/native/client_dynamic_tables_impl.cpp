@@ -357,6 +357,10 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
                 unfoldedColumn = &FindUnfoldingColumnAndValidate(tableSchema, indexTableSchema);
                 break;
 
+            case ESecondaryIndexKind::Unique:
+                ValidateUniqueIndexSchema(tableSchema, indexTableSchema);
+                break;
+
             default:
                 THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", it->Kind);
         }
@@ -408,7 +412,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     }
 
     THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
-        "Misuse of operator WITH INDEX, tables %v and %v have no shared columns",
+        "Misuse of operator WITH INDEX: tables %v and %v have no shared columns",
         query.Table.Path,
         index.Path);
 
@@ -2908,7 +2912,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         .SessionId = sessionId.Underlying(),
     };
 
-    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+    auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
     auto sessionRowset = WaitFor(transaction->LookupRows(
         producerPath.GetPath(),
@@ -2945,7 +2949,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         resultRecord.UserMeta = ConvertToYsonString(options.UserMeta);
     }
 
-    auto resultRows = FromRecords(MakeRange(std::array{resultRecord}));
+    auto resultRows = FromRecords(TRange(std::array{resultRecord}));
 
     transaction->WriteRows(producerPath.GetPath(), nameTable, resultRows);
     WaitFor(transaction->Commit())
@@ -2996,7 +3000,7 @@ void TClient::DoRemoveQueueProducerSession(
         .SessionId = sessionId.Underlying(),
     };
 
-    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+    auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
     transaction->DeleteRows(producerPath.GetPath(), nameTable, keys);
 

@@ -149,7 +149,7 @@ void LookupRows(const TOpts& opts)
     keyBuilder.AddValue(MakeUnversionedInt64Value(keyValue, 0));
     auto key = keyBuilder.FinishRow();
     auto writer = NTableClient::CreateWireProtocolWriter();
-    writer->WriteUnversionedRowset(MakeRange({TUnversionedRow(key)}));
+    writer->WriteUnversionedRowset(TRange({TUnversionedRow(key)}));
     req->Attachments() = writer->Finish();
 
     TTableSchema tableSchema;

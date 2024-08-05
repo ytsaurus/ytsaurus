@@ -517,7 +517,7 @@ void TIOEngineBase::InitProfilerSensors()
     Sensors_->WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
     Sensors_->SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
     Sensors_->DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
-    Sensors_->IoSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
 }
 
 void TIOEngineBase::SetSickFlag(const TError& error)

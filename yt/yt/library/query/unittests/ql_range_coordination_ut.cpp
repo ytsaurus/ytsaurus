@@ -163,7 +163,7 @@ void TestSplitTablet(
     NLogging::TLogger logger;
 
     auto result = SplitTablet(
-        MakeRange(partitions),
+        TRange(partitions),
         MakeSharedRange(ranges),
         rowBuffer,
         maxSubsplitsPerTablet,
@@ -175,7 +175,7 @@ void TestSplitTablet(
         mergedRanges.insert(mergedRanges.end(), group.begin(), group.end());
     }
 
-    if (!CheckRangesAreEquivalent(MakeRange(ranges), MakeRange(mergedRanges))) {
+    if (!CheckRangesAreEquivalent(TRange(ranges), TRange(mergedRanges))) {
         Cerr << Format("Source: %v, Samples: %v, MaxSubsplits: %v",
             MakeFormattableView(ranges, TRangeFormatter()),
             partition.SampleKeys,
@@ -296,8 +296,8 @@ TEST(TestHelpers, TestSplitTablet)
         std::vector<TRowRange> mergedRanges;
 
         SplitRangesByTablets(
-            MakeRange(ranges),
-            MakeRange(tablets),
+            TRange(ranges),
+            TRange(tablets),
             makeRow(0),
             makeRow(1000),
             [&] (auto shardIt, auto rangesIt, auto rangesItEnd) {
@@ -307,7 +307,7 @@ TEST(TestHelpers, TestSplitTablet)
                 std::vector<TRowRange> rangesSlice(rangesIt, rangesItEnd);
 
                 auto groups = SplitTablet(
-                    MakeRange(tablet.Partitions),
+                    TRange(tablet.Partitions),
                     MakeSharedRange(rangesSlice),
                     rowBuffer,
                     maxSubsplitsPerTablet,
@@ -319,7 +319,7 @@ TEST(TestHelpers, TestSplitTablet)
                 }
             });
 
-        if (!CheckRangesAreEquivalent(MakeRange(ranges), MakeRange(mergedRanges))) {
+        if (!CheckRangesAreEquivalent(TRange(ranges), TRange(mergedRanges))) {
             Cerr << Format("Ranges: %v", MakeFormattableView(ranges, TRangeFormatter())) << Endl;
             Cerr << Format("Merged: %v", MakeFormattableView(mergedRanges, TRangeFormatter())) << Endl;
 
@@ -385,8 +385,8 @@ TEST(TestHelpers, SplitByPivots)
         std::vector<std::pair<int, int>> mergedRanges;
 
         SplitByPivots(
-            MakeRange(ranges),
-            MakeRange(pivots),
+            TRange(ranges),
+            TRange(pivots),
             TPredicate{},
             [&] (auto itemsIt, auto itemsItEnd, auto /*shardIt*/) {
                 mergedRanges.insert(mergedRanges.end(), itemsIt, itemsItEnd);
@@ -402,7 +402,7 @@ TEST(TestHelpers, SplitByPivots)
                 mergedRanges.emplace_back(lastBound, itemsIt->second);
             });
 
-        if (!CheckRangesAreEquivalent(MakeRange(ranges), MakeRange(mergedRanges))) {
+        if (!CheckRangesAreEquivalent(TRange(ranges), TRange(mergedRanges))) {
             struct TPairFormatter
             {
                 void operator()(TStringBuilderBase* builder, std::pair<int, int> source) const

@@ -120,7 +120,12 @@ public:
         , Logger(TabletNodeLogger().WithTag("%v, ReplicaId: %v",
             tablet->GetLoggingTag(),
             ReplicaId_))
-        , ReplicationLogParser_(CreateReplicationLogParser(TableSchema_, MountConfig_, workloadCategory, Logger))
+        , ReplicationLogParser_(CreateReplicationLogParser(
+            TableSchema_,
+            tablet->GetPhysicalSchema(),
+            MountConfig_,
+            workloadCategory,
+            Logger))
         , WorkloadCategory_(workloadCategory)
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),

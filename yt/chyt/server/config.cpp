@@ -513,6 +513,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_watchdog", &TThis::MemoryWatchdog)
         .DefaultNew();
 
+    registrar.Parameter("query_sticky_group_size", &TThis::QueryStickyGroupSize)
+        .Default(0);
+
     registrar.Parameter("discovery", &TThis::Discovery)
         .DefaultNew();
 

@@ -79,7 +79,7 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo, TSharedRef inBloc
     MetaSize_ += sizeof(NProto::TSegmentMeta);
 
     CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
-    BlockWriter_->WriteSegment(MakeRange(segmentInfo->Data));
+    BlockWriter_->WriteSegment(TRange(segmentInfo->Data));
 
     CurrentBlockSegmentMetas_.push_back(std::move(inBlockMeta));
 }
@@ -197,7 +197,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NC
         rawIndexMeta->ExpectedPerRow = expectedValuesPerRow;
 
         segmentInfo->Data.push_back(BitpackVector(
-            MakeRange(ValuesPerRow_),
+            TRange(ValuesPerRow_),
             maxDiffFromExpected,
             &rawIndexMeta->OffsetsSize,
             &rawIndexMeta->OffsetsWidth));
@@ -216,14 +216,14 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NC
         YT_VERIFY(rowIndexes.size() == NullBitmap_.GetBitSize());
 
         segmentInfo->Data.push_back(BitpackVector(
-            MakeRange(rowIndexes),
+            TRange(rowIndexes),
             rowIndexes.back(),
             &rawIndexMeta->OffsetsSize,
             &rawIndexMeta->OffsetsWidth));
     }
 
     segmentInfo->Data.push_back(BitpackVector(
-        MakeRange(TimestampIndexes_),
+        TRange(TimestampIndexes_),
         MaxTimestampIndex_,
         &rawIndexMeta->WriteTimestampIdsSize,
         &rawIndexMeta->WriteTimestampIdsWidth));

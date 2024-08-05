@@ -29,6 +29,7 @@ RequestThrottled = 1725
 SyncReplicaNotInSync = 1732
 BackupCheckpointRejected = 1733
 BundleIsBanned = 1739
+UniqueIndexConflict = 1741
 RetriableArchiveError = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916

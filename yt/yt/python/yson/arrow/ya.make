@@ -7,7 +7,7 @@ CXXFLAGS(
 )
 
 SRCS(
-    GLOBAL parquet.cpp
+    GLOBAL file_format_converters.cpp
     GLOBAL arrow_raw_iterator.cpp
 )
 

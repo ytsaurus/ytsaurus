@@ -59,7 +59,7 @@ void TInvokerLivenessChecker::DoCheck()
         if (Config_->CoreDump) {
             YT_ABORT();
         } else {
-            _exit(InvokerLivenessCheckerExitCode);
+            _exit(ToUnderlying(EServerExitCode::InvokerLivenessChecker));
         }
     }
 }

@@ -103,7 +103,7 @@ private:
         : public ITvmService
     {
     public:
-        TMockTvmService(TTvmId tvmId)
+        explicit TMockTvmService(TTvmId tvmId)
             : TvmId_(tvmId)
         { }
 

@@ -42,7 +42,7 @@ NTableClient::TTableSchema ToTableSchema(
 
 //! Convert single YT-value (UnversionedValue) to CH-value (DB::Field).
 //! This function is suboptimal and can be used only for query preparation.
-//! For converting data on execution stage consider using TYTCHConverter.
+//! For converting data on execution stage consider using TYTToCHConverter.
 DB::Field ToField(
     const NTableClient::TUnversionedValue& value,
     const NTableClient::TLogicalTypePtr& type);

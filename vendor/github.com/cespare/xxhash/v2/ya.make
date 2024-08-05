@@ -30,4 +30,17 @@ END()
 
 RECURSE(
     # gotest
+    xxhsum
 )
+
+IF (OS_LINUX)
+    RECURSE(
+#        dynamic
+    )
+ENDIF()
+
+IF (OS_DARWIN)
+    RECURSE(
+#        dynamic
+    )
+ENDIF()

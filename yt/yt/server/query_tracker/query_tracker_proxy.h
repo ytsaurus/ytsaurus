@@ -17,7 +17,7 @@ class TQueryTrackerProxy
 {
 public:
     TQueryTrackerProxy(
-        NApi::NNative::IClientPtr stateClient,
+        NApi::IClientPtr stateClient,
         NYPath::TYPath stateRoot,
         TQueryTrackerProxyConfigPtr config);
 
@@ -64,7 +64,7 @@ public:
         const NApi::TGetQueryTrackerInfoOptions& options);
 
 private:
-    const NApi::NNative::IClientPtr StateClient_;
+    const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
 };
@@ -74,7 +74,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
-    NApi::NNative::IClientPtr stateClient,
+    NApi::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
     TQueryTrackerProxyConfigPtr config);
 

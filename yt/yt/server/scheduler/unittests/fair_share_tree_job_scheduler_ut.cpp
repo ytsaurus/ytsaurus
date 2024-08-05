@@ -651,7 +651,7 @@ protected:
         auto operationController = New<TFairShareStrategyOperationController>(
             operation,
             SchedulerConfig_,
-            strategyHost->GetNodeShardInvokers().size());
+            strategyHost->GetNodeShardInvokers());
 
         if (!operationOptions) {
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
@@ -666,7 +666,7 @@ protected:
             operationOptions,
             operationController,
             SchedulerConfig_,
-            New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers().size()),
+            New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
             strategyHost,
             FairShareTreeElementHostMock_.Get(),
             operation,

@@ -9,6 +9,7 @@ SRCS(
     seccomp.cpp
     signaler.cpp
     tools.cpp
+    GLOBAL register.cpp
 )
 
 PEERDIR(

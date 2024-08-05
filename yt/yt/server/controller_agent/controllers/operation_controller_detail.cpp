@@ -7541,7 +7541,7 @@ void TOperationControllerBase::InferInputRanges()
                 : MaxKey();
 
             auto subrange = CropItems(
-                MakeRange(inferredRanges),
+                TRange(inferredRanges),
                 [&] (auto it) {
                     return !(lowerInitial < it->second);
                 },

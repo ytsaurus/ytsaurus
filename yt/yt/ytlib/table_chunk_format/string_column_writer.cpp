@@ -177,14 +177,14 @@ protected:
         rawBlobMeta->Direct = false;
 
         // 1. Value ids.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(ids), dictionarySize + 1, &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(ids), dictionarySize + 1, &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&dictionaryOffsets, &expectedLength, &maxDiff);
 
         // 2. Dictionary offsets.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionaryOffsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(dictionaryOffsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 3. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
@@ -206,7 +206,7 @@ protected:
         rawBlobMeta->Direct = true;
 
         // 1. Direct offsets.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(std::move(nullBitmap));
@@ -491,13 +491,13 @@ private:
         rawBlobMeta->Direct = true;
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
 
         // 2. Value offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 3. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
@@ -546,16 +546,16 @@ private:
         }
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
 
         // 2. Value ids.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(ids), Dictionary_.size(), &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(ids), Dictionary_.size(), &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
         // 3. Dictionary offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 4. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);

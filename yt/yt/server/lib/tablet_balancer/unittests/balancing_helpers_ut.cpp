@@ -708,6 +708,49 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{1, 3},
             /*cellSizes*/ std::vector<i64>{50, 55}),
+        std::tuple( // MOVE (Unified table distribution between nodes)
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\";"
+                "factors={cell_factor=1;node_factor=1;table_cell_factor=1;table_node_factor=1}}}}};"
+            "tables=[{in_memory_mode=uncompressed; table_index=1; tablets=["
+                "{tablet_index=1; cell_index=1;"
+                    "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}};"
+                "{tablet_index=2; cell_index=1;"
+                    "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}}]};"
+            "{in_memory_mode=uncompressed; table_index=2; tablets=["
+                "{tablet_index=3; cell_index=2;"
+                    "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}};"
+                "{tablet_index=4; cell_index=2;"
+                    "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=50; node_address=home};"
+                    "{cell_index=2; memory_size=50; node_address=stranger}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=200};"
+                    "{node_address=stranger; memory_used=0; memory_limit=200}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2};"
+                                "{tablet_index=3; cell_index=1};]",
+            /*moveActionLimit*/ 2,
+            /*distribution*/ std::vector<int>{2, 2},
+            /*cellSizes*/ std::vector<i64>{50, 50}),
+        std::tuple( // MOVE (Unified table distribution between nodes doesn't
+                    // make metric worse)
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\";"
+                "factors={cell_factor=1;node_factor=1;table_cell_factor=1;table_node_factor=1}}}}};"
+            "tables=[{in_memory_mode=uncompressed; table_index=1; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=75; memory_size=75; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=1;"
+                "statistics={uncompressed_data_size=25; memory_size=25; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=150; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=stranger}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=200};"
+                    "{node_address=stranger; memory_used=0; memory_limit=200}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2};]",
+            /*moveActionLimit*/ 1,
+            /*distribution*/ std::vector<int>{1, 3},
+            /*cellSizes*/ std::vector<i64>{75, 75}),
         std::tuple( // DISABLE BALANCING
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["

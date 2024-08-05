@@ -71,7 +71,7 @@ protected:
         rawMeta->Direct = true;
 
         // 1. Direct values.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
@@ -101,10 +101,10 @@ protected:
         rawMeta->Direct = false;
 
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
     }
 };
 
@@ -401,13 +401,13 @@ private:
         rawMeta->Direct = true;
 
         // 1. Compressed vector of values.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(Values_), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Null bitmap of values.
         segmentInfo->Data.push_back(rleNullBitmap.Flush<TSegmentWriterTag>());
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
     }
 
     void DumpDictionaryRleValues(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TKeyIndexMeta* rawIndexMeta, NColumnarChunkFormat::TIntegerMeta* rawMeta)
@@ -455,13 +455,13 @@ private:
         rawMeta->Direct = false;
 
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(dictionary), MaxValue_ - MinValue_, &rawMeta->ValuesSize, &rawMeta->ValuesWidth));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(Values_), dictionary.size() + 1, &rawMeta->IdsSize, &rawMeta->IdsWidth));
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(BitpackVector(MakeRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
+        segmentInfo->Data.push_back(BitpackVector(TRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
     }
 
     void DumpSegment()
