@@ -5401,7 +5401,6 @@ private:
             return;
         }
 
-
         if (ChunksBeingPurged_) {
             YT_LOG_DEBUG("Chunks are still being purged");
             return;
