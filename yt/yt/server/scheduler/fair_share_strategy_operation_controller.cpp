@@ -15,12 +15,12 @@ using namespace NControllerAgent;
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation,
     const TFairShareStrategyOperationControllerConfigPtr& config,
-    int nodeShardCount)
+    const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
     , Logger(StrategyLogger().WithTag("OperationId: %v", OperationId_))
     , Config_(config)
-    , NodeShardCount_(nodeShardCount)
+    , NodeShardInvokers_(nodeShardInvokers)
     , ScheduleAllocationControllerThrottlingBackoff_(
         DurationToCpuDuration(config->ControllerThrottling->ScheduleAllocationStartBackoffTime))
 {
@@ -121,18 +121,34 @@ void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationTh
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    {
-        auto regularizedLimit = config->MaxConcurrentControllerScheduleAllocationCalls * config->ConcurrentControllerScheduleAllocationCallsRegularization;
-        auto value = static_cast<int>(regularizedLimit / NodeShardCount_);
-        value = std::max(value, 1);
-        MaxConcurrentControllerScheduleAllocationCallsPerNodeShard_.store(value, std::memory_order::release);
-    }
+    int nodeShardCount = std::ssize(NodeShardInvokers_);
 
+    auto scheduleAllocationCallsRegularizedLimit =
+        config->MaxConcurrentControllerScheduleAllocationCalls *
+        config->ConcurrentControllerScheduleAllocationCallsRegularization;
+    auto scheduleAllocationCallsNodeShardValue = scheduleAllocationCallsRegularizedLimit / nodeShardCount;
+    scheduleAllocationCallsNodeShardValue = std::max(static_cast<int>(scheduleAllocationCallsNodeShardValue), 1);
+
+    auto scheduleAllocationExecDurationRegularizedLimit =
+        config->MaxConcurrentControllerScheduleAllocationExecDuration *
+        config->ConcurrentControllerScheduleAllocationCallsRegularization;
+    auto scheduleAllocationExecDurationNodeShardValue =
+        scheduleAllocationExecDurationRegularizedLimit /
+        nodeShardCount;
+    scheduleAllocationExecDurationNodeShardValue = std::max(
+        scheduleAllocationExecDurationNodeShardValue,
+        TDuration::FromValue(1));
+
+    for (int nodeShardId = 0; nodeShardId < std::ssize(NodeShardInvokers_); ++nodeShardId)
     {
-        auto regularizedLimit = config->MaxConcurrentControllerScheduleAllocationExecDuration * config->ConcurrentControllerScheduleAllocationCallsRegularization;
-        auto value = regularizedLimit / NodeShardCount_;
-        value = std::max(value, TDuration::FromValue(1));
-        MaxConcurrentControllerScheduleAllocationExecDurationPerNodeShard_.store(value, std::memory_order::release);
+        NodeShardInvokers_[nodeShardId]->Invoke(BIND([
+                scheduleAllocationCallsNodeShardValue,
+                scheduleAllocationExecDurationNodeShardValue,
+                &shard = StateShards_[nodeShardId]]
+            {
+                shard.MaxConcurrentControllerScheduleAllocationCalls = scheduleAllocationCallsNodeShardValue;
+                shard.MaxConcurrentControllerScheduleAllocationExecDuration = scheduleAllocationExecDurationNodeShardValue;
+            }));
     }
 }
 
@@ -152,14 +168,13 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationCal
 {
     auto nodeShardId = schedulingContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
-    auto limit = MaxConcurrentControllerScheduleAllocationCallsPerNodeShard_.load(std::memory_order::acquire);
-    bool limitViolated = shard.ConcurrentScheduleAllocationCalls >= limit;
+    bool limitViolated = shard.ConcurrentScheduleAllocationCalls >= shard.MaxConcurrentControllerScheduleAllocationCalls;
 
     YT_LOG_DEBUG_IF(
         limitViolated && DetailedLogsEnabled_,
         "Max concurrent schedule allocation calls per node shard violated (ConcurrentScheduleAllocationCalls: %v, Limit: %v, NodeShardId: %v)",
         shard.ConcurrentScheduleAllocationCalls,
-        limit,
+        shard.MaxConcurrentControllerScheduleAllocationCalls,
         nodeShardId);
 
     return limitViolated;
@@ -173,8 +188,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationExe
 
     auto nodeShardId = schedulingContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
-    auto limit = MaxConcurrentControllerScheduleAllocationExecDurationPerNodeShard_.load(std::memory_order::acquire);
-    bool limitViolated = shard.ConcurrentScheduleAllocationExecDuration >= limit;
+    bool limitViolated = shard.ConcurrentScheduleAllocationExecDuration >= shard.MaxConcurrentControllerScheduleAllocationExecDuration;
 
     YT_LOG_DEBUG_IF(
         limitViolated && DetailedLogsEnabled_,
@@ -182,7 +196,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationExe
         "(ConcurrentScheduleAllocationExecDuration: %v, Limit: %v, "
         "ScheduleAllocationExecDurationEstimate: %v, NodeShardId: %v)",
         shard.ConcurrentScheduleAllocationExecDuration,
-        limit,
+        shard.MaxConcurrentControllerScheduleAllocationExecDuration,
         shard.ScheduleAllocationExecDurationEstimate,
         nodeShardId);
 
