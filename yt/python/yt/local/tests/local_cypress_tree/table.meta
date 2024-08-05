@@ -1,7 +1,0 @@
-{
-    "type" = "table";
-    "attributes" = {
-        "myattr" = 4;
-    };
-    "format" = "dsv";
-}

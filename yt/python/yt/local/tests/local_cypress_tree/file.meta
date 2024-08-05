@@ -1,6 +1,0 @@
-{
-    "type" = "file";
-    "attributes" = {
-        "myattr" = 4;
-    };
-}
