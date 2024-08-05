@@ -9,6 +9,8 @@
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
+
 #include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
@@ -75,58 +77,6 @@ IChunkReaderAllowingRepairPtr GetChunkReader(const IIOEnginePtr& ioEngine, const
         TString(chunkFileName),
         true /*validateBlocksChecksums*/));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPreloadedBlockCache
-    : public IBlockCache
-{
-public:
-    TPreloadedBlockCache(
-        TChunkId chunkId,
-        const std::vector<NChunkClient::TBlock>& blocks)
-        : ChunkId_(chunkId)
-        , Blocks_(blocks)
-    { }
-
-    void PutBlock(
-        const TBlockId& /*id*/,
-        EBlockType /*type*/,
-        const TBlock& /*data*/) override
-    { }
-
-    TCachedBlock FindBlock(
-        const TBlockId& id,
-        EBlockType /*type*/) override
-    {
-        YT_ASSERT(id.ChunkId == ChunkId_);
-        return TCachedBlock{Blocks_[id.BlockIndex]};
-    }
-
-    EBlockType GetSupportedBlockTypes() const override
-    {
-        return EBlockType::UncompressedData;
-    }
-
-    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
-        const TBlockId& /*id*/,
-        EBlockType /*type*/) override
-    {
-        return nullptr;
-    }
-
-    bool IsBlockTypeActive(EBlockType blockType) const override
-    {
-        return blockType == EBlockType::UncompressedData;
-    }
-
-private:
-    const TChunkId ChunkId_;
-
-    std::vector<NChunkClient::TBlock> Blocks_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +150,7 @@ TReaderData::TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr /*schema*
         /*prepareColumnarMeta*/ false,
         /*memoryTracker*/ nullptr,
         meta);
-    BlockCache = New<TPreloadedBlockCache>(ChunkReader->GetChunkId(), cachedBlocks);
+    BlockCache = GetPreloadedBlockCache(ChunkReader->GetChunkId(), cachedBlocks);
 
     if (ChunkMeta->GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar) {
         TBlockProvider blockProvider{ChunkReader->GetChunkId(), BlockCache};
@@ -224,7 +174,7 @@ TReaderData::TReaderData(TTableSchemaPtr /*schema*/, TRefCountedChunkMetaPtr met
         /*prepareColumnarMeta*/ false,
         /*memoryTracker*/ nullptr,
         meta);
-    BlockCache = New<TPreloadedBlockCache>(ChunkReader->GetChunkId(), blocks);
+    BlockCache = GetPreloadedBlockCache(ChunkReader->GetChunkId(), blocks);
 
     if (ChunkMeta->GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar) {
         TBlockProvider blockProvider{ChunkReader->GetChunkId(), BlockCache};
