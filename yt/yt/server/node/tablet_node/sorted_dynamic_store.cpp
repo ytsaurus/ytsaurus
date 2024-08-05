@@ -13,12 +13,14 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -2397,40 +2399,32 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
-        auto chunkReader = CreateMemoryReader(
-            std::move(chunkMeta),
-            TBlock::Wrap(blocks));
-
         auto metaMemoryTracker = MemoryTracker_
             ? MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta)
             : nullptr;
 
-        auto cachedMetaFuture = chunkReader->GetMeta(/*chunkReadOptions*/ {})
-            .Apply(BIND(
-                &TCachedVersionedChunkMeta::Create,
-                /*prepareColumnarMeta*/ false,
-                metaMemoryTracker));
-        auto cachedMeta = WaitFor(cachedMetaFuture)
-            .ValueOrThrow();
+        auto cachedMeta = TCachedVersionedChunkMeta::Create(
+            /*prepareColumnarMeta*/ false,
+            metaMemoryTracker,
+            chunkMeta);
 
-        auto chunkState = New<TChunkState>(TChunkState{
-            .BlockCache = GetNullBlockCache(),
-            .TableSchema = Schema_,
-        });
+        auto preloadedBlockCache = NChunkClient::GetPreloadedBlockCache(NullChunkId, TBlock::Wrap(blocks));
 
-        auto tableReaderConfig = New<TTabletStoreReaderConfig>();
+        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            preloadedBlockCache,
+            cachedMeta,
+            NullChunkId);
 
-        auto tableReader = CreateVersionedChunkReader(
-            tableReaderConfig,
-            chunkReader,
-            std::move(chunkState),
-            std::move(cachedMeta),
-            /*chunkReadOptions*/ {},
-            MinKey(),
-            MaxKey(),
-            TColumnFilter(),
+        auto tableReader = NColumnarChunkFormat::CreateVersionedChunkReader(
+            MakeSingletonRowRange(MinKey(), MaxKey()),
             AllCommittedTimestamp,
-            true);
+            std::move(cachedMeta),
+            Schema_,
+            TColumnFilter(),
+            /*chunkColumnMapping*/ nullptr,
+            blockManagerFactory,
+            /*produceAll*/ true);
+
         WaitFor(tableReader->Open())
             .ThrowOnError();
 
