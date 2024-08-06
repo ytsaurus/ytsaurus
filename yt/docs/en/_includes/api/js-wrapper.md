@@ -8,7 +8,7 @@ A wrapper for queries to {{product-name}} clusters that uses the {{product-name}
 
 ## Connection and use
 
-The library is written in CommonJS style: you can use it in a node or bundle dependencies with Webpack.
+The library is written in CommonJS style: you can use it in a Node.js app or bundle dependencies with Webpack.
 
 ```javascript
     const yt = require('@ytsaurus/javascript-wrapper')()
@@ -101,7 +101,7 @@ You can subscribe to `requestStart`, `requestEnd`, and `error` events:
     });
 
 
-This can be useful for displaying the loader (you can count how many active queries there are) and for logging errors when requesting the API.
+This can be useful for displaying the loader (you can count how many active queries there are) and for logging errors occurring on API requests.
 
 ## Commands
 
@@ -109,7 +109,7 @@ For information about the available commands, see the [Commands](../../api/comma
 
 Not all commands have been implemented, but they can be added if needed. If there is no command, the wrapper usually displays a corresponding error.
 
-General format of the command:
+Generic command format:
 
 ```javascript
 // yt.<version>.<command>(<parameters>[, <data>])
@@ -117,7 +117,7 @@ yt.v3.get({ path: "//home/user/@account" });
 yt.v3.set({ path: "//home/user/@account" }, "default");
 ```
 
-The general view of the command with the ability to configure local settings:
+Generic command format supporting the configuration of local settings:
 
 ```javascript
 /**
