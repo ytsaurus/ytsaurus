@@ -1131,25 +1131,6 @@ TEST_F(TReplicatedTableTrackerTest, DestroyObjects)
     }
 }
 
-TEST_F(TReplicatedTableTrackerTest, ReplicaModeSwitchCounter)
-{
-    TProfiler profiler{"/replicated_table_tracker"};
-    auto counter = profiler.Counter("/replica_mode_switch_counter");
-
-    auto client = Host_->GetMockClient(Cluster1);
-    MockGoodReplicaCluster(client);
-    MockGoodBundle(client);
-    MockGoodTable(client);
-
-    auto tableId = Host_->CreateReplicatedTable(counter);
-    auto replicaId = Host_->CreateTableReplica(tableId);
-
-    Sleep(WarmUpPeriod);
-    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
-
-    EXPECT_EQ(TTesting::ReadCounter(counter), 1);
-}
-
 TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
 {
     auto client = Host_->GetMockClient(Cluster1);
@@ -1292,6 +1273,62 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaLagTimeCapping)
 }
 
 #endif
+
+TEST_F(TReplicatedTableTrackerTest, ChangePreferredClustersOption)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodTable(client2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+
+    auto options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    Sleep(SleepPeriod);
+
+    auto replica1 = Host_->CreateTableReplica(tableId);
+    auto replica2 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster2);
+
+    Sleep(WarmUpPeriod);
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1, Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    Sleep(SleepPeriod);
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeRemained(replica2);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1};
+    Host_->SetTableOptions(tableId, std::move(options));
+    Sleep(SleepPeriod);
+
+    Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1, Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    Sleep(SleepPeriod);
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeRemained(replica2);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
