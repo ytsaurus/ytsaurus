@@ -24,7 +24,7 @@ target_link_libraries(yt-library-column_converters PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
+  yt-yt-client
 )
 
 target_sources(yt-library-column_converters PRIVATE

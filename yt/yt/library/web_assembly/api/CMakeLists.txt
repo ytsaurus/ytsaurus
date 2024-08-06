@@ -24,7 +24,7 @@ target_link_libraries(library-web_assembly-api PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
+  yt-yt-client
 )
 
 target_sources(library-web_assembly-api PRIVATE
