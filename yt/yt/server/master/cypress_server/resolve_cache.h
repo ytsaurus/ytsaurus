@@ -75,7 +75,8 @@ public:
     TResolveCacheNodePtr FindNode(TNodeId nodeId);
     TResolveCacheNodePtr TryInsertNode(
         TCypressNode* trunkNode,
-        const NYPath::TYPath& path);
+        const NYPath::TYPath& path,
+        const ICypressManagerPtr& cypressManager);
     void AddNodeChild(
         const TResolveCacheNodePtr& parentNode,
         const TResolveCacheNodePtr& childNode,
@@ -105,7 +106,9 @@ private:
     TShard* GetShard(TNodeId nodeId);
     TShard* GetShard(TCypressNode* trunkNode);
 
-    static TResolveCacheNode::TPayload MakePayload(TCypressNode* trunkNode);
+    static TResolveCacheNode::TPayload MakePayload(
+        TCypressNode* trunkNode,
+        const ICypressManagerPtr& cypressManager);
 
     void ResetNode(TCypressNode* trunkNode);
 };

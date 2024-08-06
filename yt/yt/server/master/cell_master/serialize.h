@@ -260,6 +260,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexPerUserValidation_24_1)                         (2590))  // sabdenovch
     ((SecondaryIndexUnique_24_1)                                    (2591))  // sabdenovch
     ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
+    ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
     // 24.2 starts here.
 );
 
