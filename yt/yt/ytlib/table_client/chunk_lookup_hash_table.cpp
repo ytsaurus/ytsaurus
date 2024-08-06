@@ -112,23 +112,6 @@ bool ReadRows(const TReader& reader, std::vector<TRow>* rows)
     return true;
 }
 
-void FormatValue(TStringBuilderBase* builder, TRange<TUnversionedValue> row, TStringBuf format)
-{
-    if (row) {
-        builder->AppendChar('[');
-        JoinToString(
-            builder,
-            row.Begin(),
-            row.End(),
-            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
-                FormatValue(builder, value, format);
-            });
-        builder->AppendChar(']');
-    } else {
-        builder->AppendString("<null>");
-    }
-}
-
 TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
     IVersionedReaderPtr reader,
     size_t chunkRowCount)

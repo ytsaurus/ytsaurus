@@ -32,6 +32,41 @@ void ThrowUponNodeThrottlerOverdraft(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartitionBounds
+{
+    std::vector<NTableClient::TRowRange> Bounds;
+    int PartitionIndex;
+};
+
+NTableClient::ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TPartitionBounds>& partitionBounds,
+    NTransactionClient::TReadTimestampRange timestampRange,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    std::optional<EWorkloadCategory> workloadCategory,
+    NTableClient::TTimestampReadOptions timestampReadOptions,
+    bool mergeVersionedRows = true);
+
+struct TPartitionKeys
+{
+    TRange<NTableClient::TUnversionedRow> Keys;
+    int PartitionIndex;
+};
+
+NTableClient::ISchemafulUnversionedReaderPtr CreatePartitionLookupReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    int partitionIndex,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TLegacyKey>& keys,
+    NTransactionClient::TReadTimestampRange timestampRange,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    std::optional<EWorkloadCategory> workloadCategory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
 /*!
