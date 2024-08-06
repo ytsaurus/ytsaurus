@@ -91,7 +91,10 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	var resolveURL url.URL
 	resolveURL.Scheme = c.schema()
 	resolveURL.Host = c.clusterURL.Address
-	resolveURL.Path = "hosts"
+	resolveURL.Path = c.config.HostsPath
+	if resolveURL.Path == "" {
+		resolveURL.Path = "hosts"
+	}
 	resolveURL.RawQuery = v.Encode()
 
 	req, err := http.NewRequest("GET", resolveURL.String(), nil)
