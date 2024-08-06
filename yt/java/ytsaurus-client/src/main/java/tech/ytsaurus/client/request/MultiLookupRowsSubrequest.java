@@ -9,32 +9,32 @@ import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 
-public class MultiLookupSubrequest
-        extends AbstractLookupRequest<MultiLookupSubrequest.Builder, MultiLookupSubrequest>
+public class MultiLookupRowsSubrequest
+        extends AbstractLookupRequest<MultiLookupRowsSubrequest.Builder, MultiLookupRowsSubrequest>
 {
 
-    protected MultiLookupSubrequest(BuilderBase<?> builder) {
+    protected MultiLookupRowsSubrequest(BuilderBase<?> builder) {
         super(builder);
     }
 
-    public MultiLookupSubrequest(String path, TableSchema schema) {
+    public MultiLookupRowsSubrequest(String path, TableSchema schema) {
         this(builder().setPath(path).setSchema(schema));
     }
 
     /**
      * Internal method: prepare request to send over network.
      */
-    public HighLevelRequest<TReqMultiLookup.Builder> asMultiLookupSubrequestWritable() {
+    public HighLevelRequest<TReqMultiLookup.Builder> asMultiLookupRowsSubrequestWritable() {
         //noinspection Convert2Diamond
         return new HighLevelRequest<TReqMultiLookup.Builder>() {
             @Override
             public String getArgumentsLogString() {
-                return MultiLookupSubrequest.this.getArgumentsLogString();
+                return MultiLookupRowsSubrequest.this.getArgumentsLogString();
             }
 
             @Override
             public void writeHeaderTo(TRequestHeader.Builder header) {
-                MultiLookupSubrequest.this.writeHeaderTo(header);
+                MultiLookupRowsSubrequest.this.writeHeaderTo(header);
             }
 
             /**
@@ -89,8 +89,8 @@ public class MultiLookupSubrequest
         }
 
         @Override
-        public MultiLookupSubrequest build() {
-            return new MultiLookupSubrequest(this);
+        public MultiLookupRowsSubrequest build() {
+            return new MultiLookupRowsSubrequest(this);
         }
     }
     
@@ -99,7 +99,7 @@ public class MultiLookupSubrequest
      */
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
-            extends AbstractLookupRequest.Builder<TBuilder, MultiLookupSubrequest> {
+            extends AbstractLookupRequest.Builder<TBuilder, MultiLookupRowsSubrequest> {
 
         /**
          * Construct empty builder.

@@ -28,7 +28,7 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MoveNode;
-import tech.ytsaurus.client.request.MultiLookupRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -81,10 +81,10 @@ public interface SyncTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
-    List<UnversionedRowset> multiLookup(MultiLookupRequest req);
+    List<UnversionedRowset> multiLookupRows(MultiLookupRowsRequest req);
 
-    <T> CompletableFuture<List<List<T>>> multiLookup(
-            MultiLookupRequest req,
+    <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest req,
             YTreeRowSerializer<T> serializer
     );
 

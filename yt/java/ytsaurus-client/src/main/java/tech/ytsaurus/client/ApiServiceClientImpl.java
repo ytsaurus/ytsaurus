@@ -34,7 +34,7 @@ import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
-import tech.ytsaurus.client.request.MultiLookupRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
@@ -586,7 +586,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public CompletableFuture<List<UnversionedRowset>> multiLookup(MultiLookupRequest request) {
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
         return multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
@@ -594,8 +594,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookup(
-            MultiLookupRequest request,
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest request,
             YTreeRowSerializer<T> serializer
     ) {
         return multiLookupImpl(request, response -> {
@@ -617,7 +617,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     private <T> CompletableFuture<T> multiLookupImpl(
-            MultiLookupRequest request,
+            MultiLookupRowsRequest request,
             Function<RpcClientResponse<TRspMultiLookup>, T> responseReader
     ) {
         for (var subrequest : request.getSubrequests()) {

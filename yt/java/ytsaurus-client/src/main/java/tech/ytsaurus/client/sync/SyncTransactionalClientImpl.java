@@ -22,7 +22,7 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MoveNode;
-import tech.ytsaurus.client.request.MultiLookupRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -118,16 +118,16 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
     }
 
     @Override
-    public List<UnversionedRowset> multiLookup(MultiLookupRequest req) {
-        return client.multiLookup(req).join();
+    public List<UnversionedRowset> multiLookupRows(MultiLookupRowsRequest req) {
+        return client.multiLookupRows(req).join();
     }
 
     @Override
-    public <T> CompletableFuture<List<List<T>>> multiLookup(
-            MultiLookupRequest req,
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest req,
             YTreeRowSerializer<T> serializer
     ) {
-        return client.multiLookup(req, serializer);
+        return client.multiLookupRows(req, serializer);
     }
 
     @Override

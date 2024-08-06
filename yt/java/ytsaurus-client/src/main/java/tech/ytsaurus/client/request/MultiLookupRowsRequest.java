@@ -6,14 +6,13 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 
-public class MultiLookupRequest 
-        extends RequestBase<MultiLookupRequest.Builder, MultiLookupRequest> {
+public class MultiLookupRowsRequest 
+        extends RequestBase<MultiLookupRowsRequest.Builder, MultiLookupRowsRequest> {
 
     @Nullable
     protected final YtTimestamp timestamp;
@@ -22,9 +21,9 @@ public class MultiLookupRequest
     @Nullable
     protected final ReplicaConsistency replicaConsistency;
 
-    protected final List<MultiLookupSubrequest> subrequests;
+    protected final List<MultiLookupRowsSubrequest> subrequests;
 
-    protected MultiLookupRequest(BuilderBase<?> builder) {
+    protected MultiLookupRowsRequest(BuilderBase<?> builder) {
         super(builder);
         this.timestamp = builder.timestamp;
         this.retentionTimestamp = builder.retentionTimestamp;
@@ -32,14 +31,14 @@ public class MultiLookupRequest
         this.subrequests = builder.subrequests;
     }
 
-    public MultiLookupRequest() {
+    public MultiLookupRowsRequest() {
         this(builder());
     }
 
     /**
      * Get timestamp parameter.
      *
-     * @see MultiLookupRequest.Builder#setTimestamp(YtTimestamp)
+     * @see MultiLookupRowsRequest.Builder#setTimestamp(YtTimestamp)
      */
     public Optional<YtTimestamp> getTimestamp() {
         return Optional.ofNullable(timestamp);
@@ -48,7 +47,7 @@ public class MultiLookupRequest
     /**
      * Get retention-timestamp parameter.
      *
-     * @see MultiLookupRequest.Builder#setRetentionTimestamp(YtTimestamp)
+     * @see MultiLookupRowsRequest.Builder#setRetentionTimestamp(YtTimestamp)
      */
     public Optional<YtTimestamp> getRetentionTimestamp() {
         return Optional.ofNullable(retentionTimestamp);
@@ -57,7 +56,7 @@ public class MultiLookupRequest
     /**
      * Get replica-consistency parameter.
      *
-     * @see MultiLookupRequest.Builder#setReplicaConsistency(ReplicaConsistency)
+     * @see MultiLookupRowsRequest.Builder#setReplicaConsistency(ReplicaConsistency)
      */
     public Optional<ReplicaConsistency> getReplicaConsistency() {
         return Optional.ofNullable(replicaConsistency);
@@ -70,9 +69,9 @@ public class MultiLookupRequest
     /**
      * Get list of subrequests.
      *
-     * @see Builder#addSubrequest(MultiLookupSubrequest)
+     * @see Builder#addSubrequest(MultiLookupRowsSubrequest)
      */
-    public List<MultiLookupSubrequest> getSubrequests() {
+    public List<MultiLookupRowsSubrequest> getSubrequests() {
         return subrequests;
     }
 
@@ -84,12 +83,12 @@ public class MultiLookupRequest
         return new HighLevelRequest<TReqMultiLookup.Builder>() {
             @Override
             public String getArgumentsLogString() {
-                return MultiLookupRequest.this.getArgumentsLogString();
+                return MultiLookupRowsRequest.this.getArgumentsLogString();
             }
 
             @Override
             public void writeHeaderTo(TRequestHeader.Builder header) {
-                MultiLookupRequest.this.writeHeaderTo(header);
+                MultiLookupRowsRequest.this.writeHeaderTo(header);
             }
 
             /**
@@ -109,7 +108,7 @@ public class MultiLookupRequest
                 }
 
                 for (var subrequest : subrequests) {
-                    subrequest.asMultiLookupSubrequestWritable().writeTo(builder);
+                    subrequest.asMultiLookupRowsSubrequestWritable().writeTo(builder);
                 }
 
             }
@@ -137,8 +136,8 @@ public class MultiLookupRequest
         }
 
         @Override
-        public MultiLookupRequest build() {
-            return new MultiLookupRequest(this);
+        public MultiLookupRowsRequest build() {
+            return new MultiLookupRowsRequest(this);
         }
     }
     
@@ -147,7 +146,7 @@ public class MultiLookupRequest
      */
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
-            extends RequestBase.Builder<TBuilder, MultiLookupRequest> {
+            extends RequestBase.Builder<TBuilder, MultiLookupRowsRequest> {
 
         @Nullable
         private YtTimestamp timestamp;
@@ -156,7 +155,7 @@ public class MultiLookupRequest
         @Nullable
         private ReplicaConsistency replicaConsistency;
 
-        private List<MultiLookupSubrequest> subrequests = new ArrayList<>();
+        private List<MultiLookupRowsSubrequest> subrequests = new ArrayList<>();
 
         /**
          * Construct empty builder.
@@ -192,16 +191,16 @@ public class MultiLookupRequest
         /**
          * Add subrequest of multilookup request.
          */
-        public TBuilder addSubrequest(MultiLookupSubrequest MultiLookupSubrequest) {
-            this.subrequests.add(MultiLookupSubrequest);
+        public TBuilder addSubrequest(MultiLookupRowsSubrequest MultiLookupRowsSubrequest) {
+            this.subrequests.add(MultiLookupRowsSubrequest);
             return self();
         }
 
         /**
          * Set subrequests of multilookup request.
          */
-        public TBuilder setSubrequests(List<MultiLookupSubrequest> MultiLookupSubrequests) {
-            this.subrequests = MultiLookupSubrequests;
+        public TBuilder setSubrequests(List<MultiLookupRowsSubrequest> MultiLookupRowsSubrequests) {
+            this.subrequests = MultiLookupRowsSubrequests;
             return self();
         }
 
@@ -237,7 +236,7 @@ public class MultiLookupRequest
          *
          * @see #setSubrequests
          */
-        public List<MultiLookupSubrequest> getSubrequests() {
+        public List<MultiLookupRowsSubrequest> getSubrequests() {
             return subrequests;
         }
 
