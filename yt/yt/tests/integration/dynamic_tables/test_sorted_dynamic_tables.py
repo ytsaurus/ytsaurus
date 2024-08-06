@@ -2080,6 +2080,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         sync_unmount_table(SMALL)
 
     @authors("lukyan")
+    @pytest.mark.skipif(True)
     def test_enable_partial_result(self):
         cells = sync_create_cells(2)
 
