@@ -119,7 +119,7 @@ jobs:
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
 
-          pip3 install sphinx sphinx-argparse
+          pip3 install -r ./ytsaurus/yt/python/packages/docs/requirements.txt
 
           cp -r ./ytsaurus/yt/python/packages/docs "${ytsaurus_python}"
 
@@ -153,6 +153,9 @@ jobs:
           root: ../build/ytsaurus_python/docs/_build
           include: |
             _sources/*
+            _static/css/fonts/*
+            _static/css/*
+            _static/js/*
             _static/*
             .doctrees/*
             _modules/yt/cli/*
@@ -192,6 +195,9 @@ jobs:
           root: ../build/ytsaurus_python/docs/_build
           include: |
             _sources/*
+            _static/css/fonts/*
+            _static/css/*
+            _static/js/*
             _static/*
             .doctrees/*
             _modules/yt/cli/*
