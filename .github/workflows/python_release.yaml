@@ -154,6 +154,8 @@ jobs:
           include: |
             _sources/*
             _static/*
+            _static/css/*
+            _static/js/*
             .doctrees/*
             _modules/yt/cli/*
             _modules/yt/clickhouse/*
@@ -193,6 +195,8 @@ jobs:
           include: |
             _sources/*
             _static/*
+            _static/css/*
+            _static/js/*
             .doctrees/*
             _modules/yt/cli/*
             _modules/yt/clickhouse/*
