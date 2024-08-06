@@ -38,6 +38,7 @@ type PersistentState struct {
 	// Creator will automatically gain access to the strawberry operation when the access control object is created.
 	Creator string `yson:"creator"`
 
+	// SecretsRevision is a content_revision of the last seen secrets node.
 	SecretsRevision yt.Revision `yson:"secrets_revision"`
 }
 
