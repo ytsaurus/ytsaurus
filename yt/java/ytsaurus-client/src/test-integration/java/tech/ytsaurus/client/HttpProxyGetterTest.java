@@ -18,6 +18,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.YtFormat;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
@@ -50,6 +51,7 @@ public class HttpProxyGetterTest extends YTsaurusClientTestBase {
                 ClientPoolService.httpBuilder()
                         .setBalancerFqdn(getYTsaurusHost())
                         .setBalancerPort(getYTsaurusPort())
+                        .setOptions(new RpcOptions())
         );
         final var hostPortComparator = Comparator
                 .comparing(HostPort::getHost)

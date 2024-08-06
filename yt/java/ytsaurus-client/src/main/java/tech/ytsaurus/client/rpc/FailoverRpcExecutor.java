@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.RetryPolicy;
 import tech.ytsaurus.client.misc.ScheduledSerializedExecutorService;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.utils.ExceptionUtils;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpc.TResponseHeader;
 
@@ -97,8 +98,13 @@ class FailoverRpcExecutor {
 
     private void send(RpcClientResponseHandler handler) {
         logger.trace("Peeking connection from pool; OriginalRequestId: {}", originalRequestId);
-        clientPool.peekClient(result).whenCompleteAsync((RpcClient client, Throwable error) -> {
+        peekClient().whenCompleteAsync((RpcClient client, Throwable error) -> {
+            if (result.isDone()) {
+                return;
+            }
             if (error == null) {
+                logger.trace("Successfully got connection from pool; Proxy: {}; OriginalRequestId: {}",
+                        client.getAddressString(), originalRequestId);
                 mutableState.sendImpl(client, handler);
                 return;
             }
@@ -106,6 +112,42 @@ class FailoverRpcExecutor {
             logger.warn("Failed to get RpcClient from pool; OriginalRequestId: {}", originalRequestId, error);
             mutableState.softAbort(error);
         }, serializedExecutorService);
+    }
+
+    private CompletableFuture<RpcClient> peekClient() {
+        CompletableFuture<RpcClient> clientFuture = new CompletableFuture<>();
+        result.whenComplete((o, error) -> {
+            if (!clientFuture.isDone()) {
+                clientFuture.completeExceptionally(
+                        new RuntimeException("Request was finished before the RpcClient was received", error)
+                );
+            }
+        });
+
+        tryPeekClient(clientFuture);
+
+        return clientFuture;
+    }
+
+    private void tryPeekClient(CompletableFuture<RpcClient> clientFuture) {
+        if (clientFuture.isDone()) {
+            return;
+        }
+        clientPool.peekClient(result)
+                .whenComplete((client, error) -> {
+                    if (clientFuture.isDone()) {
+                        return;
+                    }
+                    if (error == null) {
+                        clientFuture.complete(client);
+                        return;
+                    }
+                    if (ExceptionUtils.hasCause(error, TimeoutException.class)) {
+                        tryPeekClient(clientFuture);
+                        return;
+                    }
+                    clientFuture.completeExceptionally(error);
+                });
     }
 
     private void handleResult(Result result, Throwable error) {

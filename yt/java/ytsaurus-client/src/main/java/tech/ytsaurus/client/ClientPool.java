@@ -6,6 +6,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -393,6 +396,11 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     }
 
     private void doUpdate(boolean scheduleNextUpdate) {
+        logger.debug(
+                "Discover rpc proxies DataCenter: {}",
+                getDataCenterName()
+        );
+        long startUpdateTime = System.currentTimeMillis();
         CompletableFuture<List<HostPort>> proxiesFuture = proxyGetter.getProxies();
         proxiesFuture.whenCompleteAsync((result, error) -> {
             if (error == null) {
@@ -416,7 +424,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                     if (state == State.RUNNING) {
                         nextUpdate = executorService.schedule(
                                 () -> doUpdate(true),
-                                updatePeriodMs,
+                                Math.max(updatePeriodMs - (System.currentTimeMillis() - startUpdateTime), 0),
                                 TimeUnit.MILLISECONDS);
                     } else if (state != State.STOPPED) {
                         throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
@@ -922,6 +930,7 @@ class HttpProxyGetter implements ProxyGetter {
 
     private final HttpClient httpClient;
     private final String balancerFqdn;
+    private final Duration discoverProxiesTimeout;
     @Nullable
     private final Integer balancerPort;
     @Nullable
@@ -938,6 +947,7 @@ class HttpProxyGetter implements ProxyGetter {
         this.httpClient = httpClient;
         this.balancerFqdn = Objects.requireNonNull(httpBuilder.balancerFqdn);
         this.balancerPort = httpBuilder.balancerPort;
+        this.discoverProxiesTimeout = Objects.requireNonNull(httpBuilder.options).getProxyUpdateTimeout();
         this.role = httpBuilder.role;
         this.useTLS = httpBuilder.useTLS;
         this.tvmOnly = httpBuilder.tvmOnly;
@@ -965,7 +975,8 @@ class HttpProxyGetter implements ProxyGetter {
         }
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(discoverProxiesUrl))
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
-                .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
+                .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                .timeout(discoverProxiesTimeout);
         if (token != null) {
             requestBuilder.setHeader("Authorization", String.format("OAuth %s", token));
         }
@@ -1010,6 +1021,9 @@ class HttpProxyGetter implements ProxyGetter {
         String finalDiscoverProxiesUrl = discoverProxiesUrl;
         return resultFuture.handle((result, error) -> {
             if (error != null) {
+                if (error.getCause() instanceof HttpTimeoutException) {
+                    error = new TimeoutException("Discover proxies request has timed out").initCause(error);
+                }
                 throw new RuntimeException("Failed to get proxies from " + finalDiscoverProxiesUrl, error);
             }
             return result;
