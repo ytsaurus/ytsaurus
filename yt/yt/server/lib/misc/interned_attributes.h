@@ -160,6 +160,7 @@
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EffectiveExpiration, effective_expiration) \
+    XX(EffectiveInheritableAttributes, effective_inheritable_attributes) \
     XX(EffectiveMountConfig, effective_mount_config) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \

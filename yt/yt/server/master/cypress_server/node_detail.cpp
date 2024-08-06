@@ -740,7 +740,7 @@ FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes, ENodeMaterializationReason mode)
+void GatherInheritableAttributes(const TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes, ENodeMaterializationReason mode)
 {
     for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
         ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, mode);
