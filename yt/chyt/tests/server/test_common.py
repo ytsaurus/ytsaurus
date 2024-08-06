@@ -1620,6 +1620,66 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             wait(lambda: mem.get() == 0)
 
+    @authors("dakovalkov")
+    def test_trivial_count(self):
+        create("table", "//tmp/st1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/st1", [{"a": 1}, {"a": 2}])
+
+        create("table", "//tmp/st2", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/st2", [{"a": 1}])
+
+        sync_create_cells(1)
+
+        create("table", "//tmp/sorted_dt", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            "enable_dynamic_store_read": True,
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+        })
+        sync_mount_table("//tmp/sorted_dt")
+        insert_rows("//tmp/sorted_dt", [{"key": 1, "value": 1}])
+        insert_rows("//tmp/sorted_dt", [{"key": 1, "value": 2}])
+
+        create("table", "//tmp/ordered_dt", attributes={
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+            "schema": [{"name": "a", "type": "int64"}],
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+        })
+        sync_mount_table("//tmp/ordered_dt")
+        insert_rows("//tmp/ordered_dt", [{"a": 1}])
+        insert_rows("//tmp/ordered_dt", [{"a": 1}])
+
+        # TODO(dakovalkov): optimization only works with new analyzer.
+        # Remove this patch when CH is updated to 24.8 and the dafault analyzer is changed.
+        patch = {
+            "clickhouse": {
+                "settings": {
+                    "allow_experimental_analyzer": 1
+                }
+            }
+        }
+
+        with Clique(1, config_patch=patch) as clique:
+            query = 'select count() as cnt from "//tmp/st1"'
+            assert "Optimized trivial count" in clique.make_query(f'explain {query}')[-1]["explain"]
+            assert clique.make_query(query) == [{"cnt": 2}]
+
+            query = 'select count() as cnt from concatYtTables("//tmp/st1", "//tmp/st2")'
+            assert "Optimized trivial count" in clique.make_query(f'explain {query}')[-1]["explain"]
+            assert clique.make_query(query) == [{"cnt": 3}]
+
+            query = 'select count() as cnt from "//tmp/sorted_dt"'
+            assert "Optimized trivial count" not in clique.make_query(f'explain {query}')[-1]["explain"]
+            assert clique.make_query(query) == [{"cnt": 1}]
+
+            query = 'select count() as cnt from "//tmp/ordered_dt"'
+            assert "Optimized trivial count" not in clique.make_query(f'explain {query}')[-1]["explain"]
+            assert clique.make_query(query) == [{"cnt": 2}]
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

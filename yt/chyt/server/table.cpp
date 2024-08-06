@@ -45,6 +45,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     Revision = attributes->Get<i64>("revision");
     Schema = attributes->Get<TTableSchemaPtr>("schema");
     Comparator = Schema->ToComparator();
+    RowCount = attributes->Find<i64>("row_count");
 }
 
 bool TTable::IsSortedDynamic() const

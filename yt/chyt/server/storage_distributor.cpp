@@ -825,7 +825,7 @@ public:
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (Schema_->GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
-                << TErrorAttribute("path", getTableName());
+                << TErrorAttribute("path", getStorageID().table_name);
         }
         DB::StorageInMemoryMetadata storage_metadata;
         storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, QueryContext_->Settings->Composite)));
@@ -857,16 +857,21 @@ public:
         return supportsIndexForIn();
     }
 
-    virtual std::string getTableName() const
+    bool supportsTrivialCountOptimization() const override
     {
-        std::string result = "";
-        for (size_t index = 0; index < Tables_.size(); ++index) {
-            if (index > 0) {
-                result += ", ";
+        return true;
+    }
+
+    std::optional<DB::UInt64> totalRows(const DB::Settings& /*settings*/) const override
+    {
+        i64 totalRowCount = 0;
+        for (const auto& table : Tables_) {
+            if (!table->RowCount) {
+                return std::nullopt;
             }
-            result += std::string(Tables_[index]->Path.GetPath().data());
+            totalRowCount += *table->RowCount;
         }
-        return result;
+        return totalRowCount;
     }
 
     /*
@@ -1043,7 +1048,7 @@ public:
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
-                << TErrorAttribute("paths", getTableName());
+                << TErrorAttribute("paths", getStorageID().table_name);
         }
         const auto& table = Tables_.front();
         auto path = table->Path;
