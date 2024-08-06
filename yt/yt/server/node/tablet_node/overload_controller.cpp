@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/proc.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/solomon/percpu.h>
@@ -24,18 +26,31 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto Logger = TabletNodeLogger().WithTag("OverloadController");
+static const TString CpuThrottlingTrackerName = "CpuThrottling";
+static const TString ControlGroupCpuName = "cpu";
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IMeanWaitTimeTracker
+    : public TRefCounted
+{
+    virtual TDuration GetAndReset() = 0;
+    virtual const TString& GetType() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IMeanWaitTimeTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(TOverloadController::TState);
 
 class TMeanWaitTimeTracker
-    : public TRefCounted
+    : public IMeanWaitTimeTracker
 {
 public:
     TMeanWaitTimeTracker(TStringBuf trackerType, TStringBuf trackerId)
-        : Type_(trackerType)
-        , Id_(trackerId)
+        : Type_(std::move(trackerType))
+        , Id_(std::move(trackerId))
         , Counter_(New<TPerCpuDurationSummary>())
     { }
 
@@ -44,7 +59,7 @@ public:
         Counter_->Record(waitTime);
     }
 
-    TDuration GetAndReset()
+    TDuration GetAndReset() override
     {
         auto summary = Counter_->GetSummaryAndReset();
         TDuration meanValue;
@@ -63,7 +78,7 @@ public:
         return meanValue;
     }
 
-    const TString& GetType() const
+    const TString& GetType() const override
     {
         return Type_;
     }
@@ -77,6 +92,76 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMeanWaitTimeTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TContainerCpuThrottlingTracker
+    : public IMeanWaitTimeTracker
+{
+public:
+    TContainerCpuThrottlingTracker(TStringBuf trackerType, TStringBuf trackerId)
+        : Type_(std::move(trackerType))
+        , Id_(std::move(trackerId))
+    { }
+
+    TDuration GetAndReset() override
+    {
+        auto cpuStats = GetStats();
+        if (!cpuStats) {
+            return {};
+        }
+
+        TDuration throttlingTime;
+
+        if (LastCpuStats_) {
+            auto throttlingDelta = cpuStats->ThrottledTime - LastCpuStats_->ThrottledTime;
+            throttlingTime = TDuration::MicroSeconds(throttlingDelta / 1000);
+
+            YT_LOG_DEBUG("Reporting container cpu throttling time "
+                "(LastCpuThrottlingTime: %v, CpuThrottlingTime: %v, ThrottlingDelta: %v, ThrottlingTime: %v)",
+                LastCpuStats_->ThrottledTime,
+                cpuStats->ThrottledTime,
+                throttlingDelta,
+                throttlingTime);
+        }
+
+        LastCpuStats_ = cpuStats;
+
+        return throttlingTime;
+    }
+
+    const TString& GetType() const override
+    {
+        return CpuThrottlingTrackerName;
+    }
+
+private:
+    const TString Type_;
+    const TString Id_;
+    std::optional<TCgroupCpuStat> LastCpuStats_;
+    bool CgroupErrorLogged_ = false;
+
+    std::optional<TCgroupCpuStat> GetStats()
+    {
+        try {
+            auto cgroups = GetProcessCgroups();
+            for (const auto& group : cgroups) {
+                for (const auto& controller : group.Controllers) {
+                    if (controller == ControlGroupCpuName) {
+                        return GetCgroupCpuStat(group.ControllersName, group.Path);
+                    }
+                }
+            }
+        } catch (const std::exception& ex) {
+            if (!CgroupErrorLogged_) {
+                YT_LOG_INFO(ex, "Failed to collect cgroup cpu statistics");
+                CgroupErrorLogged_ = true;
+            }
+        }
+
+        return {};
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +294,7 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
     , Profiler(TabletNodeProfiler.WithPrefix("/overload_controller"))
 {
     State_.Config = std::move(config);
+    CreateGenericTracker<TContainerCpuThrottlingTracker>(CpuThrottlingTrackerName);
     UpdateStateSnapshot(State_, Guard(SpinLock_));
 }
 
@@ -219,15 +305,25 @@ void TOverloadController::Start()
 
 void TOverloadController::TrackInvoker(TStringBuf name, const IInvokerPtr& invoker)
 {
-    invoker->RegisterWaitTimeObserver(CreateGenericTracker(name));
+    invoker->RegisterWaitTimeObserver(CreateGenericWaitTimeTracker(name));
 }
 
 void TOverloadController::TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool)
 {
-    threadPool->RegisterWaitTimeObserver(CreateGenericTracker(name));
+    threadPool->RegisterWaitTimeObserver(CreateGenericWaitTimeTracker(name));
 }
 
-TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
+TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericWaitTimeTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
+{
+    auto tracker = CreateGenericTracker<TMeanWaitTimeTracker>(std::move(trackerType), std::move(id));
+
+    return [tracker] (TDuration waitTime) {
+        tracker->Record(waitTime);
+    };
+}
+
+template <typename TTracker>
+TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
 {
     YT_LOG_DEBUG("Creating overload tracker (TrackerType: %v, Id: %v)",
         trackerType,
@@ -235,7 +331,7 @@ TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericTracker
 
     auto trackerId = id.value_or(trackerType);
 
-    auto tracker = New<TMeanWaitTimeTracker>(trackerType, trackerId);
+    auto tracker = New<TTracker>(trackerType, trackerId);
     auto profiler = Profiler.WithTag("tracker", TString(trackerId));
 
     auto guard = Guard(SpinLock_);
@@ -247,9 +343,7 @@ TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericTracker
 
     UpdateStateSnapshot(State_, std::move(guard));
 
-    return [tracker] (TDuration waitTime) {
-        tracker->Record(waitTime);
-    };
+    return tracker;
 }
 
 TCongestionState TOverloadController::GetCongestionState(TStringBuf service, TStringBuf method) const
