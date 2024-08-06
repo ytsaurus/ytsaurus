@@ -42,6 +42,9 @@ struct TCriContainerResources
     std::optional<i64> MemoryLimit;
     std::optional<i64> MemoryRequest;
 
+    //! At OOM kill all tasks at once.
+    std::optional<bool> MemoryOOMGroup;
+
     std::optional<TString> CpusetCpus;
 };
 
