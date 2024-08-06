@@ -37,13 +37,14 @@ public:
     {
         auto propagate = [&] {
             const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto* linkNode = GetThisImpl();
             if (linkNode->IsSequoia()) {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
                     "Cannot resolve Sequoia symlinks at master");
             }
 
-            auto combinedPath = linkNode->ComputeEffectiveTargetPath() + path;
+            auto combinedPath = cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode) + path;
             return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
         };
 
@@ -120,9 +121,10 @@ private:
     TFuture<bool> IsBroken() const
     {
         try {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto* linkNode = GetThisImpl();
             const auto& client = Bootstrap_->GetRootClient();
-            auto rsp = client->NodeExists(linkNode->ComputeEffectiveTargetPath());
+            auto rsp = client->NodeExists(cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode));
             return rsp.Apply(BIND([] (const TErrorOr<bool>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     return TrueFuture;

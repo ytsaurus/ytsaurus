@@ -189,7 +189,8 @@ TResolveCacheNodePtr TResolveCache::FindNode(TNodeId nodeId)
 
 TResolveCacheNodePtr TResolveCache::TryInsertNode(
     TCypressNode* trunkNode,
-    const TYPath& path)
+    const TYPath& path,
+    const ICypressManagerPtr& cypressManager)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -201,7 +202,7 @@ TResolveCacheNodePtr TResolveCache::TryInsertNode(
     auto nodeId = trunkNode->GetId();
     auto nodeIt = idToNode.find(nodeId);
     if (nodeIt == idToNode.end()) {
-        auto payload = MakePayload(trunkNode);
+        auto payload = MakePayload(trunkNode, cypressManager);
         auto node = New<TResolveCacheNode>(trunkNode, path, std::move(payload));
         trunkNode->SetResolveCacheNode(node.Get());
         YT_VERIFY(idToNode.emplace(nodeId, node).second);
@@ -333,11 +334,13 @@ void TResolveCache::Clear()
     YT_LOG_INFO("Resolve cache cleared");
 }
 
-TResolveCacheNode::TPayload TResolveCache::MakePayload(TCypressNode* trunkNode)
+TResolveCacheNode::TPayload TResolveCache::MakePayload(
+    TCypressNode* trunkNode,
+    const ICypressManagerPtr& cypressManager)
 {
     if (trunkNode->GetType() == EObjectType::Link) {
         auto* linkNode = trunkNode->As<TLinkNode>();
-        return TResolveCacheNode::TLinkPayload{linkNode->ComputeEffectiveTargetPath()};
+        return TResolveCacheNode::TLinkPayload{cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode)};
     } else if (trunkNode->GetType() == EObjectType::PortalEntrance) {
         auto* entranceNode = trunkNode->As<TPortalEntranceNode>();
         auto portalExitId = MakePortalExitNodeId(entranceNode->GetId(), entranceNode->GetExitCellTag());

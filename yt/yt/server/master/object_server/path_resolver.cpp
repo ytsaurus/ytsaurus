@@ -173,7 +173,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             if (!currentCacheNode) {
                 auto* currentTrunkNode = currentNode->GetTrunkNode();
                 auto currentNodePath = cypressManager->GetNodePath(currentTrunkNode, nullptr);
-                currentCacheNode = resolveCache->TryInsertNode(currentTrunkNode, currentNodePath);
+                currentCacheNode = resolveCache->TryInsertNode(currentTrunkNode, currentNodePath, cypressManager);
             }
             if (parentCacheNode) {
                 resolveCache->AddNodeChild(parentCacheNode, currentCacheNode, parentChildKey);
@@ -248,7 +248,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             const auto* link = currentNode->As<TLinkNode>();
             rewrittenPath =
-                link->ComputeEffectiveTargetPath() +
+                cypressManager->ComputeEffectiveLinkNodeTargetPath(link) +
                 (slashSkipped ? SlashYPath : EmptyYPath) +
                 Tokenizer_.GetInput();
             Tokenizer_.Reset(rewrittenPath);

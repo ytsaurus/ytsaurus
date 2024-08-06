@@ -77,9 +77,14 @@ public:
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
 
+    // COMPAT(cherepashka)
     bool EnableInheritAttributesDuringCopy;
 
+    // COMPAT(danilalexeev)
     bool DisableCypressNodeReachability;
+
+    // COMPAT(shakurov)
+    bool EnableIntraCellCrossShardLinks;
 
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 

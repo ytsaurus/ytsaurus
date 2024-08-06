@@ -265,6 +265,8 @@ public:
         NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
     virtual void ZombifyAccessControlObject(TAccessControlObject* accessControlNode) = 0;
 
+    virtual NYPath::TYPath ComputeEffectiveLinkNodeTargetPath(const TLinkNode* linkNode) const = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(TCypressNode*), NodeCreated);
 };
 

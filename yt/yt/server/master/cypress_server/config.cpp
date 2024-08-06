@@ -105,6 +105,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_cypress_node_reachability", &TThis::DisableCypressNodeReachability)
         .Default(false);
 
+    registrar.Parameter("enable_intra_cell_cross_shard_links", &TThis::EnableIntraCellCrossShardLinks)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,
