@@ -28,5 +28,6 @@ IF (NOT OPENSOURCE)
         gh_ci_vm_image_builder
         sevenpct
         abc_integration_client
+        timbertruck
     )
 ENDIF()
