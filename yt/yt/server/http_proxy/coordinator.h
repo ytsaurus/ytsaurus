@@ -189,7 +189,7 @@ class TDiscoverVersionsHandler
     , public TComponentDiscoverer
 {
 public:
-    TDiscoverVersionsHandler(NApi::IClientPtr client, const TCoordinatorConfigPtr& config);
+    TDiscoverVersionsHandler(NApi::NNative::IClientPtr client, const TCoordinatorConfigPtr& config);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,

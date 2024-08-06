@@ -13,7 +13,7 @@ namespace NYT::NHttpProxy {
 NProfiling::TSolomonProxyPtr CreateSolomonProxy(
     const TSolomonProxyConfigPtr& config,
     const TComponentDiscoveryOptions& componentDiscoveryOptions,
-    const NApi::IClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     NConcurrency::IPollerPtr poller);
 
 ////////////////////////////////////////////////////////////////////////////////

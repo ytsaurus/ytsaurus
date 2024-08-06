@@ -346,7 +346,7 @@ TBootstrap::~TBootstrap() = default;
 void TBootstrap::SetupClients()
 {
     auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
-    RootClient_ = Connection_->CreateClient(options);
+    RootClient_ = Connection_->CreateNativeClient(options);
 }
 
 void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
@@ -443,7 +443,7 @@ TProxyDynamicConfigPtr TBootstrap::GetDynamicConfig() const
     return DynamicConfig_.Acquire();
 }
 
-const NApi::IClientPtr& TBootstrap::GetRootClient() const
+const NApi::NNative::IClientPtr& TBootstrap::GetRootClient() const
 {
     return RootClient_;
 }

@@ -11,20 +11,19 @@ namespace NYT::NHttpProxy {
 
 //! Singular (!) names of cluster components.
 DEFINE_ENUM(EClusterComponentType,
-    ((PrimaryMaster)      (0))
-    ((SecondaryMaster)    (1))
+    ((Master)             (0))
 
-    ((Scheduler)          (2))
-    ((ControllerAgent)    (3))
+    ((Scheduler)          (1))
+    ((ControllerAgent)    (2))
 
-    ((ClusterNode)        (4))
-    ((DataNode)           (5))
-    ((TabletNode)         (6))
-    ((ExecNode)           (7))
-    ((JobProxy)           (8))
+    ((ClusterNode)        (3))
+    ((DataNode)           (4))
+    ((TabletNode)         (5))
+    ((ExecNode)           (6))
+    ((JobProxy)           (7))
 
-    ((HttpProxy)          (9))
-    ((RpcProxy)           (10))
+    ((HttpProxy)          (8))
+    ((RpcProxy)           (9))
 );
 
 // TODO(achulkov2): MasterCache, QueueAgent, QueryTracker, TabletBalancer.
@@ -60,6 +59,8 @@ struct TComponentDiscoveryOptions
 {
     //! Duration after which a HTTP proxy is considered offline by the discovery mechanism.
     TDuration ProxyDeathAge = TDuration::Minutes(2);
+    //! Timeout used for batch requests to master.
+    TDuration BatchRequestTimeout = TDuration::Seconds(5);
 };
 
 //! This class encapsulates everything related to the discovery of YT component instances from Cypress virtual maps and orchids.
@@ -69,7 +70,7 @@ public:
     //! The provided master read options will be used for all Get/List requests performed for discovery.
     //! The provided death age duration will be used as a threshold for HTTP proxy liveness considerations.
     TComponentDiscoverer(
-        NApi::IClientPtr client,
+        NApi::NNative::IClientPtr client,
         NApi::TMasterReadOptions masterReadOptions,
         TComponentDiscoveryOptions componentDiscoveryOptions);
 
@@ -78,7 +79,7 @@ public:
     std::vector<TClusterComponentInstance> GetAllInstances() const;
 
 private:
-    const NApi::IClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NApi::TMasterReadOptions MasterReadOptions_;
     const TComponentDiscoveryOptions ComponentDiscoveryOptions_;
 
