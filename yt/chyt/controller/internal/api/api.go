@@ -817,8 +817,6 @@ func (a *API) GetSecrets(ctx context.Context, alias string) (secrets map[string]
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		secrets = make(map[string]any)
 	}
 
 	return
