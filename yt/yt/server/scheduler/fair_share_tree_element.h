@@ -257,6 +257,9 @@ public:
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
     virtual TResourceVector GetMaxShare() const = 0;
 
+    virtual TJobResources GetSpecifiedResourceFlow() const;
+    virtual TJobResources GetSpecifiedBurstGuaranteeResources() const;
+
     double GetMaxShareRatio() const;
     double GetResourceDominantUsageShareAtUpdate() const;
     double GetAccumulatedResourceRatioVolume() const;
@@ -321,7 +324,7 @@ public:
 
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
@@ -647,6 +650,9 @@ public:
 
     TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 
+    TJobResources GetSpecifiedResourceFlow() const override;
+    TJobResources GetSpecifiedBurstGuaranteeResources() const override;
+
     void SetEphemeralInDefaultParentPool();
     bool IsEphemeralInDefaultParentPool() const;
 
@@ -695,7 +701,7 @@ public:
 
     //! Other methods.
     void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
@@ -1045,7 +1051,7 @@ public:
     THashSet<TString> GetAllowedProfilingTags() const override;
 
     void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 

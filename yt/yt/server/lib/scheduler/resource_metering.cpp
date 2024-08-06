@@ -17,17 +17,9 @@ TMeteringStatistics::TMeteringStatistics(
     , AccumulatedResourceUsage_(accumulatedResourceUsage)
 { }
 
-void TMeteringStatistics::AccountChild(const TMeteringStatistics& child)
-{
-    ResourceFlow_ += child.ResourceFlow_;
-    BurstGuaranteeResources_ += child.BurstGuaranteeResources_;
-}
-
 void TMeteringStatistics::DiscountChild(const TMeteringStatistics& child)
 {
-    AllocatedResources_ -= child.AllocatedResources_;
-    AccumulatedResourceUsage_ -= child.AccumulatedResourceUsage_;
-    StrongGuaranteeResources_ -= child.StrongGuaranteeResources_;
+    *this -= child;
 
     // NB(eshcherbin): Due to computation errors, allocated resource usage may be a negative epsilon. See: YT-17435.
     AccumulatedResourceUsage_ = Max(AccumulatedResourceUsage_, TResourceVolume());

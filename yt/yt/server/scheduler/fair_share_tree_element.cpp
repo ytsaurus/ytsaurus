@@ -255,6 +255,16 @@ TJobResources TSchedulerElement::GetSpecifiedStrongGuaranteeResources() const
     return NVectorHdrf::ToJobResources(*guaranteeConfig, {});
 }
 
+TJobResources TSchedulerElement::GetSpecifiedBurstGuaranteeResources() const
+{
+    return {};
+}
+
+TJobResources TSchedulerElement::GetSpecifiedResourceFlow() const
+{
+    return {};
+}
+
 TSchedulerCompositeElement* TSchedulerElement::GetMutableParent()
 {
     return Parent_;
@@ -568,7 +578,7 @@ TJobResources TSchedulerElement::GetMaxShareResourceLimits() const
 }
 
 void TSchedulerElement::BuildResourceMetering(
-    const std::optional<TMeteringKey>& /*key*/,
+    const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
     const THashMap<TString, TResourceVolume>& /*poolResourceUsages*/,
     TMeteringMap* /*statistics*/) const
 { }
@@ -1452,6 +1462,16 @@ TPoolIntegralGuaranteesConfigPtr TSchedulerPoolElement::GetIntegralGuaranteesCon
     return Config_->IntegralGuarantees;
 }
 
+TJobResources TSchedulerPoolElement::GetSpecifiedBurstGuaranteeResources() const
+{
+    return ToJobResources(Config_->IntegralGuarantees->BurstGuaranteeResources, {});
+}
+
+TJobResources TSchedulerPoolElement::GetSpecifiedResourceFlow() const
+{
+    return ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {});
+}
+
 std::vector<EFifoSortParameter> TSchedulerPoolElement::GetFifoSortParameters() const
 {
     return FifoSortParameters_;
@@ -1494,10 +1514,12 @@ TDuration TSchedulerPoolElement::GetHistoricUsageAggregatorPeriod() const
 }
 
 void TSchedulerPoolElement::BuildResourceMetering(
-    const std::optional<TMeteringKey>& parentKey,
+    const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
     const THashMap<TString, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
+    YT_VERIFY(lowestMeteredAncestorKey);
+
     std::optional<TMeteringKey> key;
     if (Config_->Abc) {
         key = TMeteringKey{
@@ -1506,43 +1528,25 @@ void TSchedulerPoolElement::BuildResourceMetering(
             .PoolId = GetId(),
             .MeteringTags = Config_->MeteringTags,
         };
-    }
 
-    YT_VERIFY(key || parentKey);
+        auto accumulatedResourceUsageVolume = GetOrDefault(poolResourceUsages, GetId(), TResourceVolume{});
+        // NB(eshcherbin): Integral guarantees are included even if the pool is not integral.
+        auto meteringStatistics = TMeteringStatistics(
+            GetSpecifiedStrongGuaranteeResources(),
+            GetSpecifiedResourceFlow(),
+            GetSpecifiedBurstGuaranteeResources(),
+            GetResourceUsageAtUpdate(),
+            accumulatedResourceUsageVolume);
 
-    bool isIntegral = Config_->IntegralGuarantees->GuaranteeType != EIntegralGuaranteeType::None;
-
-    TResourceVolume accumulatedResourceUsageVolume;
-    {
-        auto it = poolResourceUsages.find(GetId());
-        if (it != poolResourceUsages.end()) {
-            accumulatedResourceUsageVolume = it->second;
-        }
-    }
-
-    auto meteringStatistics = TMeteringStatistics(
-        GetSpecifiedStrongGuaranteeResources(),
-        isIntegral ? ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {}) : TJobResources(),
-        isIntegral ? ToJobResources(Config_->IntegralGuarantees->BurstGuaranteeResources, {}) : TJobResources(),
-        GetResourceUsageAtUpdate(),
-        accumulatedResourceUsageVolume);
-
-    if (key) {
-        auto insertResult = meteringMap->insert({*key, meteringStatistics});
-        YT_VERIFY(insertResult.second);
-    } else {
-        GetOrCrash(*meteringMap, *parentKey).AccountChild(meteringStatistics);
+        EmplaceOrCrash(*meteringMap, *key, meteringStatistics);
+        GetOrCrash(*meteringMap, *lowestMeteredAncestorKey).DiscountChild(meteringStatistics);
     }
 
     for (const auto& child : EnabledChildren_) {
         child->BuildResourceMetering(
-            /*parentKey*/ key ? key : parentKey,
+            key ? key : lowestMeteredAncestorKey,
             poolResourceUsages,
             meteringMap);
-    }
-
-    if (key && parentKey) {
-        GetOrCrash(*meteringMap, *parentKey).DiscountChild(meteringStatistics);
     }
 }
 
@@ -1685,17 +1689,17 @@ void TSchedulerPoolElement::BuildElementMapping(TFairSharePostUpdateContext* con
 double TSchedulerPoolElement::GetSpecifiedBurstRatio() const
 {
     if (Config_->IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
-        return 0;
+        return 0.0;
     }
-    return GetMaxResourceRatio(ToJobResources(Config_->IntegralGuarantees->BurstGuaranteeResources, {}), TotalResourceLimits_);
+    return GetMaxResourceRatio(GetSpecifiedBurstGuaranteeResources(), TotalResourceLimits_);
 }
 
 double TSchedulerPoolElement::GetSpecifiedResourceFlowRatio() const
 {
     if (Config_->IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
-        return 0;
+        return 0.0;
     }
-    return GetMaxResourceRatio(ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {}), TotalResourceLimits_);
+    return GetMaxResourceRatio(GetSpecifiedResourceFlow(), TotalResourceLimits_);
 }
 
 TResourceVector TSchedulerPoolElement::GetIntegralShareLimitForRelaxedPool() const
@@ -2668,7 +2672,7 @@ TDuration TSchedulerRootElement::GetHistoricUsageAggregatorPeriod() const
 }
 
 void TSchedulerRootElement::BuildResourceMetering(
-    const std::optional<TMeteringKey>& /*parentKey*/,
+    const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
     const THashMap<TString, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
@@ -2678,28 +2682,26 @@ void TSchedulerRootElement::BuildResourceMetering(
         .PoolId = GetId(),
     };
 
-    TResourceVolume accumulatedResourceUsageVolume;
-    {
-        auto it = poolResourceUsages.find(GetId());
-        if (it != poolResourceUsages.end()) {
-            accumulatedResourceUsageVolume = it->second;
-        }
-    }
+    auto accumulatedResourceUsageVolume = GetOrDefault(poolResourceUsages, GetId(), TResourceVolume{});
 
     TJobResources TotalStrongGuaranteeResources;
+    TJobResources TotalResourceFlow;
+    TJobResources TotalBurstGuaranteeResources;
     for (const auto& child : EnabledChildren_) {
         TotalStrongGuaranteeResources += child->GetSpecifiedStrongGuaranteeResources();
+        TotalResourceFlow += child->GetSpecifiedResourceFlow();
+        TotalBurstGuaranteeResources += child->GetSpecifiedBurstGuaranteeResources();
     }
 
-    auto insertResult = meteringMap->insert({
+    EmplaceOrCrash(
+        *meteringMap,
         key,
         TMeteringStatistics(
-            /* strongGuaranteeResources */ TotalStrongGuaranteeResources,
-            /* resourceFlow */ {},
-            /* burstGuaranteResources */ {},
+            TotalStrongGuaranteeResources,
+            TotalResourceFlow,
+            TotalBurstGuaranteeResources,
             GetResourceUsageAtUpdate(),
-            accumulatedResourceUsageVolume)});
-    YT_VERIFY(insertResult.second);
+            accumulatedResourceUsageVolume));
 
     for (const auto& child : EnabledChildren_) {
         child->BuildResourceMetering(/* parentKey */ key, poolResourceUsages, meteringMap);

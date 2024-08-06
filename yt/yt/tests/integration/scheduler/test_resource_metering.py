@@ -331,7 +331,7 @@ class TestResourceMetering(YTEnvSetup):
         desired_metering_data = {
             root_key: {
                 "strong_guarantee_resources/cpu": 3,  # 2 from pool_without_abc, and 1 from pool_with_abc_at_children
-                "resource_flow/cpu": 0,  # none integral resources are not summed to <Root>
+                "resource_flow/cpu": 3,  # 3 from pool_with_abc_at_children
                 "burst_guarantee_resources/cpu": 0,
                 "allocated_resources/cpu": 0,
             },
