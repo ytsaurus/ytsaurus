@@ -2182,6 +2182,36 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
         # TODO(max42): come up with some checks here.
 
+    @authors("apachee")
+    def test_synchronization_error_after_sharding_manager_pass(self):
+        # NB(apachee): At the moment of writing, consumers don't have any
+        # user attributes and interned attributes validate the value
+        # so at the moment it is only possible to check this fix for queues.
+
+        create("table", "//tmp/q", attributes={
+            "dynamic": True,
+            "schema": [
+                {
+                    "name": "data",
+                    "type": "string",
+                }
+            ]
+        })
+        sync_mount_table("//tmp/q")
+
+        set("//tmp/q/@auto_trim_config", "foo")
+        self._wait_for_component_passes()
+
+        queue_rows = select_rows("* FROM [//sys/queue_agents/queues] WHERE [path] = \"//tmp/q\"")
+        assert len(queue_rows) == 1
+        queue_row = queue_rows[0]
+        assert queue_row["object_type"] == "table"
+        assert queue_row["queue_agent_stage"] == "production"
+        queue_status = get("//tmp/q/@queue_status")
+        assert "error" in queue_status
+        queue_error = YtError.from_dict(queue_status["error"])
+        assert "Error parsing attribute \"auto_trim_config\"" in str(queue_error)
+
 
 class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
