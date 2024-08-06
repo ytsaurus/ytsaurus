@@ -1138,6 +1138,10 @@ void TReplicatorHintConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_incoming_replication", &TThis::EnableIncomingReplication)
         .Default(true);
+
+    registrar.Parameter("preferred_sync_replica_clusters", &TThis::PreferredSyncReplicaClusters)
+        .Default()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

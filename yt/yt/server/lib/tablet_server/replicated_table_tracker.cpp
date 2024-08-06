@@ -979,6 +979,27 @@ public:
             return Options_;
         }
 
+        bool HasPreferredSyncReplicaClusters() const
+        {
+            return !TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters.empty() ||
+                Options_->PreferredSyncReplicaClusters;
+        }
+
+        void AccountPreferredSyncReplicaClusters(THashMap<TString, int>* replicaClusterPriorities) const
+        {
+            const auto& globalPreferredSyncReplicaClusters =
+                TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters;
+            if (!globalPreferredSyncReplicaClusters.empty()) {
+                for (const auto& clusterName : globalPreferredSyncReplicaClusters) {
+                    ++(*replicaClusterPriorities)[clusterName];
+                }
+            } else if (Options_->PreferredSyncReplicaClusters) {
+                for (const auto& clusterName : *Options_->PreferredSyncReplicaClusters) {
+                    ++(*replicaClusterPriorities)[clusterName];
+                }
+            }
+        }
+
         TTableId GetId() const
         {
             return Id_;
@@ -1391,20 +1412,19 @@ private:
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
             std::optional<THashMap<TString, int>> replicaClusterPriorities;
-            const auto& preferredSyncReplicaClusters = table.GetOptions()->PreferredSyncReplicaClusters;
-            if (preferredSyncReplicaClusters) {
-                replicaClusterPriorities.emplace();
-            }
+
             if (table.GetCollocationId() != NullObjectId) {
                 replicaClusterPriorities = GetOrCrash(
                     collocationIdToClusterPriorities[replicaFamily.ContentType],
                     table.GetCollocationId());
             }
 
-            if (preferredSyncReplicaClusters) {
-                for (const auto& clusterName : *preferredSyncReplicaClusters) {
-                    ++(*replicaClusterPriorities)[clusterName];
+            if (table.HasPreferredSyncReplicaClusters()) {
+                if (!replicaClusterPriorities) {
+                    replicaClusterPriorities.emplace();
                 }
+
+                table.AccountPreferredSyncReplicaClusters(&*replicaClusterPriorities);
             }
 
             auto tableCommands = GenerateCommandsForTable(&replicasByState, replicaClusterPriorities);
