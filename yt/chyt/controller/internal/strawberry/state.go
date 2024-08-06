@@ -24,6 +24,8 @@ type PersistentState struct {
 	YTOpACL []yt.ACE `yson:"yt_op_acl,omitempty"`
 	// YTOpPool is the last set pool of the current yt operation.
 	YTOpPool *string `yson:"yt_op_pool,omitempty"`
+	// SecretsRevision is a content_revision of the secrets with which current yt operation is started.
+	YTOpSecretsRevision yt.Revision `yson:"yt_op_secrets_revision"`
 
 	// SpecletRevision is a revision of the last seen speclet node.
 	SpecletRevision yt.Revision `yson:"speclet_revision"`

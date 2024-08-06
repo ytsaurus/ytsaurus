@@ -101,6 +101,11 @@ type Oplet struct {
 	// ytOpControllerSpeclet is a parsed part of the persistentState.ytOpSpeclet with controller specific options.
 	ytOpControllerSpeclet any
 
+	// secrets is a map with secrets from the corresponding cypress node.
+	secrets map[string]any
+	// secretsRevision is the revision of the document with secrets taken from the cypress node.
+	secretsRevision yt.Revision
+
 	// strawberryStateModificationTime is a modification time of the strawberry cypress node.
 	strawberryStateModificationTime yson.Time
 	// strawberryStateModificationTime is a creation time of the strawberry cypress node.
@@ -225,6 +230,10 @@ func (oplet *Oplet) UpToDateWithCypress() bool {
 
 func (oplet *Oplet) OperationInfo() (yt.OperationID, yt.OperationState) {
 	return oplet.persistentState.YTOpID, oplet.persistentState.YTOpState
+}
+
+func (oplet *Oplet) Secrets() map[string]any {
+	return oplet.secrets
 }
 
 type OpletState string
@@ -437,6 +446,9 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 		}
 		return true, "min speclet revision is unsatisfied"
 	}
+	if oplet.secretsRevision != oplet.persistentState.YTOpSecretsRevision {
+		return true, "secrets changed"
+	}
 	// TODO(dakovalkov): eliminate this.
 	if oplet.pendingRestart {
 		return true, "pendingRestart is set"
@@ -501,6 +513,7 @@ var CypressStateAttributes = []string{
 	"strawberry_persistent_state",
 	"strawberry_info_state",
 	"revision",
+	"content_revision",
 	"creation_time",
 	"modification_time",
 	"value",
@@ -518,7 +531,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	if yterrors.ContainsResolveError(err) {
 		return oplet.setBroken("cypress state does not exist", err)
 	} else if err != nil {
-		oplet.l.Error("faied to get operation state from cypress", log.Error(err))
+		oplet.l.Error("failed to get operation state from cypress", log.Error(err))
 		return err
 	}
 
@@ -541,6 +554,10 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 			ModificationTime yson.Time     `yson:"modification_time,attr"`
 			Revision         yt.Revision   `yson:"revision,attr"`
 		} `yson:"speclet"`
+		Secrets *struct {
+			Value    yson.RawValue `yson:"value,attr"`
+			Revision yt.Revision   `yson:"content_revision,attr"`
+		} `yson:"secrets"`
 	}
 
 	err := yson.Unmarshal(nodeValue, &node)
@@ -575,6 +592,18 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
 	}
 
+	var secrets map[string]any
+	var secretsRevision yt.Revision
+	if node.Secrets != nil {
+		err = yson.Unmarshal(node.Secrets.Value, &secrets)
+		if err != nil {
+			return oplet.setBroken("failed to parse secrets from node",
+				yterrors.Attr("secrets_revision", uint64(node.Secrets.Revision)))
+		}
+		secretsRevision = node.Secrets.Revision
+	}
+
+	// No errors may be returned below this line.
 	oplet.l.Debug("state collected and validated")
 
 	// Handle persistent state change.
@@ -609,6 +638,10 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 			err = nil
 		}
 	}
+
+	oplet.secrets = secrets
+	oplet.secretsRevision = secretsRevision
+
 	oplet.infoState = node.InfoState
 	oplet.flushedInfoState = node.InfoState
 	oplet.flushedStateRevision = node.Revision
@@ -765,6 +798,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		}
 	}
 
+	spec["secure_vault"] = oplet.Secrets()
+
 	opACL := oplet.getOpACL()
 	spec["acl"] = opACL
 	spec["add_authenticated_user_to_acl"] = false
@@ -809,6 +844,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.ytOpStrawberrySpeclet = oplet.strawberrySpeclet
 	oplet.ytOpControllerSpeclet = oplet.controllerSpeclet
+
+	oplet.persistentState.YTOpSecretsRevision = oplet.secretsRevision
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
