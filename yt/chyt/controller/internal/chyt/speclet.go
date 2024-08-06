@@ -28,6 +28,9 @@ type Speclet struct {
 	BuiltinLogRotationPolicy map[string]any `yson:"builtin_log_rotation_policy"`
 
 	ExportSystemLogTables *bool `yson:"export_system_log_tables"`
+
+	EnableStickyQueryDistribution bool `yson:"enable_sticky_query_distribution"`
+	QueryStickyGroupSize          *int `yson:"query_sticky_group_size"`
 }
 
 const (
@@ -37,6 +40,8 @@ const (
 	DefaultGeodataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
 	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
+
+	DefaultQueryStickyGroupSize = 2
 )
 
 func (speclet *Speclet) CHYTVersionOrDefault() string {
@@ -79,4 +84,11 @@ func (speclet *Speclet) ExportSystemLogTablesOrDefault(defaultValue bool) bool {
 		return *speclet.ExportSystemLogTables
 	}
 	return defaultValue
+}
+
+func (speclet *Speclet) QueryStickyGroupSizeOrDefault() int {
+	if speclet.QueryStickyGroupSize != nil {
+		return *speclet.QueryStickyGroupSize
+	}
+	return DefaultQueryStickyGroupSize
 }

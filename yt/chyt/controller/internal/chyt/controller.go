@@ -355,6 +355,22 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					CurrentValue: speclet.InstanceMemory,
 					DefaultValue: nil,
 				},
+				{
+					Title:        "Enable sticky query distribution",
+					Name:         "enable_sticky_query_distribution",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.EnableStickyQueryDistribution,
+					DefaultValue: false,
+					Description:  "Enables query distribution based on query hash for better query cache hit rate.",
+				},
+				{
+					Title:        "Query sticky group size",
+					Name:         "query_sticky_group_size",
+					Type:         strawberry.TypeInt64,
+					CurrentValue: speclet.QueryStickyGroupSize,
+					DefaultValue: DefaultQueryStickyGroupSize,
+					Description:  "Identical queries are distributed uniformly among the group of |QueryStickyGroupSize|-instances, different queries correspond to different groups. This has effect only if sticky query distribution is enabled.",
+				},
 			},
 		},
 	}
