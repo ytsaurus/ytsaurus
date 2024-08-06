@@ -601,15 +601,16 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                 indexSchema.GetKeyColumnCount(),
                 keyIndexIdMapping,
                 /*validateDuplicateAndRequiredValueColumns*/ false,
-                /*preserveIds=*/ true);
+                /*preserveIds*/ true);
 
             auto [it, inserted] = extraIndexKeys.insert({resultingIndexKey, key});
             if (!inserted) {
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::UniqueIndexConflict,
-                    "Conflict in unique index around key %v between writes to table by keys %v and %v)",
+                    "Conflict in unique index around key %v between writes to table by keys %v and %v",
                     it->first,
                     key,
-                    it->second);
+                    it->second)
+                    << TErrorAttribute("unique_index_path", uniqueIndexPath);
             }
         }
     }
@@ -622,7 +623,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                 indexSchema.GetKeyColumnCount(),
                 keyIndexIdMapping,
                 /*validateDuplicateAndRequiredValueColumns*/ false,
-                /*preserveIds=*/ true);
+                /*preserveIds*/ true);
 
             extraIndexKeys.erase(initialIndexKey);
         }

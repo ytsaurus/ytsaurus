@@ -89,13 +89,13 @@ using TBadColumnCallback = void(const TColumnSchema& column);
 
 void ThrowExpectedKeyColumn(const TColumnSchema& tableColumn)
 {
-    THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
+    THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in index table",
         tableColumn.Name());
 }
 
 void ThrowExpectedTypeMatch(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn)
 {
-    THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in the table, %v in the index table",
+    THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in table, %v in index table",
         indexColumn.Name(),
         *tableColumn.LogicalType(),
         *indexColumn.LogicalType());
