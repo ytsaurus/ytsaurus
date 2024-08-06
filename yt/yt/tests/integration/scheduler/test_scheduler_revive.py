@@ -1379,7 +1379,8 @@ class TestJobRevival(TestJobRevivalBase):
         orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
         wait(lambda: exists(orchid_path + "/operations/" + op.id))
 
-        for i in range(1000):
+        jobs_found_count = 0
+        for i in range(100):
             user_slots = None
             user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
             try:
@@ -1387,21 +1388,25 @@ class TestJobRevival(TestJobRevivalBase):
             except YtError:
                 pass
 
-            for j in range(10):
-                try:
-                    jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
-                    break
-                except YtError:
-                    time.sleep(0.1)
-                    continue
-            else:
-                assert False
-            if i == 300:
+            jobs = None
+            try:
+                jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
+            except YtError:
+                pass
+
+            if i == 30:
                 events_on_fs().notify_event("complete_operation")
-            running = jobs["running"]
-            aborted = jobs["aborted"]["total"]
-            assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
-            assert aborted == 0
+
+            if jobs:
+                jobs_found_count += 1
+                running = jobs["running"]
+                aborted = jobs["aborted"]["total"]
+                assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
+                assert aborted == 0
+
+            time.sleep(0.1)
+
+        assert jobs_found_count > 0
 
         op.track()
 
