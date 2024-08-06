@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
-    lookup_rows, delete_rows, remount_table, build_snapshot,
+    lookup_rows, delete_rows, remount_table, build_master_snapshots,
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
@@ -1663,7 +1663,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             }
         })
 
-        build_snapshot(cell_id=None)
+        build_master_snapshots()
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
@@ -1792,24 +1792,22 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             with raises_yt_error("exceeded retry count limit"):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-    @authors("kivedernikov")
-    def test_hunk_media_attribute(self):
+    @authors("aleksandra-zh")
+    def test_hunk_media_attribute_inheritance(self):
         sync_create_cells(1)
         self._create_table()
 
-        dir_hunk_media = {
+        hunk_media = {
             "hdd1" : {"replication_factor": 7, "data_parts_only": True},
             "default" : {"replication_factor": 4, "data_parts_only": False}
         }
-        set("//tmp/@hunk_media", dir_hunk_media)
+        set("//tmp/@hunk_media", hunk_media)
 
         self._create_sorted_table("//tmp/a")
-        tbl_hunk_media = get("//tmp/a/@hunk_media")
-        assert tbl_hunk_media == dir_hunk_media
+        assert get("//tmp/a/@hunk_media") == hunk_media
 
-    @authors("kivedernikov")
-    @pytest.mark.parametrize("drop_sevice", [NODES_SERVICE, MASTERS_SERVICE])
-    def test_hunk_media_handlers(self, drop_sevice):
+    @authors("aleksandra-zh")
+    def test_hunk_media_attributes(self):
         sync_create_cells(1)
         self._create_table()
 
@@ -1833,26 +1831,37 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@hunk_media", hunk_media)
         sync_mount_table("//tmp/t")
 
-        hunk_media = get("//tmp/t/@hunk_media")
+        assert get("//tmp/t/@hunk_media") == hunk_media
 
-        expected_hunk_media = {
-            'default': {
-                'replication_factor': 3,
-                'data_parts_only': False
-            },
-            'hdd1': {
-                'replication_factor': 5,
-                'data_parts_only': True
-            },
-        }
-        assert hunk_media == expected_hunk_media
-
-        build_snapshot(cell_id=None)
-        with Restarter(self.Env, drop_sevice):
+        build_master_snapshots()
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        hunk_media = get("//tmp/t/@hunk_media")
-        assert hunk_media == expected_hunk_media
+        assert get("//tmp/t/@hunk_media") == hunk_media
+
+    @authors("aleksandra-zh")
+    def test_hunk_primary_medium(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        create("hunk_storage", "//tmp/h")
+
+        medium = "hdd1"
+        self._create_sorted_table(
+            "//tmp/q",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ],
+            primary_medium=medium
+        )
+        set("//tmp/q/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        hunk_primary_medium = get("//tmp/q/@hunk_primary_medium")
+        assert hunk_primary_medium == medium
+        hunk_media = get("//tmp/q/@hunk_media")
+        assert hunk_primary_medium in hunk_media
 
     @authors("kivedernikov")
     def test_requisitions_hunk_media(self):
