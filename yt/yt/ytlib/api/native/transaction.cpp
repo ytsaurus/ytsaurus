@@ -377,6 +377,22 @@ public:
             .Run(producerPath, queuePath, sessionId, epoch, nameTable, rows, options);
     }
 
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options) override
+    {
+        ValidateTabletTransactionId(GetId());
+
+        return BIND(&TTransaction::DoPushQueueProducerWithSerializedRows, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run(producerPath, queuePath, sessionId, epoch, nameTable, serializedRows, options);
+    }
+
     void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1792,6 +1808,30 @@ private:
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
     }
 
+    TPushQueueProducerResult DoPushQueueProducerWithSerializedRows(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options)
+    {
+        auto rowBuffer = New<TRowBuffer>(TNativeTransactionBufferTag());
+
+        auto data = MergeRefsToRef<TNativeTransactionBufferTag>(serializedRows);
+        auto reader = CreateWireProtocolReader(data, std::move(rowBuffer));
+        auto rows = reader->ReadUnversionedRowset(/*captureValues*/ true);
+        return DoPushQueueProducer(
+            producerPath,
+            queuePath,
+            sessionId,
+            epoch,
+            nameTable,
+            rows,
+            options);
+    }
+
     TPushQueueProducerResult DoPushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
@@ -1881,6 +1921,10 @@ private:
             YT_LOG_DEBUG("After validation all rows should be skipped, do nothing (RowCount: %v, SkipRowCount: %v)",
                 std::ssize(rows),
                 validateResult.SkipRowCount);
+            return TPushQueueProducerResult{
+                .LastSequenceNumber = lastProducerSequenceNumber,
+                .SkippedRowCount = validateResult.SkipRowCount,
+            };
         }
 
         auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
