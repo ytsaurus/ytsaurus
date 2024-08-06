@@ -909,6 +909,7 @@ TKeyRef ToKeyRef(TUnversionedRow row, int prefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TUnversionedValueRange values, TStringBuf format);
 void FormatValue(TStringBuilderBase* builder, TUnversionedRow row, TStringBuf format);
 void FormatValue(TStringBuilderBase* builder, TMutableUnversionedRow row, TStringBuf format);
 void FormatValue(TStringBuilderBase* builder, const TUnversionedOwningRow& row, TStringBuf format);

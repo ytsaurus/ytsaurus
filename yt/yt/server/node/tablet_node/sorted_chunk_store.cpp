@@ -426,13 +426,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp = std::min(timestamp, MaxClipTimestamp_);
     }
 
+    auto tabletBounds = MakeSingletonRowRange(tabletSnapshot->PivotKey, tabletSnapshot->NextPivotKey);
+
     // Chunk view support.
-    TUnversionedRow lowerClipBound = tabletSnapshot->PivotKey;
+    TUnversionedRow lowerClipBound = tabletBounds.Front().first;
     if (ReadRange_.Front().first) {
         lowerClipBound = ReadRange_.Front().first;
     }
 
-    TUnversionedRow upperClipBound = tabletSnapshot->NextPivotKey;
+    TUnversionedRow upperClipBound = tabletBounds.Front().second;
     if (ReadRange_.Front().second) {
         upperClipBound = ReadRange_.Front().second;
     }
@@ -441,7 +443,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         ranges,
         lowerClipBound,
         upperClipBound,
-        ReadRange_.GetHolder());
+        MakeSharedRangeHolder(ReadRange_.GetHolder(), tabletBounds.GetHolder()));
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
