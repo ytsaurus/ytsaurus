@@ -26,7 +26,8 @@ void TCypressSynchronizerConfig::Register(TRegistrar /*registrar*/)
 void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
     registrar.Parameter("policy", &TThis::Policy)
@@ -67,6 +68,12 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
+        if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
+            THROW_ERROR_EXCEPTION("Invalid \"trimming_period\", if you want to disable trimming, use \"enable_automatic_trimming\" attribute");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +81,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("controller_thread_count", &TThis::ControllerThreadCount)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
@@ -88,7 +96,8 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
 void TQueueAgentShardingManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(5))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

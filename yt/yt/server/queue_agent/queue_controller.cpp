@@ -627,7 +627,7 @@ private:
         auto passPeriodValue = config->PassPeriod.GetValue();
         auto frequency = (trimmingPeriodValue + passPeriodValue - 1) / passPeriodValue;
 
-        return passIndex % frequency == 0;
+        return (frequency <= 0) || (passIndex % frequency == 0);
     }
 
     //! Only EAutoTrimPolicy::VitalConsumers is supported right now.
