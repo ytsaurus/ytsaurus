@@ -116,6 +116,8 @@ public:
         , ForceUpdateCounter_(forceUpdateCounter)
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
+        , IsLegacyQueryHandler_(!bootstrap->IsChytApiServerAddress(req->GetRemoteAddress()) && req->GetUrl().Path.StartsWith("/query"))
+        , AllowGetRequests_(!IsLegacyQueryHandler_) // In case of the non-legacy handler GET-requests are allowed by default.
         , Handler_(handler)
         , ChannelFactory_(CreateTcpBusChannelFactory(New<NBus::TBusConfig>()))
     {
@@ -167,7 +169,7 @@ public:
             .OptionalItem("query_id", ProxiedResponse_ && ProxiedResponse_->GetHeaders()->Find("X-ClickHouse-Query-Id") ?
                 std::make_optional(ProxiedResponse_->GetHeaders()->GetOrThrow("X-ClickHouse-Query-Id")) :
                 std::nullopt)
-            .OptionalItem("clique_alias", OperationAlias_)
+            .OptionalItem("clique_alias", CliqueAlias_)
             .OptionalItem("clique_id", OperationId_ ? std::make_optional(OperationId_) : std::nullopt)
             .OptionalItem("coordinator_id", !InstanceId_.Empty() ? std::make_optional(InstanceId_) : std::nullopt)
             .OptionalItem("coordinator_address", !InstanceHost_.Empty() ? std::make_optional(InstanceHost_) : std::nullopt)
@@ -212,16 +214,18 @@ private:
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
 
-    TOperationIdOrAlias OperationIdOrAlias_;
     TOperationId OperationId_;
-    std::optional<TString> OperationAlias_;
+    TString CliqueAlias_;
 
     TYsonString OperationAcl_;
 
     std::optional<size_t> JobCookie_;
 
+    // "/query" handler in YT http proxy is considered to be legacy.
+    bool IsLegacyQueryHandler_;
+
     // For backward compatibility we allow GET requests when Auth is performed via token or cgi parameters.
-    bool AllowGetRequests_ = false;
+    bool AllowGetRequests_;
 
     // Token is provided via header "Authorization" or via cgi parameter "password".
     // If empty, the authentication will be performed via Cookie.
@@ -239,6 +243,7 @@ private:
         "http_port",
         "job_cookie",
         "clique_incarnation",
+        "query_sticky_group_size",
     };
 
     // These fields define the proxied request issued to a randomly chosen instance.
@@ -252,7 +257,8 @@ private:
     std::vector<TError> RequestErrors_;
     TError ResponseError_;
 
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
+    using TInstanceMap = THashMap<TString, NYTree::IAttributeDictionaryPtr>;
+    TInstanceMap Instances_;
 
     // Fields for structured log only.
     int RetryCount_ = -1;
@@ -346,15 +352,13 @@ private:
             }
 
             ProxiedRequestBody_ = Request_->ReadAll();
-            if (!ProxiedRequestBody_) {
-                ReplyWithError(EStatusCode::BadRequest, TError("Body should not be empty"));
-                return false;
-            }
 
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
             // User authentication is done on proxy only. We do not need to send the token to the clique.
             // Instead, we send the authenticated username via "X-Clickhouse-User" header.
             ProxiedRequestHeaders_->Remove("Authorization");
+            ProxiedRequestHeaders_->Remove("X-Clickhouse-Key");
+
             ProxiedRequestHeaders_->Set("X-Clickhouse-User", User_);
             // In rare cases the request can be sent to an instance from another clique.
             // Setting 'expected clique id' helps to detect these situations and reject the request.
@@ -373,9 +377,7 @@ private:
             YT_VERIFY(traceContext);
             traceContext->AddTag("user", User_);
             traceContext->AddTag("clique_id", OperationId_);
-            if (OperationAlias_) {
-                traceContext->AddTag("clique_alias", *OperationAlias_);
-            }
+            traceContext->AddTag("clique_alias", CliqueAlias_);
 
             if (isDatalens) {
                 if (auto tracingOverride = Config_->DatalensTracingOverride) {
@@ -512,10 +514,18 @@ private:
     {
         try {
             const auto* authorization = Request_->GetHeaders()->Find("Authorization");
+            const auto* xClickHouseKey = Request_->GetHeaders()->Find("X-ClickHouse-Key");
+
             if (authorization && !authorization->empty()) {
                 if (!ParseTokenFromAuthorizationHeader(*authorization)) {
                     return false;
                 }
+                if (!Token_.empty()) {
+                    AllowGetRequests_ = true;
+                }
+            } else if (xClickHouseKey && !xClickHouseKey->empty()) {
+                // store header value as-is
+                Token_ = *xClickHouseKey;
                 if (!Token_.empty()) {
                     AllowGetRequests_ = true;
                 }
@@ -610,18 +620,14 @@ private:
             Logger);
     }
 
-    TString GetOperationIdOrAliasWithoutAsterisk()
+    TString GetOperationAlias() const
     {
-        auto operationIdOrAlias = ToString(OperationIdOrAlias_);
-        if (operationIdOrAlias.StartsWith('*')) {
-            operationIdOrAlias = operationIdOrAlias.erase(0, 1);
-        }
-        return operationIdOrAlias;
+        return "*" + CliqueAlias_;
     }
 
-    TString GetDiscoveryGroupId()
+    TString GetDiscoveryGroupId() const
     {
-        return "/chyt/" + GetOperationIdOrAliasWithoutAsterisk();
+        return "/chyt/" + CliqueAlias_;
     }
 
     IDiscoveryPtr CreateDiscoveryV2()
@@ -681,7 +687,7 @@ private:
         try {
             auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", OperationIdOrAlias_);
+                YT_LOG_DEBUG("Clique cache missed (Clique: %v)", CliqueAlias_);
 
                 auto discovery = TryChooseDiscovery();
 
@@ -691,7 +697,7 @@ private:
                     OperationId_,
                     std::move(discovery)));
 
-                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", OperationIdOrAlias_);
+                YT_LOG_DEBUG("New discovery inserted to the cache (Clique: %v)", CliqueAlias_);
             }
 
             YT_PROFILE_TIMING("/clickhouse_proxy/query_time/find_discovery") {
@@ -739,7 +745,7 @@ private:
             }
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
-                PushError(TError("Clique %v has no running instances", OperationIdOrAlias_));
+                PushError(TError("Clique %v has no running instances", CliqueAlias_));
                 return false;
             }
 
@@ -755,17 +761,17 @@ private:
     bool TryParseDatabase()
     {
         try {
-            auto operationIdOrAliasAndInstanceCookie = CgiParameters_.Get("database");
+            auto cliqueAliasAndInstanceCookie = CgiParameters_.Get("database");
 
-            TString operationIdOrAlias;
+            TString cliqueAlias;
 
-            if (operationIdOrAliasAndInstanceCookie.Contains("@")) {
-                auto separatorIndex = operationIdOrAliasAndInstanceCookie.find_last_of("@");
-                operationIdOrAlias = operationIdOrAliasAndInstanceCookie.substr(0, separatorIndex);
+            if (cliqueAliasAndInstanceCookie.Contains("@")) {
+                auto separatorIndex = cliqueAliasAndInstanceCookie.find_last_of("@");
+                cliqueAlias = cliqueAliasAndInstanceCookie.substr(0, separatorIndex);
 
-                auto jobCookieString = operationIdOrAliasAndInstanceCookie.substr(
+                auto jobCookieString = cliqueAliasAndInstanceCookie.substr(
                     separatorIndex + 1,
-                    operationIdOrAliasAndInstanceCookie.size() - separatorIndex - 1);
+                    cliqueAliasAndInstanceCookie.size() - separatorIndex - 1);
                 size_t jobCookie = 0;
                 if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
                     ReplyWithError(
@@ -776,25 +782,23 @@ private:
                 JobCookie_ = jobCookie;
                 YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
             } else {
-                operationIdOrAlias = operationIdOrAliasAndInstanceCookie;
+                cliqueAlias = cliqueAliasAndInstanceCookie;
             }
 
-            if (operationIdOrAlias.empty()) {
+            if (cliqueAlias.StartsWith("*")) {
+                cliqueAlias.erase(0, 1);
+                YT_LOG_DEBUG("Strip asterisk from clique alias provided by user (%v)", cliqueAlias);
+            }
+
+            if (cliqueAlias.empty()) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique id or alias should be specified using the `database` CGI parameter"));
+                    TError("Clique alias should be specified using the `database` CGI parameter"));
                 return false;
             }
 
-            if (operationIdOrAlias[0] == '*') {
-                OperationAlias_ = operationIdOrAlias;
-                YT_LOG_DEBUG("Clique is defined by alias (OperationAlias: %v)", OperationAlias_);
-            } else {
-                OperationId_ = TOperationId(TGuid::FromString(operationIdOrAlias));
-                YT_LOG_DEBUG("Clique is defined by operation id (OperationId: %v)", OperationId_);
-            }
-
-            OperationIdOrAlias_ = TOperationIdOrAlias::FromString(operationIdOrAlias);
+            CliqueAlias_ = std::move(cliqueAlias);
+            YT_LOG_DEBUG("Clique is defined by alias (%v)", CliqueAlias_);
 
             return true;
         } catch (const std::exception& ex) {
@@ -808,39 +812,34 @@ private:
 
     bool TryGetOperation()
     {
-        if (OperationAlias_) {
-            auto operationId = Handler_->GetOperationId(GetOperationIdOrAliasWithoutAsterisk());
-            if (operationId) {
-                OperationId_ = operationId;
-                YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
-                    OperationAlias_,
-                    OperationId_);
-                return true;
-            }
-
-            YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
-                OperationAlias_);
+        auto operationId = Handler_->GetOperationId(CliqueAlias_);
+        if (operationId) {
+            OperationId_ = operationId;
+            YT_LOG_DEBUG("Operation resolved from strawberry nodes (OperationAlias: %v, OperationId: %v)",
+                GetOperationAlias(),
+                OperationId_);
+            return true;
         }
 
-        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", OperationIdOrAlias_);
+        YT_LOG_DEBUG("Clique information in Cypress is malformed, operation id is missing (Clique: %v)",
+            CliqueAlias_);
+
+        YT_LOG_DEBUG("Fetching operation from scheduler (Clique: %v)", CliqueAlias_);
 
         try {
-            auto operationYson = WaitFor(OperationCache_->Get(OperationIdOrAlias_))
+            // Operation-cache wants alias to start with an asterisk.
+            auto operationYson = WaitFor(OperationCache_->Get(GetOperationAlias()))
                 .ValueOrThrow();
 
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 
-            if (OperationAlias_) {
-                OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
-                YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", OperationAlias_, OperationId_);
-            } else {
-                YT_ASSERT(OperationId_ == operationNode->GetChildValueOrThrow<TOperationId>("id"));
-            }
+            OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
+            YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", GetOperationAlias(), OperationId_);
 
             if (auto state = operationNode->GetChildValueOrThrow<EOperationState>("state"); state != EOperationState::Running) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique %v is not running; actual state = %lv", OperationIdOrAlias_, state)
+                    TError("Clique %v is not running; actual state = %lv", CliqueAlias_, state)
                         << TErrorAttribute("operation_id", OperationId_));
                 return false;
             }
@@ -848,7 +847,7 @@ private:
             if (operationNode->GetChildValueOrThrow<bool>("suspended")) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Clique %v is suspended; resume it to make queries", OperationIdOrAlias_));
+                    TError("Clique %v is suspended; resume it to make queries", CliqueAlias_));
                 return false;
             }
 
@@ -859,7 +858,7 @@ private:
                 EYsonFormat::Text);
 
             YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperationAcl: %v)",
-                OperationAlias_,
+                GetOperationAlias(),
                 OperationId_,
                 OperationAcl_);
 
@@ -884,7 +883,7 @@ private:
             });
         } else {
             future = PermissionCache_->Get(TPermissionKey{
-                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", GetOperationIdOrAliasWithoutAsterisk()),
+                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
                 .User = User_,
                 .Permission = EPermission::Use,
             });
@@ -895,7 +894,7 @@ private:
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                 auto replyError = TError("User %Qv has no access to clique %v",
                     User_,
-                    OperationIdOrAlias_)
+                    CliqueAlias_)
                     << error;
                 if (OperationAcl_) {
                     replyError.MutableAttributes()->Set("operation_acl", OperationAcl_);
@@ -906,7 +905,7 @@ private:
                     EStatusCode::BadRequest,
                     TError("Failed to authorize user %Qv to clique %v",
                         User_,
-                        OperationIdOrAlias_)
+                        CliqueAlias_)
                         << error);
             }
             return false;
@@ -914,29 +913,167 @@ private:
         return true;
     }
 
+    TInstanceMap::const_iterator TryPickInstanceByJobCookie(size_t jobCookie) const
+    {
+        YT_LOG_DEBUG("Pick instance by job-cookie (JobCookie: %v)", jobCookie);
+        auto result = std::find_if(
+            Instances_.cbegin(), Instances_.cend(),
+            [&](const auto& instance) {
+                return jobCookie == instance.second->template Get<size_t>("job_cookie");
+            });
+
+        if (result == Instances_.cend()) {
+            YT_LOG_DEBUG("No instance with given job-cookie (JobCookie: %v)", *JobCookie_);
+        }
+
+        return result;
+    }
+
+    TInstanceMap::const_iterator PickInstanceSticky(size_t stickyHash, int stickyGroupSize) const
+    {
+        YT_VERIFY(stickyGroupSize >= 0);
+
+        YT_LOG_DEBUG("Pick an instance using sticky-strategy (StickyHash: %v, StickyGroupSize: %v)", stickyHash, stickyGroupSize);
+
+        // Each instance is given a numeric score to compare by.
+        auto instanceScore = [&](const auto& instance) -> size_t {
+            size_t instanceCookie = instance.second->template Get<size_t>("job_cookie");
+
+            size_t instanceHash = ComputeHash(instanceCookie);
+            HashCombine(instanceHash, stickyHash);
+            return instanceHash;
+        };
+
+        if (stickyGroupSize > ssize(Instances_)) {
+            YT_LOG_DEBUG("Specified stickyGroupSize is greater than a number of instances therefore it is reduced to the maximum value (StickyGroupSize: %v, NumberOfInstances: %v)", stickyGroupSize, Instances_.size());
+            stickyGroupSize = ssize(Instances_);
+        }
+
+        // Optimizations.
+        if (stickyGroupSize == ssize(Instances_)) {
+            YT_LOG_DEBUG("Random-strategy is going to be used instead of sticky-strategy, since QueryStickyGroupSize has maximum value");
+            return PickInstanceRandomly();
+        }
+        if (stickyGroupSize == 1) {
+            return std::max_element(
+                Instances_.cbegin(), Instances_.cend(),
+                [&](const auto& lhs, const auto& rhs) {
+                    return instanceScore(lhs) < instanceScore(rhs);
+                });
+        }
+
+        // Store all iterators in a vector used as a buffer for std::nth_element.
+        std::vector<TInstanceMap::const_iterator> instanceOrder;
+        instanceOrder.reserve(Instances_.size());
+        for (auto it = Instances_.cbegin(); it != Instances_.cend(); ++it) {
+            instanceOrder.push_back(it);
+        }
+
+        // Choose top-|stickyGroupSize| instances.
+        std::nth_element(
+            instanceOrder.begin(), instanceOrder.begin() + stickyGroupSize, instanceOrder.end(),
+            [&](auto leftIt, auto rightIt) {
+                return instanceScore(*leftIt) < instanceScore(*rightIt);
+            }
+        );
+
+        // Pick a random one of these top-|stickyGroupSize|.
+        return instanceOrder[RandomNumber<size_t>(stickyGroupSize)];
+    }
+
+    TInstanceMap::const_iterator PickInstanceBySessionId(const TString& sessionId) const
+    {
+        YT_LOG_DEBUG("Pick instance by session-id using sticky-strategy (SessionId: %v)", sessionId);
+        return PickInstanceSticky(ComputeHash(sessionId), 1);
+    }
+
+    TInstanceMap::const_iterator PickInstanceByQueryHash(size_t queryHash, int stickyGroupSize) const
+    {
+        YT_LOG_DEBUG("Pick instance by query-hash using sticky-strategy (QueryHash: %v, QueryStickyGroupSize: %v)", queryHash, stickyGroupSize);
+        return PickInstanceSticky(queryHash, stickyGroupSize);
+    }
+
+    TInstanceMap::const_iterator PickInstanceRandomly() const
+    {
+        YT_LOG_DEBUG("Pick instance randomly");
+        auto instanceIterator = Instances_.cbegin();
+        std::advance(instanceIterator, RandomNumber(Instances_.size()));
+        return instanceIterator;
+    }
+
+    size_t CalculateQueryHash() const
+    {
+        size_t result = 0;
+
+        if (const auto& query_url = CgiParameters_.Get("query"); query_url != "") {
+            HashCombine(result, query_url);
+        }
+
+        if (!ProxiedRequestBody_.Empty()) {
+            HashCombine(result, ProxiedRequestBody_.ToStringBuf());
+        }
+
+        return result;
+    }
+
+    TErrorOr<int> GetQueryStickyGroupSize() const
+    {
+        // There are two sources: url-parameters and discovery.
+
+        int result = 0;
+
+        if (CgiParameters_.Has("chyt.query_sticky_group_size")) {
+            const auto& stickyGroupSizeString = CgiParameters_.Get("chyt.query_sticky_group_size");
+            if (!TryIntFromString<10>(stickyGroupSizeString, result)){
+                return TError("Error while parsing sticky group size %v", stickyGroupSizeString);
+            }
+        } else {
+            YT_VERIFY(!Instances_.empty());
+            // Get parameter from any instance, they all have the same value.
+            result = Instances_.cbegin()->second->template Get<int>("query_sticky_group_size");
+        }
+
+        return result;
+    }
+
     bool TryPickInstance(bool forceUpdate)
     {
-        YT_LOG_DEBUG("Trying to pick instance (ForceUpdate: %v)", forceUpdate);
+        YT_LOG_DEBUG("Trying to pick an instance (ForceUpdate: %v)", forceUpdate);
 
         if (!TryDiscoverInstances(forceUpdate)) {
             YT_LOG_DEBUG("Failed to discover instances");
             return false;
         }
 
-        if (JobCookie_.has_value()) {
-            for (const auto& [id, attributes] : Instances_) {
-                if (*JobCookie_ == attributes->Get<size_t>("job_cookie")) {
-                    InitializeInstance(id, attributes);
-                    return true;
-                }
-            }
-        } else {
-            auto instanceIterator = Instances_.begin();
-            std::advance(instanceIterator, RandomNumber(Instances_.size()));
-            InitializeInstance(instanceIterator->first, instanceIterator->second);
-            return true;
+        TInstanceMap::const_iterator pickedInstance;
+
+        auto queryStickyGroupSizeOrError = GetQueryStickyGroupSize();
+        if (!queryStickyGroupSizeOrError.IsOK()) {
+            ReplyWithError(EStatusCode::BadRequest, queryStickyGroupSizeOrError);
+            return false;
         }
-        return false;
+        int queryStickyGroupSize = queryStickyGroupSizeOrError.Value();
+
+        if (JobCookie_.has_value()) {
+            pickedInstance = TryPickInstanceByJobCookie(*JobCookie_);
+            if (pickedInstance == Instances_.cend()) {
+                return false;
+            }
+
+        } else if (const TString& sessionId = CgiParameters_.Get("session_id"); !sessionId.empty()) {
+            pickedInstance = PickInstanceBySessionId(sessionId);
+
+        } else if (queryStickyGroupSize != 0) { // 0 means 'disabled'
+            pickedInstance = PickInstanceByQueryHash(CalculateQueryHash(), queryStickyGroupSize);
+
+        } else {
+            pickedInstance = PickInstanceRandomly();
+        }
+
+        YT_LOG_DEBUG("Picked instance (InstanceId: %v)", pickedInstance->first);
+
+        InitializeInstance(pickedInstance->first, pickedInstance->second);
+        return true;
     }
 
     bool TryIssueProxiedRequest(int retryIndex)
@@ -948,7 +1085,12 @@ private:
 
         TErrorOr<IResponsePtr> responseOrError;
         YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
-            responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+            EMethod forwardedMethod = IsLegacyQueryHandler_
+                ? EMethod::Post // In the legacy version all methods transform to POST.
+                : Request_->GetMethod();
+
+            auto forwardedQueryResult = HttpClient_->Request(forwardedMethod, ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_);
+            responseOrError = WaitFor(forwardedQueryResult);
         }
 
         if (responseOrError.IsOK()) {
@@ -1011,7 +1153,7 @@ private:
         ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
             InstanceHost_,
             InstanceHttpPort_,
-            Request_->GetUrl().Path,
+            "/", // ClickHouse implements different endpoints but we use only default one
             CgiParameters_.Print());
 
         YT_LOG_DEBUG("Forwarding query to an instance (InstanceId: %v, Host: %v, HttpPort: %v, ProxiedRequestUrl: %v)",
@@ -1025,7 +1167,7 @@ private:
     {
         Discovery_.Reset();
         DiscoveryCache_->TryRemove(OperationId_);
-        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", OperationIdOrAlias_);
+        YT_LOG_DEBUG("Discovery was removed from cache (Clique: %v)", CliqueAlias_);
     }
 };
 
@@ -1165,7 +1307,7 @@ void TClickHouseHandler::UpdateOperationIds()
             }
         }
     } catch (const std::exception& ex) {
-        // Non-throwing method for periodic executor
+        // Non-throwing method for periodic executor.
         YT_LOG_DEBUG(ex, "Cannot update operation information map");
     }
 

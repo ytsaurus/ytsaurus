@@ -94,6 +94,30 @@ public:
         return StartRequest(EMethod::Put, url, headers);
     }
 
+    TFuture<IResponsePtr> Request(
+        EMethod method,
+        const TString& url,
+        const std::optional<TSharedRef>& body,
+        const THeadersPtr& headers) override
+    {
+        return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
+            auto [request, response] = StartAndWriteHeaders(method, url, headers);
+
+            if (body) {
+                WaitFor(request->WriteBody(*body))
+                    .ThrowOnError();
+            } else {
+                WaitFor(request->Close())
+                    .ThrowOnError();
+            }
+
+            // Waits for response headers internally.
+            response->GetStatusCode();
+
+            return IResponsePtr(response);
+        }));
+    }
+
 private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;
@@ -263,30 +287,6 @@ private:
         return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
             auto [request, response] = StartAndWriteHeaders(method, url, headers);
             return IActiveRequestPtr{New<TActiveRequest>(request, response, this_, url)};
-        }));
-    }
-
-    TFuture<IResponsePtr> Request(
-        EMethod method,
-        const TString& url,
-        const std::optional<TSharedRef>& body,
-        const THeadersPtr& headers)
-    {
-        return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
-            auto [request, response] = StartAndWriteHeaders(method, url, headers);
-
-            if (body) {
-                WaitFor(request->WriteBody(*body))
-                    .ThrowOnError();
-            } else {
-                WaitFor(request->Close())
-                    .ThrowOnError();
-            }
-
-            // Waits for response headers internally.
-            response->GetStatusCode();
-
-            return IResponsePtr(response);
         }));
     }
 };

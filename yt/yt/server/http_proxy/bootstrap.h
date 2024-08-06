@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/misc/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
@@ -75,6 +77,8 @@ public:
     const NConcurrency::IPollerPtr& GetPoller() const;
     const TApiPtr& GetApi() const;
 
+    bool IsChytApiServerAddress(const NNet::TNetworkAddress& address) const;
+
     void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
@@ -115,6 +119,9 @@ private:
     NHttp::IServerPtr ApiHttpsServer_;
     NHttp::IServerPtr TvmOnlyApiHttpServer_;
     NHttp::IServerPtr TvmOnlyApiHttpsServer_;
+    NHttp::IServerPtr ChytApiHttpServer_;
+    NHttp::IServerPtr ChytApiHttpsServer_;
+
     TApiPtr Api_;
 
     NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;
