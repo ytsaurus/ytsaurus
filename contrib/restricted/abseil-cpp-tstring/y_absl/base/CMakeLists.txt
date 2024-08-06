@@ -34,6 +34,7 @@ target_link_libraries(abseil-cpp-tstring-y_absl-base PUBLIC
 target_sources(abseil-cpp-tstring-y_absl-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/cycleclock.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/low_level_alloc.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/poison.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/raw_logging.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/scoped_set_env.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/base/internal/spinlock.cc

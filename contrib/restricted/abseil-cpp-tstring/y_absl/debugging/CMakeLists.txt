@@ -35,9 +35,12 @@ target_link_libraries(abseil-cpp-tstring-y_absl-debugging PUBLIC
 target_sources(abseil-cpp-tstring-y_absl-debugging PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/failure_signal_handler.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/address_is_readable.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/decode_rust_punycode.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/demangle.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/demangle_rust.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/elf_mem_image.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/examine_stack.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/utf8_for_code_point.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/vdso_support.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/leak_check.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/stacktrace.cc
