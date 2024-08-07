@@ -237,8 +237,6 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
     config->Rules.push_back(rule);
     EmplaceOrCrash(config->Writers, DefaultFileWriterName, writerConfig->BuildFullConfig(fileWriterConfig));
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 100'000;
-    config->LowBacklogWatermark = 100'000;
 
     config->Postprocess();
     return config;
@@ -259,8 +257,6 @@ TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
     config->Rules.push_back(rule);
     config->Writers.emplace(DefaultStderrWriterName, writerConfig->BuildFullConfig(stderrWriterConfig));
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 100'000;
-    config->LowBacklogWatermark = 100'000;
 
     config->Postprocess();
     return config;
