@@ -189,7 +189,13 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto protoRole : item.roles()) {
-                auto role = CheckedEnumCast<EMasterCellRole>(protoRole);
+                auto role = EMasterCellRole::None;
+                if (!TryEnumCast(protoRole, &role)) {
+                    YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
+                        protoRole,
+                        cellTag);
+                    continue;
+                }
                 roles = roles | EMasterCellRoles(role);
                 roleToCellTags[role].push_back(cellTag);
             }
