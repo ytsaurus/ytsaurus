@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(admin)
 add_subdirectory(alert_manager)
 add_subdirectory(cell_server)
@@ -59,7 +58,7 @@ add_subdirectory(zookeeper_proxy)
 add_library(ytserver INTERFACE)
 
 target_link_libraries(ytserver INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl

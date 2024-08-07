@@ -12,12 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-digest-md5)
 
 target_link_libraries(cpp-digest-md5 PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-nayuki_md5

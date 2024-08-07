@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_subdirectory(protos)
 add_subdirectory(unittests)
@@ -36,7 +35,7 @@ target_include_directories(yt-chyt-server PRIVATE
 )
 
 target_link_libraries(yt-chyt-server PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-query-engine
@@ -145,7 +144,7 @@ target_include_directories(yt-chyt-server.global PRIVATE
 )
 
 target_link_libraries(yt-chyt-server.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-query-engine

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(llvm16-lib-TextAPI)
 
@@ -25,7 +24,7 @@ target_include_directories(llvm16-lib-TextAPI PRIVATE
 )
 
 target_link_libraries(llvm16-lib-TextAPI PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-BinaryFormat

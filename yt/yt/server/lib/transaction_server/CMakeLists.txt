@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-transaction_server)
 
@@ -21,7 +20,7 @@ target_compile_options(server-lib-transaction_server PRIVATE
 )
 
 target_link_libraries(server-lib-transaction_server PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib

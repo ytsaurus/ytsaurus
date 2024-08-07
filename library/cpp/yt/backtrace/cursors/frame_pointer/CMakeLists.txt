@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(backtrace-cursors-frame_pointer)
 
@@ -21,7 +20,7 @@ target_compile_options(backtrace-cursors-frame_pointer PRIVATE
 )
 
 target_link_libraries(backtrace-cursors-frame_pointer PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )

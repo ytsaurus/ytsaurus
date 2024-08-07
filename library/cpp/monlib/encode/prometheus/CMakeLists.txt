@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -24,7 +23,7 @@ get_built_tool_path(
 add_library(monlib-encode-prometheus)
 
 target_link_libraries(monlib-encode-prometheus PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-monlib-encode

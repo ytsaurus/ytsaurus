@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_llvm-tblgen_bin
@@ -1016,7 +1015,7 @@ set_property(TARGET libs-llvm16-include PROPERTY LINKER_LANGUAGE
 )
 
 target_link_libraries(libs-llvm16-include PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
 )

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(library-query-base)
 
@@ -26,7 +25,7 @@ target_include_directories(library-query-base PUBLIC
 )
 
 target_link_libraries(library-query-base PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

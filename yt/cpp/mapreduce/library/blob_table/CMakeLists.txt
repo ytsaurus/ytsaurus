@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-library-blob_table)
 
@@ -21,7 +20,7 @@ target_compile_options(mapreduce-library-blob_table PRIVATE
 )
 
 target_link_libraries(mapreduce-library-blob_table PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-common

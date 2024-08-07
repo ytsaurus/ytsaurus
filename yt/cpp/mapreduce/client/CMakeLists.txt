@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -28,7 +27,7 @@ target_compile_options(cpp-mapreduce-client PRIVATE
 )
 
 target_link_libraries(cpp-mapreduce-client PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-digest-md5

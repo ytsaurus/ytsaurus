@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_subdirectory(unittests)
 
@@ -23,7 +22,7 @@ target_compile_options(yt-yql-agent PRIVATE
 )
 
 target_link_libraries(yt-yql-agent PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -35,7 +34,7 @@ target_include_directories(libs-apache-orc-format PUBLIC
 )
 
 target_link_libraries(libs-apache-orc-format PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf

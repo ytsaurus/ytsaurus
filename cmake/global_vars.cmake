@@ -19,5 +19,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_
   set(BISON_FLAGS -v)
   set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
   set(RAGEL_FLAGS -L -I ${PROJECT_SOURCE_DIR}/)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  set(BISON_FLAGS -v)
+  set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
+  set(RAGEL_FLAGS -L -I ${PROJECT_SOURCE_DIR}/)
 endif()
 

@@ -12,13 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(small)
 
 add_library(library-cpp-getopt INTERFACE)
 
 target_link_libraries(library-cpp-getopt INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-getopt-small
@@ -32,7 +31,7 @@ add_global_library_for(library-cpp-getopt.global
 )
 
 target_link_libraries(library-cpp-getopt.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-getopt-small

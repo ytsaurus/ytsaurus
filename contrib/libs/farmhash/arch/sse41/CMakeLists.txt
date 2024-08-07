@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(farmhash-arch-sse41)
 
@@ -22,7 +21,7 @@ target_compile_options(farmhash-arch-sse41 PRIVATE
 )
 
 target_link_libraries(farmhash-arch-sse41 PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )

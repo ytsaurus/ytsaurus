@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
@@ -31,7 +30,7 @@ target_include_directories(lib-Target-WebAssembly PRIVATE
 )
 
 target_link_libraries(lib-Target-WebAssembly PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-exec)
 
@@ -21,7 +20,7 @@ target_compile_options(yt-server-exec PRIVATE
 )
 
 target_link_libraries(yt-server-exec PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   server-lib-user_job

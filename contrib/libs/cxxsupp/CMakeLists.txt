@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(builtins)
 add_subdirectory(libcxx)
 add_subdirectory(libcxxabi-parts)
@@ -21,7 +20,7 @@ add_subdirectory(libcxxrt)
 add_library(contrib-libs-cxxsupp INTERFACE)
 
 target_link_libraries(contrib-libs-cxxsupp INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   libs-cxxsupp-libcxx
 )
 

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(ut)
 
 get_built_tool_path(
@@ -25,7 +24,7 @@ get_built_tool_path(
 add_library(library-cpp-type_info)
 
 target_link_libraries(library-cpp-type_info PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime

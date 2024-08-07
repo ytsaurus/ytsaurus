@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 
 add_library(library-erasure-impl)
@@ -22,7 +21,7 @@ target_compile_options(library-erasure-impl PRIVATE
 )
 
 target_link_libraries(library-erasure-impl PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-library-erasure

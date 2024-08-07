@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-restricted-http-parser)
 
@@ -27,7 +26,7 @@ target_include_directories(contrib-restricted-http-parser PRIVATE
 )
 
 target_link_libraries(contrib-restricted-http-parser PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
 )
 
 target_sources(contrib-restricted-http-parser PRIVATE

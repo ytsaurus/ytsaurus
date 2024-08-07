@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
@@ -90,7 +89,7 @@ target_include_directories(yt-server-node PRIVATE
 )
 
 target_link_libraries(yt-server-node PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-query-engine

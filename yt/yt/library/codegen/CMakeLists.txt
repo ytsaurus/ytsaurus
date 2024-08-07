@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-library-codegen)
 
@@ -21,7 +20,7 @@ target_compile_options(yt-library-codegen PRIVATE
 )
 
 target_link_libraries(yt-library-codegen PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   llvm16-lib-IR

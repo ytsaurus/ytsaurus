@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(fastops-fastops-avx)
 
@@ -27,7 +26,7 @@ target_compile_options(fastops-fastops-avx PRIVATE
 )
 
 target_link_libraries(fastops-fastops-avx PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   fastops-fastops-core
 )

@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(Python3 REQUIRED)
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(discovery_client)
 add_subdirectory(distributed_throttler)
 add_subdirectory(misc)
@@ -1103,7 +1102,7 @@ target_include_directories(yt-yt-ytlib PRIVATE
 )
 
 target_link_libraries(yt-yt-ytlib PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
@@ -2310,7 +2309,7 @@ target_include_directories(yt-yt-ytlib.global PRIVATE
 )
 
 target_link_libraries(yt-yt-ytlib.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-xxhash)
 
@@ -21,7 +20,7 @@ target_compile_options(contrib-libs-xxhash PRIVATE
 )
 
 target_link_libraries(contrib-libs-xxhash PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
 )
 
 target_sources(contrib-libs-xxhash PRIVATE

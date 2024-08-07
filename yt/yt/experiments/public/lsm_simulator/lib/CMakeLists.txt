@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(public-lsm_simulator-lib)
 
@@ -21,7 +20,7 @@ target_compile_options(public-lsm_simulator-lib PRIVATE
 )
 
 target_link_libraries(public-lsm_simulator-lib PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   server-lib-hydra

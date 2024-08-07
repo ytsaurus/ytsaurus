@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 
 add_library(yt-server-rpc_proxy)
@@ -22,7 +21,7 @@ target_compile_options(yt-server-rpc_proxy PRIVATE
 )
 
 target_link_libraries(yt-server-rpc_proxy PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   ytserver

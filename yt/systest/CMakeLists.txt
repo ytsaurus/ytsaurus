@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_subdirectory(proto)
 add_subdirectory(unittests)
@@ -24,7 +23,7 @@ target_compile_options(yt-systest PRIVATE
 )
 
 target_link_libraries(yt-systest PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(clickhouse-src-Common)
 
@@ -66,7 +65,7 @@ target_include_directories(clickhouse-src-Common PRIVATE
 )
 
 target_link_libraries(clickhouse-src-Common PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   clickhouse-base-base
   clickhouse-base-widechar_width

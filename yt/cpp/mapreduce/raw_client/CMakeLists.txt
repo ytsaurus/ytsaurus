@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(ut)
 
 add_library(cpp-mapreduce-raw_client)
@@ -22,7 +21,7 @@ target_compile_options(cpp-mapreduce-raw_client PRIVATE
 )
 
 target_link_libraries(cpp-mapreduce-raw_client PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-common

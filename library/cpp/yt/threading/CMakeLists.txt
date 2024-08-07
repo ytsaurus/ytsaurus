@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-threading)
 
@@ -21,7 +20,7 @@ target_compile_options(cpp-yt-threading PRIVATE
 )
 
 target_link_libraries(cpp-yt-threading PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert

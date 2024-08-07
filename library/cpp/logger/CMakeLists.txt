@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -24,7 +23,7 @@ get_built_tool_path(
 add_library(library-cpp-logger)
 
 target_link_libraries(library-cpp-logger PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
@@ -66,7 +65,7 @@ add_global_library_for(library-cpp-logger.global
 )
 
 target_link_libraries(library-cpp-logger.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime

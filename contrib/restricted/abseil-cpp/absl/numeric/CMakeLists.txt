@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(abseil-cpp-absl-numeric)
 
@@ -25,7 +24,7 @@ target_include_directories(abseil-cpp-absl-numeric PUBLIC
 )
 
 target_link_libraries(abseil-cpp-absl-numeric PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
 
