@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.UnversionedRowset;
@@ -90,6 +91,19 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             YTreeRowSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.lookupRows(request, serializer));
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
+        return executor.execute((client) -> client.multiLookupRows(request));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return executor.execute((client) -> client.multiLookupRows(request, serializer));
     }
 
     @Override

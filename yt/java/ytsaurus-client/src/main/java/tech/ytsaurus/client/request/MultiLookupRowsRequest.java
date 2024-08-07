@@ -1,30 +1,18 @@
 package tech.ytsaurus.client.request;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.rpc.TRequestHeader;
-import tech.ytsaurus.rpcproxy.TReqLookupRows;
-import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
+import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 
-/**
- * Base class for lookup rows requests.
- * <p>
- * Users use one of the inheritors of this class.
- * <p>
- *
- * @see <a href="https://ytsaurus.tech/docs/en/api/commands#lookup_rows">
- * lookup_rows documentation
- * </a>
- */
-public abstract class AbstractLookupRowsRequest<
-        TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
-        TRequest extends AbstractLookupRowsRequest<TBuilder, TRequest>>
-        extends AbstractLookupRequest<TBuilder, TRequest> {
+public class MultiLookupRowsRequest
+        extends RequestBase<MultiLookupRowsRequest.Builder, MultiLookupRowsRequest> {
 
     @Nullable
     protected final YtTimestamp timestamp;
@@ -33,17 +21,24 @@ public abstract class AbstractLookupRowsRequest<
     @Nullable
     protected final ReplicaConsistency replicaConsistency;
 
-    protected AbstractLookupRowsRequest(Builder<?, ?> builder) {
+    protected final List<MultiLookupRowsSubrequest> subrequests;
+
+    protected MultiLookupRowsRequest(BuilderBase<?> builder) {
         super(builder);
         this.timestamp = builder.timestamp;
         this.retentionTimestamp = builder.retentionTimestamp;
         this.replicaConsistency = builder.replicaConsistency;
+        this.subrequests = builder.subrequests;
+    }
+
+    public MultiLookupRowsRequest() {
+        this(builder());
     }
 
     /**
      * Get timestamp parameter.
      *
-     * @see AbstractLookupRowsRequest.Builder#setTimestamp(YtTimestamp)
+     * @see MultiLookupRowsRequest.Builder#setTimestamp(YtTimestamp)
      */
     public Optional<YtTimestamp> getTimestamp() {
         return Optional.ofNullable(timestamp);
@@ -52,7 +47,7 @@ public abstract class AbstractLookupRowsRequest<
     /**
      * Get retention-timestamp parameter.
      *
-     * @see AbstractLookupRowsRequest.Builder#setRetentionTimestamp(YtTimestamp)
+     * @see MultiLookupRowsRequest.Builder#setRetentionTimestamp(YtTimestamp)
      */
     public Optional<YtTimestamp> getRetentionTimestamp() {
         return Optional.ofNullable(retentionTimestamp);
@@ -61,36 +56,47 @@ public abstract class AbstractLookupRowsRequest<
     /**
      * Get replica-consistency parameter.
      *
-     * @see AbstractLookupRowsRequest.Builder#setReplicaConsistency(ReplicaConsistency)
+     * @see MultiLookupRowsRequest.Builder#setReplicaConsistency(ReplicaConsistency)
      */
     public Optional<ReplicaConsistency> getReplicaConsistency() {
         return Optional.ofNullable(replicaConsistency);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Get list of subrequests.
+     *
+     * @see Builder#addSubrequest(MultiLookupRowsSubrequest)
+     */
+    public List<MultiLookupRowsSubrequest> getSubrequests() {
+        return subrequests;
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
-    public HighLevelRequest<TReqLookupRows.Builder> asLookupRowsWritable() {
+    public HighLevelRequest<TReqMultiLookup.Builder> asMultiLookupWritable() {
         //noinspection Convert2Diamond
-        return new HighLevelRequest<TReqLookupRows.Builder>() {
+        return new HighLevelRequest<TReqMultiLookup.Builder>() {
             @Override
             public String getArgumentsLogString() {
-                return AbstractLookupRowsRequest.this.getArgumentsLogString();
+                return MultiLookupRowsRequest.this.getArgumentsLogString();
             }
 
             @Override
             public void writeHeaderTo(TRequestHeader.Builder header) {
-                AbstractLookupRowsRequest.this.writeHeaderTo(header);
+                MultiLookupRowsRequest.this.writeHeaderTo(header);
             }
 
             /**
              * Internal method: prepare request to send over network.
              */
             @Override
-            public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
-                builder.body().setPath(getPath());
-                builder.body().addAllColumns(getLookupColumns());
-                builder.body().setKeepMissingRows(getKeepMissingRows());
+            public void writeTo(RpcClientRequestBuilder<TReqMultiLookup.Builder, ?> builder) {
+
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
                 }
@@ -100,52 +106,47 @@ public abstract class AbstractLookupRowsRequest<
                 if (getReplicaConsistency().isPresent()) {
                     builder.body().setReplicaConsistency(getReplicaConsistency().get().getProtoValue());
                 }
-                builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
-                serializeRowsetTo(builder.attachments());
+
+                for (var subrequest : subrequests) {
+                    subrequest.asMultiLookupRowsSubrequestWritable().writeTo(builder);
+                }
+
             }
         };
     }
 
-    /**
-     * Internal method: prepare request to send over network.
-     */
-    public HighLevelRequest<TReqVersionedLookupRows.Builder> asVersionedLookupRowsWritable() {
-        //noinspection Convert2Diamond
-        return new HighLevelRequest<TReqVersionedLookupRows.Builder>() {
-            @Override
-            public String getArgumentsLogString() {
-                return AbstractLookupRowsRequest.this.getArgumentsLogString();
-            }
+    @Override
+    public Builder toBuilder() {
+        return builder()
+                .setTimestamp(timestamp)
+                .setRetentionTimestamp(retentionTimestamp)
+                .setReplicaConsistency(replicaConsistency)
+                .setSubrequests(subrequests)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
+    }
 
-            @Override
-            public void writeHeaderTo(TRequestHeader.Builder header) {
-                AbstractLookupRowsRequest.this.writeHeaderTo(header);
-            }
+    public static class Builder extends BuilderBase<Builder> {
+        @Override
+        protected Builder self() {
+            return this;
+        }
 
-            /**
-             * Internal method: prepare request to send over network.
-             */
-            @Override
-            public void writeTo(RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, ?> builder) {
-                builder.body().setPath(getPath());
-                builder.body().addAllColumns(getLookupColumns());
-                builder.body().setKeepMissingRows(getKeepMissingRows());
-                if (getTimestamp().isPresent()) {
-                    builder.body().setTimestamp(getTimestamp().get().getValue());
-                }
-                builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
-                serializeRowsetTo(builder.attachments());
-            }
-        };
+        @Override
+        public MultiLookupRowsRequest build() {
+            return new MultiLookupRowsRequest(this);
+        }
     }
 
     /**
      * Base class for builders of LookupRows requests.
      */
-    public abstract static class Builder<
-            TBuilder extends Builder<TBuilder, TRequest>,
-            TRequest extends AbstractLookupRowsRequest<?, TRequest>>
-            extends AbstractLookupRequest.Builder<TBuilder, TRequest> {
+    public abstract static class BuilderBase<
+            TBuilder extends BuilderBase<TBuilder>>
+            extends RequestBase.Builder<TBuilder, MultiLookupRowsRequest> {
 
         @Nullable
         private YtTimestamp timestamp;
@@ -154,10 +155,12 @@ public abstract class AbstractLookupRowsRequest<
         @Nullable
         private ReplicaConsistency replicaConsistency;
 
+        private List<MultiLookupRowsSubrequest> subrequests = new ArrayList<>();
+
         /**
          * Construct empty builder.
          */
-        public Builder() {
+        public BuilderBase() {
         }
 
         /**
@@ -186,6 +189,22 @@ public abstract class AbstractLookupRowsRequest<
         }
 
         /**
+         * Add subrequest of MultiLookupRows request.
+         */
+        public TBuilder addSubrequest(MultiLookupRowsSubrequest multiLookupRowsSubrequest) {
+            this.subrequests.add(multiLookupRowsSubrequest);
+            return self();
+        }
+
+        /**
+         * Set subrequests of multilookup request.
+         */
+        public TBuilder setSubrequests(List<MultiLookupRowsSubrequest> multiLookupRowsSubrequests) {
+            this.subrequests = multiLookupRowsSubrequests;
+            return self();
+        }
+
+        /**
          * Get value of timestamp parameter.
          *
          * @see #setTimestamp parameter
@@ -210,6 +229,15 @@ public abstract class AbstractLookupRowsRequest<
          */
         public Optional<ReplicaConsistency> getReplicaConsistency() {
             return Optional.ofNullable(replicaConsistency);
+        }
+
+        /**
+         * Get subrequests of multilookup request.
+         *
+         * @see #setSubrequests
+         */
+        public List<MultiLookupRowsSubrequest> getSubrequests() {
+            return subrequests;
         }
 
     }

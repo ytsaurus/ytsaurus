@@ -59,6 +59,7 @@ import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.MoveNode;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PingTransaction;
@@ -176,6 +177,19 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
             YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
+        return (CompletableFuture<List<UnversionedRowset>>) callMethod("multiLookupRows");
+    }
+
+    @Override
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return (CompletableFuture<List<List<T>>>) callMethod("multiLookupRows");
     }
 
     @Override

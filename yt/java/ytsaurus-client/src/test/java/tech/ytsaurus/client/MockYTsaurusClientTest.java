@@ -6,6 +6,8 @@ import java.util.concurrent.CompletionException;
 
 import org.junit.Test;
 import tech.ytsaurus.client.request.LookupRowsRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsSubrequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.core.rows.YTreeMapNodeSerializer;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -72,6 +74,31 @@ public class MockYTsaurusClientTest {
     }
 
     @Test
+    public void testWithMultiLookupRows() {
+        MockYTsaurusClient mockClient = new MockYTsaurusClient("tmp");
+        List<List<YTreeNode>> expectedResult = List.of(
+                List.of(
+                        YTree.mapBuilder().key("key").value("1").buildMap(),
+                        YTree.mapBuilder().key("key").value("2").buildMap(),
+                        YTree.mapBuilder().key("key").value("3").buildMap()
+                ),
+                List.of(
+                        YTree.mapBuilder().key("key").value("4").buildMap(),
+                        YTree.mapBuilder().key("key").value("5").buildMap(),
+                        YTree.mapBuilder().key("key").value("6").buildMap()
+                )
+        );
+
+        assertEquals("times called value", 0, mockClient.getTimesCalled("multiLookupRows"));
+
+        mockClient.mockMethod("multiLookupRows", () -> CompletableFuture.completedFuture(expectedResult));
+
+        List<List<YTreeMapNode>> actualResult = doMultiLookupRows(mockClient).join();
+        assertEquals("expected mocked value", actualResult, expectedResult);
+        assertEquals("times called value", 1, mockClient.getTimesCalled("multiLookupRows"));
+    }
+
+    @Test
     public void testNoMockedValue() {
         MockYTsaurusClient mockClient = new MockYTsaurusClient("tmp");
 
@@ -97,6 +124,15 @@ public class MockYTsaurusClientTest {
     private CompletableFuture<List<YTreeMapNode>> doLookup(MockYTsaurusClient mockClient) {
         return mockClient.lookupRows(
                 new LookupRowsRequest(path, schema.toLookup()),
+                new YTreeMapNodeSerializer());
+    }
+
+    private CompletableFuture<List<List<YTreeMapNode>>> doMultiLookupRows(MockYTsaurusClient mockClient) {
+        return mockClient.multiLookupRows(
+                new MultiLookupRowsRequest().toBuilder()
+                        .addSubrequest(new MultiLookupRowsSubrequest(path, schema.toLookup()))
+                        .addSubrequest(new MultiLookupRowsSubrequest(path, schema.toLookup()))
+                        .build(),
                 new YTreeMapNodeSerializer());
     }
 

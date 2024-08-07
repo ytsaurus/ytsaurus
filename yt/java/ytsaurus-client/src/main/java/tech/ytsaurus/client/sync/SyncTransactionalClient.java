@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.sync;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import tech.ytsaurus.client.operations.MapReduceSpec;
 import tech.ytsaurus.client.operations.MapSpec;
@@ -27,6 +28,7 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MoveNode;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -76,6 +78,13 @@ public interface SyncTransactionalClient {
 
     <T> List<T> lookupRows(
             AbstractLookupRowsRequest<?, ?> req,
+            YTreeRowSerializer<T> serializer
+    );
+
+    List<UnversionedRowset> multiLookupRows(MultiLookupRowsRequest req);
+
+    <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest req,
             YTreeRowSerializer<T> serializer
     );
 

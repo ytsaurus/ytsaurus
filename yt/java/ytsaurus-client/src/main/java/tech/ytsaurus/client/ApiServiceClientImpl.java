@@ -3,6 +3,7 @@ package tech.ytsaurus.client;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -77,6 +79,7 @@ import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.MoveNode;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.MutateNode;
 import tech.ytsaurus.client.request.MutatingOptions;
@@ -151,7 +154,9 @@ import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
+import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
@@ -580,6 +585,76 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                     return responseReader.apply(response);
                 });
     }
+
+    @Override
+    public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
+        return multiLookupImpl(request, response -> multiLookupResponseReader(
+                response,
+                ApiServiceUtil::deserializeUnversionedRowset
+        ));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return multiLookupImpl(request, response ->
+                multiLookupResponseReader(
+                        response,
+                        (rowsetDescriptor, attachments) -> {
+                            final ConsumerSourceRet<T> result = ConsumerSource.list();
+                            ApiServiceUtil.deserializeUnversionedRowset(
+                                    rowsetDescriptor,
+                                    attachments,
+                                    serializer,
+                                    result,
+                                    serializationResolver
+                            );
+                            return result.get();
+                        }
+                )
+        );
+    }
+
+    private <T> CompletableFuture<T> multiLookupImpl(
+            MultiLookupRowsRequest request,
+            Function<RpcClientResponse<TRspMultiLookup>, T> responseReader
+    ) {
+        for (var subrequest : request.getSubrequests()) {
+            subrequest.convertValues(serializationResolver);
+        }
+        return handleHeavyResponse(
+                sendRequest(
+                        request.asMultiLookupWritable(),
+                        ApiServiceMethodTable.MULTI_LOOKUP.createRequestBuilder(rpcOptions)
+                ),
+                response -> {
+                    logger.trace("MultiLookupRows incoming – number of rowset descriptors: {}",
+                            response.body().getSubresponsesCount());
+                    return responseReader.apply(response);
+                });
+    }
+
+    private <T> List<T> multiLookupResponseReader(
+            RpcClientResponse<TRspMultiLookup> response,
+            BiFunction<TRowsetDescriptor, List<byte[]>, T> rowsetDeserializer
+    ) {
+        List<T> result = new ArrayList<>(response.body().getSubresponsesCount());
+        int beginAttachmentIndex = 0;
+        for (var subresponse : response.body().getSubresponsesList()) {
+            int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+            result.add(
+                    rowsetDeserializer.apply(
+                            subresponse.getRowsetDescriptor(),
+                            response.attachments().subList(beginAttachmentIndex, endAttachmentIndex)
+                    )
+            );
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        return result;
+    }
+
 
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
