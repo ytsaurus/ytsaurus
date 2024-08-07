@@ -228,6 +228,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexPerUserValidation)                              (2627))  // sabdenovch
     ((SecondaryIndexUnique)                                         (2628))  // sabdenovch
     ((DropImaginaryChunkLocations)                                  (2629))  // kvk1920
+    ((RackDataCenter)                                               (2630))  // proller
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
