@@ -306,15 +306,21 @@ private:
         }
 
         // Enqueue request to be executed later.
-        YT_LOG_DEBUG("Started waiting for throttler (Amount: %v)", amount);
         auto promise = NewPromise<void>();
         auto request = New<TThrottlerRequest>(amount);
         request->TraceContext = NTracing::CreateTraceContextFromCurrent("Throttler");
+
+        YT_LOG_DEBUG(
+            "Started waiting for throttler (Amount: %v, RequestTraceId: %v)",
+            amount,
+            request->TraceContext->GetTraceId());
+
         promise.OnCanceled(BIND([weakRequest = MakeWeak(request), amount, this, this_ = MakeStrong(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
                 NTracing::TTraceContextFinishGuard guard(std::move(request->TraceContext));
-                YT_LOG_DEBUG("Canceled waiting for throttler (Amount: %v)",
+                YT_LOG_DEBUG(
+                    "Canceled waiting for throttler (Amount: %v)",
                     amount);
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
@@ -468,7 +474,8 @@ private:
                 NTracing::TTraceContextGuard traceGuard(std::move(request->TraceContext));
 
                 auto waitTime = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - request->StartTime);
-                YT_LOG_DEBUG("Finished waiting for throttler (Amount: %v, WaitTime: %v)",
+                YT_LOG_DEBUG(
+                    "Finished waiting for throttler (Amount: %v, WaitTime: %v)",
                     request->Amount,
                     waitTime);
 
@@ -868,7 +875,8 @@ public:
             IncomingRequests_.emplace_back(TIncomingRequest{amount, promise, incomingRequestId});
         }
 
-        YT_LOG_DEBUG("Enqueued a request to the prefetching throttler (Id: %v, Amount: %v)",
+        YT_LOG_DEBUG(
+            "Enqueued a request to the prefetching throttler (Id: %v, Amount: %v)",
             incomingRequestId,
             amount);
 
@@ -952,7 +960,8 @@ public:
             Available_ += amount;
         }
 
-        YT_LOG_DEBUG("Released from prefetching throttler (Amount: %v)",
+        YT_LOG_DEBUG(
+            "Released from prefetching throttler (Amount: %v)",
             amount);
     }
 
@@ -1138,7 +1147,8 @@ private:
             prefetchAmount = PrefetchAmount_;
         }
 
-        YT_LOG_DEBUG("Request to the underlying throttler (Id: %v, UnderlyingAmount: %v, Balance: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
+        YT_LOG_DEBUG(
+            "Request to the underlying throttler (Id: %v, UnderlyingAmount: %v, Balance: %v, Prefetch: %v, IncomingRps: %v, UnderlyingRps: %v)",
             underlyingRequestId,
             underlyingAmount,
             balance,
@@ -1180,7 +1190,8 @@ private:
         }
         PrefetchAmount_ = std::clamp(PrefetchAmount_, Config_->MinPrefetchAmount, Config_->MaxPrefetchAmount);
 
-        YT_LOG_DEBUG("Recalculate the amount to prefetch from the underlying throttler (RequestsInWindow: %v, Window: %v, UnderlyingRps: %v, TargetRps: %v, PrefetchAmount: %v)",
+        YT_LOG_DEBUG(
+            "Recalculate the amount to prefetch from the underlying throttler (RequestsInWindow: %v, Window: %v, UnderlyingRps: %v, TargetRps: %v, PrefetchAmount: %v)",
             UnderlyingRequests_.size(),
             Config_->Window,
             underlyingRps,
@@ -1191,7 +1202,8 @@ private:
     //! Handles a response from the underlying throttler.
     void OnThrottlingResponse(i64 available, i64 id, const TError& error)
     {
-        YT_LOG_DEBUG("Response from the underlying throttler (Id: %v, Amount: %v, Result: %v)",
+        YT_LOG_DEBUG(
+            "Response from the underlying throttler (Id: %v, Amount: %v, Result: %v)",
             id,
             available,
             error.IsOK());
@@ -1237,7 +1249,8 @@ private:
             // a recursive call to #SatisfyIncomingRequests when the corresponding #promise is set.
             // So that #promise should be set without holding the #Lock_.
             auto result = request.Promise.TrySet();
-            YT_LOG_DEBUG("Sent the response for the incoming request (Id: %v, Amount: %v, Result: %v)",
+            YT_LOG_DEBUG(
+                "Sent the response for the incoming request (Id: %v, Amount: %v, Result: %v)",
                 request.Id,
                 request.Amount,
                 result);
@@ -1265,7 +1278,8 @@ private:
 
         for (auto& request : fulfilled) {
             request.Promise.Set(error);
-            YT_LOG_DEBUG("Dropped the incoming request (Id: %v, Amount: %v)",
+            YT_LOG_DEBUG(
+                "Dropped the incoming request (Id: %v, Amount: %v)",
                 request.Id,
                 request.Amount);
         }
