@@ -165,7 +165,14 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto j = 0; j < item.roles_size(); ++j) {
-                auto role = EMasterCellRole(item.roles(j));
+                auto role = EMasterCellRole::None;
+                auto protoRole = item.roles(j);
+                if (!TryEnumCast(protoRole, &role)) {
+                    YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
+                        protoRole,
+                        cellTag);
+                    continue;
+                }
                 roles = roles | EMasterCellRoles(role);
                 roleCells[role].push_back(cellTag);
             }

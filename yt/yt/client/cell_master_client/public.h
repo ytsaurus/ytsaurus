@@ -28,6 +28,7 @@ DEFINE_BIT_ENUM(EMasterCellRoles,
 );
 
 DEFINE_ENUM(EMasterCellRole,
+    ((None)                      (0x0000))
     ((CypressNodeHost)           (0x0001))
     ((TransactionCoordinator)    (0x0002))
     ((ChunkHost)                 (0x0004))
