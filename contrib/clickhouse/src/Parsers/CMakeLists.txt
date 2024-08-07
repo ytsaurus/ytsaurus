@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(clickhouse-src-Parsers)
 
@@ -54,7 +53,7 @@ target_include_directories(clickhouse-src-Parsers PRIVATE
 )
 
 target_link_libraries(clickhouse-src-Parsers PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   clickhouse-src-Common
   contrib-libs-double-conversion

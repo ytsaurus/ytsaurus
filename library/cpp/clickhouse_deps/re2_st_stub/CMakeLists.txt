@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-clickhouse_deps-re2_st_stub INTERFACE)
 
@@ -21,7 +20,7 @@ target_include_directories(cpp-clickhouse_deps-re2_st_stub INTERFACE
 )
 
 target_link_libraries(cpp-clickhouse_deps-re2_st_stub INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-re2

@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-http-proxy)
 
@@ -25,7 +24,7 @@ target_include_directories(unittester-http-proxy PRIVATE
 )
 
 target_link_libraries(unittester-http-proxy PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

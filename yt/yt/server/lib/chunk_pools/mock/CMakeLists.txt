@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(lib-chunk_pools-mock)
 
@@ -21,7 +20,7 @@ target_compile_options(lib-chunk_pools-mock PRIVATE
 )
 
 target_link_libraries(lib-chunk_pools-mock PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-core-test_framework

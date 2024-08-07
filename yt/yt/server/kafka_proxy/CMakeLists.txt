@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(Python3 REQUIRED)
-find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-kafka_proxy)
 
@@ -26,7 +25,7 @@ target_include_directories(yt-server-kafka_proxy PUBLIC
 )
 
 target_link_libraries(yt-server-kafka_proxy PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client

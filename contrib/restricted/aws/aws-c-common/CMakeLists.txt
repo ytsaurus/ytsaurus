@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-c-common)
 
@@ -35,7 +34,7 @@ target_include_directories(restricted-aws-aws-c-common PUBLIC
 )
 
 target_link_libraries(restricted-aws-aws-c-common PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
 )
 
 target_sources(restricted-aws-aws-c-common PRIVATE

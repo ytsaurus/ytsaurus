@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(Common)
 add_subdirectory(Parsers)
 
@@ -85,7 +84,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
 )
 
 target_link_libraries(contrib-clickhouse-src PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   clickhouse-contrib-cctz-cmake
   clickhouse-src-Common
@@ -1793,7 +1792,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
 )
 
 target_link_libraries(contrib-clickhouse-src.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   clickhouse-contrib-cctz-cmake
   clickhouse-src-Common

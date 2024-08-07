@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-tcp_proxy)
 
@@ -25,7 +24,7 @@ target_include_directories(yt-server-tcp_proxy PUBLIC
 )
 
 target_link_libraries(yt-server-tcp_proxy PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   server-lib-cypress_registrar

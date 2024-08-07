@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 add_library(dragonbox)
 
@@ -25,7 +24,7 @@ target_include_directories(dragonbox PUBLIC
 )
 
 target_link_libraries(dragonbox PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
 

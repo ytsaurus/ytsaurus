@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 
 add_library(yt-server-cell_balancer)
@@ -26,7 +25,7 @@ target_include_directories(yt-server-cell_balancer PUBLIC
 )
 
 target_link_libraries(yt-server-cell_balancer PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt

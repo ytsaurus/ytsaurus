@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
 
 get_built_tool_path(
   TOOL_rescompiler_bin
@@ -24,7 +23,7 @@ get_built_tool_path(
 add_library(libs-cctz-tzdata INTERFACE)
 
 target_link_libraries(libs-cctz-tzdata INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-cctz
@@ -37,7 +36,7 @@ add_global_library_for(libs-cctz-tzdata.global
 )
 
 target_link_libraries(libs-cctz-tzdata.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-cctz
