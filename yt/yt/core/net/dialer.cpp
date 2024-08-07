@@ -373,7 +373,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Connect timeout; trying to reconnect (Reconnect timeout: %v)",
+        YT_LOG_DEBUG("Connect timeout; trying to reconnect (ReconnectTimeout: %v)",
             ReconnectTimeout_);
 
         Connect(guard);
