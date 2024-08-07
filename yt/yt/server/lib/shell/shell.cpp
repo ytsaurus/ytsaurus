@@ -367,7 +367,7 @@ class TShell
 public:
     explicit TShell(std::unique_ptr<TShellOptions> options)
         : TShellBase(std::move(options))
-        , Process_(New<TSimpleProcess>(Options_->ExePath, false))
+        , Process_(New<TSimpleProcess>(Options_->ExePath, /*copyEnv*/ false))
     { }
 
     void Spawn()
@@ -524,11 +524,6 @@ public:
 
 private:
     const TProcessBasePtr Process_;
-
-    void CleanupShellProcesses()
-    {
-        YT_UNUSED_FUTURE(Reader_->Abort());
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

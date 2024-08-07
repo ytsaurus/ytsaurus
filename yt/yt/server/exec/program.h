@@ -136,10 +136,10 @@ protected:
 
         if (config->Pty) {
             CloseAllDescriptors({*config->Pty});
-            if (setsid() == -1) {
+            if (HandleEintr(setsid) == -1) {
                 THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
             }
-            if (::ioctl(*config->Pty, TIOCSCTTY, 1) == -1) {
+            if (HandleEintr(::ioctl, *config->Pty, TIOCSCTTY, 1) == -1) {
                 THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal") << TError::FromSystem();
             }
             SafeDup2(*config->Pty, 0);
