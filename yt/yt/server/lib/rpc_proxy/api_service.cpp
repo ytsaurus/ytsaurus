@@ -955,7 +955,7 @@ private:
     }
 
     template <class TRequestMessage, class TResponseMessage>
-    void InitContext(const TIntrusivePtr<TApiServiceContext<TRequestMessage, TResponseMessage>>& context)
+    void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context)
     {
         using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
