@@ -302,6 +302,7 @@ public:
 
     TCancelableContextPtr GetCancelableContext() const override;
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    IInvokerPoolPtr GetCancelableInvokerPool() const override;
 
     TCompositePendingJobCount GetPendingJobCount() const override;
     i64 GetFailedJobCount() const override;

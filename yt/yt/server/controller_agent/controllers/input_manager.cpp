@@ -1096,7 +1096,7 @@ void TInputManager::OnInputChunkAvailable(
 
 void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescriptor* descriptor)
 {
-    VERIFY_INVOKER_AFFINITY(Host_->GetCancelableInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(Host_->GetCancelableInvokerPool());
 
     if (descriptor->State != EInputChunkState::Active) {
         return;

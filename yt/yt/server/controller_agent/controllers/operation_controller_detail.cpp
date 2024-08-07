@@ -4972,6 +4972,11 @@ IInvokerPtr TOperationControllerBase::GetInvoker(EOperationControllerQueue queue
     return SuspendableInvokerPool->GetInvoker(queue);
 }
 
+IInvokerPoolPtr TOperationControllerBase::GetCancelableInvokerPool() const
+{
+    return CancelableInvokerPool;
+}
+
 IInvokerPtr TOperationControllerBase::GetChunkScraperInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();

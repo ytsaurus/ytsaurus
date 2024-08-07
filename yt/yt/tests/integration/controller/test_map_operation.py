@@ -5,7 +5,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, raises_yt_error, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
@@ -2196,6 +2196,91 @@ done
 
         release_breakpoint()
         op.track()
+
+    @authors("coteeq")
+    def test_map_unavailable_chunk_on_job(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            "replication_factor": 1,
+        })
+        data = [
+            {"key": 1, "value": 1},
+            {"key": 2, "value": 1},
+            {"key": 3, "value": 1},
+        ]
+        write_table("//tmp/t_in", data)
+
+        # Filter out nodes which host the input table,
+        # so we do not accidentally ban nodes with jobs.
+        chunk_ids = get("//tmp/t_in/@chunk_ids")
+        assert len(chunk_ids) == 1
+        table_nodes = [str(node) for node in get("#" + str(chunk_ids[0]) + "/@stored_replicas")]
+        assert len(table_nodes) == 1
+        all_nodes = get("//sys/cluster_nodes")
+        non_table_nodes = [node for node in all_nodes if node not in table_nodes]
+        assert len(non_table_nodes) == self.NUM_NODES - 1
+        scheduling_filter = " | ".join(non_table_nodes)
+
+        try:
+            update_controller_agent_config("chunk_location_throttler/limit", 0.0)
+
+            op = map(
+                track=False,
+                command=";".join([
+                    events_on_fs().wait_event_cmd("run_job"),
+                    "cat",
+                ]),
+                in_=["//tmp/t_in"],
+                out=["<create=%true>//tmp/t_out"],
+                spec={
+                    "testing": {
+                        # Need some delay, so we can ban nodes before job started
+                        "build_job_spec_proto_delay": 2000,
+                    },
+                    "scheduling_tag_filter": scheduling_filter,
+                    "job_io": {
+                        "table_reader": {
+                            # Fail fast
+                            "retry_count": 1,
+                        }
+                    },
+                }
+            )
+
+            # Wait until controller fetches tables.
+            wait(lambda: op.get_state() == "running")
+
+            # Lose the chunk. Hopefully we will do this while controller prepares
+            # jobspec (thus build_job_spec_proto_delay in operation spec).
+            set_nodes_banned(table_nodes, True)
+            wait(lambda: get("#{0}/@replication_status/default/lost".format(chunk_ids[0])))
+
+            # Wait for the job to be aborted due to failed chunks.
+            wait(lambda: op.get_job_count("aborted") > 0)
+
+            def get_unavailable_chunks_orchid():
+                path = "/controller_orchid/unavailable_input_chunks"
+                if self.Env.get_component_version("ytserver-controller-agent").abi >= (24, 1):
+                    path += "/<local>"
+                return path
+            assert get(op.get_path() + get_unavailable_chunks_orchid()) == [chunk_ids[0]]
+
+            # Allow to locate chunk
+            remove("//sys/controller_agents/config/chunk_location_throttler")
+
+            # Allow jobs to finish
+            events_on_fs().notify_event("run_job")
+            set_nodes_banned(table_nodes, False)
+            op.track()
+
+        finally:
+            remove("//sys/controller_agents/config/chunk_location_throttler", force=True)
+            set_nodes_banned(table_nodes, False)
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
 
 
 ##################################################################
