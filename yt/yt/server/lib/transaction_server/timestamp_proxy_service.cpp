@@ -39,6 +39,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
             .SetQueueSizeLimit(100000)
             .SetConcurrencyLimit(100000));
+
+        DeclareServerFeature(ETimestampProviderFeature::AlienClocks);
     }
 
 private:
@@ -77,6 +79,7 @@ private:
                 if (clockClusterTag != InvalidCellTag) {
                     response->set_clock_cluster_tag(ToProto<int>(clockClusterTag));
                 }
+
                 context->Reply();
             } else {
                 context->Reply(result);

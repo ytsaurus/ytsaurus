@@ -84,6 +84,8 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
             .SetInvoker(TimestampInvoker_));
 
+        DeclareServerFeature(ETimestampProviderFeature::AlienClocks);
+
         RegisterLoader(
             "TimestampManager",
             BIND_NO_PROPAGATE(&TImpl::Load, Unretained(this)));

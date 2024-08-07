@@ -138,7 +138,8 @@ private:
             NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
-            channelFactory);
+            channelFactory,
+            true);
 
         auto alienProviders = CreateAlienTimestampProvidersMap(
             Config_->AlienProviders,
