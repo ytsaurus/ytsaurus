@@ -253,11 +253,14 @@ public:
                 auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
 
                 auto jobStub = std::make_unique<TNewJobStub>();
+
                 // Take local chunks first.
+                std::optional<int> stripeIndexesSize;
                 if (nodeId != InvalidNodeId) {
                     auto it = NodeIdToEntry_.find(nodeId);
                     if (it != NodeIdToEntry_.end()) {
                         const auto& entry = it->second;
+                        stripeIndexesSize = std::ssize(entry.StripeIndexes);
                         AddStripesToJob(
                             jobStub.get(),
                             entry.StripeIndexes.begin(),
@@ -267,6 +270,7 @@ public:
                 }
 
                 // Take non-local chunks.
+                std::optional<int> freeStripesSize = std::ssize(FreeStripes_);
                 AddStripesToJob(
                     jobStub.get(),
                     FreeStripes_.begin(),
@@ -276,10 +280,32 @@ public:
                 jobStub->Finalize();
 
                 if (jobStub->GetStripeList()->TotalChunkCount == 1) {
-                    YT_VERIFY(jobStub->GetStripeList()->Stripes.size() == 1);
+                    YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes) == 1);
+                    auto dataSlice = jobStub->GetStripeList()->Stripes.back()->DataSlices.back();
                     if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
-                        TryTeleportChunk(jobStub->GetStripeList()->Stripes.back()->DataSlices.back()))
+                        TryTeleportChunk(dataSlice))
                     {
+                        YT_LOG_DEBUG("Teleported single chunk (ChunkId: %v, NodeId: %v, IdealDataWeightPerJob: %v, TableIndex: %v, "
+                                "ChunkCount: %v, DataWeight: %v, RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
+                                "IsTeleportable: %v, IsLegacy: %v, StripeIndexesSize: %v, FreeStripesSize: %v, Pending: %v, Blocked: %v)",
+                            dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
+                            nodeId,
+                            idealDataWeightPerJob,
+                            dataSlice->GetTableIndex(),
+                            dataSlice->GetChunkCount(),
+                            dataSlice->GetDataWeight(),
+                            dataSlice->GetRowCount(),
+                            dataSlice->GetValueCount(),
+                            dataSlice->GetMaxBlockSize(),
+                            dataSlice->GetRangeIndex(),
+                            dataSlice->IsTrivial(),
+                            dataSlice->IsTeleportable,
+                            dataSlice->IsLegacy,
+                            stripeIndexesSize,
+                            freeStripesSize,
+                            jobCounter->GetPending(),
+                            jobCounter->GetBlocked());
+
                         // We have teleported single chunk so there is no need for a job.
                         UpdateFreeJobCounter();
                         CheckCompleted();
