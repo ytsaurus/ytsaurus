@@ -42,6 +42,9 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_id_update_period", &TThis::OperationIdUpdatePeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("populate_user_with_token", &TThis::PopulateUserWithToken)
+        .Default(false);
+
     registrar.Parameter("chyt_strawberry_path", &TThis::ChytStrawberryPath)
         .Default("//sys/strawberry/chyt");
 

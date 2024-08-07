@@ -52,14 +52,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                         else instance_response["self"] == 0
                     )
 
-                proxy_response = clique.make_query_via_proxy(
-                    "select * from system.clique", database=clique.op.id + "@" + str(job_cookie)
-                )
-                for instance_response in proxy_response:
-                    assert (
-                        instance_response["self"] == 1
-                        if instance_response["job_cookie"] == job_cookie
-                        else instance_response["self"] == 0
+                with raises_yt_error(QueryFailedError):  # operation-id is no longer supported
+                    clique.make_query_via_proxy(
+                        "select * from system.clique", alias=clique.op.id + "@" + str(job_cookie)
                     )
 
             with raises_yt_error(QueryFailedError):
@@ -244,7 +239,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_counter.get_delta(verbose=True) == 1
         assert banned_count.get_delta(verbose=True) == 1
 
-    @authors("max42")
+    @authors("max42", "barykinni")
     def test_database_specification(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -253,7 +248,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
         with Clique(1, alias="*alias") as clique:
             assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0]
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1 as a", database="*alia")
@@ -286,17 +283,12 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             wait(lambda: not get(clique.op.get_path() + "/@suspended"))
             time.sleep(1)
 
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
-
         wait(lambda: clique.get_active_instance_count() == 0)
 
         time.sleep(1)
 
         with raises_yt_error(QueryFailedError):
             assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-
-        with raises_yt_error(QueryFailedError):
-            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
 
     @authors("dakovalkov")
     def test_expect_100_continue(self):

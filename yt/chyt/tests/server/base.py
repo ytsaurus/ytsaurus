@@ -28,6 +28,7 @@ import time
 import json
 import random
 import copy
+import string
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -66,6 +67,10 @@ def get_current_test_name():
     return os.environ.get('PYTEST_CURRENT_TEST').split(':')[-1].split(' ')[0]
 
 
+def _generate_random_alias():
+    return ''.join(random.choices(string.ascii_lowercase, k=10))
+
+
 class Clique(object):
     base_config = None
     clique_index = 0
@@ -79,6 +84,14 @@ class Clique(object):
     sql_udf_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
+        """
+        alias: str
+            Alias for the database. With or without asterisk: both forms are legal.
+            It will be stored in self.alias with all asterisks discarded.
+
+            Is generated randomly if not provided.
+        """
+
         discovery_patch = {
             "yt": {
                 "discovery": {
@@ -101,18 +114,22 @@ class Clique(object):
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
 
-        Clique.alias = alias
-        if Clique.alias:
-            alias_without_asterisk = Clique.alias[1:]
-            config["yt"]["clique_alias"] = alias_without_asterisk
+        self.alias = (alias.removeprefix("*")
+                      if alias is not None
+                      else _generate_random_alias())
 
-            Clique.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(alias_without_asterisk)
-            ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
-            create("map_node", Clique.sql_udf_path, recursive=True, attributes={
-                "acl": [ace],
-            })
-            config["yt"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
-            config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
+        assert self.alias != ""
+
+        # alias processing
+        config["yt"]["clique_alias"] = self.alias
+
+        self.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(self.alias)
+        ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
+        create("map_node", self.sql_udf_path, recursive=True, attributes={
+            "acl": [ace],
+        })
+        config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
+        config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -174,8 +191,9 @@ class Clique(object):
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
-        if Clique.alias:
-            self.spec["alias"] = Clique.alias
+
+        self.spec["alias"] = "*" + self.alias
+
         self.instance_count = instance_count
 
     def get_active_instances_for_discovery_v1(self):
@@ -199,8 +217,7 @@ class Clique(object):
             return []
 
     def get_group_id(self):
-        group_id = self.get_clique_id() if Clique.alias is None else Clique.alias
-        return group_id[1:] if group_id.startswith('*') else group_id
+        return self.alias or self.get_clique_id()
 
     def get_active_instances_for_discovery_v2(self):
         assert len(self.discovery_servers) > 0
@@ -305,8 +322,8 @@ class Clique(object):
         try:
             self.op.complete()
 
-            if Clique.sql_udf_path:
-                remove(Clique.sql_udf_path, recursive=True, force=True)
+            if self.sql_udf_path:
+                remove(self.sql_udf_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)
@@ -344,22 +361,32 @@ class Clique(object):
         return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
     def make_request(self, url, query, headers, format="JSON", params=None, verbose=False,
-                     only_rows=True, full_response=False, timeout=None):
+                     only_rows=True, full_response=False, timeout=None, method="POST", auth=None):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
-        query = query.strip()
-        assert "format" not in query.lower()
-        query_type = query.strip().split(" ", 1)[0]
-        if query.endswith(";"):
-            query = query[:-1]
-        output_present = query_type in QUERY_TYPES_WITH_OUTPUT
-        if output_present:
-            query = query + " format " + format
+
+        def prepare_query(query):
+            query = query.strip()
+
+            assert "format" not in query.lower()
+            query_type = query.strip().split(" ", 1)[0]
+            if query.endswith(";"):
+                query = query[:-1]
+            output_present = query_type.lower() in QUERY_TYPES_WITH_OUTPUT
+            if output_present:
+                query = query + " format " + format
+
+            return query, output_present
+
+        if len(query) != 0:
+            query, output_present = prepare_query(query)
+        else:
+            params["query"], output_present = prepare_query(params["query"])
 
         params["output_format_json_quote_64bit_integers"] = 0
 
-        result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout)
+        result = requests.request(method=method, url=url, data=query, headers=headers, params=params, timeout=timeout, verify=False, auth=auth)
 
         inner_errors = []
 
@@ -469,29 +496,59 @@ class Clique(object):
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors, code=InstanceUnavailableCode)
 
     def make_query_via_proxy(
-            self,
-            query,
-            format="JSON",
-            settings=None,
-            verbose=True,
-            only_rows=True,
-            full_response=False,
-            headers=None,
-            database=None,
-            user="root",
+        self,
+        query,
+        format="JSON",
+        settings=None,
+        verbose=True,
+        only_rows=True,
+        full_response=False,
+        headers=None,
+        alias=None,
+        user="root",
+        endpoint="/chyt",
+        https_proxy=False,
+        session_id: str | None = None,
+        method="POST",
+        autofill_clique_alias=True,
+        auth=None,
     ):
+        """
+        https_proxy:
+            Use https proxy instead of http one.
+        autofill_clique_alias:
+            fill corresponding query's field with 'self.alias' value
+        """
+
+        # Configure headers.
         if headers is None:
             headers = {}
         headers["X-Yt-User"] = user
-        assert self.proxy_address is not None
-        url = self.proxy_address + "/query"
-        if database is None:
-            database = self.op.id if Clique.alias is None else Clique.alias
-        params = {"database": database}
+
+        # Fill alias if necessary.
+        if alias is None and autofill_clique_alias:
+            alias = self.alias
+
+        # Configure params.
+        params = {}
+
+        if alias is not None:
+            params["chyt.clique_alias"] = alias
+        if session_id is not None:
+            params["session_id"] = session_id
+
         if settings is not None:
             update_inplace(params, settings)
-        print_debug()
-        print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
+
+        # Configure url.
+        address = (self.proxy_https_address if https_proxy
+                    else self.proxy_address)
+
+        assert address is not None
+        url = address + endpoint
+
+        print_debug("\nQuerying proxy {0} with the following data:\n> {1}".format(url, query))
+
         return self.make_request(
             url,
             query,
@@ -501,6 +558,8 @@ class Clique(object):
             verbose=verbose,
             only_rows=only_rows,
             full_response=full_response,
+            method=method,
+            auth=auth,
         )
 
     def make_query(
@@ -602,20 +661,6 @@ class ClickHouseTestBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     ENABLE_HTTP_PROXY = True
-
-    DELTA_PROXY_CONFIG = {
-        "clickhouse": {
-            "discovery_cache": {
-                "soft_age_threshold": 500,
-                "hard_age_threshold": 1500,
-                "master_cache_expire_time": 500,
-            },
-            "operation_cache": {
-                "expire_after_successful_update_time": 0,
-                "refresh_time": yson.YsonEntity(),
-            },
-        },
-    }
 
     DELTA_NODE_CONFIG = {
         "exec_node": {

@@ -60,6 +60,9 @@ public:
 
     TDuration OperationIdUpdatePeriod;
 
+    //! For testing.
+    bool PopulateUserWithToken;
+
     NYPath::TYPath ChytStrawberryPath;
 
     REGISTER_YSON_STRUCT(TStaticClickHouseConfig);
