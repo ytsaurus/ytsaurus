@@ -49,7 +49,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics = nullptr,
-    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics = nullptr);
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics = nullptr,
+    IMemoryUsageTrackerPtr memoryUsageTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

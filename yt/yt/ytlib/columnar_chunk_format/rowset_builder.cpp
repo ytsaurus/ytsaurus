@@ -113,6 +113,8 @@ public:
         ui32 position,
         ui16 columnId,
         ui64* dataWeight) const = 0;
+
+    virtual size_t GetMemoryUsage() const = 0;
 };
 
 template <EValueType Type>
@@ -171,6 +173,11 @@ public:
         }
 
         return position;
+    }
+
+    size_t GetMemoryUsage() const override
+    {
+        return TScanDataExtractor<Type>::DoGetMemoryUsage();
     }
 
 private:
@@ -239,6 +246,8 @@ public:
     virtual bool HasKeyAtIndex(
         const TUnversionedValue& expected,
         ui32 rowIndex) = 0;
+
+    virtual size_t GetMemoryUsage() const = 0;
 };
 
 template <EValueType Type>
@@ -321,6 +330,11 @@ public:
         Extract(&value, position);
 
         return AreValuesEqual<Type>(expected, value);
+    }
+
+    size_t GetMemoryUsage() const override
+    {
+        return 0;
     }
 };
 
@@ -552,9 +566,16 @@ public:
     // Returns data weight
     virtual ui64 ReadValue(TValueOutput* valueOutput, TReadSpan valueSpan) = 0;
 
+    virtual size_t GetMemoryUsage() const = 0;
+
     bool IsAggregate() const
     {
         return Aggregate_;
+    }
+
+    size_t DoGetMemoryUsage() const
+    {
+        return sizeof(TValueColumnBase<ui32>);
     }
 
 protected:
@@ -665,6 +686,11 @@ public:
         return position;
     }
 
+    size_t GetMemoryUsage() const override
+    {
+        return TValueColumnBase<ui32>::DoGetMemoryUsage();
+    }
+
 private:
     void DoInitialize(const TValueMeta<Type>* meta, bool newMeta)
     {
@@ -771,6 +797,8 @@ public:
         return Aggregate_;
     }
 
+    virtual size_t GetMemoryUsage() const = 0;
+
 private:
     // This field allows to check aggregate flag without calling virtual method.
     const bool Aggregate_;
@@ -866,6 +894,12 @@ public:
         }
 
         return position;
+    }
+
+    size_t GetMemoryUsage() const override
+    {
+        return TValueColumnBase<TReadSpan>::DoGetMemoryUsage() +
+            TVersionedValueBase::DoGetMemoryUsage();
     }
 
 private:
@@ -1297,6 +1331,7 @@ public:
             params.Timestamp,
             params.ProduceAll)
         , NewMeta_(params.NewMeta)
+        , MemoryGuard_(TMemoryUsageTrackerGuard::Build(params.MemoryUsageTracker))
     {
         int keyReadersCount = 0;
         if (createKeyReadersMode == ECreateKeyReadersMode::All) {
@@ -1305,13 +1340,13 @@ public:
             keyReadersCount = std::ssize(params.KeyColumnIndexes);
         }
 
-        auto columnReadersMemorySize =
+        ColumnReadersMemorySize_ =
             keyReadersCount * KeyColumnMaxSize +
             std::ssize(params.ValueSchema) * ValueColumnMaxSize;
         auto positionsMemorySize = sizeof(ui32) * (keyReadersCount + params.ValueSchema.size());
 
         ColumnReadersMemoryHolder_ = std::make_unique<char[]>(
-            columnReadersMemorySize +
+            ColumnReadersMemorySize_ +
             positionsMemorySize);
 
         auto* memoryArea = ColumnReadersMemoryHolder_.get();
@@ -1352,7 +1387,7 @@ public:
                 params.ProduceAll));
         }
 
-        YT_VERIFY(memoryArea <= ColumnReadersMemoryHolder_.get() + columnReadersMemorySize);
+        YT_VERIFY(memoryArea <= ColumnReadersMemoryHolder_.get() + ColumnReadersMemorySize_);
 
         Positions_ = reinterpret_cast<ui32*>(memoryArea);
         memset(Positions_, 0, positionsMemorySize);
@@ -1432,6 +1467,8 @@ protected:
     const bool NewMeta_;
 
     TChunkedMemoryPool MemoryPool_;
+    TMemoryUsageTrackerGuard MemoryGuard_;
+    size_t ColumnReadersMemorySize_;
 
     // Positions in segments are kept separately to minimize write memory footprint.
     // Column readers are immutable during read.
@@ -1809,11 +1846,13 @@ private:
     {
         // Timestamp column segment limit.
         ui32 segmentRowLimit = TBase::GetSegmentRowLimit();
+        size_t totalMemoryUsage = 0;
         if (rowIndex >= segmentRowLimit) {
             TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DecodeTimestampSegmentTime);
 
             ++readerStatistics->UpdateSegmentCallCount;
             segmentRowLimit = TBase::UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
+            totalMemoryUsage += TBase::GetMemoryUsage();
         }
 
         {
@@ -1823,6 +1862,7 @@ private:
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
+                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1837,6 +1877,7 @@ private:
                 if (rowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(rowIndex, &TmpBuffers_, NewMeta_);
+                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
@@ -1844,6 +1885,8 @@ private:
             }
 
         }
+
+        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage);
 
         return segmentRowLimit;
     }
@@ -1853,6 +1896,7 @@ private:
     {
         YT_VERIFY(!spans.empty());
         ui32 startRowIndex = spans.Front().Lower;
+        size_t totalMemoryUsage = 0;
 
         // Timestamp column segment limit.
         ui32 segmentRowLimit = TBase::GetSegmentRowLimit();
@@ -1861,6 +1905,7 @@ private:
 
             ++readerStatistics->UpdateSegmentCallCount;
             segmentRowLimit = TBase::UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
+            totalMemoryUsage += TBase::GetMemoryUsage();
         }
 
         {
@@ -1870,6 +1915,7 @@ private:
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
+                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[&column - KeyColumns_.begin()] = 0;
                 }
 
@@ -1884,12 +1930,15 @@ private:
                 if (startRowIndex >= currentLimit) {
                     ++readerStatistics->UpdateSegmentCallCount;
                     currentLimit = column->UpdateSegment(resultRowOffset, spans, &TmpBuffers_, NewMeta_);
+                    totalMemoryUsage += column->GetMemoryUsage();
                     Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
                 }
 
                 segmentRowLimit = std::min(segmentRowLimit, currentLimit);
             }
         }
+
+        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage);
 
         return segmentRowLimit;
     }
@@ -1987,7 +2036,6 @@ public:
         : TRowsetBuilder<ui32>(params, ECreateKeyReadersMode::None)
         , Keys_(std::move(keys))
         , KeyColumnIndexes_(std::move(params.KeyColumnIndexes))
-        , FixedDataWeightPartForKey_(0)
     {
         for (int index = 0; index < std::ssize(params.KeyTypes); ++index) {
             ColumnRefiners_.push_back(DispatchByDataType<TCreateRefiner>(params.KeyTypes[index], &params.ColumnInfos[index]));
@@ -2083,7 +2131,7 @@ private:
     const TSharedRange<TLegacyKey> Keys_;
     const TCompactVector<ui16, 8> KeyColumnIndexes_;
 
-    ui64 FixedDataWeightPartForKey_;
+    ui64 FixedDataWeightPartForKey_ = 0;
     TCompactVector<ui16, 8> StringLikeKeyColumnIndexes_;
     std::vector<std::unique_ptr<IColumnRefiner<TLegacyKey>>> ColumnRefiners_;
 
@@ -2124,7 +2172,6 @@ private:
 
                 segmentRowLimit = std::min(segmentRowLimit, currentLimit);
             }
-
         }
 
         return segmentRowLimit;
@@ -2241,7 +2288,6 @@ public:
         : TRowsetBuilder<ui32>(params, ECreateKeyReadersMode::All)
         , KeysWithHints_(std::move(keysWithHints))
         , KeyColumnIndexes_(std::move(params.KeyColumnIndexes))
-        , FixedDataWeightPartForKey_(0)
     {
         for (auto keyColumnIndex : KeyColumnIndexes_) {
             auto keyType = params.KeyTypes[keyColumnIndex];
@@ -2339,7 +2385,7 @@ private:
     TKeysWithHints KeysWithHints_;
     const TCompactVector<ui16, 8> KeyColumnIndexes_;
 
-    ui64 FixedDataWeightPartForKey_;
+    ui64 FixedDataWeightPartForKey_ = 0;
     TCompactVector<ui16, 8> StringLikeKeyColumnIndexes_;
 
     TRange<std::pair<ui32, ui32>> ReadList_;

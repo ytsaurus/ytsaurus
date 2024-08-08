@@ -169,6 +169,14 @@ TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
     return MakeRange(DeleteTimestamps_.GetData() + begin, DeleteTimestamps_.GetData() + end);
 }
 
+size_t TScanTimestampExtractor::GetMemoryUsage() const
+{
+    return WriteTimestampOffsets_.GetSize() +
+        WriteTimestamps_.GetSize() +
+        DeleteTimestampOffsets_.GetSize() +
+        DeleteTimestamps_.GetSize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -179,6 +187,12 @@ void TScanIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 position) 
     ReadUnversionedValueData(value, Items_[position]);
 }
 
+template <class T>
+size_t TScanIntegerExtractor<T>::DoGetMemoryUsage() const
+{
+    return Items_.GetSize() + ValuesDict_.capacity() * sizeof(typename decltype(ValuesDict_)::value_type);
+}
+
 void TScanDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value, ui32 position) const
 {
     bool nullBit = NullBits_[position];
@@ -186,11 +200,21 @@ void TScanDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value, u
     ReadUnversionedValueData(value, Items_[position]);
 }
 
+size_t TScanDataExtractor<EValueType::Double>::DoGetMemoryUsage() const
+{
+    return Holder_.GetSize();
+}
+
 void TScanDataExtractor<EValueType::Boolean>::Extract(TUnversionedValue* value, ui32 position) const
 {
     bool nullBit = NullBits_[position];
     value->Type = nullBit ? EValueType::Null : EValueType::Boolean;
     ReadUnversionedValueData(value, Items_[position]);
+}
+
+size_t TScanDataExtractor<EValueType::Boolean>::DoGetMemoryUsage() const
+{
+    return Holder_.GetSize();
 }
 
 TScanBlobExtractor::TScanBlobExtractor(EValueType type)
@@ -204,6 +228,11 @@ void TScanBlobExtractor::Extract(TUnversionedValue* value, ui32 position) const
 
     auto [begin, end] = Items_[position];
     ReadUnversionedValueData(value, TStringBuf(Data_ + begin, Data_ + end));
+}
+
+size_t TScanBlobExtractor::DoGetMemoryUsage() const
+{
+    return Items_.GetSize() + OffsetsDict_.capacity() * sizeof(typename decltype(OffsetsDict_)::value_type);
 }
 
 TScanDataExtractor<EValueType::String>::TScanDataExtractor()
@@ -317,6 +346,11 @@ ui32 TScanMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 ui32 TScanMultiValueIndexExtractor::GetValueCount() const
 {
     return RowToValue_[IndexCount_].ValueOffset;
+}
+
+size_t TScanMultiValueIndexExtractor::DoGetMemoryUsage() const
+{
+    return RowToValue_.GetSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
