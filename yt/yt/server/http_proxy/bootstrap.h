@@ -143,6 +143,8 @@ private:
     NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
+    INodeMemoryTrackerPtr MemoryUsageTracker_;
+
     void RegisterRoutes(const NHttp::IServerPtr& server);
     NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;
 
@@ -151,6 +153,8 @@ private:
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
+
+    void ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
