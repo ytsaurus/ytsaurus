@@ -95,20 +95,32 @@ static const THashSet<TString> ArchiveOnlyAttributes = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TClient::DoesOperationsArchiveExist()
+bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
 {
     // NB: we suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
-    nodeExistsOptions.ReadFrom = EMasterChannelKind::LocalCache;
-    return WaitFor(GetOperationsArchiveClient()->NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
+    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadArchiveStateFrom;;
+
+    IClient* client = this;
+    if (useOperationsArchiveClient) {
+        client = GetOperationsArchiveClient().Get();
+    }
+
+    return WaitFor(client->NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
         .ValueOrThrow();
 }
 
-std::optional<int> TClient::TryGetOperationsArchiveVersion()
+std::optional<int> TClient::TryGetOperationsArchiveVersion(bool useOperationsArchiveClient)
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
-    auto asyncVersionResult = GetOperationsArchiveClient()->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
+    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadArchiveStateFrom;;
+
+    IClient* client = this;
+    if (useOperationsArchiveClient) {
+        client = GetOperationsArchiveClient().Get();
+    }
+
+    auto asyncVersionResult = client->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 

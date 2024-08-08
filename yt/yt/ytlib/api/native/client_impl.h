@@ -103,7 +103,7 @@ public:
 
     void Terminate() override;
 
-    bool DoesOperationsArchiveExist() override;
+    bool DoesOperationsArchiveExist(bool useOperationsArchiveClient = true) override;
 
     // Transactions
     TFuture<ITransactionPtr> StartNativeTransaction(
@@ -1241,7 +1241,7 @@ private:
     // Operation info
     //
 
-    std::optional<int> TryGetOperationsArchiveVersion();
+    std::optional<int> TryGetOperationsArchiveVersion(bool useOperationsArchiveClient = true);
 
     struct TGetOperationFromCypressResult
     {
