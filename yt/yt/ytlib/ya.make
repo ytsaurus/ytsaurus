@@ -590,6 +590,12 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    scheduler/records/ordered_by_start_time.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/job.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h

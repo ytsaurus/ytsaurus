@@ -13,9 +13,9 @@
 
 #include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/security_client/acl.h>
 
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>

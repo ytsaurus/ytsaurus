@@ -5,7 +5,6 @@
 #include "helpers.h"
 
 #include <yt/yt/client/api/file_reader.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 

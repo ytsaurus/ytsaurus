@@ -41,7 +41,6 @@
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/api/transaction.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_helpers.h>

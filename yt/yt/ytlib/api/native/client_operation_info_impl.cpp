@@ -6,6 +6,7 @@
 #include "rpc_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
+#include <yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -15,7 +16,6 @@
 
 #include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
 
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
@@ -1077,14 +1077,14 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         NQueryClient::TQueryBuilder builder;
         builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
-        auto poolsIndex = builder.AddSelectExpression("pools_str");
-        auto authenticatedUserIndex = builder.AddSelectExpression("authenticated_user");
-        auto stateIndex = builder.AddSelectExpression("state");
-        auto operationTypeIndex = builder.AddSelectExpression("operation_type");
-        auto poolIndex = builder.AddSelectExpression("pool");
-        auto hasFailedJobsIndex = builder.AddSelectExpression("has_failed_jobs");
-        auto countIndex = builder.AddSelectExpression("sum(1)", "count");
-        auto poolTreeToPoolIndex = builder.AddSelectExpression("pool_tree_to_pool_str");
+        builder.AddSelectExpression("pools_str");
+        builder.AddSelectExpression("authenticated_user");
+        builder.AddSelectExpression("state");
+        builder.AddSelectExpression("operation_type");
+        builder.AddSelectExpression("pool");
+        builder.AddSelectExpression("has_failed_jobs");
+        builder.AddSelectExpression("sum(1)", "count");
+        builder.AddSelectExpression("pool_tree_to_pool_str");
 
         addCommonWhereConjuncts(&builder);
 
@@ -1104,31 +1104,29 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         auto resultCounts = WaitFor(SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
 
-        for (auto row : resultCounts.Rowset->GetRows()) {
+        auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(resultCounts.Rowset);
+
+        for (auto record : records) {
             std::optional<THashMap<TString, TString>> poolTreeToPool;
-            if (row[poolTreeToPoolIndex].Type != EValueType::Null) {
-                poolTreeToPool = ConvertTo<THashMap<TString, TString>>(
-                    TYsonString(FromUnversionedValue<TString>(row[poolTreeToPoolIndex])));
+            if (record.PoolTreeToPoolStr) {
+                poolTreeToPool = ConvertTo<THashMap<TString, TString>>(TYsonString(*record.PoolTreeToPoolStr));
             }
             std::optional<std::vector<TString>> pools;
-            if (row[poolsIndex].Type != EValueType::Null) {
+            if (record.PoolsStr) {
                 // NB: "any_to_yson_string" returns a string; cf. YT-12047.
-                pools = ConvertTo<std::vector<TString>>(TYsonString(FromUnversionedValue<TString>(row[poolsIndex])));
+                pools = ConvertTo<std::vector<TString>>(TYsonString(*record.PoolsStr));
             }
-            auto user = FromUnversionedValue<TString>(row[authenticatedUserIndex]);
-            auto state = ParseEnum<EOperationState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));
-            auto type = ParseEnum<EOperationType>(FromUnversionedValue<TStringBuf>(row[operationTypeIndex]));
-            if (row[poolIndex].Type != EValueType::Null) {
+            auto user = *record.AuthenticatedUser;
+            auto state = ParseEnum<EOperationState>(*record.State);
+            auto type = ParseEnum<EOperationType>(*record.OperationType);
+            if (record.Pool) {
                 if (!pools) {
                     pools.emplace();
                 }
-                pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
+                pools->push_back(*record.Pool);
             }
-            auto count = FromUnversionedValue<i64>(row[countIndex]);
-            bool hasFailedJobs = false;
-            if (row[hasFailedJobsIndex].Type != EValueType::Null) {
-                hasFailedJobs = FromUnversionedValue<bool>(row[hasFailedJobsIndex]);
-            }
+            auto count = *record.Count;
+            bool hasFailedJobs = record.HasFailedJobs.value_or(false);
             auto countingFilterAttributes = TCountingFilterAttributes{
                 .PoolTreeToPool = std::move(poolTreeToPool),
                 .Pools = std::move(pools),
@@ -1146,8 +1144,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     NQueryClient::TQueryBuilder builder;
     builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
-    auto idHiIndex = builder.AddSelectExpression("id_hi");
-    auto idLoIndex = builder.AddSelectExpression("id_lo");
+    builder.AddSelectExpression("id_hi");
+    builder.AddSelectExpression("id_lo");
 
     addCommonWhereConjuncts(&builder);
 
@@ -1221,14 +1219,14 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     selectOptions.MemoryLimitPerNode = 100_MB;
     auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow();
-    auto rows = rowsItemsId.Rowset->GetRows();
+    auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(rowsItemsId.Rowset);
 
     YT_LOG_DEBUG("Operation ids selected from archive");
 
     std::vector<TOperationId> ids;
-    ids.reserve(rows.Size());
-    for (auto row : rows) {
-        ids.emplace_back(TGuid(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex])));
+    ids.reserve(records.size());
+    for (auto record : records) {
+        ids.emplace_back(TGuid(record.Key.IdHi, record.Key.IdLo));
     }
 
     const THashSet<TString> RequiredAttributes = {"id", "start_time"};

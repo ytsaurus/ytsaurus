@@ -89,7 +89,6 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/query_tracker_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/internal_client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/operations_archive_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rowset.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/skynet.cpp

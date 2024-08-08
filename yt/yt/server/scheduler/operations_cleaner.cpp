@@ -19,15 +19,17 @@
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
 #include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+#include <yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/record_helpers.h>
@@ -469,17 +471,22 @@ TUnversionedOwningRow BuildOrderedByIdTableRow(
     return FromRecord(record);
 }
 
-TUnversionedRow BuildOrderedByStartTimeTableRow(
-    const TRowBufferPtr& rowBuffer,
+TUnversionedOwningRow BuildOrderedByStartTimeTableRow(
     const TArchiveOperationRequest& request,
-    const TOrderedByStartTimeTableDescriptor::TIndex& index,
-    int version)
+    int /*version*/)
 {
-    // All any and string values passed to MakeUnversioned* functions MUST be alive till
-    // they are captured in row buffer (they are not owned by unversioned value or builder).
-    auto state = FormatEnum(request.State);
-    auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
+    auto requestIdAsGuid = request.Id.Underlying();
+    NRecords::TOrderedByStartTimePartial record{
+        .Key{
+            .StartTime = static_cast<i64>(request.StartTime.MicroSeconds()),
+            .IdHi = requestIdAsGuid.Parts64[0],
+            .IdLo = requestIdAsGuid.Parts64[1],
+        },
+        .OperationType = FormatEnum(request.OperationType),
+        .State = FormatEnum(request.State),
+        .AuthenticatedUser = request.AuthenticatedUser,
+        .FilterFactors = GetFilterFactors(request),
+    };
 
     TYsonString pools;
     TYsonString poolTreeToPool;
@@ -494,32 +501,23 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
         }
     }
 
-    TUnversionedRowBuilder builder;
-    auto requestIdAsGuid = request.Id.Underlying();
-    builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
-    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[0], index.IdHi));
-    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[1], index.IdLo));
-    builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
-    builder.AddValue(MakeUnversionedStringValue(state, index.State));
-    builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
-    builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
-
     if (pools) {
-        builder.AddValue(MakeUnversionedAnyValue(pools.AsStringBuf(), index.Pools));
+        record.Pools = pools;
     }
+
     if (request.BriefProgress) {
-        builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
+        record.HasFailedJobs = HasFailedJobs(request.BriefProgress);
     }
 
     if (acl) {
-        builder.AddValue(MakeUnversionedAnyValue(acl.AsStringBuf(), index.Acl));
+        record.Acl = acl;
     }
 
-    if (version >= 44 && poolTreeToPool) {
-        builder.AddValue(MakeUnversionedAnyValue(poolTreeToPool.AsStringBuf(), index.PoolTreeToPool));
+    if (poolTreeToPool) {
+        record.PoolTreeToPool = poolTreeToPool;
     }
 
-    return rowBuffer->CaptureRow(builder.GetRow());
+    return FromRecord(record);
 }
 
 TUnversionedRow BuildOperationAliasesTableRow(
@@ -1276,10 +1274,11 @@ private:
 
             // ordered_by_start_time rows
             {
-                TOrderedByStartTimeTableDescriptor desc;
-                auto rowBuffer = New<TRowBuffer>(TOrderedByStartTimeTag{});
+                auto nameTable = NRecords::TOrderedByStartTimeDescriptor::Get()->GetNameTable();
                 std::vector<TUnversionedRow> rows;
+                std::vector<TUnversionedOwningRow> owningRows;
                 rows.reserve(operationIds.size());
+                owningRows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
                     if (skippedOperationIds.contains(operationId)) {
@@ -1287,8 +1286,9 @@ private:
                     }
                     try {
                         const auto& request = GetRequest(operationId);
-                        auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
-                        rows.push_back(row);
+                        auto row = NDetail::BuildOrderedByStartTimeTableRow(request, version);
+                        rows.push_back(row.Get());
+                        owningRows.push_back(row);
                         orderedByStartTimeRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
@@ -1298,8 +1298,8 @@ private:
 
                 transaction->WriteRows(
                     GetOperationsArchiveOrderedByStartTimePath(),
-                    desc.NameTable,
-                    MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+                    nameTable,
+                    MakeSharedRange(std::move(rows), std::move(owningRows)));
             }
 
             // operation_aliases rows

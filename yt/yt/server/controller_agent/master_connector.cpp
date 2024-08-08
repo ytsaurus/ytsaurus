@@ -40,7 +40,6 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
