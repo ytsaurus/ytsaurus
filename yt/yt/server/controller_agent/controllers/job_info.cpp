@@ -242,6 +242,13 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, OutputStreamDescriptors);
     Persist(context, InputStreamDescriptors);
 
+    // COMPAT(pogorelov): Remove after all CAs are 24.2.
+    if (context.GetVersion() >= ESnapshotVersion::OperationIncarnationInJoblet) {
+        Persist(context, OperationIncarnation);
+    } else {
+        OperationIncarnation = "0";
+    }
+
     if (context.IsLoad()) {
         Revived = true;
     }

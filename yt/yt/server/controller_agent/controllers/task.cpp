@@ -685,11 +685,14 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         return std::unexpected(EScheduleFailReason::TentativeSpeculativeForbidden);
     }
 
-    int jobIndex = TaskHost_->NextJobIndex();
     int taskJobIndex = TaskJobIndexGenerator_.Next();
-    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, allocation.TreeId, treeIsTentative);
-    joblet->StartTime = TInstant::Now();
-    joblet->PoolPath = context.GetPoolPath();
+    auto joblet = TaskHost_->CreateJoblet(
+        this,
+        jobId,
+        allocation.TreeId,
+        taskJobIndex,
+        context.GetPoolPath(),
+        treeIsTentative);
 
     joblet->OutputCookie = outputCookie;
     joblet->CompetitionType = competitionType;
@@ -785,8 +788,6 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         return std::unexpected(EScheduleFailReason::NotEnoughResources);
     }
 
-    joblet->JobId = jobId;
-
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobScheduled(joblet);
     }
@@ -839,7 +840,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->JobId,
         joblet->JobType,
         context.GetNodeDescriptor().Address,
-        jobIndex,
+        joblet->JobIndex,
         joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,

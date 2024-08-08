@@ -5696,6 +5696,23 @@ TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocat
     return TJobId(jobIdGuid);
 }
 
+TJobletPtr TOperationControllerBase::CreateJoblet(
+    TTask* task,
+    TJobId jobId,
+    TString treeId,
+    int taskJobIndex,
+    std::optional<TString> poolPath,
+    bool treeIsTentative)
+{
+    auto joblet = New<TJoblet>(task, NextJobIndex(), taskJobIndex, std::move(treeId), treeIsTentative);
+
+    joblet->StartTime = TInstant::Now();
+    joblet->JobId = jobId;
+    joblet->PoolPath = std::move(poolPath);
+
+    return joblet;
+}
+
 bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept
 {
     YT_VERIFY(AllocationIdFromJobId(lhs) == AllocationIdFromJobId(rhs));
