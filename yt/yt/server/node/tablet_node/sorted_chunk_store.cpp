@@ -550,7 +550,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     blockManagerFactory,
                     produceAllVersions,
                     /*readerStatistics*/ nullptr,
-                    std::move(keyFilterStatistics))));
+                    std::move(keyFilterStatistics),
+                    chunkReadOptions.MemoryUsageTracker)));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
@@ -600,7 +601,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             blockManagerFactory,
             produceAllVersions,
             /*readerStatistics*/ nullptr,
-            chunkReadOptions.KeyFilterStatistics);
+            chunkReadOptions.KeyFilterStatistics,
+            chunkReadOptions.MemoryUsageTracker);
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -964,7 +966,8 @@ private:
                     std::move(blockManagerFactory),
                     produceAllVersions,
                     /*readerStatistics*/ nullptr,
-                    MissingKeyMask_.empty() ? nullptr : chunkReadOptions.KeyFilterStatistics),
+                    MissingKeyMask_.empty() ? nullptr : chunkReadOptions.KeyFilterStatistics,
+                    chunkReadOptions.MemoryUsageTracker),
                 chunkReadOptions);
             return;
         }
@@ -1135,7 +1138,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     std::move(blockManagerFactory),
-                    produceAllVersions);
+                    produceAllVersions,
+                    /*readerStatistics*/ nullptr,
+                    /*keyFilterStatistics*/ nullptr,
+                    chunkReadOptions.MemoryUsageTracker);
             }
         }
 
@@ -1147,7 +1153,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             std::move(blockManagerFactory),
-            produceAllVersions);
+            produceAllVersions,
+            /*readerStatistics*/ nullptr,
+            /*keyFilterStatistics*/ nullptr,
+            chunkReadOptions.MemoryUsageTracker);
     }
 
     return CreateCacheBasedVersionedChunkReader(

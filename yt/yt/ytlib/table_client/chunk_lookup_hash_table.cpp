@@ -144,7 +144,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     IBlockCachePtr blockCache,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto chunkFormat = chunkMeta->GetChunkFormat();
     const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
@@ -165,7 +166,10 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             TColumnFilter(tableSchema->GetKeyColumnCount()),
             nullptr,
             blockManagerFactory,
-            true);
+            true,
+            nullptr,
+            nullptr,
+            memoryUsageTracker);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
     }
@@ -282,11 +286,20 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const std::vector<TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
-    return CreateChunkLookupHashTable(chunkId, startBlockIndex, startBlockIndex + blocks.size(), blockCache, chunkMeta, tableSchema, keyComparer);
+    return CreateChunkLookupHashTable(
+        chunkId,
+        startBlockIndex,
+        startBlockIndex + blocks.size(),
+        blockCache,
+        chunkMeta,
+        tableSchema,
+        keyComparer,
+        memoryUsageTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
