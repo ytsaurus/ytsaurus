@@ -86,7 +86,7 @@ $ yt clickhouse ctl status chyt_example_clique
 После запуска операции нужно немного подождать, чтобы инстансы клики успели запуститься и начали принимать входящие запросы. Чтобы убедиться, что клика работает, сделайте в ней тестовый запрос к таблице `//sys/clickhouse/sample_table` — эта таблица доступна на всех кластерах, на которых есть CHYT:
 
 ```bash
-$ yt clickhouse execute --proxy <cluster_name> --alias *chyt_example_clique 'select avg(a) from `//sys/clickhouse/sample_table`'
+$ yt clickhouse execute --proxy <cluster_name> --alias chyt_example_clique 'select avg(a) from `//sys/clickhouse/sample_table`'
 224.30769230769232
 ```
 

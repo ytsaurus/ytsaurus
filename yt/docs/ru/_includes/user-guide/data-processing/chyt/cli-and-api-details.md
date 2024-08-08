@@ -3,7 +3,7 @@
 Например, следующим образом можно сделать тестовый запрос в публичную клику `ch_public`:
 
 ```bash
-yt clickhouse execute "select 'Hello world'" --alias *ch_public
+yt clickhouse execute "select 'Hello world'" --alias ch_public
 ```
 
 Помимо этого пакет содержит Python API для работы с CHYT, доступный в модуле `yt.clickhouse`:
@@ -16,7 +16,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> import yt.clickhouse as chyt
 >>> import yt.wrapper as yt
 >>> client = yt.YtClient("<cluster_name>")
->>> list(chyt.execute("select * from `//home/user/sample_table`", alias="*ch_public", client=client))
+>>> list(chyt.execute("select * from `//home/user/sample_table`", alias="ch_public", client=client))
 [{'a': 100}, {'a': 101}, {'a': 102}, {'a': 205}, {'a': 206}, {'a': 1100}]
 ```
 
