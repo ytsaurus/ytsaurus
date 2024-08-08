@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+
 #include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 
@@ -943,101 +945,77 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 {
     YT_LOG_DEBUG("Fetching operations from archive (OperationCount: %v)", ids.size());
 
-    TOrderedByIdTableDescriptor tableDescriptor;
+    auto nameTable = NRecords::TOrderedByIdDescriptor::Get()->GetNameTable();
     std::vector<int> columns;
     for (const auto& columnName : CreateArchiveOperationAttributes(attributes)) {
-        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
+        columns.push_back(nameTable->GetIdOrThrow(columnName));
     }
 
     bool needIdInOutput = attributes.contains("id");
     if (!needIdInOutput) {
         // We however need id to create the output hash map.
-        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow("id_hi"));
-        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow("id_lo"));
+        columns.push_back(nameTable->GetIdOrThrow("id_hi"));
+        columns.push_back(nameTable->GetIdOrThrow("id_lo"));
     }
 
     auto columnFilter = NTableClient::TColumnFilter(columns);
     auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout)
         .ValueOrThrow();
+    auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
 
     YT_LOG_DEBUG("Operations fetch from archive finished");
 
     THashMap<TOperationId, TOperation> idToOperation;
 
-    const auto& tableIndex = tableDescriptor.Index;
-    auto idHiIndex = columnFilter.GetPosition(tableIndex.IdHi);
-    auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
-    auto typeIndex = columnFilter.FindPosition(tableIndex.OperationType);
-    auto stateIndex = columnFilter.FindPosition(tableIndex.State);
-    auto authenticatedUserIndex = columnFilter.FindPosition(tableIndex.AuthenticatedUser);
-    auto startTimeIndex = columnFilter.FindPosition(tableIndex.StartTime);
-    auto finishTimeIndex = columnFilter.FindPosition(tableIndex.FinishTime);
-    auto briefSpecIndex = columnFilter.FindPosition(tableIndex.BriefSpec);
-    auto fullSpecIndex = columnFilter.FindPosition(tableIndex.FullSpec);
-    auto specIndex = columnFilter.FindPosition(tableIndex.Spec);
-    auto providedSpecIndex = columnFilter.FindPosition(tableIndex.ProvidedSpec);
-    auto experimentAssignmentNames = columnFilter.FindPosition(tableIndex.ExperimentAssignmentNames);
-    auto experimentAssignments = columnFilter.FindPosition(tableIndex.ExperimentAssignments);
-    auto unrecognizedSpecIndex = columnFilter.FindPosition(tableIndex.UnrecognizedSpec);
-    auto briefProgressIndex = columnFilter.FindPosition(tableIndex.BriefProgress);
-    auto progressIndex = columnFilter.FindPosition(tableIndex.Progress);
-    auto runtimeParametersIndex = columnFilter.FindPosition(tableIndex.RuntimeParameters);
-    auto eventsIndex = columnFilter.FindPosition(tableIndex.Events);
-    auto resultIndex = columnFilter.FindPosition(tableIndex.Result);
-    auto schedulingAttributesPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SchedulingAttributesPerPoolTree);
-    auto slotIndexPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree);
-    auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
-    auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
-    auto controllerFeaturesIndex = columnFilter.FindPosition(tableIndex.ControllerFeatures);
-    auto alertEventsIndex = columnFilter.FindPosition(tableIndex.AlertEvents);
-
     YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
-    for (auto row : rowset->GetRows()) {
-        if (!row) {
+    for (auto record : records) {
+        if (!record) {
             continue;
         }
 
-        TOperation operation;
+        TOperation operation{
+            .AuthenticatedUser =  record->AuthenticatedUser,
+            .BriefSpec = record->BriefSpec.value_or(TYsonString()),
+            .Spec = record->Spec.value_or(TYsonString()),
+            .ProvidedSpec = record->ProvidedSpec.value_or(TYsonString()),
+            .ExperimentAssignments = record->ExperimentAssignments.value_or(TYsonString()),
+            .ExperimentAssignmentNames = record->ExperimentAssignmentNames.value_or(TYsonString()),
+            .FullSpec = record->FullSpec.value_or(TYsonString()),
+            .UnrecognizedSpec = record->UnrecognizedSpec.value_or(TYsonString()),
+            .BriefProgress = record->BriefProgress.value_or(TYsonString()),
+            .Progress = record->Progress.value_or(TYsonString()),
+            .RuntimeParameters = record->RuntimeParameters.value_or(TYsonString()),
+            .Events = record->Events.value_or(TYsonString()),
+            .Result = record->Result.value_or(TYsonString()),
+            .SlotIndexPerPoolTree = record->SlotIndexPerPoolTree.value_or(TYsonString()),
+            .SchedulingAttributesPerPoolTree = record->SchedulingAttributesPerPoolTree.value_or(TYsonString()),
+            .Alerts = record->Alerts.value_or(TYsonString()),
+            .AlertEvents = record->AlertEvents.value_or(TYsonString()),
+            .TaskNames = record->TaskNames.value_or(TYsonString()),
+            .ControllerFeatures = record->ControllerFeatures.value_or(TYsonString()),
+        };
 
-        auto operationId = TOperationId(TGuid(
-            FromUnversionedValue<ui64>(row[idHiIndex]),
-            FromUnversionedValue<ui64>(row[idLoIndex])));
-
+        auto operationId = TOperationId(TGuid(record->Key.IdHi, record->Key.IdLo));
         if (needIdInOutput) {
             operation.Id = operationId;
         }
 
-        TryFromUnversionedValue(operation.Type, row, typeIndex);
-        TryFromUnversionedValue(operation.State, row, stateIndex);
-        TryFromUnversionedValue(operation.AuthenticatedUser, row, authenticatedUserIndex);
-
-        if (auto startTimeMcs = TryFromUnversionedValue<i64>(row, startTimeIndex)) {
-            operation.StartTime = TInstant::MicroSeconds(*startTimeMcs);
+        if (record->OperationType) {
+            operation.Type = ParseEnum<EOperationType>(*record->OperationType);
         }
 
-        if (auto finishTimeMcs = TryFromUnversionedValue<i64>(row, finishTimeIndex)) {
-            operation.FinishTime = TInstant::MicroSeconds(*finishTimeMcs);
+        if (record->State) {
+            operation.State = ParseEnum<EOperationState>(*record->State);
         }
 
-        TryFromUnversionedValue(operation.BriefSpec, row, briefSpecIndex);
-        TryFromUnversionedValue(operation.FullSpec, row, fullSpecIndex);
-        TryFromUnversionedValue(operation.Spec, row, specIndex);
-        TryFromUnversionedValue(operation.UnrecognizedSpec, row, unrecognizedSpecIndex);
-        TryFromUnversionedValue(operation.BriefProgress, row, briefProgressIndex);
-        TryFromUnversionedValue(operation.Progress, row, progressIndex);
-        TryFromUnversionedValue(operation.RuntimeParameters, row, runtimeParametersIndex);
-        TryFromUnversionedValue(operation.Events, row, eventsIndex);
-        TryFromUnversionedValue(operation.Result, row, resultIndex);
-        TryFromUnversionedValue(operation.SchedulingAttributesPerPoolTree, row, schedulingAttributesPerPoolTreeIndex);
-        TryFromUnversionedValue(operation.SlotIndexPerPoolTree, row, slotIndexPerPoolTreeIndex);
-        TryFromUnversionedValue(operation.Alerts, row, alertsIndex);
-        TryFromUnversionedValue(operation.TaskNames, row, taskNamesIndex);
-        TryFromUnversionedValue(operation.ExperimentAssignments, row, experimentAssignments);
-        TryFromUnversionedValue(operation.ExperimentAssignmentNames, row, experimentAssignmentNames);
-        TryFromUnversionedValue(operation.ProvidedSpec, row, providedSpecIndex);
-        TryFromUnversionedValue(operation.ControllerFeatures, row, controllerFeaturesIndex);
-        TryFromUnversionedValue(operation.AlertEvents, row, alertEventsIndex);
+        if (record->StartTime) {
+            operation.StartTime = TInstant::MicroSeconds(*record->StartTime);
+        }
+
+        if (record->FinishTime) {
+            operation.FinishTime = TInstant::MicroSeconds(*record->FinishTime);
+        }
 
         idToOperation.emplace(operationId, std::move(operation));
     }
@@ -1377,16 +1355,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         bool needProgress = options.Attributes && options.Attributes->contains("progress");
         bool needAlertEvents = options.Attributes && options.Attributes->contains("alert_events");
 
-        TOrderedByIdTableDescriptor tableDescriptor;
+        auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
         std::vector<int> columnIndices;
         if (needBriefProgress) {
-            columnIndices.push_back(tableDescriptor.Index.BriefProgress);
+            columnIndices.push_back(*idMapping.BriefProgress);
         }
         if (needProgress) {
-            columnIndices.push_back(tableDescriptor.Index.Progress);
+            columnIndices.push_back(*idMapping.Progress);
         }
         if (needAlertEvents) {
-            columnIndices.push_back(tableDescriptor.Index.AlertEvents);
+            columnIndices.push_back(*idMapping.AlertEvents);
         }
 
         auto columnFilter = NTableClient::TColumnFilter(columnIndices);
@@ -1399,38 +1377,24 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         if (!rowsetOrError.IsOK()) {
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress, brief_progress and alert_events from Archive");
         } else {
-            auto briefProgressPosition = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
-            auto progressPosition = columnFilter.FindPosition(tableDescriptor.Index.Progress);
-            auto alertEventsPosition = columnFilter.FindPosition(tableDescriptor.Index.AlertEvents);
+            auto rowset = rowsetOrError.Value();
+            auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
 
-            const auto& rows = rowsetOrError.Value()->GetRows();
-
-            for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-                const auto& row = rows[rowIndex];
-                if (!row) {
+            for (size_t rowIndex = 0; rowIndex < records.size(); ++rowIndex) {
+                const auto& record = records[rowIndex];
+                if (!record) {
                     continue;
                 }
 
                 auto& operation = result.Operations[rowIndex];
-                if (briefProgressPosition) {
-                    auto briefProgressValue = row[*briefProgressPosition];
-                    if (briefProgressValue.Type != EValueType::Null) {
-                        auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
-                        operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
-                    }
+                if (record->BriefProgress) {
+                    operation.BriefProgress = GetLatestProgress(operation.BriefProgress, *record->BriefProgress);
                 }
-                if (progressPosition) {
-                    auto progressValue = row[*progressPosition];
-                    if (progressValue.Type != EValueType::Null) {
-                        auto progressYsonString = FromUnversionedValue<TYsonString>(progressValue);
-                        operation.Progress = GetLatestProgress(operation.Progress, progressYsonString);
-                    }
+                if (record->Progress) {
+                    operation.Progress = GetLatestProgress(operation.Progress, *record->Progress);
                 }
-                if (alertEventsPosition) {
-                    auto alertEventsValue = row[*alertEventsPosition];
-                    if (alertEventsValue.Type != EValueType::Null) {
-                        operation.AlertEvents = FromUnversionedValue<TYsonString>(alertEventsValue);
-                    }
+                if (record->AlertEvents) {
+                    operation.AlertEvents = *record->AlertEvents;
                 }
             }
         }

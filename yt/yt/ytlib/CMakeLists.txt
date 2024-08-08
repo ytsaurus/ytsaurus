@@ -1233,6 +1233,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
@@ -1684,6 +1685,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
@@ -2049,6 +2051,31 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  --output-include
+  yt/yt/core/yson/string.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
   --output-include
   yt/yt/core/yson/string.h
 )

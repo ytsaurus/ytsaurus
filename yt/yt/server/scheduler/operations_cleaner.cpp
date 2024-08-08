@@ -20,6 +20,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
+#include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -378,80 +379,94 @@ bool NeedProgressInRequest(const TYsonString& progress)
     return NControllerAgent::IsFinishedState(stateEnum);
 }
 
-TUnversionedRow BuildOrderedByIdTableRow(
-    const TRowBufferPtr& rowBuffer,
+TUnversionedOwningRow BuildOrderedByIdTableRow(
     const TArchiveOperationRequest& request,
-    const TOrderedByIdTableDescriptor::TIndex& index,
     int version)
 {
-    // All any and string values passed to MakeUnversioned* functions MUST be alive till
-    // they are captured in row buffer (they are not owned by unversioned value or builder).
-    auto state = FormatEnum(request.State);
-    auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
-
-    TUnversionedRowBuilder builder;
     auto requestIdAsGuid = request.Id.Underlying();
-    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[0], index.IdHi));
-    builder.AddValue(MakeUnversionedUint64Value(requestIdAsGuid.Parts64[1], index.IdLo));
-    builder.AddValue(MakeUnversionedStringValue(state, index.State));
-    builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
-    builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
-    if (request.Progress && NeedProgressInRequest(request.Progress)) {
-        builder.AddValue(MakeUnversionedAnyValue(request.Progress.AsStringBuf(), index.Progress));
+
+    NRecords::TOrderedByIdPartial record{
+        .Key{
+            .IdHi = requestIdAsGuid.Parts64[0],
+            .IdLo = requestIdAsGuid.Parts64[1],
+        },
+        .State = FormatEnum(request.State),
+        .AuthenticatedUser = request.AuthenticatedUser,
+        .OperationType = FormatEnum(request.OperationType),
+        .StartTime = request.StartTime.MicroSeconds(),
+        .FinishTime = request.FinishTime.MicroSeconds(),
+        .FilterFactors = GetFilterFactors(request),
+    };
+
+    if (request.ProvidedSpec) {
+        record.ProvidedSpec = request.ProvidedSpec;
     }
-    if (request.BriefProgress && NeedProgressInRequest(request.BriefProgress)) {
-        builder.AddValue(MakeUnversionedAnyValue(request.BriefProgress.AsStringBuf(), index.BriefProgress));
+
+    if (request.Spec) {
+        record.Spec = request.Spec;
     }
-    builder.AddValue(MakeUnversionedAnyValue(request.Spec.AsStringBuf(), index.Spec));
-    if (request.BriefSpec) {
-        builder.AddValue(MakeUnversionedAnyValue(request.BriefSpec.AsStringBuf(), index.BriefSpec));
-    }
-    builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
-    builder.AddValue(MakeUnversionedInt64Value(request.FinishTime.MicroSeconds(), index.FinishTime));
-    builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
-    builder.AddValue(MakeUnversionedAnyValue(request.Result.AsStringBuf(), index.Result));
-    builder.AddValue(MakeUnversionedAnyValue(request.Events.AsStringBuf(), index.Events));
-    if (request.Alerts) {
-        builder.AddValue(MakeUnversionedAnyValue(request.Alerts.AsStringBuf(), index.Alerts));
-    }
-    if (request.UnrecognizedSpec) {
-        builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.AsStringBuf(), index.UnrecognizedSpec));
-    }
+
     if (request.FullSpec) {
-        builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.AsStringBuf(), index.FullSpec));
+        record.FullSpec = request.FullSpec;
     }
 
-    if (request.RuntimeParameters) {
-        builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.AsStringBuf(), index.RuntimeParameters));
+    if (request.ExperimentAssignments) {
+        record.ExperimentAssignments = request.ExperimentAssignments;
     }
 
-    if (version >= 51 && request.SchedulingAttributesPerPoolTree) {
-        builder.AddValue(MakeUnversionedAnyValue(request.SchedulingAttributesPerPoolTree.AsStringBuf(), index.SchedulingAttributesPerPoolTree));
+    if (request.ExperimentAssignmentNames) {
+        record.ExperimentAssignmentNames = request.ExperimentAssignmentNames;
+    }
+
+    if (request.BriefSpec) {
+        record.BriefSpec = request.BriefSpec;
+    }
+
+    if (request.Result) {
+        record.Result = request.Result;
+    }
+
+    if (request.Events) {
+        record.Events = request.Events;
+    }
+
+    if (request.Alerts) {
+        record.Alerts = request.Alerts;
+    }
+
+    if (request.UnrecognizedSpec) {
+        record.UnrecognizedSpec = request.UnrecognizedSpec;
     }
 
     if (request.SlotIndexPerPoolTree) {
-        builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.AsStringBuf(), index.SlotIndexPerPoolTree));
+        record.SlotIndexPerPoolTree = request.SlotIndexPerPoolTree;
     }
 
     if (request.TaskNames) {
-        builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.AsStringBuf(), index.TaskNames));
+        record.TaskNames = request.TaskNames;
     }
 
-    if (version >= 40 && request.ExperimentAssignments) {
-        builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignments.AsStringBuf(), index.ExperimentAssignments));
-        builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignmentNames.AsStringBuf(), index.ExperimentAssignmentNames));
+    if (request.RuntimeParameters) {
+        record.RuntimeParameters = request.RuntimeParameters;
     }
 
-    if (version >= 42 && request.ControllerFeatures) {
-        builder.AddValue(MakeUnversionedAnyValue(request.ControllerFeatures.AsStringBuf(), index.ControllerFeatures));
+    if (request.ControllerFeatures) {
+        record.ControllerFeatures = request.ControllerFeatures;
     }
 
-    if (version >= 46 && request.ProvidedSpec) {
-        builder.AddValue(MakeUnversionedAnyValue(request.ProvidedSpec.AsStringBuf(), index.ProvidedSpec));
+    if (request.Progress && NeedProgressInRequest(request.Progress)) {
+        record.Progress = request.Progress;
     }
 
-    return rowBuffer->CaptureRow(builder.GetRow());
+    if (request.BriefProgress && NeedProgressInRequest(request.BriefProgress)) {
+        record.BriefProgress = request.BriefProgress;
+    }
+
+    if (version >= 51) {
+        record.SchedulingAttributesPerPoolTree = request.SchedulingAttributesPerPoolTree;
+    }
+
+    return FromRecord(record);
 }
 
 TUnversionedRow BuildOrderedByStartTimeTableRow(
@@ -569,9 +584,8 @@ void DoSendOperationAlerts(
 {
     YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", eventsToSend.size());
 
-    TOrderedByIdTableDescriptor tableDescriptor;
-    const auto& tableIndex = tableDescriptor.Index;
-    auto columns = std::vector{tableIndex.IdHi, tableIndex.IdLo, tableIndex.AlertEvents};
+    auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
+    auto columns = std::vector{*idMapping.IdHi, *idMapping.IdLo, *idMapping.AlertEvents};
     auto columnFilter = NTableClient::TColumnFilter(columns);
 
     THashSet<TOperationId> ids;
@@ -584,25 +598,20 @@ void DoSendOperationAlerts(
         columnFilter);
     THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError, "Failed to fetch operation alert events from archive");
     auto rowset = rowsetOrError.Value();
-
-    auto idHiIndex = columnFilter.GetPosition(tableIndex.IdHi);
-    auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
-    auto alertEventsIndex = columnFilter.GetPosition(tableIndex.AlertEvents);
+    auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
 
     THashMap<TOperationId, TAlertEventsMap> idToAlertEvents;
-    for (auto row : rowset->GetRows()) {
-        if (!row) {
+    for (auto record : records) {
+        if (!record) {
             continue;
         }
-        auto operationId = TOperationId(TGuid(
-            FromUnversionedValue<ui64>(row[idHiIndex]),
-            FromUnversionedValue<ui64>(row[idLoIndex])));
 
-        auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonStringBuf>>(row[alertEventsIndex]);
-        if (eventsFromArchive) {
+        auto operationId = TOperationId(TGuid(record->Key.IdHi, record->Key.IdLo));
+
+        if (record->AlertEvents) {
             idToAlertEvents.emplace(
                 operationId,
-                ConvertToAlertEventsMap(ConvertTo<std::vector<TOperationAlertEvent>>(*eventsFromArchive)));
+                ConvertToAlertEventsMap(ConvertTo<std::vector<TOperationAlertEvent>>(*record->AlertEvents)));
         }
     }
     for (const auto& alertEvent : eventsToSend) {
@@ -612,19 +621,23 @@ void DoSendOperationAlerts(
         AddEventToAlertEventsMap(&idToAlertEvents[*alertEvent.OperationId], alertEvent, maxAlertEventCountPerAlertType);
     }
 
-    auto rowBuffer = New<TRowBuffer>();
     std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
     rows.reserve(idToAlertEvents.size());
 
     for (const auto& [operationId, eventsMap] : idToAlertEvents) {
-        TUnversionedRowBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableIndex.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableIndex.IdLo));
-        auto serializedEvents = ConvertToYsonString(ConvertToAlertEvents(eventsMap));
-        builder.AddValue(MakeUnversionedAnyValue(serializedEvents.AsStringBuf(), tableIndex.AlertEvents));
+        NRecords::TOrderedByIdPartial record{
+            .Key{
+                .IdHi = operationIdAsGuid.Parts64[0],
+                .IdLo = operationIdAsGuid.Parts64[1],
+            },
+            .AlertEvents = ConvertToYsonString(ConvertToAlertEvents(eventsMap)),
+        };
+        auto row = FromRecord(record);
 
-        rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
+        rows.push_back(row.Get());
+        owningRows.push_back(row);
     }
 
     TTransactionStartOptions options;
@@ -634,8 +647,8 @@ void DoSendOperationAlerts(
         .ValueOrThrow();
     transaction->WriteRows(
         GetOperationsArchiveOrderedByIdPath(),
-        tableDescriptor.NameTable,
-        MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+        NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
+        MakeSharedRange(std::move(rows), std::move(owningRows)));
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
@@ -1231,22 +1244,23 @@ private:
 
             // ordered_by_id table rows
             {
-                TOrderedByIdTableDescriptor desc;
-                auto rowBuffer = New<TRowBuffer>(TOrderedByIdTag{});
+                auto nameTable = NRecords::TOrderedByIdDescriptor::Get()->GetNameTable();
                 std::vector<TUnversionedRow> rows;
+                std::vector<TUnversionedOwningRow> owningRows;
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
                     try {
                         const auto& request = GetRequest(operationId);
-                        auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
+                        auto row = NDetail::BuildOrderedByIdTableRow(request, version);
 
-                        if (isValueWeightViolated(row, operationId, desc.NameTable)) {
+                        if (isValueWeightViolated(row, operationId, nameTable)) {
                             skippedOperationIds.insert(operationId);
                             continue;
                         }
 
-                        rows.push_back(row);
+                        rows.push_back(row.Get());
+                        owningRows.push_back(row);
                         orderedByIdRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
@@ -1256,8 +1270,8 @@ private:
 
                 transaction->WriteRows(
                     GetOperationsArchiveOrderedByIdPath(),
-                    desc.NameTable,
-                    MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+                    nameTable,
+                    MakeSharedRange(std::move(rows), std::move(owningRows)));
             }
 
             // ordered_by_start_time rows
@@ -1611,14 +1625,14 @@ private:
 
     void FetchBriefProgressFromArchive(std::vector<TArchiveOperationRequest>& requests)
     {
-        const TOrderedByIdTableDescriptor descriptor;
+        auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
         std::vector<TOperationId> ids;
         ids.reserve(requests.size());
         for (const auto& req : requests) {
             ids.push_back(req.Id);
         }
-        auto filter = TColumnFilter({descriptor.Index.BriefProgress});
-        auto briefProgressIndex = filter.GetPosition(descriptor.Index.BriefProgress);
+        auto filter = TColumnFilter({*idMapping.BriefProgress});
+        auto briefProgressIndex = filter.GetPosition(*idMapping.BriefProgress);
         auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
         auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
         if (!rowsetOrError.IsOK()) {

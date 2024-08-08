@@ -29,6 +29,8 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -42,6 +44,7 @@
 #include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
@@ -293,24 +296,23 @@ public:
             transaction->GetId(),
             operationId);
 
-        auto fullSpecString = fullSpec.ToString();
-        auto unrecognizedSpecString = unrecognizedSpec.ToString();
-
-        TOrderedByIdTableDescriptor tableDescriptor;
-        TUnversionedRowBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableDescriptor.Index.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(fullSpecString, tableDescriptor.Index.FullSpec));
-        builder.AddValue(MakeUnversionedAnyValue(unrecognizedSpecString, tableDescriptor.Index.UnrecognizedSpec));
+        NRecords::TOrderedByIdPartial record{
+            .Key{
+                .IdHi = operationIdAsGuid.Parts64[0],
+                .IdLo = operationIdAsGuid.Parts64[1],
+            },
+            .FullSpec = fullSpec,
+            .UnrecognizedSpec = unrecognizedSpec,
+        };
 
         auto rowBuffer = New<TRowBuffer>();
-        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
+            NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
             MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
 
         auto error = WaitFor(transaction->Commit()
