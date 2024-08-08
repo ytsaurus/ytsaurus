@@ -939,20 +939,6 @@ int TNode::GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) 
             GetOrDefault(HintedRepairSessionCount_, mediumIndex));
 }
 
-int TNode::GetSessionCount(ESessionType sessionType) const
-{
-    switch (sessionType) {
-        case ESessionType::User:
-            return DataNodeStatistics_.total_user_session_count() + TotalHintedUserSessionCount_;
-        case ESessionType::Replication:
-            return DataNodeStatistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_;
-        case ESessionType::Repair:
-            return DataNodeStatistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
-        default:
-            YT_ABORT();
-    }
-}
-
 int TNode::GetTotalSessionCount() const
 {
     return

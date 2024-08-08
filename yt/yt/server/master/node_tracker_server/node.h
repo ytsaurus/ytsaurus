@@ -371,7 +371,6 @@ public:
     void ClearSessionHints();
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
 
-    int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     int GetCellarSize(NCellarClient::ECellarType) const;
