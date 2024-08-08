@@ -563,6 +563,16 @@ public:
         RequestLoadingFromSnapshot(guard);
     }
 
+    int GetIterationCount() const override
+    {
+        return IterationCount_;
+    }
+
+    void IncrementIterationCount()
+    {
+        ++IterationCount_;
+    }
+
     TError CheckClusterState(const TClusterKey& key)
     {
         if (auto error = ClusterLivenessChecker_.Get(key); !error.IsOK()) {
@@ -1131,6 +1141,7 @@ private:
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> TrackingEnabled_ = false;
+    std::atomic<int> IterationCount_ = 0;
 
     TDynamicReplicatedTableTrackerConfigPtr Config_;
 
@@ -1236,6 +1247,8 @@ private:
 
     void RunTrackerIteration()
     {
+        IncrementIterationCount();
+
         if (!AreNodesEqual(ConvertToNode(Config_), ConvertToNode(Host_->GetConfig()))) {
             ApplyConfigChange(Host_->GetConfig());
         }

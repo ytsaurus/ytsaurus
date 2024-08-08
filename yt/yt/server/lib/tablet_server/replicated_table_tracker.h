@@ -155,6 +155,9 @@ struct IReplicatedTableTracker
 
     // Performs state loading from snapshot (used primarily for testing purposes).
     virtual void RequestLoadingFromSnapshot() = 0;
+
+    // For unittesting.
+    virtual int GetIterationCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatedTableTracker)
