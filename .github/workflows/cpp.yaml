@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/nadya73/system-python
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -25,7 +26,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: ${{ vars.YC_FOLDER_ID }}
-          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          image-id: fd8snco21b4lb3bbb5gu
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
           cores: 16
@@ -96,6 +97,7 @@ jobs:
 
   build-cmake:
     name: Build with cmake
+    if: ${{ false }}
     needs:
       - start-vm
       - checkout
@@ -110,6 +112,7 @@ jobs:
 
   docker-cmake:
     name: Docker images with cmake
+    if: ${{ false }}
     needs:
       - start-vm
       - tag
@@ -134,12 +137,12 @@ jobs:
     needs:
       - start-vm
       - checkout
-      - docker-cmake
+      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: true
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -152,7 +155,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: true 
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -175,7 +178,6 @@ jobs:
     needs:
       - start-vm
       - tag
-      - check
       - docker-ya-make
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
