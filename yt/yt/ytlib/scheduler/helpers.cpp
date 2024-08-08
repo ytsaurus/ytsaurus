@@ -453,7 +453,7 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
     auto resultOrError = WaitFor(client->LookupRows(
         GetOperationsArchiveOrderedByIdPath(),
         NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
-        FromRecordKeys(MakeRange(std::move(keys))),
+        FromRecordKeys(MakeSharedRange(std::move(keys))),
         lookupOptions));
     if (!resultOrError.IsOK()) {
         return TError(resultOrError);
