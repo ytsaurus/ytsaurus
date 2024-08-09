@@ -120,6 +120,22 @@ void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
         Exit(ToUnderlying(EProgramExitCode::ExecutorStderrDuplicateError));
     }
 
+    if (config->Pty) {
+        CloseAllDescriptors({*config->Pty});
+        if (HandleEintr(setsid) == -1) {
+            THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
+        }
+        if (HandleEintr(::ioctl, *config->Pty, TIOCSCTTY, 1) == -1) {
+            THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal") << TError::FromSystem();
+        }
+        SafeDup2(*config->Pty, 0);
+        SafeDup2(*config->Pty, 1);
+        SafeDup2(*config->Pty, 2);
+        if (*config->Pty > 2) {
+            SafeClose(*config->Pty);
+        }
+    }
+
     std::vector<const char*> env;
     for (const auto& environment : config->Environment) {
         env.push_back(environment.c_str());
@@ -140,12 +156,15 @@ void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
     args.push_back(nullptr);
 
     // We are ready to execute user code, send signal to JobProxy.
-    try {
-        auto jobProxyControl = CreateUserJobSynchronizerClient(config->UserJobSynchronizerConnectionConfig);
-        jobProxyControl->NotifyExecutorPrepared();
-    } catch (const std::exception& ex) {
-        LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
-        Exit(ToUnderlying(EProgramExitCode::JobProxyNotificationError));
+    // Config is absent for job shell.
+    if (const auto& userJobSynchronizerConnectionConfig = config->UserJobSynchronizerConnectionConfig) {
+        try {
+            auto jobProxyControl = CreateUserJobSynchronizerClient(userJobSynchronizerConnectionConfig);
+            jobProxyControl->NotifyExecutorPrepared();
+        } catch (const std::exception& ex) {
+            LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
+            Exit(ToUnderlying(EProgramExitCode::JobProxyNotificationError));
+        }
     }
 
     TryExecve(
