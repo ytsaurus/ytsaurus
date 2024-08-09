@@ -7992,6 +7992,10 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
         return;
     }
 
+    if (table->Dynamic) {
+        return;
+    }
+
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
@@ -8026,7 +8030,9 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    if (auto livePreview = LivePreviews_->find(tableName); livePreview != LivePreviews_->end()) {
+        InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    }
 }
 
 void TOperationControllerBase::AttachToLivePreview(

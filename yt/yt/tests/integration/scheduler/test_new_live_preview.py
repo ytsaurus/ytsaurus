@@ -1,8 +1,11 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, exists, concatenate, create_user, create_test_tables, make_ace, add_member,
-    read_table, write_table, map, map_reduce, reduce, sort)
+    get, exists, concatenate, create_user, create_test_tables, ls, make_ace, add_member,
+    read_table, write_table, map, map_reduce, reduce, sort,
+    sync_create_cells, sync_mount_table)
+
+from yt_type_helpers import make_schema
 
 import yt.yson as yson
 
@@ -17,6 +20,12 @@ import pytest
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
+
+    def setup_method(self, method):
+        super(TestNewLivePreview, self).setup_method(method)
+        sync_create_cells(1)
 
     @authors("max42", "gritukan")
     def test_new_live_preview_simple(self):
@@ -313,6 +322,51 @@ class TestNewLivePreview(YTEnvSetup):
         wait(lambda: len(read_table(live_preview_table)) == complete_jobs)
 
         release_breakpoint()
+        op.track()
+
+    @authors("galtsev")
+    def test_new_live_preview_is_disabled_for_dynamic_tables(self):
+        schema = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            unique_keys=True,
+            strict=True,
+        )
+
+        data = [{"key": i, "value": i} for i in range(3)]
+
+        create("table", "//tmp/t1", attributes={"schema": schema})
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2", attributes={"dynamic": True, "schema": schema})
+        sync_mount_table("//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "allow_output_dynamic_tables": True,
+                "data_size_per_job": 1,
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=3)
+
+        assert exists(op.get_path() + "/controller_orchid")
+
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        live_preview_path = op.get_path() + "/controller_orchid/live_previews"
+        assert ls(live_preview_path) == []
+
+        release_breakpoint(job_id=jobs[2])
         op.track()
 
 
