@@ -144,7 +144,8 @@ NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
     int minConcurrency,
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr perTabletThrottler,
-    std::optional<EWorkloadCategory> workloadCategory);
+    std::optional<EWorkloadCategory> workloadCategory,
+    IMemoryUsageTrackerPtr rowMergerMemoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
