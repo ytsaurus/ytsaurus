@@ -299,7 +299,7 @@ public abstract class PenaltyProvider implements Closeable {
             /**
              * Set max allowed lag when tablets aren't considered as 'lagged'.
              * Tablet is considered as 'lagged'
-             * if CurrentTimestamp - TabletLastReplicationTimestamp >= MaxTabletLag (in seconds).
+             * if (CurrentTimestamp - TabletLastReplicationTimestamp) is greater or equal to MaxTabletLag (in seconds).
              */
             public Builder setMaxTabletLag(Duration maxTabletLag) {
                 this.maxTabletLag = maxTabletLag;
@@ -318,7 +318,7 @@ public abstract class PenaltyProvider implements Closeable {
             /**
              * Real value from 0.0 to 1.0.
              * Replica cluster receives LagPenalty
-             * if NumberOfTabletsWithLag >= MaxTabletsWithLagFraction * TotalNumberOfTablets.
+             * if NumberOfTabletsWithLag is greater or equal to (MaxTabletsWithLagFraction * TotalNumberOfTablets).
              */
             public Builder setMaxTabletsWithLagFraction(double maxTabletsWithLagFraction) {
                 this.maxTabletsWithLagFraction = maxTabletsWithLagFraction;
