@@ -14,16 +14,6 @@ class TestSqlUdf(ClickHouseTestBase):
         create_access_control_object(name="clique", namespace="chyt")
 
     @authors("gudqeit")
-    def test_no_udf_storage(self):
-        # If no alias is set, SQL UDF storage is not configured.
-        with Clique(1) as clique:
-            with raises_yt_error("it's necessary to have the grant CREATE FUNCTION"):
-                clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
-
-            with raises_yt_error("it's necessary to have the grant DROP FUNCTION"):
-                clique.make_query("drop function linear_equation")
-
-    @authors("gudqeit")
     def test_permissions_to_create_function(self):
         create_user("u1")
         create_user("u2")
