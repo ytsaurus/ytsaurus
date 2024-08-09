@@ -12,38 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(llvm16-lib-TableGen)
 
 
-target_compile_options(llvm16-lib-TableGen PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(llvm16-lib-TableGen PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen
-)
-
-target_link_libraries(llvm16-lib-TableGen PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  llvm16-lib-Support
-)
-
-target_sources(llvm16-lib-TableGen PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/DetailedRecordsBackend.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Error.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/JSONBackend.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Main.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Parser.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Record.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/SetTheory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/StringMatcher.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TGLexer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TGParser.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackend.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackendSkeleton.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

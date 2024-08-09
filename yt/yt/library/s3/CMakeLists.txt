@@ -12,29 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-library-s3)
 
 
-target_compile_options(yt-library-s3 PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-library-s3 PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-core-http
-  cpp-string_utils-base64
-  cpp-xml-document
-)
-
-target_sources(yt-library-s3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/crypto_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/http.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

@@ -12,19 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(streams-lz-snappy)
 
 
-target_link_libraries(streams-lz-snappy PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-snappy
-)
-
-target_sources(streams-lz-snappy PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/streams/lz/snappy/snappy.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

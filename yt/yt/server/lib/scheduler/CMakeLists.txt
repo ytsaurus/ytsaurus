@@ -12,80 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-scheduler)
 
 
-target_compile_options(server-lib-scheduler PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_include_directories(server-lib-scheduler PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
-
-target_link_libraries(server-lib-scheduler PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  orm-library-query
-  yt-yt-ytlib
-  server-lib-node_tracker_server
-  yt_proto-yt-client
-  contrib-libs-protobuf
-)
-
-target_sources(server-lib-scheduler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/exec_node_descriptor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/experiments.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/scheduling_tag.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/event_log.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/job_metrics.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/resource_metering.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/transactions.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h
-)
-
-target_proto_messages(server-lib-scheduler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.proto
-)
-
-
-target_proto_outs(server-lib-scheduler
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-target_proto_addincls(server-lib-scheduler
-  ./yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)

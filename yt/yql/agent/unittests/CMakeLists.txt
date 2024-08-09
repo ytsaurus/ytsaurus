@@ -12,76 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(unittester-yql-agent)
 
 
-target_compile_options(unittester-yql-agent PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(unittester-yql-agent PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yql-agent
-  yt-library-named_value
-)
-
-target_allocator(unittester-yql-agent
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-target_link_options(unittester-yql-agent PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(unittester-yql-agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/unittests/yql_agent_ut.cpp
-)
-
-
-add_test(
-  NAME
-  unittester-yql-agent
-  COMMAND
-  unittester-yql-agent
-)
-
-set_property(
-  TEST
-  unittester-yql-agent
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-
-set_property(
-  TEST
-  unittester-yql-agent
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(unittester-yql-agent)
-
-set_property(
-  TEST
-  unittester-yql-agent
-  PROPERTY
-  PROCESSORS
-  1
-)

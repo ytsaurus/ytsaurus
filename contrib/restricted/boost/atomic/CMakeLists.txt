@@ -12,40 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(restricted-boost-atomic)
 
 
-target_compile_options(restricted-boost-atomic PRIVATE
-  -DBOOST_ATOMIC_SOURCE
-  -DBOOST_ATOMIC_USE_SSE41
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(restricted-boost-atomic PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/include
-)
-
-target_include_directories(restricted-boost-atomic PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src
-)
-
-target_link_libraries(restricted-boost-atomic PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  restricted-boost-align
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-predef
-  restricted-boost-preprocessor
-  restricted-boost-type_traits
-  restricted-boost-winapi
-)
-
-target_sources(restricted-boost-atomic PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse2.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/lock_pool.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse41.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

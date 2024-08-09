@@ -12,66 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(yt-ytlib-distributed_throttler)
 
 
-target_compile_options(yt-ytlib-distributed_throttler PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_include_directories(yt-ytlib-distributed_throttler PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
-
-target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-ytlib-discovery_client
-  contrib-libs-protobuf
-)
-
-target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
-)
-
-target_sources(yt-ytlib-distributed_throttler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
-)
-
-
-target_proto_outs(yt-ytlib-distributed_throttler
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-target_proto_addincls(yt-ytlib-distributed_throttler
-  ./yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)

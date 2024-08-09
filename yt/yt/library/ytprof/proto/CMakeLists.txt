@@ -12,57 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(library-ytprof-proto)
 
 
-target_include_directories(library-ytprof-proto PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(library-ytprof-proto PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-protobuf
-)
-
-target_proto_messages(library-ytprof-proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/proto/profile.proto
-)
-
-target_sources(library-ytprof-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/ytprof/proto/profile.pb.h
-)
-
-
-target_proto_outs(library-ytprof-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-target_proto_addincls(library-ytprof-proto
-  ./yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)

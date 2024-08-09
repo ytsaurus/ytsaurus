@@ -12,31 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-library-monitoring)
 
 
-target_compile_options(yt-library-monitoring PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-library-monitoring PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-yt-build
-  yt-library-profiling
-  library-profiling-solomon
-  library-cpp-cgiparam
-  yt-library-ytprof
-  library-ytprof-http
-  library-backtrace_introspector-http
-)
-
-target_sources(yt-library-monitoring PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/monitoring/http_integration.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/monitoring/monitoring_manager.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

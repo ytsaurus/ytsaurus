@@ -12,56 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(unittests)
-
-add_library(yt-library-formats)
 
 
-target_compile_options(yt-library-formats PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-library-formats PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-client-formats
-  client-arrow-fbs
-  yt-library-column_converters
-  libs-apache-arrow
-)
-
-target_sources(yt-library-formats PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/dsv_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/dsv_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/escape.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/format.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/protobuf.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/protobuf_options.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/protobuf_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/protobuf_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/schemaful_dsv_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/schemaless_writer_adapter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/skiff_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/skiff_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/skiff_yson_converter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unversioned_value_yson_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/web_json_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamred_dsv_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamr_parser_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamr_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamr_writer_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yamr_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yql_yson_converter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yson_map_to_unversioned_value.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yson_parser.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

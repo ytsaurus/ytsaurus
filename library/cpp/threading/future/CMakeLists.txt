@@ -12,28 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(subscription)
-
-add_library(cpp-threading-future)
 
 
-target_link_libraries(cpp-threading-future PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-)
-
-target_sources(cpp-threading-future PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/async_semaphore.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/async.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/core/future.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/core/fwd.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/fwd.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/fwd.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/wait.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/wait_group.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/wait_policy.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

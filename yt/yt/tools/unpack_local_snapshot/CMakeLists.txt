@@ -12,46 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(unpack-local-snapshot)
 
 
-target_compile_options(unpack-local-snapshot PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(unpack-local-snapshot PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-core
-  yt-library-program
-  server-lib-hydra
-  cpp-getopt-small
-)
-
-target_allocator(unpack-local-snapshot
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-target_link_options(unpack-local-snapshot PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(unpack-local-snapshot PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
-)
-
-
-vcs_info(unpack-local-snapshot)

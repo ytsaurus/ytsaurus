@@ -12,45 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(dns_test)
 
 
-target_compile_options(dns_test PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(dns_test PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-core
-  yt-yt-ytlib
-  library-cpp-getopt
-  cpp-yt-misc
-)
-
-target_allocator(dns_test
-  cpp-ytalloc-impl
-)
-
-target_link_options(dns_test PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(dns_test PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dns_test/main.cpp
-)
-
-
-vcs_info(dns_test)

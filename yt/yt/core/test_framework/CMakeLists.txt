@@ -12,56 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-core-test_framework)
 
 
-target_compile_options(yt-core-test_framework PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-core-test_framework PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-testing-gtest
-  cpp-testing-hook
-  yt-yt-build
-  yt-yt-core
-  yt-core-http
-  library-profiling-solomon
-)
-
-target_sources(yt-core-test_framework PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/test_memory_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/test_server_host.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/test_proxy_service.cpp
-)
-
-
-add_global_library_for(yt-core-test_framework.global
-  yt-core-test_framework)
-
-
-target_compile_options(yt-core-test_framework.global PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-core-test_framework.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-testing-gtest
-  cpp-testing-hook
-  yt-yt-build
-  yt-yt-core
-  yt-core-http
-  library-profiling-solomon
-)
-
-target_sources(yt-core-test_framework.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/framework.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

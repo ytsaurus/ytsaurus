@@ -12,25 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(restricted-boost-dynamic_bitset INTERFACE)
 
 
-target_include_directories(restricted-boost-dynamic_bitset INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/dynamic_bitset/include
-)
-
-target_link_libraries(restricted-boost-dynamic_bitset INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  restricted-boost-assert
-  restricted-boost-config
-  restricted-boost-container_hash
-  restricted-boost-core
-  restricted-boost-integer
-  restricted-boost-move
-  restricted-boost-static_assert
-  restricted-boost-throw_exception
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

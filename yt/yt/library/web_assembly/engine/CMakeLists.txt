@@ -12,59 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(library-web_assembly-engine)
 
 
-target_compile_options(library-web_assembly-engine PRIVATE
-  -DWASM_C_API=WAVM_API
-  -DWAVM_API=
-  -Wdeprecated-this-capture
-)
-
-target_include_directories(library-web_assembly-engine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
-)
-
-target_link_libraries(library-web_assembly-engine PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  restricted-wavm-Lib
-)
-
-target_sources(library-web_assembly-engine PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/intrinsics.cpp
-)
-
-
-add_global_library_for(library-web_assembly-engine.global
-  library-web_assembly-engine)
-
-
-target_compile_options(library-web_assembly-engine.global PRIVATE
-  -DWASM_C_API=WAVM_API
-  -DWAVM_API=
-  -Wdeprecated-this-capture
-)
-
-target_include_directories(library-web_assembly-engine.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
-)
-
-target_link_libraries(library-web_assembly-engine.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  restricted-wavm-Lib
-)
-
-target_sources(library-web_assembly-engine.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/compartment.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/function.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/type_builder.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

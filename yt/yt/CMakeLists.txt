@@ -13,17 +13,10 @@
 # changes in this file.
 
 
-add_subdirectory(library)
-add_subdirectory(core)
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(ytlib)
-add_subdirectory(flow)
-add_subdirectory(server)
-add_subdirectory(orm)
-add_subdirectory(benchmarks)
-add_subdirectory(contrib)
-add_subdirectory(python)
-add_subdirectory(tools)
-add_subdirectory(tests)
-add_subdirectory(experiments)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
+

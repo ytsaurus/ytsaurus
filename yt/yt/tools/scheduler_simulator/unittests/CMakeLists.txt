@@ -12,80 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(unittester-scheduler-simulator)
 
 
-target_compile_options(unittester-scheduler-simulator PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_include_directories(unittester-scheduler-simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
-)
-
-target_link_libraries(unittester-scheduler-simulator PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-tools-scheduler_simulator
-  yt-core-test_framework
-)
-
-target_allocator(unittester-scheduler-simulator
-  cpp-ytalloc-impl
-)
-
-target_link_options(unittester-scheduler-simulator PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(unittester-scheduler-simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/operation_controller_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/control_thread_ut.cpp
-)
-
-
-add_test(
-  NAME
-  unittester-scheduler-simulator
-  COMMAND
-  unittester-scheduler-simulator
-)
-
-set_property(
-  TEST
-  unittester-scheduler-simulator
-  PROPERTY
-  LABELS
-  SMALL
-)
-
-set_property(
-  TEST
-  unittester-scheduler-simulator
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(unittester-scheduler-simulator)
-
-set_property(
-  TEST
-  unittester-scheduler-simulator
-  PROPERTY
-  PROCESSORS
-  1
-)

@@ -12,47 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(upload_chunk)
 
 
-target_compile_options(upload_chunk PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(upload_chunk PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-core
-  yt-yt-client
-  server-lib-io
-  yt-yt-ytlib
-  cpp-getopt-small
-)
-
-target_allocator(upload_chunk
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-target_link_options(upload_chunk PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(upload_chunk PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/upload_chunk/main.cpp
-)
-
-
-vcs_info(upload_chunk)

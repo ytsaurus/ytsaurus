@@ -12,58 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(controllers)
-add_subdirectory(unittests)
-
-add_library(yt-server-controller_agent)
 
 
-target_compile_options(yt-server-controller_agent PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-server-controller_agent PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-phdr_cache
-  yt-library-ytprof
-  ytserver
-  server-lib-chunk_pools
-  server-lib-scheduler
-  server-lib-controller_agent
-  server-controller_agent-controllers
-  library-cpp-getopt
-  libs-tcmalloc-malloc_extension
-)
-
-target_sources(yt-server-controller_agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/chunk_list_pool.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/tentative_tree_eligibility.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controller_agent.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controller_agent_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/counter_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/master_connector.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_size_constraints.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_prober_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_profiler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller_host.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/scheduling_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/memory_watchdog.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/virtual.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

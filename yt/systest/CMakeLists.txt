@@ -12,61 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(proto)
-add_subdirectory(bin)
-add_subdirectory(unittests)
-
-add_library(yt-systest)
 
 
-target_compile_options(yt-systest PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-systest PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  cpp-mapreduce-client
-  cpp-mapreduce-interface
-  cpp-mapreduce-io
-  yt-systest-proto
-  yt-yt-client
-  yt-yt-core
-  yt-library-containers
-  yt-library-program
-  library-profiling-solomon
-  yt_proto-yt-client
-)
-
-target_sources(yt-systest PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/dataset_operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/map_dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/operation/map.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/operation/multi_map.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/operation/reduce.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/operation/util.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/rpc_client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/run.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/runner.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/sort_dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/table.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/table_dataset.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/test_home.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/test_program.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/test_spec.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/util.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/validator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/validator_job.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/validator_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/systest/worker_set.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

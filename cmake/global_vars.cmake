@@ -19,5 +19,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_
   set(YASM_FLAGS -f elf64 -D UNIX -D _x86_64_ -D _YASM_  -g dwarf2)
   set(BISON_FLAGS -v)
   set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  set(RAGEL_FLAGS -L -I ${PROJECT_SOURCE_DIR}/)
+  set(COMMON_PROTOC_FLAGS )
+  set(BISON_FLAGS -v)
+  set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
 endif()
 

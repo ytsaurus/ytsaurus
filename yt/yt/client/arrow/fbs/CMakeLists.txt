@@ -12,77 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-add_library(client-arrow-fbs)
 
 
-target_link_libraries(client-arrow-fbs PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-flatbuffers
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_sources(client-arrow-fbs PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.bfbs
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.bfbs
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.bfbs
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.bfbs
-)
-
-
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/fbs/Message.fbs
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-)
-
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/fbs/Schema.fbs
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-)
-
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-)
-
-target_fbs_source(client-arrow-fbs
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-)

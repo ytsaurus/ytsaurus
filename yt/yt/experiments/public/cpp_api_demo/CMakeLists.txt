@@ -12,45 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(cpp_api_demo)
 
 
-target_compile_options(cpp_api_demo PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(cpp_api_demo PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  library-cpp-getopt
-  yt-yt-core
-  yt-yt-client
-  yt-yt-ytlib
-)
-
-target_allocator(cpp_api_demo
-  cpp-ytalloc-impl
-)
-
-target_link_options(cpp_api_demo PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(cpp_api_demo PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/cpp_api_demo/demo.cpp
-)
-
-
-vcs_info(cpp_api_demo)

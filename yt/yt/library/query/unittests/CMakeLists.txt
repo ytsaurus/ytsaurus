@@ -12,97 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(udf)
-
-add_executable(unittester-query)
 
 
-target_compile_options(unittester-query PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_include_directories(unittester-query PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-)
-
-target_link_libraries(unittester-query PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  yt-yt-build
-  yt-core-test_framework
-  library-query-distributed
-  library-query-engine
-  library-query-engine_api
-  query-unittests-udf
-  contrib-libs-sparsehash
-)
-
-target_allocator(unittester-query
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-target_link_options(unittester-query PRIVATE
-  -rdynamic
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(unittester-query PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
-)
-
-
-add_test(
-  NAME
-  unittester-query
-  COMMAND
-  unittester-query
-)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(unittester-query)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  PROCESSORS
-  1
-)
