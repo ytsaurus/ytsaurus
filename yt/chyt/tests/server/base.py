@@ -542,7 +542,7 @@ class Clique(object):
 
         # Configure url.
         address = (self.proxy_https_address if https_proxy
-                    else self.proxy_address)
+                   else self.proxy_address)
 
         assert address is not None
         url = address + endpoint
