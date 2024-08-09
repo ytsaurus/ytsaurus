@@ -37,6 +37,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
@@ -147,6 +149,8 @@ void TBootstrap::DoRun()
 
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
     DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));

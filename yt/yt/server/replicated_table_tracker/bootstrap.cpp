@@ -27,6 +27,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -155,6 +157,8 @@ private:
 
         NativeClient_ = NativeConnection_->CreateNativeClient(
             NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
 
         BusServer_ = CreateBusServer(Config_->BusServer);
 

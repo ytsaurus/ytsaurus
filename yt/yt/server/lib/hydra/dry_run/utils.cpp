@@ -6,6 +6,8 @@
 
 namespace NYT::NHydra {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigureDryRunLogging(const TSingletonsConfigPtr& config)
@@ -14,16 +16,13 @@ void ConfigureDryRunLogging(const TSingletonsConfigPtr& config)
 
     auto silentRule = New<NLogging::TRuleConfig>();
     silentRule->MinLevel = NLogging::ELogLevel::Debug;
-    silentRule->Writers.push_back(TString("dev_null"));
-
-    auto writerConfig = New<NLogging::TLogWriterConfig>();
-    writerConfig->Type = NLogging::TFileLogWriterConfig::Type;
+    silentRule->Writers.push_back("dev_null");
 
     auto fileWriterConfig = New<NLogging::TFileLogWriterConfig>();
     fileWriterConfig->FileName = "/dev/null";
 
     config->Logging->Rules.push_back(silentRule);
-    config->Logging->Writers.emplace(TString("dev_null"), writerConfig->BuildFullConfig(fileWriterConfig));
+    config->Logging->Writers.emplace("dev_null", ConvertTo<IMapNodePtr>(fileWriterConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

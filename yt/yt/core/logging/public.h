@@ -8,6 +8,10 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A special category for logs produced by the logging subsystem itself.
+//! Logs in this category are written by a separate stderr writer.
+constexpr TStringBuf SystemLoggingCategoryName = "Logging";
+
 DEFINE_ENUM(ELogFormat,
     (PlainText)
     (Json)
