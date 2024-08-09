@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-chunk-pools)
 
+
 target_compile_options(unittester-chunk-pools PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,11 @@ target_link_libraries(unittester-chunk-pools PUBLIC
   yt-core-test_framework
   server-lib-chunk_pools
   lib-chunk_pools-mock
+)
+
+target_allocator(unittester-chunk-pools
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-chunk-pools PRIVATE
@@ -57,6 +63,7 @@ target_sources(unittester-chunk-pools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/unordered_chunk_pool_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-chunk-pools
@@ -76,21 +83,15 @@ set_property(
   TEST
   unittester-chunk-pools
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-chunk-pools)
 
 set_property(
   TEST
   unittester-chunk-pools
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-chunk-pools
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-chunk-pools)
-

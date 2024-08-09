@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(ut)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -22,7 +21,10 @@ get_built_tool_path(
   enum_parser
 )
 
+add_subdirectory(ut)
+
 add_library(cpp-mapreduce-util)
+
 
 target_compile_options(cpp-mapreduce-util PRIVATE
   -Wdeprecated-this-capture
@@ -44,9 +46,9 @@ target_sources(cpp-mapreduce-util PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
 )
 
+
 generate_enum_serilization(cpp-mapreduce-util
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/util/wait_for_tablets_state.h
 )
-

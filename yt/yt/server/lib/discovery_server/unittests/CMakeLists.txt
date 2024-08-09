@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(mock)
 
 add_executable(unittester-discovery-server)
+
 
 target_compile_options(unittester-discovery-server PRIVATE
   -Wdeprecated-this-capture
@@ -34,6 +36,11 @@ target_link_libraries(unittester-discovery-server PUBLIC
   yt-core-test_framework
 )
 
+target_allocator(unittester-discovery-server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-discovery-server PRIVATE
   -ldl
   -lrt
@@ -50,6 +57,7 @@ target_sources(unittester-discovery-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/discovery_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/distributed_throttler_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -70,21 +78,15 @@ set_property(
   TEST
   unittester-discovery-server
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-discovery-server)
 
 set_property(
   TEST
   unittester-discovery-server
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-discovery-server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-discovery-server)
-

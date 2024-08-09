@@ -955,7 +955,7 @@ private:
     }
 
     template <class TRequestMessage, class TResponseMessage>
-    void InitContext(const TIntrusivePtr<TApiServiceContext<TRequestMessage, TResponseMessage>>& context)
+    void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context)
     {
         using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
@@ -1235,18 +1235,19 @@ private:
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
-                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch)))
+                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
+                                providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }
 
-                        YT_LOG_DEBUG(
+                        YT_LOG_WARNING(
                             providerResult,
                             "Wrong clock cluster tag %v, trying to generate timestamps via direct call",
                             clockClusterTag);
 
                         auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
-                        return alienClient->GenerateTimestamps(count, clockClusterTag);
+                        return alienClient->GenerateTimestamps(count);
                     }));
             },
             [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {

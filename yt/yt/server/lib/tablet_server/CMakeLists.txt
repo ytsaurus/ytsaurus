@@ -13,37 +13,25 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(unittests)
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(server-lib-tablet_server)
+
 
 target_compile_options(server-lib-tablet_server PRIVATE
   -Wdeprecated-this-capture
@@ -68,10 +56,16 @@ target_proto_messages(server-lib-tablet_server PRIVATE
 )
 
 target_sources(server-lib-tablet_server PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h
+)
+
+
+target_proto_outs(server-lib-tablet_server
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-tablet_server
@@ -86,9 +80,3 @@ target_proto_addincls(server-lib-tablet_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-tablet_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

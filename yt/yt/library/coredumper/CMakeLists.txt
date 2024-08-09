@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-library-coredumper)
 
+
 target_compile_options(yt-library-coredumper PRIVATE
   -Wdeprecated-this-capture
 )

@@ -63,10 +63,10 @@ protected:
         auto timestampWriter = CreateTimestampWriter(&blockWriter);
 
         // Write 3 rows with given timestamp records, split into 2 segments.
-        timestampWriter->WriteTimestamps(MakeRange(CreateSegment1()));
+        timestampWriter->WriteTimestamps(TRange(CreateSegment1()));
         timestampWriter->FinishCurrentSegment();
 
-        timestampWriter->WriteTimestamps(MakeRange(CreateSegment2()));
+        timestampWriter->WriteTimestamps(TRange(CreateSegment2()));
         auto block = blockWriter.DumpBlock(0 /* block index */, 3 /* row count */);
 
         auto* codec = GetCodec(ECodec::None);
@@ -110,7 +110,7 @@ protected:
             auto actualRanges = reader.GetTimestampIndexRanges(upperRowIndex - lowerRowIndex);
             auto expectedRanges = GetExpectedIndexRanges(timestamp);
             ValidateEqual(
-                MakeRange(expectedRanges.data() + lowerRowIndex, expectedRanges.data() + upperRowIndex),
+                TRange(expectedRanges.data() + lowerRowIndex, expectedRanges.data() + upperRowIndex),
                 actualRanges);
 
             // Validate delete timestamps.

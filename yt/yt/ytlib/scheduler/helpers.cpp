@@ -1,6 +1,7 @@
 #include "helpers.h"
 
 #include "config.h"
+#include "yt/yt/client/table_client/record_helpers.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -10,9 +11,11 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/security_client/acl.h>
 
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -421,16 +424,14 @@ void ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TUnversionedRow CreateOperationKey(
-    const TOperationId& operationId,
-    const TOrderedByIdTableDescriptor::TIndex& index,
-    const TRowBufferPtr& rowBuffer)
+static NRecords::TOrderedByIdKey CreateOperationKey(const TOperationId& operationId)
 {
     auto operationIdAsGuid = operationId.Underlying();
-    auto key = rowBuffer->AllocateUnversioned(2);
-    key[0] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], index.IdHi);
-    key[1] = MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], index.IdLo);
-    return key;
+    NRecords::TOrderedByIdKey recordKey{
+        .IdHi = operationIdAsGuid.Parts64[0],
+        .IdLo = operationIdAsGuid.Parts64[1],
+    };
+    return recordKey;
 }
 
 TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
@@ -439,12 +440,10 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
     const NTableClient::TColumnFilter& columnFilter,
     std::optional<TDuration> timeout)
 {
-    static const TOrderedByIdTableDescriptor tableDescriptor;
-    auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> keys;
+    std::vector<NRecords::TOrderedByIdKey> keys;
     keys.reserve(ids.size());
     for (const auto& id : ids) {
-        keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
+        keys.push_back(CreateOperationKey(id));
     }
 
     TLookupRowsOptions lookupOptions;
@@ -453,8 +452,8 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
     lookupOptions.KeepMissingRows = true;
     auto resultOrError = WaitFor(client->LookupRows(
         GetOperationsArchiveOrderedByIdPath(),
-        tableDescriptor.NameTable,
-        MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+        NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
+        FromRecordKeys(MakeSharedRange(std::move(keys))),
         lookupOptions));
     if (!resultOrError.IsOK()) {
         return TError(resultOrError);

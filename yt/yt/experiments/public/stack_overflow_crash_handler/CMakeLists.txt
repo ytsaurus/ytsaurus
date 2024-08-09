@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(stack_overflow_crash_handler)
 
+
 target_compile_options(stack_overflow_crash_handler PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(stack_overflow_crash_handler PUBLIC
   library-cpp-cpuid_check
   yt-library-program
   backtrace-symbolizers-dwarf
+)
+
+target_allocator(stack_overflow_crash_handler
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(stack_overflow_crash_handler PRIVATE
@@ -45,10 +51,5 @@ target_sources(stack_overflow_crash_handler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/stack_overflow_crash_handler/main.cpp
 )
 
-target_allocator(stack_overflow_crash_handler
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(stack_overflow_crash_handler)
-

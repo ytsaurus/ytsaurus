@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-lzmasdk)
 
+
 target_compile_options(contrib-libs-lzmasdk PRIVATE
   -D_7ZIP_ST=1
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-rational INTERFACE)
 
+
 target_include_directories(restricted-boost-rational INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/rational/include
 )

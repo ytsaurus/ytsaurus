@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(server-lib-lsm)
+
 
 target_compile_options(server-lib-lsm PRIVATE
   -Wdeprecated-this-capture

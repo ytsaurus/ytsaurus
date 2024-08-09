@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-system)
 
+
 target_compile_options(cpp-yt-system PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,7 @@ target_link_libraries(cpp-yt-system PUBLIC
 )
 
 target_sources(cpp-yt-system PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/exit.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/thread_id.cpp
 )
 

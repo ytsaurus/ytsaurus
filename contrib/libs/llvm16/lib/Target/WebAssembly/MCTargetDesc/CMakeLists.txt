@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(Target-WebAssembly-MCTargetDesc)
 
+
 target_compile_options(Target-WebAssembly-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

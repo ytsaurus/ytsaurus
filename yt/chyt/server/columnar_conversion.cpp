@@ -366,8 +366,8 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnve
                 ytOffsets,
                 avgLength,
                 ytValueColumn->Strings->Data,
-                MakeMutableRange(ytStrings),
-                MakeMutableRange(ytStringLengths));
+                TMutableRange(ytStrings),
+                TMutableRange(ytStringLengths));
 
             auto stringsFetcher = [&] (i64 index) {
                 return std::pair(ytStrings[index], ytStringLengths[index]);
@@ -498,7 +498,7 @@ DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnar
         ytColumn.GetBitmapValues(),
         ytColumn.StartIndex,
         ytColumn.StartIndex + ytColumn.ValueCount,
-        MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount));
+        TMutableRange(chColumn->getData().data(), ytColumn.ValueCount));
 
     return chColumn;
 }
@@ -517,7 +517,7 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumn
 {
     auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
 
-    auto nullBytemap = MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount);
+    auto nullBytemap = TMutableRange(chColumn->getData().data(), ytColumn.ValueCount);
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 

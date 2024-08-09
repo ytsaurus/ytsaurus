@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package global
 
@@ -245,4 +234,40 @@ func TestSpanContextPropagatedWithNonRecordingSpan(t *testing.T) {
 
 	assert.Equal(t, sc, span.SpanContext())
 	assert.False(t, span.IsRecording())
+}
+
+func TestTracerIdentity(t *testing.T) {
+	type id struct{ name, ver, url string }
+
+	ids := []id{
+		{"name-a", "version-a", "url-a"},
+		{"name-a", "version-a", "url-b"},
+		{"name-a", "version-b", "url-a"},
+		{"name-a", "version-b", "url-b"},
+		{"name-b", "version-a", "url-a"},
+		{"name-b", "version-a", "url-b"},
+		{"name-b", "version-b", "url-a"},
+		{"name-b", "version-b", "url-b"},
+	}
+
+	provider := &tracerProvider{}
+	newTracer := func(i id) trace.Tracer {
+		return provider.Tracer(
+			i.name,
+			trace.WithInstrumentationVersion(i.ver),
+			trace.WithSchemaURL(i.url),
+		)
+	}
+
+	for i, id0 := range ids {
+		for j, id1 := range ids {
+			l0, l1 := newTracer(id0), newTracer(id1)
+
+			if i == j {
+				assert.Samef(t, l0, l1, "Tracer(%v) != Tracer(%v)", id0, id1)
+			} else {
+				assert.NotSamef(t, l0, l1, "Tracer(%v) == Tracer(%v)", id0, id1)
+			}
+		}
+	}
 }

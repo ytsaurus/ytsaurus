@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(action_queue)
 
+
 target_link_libraries(action_queue PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(action_queue
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(action_queue PRIVATE
@@ -40,10 +46,5 @@ target_sources(action_queue PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/action_queue/main.cpp
 )
 
-target_allocator(action_queue
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(action_queue)
-

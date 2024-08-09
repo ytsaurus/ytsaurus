@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(profile_memory)
 
+
 target_compile_options(profile_memory PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(profile_memory PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-interface
   cpp-mapreduce-client
+)
+
+target_allocator(profile_memory
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(profile_memory PRIVATE
@@ -45,10 +51,5 @@ target_sources(profile_memory PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/profile_memory/main.cpp
 )
 
-target_allocator(profile_memory
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(profile_memory)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-bus)
 
+
 target_compile_options(unittester-core-bus PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-core-bus PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-testing-common
+)
+
+target_allocator(unittester-core-bus
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-bus PRIVATE
@@ -48,6 +53,7 @@ target_sources(unittester-core-bus PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,20 +74,15 @@ set_property(
   TEST
   unittester-core-bus
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-bus)
 
 set_property(
   TEST
   unittester-core-bus
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-bus
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-bus)
-

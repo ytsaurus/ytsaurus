@@ -39,7 +39,7 @@ TEST(TComplexColumnTest, Simple)
 
     TDataBlockWriter blockWriter;
     auto columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter);
-    columnWriter->WriteUnversionedValues(MakeRange(rows));
+    columnWriter->WriteUnversionedValues(TRange(rows));
     columnWriter->FinishCurrentSegment();
 
     auto block = blockWriter.DumpBlock(0, rows.size());
@@ -89,7 +89,7 @@ void TestCompatibility()
         static_assert(WriterType == EValueType::Any);
         columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
     }
-    columnWriter->WriteUnversionedValues(MakeRange(rows));
+    columnWriter->WriteUnversionedValues(TRange(rows));
     columnWriter->FinishCurrentSegment();
 
     auto block = blockWriter.DumpBlock(0, rows.size());

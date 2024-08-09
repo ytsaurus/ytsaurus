@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(crc64_reference_test)
 
+
 target_compile_options(crc64_reference_test PRIVATE
   -Wdeprecated-this-capture
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
@@ -25,6 +26,11 @@ target_link_libraries(crc64_reference_test PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   isa-l_crc_yt_patch
+)
+
+target_allocator(crc64_reference_test
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(crc64_reference_test PRIVATE
@@ -40,10 +46,5 @@ target_sources(crc64_reference_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
 )
 
-target_allocator(crc64_reference_test
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(crc64_reference_test)
-

@@ -1152,7 +1152,7 @@ public:
 
         if (!Initialized_) {
             FeedBlocksToReaders();
-            Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
+            Initialize(TRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
             Initialized_ = true;
             RowIndex_ = LowerRowIndex_;
         }
@@ -1304,7 +1304,7 @@ public:
         for (auto* valueColumnReader : ValueColumnReaders_) {
             valueColumnReader->ReadValues(
                 TMutableRange<TMutableVersionedRow>(&row, 1),
-                MakeRange(&timestampIndexRange, 1),
+                TRange(&timestampIndexRange, 1),
                 false);
         }
 
@@ -1395,7 +1395,7 @@ public:
         for (auto* valueColumnReader : ValueColumnReaders_) {
             valueColumnReader->ReadValues(
                 TMutableRange<TMutableVersionedRow>(&row, 1),
-                MakeRange(&writeTimestampIndexRange, 1),
+                TRange(&writeTimestampIndexRange, 1),
                 true);
         }
 

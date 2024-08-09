@@ -299,29 +299,9 @@ bool TIOEngineBase::IsReadInFlightRequestLimitExceeded() const
     return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
 }
 
-i64 TIOEngineBase::GetInFlightReadRequestCount() const
-{
-    return InFlightReadRequestCount_.load(std::memory_order_relaxed);
-}
-
-i64 TIOEngineBase::GetReadRequestLimit() const
-{
-    return Config_.Acquire()->ReadRequestLimit;
-}
-
 bool TIOEngineBase::IsWriteInFlightRequestLimitExceeded() const
 {
     return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
-}
-
-i64 TIOEngineBase::GetInFlightWriteRequestCount() const
-{
-    return InFlightWriteRequestCount_.load(std::memory_order_relaxed);
-}
-
-i64 TIOEngineBase::GetWriteRequestLimit() const
-{
-    return Config_.Acquire()->WriteRequestLimit;
 }
 
 TIOEngineBase::TIOEngineBase(
@@ -537,7 +517,7 @@ void TIOEngineBase::InitProfilerSensors()
     Sensors_->WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
     Sensors_->SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
     Sensors_->DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
-    Sensors_->IoSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
 }
 
 void TIOEngineBase::SetSickFlag(const TError& error)

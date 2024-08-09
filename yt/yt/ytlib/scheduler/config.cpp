@@ -301,6 +301,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("build_job_spec_proto_delay", &TThis::BuildJobSpecProtoDelay)
         .Default();
+    registrar.Parameter("fail_operation_delay", &TThis::FailOperationDelay)
+        .Default();
     registrar.Parameter("test_job_speculation_timeout", &TThis::TestJobSpeculationTimeout)
         .Default(false);
     registrar.Parameter("crash_controller_agent", &TThis::CrashControllerAgent)
@@ -357,7 +359,7 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_min_data_weight_per_chunk", &TThis::ShallowMergeMinDataWeightPerChunk)
         .Default(64_KB);
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Enabled);
+        .Default(ESingleChunkTeleportStrategy::Disabled);
 
     registrar.Preprocessor([] (TAutoMergeConfig* config) {
         config->JobIO->TableWriter->DesiredChunkWeight = 8_GB;
@@ -1403,7 +1405,7 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
 void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Enabled);
+        .Default(ESingleChunkTeleportStrategy::Disabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

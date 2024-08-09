@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-rpc_proxy)
 
+
 target_compile_options(server-lib-rpc_proxy PRIVATE
   -Wdeprecated-this-capture
 )

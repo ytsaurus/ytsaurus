@@ -147,7 +147,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
 TRange<TChunkList*> TChunkList::Parents() const
 {
-    return MakeRange(Parents_.begin(), Parents_.end());
+    return TRange(Parents_.begin(), Parents_.end());
 }
 
 void TChunkList::AddParent(TChunkList* parent)
@@ -180,12 +180,12 @@ void TChunkList::RemoveOwningNode(TChunkOwnerBase* node)
 
 TRange<TChunkOwnerBase*> TChunkList::TrunkOwningNodes() const
 {
-    return MakeRange(TrunkOwningNodes_.begin(), TrunkOwningNodes_.end());
+    return TRange(TrunkOwningNodes_.begin(), TrunkOwningNodes_.end());
 }
 
 TRange<TChunkOwnerBase*> TChunkList::BranchedOwningNodes() const
 {
-    return MakeRange(BranchedOwningNodes_.begin(), BranchedOwningNodes_.end());
+    return TRange(BranchedOwningNodes_.begin(), BranchedOwningNodes_.end());
 }
 
 ui64 TChunkList::GenerateVisitMark()

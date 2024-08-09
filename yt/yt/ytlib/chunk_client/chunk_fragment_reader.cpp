@@ -1683,7 +1683,7 @@ private:
             int subresponseIndex = 0;
             int currentFragmentIndex = 0;
             for (const auto& item : plan->Items) {
-                auto fragments = MakeMutableRange(
+                auto fragments = TMutableRange(
                     rsp->Attachments().data() + currentFragmentIndex,
                     rsp->Attachments().data() + currentFragmentIndex + item.RequestedFragmentCount);
                 currentFragmentIndex += item.RequestedFragmentCount;

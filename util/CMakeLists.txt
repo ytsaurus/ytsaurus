@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(charset)
 add_subdirectory(draft)
 
 add_library(yutil)
+
 
 target_compile_options(yutil PRIVATE
   -Wnarrowing
@@ -39,6 +41,7 @@ target_sources(yutil PRIVATE
   ${PROJECT_SOURCE_DIR}/util/system/valgrind.cpp
   ${PROJECT_SOURCE_DIR}/util/system/mktemp_system.cpp
 )
+
 
 target_joined_source(yutil
   all_datetime.cpp
@@ -344,4 +347,3 @@ target_yasm_source(yutil
   -I
   ${PROJECT_SOURCE_DIR}
 )
-

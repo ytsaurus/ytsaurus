@@ -13,194 +13,31 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TValue>
-TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> errorOrValue) const
-{
-    if (errorOrValue.IsOK()) {
-        return std::move(errorOrValue).Value();
-    } else {
-        Throw(errorOrValue);
-    }
-}
-
-template <typename... Args>
-[[noreturn]] void TProtoVisitorBase::Throw(Args&&... args) const
-{
-    THROW_ERROR TError(std::forward<Args>(args)...)
-        << TErrorAttribute("path", Tokenizer_.GetPath())
-        << TErrorAttribute("position", CurrentPath_.GetPath());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename TWrappedMessage>
+template <typename TWrappedMessage, typename TSelf>
 template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::Visit(TVisitParam&& target, NYPath::TYPathBuf path)
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitGeneric(TVisitParam&& target, EVisitReason reason)
 {
-    using TContainerTraits = TProtoVisitorContainerTraits<
-        std::remove_cvref_t<TWrappedMessage>,
-        std::remove_cvref_t<TVisitParam>>;
-
-    Reset(path);
-
-    if constexpr (TContainerTraits::IsScalar) {
-        VisitScalar(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
-    } else if constexpr (TContainerTraits::IsVector) {
-        VisitVector(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
-    } else if constexpr (TContainerTraits::IsMap) {
-        VisitMap(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
-    } else {
-        Throw(EErrorCode::Unimplemented,
-            "Cannot visit type %v with a visitor that expects %v",
-            TypeName<TVisitParam>(),
-            TypeName<TWrappedMessage>());
+    if constexpr (std::is_convertible_v<TVisitParam, TMessageParam>) {
+        Self()->VisitMessage(target, reason);
+        return;
     }
+
+    if constexpr (
+        std::is_base_of_v<std::remove_pointer_t<TMessageParam>, std::remove_reference_t<TVisitParam>>)
+    {
+        Self()->VisitMessage(&target, reason);
+        return;
+    }
+
+    TPathVisitor<TSelf>::VisitGeneric(std::forward<TVisitParam>(target), reason);
 }
 
-template <typename TWrappedMessage>
-template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitScalar(TVisitParam&& messageScalar, EVisitReason reason)
-{
-    using TContainerTraits = TProtoVisitorContainerTraits<
-        std::remove_cvref_t<TWrappedMessage>,
-        std::remove_cvref_t<TVisitParam>>;
-
-    if constexpr (TContainerTraits::TakeAddress) {
-        VisitMessage(&messageScalar, reason);
-    } else {
-        VisitMessage(messageScalar, reason);
-    }
-}
-
-template <typename TWrappedMessage>
-template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitVector(TVisitParam&& messageVector, EVisitReason reason)
-{
-    if (PathComplete()) {
-        if (VisitEverythingAfterPath_) {
-            VisitWholeVector(std::forward<TVisitParam>(messageVector), EVisitReason::AfterPath);
-            return;
-        } else {
-            Throw(EErrorCode::Unimplemented, "Cannot handle whole message vectors");
-        }
-    }
-
-    SkipSlash();
-
-    if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        AdvanceOverAsterisk();
-        VisitWholeVector(std::forward<TVisitParam>(messageVector), EVisitReason::Asterisk);
-    } else {
-        int size = messageVector.size();
-        auto errorOrIndexParseResult = ParseCurrentListIndex(size);
-        if (!errorOrIndexParseResult.IsOK()) {
-            OnIndexError(
-                nullptr,
-                nullptr,
-                reason,
-                std::move(errorOrIndexParseResult));
-            return;
-        }
-        auto& indexParseResult = errorOrIndexParseResult.Value();
-        AdvanceOver(int(indexParseResult.Index));
-        switch (indexParseResult.IndexType) {
-            case EListIndexType::Absolute:
-                VisitScalar(messageVector[indexParseResult.Index], EVisitReason::Path);
-                break;
-        case EListIndexType::Relative:
-            Throw(EErrorCode::MalformedPath,
-                "Unexpected relative path specifier %v",
-                Tokenizer_.GetToken());
-            break;
-        default:
-            YT_ABORT();
-        }
-    }
-}
-
-template <typename TWrappedMessage>
-template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitWholeVector(
-    TVisitParam&& messageVector,
-    EVisitReason reason)
-{
-    int size = messageVector.size();
-    for (int index = 0; !StopIteration_ && index < size; ++index) {
-        auto checkpoint = CheckpointBranchedTraversal(index);
-        VisitScalar(messageVector[index], reason);
-    }
-}
-
-template <typename TWrappedMessage>
-template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitMap(TVisitParam&& messageMap, EVisitReason reason)
-{
-    using TContainerTraits = TProtoVisitorContainerTraits<
-        std::remove_cvref_t<TWrappedMessage>,
-        std::remove_cvref_t<TVisitParam>>;
-
-    if (PathComplete()) {
-        if (VisitEverythingAfterPath_) {
-            VisitWholeMap(std::forward<TVisitParam>(messageMap), EVisitReason::AfterPath);
-            return;
-        } else {
-            Throw(EErrorCode::Unimplemented, "Cannot handle whole message maps");
-        }
-    }
-
-    SkipSlash();
-
-    if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        AdvanceOverAsterisk();
-        VisitWholeMap(std::forward<TVisitParam>(messageMap), EVisitReason::Asterisk);
-    } else {
-        Expect(NYPath::ETokenType::Literal);
-
-        TString key = Tokenizer_.GetLiteralValue();
-        AdvanceOver(key);
-
-        auto it = messageMap.end();
-        if constexpr (std::is_same_v<TString, typename TContainerTraits::TMapKey>) {
-            it = messageMap.find(key);
-        } else {
-            typename TContainerTraits::TMapKey castKey;
-            if (!TryFromString(key, castKey)) {
-                Throw(EErrorCode::MalformedPath, "Invalid map key %v", key);
-            }
-            it = messageMap.find(castKey);
-        }
-
-        if (it == messageMap.end()) {
-            OnKeyError(
-                nullptr,
-                nullptr,
-                nullptr,
-                std::move(key),
-                reason,
-                TError(EErrorCode::MissingKey, "Key not found in map"));
-            return;
-        }
-
-        VisitScalar(it->second, EVisitReason::Path);
-    }
-}
-
-template <typename TWrappedMessage>
-template <typename TVisitParam>
-void TProtoVisitor<TWrappedMessage>::VisitWholeMap(TVisitParam&& messageMap, EVisitReason reason)
-{
-    for (auto& [key, entry] : messageMap) {
-        auto checkpoint = CheckpointBranchedTraversal(key);
-        VisitScalar(entry, reason);
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitReason reason)
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitMessage(TMessageParam message, EVisitReason reason)
 {
     auto errorOrDescriptor = TTraits::GetDescriptor(message);
     if (!errorOrDescriptor.IsOK()) {
-        OnDescriptorError(message, reason, std::move(errorOrDescriptor));
+        Self()->OnDescriptorError(message, reason, std::move(errorOrDescriptor));
         return;
     }
     const auto* descriptor = errorOrDescriptor.Value();
@@ -210,68 +47,68 @@ void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitR
     {
         const auto* fieldDescriptor = descriptor->FindFieldByName("attributes");
         if (!fieldDescriptor) {
-            Throw(EErrorCode::InvalidData, "Misplaced attribute_dictionary option");
+            Self()->Throw(EErrorCode::InvalidData, "Misplaced attribute_dictionary option");
         }
-        VisitAttributeDictionary(message, fieldDescriptor, reason);
+        Self()->VisitAttributeDictionary(message, fieldDescriptor, reason);
         return;
     }
 
-    VisitRegularMessage(message, descriptor, reason);
+    Self()->VisitRegularMessage(message, descriptor, reason);
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitRegularMessage(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
     TMessageParam message,
     const NProtoBuf::Descriptor* descriptor,
     EVisitReason reason)
 {
-    if (PathComplete()) {
-        if (VisitEverythingAfterPath_) {
-            VisitWholeMessage(message, EVisitReason::AfterPath);
+    if (Self()->PathComplete()) {
+        if (Self()->GetVisitEverythingAfterPath()) {
+            Self()->VisitWholeMessage(message, EVisitReason::AfterPath);
             return;
         } else {
-            Throw(EErrorCode::Unimplemented, "Cannot handle whole message fields");
+            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole message fields");
         }
     }
 
-    SkipSlash();
+    Self()->SkipSlash();
 
-    if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        AdvanceOverAsterisk();
-        VisitWholeMessage(message, EVisitReason::Asterisk);
+    if (Self()->GetTokenizerType() == NYPath::ETokenType::Asterisk) {
+        Self()->AdvanceOverAsterisk();
+        Self()->VisitWholeMessage(message, EVisitReason::Asterisk);
     } else {
-        Expect(NYPath::ETokenType::Literal);
+        Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString name = Tokenizer_.GetLiteralValue();
-        AdvanceOver(name);
+        TString name = Self()->GetLiteralValue();
+        Self()->AdvanceOver(name);
         const auto* fieldDescriptor = descriptor->FindFieldByName(name);
         if (fieldDescriptor) {
-            VisitField(message, fieldDescriptor, EVisitReason::Path);
+            Self()->VisitField(message, fieldDescriptor, EVisitReason::Path);
         } else {
-            VisitUnrecognizedField(message, descriptor, std::move(name), reason);
+            Self()->VisitUnrecognizedField(message, descriptor, std::move(name), reason);
         }
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitWholeMessage(TMessageParam message, EVisitReason reason)
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeMessage(TMessageParam message, EVisitReason reason)
 {
     auto errorOrDescriptor = TTraits::GetDescriptor(message);
     if (!errorOrDescriptor.IsOK()) {
-        OnDescriptorError(message, reason, std::move(errorOrDescriptor));
+        Self()->OnDescriptorError(message, reason, std::move(errorOrDescriptor));
         return;
     }
     const auto* descriptor = errorOrDescriptor.Value();
 
-    for (int i = 0; !StopIteration_ && i < descriptor->field_count(); ++i) {
+    for (int i = 0; !Self()->StopIteration_ && i < descriptor->field_count(); ++i) {
         auto* fieldDescriptor = descriptor->field(i);
-        auto checkpoint = CheckpointBranchedTraversal(fieldDescriptor->name());
-        VisitField(message, fieldDescriptor, reason);
+        auto checkpoint = Self()->CheckpointBranchedTraversal(fieldDescriptor->name());
+        Self()->VisitField(message, fieldDescriptor, reason);
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitUnrecognizedField(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
     TMessageParam message,
     const NProtoBuf::Descriptor* descriptor,
     TString name,
@@ -280,16 +117,16 @@ void TProtoVisitor<TWrappedMessage>::VisitUnrecognizedField(
     Y_UNUSED(message);
     Y_UNUSED(reason);
 
-    if (!AllowMissing_) {
-        Throw(EErrorCode::MissingField,
+    if (!Self()->AllowMissing_) {
+        Self()->Throw(EErrorCode::MissingField,
             "Field %v not found in message %v",
             name,
             descriptor->full_name());
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::OnDescriptorError(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::OnDescriptorError(
     TMessageParam message,
     EVisitReason reason,
     TError error)
@@ -297,11 +134,11 @@ void TProtoVisitor<TWrappedMessage>::OnDescriptorError(
     Y_UNUSED(message);
     Y_UNUSED(reason);
 
-    Throw(std::move(error));
+    Self()->Throw(std::move(error));
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitAttributeDictionary(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitAttributeDictionary(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
@@ -310,59 +147,275 @@ void TProtoVisitor<TWrappedMessage>::VisitAttributeDictionary(
     Y_UNUSED(fieldDescriptor);
     Y_UNUSED(reason);
 
-    Throw(EErrorCode::Unimplemented, "Cannot handle whole attribute dictionaries");
+    Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole attribute dictionaries");
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitField(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitField(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
     if (fieldDescriptor->is_map()) {
-        VisitMapField(message, fieldDescriptor, reason);
+        Self()->VisitMapField(message, fieldDescriptor, reason);
     } else if (fieldDescriptor->is_repeated()) {
-        VisitRepeatedField(message, fieldDescriptor, reason);
+        Self()->VisitRepeatedField(message, fieldDescriptor, reason);
     } else {
-        VisitSingularField(message, fieldDescriptor, reason);
+        Self()->VisitSingularField(message, fieldDescriptor, reason);
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitMapField(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    auto errorOrPresent = TTraits::IsSingularFieldPresent(message, fieldDescriptor);
+    if (!errorOrPresent.IsOK()) {
+        Self()->OnPresenceError(message, fieldDescriptor, reason, std::move(errorOrPresent));
+        return;
+    }
+    if (!errorOrPresent.Value()) {
+        Self()->VisitMissingSingularField(message, fieldDescriptor, reason);
+        return;
+    }
+
+    Self()->VisitPresentSingularField(message, fieldDescriptor, reason);
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitPresentSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+        TMessageReturn next =
+            TTraits::GetMessageFromSingularField(message, fieldDescriptor);
+        Self()->VisitMessage(next, reason);
+    } else if (!Self()->PathComplete()) {
+        Self()->Throw(EErrorCode::MalformedPath,
+            "Expected field %v to be a protobuf message, but got %v",
+            fieldDescriptor->full_name(),
+            fieldDescriptor->type_name());
+    } else {
+        Self()->Throw(EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
+    }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitMissingSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(reason);
+
+    if (!Self()->AllowMissing_ && reason == EVisitReason::Path) {
+        Self()->Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
+    }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::OnPresenceError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Self()->Throw(std::move(error));
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedField(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
     Y_UNUSED(reason);
 
-    if (PathComplete()) {
-        if (VisitEverythingAfterPath_) {
-            VisitWholeMapField(message, fieldDescriptor, EVisitReason::AfterPath);
+    if (Self()->PathComplete()) {
+        if (Self()->VisitEverythingAfterPath_) {
+            Self()->VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::AfterPath);
             return;
         } else {
-            Throw(EErrorCode::Unimplemented, "Cannot handle whole map fields");
+            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole repeated fields");
         }
     }
 
-    SkipSlash();
+    Self()->SkipSlash();
 
-    if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        AdvanceOverAsterisk();
-        VisitWholeMapField(message, fieldDescriptor, EVisitReason::Asterisk);
+    if (Self()->GetTokenizerType() == NYPath::ETokenType::Asterisk) {
+        Self()->AdvanceOverAsterisk();
+        Self()->VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
-        Expect(NYPath::ETokenType::Literal);
+        auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
+        if (!errorOrSize.IsOK()) {
+            Self()->OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
+            return;
+        }
+        auto errorOrIndexParseResult = Self()->ParseCurrentListIndex(errorOrSize.Value());
+        if (!errorOrIndexParseResult.IsOK()) {
+            Self()->OnIndexError(
+                message,
+                fieldDescriptor,
+                reason,
+                std::move(errorOrIndexParseResult));
+            return;
+        }
+        auto& indexParseResult = errorOrIndexParseResult.Value();
+        Self()->AdvanceOver(ui64(indexParseResult.Index));
 
-        TString key = Tokenizer_.GetLiteralValue();
-        AdvanceOver(key);
+        switch (indexParseResult.IndexType) {
+            case EListIndexType::Absolute:
+                Self()->VisitRepeatedFieldEntry(
+                    message,
+                    fieldDescriptor,
+                    indexParseResult.Index,
+                    EVisitReason::Path);
+                break;
+            case EListIndexType::Relative:
+                Self()->VisitRepeatedFieldEntryRelative(
+                    message,
+                    fieldDescriptor,
+                    indexParseResult.Index,
+                    EVisitReason::Path);
+                break;
+            default:
+                YT_ABORT();
+        }
+    }
+}
 
-        auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key);
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeRepeatedField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
+    if (!errorOrSize.IsOK()) {
+        Self()->OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
+        return;
+    }
+
+    for (ui64 index = 0; !StopIteration_ && index < ui64(errorOrSize.Value()); ++index) {
+        auto checkpoint = Self()->CheckpointBranchedTraversal(index);
+        Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntry(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    EVisitReason reason)
+{
+    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+        TMessageReturn next =
+            TTraits::GetMessageFromRepeatedField(message, fieldDescriptor, index);
+        Self()->VisitMessage(next, reason);
+    } else if (!PathComplete()) {
+        Self()->Throw(EErrorCode::MalformedPath,
+            "Expected field %v to be a protobuf message, but got %v",
+            fieldDescriptor->full_name(),
+            fieldDescriptor->type_name());
+    } else {
+        Self()->Throw(EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
+    }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(index);
+    Y_UNUSED(reason);
+
+    Self()->Throw(EErrorCode::MalformedPath,
+        "Unexpected relative path specifier %v",
+        GetToken());
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::OnSizeError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Self()->Throw(std::move(error));
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::OnIndexError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
+        return;
+    }
+
+    Self()->Throw(std::move(error));
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    Y_UNUSED(reason);
+
+    if (Self()->PathComplete()) {
+        if (Self()->VisitEverythingAfterPath_) {
+            Self()->VisitWholeMapField(message, fieldDescriptor, EVisitReason::AfterPath);
+            return;
+        } else {
+            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole map fields");
+        }
+    }
+
+    Self()->SkipSlash();
+
+    if (Self()->GetTokenizerType() == NYPath::ETokenType::Asterisk) {
+        Self()->AdvanceOverAsterisk();
+        Self()->VisitWholeMapField(message, fieldDescriptor, EVisitReason::Asterisk);
+    } else {
+        Self()->Expect(NYPath::ETokenType::Literal);
+
+        TString key = Self()->GetLiteralValue();
+        Self()->AdvanceOver(key);
+
+        auto keyMessage = Self()->ValueOrThrow(MakeMapKeyMessage(fieldDescriptor, key));
         auto errorOrEntry = TTraits::GetMessageFromMapFieldEntry(
             message,
             fieldDescriptor,
             keyMessage.get());
         if (!errorOrEntry.IsOK()) {
-            OnKeyError(
+            Self()->OnKeyError(
                 message,
                 fieldDescriptor,
                 std::move(keyMessage),
@@ -372,7 +425,7 @@ void TProtoVisitor<TWrappedMessage>::VisitMapField(
             return;
         }
 
-        VisitMapFieldEntry(
+        Self()->VisitMapFieldEntry(
             message,
             fieldDescriptor,
             std::move(errorOrEntry).Value(),
@@ -381,15 +434,15 @@ void TProtoVisitor<TWrappedMessage>::VisitMapField(
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitWholeMapField(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeMapField(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
     auto errorOrEntries = TTraits::GetMessagesFromWholeMapField(message, fieldDescriptor);
     if (!errorOrEntries.IsOK()) {
-        OnKeyError(
+        Self()->OnKeyError(
             message,
             fieldDescriptor,
             {},
@@ -401,13 +454,13 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMapField(
     auto& entries = errorOrEntries.Value();
 
     for (auto& [key, entry] : entries) {
-        auto checkpoint = CheckpointBranchedTraversal(key);
-        VisitMapFieldEntry(message, fieldDescriptor, entry, key, reason);
+        auto checkpoint = Self()->CheckpointBranchedTraversal(key);
+        Self()->VisitMapFieldEntry(message, fieldDescriptor, entry, key, reason);
     }
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitMapFieldEntry(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapFieldEntry(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     TMessageParam entryMessage,
@@ -418,11 +471,11 @@ void TProtoVisitor<TWrappedMessage>::VisitMapFieldEntry(
     Y_UNUSED(key);
 
     auto* valueFieldDescriptor = fieldDescriptor->message_type()->map_value();
-    VisitSingularField(entryMessage, valueFieldDescriptor, reason);
+    Self()->VisitSingularField(entryMessage, valueFieldDescriptor, reason);
 }
 
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::OnKeyError(
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     std::unique_ptr<NProtoBuf::Message> keyMessage,
@@ -436,223 +489,11 @@ void TProtoVisitor<TWrappedMessage>::OnKeyError(
     Y_UNUSED(key);
     Y_UNUSED(reason);
 
-    if (AllowMissing_ && error.GetCode() == EErrorCode::MissingKey) {
+    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::MissingKey) {
         return;
     }
 
-    Throw(std::move(error));
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitRepeatedField(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason)
-{
-    Y_UNUSED(reason);
-
-    if (PathComplete()) {
-        if (VisitEverythingAfterPath_) {
-            VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::AfterPath);
-            return;
-        } else {
-            Throw(EErrorCode::Unimplemented, "Cannot handle whole repeated fields");
-        }
-    }
-
-    SkipSlash();
-
-    if (Tokenizer_.GetType() == NYPath::ETokenType::Asterisk) {
-        AdvanceOverAsterisk();
-        VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::Asterisk);
-    } else {
-        auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
-        if (!errorOrSize.IsOK()) {
-            OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
-            return;
-        }
-        auto errorOrIndexParseResult = ParseCurrentListIndex(errorOrSize.Value());
-        if (!errorOrIndexParseResult.IsOK()) {
-            OnIndexError(message, fieldDescriptor, reason, std::move(errorOrIndexParseResult));
-            return;
-        }
-        auto& indexParseResult = errorOrIndexParseResult.Value();
-        AdvanceOver(int(indexParseResult.Index));
-
-        switch (indexParseResult.IndexType) {
-            case EListIndexType::Absolute:
-                VisitRepeatedFieldEntry(
-                    message,
-                    fieldDescriptor,
-                    indexParseResult.Index,
-                    EVisitReason::Path);
-                break;
-            case EListIndexType::Relative:
-                VisitRepeatedFieldEntryRelative(
-                    message,
-                    fieldDescriptor,
-                    indexParseResult.Index,
-                    EVisitReason::Path);
-                break;
-            default:
-                YT_ABORT();
-        }
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitWholeRepeatedField(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason)
-{
-    auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
-    if (!errorOrSize.IsOK()) {
-        OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
-        return;
-    }
-
-    for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
-        auto checkpoint = CheckpointBranchedTraversal(index);
-        VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitRepeatedFieldEntry(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    int index,
-    EVisitReason reason)
-{
-    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
-        TMessageReturn next =
-            TTraits::GetMessageFromRepeatedField(message, fieldDescriptor, index);
-        VisitMessage(next, reason);
-    } else if (!PathComplete()) {
-        Throw(EErrorCode::MalformedPath,
-            "Expected field %v to be a protobuf message, but got %v",
-            fieldDescriptor->full_name(),
-            fieldDescriptor->type_name());
-    } else {
-        Throw(EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitRepeatedFieldEntryRelative(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    int index,
-    EVisitReason reason)
-{
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(index);
-    Y_UNUSED(reason);
-
-    Throw(EErrorCode::MalformedPath,
-        "Unexpected relative path specifier %v",
-        Tokenizer_.GetToken());
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::OnSizeError(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason,
-    TError error)
-{
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(reason);
-
-    Throw(std::move(error));
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::OnIndexError(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason,
-    TError error)
-{
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(reason);
-
-    if (AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
-        return;
-    }
-
-    Throw(std::move(error));
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitSingularField(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason)
-{
-    auto errorOrPresent = TTraits::IsSingularFieldPresent(message, fieldDescriptor);
-    if (!errorOrPresent.IsOK()) {
-        OnPresenceError(message, fieldDescriptor, reason, std::move(errorOrPresent));
-        return;
-    }
-    if (!errorOrPresent.Value()) {
-        VisitMissingSingularField(message, fieldDescriptor, reason);
-        return;
-    }
-
-    VisitPresentSingularField(message, fieldDescriptor, reason);
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitPresentSingularField(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason)
-{
-    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
-        TMessageReturn next =
-            TTraits::GetMessageFromSingularField(message, fieldDescriptor);
-        VisitMessage(next, reason);
-    } else if (!PathComplete()) {
-        Throw(EErrorCode::MalformedPath,
-            "Expected field %v to be a protobuf message, but got %v",
-            fieldDescriptor->full_name(),
-            fieldDescriptor->type_name());
-    } else {
-        Throw(EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitMissingSingularField(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason)
-{
-    Y_UNUSED(message);
-    Y_UNUSED(reason);
-
-    if (!AllowMissing_ && reason == EVisitReason::Path) {
-        Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
-    }
-}
-
-template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::OnPresenceError(
-    TMessageParam message,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    EVisitReason reason,
-    TError error)
-{
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(reason);
-
-    Throw(std::move(error));
+    Self()->Throw(std::move(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

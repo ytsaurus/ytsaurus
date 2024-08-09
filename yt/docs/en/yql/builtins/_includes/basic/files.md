@@ -43,7 +43,7 @@ SELECT FolderPath("foo"); -- The directory at the return path will
 
 ## ParseFile
 
-Get a list of values from the attached text file. You can use it together with [IN](../../../syntax/expressions.md#in) and file attachment using URL <span style="color:gray;">(instructions on how to attach files in the web interface and in the client </span>.
+Get a list of values from the attached text file. You can use it together with [IN](../../../syntax/expressions.md#in) and file attachment using URL <span style="color:gray;">(instructions on how to attach files in the web interface and in the client)</span>.
 
 Only one file format is supported: one value per line. 
 <!-- For something more sophisticated, you should write a small UDF in [Python](../../../udf/python.md) or [JavaScript](../../../udf/javascript.md). -->

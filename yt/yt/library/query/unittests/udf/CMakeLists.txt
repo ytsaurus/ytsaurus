@@ -21,35 +21,8 @@ get_built_tool_path(
   rescompiler
 )
 
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
-
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
-
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
-
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
-
 add_library(query-unittests-udf INTERFACE)
+
 
 target_link_libraries(query-unittests-udf INTERFACE
   linux-headers-generic::linux-headers-generic
@@ -60,8 +33,8 @@ target_link_libraries(query-unittests-udf INTERFACE
 
 
 add_global_library_for(query-unittests-udf.global
-  query-unittests-udf
-)
+  query-unittests-udf)
+
 
 target_compile_options(query-unittests-udf.global PRIVATE
   -Wdeprecated-this-capture
@@ -86,6 +59,19 @@ target_sources(query-unittests-udf.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/4ee93022b700d3503f4d3f9b1b2e49a7.cpp
 )
 
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+)
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
@@ -102,14 +88,14 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
   -o
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
 )
 
 add_custom_command(
@@ -128,14 +114,14 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
   -o
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
 )
 
 add_custom_command(
@@ -154,14 +140,14 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   -o
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
 )
 
 add_custom_command(
@@ -180,14 +166,14 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
   -o
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
 )
 
 add_custom_command(
@@ -202,18 +188,6 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
   -internalize-public-api-list=concat_all_init#concat_all_update#concat_all_merge#concat_all_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
-)
-
-add_custom_command(
-  OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
-  DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
-  COMMAND
-  ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
-  -o
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_merged.bc
 )
 
 llvm_compile_c(query-unittests-udf.global
@@ -244,14 +218,6 @@ llvm_compile_c(query-unittests-udf.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/udf/concat_all.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all.c.bc
   ${CLANGC}
-  -Wno-unknown-warning-option
-  -emit-llvm
-)
-
-llvm_compile_cxx(query-unittests-udf.global
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
-  ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
 )
@@ -296,3 +262,10 @@ resources(query-unittests-udf.global
   /llvm_bc/concat_all
 )
 
+llvm_compile_cxx(query-unittests-udf.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)

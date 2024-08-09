@@ -12,8 +12,8 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
-from copy import deepcopy
 import pytest
+import yt_error_codes
 
 ##################################################################
 
@@ -71,13 +71,35 @@ INDEX_ON_KEY_SCHEMA = [
 
 PRIMARY_SCHEMA_WITH_LIST = [
     {"name": "key", "type": "int64", "sort_order": "ascending"},
-    {"name": "value", "type_v3": {"type_name": "list", "item": {"type_name": "optional", "item": "int64"}}},
+    {"name": "value", "type_v3": {
+        "type_name": "optional",
+        "item": {
+            "type_name": "list",
+            "item": {
+                "type_name": "optional",
+                "item": "int64"
+            }
+        }
+    }},
 ]
 
 UNFOLDING_INDEX_SCHEMA = [
     {"name": "value", "type_v3": {"type_name": "optional", "item": "int64"}, "sort_order": "ascending"},
     {"name": "key", "type": "int64", "sort_order": "ascending"},
     {"name": EMPTY_COLUMN_NAME, "type": "int64"}
+]
+
+UNIQUE_VALUE_INDEX_SCHEMA = [
+    {"name": "valueB", "type": "boolean", "sort_order": "ascending"},
+    {"name": "keyA", "type": "int64"},
+    {"name": "keyB", "type": "string"},
+]
+
+UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
+    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(valueA)"},
+    {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyB", "type": "string", "sort_order": "ascending"},
+    {"name": "keyA", "type": "int64"},
 ]
 
 ##################################################################
@@ -422,6 +444,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
             {"key": 2, "value": [13, 11]},
+            {"key": 3, "value": None},
         ])
         insert_rows("//tmp/index_table", [
             {"value": 1, "key": 1},
@@ -493,6 +516,9 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 
     def _expect_from_index(self, expected, index_table="//tmp/index_table"):
         actual = select_rows(f"* from [{index_table}]")
+        for row in actual:
+            if "__hash__" in row:
+                del row["__hash__"]
         assert_items_equal(sorted_dicts(actual), sorted_dicts(expected))
 
     @authors("sabdenovch")
@@ -665,6 +691,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._insert_rows([
             {"key": 0, "value": [1, 1, 1]},
             {"key": 1, "value": [None]},
+            {"key": 2, "value": None},
         ])
         self._expect_from_index([
             {"value": None, "key": 1, EMPTY_COLUMN_NAME: None},
@@ -720,8 +747,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     def test_different_evaluated_columns(self, table_schema, index_table_schema):
         self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
         index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
-        if index_table_schema == INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION:
-            index_row["__hash__"] = 3509085207357874260
         self._insert_rows([{"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}])
         self._expect_from_index([index_row])
 
@@ -776,23 +801,164 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 456, "valueB": None}])
 
     @authors("sabdenovch")
-    def test_forbid_shared_write_locks(self):
-        index_schema = deepcopy(INDEX_ON_VALUE_SCHEMA[:3]) + [{"name": EMPTY_COLUMN_NAME, "type": "int64"}]
-        table_schema = deepcopy(PRIMARY_SCHEMA)
-        table_schema[2]["lock"] = "alpha"
-        table_schema[3]["lock"] = "beta"
-
-        self._create_basic_tables(mount=True, table_schema=table_schema, index_schema=index_schema)
-
+    def test_secondary_index_forbid_shared_write_locks(self):
+        self._create_basic_tables(mount=True)
+        tx = start_transaction(type="tablet")
+        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 123}], update=True, tx=tx, lock_type="shared_write")
         with raises_yt_error():
-            tx = start_transaction(type="tablet")
-            self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 123}], update=True, tx=tx, lock_type="shared_write")
             commit_transaction(tx)
 
-        with raises_yt_error():
-            tx = start_transaction(type="tablet")
-            self._insert_rows([{"keyA": 0, "keyB": "key", "valueB": True}], update=True, tx=tx, lock_type="shared_write")
-            commit_transaction(tx)
+    @authors("sabdenovch")
+    def test_secondary_index_unique_value(self):
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
+            kind="unique",
+            mount=True)
+
+        # Conflict within write itself.
+        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+            self._insert_rows([
+                {"keyA": 1, "keyB": "yyy", "valueB": True},
+                {"keyA": 2, "keyB": "yyy", "valueB": True},
+            ])
+        # True, False and implicit Null - no conflict.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 123, "valueB": True},
+            {"keyA": 1, "keyB": "xxx", "valueA": 456, "valueB": False},
+            {"keyA": 1, "keyB": "yyy", "valueA": 456},
+        ], update=True)
+        self._expect_from_index([
+            {"valueB": None, "keyA": 1, "keyB": "yyy"},
+            {"valueB": False, "keyA": 1, "keyB": "xxx"},
+            {"valueB": True, "keyA": 0, "keyB": "xxx"},
+        ])
+        # Existing True has different key - conflict.
+        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+            self._insert_rows([
+                {"keyA": 2, "keyB": "yyy", "valueB": True},
+            ])
+        # Update leaves unique column untouched.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 789},
+            {"keyA": 1, "keyB": "xxx", "valueA": 789},
+            {"keyA": 1, "keyB": "yyy", "valueA": 789},
+        ], update=True)
+        # Flip keys between False and True.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueB": False},
+            {"keyA": 1, "keyB": "xxx", "valueB": True},
+        ])
+        # Rotate keys between False, True and Null
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueB": True},
+            {"keyA": 1, "keyB": "xxx", "valueB": None},
+            {"keyA": 1, "keyB": "yyy", "valueB": False},
+        ])
+
+    @authors("sabdenovch")
+    def test_secondary_index_unique_key_value_pair(self):
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            index_schema=UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA,
+            kind="unique",
+            mount=True)
+
+        # Setup.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 111, "valueB": True},
+            {"keyA": 0, "keyB": "yyy", "valueA": 222, "valueB": True},
+            {"keyA": 1, "keyB": "xxx", "valueA": 222, "valueB": True},
+            {"keyA": 1, "keyB": "yyy", "valueA": 111, "valueB": False},
+        ])
+        self._expect_from_index([
+            {"valueA": 111, "keyB": "xxx", "keyA": 0},
+            {"valueA": 111, "keyB": "yyy", "keyA": 1},
+            {"valueA": 222, "keyB": "xxx", "keyA": 1},
+            {"valueA": 222, "keyB": "yyy", "keyA": 0},
+        ])
+        # Conflict with existing row.
+        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+            self._insert_rows([
+                {"keyA": 3, "keyB": "yyy", "valueA": 111},
+            ])
+        # Write that leads to no change.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 111, "valueB": True},
+            {"keyA": 0, "keyB": "yyy", "valueA": 222, "valueB": True},
+            {"keyA": 1, "keyB": "xxx", "valueA": 222, "valueB": True},
+            {"keyA": 1, "keyB": "yyy", "valueA": 111, "valueB": False},
+        ])
+        # Flip valueA.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 222},
+            {"keyA": 0, "keyB": "yyy", "valueA": 111},
+            {"keyA": 1, "keyB": "xxx", "valueA": 111},
+            {"keyA": 1, "keyB": "yyy", "valueA": 222},
+        ])
+        # Rotate valueA.
+        self._insert_rows([
+            {"keyA": 0, "keyB": "xxx", "valueA": 111},
+            {"keyA": 0, "keyB": "yyy", "valueA": 111},
+            {"keyA": 1, "keyB": "xxx", "valueA": 222},
+            {"keyA": 1, "keyB": "yyy", "valueA": 222},
+        ])
+
+    @authors("sabdenovch")
+    def test_secondary_index_unique_concurrent_conflict(self):
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA,
+            index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
+            kind="unique",
+            mount=True)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        self._insert_rows([
+            {"keyA": 1, "valueB": True},
+        ], tx=tx1)
+        self._insert_rows([
+            {"keyA": 2, "valueB": True},
+        ], tx=tx2)
+        commit_transaction(tx1)
+        with raises_yt_error("Row lock conflict due to concurrent write"):
+            commit_transaction(tx2)
+
+    @authors("sabdenovch")
+    def test_secondary_index_unique_with_predicate(self):
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA,
+            index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
+            kind="unique",
+            predicate="valueA > 100",
+            mount=True)
+
+        # Both rows satisfy predicate, but there is a conflict.
+        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+            self._insert_rows([
+                {"keyA": 1, "valueA": 200, "valueB": True},
+                {"keyA": 2, "valueA": 200, "valueB": True},
+            ])
+        # Conflict is neutralized by predicate - second row is not indexed.
+        self._insert_rows([
+            {"keyA": 0, "valueA": 200, "valueB": True},
+            {"keyA": 1, "valueA": 0, "valueB": True},
+        ])
+        # Now first row is not indexed.
+        self._insert_rows([
+            {"keyA": 0, "valueA": 0, "valueB": True},
+            {"keyA": 1, "valueA": 200, "valueB": True},
+        ])
+        # Both indexed, and no conflict.
+        self._insert_rows([
+            {"keyA": 0, "valueA": 200, "valueB": True},
+            {"keyA": 1, "valueA": 200, "valueB": False},
+        ])
+        # Conflict, but neither is indexed.
+        self._insert_rows([
+            {"keyA": 0, "valueA": 0, "valueB": False},
+            {"keyA": 1, "valueA": 0, "valueB": False},
+        ])
 
 
 ##################################################################

@@ -69,17 +69,12 @@ private:
     i64 Size_ = 0;
     int BlockCount_ = 0;
 
-    i64 MaxCumulativeBlockSize_ = 0;
-    TLocationMemoryGuard PendingBlockLocationMemoryGuard_;
-    TMemoryUsageTrackerGuard PendingBlockMemoryGuard_;
-
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
 
     TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
-        i64 cumulativeBlockSize,
         bool enableCaching) override;
     TFuture<NIO::TIOCounters> DoPerformPutBlocks(
         int startBlockIndex,
@@ -91,14 +86,9 @@ private:
         int endBlockIndex,
         const TError& error);
 
-    std::vector<TLocationMemoryGuard> TrackLocationMemory(
-        std::vector<NChunkClient::TBlock>& blocks,
-        bool useCumulativeBlockSize);
-
     TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
-        i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;

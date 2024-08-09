@@ -26,12 +26,9 @@ TTopCollectorBase::TTopCollectorBase(
     , MaxComparer_(comparer)
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
-    , DataContext_(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_))
-    , Data_(MakeMutableRange(
-        std::bit_cast<TPIValue*>(
-            DataContext_.AllocateAligned(sizeof(TPIValue) * rowSize * limit,
-            EAddressSpace::WebAssembly)),
-        rowSize * limit))
+    , RowsContext_(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_))
+    , HeapPool_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
+    , Heap_(TChunkedMemoryPoolAllocator<TRowAndBuffer>(&HeapPool_))
 {
     Heap_.reserve(limit);
 }
@@ -39,7 +36,10 @@ TTopCollectorBase::TTopCollectorBase(
 const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
 {
     if (Heap_.size() < Heap_.capacity()) {
-        auto* destination = &Data_[Heap_.size() * RowSize_];
+        auto* destination = std::bit_cast<TPIValue*>(
+            RowsContext_.AllocateAligned(
+                sizeof(TPIValue) * RowSize_,
+                EAddressSpace::WebAssembly));
         auto capturedRow = Capture(row, destination);
         Heap_.emplace_back(capturedRow);
         AdjustHeapBack(Heap_.begin(), Heap_.end(), MaxComparer_);
@@ -86,19 +86,19 @@ void TTopCollectorBase::AccountGarbage(const TPIValue* row)
 
 void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
 {
-    if (!EmptyContextIds_.empty()) {
+    if (!StringLikeValueEmptyContextIds_.empty()) {
         return;
     }
 
     if (GarbageMemorySize_ <= TotalMemorySize_ / 2) {
         // Allocate new context and add to emptyContextIds.
-        EmptyContextIds_.push_back(Contexts_.size());
-        Contexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
+        StringLikeValueEmptyContextIds_.push_back(StringLikeValueContexts_.size());
+        StringLikeValueContexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
         return;
     }
 
     // Collect garbage.
-    auto contextsToRows = std::vector<std::vector<size_t>>(Contexts_.size());
+    auto contextsToRows = std::vector<std::vector<size_t>>(StringLikeValueContexts_.size());
     for (size_t rowId = 0; rowId < Heap_.size(); ++rowId) {
         contextsToRows[Heap_[rowId].ContextIndex].push_back(rowId);
     }
@@ -129,16 +129,16 @@ void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
         TotalMemorySize_ += context.GetCapacity();
 
         if (context.GetSize() < BufferLimit) {
-            EmptyContextIds_.push_back(contextId);
+            StringLikeValueEmptyContextIds_.push_back(contextId);
         }
 
-        std::swap(context, Contexts_[contextId]);
+        std::swap(context, StringLikeValueContexts_[contextId]);
         context.Clear();
     }
 
-    if (EmptyContextIds_.empty()) {
-        EmptyContextIds_.push_back(Contexts_.size());
-        Contexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
+    if (StringLikeValueEmptyContextIds_.empty()) {
+        StringLikeValueEmptyContextIds_.push_back(StringLikeValueContexts_.size());
+        StringLikeValueContexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
     }
 }
 
@@ -148,10 +148,10 @@ TTopCollectorBase::TRowAndBuffer TTopCollectorBase::Capture(
 {
     CollectGarbageAndAllocateNewContextIfNeeded();
 
-    YT_VERIFY(!EmptyContextIds_.empty());
+    YT_VERIFY(!StringLikeValueEmptyContextIds_.empty());
 
-    auto contextId = EmptyContextIds_.back();
-    auto& context = Contexts_[contextId];
+    auto contextId = StringLikeValueEmptyContextIds_.back();
+    auto& context = StringLikeValueContexts_[contextId];
 
     i64 savedSize = context.GetSize();
     i64 savedCapacity = context.GetCapacity();
@@ -172,7 +172,7 @@ TTopCollectorBase::TRowAndBuffer TTopCollectorBase::Capture(
     TotalMemorySize_ += context.GetCapacity() - savedCapacity;
 
     if (context.GetSize() >= BufferLimit) {
-        EmptyContextIds_.pop_back();
+        StringLikeValueEmptyContextIds_.pop_back();
     }
 
     return {destination, contextId};

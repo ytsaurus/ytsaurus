@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-server-lib-chunk-server)
 
+
 target_compile_options(unittester-server-lib-chunk-server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(unittester-server-lib-chunk-server PUBLIC
   yt-yt-build
   yt-core-test_framework
   server-lib-chunk_server
+)
+
+target_allocator(unittester-server-lib-chunk-server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-server-lib-chunk-server PRIVATE
@@ -47,6 +53,7 @@ target_link_options(unittester-server-lib-chunk-server PRIVATE
 target_sources(unittester-server-lib-chunk-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/unittests/immutable_chunk_meta_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -67,21 +74,15 @@ set_property(
   TEST
   unittester-server-lib-chunk-server
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-server-lib-chunk-server)
 
 set_property(
   TEST
   unittester-server-lib-chunk-server
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-server-lib-chunk-server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-server-lib-chunk-server)
-

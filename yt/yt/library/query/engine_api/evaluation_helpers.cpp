@@ -276,7 +276,7 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             std::vector<TRow> prefixKeys;
             for (auto key : keys) {
                 prefixKeys.push_back(permanentBuffer->CaptureRow(
-                    MakeRange(key.Begin(), foreignKeyPrefix),
+                    TRange(key.Begin(), foreignKeyPrefix),
                     /*captureValues*/ false));
             }
             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());

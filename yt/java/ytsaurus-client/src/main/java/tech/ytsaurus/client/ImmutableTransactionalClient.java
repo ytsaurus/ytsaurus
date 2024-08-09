@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.UnversionedRowset;
@@ -34,6 +35,13 @@ public interface ImmutableTransactionalClient {
     ) {
         return lookupRows(request.build(), serializer);
     }
+
+    CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request);
+
+    <T> CompletableFuture<List<List<T>>> multiLookupRows(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    );
 
     CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request);
 

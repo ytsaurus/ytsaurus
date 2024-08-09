@@ -1316,6 +1316,76 @@ func (r *InsertRowsRequest) SetTxOptions(opts *TransactionOptions) {
 	r.TransactionId = convertTxID(opts.TransactionID)
 }
 
+var _ TransactionalRequest = (*PushQueueProducerRequest)(nil)
+
+type PushQueueProducerRequest struct {
+	*rpc_proxy.TReqPushQueueProducer
+}
+
+func NewPushQueueProducerRequest(r *rpc_proxy.TReqPushQueueProducer) *PushQueueProducerRequest {
+	return &PushQueueProducerRequest{TReqPushQueueProducer: r}
+}
+
+func (r PushQueueProducerRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("producer_path", r.GetProducerPath()),
+		log.String("queue_path", r.GetQueuePath()),
+		log.String("session_id", r.GetSessionId()),
+		log.Int64("epoch", r.GetEpoch()),
+	}
+}
+
+func (r PushQueueProducerRequest) Path() (string, bool) {
+	return r.GetProducerPath(), true
+}
+
+func (r PushQueueProducerRequest) SetTxOptions(opts *TransactionOptions) {
+	if opts == nil {
+		return
+	}
+	r.TransactionId = convertTxID(opts.TransactionID)
+}
+
+type CreateQueueProducerSessionRequest struct {
+	*rpc_proxy.TReqCreateQueueProducerSession
+}
+
+func NewCreateQueueProducerSessionRequest(r *rpc_proxy.TReqCreateQueueProducerSession) *CreateQueueProducerSessionRequest {
+	return &CreateQueueProducerSessionRequest{TReqCreateQueueProducerSession: r}
+}
+
+func (r CreateQueueProducerSessionRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("producer_path", r.GetProducerPath()),
+		log.String("queue_path", r.GetQueuePath()),
+		log.String("session_id", r.GetSessionId()),
+	}
+}
+
+func (r CreateQueueProducerSessionRequest) Path() (string, bool) {
+	return r.GetProducerPath(), false
+}
+
+type RemoveQueueProducerSessionRequest struct {
+	*rpc_proxy.TReqRemoveQueueProducerSession
+}
+
+func NewRemoveQueueProducerSessionRequest(r *rpc_proxy.TReqRemoveQueueProducerSession) *RemoveQueueProducerSessionRequest {
+	return &RemoveQueueProducerSessionRequest{TReqRemoveQueueProducerSession: r}
+}
+
+func (r RemoveQueueProducerSessionRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("producer_path", r.GetProducerPath()),
+		log.String("queue_path", r.GetQueuePath()),
+		log.String("session_id", r.GetSessionId()),
+	}
+}
+
+func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
+	return r.GetProducerPath(), false
+}
+
 var _ TransactionalRequest = (*DeleteRowsRequest)(nil)
 
 type DeleteRowsRequest struct {

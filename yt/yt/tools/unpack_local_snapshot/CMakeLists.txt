@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unpack-local-snapshot)
 
+
 target_compile_options(unpack-local-snapshot PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unpack-local-snapshot PUBLIC
   yt-library-program
   server-lib-hydra
   cpp-getopt-small
+)
+
+target_allocator(unpack-local-snapshot
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unpack-local-snapshot PRIVATE
@@ -47,10 +53,5 @@ target_sources(unpack-local-snapshot PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
 )
 
-target_allocator(unpack-local-snapshot
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(unpack-local-snapshot)
-

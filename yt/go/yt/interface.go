@@ -1202,6 +1202,13 @@ type InsertRowsOptions struct {
 	*TransactionOptions
 }
 
+type PushQueueProducerOptions struct {
+	UserMeta       any    `http:"user_meta,omitnil"`
+	SequenceNumber *int64 `http:"sequence_number,omitnil"`
+
+	*TransactionOptions
+}
+
 type LockRowsOptions struct {
 	*TransactionOptions
 }
@@ -1232,6 +1239,11 @@ type StartTabletTxOptions struct {
 
 	Type   TxType `http:"type"`
 	Sticky bool   `http:"sticky"`
+}
+
+type PushQueueProducerResult struct {
+	LastSequenceNumber int64 `yson:"last_sequence_number"`
+	SkippedRowCount    int64 `yson:"skipped_row_count"`
 }
 
 type TabletClient interface {
@@ -1309,6 +1321,76 @@ type TabletClient interface {
 		keys []any,
 		options *DeleteRowsOptions,
 	) (err error)
+
+	// http:verb:"push_queue_producer"
+	// http:params:"producer_path","queue_path","session_id","epoch"
+	// http:extra
+	PushQueueProducer(
+		ctx context.Context,
+		producerPath ypath.Path,
+		queuePath ypath.Path,
+		sessionID string,
+		epoch int64,
+		rows []any,
+		options *PushQueueProducerOptions,
+	) (result *PushQueueProducerResult, err error)
+
+	// PushQueueProducerBatch is API optimized for performance.
+	//
+	// It works just like PushQueueProducer, but allows serializing rows ahead of time.
+	PushQueueProducerBatch(
+		ctx context.Context,
+		producerPath ypath.Path,
+		queuePath ypath.Path,
+		sessionID string,
+		epoch int64,
+		rowBatch RowBatch,
+		options *PushQueueProducerOptions,
+	) (result *PushQueueProducerResult, err error)
+}
+
+type CreateQueueProducerSessionOptions struct {
+	UserMeta any `http:"user_meta,omitnil"`
+
+	*TimeoutOptions
+}
+
+type RemoveQueueProducerSessionOptions struct {
+	*TimeoutOptions
+}
+
+type CreateQueueProducerSessionResult struct {
+	SequenceNumber int64         `yson:"sequence_number"`
+	Epoch          int64         `yson:"epoch"`
+	UserMeta       yson.RawValue `yson:"user_meta,omitempty"`
+}
+
+type QueueClient interface {
+	// CreateQueueProducerSession creates a session in producer table or increase epoch if session is already exists.
+	//
+	// Returns user meta saved for session and current epoch.
+	//
+	// http:verb:"create_queue_producer_session"
+	// http:params:"producer_path","queue_path","session_id"
+	CreateQueueProducerSession(
+		ctx context.Context,
+		producerPath ypath.Path,
+		queuePath ypath.Path,
+		sessionID string,
+		options *CreateQueueProducerSessionOptions,
+	) (result *CreateQueueProducerSessionResult, err error)
+
+	// RemoveQueueProducerSession remove a session from producer table.
+	//
+	// http:verb:"remove_queue_producer_session"
+	// http:params:"producer_path","queue_path","session_id"
+	RemoveQueueProducerSession(
+		ctx context.Context,
+		producerPath ypath.Path,
+		queuePath ypath.Path,
+		sessionID string,
+		options *RemoveQueueProducerSessionOptions,
+	) error
 }
 
 type MountClient interface {
@@ -1423,7 +1505,7 @@ type StartQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// COMPAT
+	// COMPAT(mpereskokova)
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
@@ -1475,7 +1557,7 @@ type AlterQueryOptions struct {
 	Annotations          any       `http:"annotations,omitnil"`
 	AccessControlObjects *[]string `http:"access_control_objects,omitnil"`
 
-	// COMPAT
+	// COMPAT(mpereskokova)
 	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
@@ -1618,6 +1700,8 @@ type Client interface {
 	TabletClient
 	MountClient
 	TableBackupClient
+
+	QueueClient
 
 	// http:verb:"generate_timestamp"
 	GenerateTimestamp(ctx context.Context, options *GenerateTimestampOptions) (ts Timestamp, err error)

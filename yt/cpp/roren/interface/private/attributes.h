@@ -89,11 +89,36 @@ public:
     }
 
 private:
-    THashMap<TString, std::any> Attributes_;
+    using TAttributeContainer = THashMap<TString, std::any>;
+    TAttributeContainer Attributes_;
 
 public:
     friend void MergeAttributes(IWithAttributes& destination, const TAttributes& source);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAttributeSetter
+    : public TAttributes
+{
+public:
+    template <class T>
+    TAttributeSetter(const TTypeTag<std::decay_t<T>>& key, T&& value)
+    {
+        TAttributes::SetAttribute(key, std::move(value));
+    }
+
+    template <class TTransform>
+    TTransform operator >> (TTransform transform) const
+    {
+        MergeAttributes(transform, *this);
+        return transform;
+    }
+
+    TAttributeSetter operator >> (const TAttributeSetter& other) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 void MergeAttributes(IWithAttributes& destination, const TAttributes& source);
 
@@ -137,4 +162,5 @@ T GetAttributeOrDefault(const IWithAttributes& withAttributes, const TTypeTag<T>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRoren
+} // namespace NRoren::NPrivate
+

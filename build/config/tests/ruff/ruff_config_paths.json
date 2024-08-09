@@ -2,7 +2,9 @@
     "": "build/config/tests/ruff/ruff.toml",
     "crypta": "crypta/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
+    "maps/sprav/pylib/": "maps/sprav/pylib/pyproject.toml",
     "maps/sprav/snezhana/": "maps/sprav/snezhana/pyproject.toml",
+    "maps/sprav/chainification/": "maps/sprav/chainification/pyproject.toml",
     "sprav/mining/": "sprav/mining/pyproject.toml",
     "taxi/": "taxi/pyproject.toml",
     "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
@@ -14,5 +16,7 @@
     "intranet/yandex_directory/": "intranet/yandex_directory/pyproject.toml",
     "games/admin": "games/admin/pyproject.toml",
     "games/backend": "games/admin/pyproject.toml",
-    "yandex360/backend/b2b_platform": "yandex360/backend/b2b_platform/pyproject.toml"
+    "yandex360/backend/b2b_platform": "yandex360/backend/b2b_platform/pyproject.toml",
+    "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
+    "dj/services/inspire": "dj/services/inspire/pyproject.toml"
 }

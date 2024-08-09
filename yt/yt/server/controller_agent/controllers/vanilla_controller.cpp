@@ -401,6 +401,27 @@ public:
         proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", 0));
     }
 
+    TJobletPtr CreateJoblet(
+        TTask* task,
+        TJobId jobId,
+        TString treeId,
+        int taskJobIndex,
+        std::optional<TString> poolPath,
+        bool treeIsTentative) final
+    {
+        auto joblet = TOperationControllerBase::CreateJoblet(
+            task,
+            jobId,
+            std::move(treeId),
+            taskJobIndex,
+            std::move(poolPath),
+            treeIsTentative);
+
+        joblet->OperationIncarnation = "0";
+
+        return joblet;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
 

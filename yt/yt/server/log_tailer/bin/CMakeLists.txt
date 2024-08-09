@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(ytserver-log-tailer)
 
+
 target_compile_options(ytserver-log-tailer PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(ytserver-log-tailer PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-server-log_tailer
+)
+
+target_allocator(ytserver-log-tailer
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(ytserver-log-tailer PRIVATE
@@ -44,10 +50,5 @@ target_sources(ytserver-log-tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
 )
 
-target_allocator(ytserver-log-tailer
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(ytserver-log-tailer)
-

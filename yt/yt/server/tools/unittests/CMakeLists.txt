@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-tools)
 
+
 target_link_libraries(unittester-tools PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,11 @@ target_link_libraries(unittester-tools PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-tools
+)
+
+target_allocator(unittester-tools
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-tools PRIVATE
@@ -41,6 +47,7 @@ target_link_options(unittester-tools PRIVATE
 target_sources(unittester-tools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/unittests/tools_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -61,21 +68,15 @@ set_property(
   TEST
   unittester-tools
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-tools)
 
 set_property(
   TEST
   unittester-tools
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-tools
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-tools)
-

@@ -1,4 +1,4 @@
-import os, sys, re, stat, json, tempfile, contextlib
+import os, sys, re, stat, errno, json, tempfile, contextlib
 import yaml, pyaml
 
 
@@ -12,8 +12,10 @@ def safe_replacement(path, *open_args, mode=None, xattrs=None, **open_kws):
 	if xattrs is None and getattr(os, 'getxattr', None): # MacOS
 		try: xattrs = dict((k, os.getxattr(path, k)) for k in os.listxattr(path))
 		except FileNotFoundError: pass
+		except OSError as err:
+			if err.errno != errno.ENOTSUP: raise
 	open_kws.update( delete=False,
-		dir=os.path.dirname(path), prefix=os.path.basename(path)+'.' )
+		dir=os.path.dirname(path), prefix=os.path.basename(path) + '.' )
 	if not open_args: open_kws.setdefault('mode', 'w')
 	with tempfile.NamedTemporaryFile(*open_args, **open_kws) as tmp:
 		try:
@@ -67,7 +69,8 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 			N = min number of same-indent lines in a section to split.
 			M = min count of values in a list/mapping to split.
 			"g" can be added to clump single-line values at the top of such lists/maps.
-		Values examples: 20g, 5/1g, 60/4, g, 10.'''))
+			"s" to split all-onliner blocks of values.
+		Values examples: 20g, 5/1g, 60/4, gs, 10.'''))
 	parser.add_argument('-l', '--lines', action='store_true', help=dd('''
 		Read input as a list of \\0 (ascii null char) or newline-separated
 			json/yaml "lines", common with loggers or other incremental data dumps.
@@ -89,14 +92,17 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 	pyaml_kwargs = dict()
 	if opts.width: pyaml_kwargs['width'] = opts.width
 	if vspacing := opts.vspacing:
-		if vspacing.endswith('g'):
-			pyaml_kwargs['sort_dicts'] = pyaml.PYAMLSort.oneline_group
-			vspacing = vspacing.strip('g')
-		if vspacing:
-			vspacing, (lines, _, count) = dict(), vspacing.strip().strip('/').partition('/')
+		if not (m := re.search(r'^(\d+(?:/\d+)?)?([gs]+)?$', vspacing)):
+			parser.error(f'Unrecognized -v/--vspacing spec: {vspacing!r}')
+		vspacing, (vsplit, flags) = dict(), m.groups()
+		if flags:
+			if 's' in flags: vspacing['oneline_split'] = True
+			if 'g' in flags: pyaml_kwargs['sort_dicts'] = pyaml.PYAMLSort.oneline_group
+		if vsplit:
+			lines, _, count = vsplit.strip().strip('/').partition('/')
 			if lines: vspacing['split_lines'] = int(lines.strip())
 			if count: vspacing['split_count'] = int(count.strip())
-			pyaml_kwargs['vspacing'] = vspacing
+		if vspacing: pyaml_kwargs['vspacing'] = vspacing
 
 	if len(data) > 1: ys = pyaml.dump_all(data, **pyaml_kwargs)
 	else: ys = pyaml.dump(data[0], **pyaml_kwargs) # avoids leading "---"

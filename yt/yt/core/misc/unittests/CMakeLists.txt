@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(unittester-core-misc)
 
+
 target_compile_options(unittester-core-misc PRIVATE
   -Wdeprecated-this-capture
 )
@@ -46,6 +47,10 @@ target_link_libraries(unittester-core-misc PUBLIC
   contrib-libs-protobuf
 )
 
+target_allocator(unittester-core-misc
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-core-misc PRIVATE
   -ldl
   -lrt
@@ -58,12 +63,7 @@ target_link_options(unittester-core-misc PRIVATE
   -lutil
 )
 
-target_proto_messages(unittester-core-misc PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.proto
-)
-
 target_sources(unittester-core-misc PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/adjusted_exponential_moving_average_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/algorithm_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/arithmetic_formula_ut.cpp
@@ -120,6 +120,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sliding_window_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/spsc_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistic_path_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/string_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
@@ -130,7 +131,13 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/yverify_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/zerocopy_output_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hedging_manager_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
 )
+
+target_proto_messages(unittester-core-misc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.proto
+)
+
 
 add_test(
   NAME
@@ -151,19 +158,12 @@ set_property(
   TEST
   unittester-core-misc
   PROPERTY
-  PROCESSORS
-  4
-)
-
-set_property(
-  TEST
-  unittester-core-misc
-  PROPERTY
   ENVIRONMENT
 )
 
-target_allocator(unittester-core-misc
-  cpp-ytalloc-impl
+target_proto_outs(unittester-core-misc
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(unittester-core-misc
@@ -178,10 +178,12 @@ target_proto_addincls(unittester-core-misc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(unittester-core-misc
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
 vcs_info(unittester-core-misc)
 
+set_property(
+  TEST
+  unittester-core-misc
+  PROPERTY
+  PROCESSORS
+  1
+)

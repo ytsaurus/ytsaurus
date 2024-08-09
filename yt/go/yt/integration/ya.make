@@ -1,5 +1,7 @@
 GO_TEST()
 
+TAG(ya:huge_logs)
+
 SIZE(MEDIUM)
 
 IF (OPENSOURCE AND AUTOCHECK)

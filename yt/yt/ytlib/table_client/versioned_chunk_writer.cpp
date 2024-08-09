@@ -314,7 +314,7 @@ protected:
         ToProto(SamplesExt_.add_entries(), mergedRow);
         i64 rowSize = SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
         SamplesExtSize_ += rowSize;
-        SamplesMemoryUsageGuard_.IncreaseSize(rowSize);
+        SamplesMemoryUsageGuard_.IncrementSize(rowSize);
     }
 
     void MaybeWriteKeyFilterBlocks()
@@ -786,7 +786,7 @@ private:
                 weight += rowWeight;
             }
 
-            auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
+            auto range = TRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
             for (const auto& columnWriter : ValueColumnWriters_) {
                 columnWriter->WriteVersionedValues(range);
             }

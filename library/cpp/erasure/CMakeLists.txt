@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(library-cpp-erasure)
 
+
 target_link_libraries(library-cpp-erasure PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -44,9 +45,9 @@ target_sources(library-cpp-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/lrc_isa.cpp
 )
 
+
 generate_enum_serilization(library-cpp-erasure
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/public.h
   INCLUDE_HEADERS
   library/cpp/erasure/public.h
 )
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(http_server)
 
+
 target_compile_options(http_server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(http_server PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   yt-core-http
+)
+
+target_allocator(http_server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(http_server PRIVATE
@@ -45,10 +51,5 @@ target_sources(http_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/http_server/main.cpp
 )
 
-target_allocator(http_server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(http_server)
-

@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(monlib-encode-prometheus)
 
+
 target_link_libraries(monlib-encode-prometheus PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -33,10 +34,11 @@ target_link_libraries(monlib-encode-prometheus PUBLIC
 )
 
 target_sources(monlib-encode-prometheus PRIVATE
-  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_decoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_encoder.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h_serialized.h
 )
+
 
 generate_enum_serilization(monlib-encode-prometheus
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h
@@ -45,4 +47,3 @@ generate_enum_serilization(monlib-encode-prometheus
   INCLUDE_HEADERS
   library/cpp/monlib/encode/prometheus/prometheus.h
 )
-

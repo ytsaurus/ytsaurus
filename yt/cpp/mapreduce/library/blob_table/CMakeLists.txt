@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-library-blob_table)
 
+
 target_compile_options(mapreduce-library-blob_table PRIVATE
   -Wdeprecated-this-capture
 )

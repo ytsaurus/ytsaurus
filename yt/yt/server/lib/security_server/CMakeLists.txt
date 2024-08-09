@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-security_server)
 
+
 target_compile_options(server-lib-security_server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -54,6 +55,12 @@ target_sources(server-lib-security_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
 )
 
+
+target_proto_outs(server-lib-security_server
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(server-lib-security_server
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -65,9 +72,3 @@ target_proto_addincls(server-lib-security_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-security_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

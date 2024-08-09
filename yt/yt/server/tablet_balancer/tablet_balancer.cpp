@@ -891,6 +891,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
                 .CellDeviationThreshold = dynamicConfig->ParameterizedCellDeviationThreshold,
                 .MinRelativeMetricImprovement = dynamicConfig->ParameterizedMinRelativeMetricImprovement,
                 .Metric = dynamicConfig->DefaultParameterizedMetric,
+                .Factors = dynamicConfig->ParameterizedFactors,
             }.MergeWith(
                 groupConfig->Parameterized,
                 std::min(dynamicConfig->MaxActionsPerGroup, dynamicConfig->MaxParameterizedMoveActionHardLimit)),

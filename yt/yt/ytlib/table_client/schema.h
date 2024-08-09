@@ -27,6 +27,10 @@ void ValidateColumnsAreInIndexLockGroup(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema);
 
+void ValidateUniqueIndexSchema(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

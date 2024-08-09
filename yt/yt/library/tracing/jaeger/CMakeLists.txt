@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(library-tracing-jaeger)
 
+
 target_compile_options(library-tracing-jaeger PRIVATE
   -Wdeprecated-this-capture
 )
@@ -49,8 +50,14 @@ target_proto_messages(library-tracing-jaeger PRIVATE
 )
 
 target_sources(library-tracing-jaeger PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/tracing/jaeger/model.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/jaeger/sampler.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/tracing/jaeger/model.pb.h
+)
+
+
+target_proto_outs(library-tracing-jaeger
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(library-tracing-jaeger
@@ -64,15 +71,9 @@ target_proto_addincls(library-tracing-jaeger
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(library-tracing-jaeger
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
-
 add_global_library_for(library-tracing-jaeger.global
-  library-tracing-jaeger
-)
+  library-tracing-jaeger)
+
 
 target_compile_options(library-tracing-jaeger.global PRIVATE
   -Wdeprecated-this-capture

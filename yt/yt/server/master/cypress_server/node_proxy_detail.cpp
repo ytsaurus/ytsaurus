@@ -2284,6 +2284,8 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetPresent(hasInheritableAttributes && node->HasChaosCellBundle())
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveInheritableAttributes)
+        .SetOpaque(true));
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -2377,6 +2379,17 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
             YT_VERIFY(bundle);
             BuildYsonFluently(consumer)
                 .Value(bundle->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::EffectiveInheritableAttributes: {
+            auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+            GatherInheritableAttributes(
+                node->As<TCypressNode>(),
+                &inheritedAttributes->Attributes());
+
+            BuildYsonFluently(consumer)
+                .Value(inheritedAttributes);
             return true;
         }
 

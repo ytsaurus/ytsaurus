@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(bin)
+
 add_subdirectory(protos)
 add_subdirectory(unittests)
+add_subdirectory(bin)
 
 add_library(yt-chyt-server)
+
 
 target_compile_options(yt-chyt-server PRIVATE
   -Wdeprecated-this-capture
@@ -57,7 +59,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_input_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_output_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_yt_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_server.cpp
@@ -119,14 +121,14 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/user_defined_sql_objects_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_ch_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
 )
 
 
 add_global_library_for(yt-chyt-server.global
-  yt-chyt-server
-)
+  yt-chyt-server)
+
 
 target_compile_options(yt-chyt-server.global PRIVATE
   -Wdeprecated-this-capture

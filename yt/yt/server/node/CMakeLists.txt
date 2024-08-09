@@ -13,69 +13,29 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
 add_subdirectory(query_agent)
 add_subdirectory(tablet_node)
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt-server-node)
+
 
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
@@ -124,18 +84,7 @@ target_link_libraries(yt-server-node PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(yt-server-node PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/artifact.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
-)
-
 target_sources(yt-server-node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/proxying_chunk_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
@@ -303,6 +252,23 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controlling_service_base.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
+)
+
+target_proto_messages(yt-server-node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/artifact.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
+)
+
+
+target_proto_outs(yt-server-node
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-server-node
@@ -319,9 +285,3 @@ target_proto_addincls(yt-server-node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-server-node
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

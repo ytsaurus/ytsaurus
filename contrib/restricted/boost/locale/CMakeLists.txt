@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-locale)
 
+
 target_compile_options(restricted-boost-locale PRIVATE
   -DBOOST_LOCALE_WITH_ICU
   -DBOOST_LOCALE_NO_WINAPI_BACKEND

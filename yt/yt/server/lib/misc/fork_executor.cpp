@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/serialize.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #ifdef _unix_
     // for wait*()
     #include <sys/wait.h>
@@ -104,11 +106,11 @@ void TForkExecutor::DoRunChild()
 {
     try {
         RunChild();
-        ::_exit(0);
+        AbortProcess(ToUnderlying(EProcessExitCode::OK));
     } catch (const std::exception& ex) {
         fprintf(stderr, "Child process failed:\n%s\n",
             ex.what());
-        ::_exit(1);
+        AbortProcess(ToUnderlying(EProcessExitCode::GenericError));
     }
 }
 

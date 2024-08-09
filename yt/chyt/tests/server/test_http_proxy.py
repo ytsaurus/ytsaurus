@@ -14,6 +14,8 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 from yt_env_setup import Restarter, SCHEDULERS_SERVICE
 
+from requests.auth import HTTPBasicAuth
+
 import os
 import pytest
 import signal
@@ -23,9 +25,20 @@ import random
 import string
 
 
-def _job_id_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> str:
-    return clique.make_query_via_proxy(
-        "select job_id from system.clique where self = 1", **kwargs)[0]["job_id"]
+def _job_id_of_instance_picked_for_the_query(clique: Clique, query_in_url: bool = False, seed: str = "job_id", **kwargs) -> str:
+    """
+    seed:
+        to produce different queries with the same result.
+        (simply use it as a column name)
+    """
+    query = f"select job_id as {seed} from system.clique where self = 1"
+    if query_in_url:
+        if "settings" not in kwargs or kwargs["settings"] is None:
+            kwargs["settings"] = {}
+        kwargs["settings"]["query"] = query
+        query = ""
+
+    return clique.make_query_via_proxy(query, **kwargs)[0][seed]
 
 
 def _job_cookie_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> int:
@@ -33,11 +46,17 @@ def _job_cookie_of_instance_picked_for_the_query(clique: Clique, **kwargs) -> in
         "select job_cookie from system.clique where self = 1", **kwargs)[0]["job_cookie"]
 
 
-def _generate_session_id() -> str:
+def _generate_string() -> str:
     return ''.join(random.choices(string.ascii_lowercase, k=10))
 
 
+def _generate_session_id() -> str:
+    return _generate_string()
+
+
 class TestClickHouseHttpProxy(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     ENABLE_TLS = True
     ENABLE_CHYT_HTTPS_PROXIES = True
 
@@ -72,7 +91,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                     database_alias = "*" * int(add_asterisk) + "test_alias"
 
                     proxy_response = clique.make_query_via_proxy(
-                        "select * from system.clique", database=database_alias + "@" + str(job_cookie)
+                        "select * from system.clique", alias=database_alias + "@" + str(job_cookie)
                     )
 
                     for instance_response in proxy_response:
@@ -84,11 +103,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
                 with raises_yt_error(QueryFailedError):  # operation-id is no longer supported
                     clique.make_query_via_proxy(
-                        "select * from system.clique", database=clique.op.id + "@" + str(job_cookie)
+                        "select * from system.clique", alias=clique.op.id + "@" + str(job_cookie)
                     )
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select * from system.clique", database="*test_alias@aaa")
+                clique.make_query_via_proxy("select * from system.clique", alias="*test_alias@aaa")
 
     @authors("dakovalkov", "gudqeit")
     @pytest.mark.parametrize("discovery_version", [1, 2])
@@ -277,29 +296,29 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         )
 
         with Clique(1, alias="*alias") as clique:
-            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
-            assert clique.make_query_via_proxy("select 1 as a", database="alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="*alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="alias")[0] == {"a": 1}
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0]
+                clique.make_query_via_proxy("select 1 as a", alias=clique.op.id)[0]
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*alia")
+                clique.make_query_via_proxy("select 1 as a", alias="*alia")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*")
+                clique.make_query_via_proxy("select 1 as a", alias="*")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="**")
+                clique.make_query_via_proxy("select 1 as a", alias="**")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="")
+                clique.make_query_via_proxy("select 1 as a", alias="")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="1-2-3-4")
+                clique.make_query_via_proxy("select 1 as a", alias="1-2-3-4")
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="1-2-3-x")
+                clique.make_query_via_proxy("select 1 as a", alias="1-2-3-x")
 
             clique.op.suspend()
 
@@ -307,7 +326,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             time.sleep(1)
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1 as a", database="*alias")
+                clique.make_query_via_proxy("select 1 as a", alias="*alias")
 
             clique.op.resume()
 
@@ -319,7 +338,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         time.sleep(1)
 
         with raises_yt_error(QueryFailedError):
-            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", alias="*alias")[0] == {"a": 1}
 
     @authors("dakovalkov")
     def test_expect_100_continue(self):
@@ -401,9 +420,18 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("barykinni")
     def test_legacy_endpoint(self):
-        with Clique(1) as clique:
+        alias = "alias"
+
+        with Clique(1, alias=alias) as clique:
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query") == [{"a": 1}]
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/query", https_proxy=True) == [{"a": 1}]
+
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": alias}, endpoint="/query", autofill_clique_alias=False) == [{"a": 1}]
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": "abracadabra"}, endpoint="/query", autofill_clique_alias=False)
+
+            # Alias-parameter dominates database-parameter.
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": "abracadabra"}, endpoint="/query", alias=alias) == [{"a": 1}]
 
     @authors("barykinni")
     def test_chyt_proxy(self):
@@ -465,7 +493,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for session_id in map(str, range(NUM_REQUESTS)):
                 current_job_cookie = _job_cookie_of_instance_picked_for_the_query(
-                    clique, database=f"alias@{origin_job_cookie}", session_id=session_id)
+                    clique, alias=f"alias@{origin_job_cookie}", session_id=session_id)
 
                 assert current_job_cookie == origin_job_cookie, "when job-cookie is provided, proxy must pick exact instance regardless of session-id"
 
@@ -521,6 +549,195 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     def test_query_in_url(self):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("", settings={"query": "SELECT 1 AS a"}) == [{"a": 1}]
+
+    @authors("barykinni")
+    def test_different_ways_to_pass_alias(self):
+        alias = "alias"
+
+        with Clique(1, alias=alias) as clique:
+            # Shortcut.
+            def make_query_via_proxy(*args, **kwargs):
+                """in this test we make only modern queries (/chyt-endpoint) and we set clique-alias manually"""
+                return clique.make_query_via_proxy(*args, endpoint="/chyt", autofill_clique_alias=False, **kwargs)
+
+            # Pass alias in X-clickHouse-User.
+            assert make_query_via_proxy("SELECT 1 AS a", headers={"X-ClickHouse-User": alias}) == [{"a": 1}]
+
+            # Pass alias in 'user' url param.
+            assert make_query_via_proxy("SELECT 1 AS a", settings={"user": alias}) == [{"a": 1}]
+
+            # Pass alias in 'Authorization: Basic'.
+            # Actual user will be populated from token (i.e. 'root').
+            assert make_query_via_proxy("SELECT 1 AS a", auth=HTTPBasicAuth(alias, "root")) == [{"a": 1}]
+
+            # Passing alias in 'database'-param is not supported in new version.
+            with raises_yt_error(QueryFailedError):
+                make_query_via_proxy("SELECT 1 AS a", settings={"database": alias})
+
+            # 'chyt.clique_alias' dominates other clique-alias-headers.
+            assert make_query_via_proxy("SELECT 1 AS a", alias=alias, settings={"user": "abracadabra"}) == [{"a": 1}]
+
+            with raises_yt_error(QueryFailedError):
+                # Swapped 'alias' and 'user'-param.
+                make_query_via_proxy("SELECT 1 AS a", alias="abracadabra", settings={"user": alias})
+
+            # Job cookie still works.
+            assert make_query_via_proxy("SELECT 1 AS a", settings={"user": alias + "@0"}) == [{"a": 1}]
+
+    @authors("barykinni")
+    def test_http_method_forward(self):
+        with Clique(1) as clique:
+            def get_setting_readonly(method, endpoint, token="") -> int:
+                return clique.make_query_via_proxy("SELECT getSetting('readonly') AS a", method=method, endpoint=endpoint, headers={"x-ClickHouse-Key": token})[0]["a"]
+
+            assert get_setting_readonly("POST", "/chyt") == 0
+            assert get_setting_readonly("GET", "/chyt") != 0
+
+            assert get_setting_readonly("POST", "/query") == 0
+
+            # In the proxy's legacy endpoint GET transforms into POST.
+            # Moreover in the legacy version GET-method is not allowed unless token is provided.
+
+            # Either user will be populated with |token| or user will be empty
+            # (depends on |populate_user_from_token|)
+            # in both cases user is 'root'.
+            assert get_setting_readonly("GET", "/query", token="root") == 0
+
+    @authors("barykinni")
+    def test_sticky_group_pick_consistency(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 1,
+            }
+        }
+
+        NUM_REQUESTS = 5
+
+        with Clique(2, config_patch=patch) as clique:
+            for query_in_url in [False, True]:
+                query_seed = _generate_string()
+
+                picked_instances = [_job_id_of_instance_picked_for_the_query(clique, query_in_url=query_in_url, seed=query_seed)
+                                    for _ in range(NUM_REQUESTS)]
+
+                assert len(set(picked_instances)) == 1, "must pick same instance for the same query when QueryStickyGroupSize=1"
+
+    @authors("barykinni")
+    def test_sticky_group_size_correctness(self):
+        """
+        When doing same queries
+        proxy must coinflip between two instances
+        and must not consider the last one.
+        """
+
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 2,
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(3, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "QueryStickyGroupSize=2, therefore must pick exactly two instances"
+
+    @authors("barykinni")
+    def test_session_id_dominates_sticky_group(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 1,
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            # Same query but different session-ids.
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, session_id=_generate_session_id(), seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "Session mechanics are higher priority than sticky-group"
+
+    @authors("barykinni")
+    def test_sticky_group_uniform_distribution(self):
+        """
+        Every instance can be picked using sticky-group technology.
+        (similar to test_sticky_cookie_uniform_distribution,
+        take a look at this test for more details)
+        """
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 1,
+            }
+        }
+
+        NUM_INSTANCES = 2
+        MAX_NUM_QUERIES = 25
+
+        with Clique(NUM_INSTANCES, config_patch=patch) as clique:
+            picked_instances = set()
+            for _ in range(MAX_NUM_QUERIES):
+                hit_instance = _job_id_of_instance_picked_for_the_query(clique, seed=_generate_string())
+
+                picked_instances.add(hit_instance)
+
+                if len(picked_instances) == NUM_INSTANCES:
+                    return
+
+            assert False, "queries must be distributed uniformly among instances"
+
+    @authors("barykinni")
+    def test_sticky_group_size_in_url_dominates_config(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 2,
+            }
+        }
+
+        NUM_REQUESTS = 6
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            # Sticky group size is 2 in the config and 1 in the URL-parameter.
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed, settings={"chyt.query_sticky_group_size": "1"})
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 1, "QueryStickyGroupSize must be populated with value from URL parameter when specified"
+
+    @authors("barykinni")
+    def test_disable_sticky_group_manually(self):
+        patch = {
+            "yt": {
+                "query_sticky_group_size": 0,  # Sticky-group technology is disabled.
+            }
+        }
+
+        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
+
+        with Clique(2, config_patch=patch) as clique:
+            query_seed = _generate_string()
+
+            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed)
+                                for _ in range(NUM_REQUESTS)]
+
+            assert len(set(picked_instances)) == 2, "Proxy must use default random stategy when QueryStickyGroupSize=0 (and there are no other strategies)"
+
+    @authors("barykinni")
+    def test_sticky_group_corner_cases(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("SELECT 1", settings={"chyt.query_sticky_group_size": "abracadabra"})
+
+            # QueryStickyGroupSize is greater than a number of instances but that's ok.
+            assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"chyt.query_sticky_group_size": "2"}) == [{"a": 1}]
 
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
@@ -579,7 +796,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("invalid query")
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select 1", database='*invalid_database')
+                clique.make_query_via_proxy("select 1", alias='*invalid_database')
 
             to_barrier = write_log_barrier(self.proxy_address)
 

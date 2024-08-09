@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-exec)
 
+
 target_compile_options(yt-server-exec PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,7 @@ target_link_libraries(yt-server-exec PUBLIC
 )
 
 target_sources(yt-server-exec PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
 )
 

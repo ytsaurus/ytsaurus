@@ -11,6 +11,7 @@ PEERDIR(
 )
 
 SRCS(
+    program.cpp
     user_job_synchronizer.cpp
 )
 

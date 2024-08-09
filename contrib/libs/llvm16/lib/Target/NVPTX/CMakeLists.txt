@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 
 add_library(lib-Target-NVPTX)
+
 
 target_compile_options(lib-Target-NVPTX PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

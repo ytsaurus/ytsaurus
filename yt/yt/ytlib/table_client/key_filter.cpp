@@ -96,7 +96,7 @@ private:
 
         try {
             filterData = NYT::TXorFilter::Build(
-                MakeRange(Keys_),
+                TRange(Keys_),
                 Config_->EffectiveBitsPerKey,
                 Config_->TrialCount);
         } catch (const std::exception& ex) {

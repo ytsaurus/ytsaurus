@@ -165,18 +165,21 @@ add_representer(type(pathlib.Path('')), lambda cls,o: cls.represent_data(str(o))
 add_representer(None, PYAMLDumper.represent_undefined)
 
 
-def dump_add_vspacing(yaml_str, split_lines=40, split_count=2, oneline_group=False):
+def dump_add_vspacing( yaml_str,
+		split_lines=40, split_count=2, oneline_group=False, oneline_split=False ):
 	'''Add some newlines to separate overly long YAML lists/mappings.
-		"long" means both >split_lines in length and has >split_count items.'''
+		"long" means both >split_lines in length and has >split_count items.
+		oneline_group - don't split consecutive oneliner list/map items.
+		oneline_split - split long list/map consisting only of oneliner values.'''
 	def _add_vspacing(lines):
-		a = a_seq = ind_re = ind_re_sub = None
+		a = a_seq = ind_re = ind_re_sub = has_sub = None
 		blocks, item_lines = list(), list()
 		for n, line in enumerate(lines):
 			if ind_re is None and (m := re.match(r'( *)([^# ].?)', line)):
 				ind_re = re.compile(m[1] + r'\S')
 				lines.append(f'{m[1]}.') # for last add_vspacing
 			if ind_re_sub:
-				if ind_re_sub.match(line): continue
+				if ind_re_sub.match(line): has_sub = True; continue
 				if n - a > split_lines and (block := lines[a:n]):
 					if a_seq: block.insert(0, lines[a-1].replace('- ', '  ', 1))
 					blocks.append((a, n, _add_vspacing(block)[a_seq:]))
@@ -184,11 +187,13 @@ def dump_add_vspacing(yaml_str, split_lines=40, split_count=2, oneline_group=Fal
 			if ind_re.match(line): item_lines.append(n)
 			if m := re.match(r'( *)(- )?\S.*:\s*$', line):
 				a, a_seq, ind_re_sub = n+1, bool(m[2]), re.compile(m[1] + ' ')
-		if split_items := len(lines) > split_lines and len(item_lines) > split_count:
+		if ( split_items := len(lines) > split_lines and
+				len(item_lines) > split_count and (oneline_split or has_sub) ):
 			for n in item_lines:
 				try:
-					if oneline_group and ind_re and (
-						ind_re.match(lines[n-1]) and ind_re.match(lines[n+1]) ): continue
+					if ( oneline_group and ind_re
+						and ind_re.match(lines[n-1].lstrip('\n'))
+						and ind_re.match(lines[n+1].lstrip('\n')) ): continue
 				except IndexError: continue
 				lines[n] = f'\n{lines[n]}'
 		for a, b, block in reversed(blocks): lines[a:b] = block

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-library-dynamic_config)
 
+
 target_compile_options(yt-library-dynamic_config PRIVATE
   -Wdeprecated-this-capture
 )

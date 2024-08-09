@@ -88,6 +88,15 @@ def query_tracker_environment():
                 make_ace("allow", "everyone", "use"),
             ]
         })
+    create_access_control_object(
+        "everyone",
+        "queries",
+        attributes={
+            "principal_acl": [
+                make_ace("allow", "everyone", "read"),
+                make_ace("allow", "everyone", "use"),
+            ]
+        })
     yield
     remove("//sys/access_control_object_namespaces/queries/nobody")
     remove("//sys/access_control_object_namespaces/queries")

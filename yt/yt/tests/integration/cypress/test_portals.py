@@ -414,11 +414,35 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     @pytest.mark.skipif("True", reason="YT-11197")
-    def test_cross_shard_links_forbidden(self, purge_resolve_cache):
+    def test_cross_cell_links_forbidden(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         with pytest.raises(YtError):
             link("//tmp", "//tmp/p/l")
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_intra_cell_cross_shard_links(self, purge_resolve_cache):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 11})
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p2")
+        table_id = create("table", "//tmp/p2/t")
+        link("//tmp/p2/t", "//tmp/p1/l")
+        assert get("//tmp/p1/l/@id") == table_id
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_intra_cell_cross_shard_links_disabled(self, purge_resolve_cache):
+        set("//sys/@config/cypress_manager/enable_intra_cell_cross_shard_links", False)
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 11})
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p2")
+        create("table", "//tmp/p2/t")
+        link("//tmp/p2/t", "//tmp/p1/l")
+        with raises_yt_error('Link target path must start with //tmp/p1'):
+            get("//tmp/p1/l/@id")
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])

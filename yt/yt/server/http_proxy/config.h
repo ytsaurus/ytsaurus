@@ -200,6 +200,21 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProxyMemoryLimitsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> Total;
+
+    REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TNativeServerConfig
 {
@@ -227,6 +242,8 @@ public:
     TApiConfigPtr Api;
 
     TAccessCheckerConfigPtr AccessChecker;
+
+    TProxyMemoryLimitsConfigPtr MemoryLimits;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
@@ -284,6 +301,8 @@ public:
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
+
+    TProxyMemoryLimitsConfigPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

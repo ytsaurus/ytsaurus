@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
@@ -136,7 +138,20 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    Connection_ = CreateConnection(Config_->ClusterConnection, connectionOptions);
+
+    MemoryUsageTracker_ = CreateNodeMemoryTracker(
+        *Config_->MemoryLimits->Total,
+        /*limits*/ {},
+        Logger(),
+        HttpProxyProfiler.WithPrefix("/memory_usage"));
+
+    ReconfigureMemoryLimits(Config_->MemoryLimits);
+
+    Connection_ = CreateConnection(
+        Config_->ClusterConnection,
+        connectionOptions,
+        /*clusterDirectoryOverride*/ {},
+        MemoryUsageTracker_);
 
     SetupClusterConnectionDynamicConfigUpdate(
         Connection_,
@@ -311,6 +326,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->HeapProfiler);
 }
 
+bool TBootstrap::IsChytApiServerAddress(const NNet::TNetworkAddress& address) const
+{
+    return (ChytApiHttpServer_ && address == ChytApiHttpServer_->GetAddress())
+        || (ChytApiHttpsServer_ && address == ChytApiHttpsServer_->GetAddress());
+}
+
 TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::SetupClients()
@@ -319,11 +340,19 @@ void TBootstrap::SetupClients()
     RootClient_ = Connection_->CreateClient(options);
 }
 
+void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
+{
+    if (memoryLimits->Total) {
+        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
+    }
+}
+
 void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
     ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     DynamicConfig_.Store(newConfig);
 

@@ -240,7 +240,7 @@ public:
         for (const auto& treeId : *unknownTreeIds) {
             treeIdToPoolNameMap.erase(treeId);
         }
-        auto state = New<TFairShareStrategyOperationState>(operation, Config_, Host_->GetNodeShardInvokers().size());
+        auto state = New<TFairShareStrategyOperationState>(operation, Config_, Host_->GetNodeShardInvokers());
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(

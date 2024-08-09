@@ -32,6 +32,8 @@ public:
     // NB: Resize does not preserve current values.
     void* Resize(size_t total, TRefCountedTypeCookie cookie = NullRefCountedTypeCookie);
 
+    size_t GetSize() const;
+
     ~TMemoryHolderBase();
 
 protected:
@@ -44,8 +46,6 @@ protected:
     void* Ptr_ = nullptr;
 
     THeader* GetHeader() const;
-
-    size_t GetSize() const;
 };
 
 template <class T>

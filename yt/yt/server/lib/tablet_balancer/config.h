@@ -14,6 +14,29 @@ const TString LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TComponentFactorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<double> Cell;
+    std::optional<double> Node;
+    std::optional<double> TableCell;
+    std::optional<double> TableNode;
+
+    static TComponentFactorConfigPtr MakeIdentity();
+
+    TComponentFactorConfigPtr MergeWith(
+        const TComponentFactorConfigPtr& otherConfig) const;
+
+    REGISTER_YSON_STRUCT(TComponentFactorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TComponentFactorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TParameterizedBalancingConfig
     : public NYTree::TYsonStruct
 {
@@ -25,6 +48,7 @@ public:
     std::optional<double> NodeDeviationThreshold;
     std::optional<double> CellDeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;
+    TComponentFactorConfigPtr Factors;
 
     REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
 

@@ -107,7 +107,7 @@ void AlertAndThrowOnInvalidLocationIndex(
 }
 
 template <class TRequest>
-TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(
+TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(
     const IDataNodeTrackerPtr& dataNodeTracker,
     const TRequest& request)
 {
@@ -116,7 +116,7 @@ TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDire
 
     auto rawLocationDirectory = FromProto<NDataNodeTrackerClient::TChunkLocationDirectory>(request.location_directory());
 
-    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> locationDirectory;
+    TCompactVector<TChunkLocation*, TypicalChunkLocationCount> locationDirectory;
     locationDirectory.reserve(request.location_directory_size());
 
     for (auto uuid : rawLocationDirectory.Uuids()) {
@@ -129,7 +129,7 @@ TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDire
 }
 
 template <class TRequest>
-TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
+TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
     const TNode* node,
     const IDataNodeTrackerPtr& dataNodeTracker,
     const TRequest& request)

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/tablet_balancer/public.h>
+
 #include <yt/yt/server/lib/cypress_election/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
@@ -60,6 +62,7 @@ public:
     double ParameterizedCellDeviationThreshold;
     double ParameterizedMinRelativeMetricImprovement;
     TString DefaultParameterizedMetric;
+    TComponentFactorConfigPtr ParameterizedFactors;
 
     TTimeFormula Schedule;
     TDuration BundleErrorsTtl;

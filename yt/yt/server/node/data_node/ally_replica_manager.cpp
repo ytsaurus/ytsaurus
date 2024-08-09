@@ -653,7 +653,7 @@ private:
                 i64 parcelSize = std::min(
                     ssize(nodeState->ImmediateAnnouncements),
                     config->MaxChunksPerAnnouncementRequest);
-                auto parcel = MakeRange(nodeState->ImmediateAnnouncements)
+                auto parcel = TRange(nodeState->ImmediateAnnouncements)
                     .Slice(0, parcelSize);
 
                 TDataNodeServiceProxy proxy(channel);

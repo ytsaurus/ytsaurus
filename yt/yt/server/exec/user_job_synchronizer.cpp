@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
-namespace NYT::NUserJob {
+namespace NYT::NExec {
 
 using namespace NBus;
 using namespace NConcurrency;
@@ -42,11 +42,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TUserJobSynchronizerConnectionConfigPtr connectionConfig)
+IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(
+    NUserJob::TUserJobSynchronizerConnectionConfigPtr connectionConfig)
 {
     return New<TUserJobSynchronizerClient>(connectionConfig->BusClientConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJob
+} // namespace NYT::NExec

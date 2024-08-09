@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(yt-contrib-gogoproto)
 
+
 target_include_directories(yt-contrib-gogoproto PUBLIC
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
 )
@@ -49,6 +50,12 @@ target_sources(yt-contrib-gogoproto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.pb.h
 )
 
+
+target_proto_outs(yt-contrib-gogoproto
+  --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
+)
+
 target_proto_addincls(yt-contrib-gogoproto
   ./yt/yt/contrib/gogoproto
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
@@ -59,9 +66,3 @@ target_proto_addincls(yt-contrib-gogoproto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-contrib-gogoproto
-  --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
-)
-

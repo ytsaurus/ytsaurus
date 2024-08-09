@@ -174,6 +174,9 @@ struct TJoblet
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
+    // Used for restarting jobs in gang vanilla operations.
+    TString OperationIncarnation;
+
     // Used only for persistence.
     TJoblet() = default;
 

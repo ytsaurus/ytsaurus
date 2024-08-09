@@ -263,13 +263,13 @@ void TStatisticsReporter::DoReportStatistics(const TYPath& tablePath, i64 maxTab
         rows[rowsSize++] = MakeUnversionedRow(it.second, rowBuffer);
 
         if (rowsSize == maxTabletsPerTransaction) {
-            WriteRows(tablePath, MakeRange(rows, rowsSize), std::move(rowBuffer));
+            WriteRows(tablePath, TRange(rows, rowsSize), std::move(rowBuffer));
             resetRows(snapshotIndex);
         }
     }
 
     if (rowsSize > 0) {
-        WriteRows(tablePath, MakeRange(rows, rowsSize), std::move(rowBuffer));
+        WriteRows(tablePath, TRange(rows, rowsSize), std::move(rowBuffer));
     }
 }
 

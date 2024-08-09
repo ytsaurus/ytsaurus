@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(public-lsm_simulator-lib)
 
+
 target_compile_options(public-lsm_simulator-lib PRIVATE
   -Wdeprecated-this-capture
 )

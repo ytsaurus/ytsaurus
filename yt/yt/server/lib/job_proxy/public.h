@@ -20,6 +20,7 @@ DECLARE_REFCOUNTED_CLASS(TBindConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IJobProbe)
 
+// XXX
 DEFINE_ENUM(EJobProxyExitCode,
     ((SupervisorCommunicationFailed) (20))
     ((ResultReportFailed)            (21))

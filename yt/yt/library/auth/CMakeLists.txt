@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-library-auth)
+
 
 target_compile_options(yt-library-auth PRIVATE
   -Wdeprecated-this-capture

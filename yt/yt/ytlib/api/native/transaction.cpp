@@ -377,6 +377,22 @@ public:
             .Run(producerPath, queuePath, sessionId, epoch, nameTable, rows, options);
     }
 
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options) override
+    {
+        ValidateTabletTransactionId(GetId());
+
+        return BIND(&TTransaction::DoPushQueueProducerWithSerializedRows, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run(producerPath, queuePath, sessionId, epoch, nameTable, serializedRows, options);
+    }
+
     void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1792,6 +1808,30 @@ private:
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
     }
 
+    TPushQueueProducerResult DoPushQueueProducerWithSerializedRows(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options)
+    {
+        auto rowBuffer = New<TRowBuffer>(TNativeTransactionBufferTag());
+
+        auto data = MergeRefsToRef<TNativeTransactionBufferTag>(serializedRows);
+        auto reader = CreateWireProtocolReader(data, std::move(rowBuffer));
+        auto rows = reader->ReadUnversionedRowset(/*captureValues*/ true);
+        return DoPushQueueProducer(
+            producerPath,
+            queuePath,
+            sessionId,
+            epoch,
+            nameTable,
+            rows,
+            options);
+    }
+
     TPushQueueProducerResult DoPushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
@@ -1830,7 +1870,7 @@ private:
             .SessionId = sessionId.Underlying(),
         };
 
-        auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+        auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
 
         auto sessionRowset = WaitFor(LookupRows(
             producerPath.GetPath(),
@@ -1881,6 +1921,10 @@ private:
             YT_LOG_DEBUG("After validation all rows should be skipped, do nothing (RowCount: %v, SkipRowCount: %v)",
                 std::ssize(rows),
                 validateResult.SkipRowCount);
+            return TPushQueueProducerResult{
+                .LastSequenceNumber = lastProducerSequenceNumber,
+                .SkippedRowCount = validateResult.SkipRowCount,
+            };
         }
 
         auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
@@ -1901,7 +1945,7 @@ private:
             updatedSession.UserMeta = ConvertToYsonString(options.UserMeta);
         }
 
-        auto updatedSessionRows = FromRecords(MakeRange(std::array{updatedSession}));
+        auto updatedSessionRows = FromRecords(TRange(std::array{updatedSession}));
         WriteRows(producerPath.GetPath(), producerNameTable, updatedSessionRows);
 
         return TPushQueueProducerResult{
@@ -1953,7 +1997,7 @@ private:
             return;
         }
 
-        std::vector<std::unique_ptr<TSecondaryIndexModifier>> indexModifiers;
+        std::vector<ISecondaryIndexModifierPtr> indexModifiers;
         std::vector<TFuture<void>> lookupRowsEvents;
 
         for (auto& [tableId, mergedRows] : mergedRowsByTable) {
@@ -1971,19 +2015,22 @@ private:
             auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
 
-            auto indexModifier = std::make_unique<TSecondaryIndexModifier>(
+            auto indexModifier = CreateSecondaryIndexModifier(
+                this,
                 mountInfo,
                 std::move(indexTableInfos),
                 mergedRows,
                 connection->GetExpressionEvaluatorCache(),
                 Logger);
 
-            lookupRowsEvents.push_back(indexModifier->LookupRows(this));
+            lookupRowsEvents.push_back(indexModifier->LookupRows());
             indexModifiers.push_back(std::move(indexModifier));
         }
 
         WaitFor(AllSucceeded(std::move(lookupRowsEvents)))
             .ThrowOnError();
+
+        std::vector<TFuture<void>> modificationsEnqueuedEvents;
 
         for (const auto& modifier : indexModifiers) {
             TModifyRowsOptions modifyRowsOptions{
@@ -1991,22 +2038,25 @@ private:
                 .AllowMissingKeyColumns=true,
             };
 
-            modifier->OnIndexModifications([&] (
-                TYPath path,
-                TNameTablePtr nameTable,
-                TSharedRange<TRowModification> modifications)
-            {
-                EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-                    this,
-                    connection,
-                    std::move(path),
-                    std::move(nameTable),
-                    &HunkMemoryPool_,
-                    std::move(modifications),
-                    modifyRowsOptions));
-            });
+            modificationsEnqueuedEvents.push_back(
+                modifier->OnIndexModifications([&, modifyRowsOptions=std::move(modifyRowsOptions)] (
+                    TYPath path,
+                    TNameTablePtr nameTable,
+                    TSharedRange<TRowModification> modifications)
+                {
+                    EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                        this,
+                        connection,
+                        std::move(path),
+                        std::move(nameTable),
+                        &HunkMemoryPool_,
+                        std::move(modifications),
+                        modifyRowsOptions));
+                }));
         }
 
+        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedEvents)))
+            .ThrowOnError();
     }
 
     TFuture<void> DoPrepareRequests()

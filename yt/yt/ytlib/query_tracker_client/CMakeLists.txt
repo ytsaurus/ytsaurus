@@ -12,8 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
+find_package(Python3 REQUIRED)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -30,6 +30,7 @@ get_built_tool_path(
 )
 
 add_library(yt-ytlib-query_tracker_client)
+
 
 target_compile_options(yt-ytlib-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
@@ -50,12 +51,13 @@ target_proto_messages(yt-ytlib-query_tracker_client PRIVATE
 )
 
 target_sources(yt-ytlib-query_tracker_client PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.pb.h
 )
+
 
 add_custom_command(
   OUTPUT
@@ -88,6 +90,11 @@ add_custom_command(
   yt/yt/core/misc/error.h
 )
 
+target_proto_outs(yt-ytlib-query_tracker_client
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(yt-ytlib-query_tracker_client
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -98,9 +105,3 @@ target_proto_addincls(yt-ytlib-query_tracker_client
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-ytlib-query_tracker_client
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

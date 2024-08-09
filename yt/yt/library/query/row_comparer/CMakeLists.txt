@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-query-row_comparer INTERFACE)
 
+
 target_link_libraries(library-query-row_comparer INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -27,8 +28,8 @@ target_link_libraries(library-query-row_comparer INTERFACE
 
 
 add_global_library_for(library-query-row_comparer.global
-  library-query-row_comparer
-)
+  library-query-row_comparer)
+
 
 target_compile_options(library-query-row_comparer.global PRIVATE
   -Wdeprecated-this-capture

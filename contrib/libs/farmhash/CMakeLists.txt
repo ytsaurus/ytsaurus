@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(arch)
 
 add_library(contrib-libs-farmhash)
+
 
 target_compile_options(contrib-libs-farmhash PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

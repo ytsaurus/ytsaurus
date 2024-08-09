@@ -13,6 +13,8 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocation
+    : public NObjectServer::TObject
+    , public TRefTracked<TChunkLocation>
 {
 private:
     struct TReplicaHasher
@@ -52,18 +54,16 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
 
-public:
-    TChunkLocation() = default;
-    virtual ~TChunkLocation() = default;
+    DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid);
+    DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
+    DEFINE_BYREF_RW_PROPERTY(TDomesticMediumPtr, MediumOverride);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics);
 
-    virtual bool IsImaginary() const = 0;
-    const TRealChunkLocation* AsReal() const;
-    TRealChunkLocation* AsReal();
-    const TImaginaryChunkLocation* AsImaginary() const;
-    TImaginaryChunkLocation* AsImaginary();
+public:
+    using TObject::TObject;
 
     // TODO(kvk1920): Use TDomesticMedium* here.
-    virtual int GetEffectiveMediumIndex() const = 0;
+    int GetEffectiveMediumIndex() const;
 
     void ReserveReplicas(int sizeHint);
 
@@ -105,9 +105,12 @@ public:
     TLoadScratchData* GetLoadScratchData() const;
     void ResetLoadScratchData();
 
-protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    // COMPAT(kvk1920): remove after 24.2.
+    // NB: see comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
+    static TChunkLocation* LoadPtr(NCellMaster::TLoadContext& context);
 
 private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
@@ -120,6 +123,8 @@ private:
     bool DoAddReplica(TChunkPtrWithReplicaInfo replica);
     bool DoHasReplica(TChunkPtrWithReplicaInfo replica) const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TChunkLocation)
 
 class TChunkLocation::TDestroyedReplicasIterator
 {
@@ -158,106 +163,35 @@ struct TChunkLocation::TLoadScratchData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TImaginaryChunkLocation
-    : public TChunkLocation
-{
-public:
-    TImaginaryChunkLocation();
-    TImaginaryChunkLocation(int mediumIndex, TNode* node);
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    bool IsImaginary() const override;
-
-    bool operator<(const TImaginaryChunkLocation& rhs) const;
-
-    int GetEffectiveMediumIndex() const override;
-
-    static TImaginaryChunkLocation* GetOrCreate(NNodeTrackerServer::TNode* node, int mediumIndex, bool duringSnapshotLoading = false);
-
-private:
-    int MediumIndex_ = NChunkClient::GenericMediumIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRealChunkLocation
-    : public NObjectServer::TObject
-    , public TChunkLocation
-    , public TRefTracked<TRealChunkLocation>
-{
-public:
-    using TObject::TObject;
-
-    DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid);
-    DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
-    DEFINE_BYREF_RW_PROPERTY(TDomesticMediumPtr, MediumOverride);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics);
-
-public:
-    bool IsImaginary() const override;
-
-    bool operator<(const TRealChunkLocation& rhs) const;
-
-    int GetEffectiveMediumIndex() const override;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-};
-
-DEFINE_MASTER_OBJECT_TYPE(TRealChunkLocation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-NNodeTrackerServer::TNode* GetChunkLocationNode(
-    TAugmentedPtr<TChunkLocation, WithReplicaState, IndexCount, TAugmentationAccessor> ptr);
-
-
-template <bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-NNodeTrackerServer::TNodeId GetChunkLocationNodeId(
-    TAugmentedPtr<TChunkLocation, WithReplicaState, IndexCount, TAugmentationAccessor> ptr);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NChunkServer
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(kvk1920): remove after 24.2.
+// NB: in most cases pointer to |TChunkLocation| could be either real or
+// imaginary but there are rare cases when we know exact type of location. In
+// those cases use |TChunkLocation::LoadPtr()|.
 template <class C>
 struct TSerializerTraits<NChunkServer::TChunkLocation*, C>
 {
     struct TSerializer
     {
-        static void Save(C& context, const NChunkServer::TChunkLocation* location);
-        static void Load(C& context, NChunkServer::TChunkLocation*& location);
+        static void Save(
+            NCellMaster::TSaveContext& context,
+            const NChunkServer::TChunkLocation* location);
+        static void Load(
+            NCellMaster::TLoadContext& context,
+            NChunkServer::TChunkLocation*& location);
     };
 
-    struct TComparer
-    {
-        static bool Compare(
-            const NChunkServer::TChunkLocation* lhs,
-            const NChunkServer::TChunkLocation* rhs);
-    };
+    using TComparer = NObjectServer::TObjectIdComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-namespace NYT::NChunkServer::NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NB: TNode is incomplete in this header, but we need some way to get its id in chunk_location-inl.h.
-TNodeId GetNodeId(TNode* node);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NChunkServer::NDetail
 
 #define CHUNK_LOCATION_INL_H_
 #include "chunk_location-inl.h"

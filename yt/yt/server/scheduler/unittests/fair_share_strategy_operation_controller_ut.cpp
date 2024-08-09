@@ -236,10 +236,11 @@ protected:
         IOperationStrategyHost* operation,
         int nodeShardCount = 1)
     {
+        std::vector<IInvokerPtr> nodeShardsInvokers(nodeShardCount, GetCurrentInvoker());
         auto controller = New<TFairShareStrategyOperationController>(
             operation,
             SchedulerConfig_,
-            nodeShardCount);
+            nodeShardsInvokers);
 
         // Just in case.
         controller->SetDetailedLogsEnabled(true);
@@ -482,9 +483,9 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
     SchedulerConfig_->ConcurrentControllerScheduleAllocationCallsRegularization = 2.0;
 
-    const int NodeShardCount = 2;
+    const int nodeShardCount = 2;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto controller = CreateTestOperationController(operation.Get(), NodeShardCount);
+    auto controller = CreateTestOperationController(operation.Get(), nodeShardCount);
 
     auto readyToGo = NewPromise<void>();
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
@@ -511,7 +512,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
-        int nodeShardId = i % NodeShardCount;
+        int nodeShardId = i % nodeShardCount;
         auto context = CreateTestSchedulingContext(execNode, nodeShardId);
 
         if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {

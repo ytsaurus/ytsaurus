@@ -12,11 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
+add_subdirectory(table_schema)
 add_subdirectory(blob_table)
 add_subdirectory(lambda)
-add_subdirectory(lazy_sort)
-add_subdirectory(mock_client)
 add_subdirectory(operation_tracker)
 add_subdirectory(parallel_io)
-add_subdirectory(table_schema)
 add_subdirectory(user_job_statistics)
+add_subdirectory(mock_client)
+add_subdirectory(lazy_sort)

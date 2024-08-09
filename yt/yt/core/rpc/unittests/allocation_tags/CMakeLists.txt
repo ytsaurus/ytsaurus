@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(core-rpc-allocation-tags)
 
+
 target_compile_options(core-rpc-allocation-tags PRIVATE
   -Wdeprecated-this-capture
 )
@@ -36,6 +37,11 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
   cpp-testing-common
 )
 
+target_allocator(core-rpc-allocation-tags
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
+)
+
 target_link_options(core-rpc-allocation-tags PRIVATE
   -ldl
   -lrt
@@ -51,6 +57,7 @@ target_link_options(core-rpc-allocation-tags PRIVATE
 target_sources(core-rpc-allocation-tags PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_allocation_tags_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -71,21 +78,15 @@ set_property(
   TEST
   core-rpc-allocation-tags
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(core-rpc-allocation-tags)
 
 set_property(
   TEST
   core-rpc-allocation-tags
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(core-rpc-allocation-tags
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
-)
-
-vcs_info(core-rpc-allocation-tags)
-

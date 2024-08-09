@@ -117,7 +117,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    bool CanHaveSequoiaReplicas(TRealChunkLocation* location) const override
+    bool CanHaveSequoiaReplicas(TChunkLocation* location) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -177,7 +177,7 @@ public:
         return IsSequoiaChunkReplica(chunkId, location);
     }
 
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TRealChunkLocation* location) const override
+    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -527,20 +527,13 @@ private:
             auto& replicas = it->second.Value();
             replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
 
-            // TODO(aleksandra-zh): remove lambda (or some stuff from it) when there are no imaginary locations.
             SortUniqueBy(replicas, [] (const auto& replica) {
                 auto location = replica.GetPtr();
 
                 auto replicaIndex = replica.GetReplicaIndex();
-                auto isImaginary = location->IsImaginary();
-
-                // These are for imaginary.
-                auto nodeId = GetObjectId(location->GetNode());
-                auto effectiveMediumIndex = isImaginary ? location->GetEffectiveMediumIndex() : 0;
-
-                // This is for real.
-                auto uuid = isImaginary ? TChunkLocationUuid() : location->AsReal()->GetUuid();
-                return std::tuple(replicaIndex, isImaginary, nodeId, effectiveMediumIndex, uuid);
+                auto nodeId = location->GetNode()->GetId();
+                auto locationUuid = location->GetUuid();
+                return std::tuple(replicaIndex, nodeId, locationUuid);
             });
         }
 

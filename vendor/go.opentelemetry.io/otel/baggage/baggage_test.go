@@ -1,23 +1,12 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package baggage
 
 import (
 	"fmt"
 	"math/rand"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,7 +31,7 @@ func TestValidateKeyChar(t *testing.T) {
 		'\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x17',
 		'\x18', '\x19', '\x1A', '\x1B', '\x1C', '\x1D', '\x1E', '\x1F', ' ',
 		'(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?',
-		'=', '{', '}', '\x7F',
+		'=', '{', '}', '\x7F', 2 >> 20, '\x80',
 	}
 
 	for _, ch := range invalidKeyRune {
@@ -57,7 +46,7 @@ func TestValidateValueChar(t *testing.T) {
 		'\x08', '\x09', '\x0A', '\x0B', '\x0C', '\x0D', '\x0E', '\x0F',
 		'\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x17',
 		'\x18', '\x19', '\x1A', '\x1B', '\x1C', '\x1D', '\x1E', '\x1F', ' ',
-		'"', ',', ';', '\\', '\x7F',
+		'"', ',', ';', '\\', '\x7F', '\x80',
 	}
 
 	for _, ch := range invalidValueRune {
@@ -622,11 +611,11 @@ func TestBaggageString(t *testing.T) {
 		for i, m := range members {
 			parts := strings.Split(m, propertyDelimiter)
 			if len(parts) > 1 {
-				sort.Strings(parts[1:])
+				slices.Sort(parts[1:])
 				members[i] = strings.Join(parts, propertyDelimiter)
 			}
 		}
-		sort.Strings(members)
+		slices.Sort(members)
 		return strings.Join(members, listDelimiter)
 	}
 
@@ -1036,5 +1025,20 @@ func BenchmarkValueEscape(b *testing.B) {
 				_ = valueEscape(tc.in)
 			}
 		})
+	}
+}
+
+func BenchmarkMemberString(b *testing.B) {
+	alphabet := "abcdefghijklmnopqrstuvwxyz"
+	props := make([]Property, len(alphabet))
+	for i, r := range alphabet {
+		props[i] = Property{key: string(r)}
+	}
+	member, err := NewMember(alphabet, alphabet, props...)
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = member.String()
 	}
 }

@@ -12,8 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(brotli)
 add_subdirectory(bzip2)
-add_subdirectory(lz)
 add_subdirectory(lzma)
+add_subdirectory(lz)
 add_subdirectory(zstd)

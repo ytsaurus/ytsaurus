@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-tablet_balancer)
 
+
 target_compile_options(yt-server-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
 )

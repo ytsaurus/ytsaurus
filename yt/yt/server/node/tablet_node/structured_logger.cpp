@@ -456,7 +456,7 @@ public:
         int partitionIndex,
         int splitFactor) override
     {
-        auto newPartitions = MakeRange(Tablet_->PartitionList())
+        auto newPartitions = TRange(Tablet_->PartitionList())
             .Slice(partitionIndex, partitionIndex + splitFactor);
         LogEvent("split_partition")
             .Item("old_partition_id").Value(oldPartition->GetId())

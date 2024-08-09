@@ -267,7 +267,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         gatewayConfig->AddChild("remote_file_patterns", defaultRemoteFilePatterns);
         gatewayConfig->AddChild("mr_job_bin", BuildYsonNodeFluently().Value("./mrjob"));
         gatewayConfig->AddChild("yt_log_level", BuildYsonNodeFluently().Value("YL_DEBUG"));
-        gatewayConfig->AddChild("execute_udf_locally_if_possible", BuildYsonNodeFluently().Value(true));
+        gatewayConfig->AddChild("execute_udf_locally_if_possible", BuildYsonNodeFluently().Value(false));
 
         auto fileStorageConfig = config->FileStorageConfig->AsMap();
         fileStorageConfig->AddChild("max_files", BuildYsonNodeFluently().Value(1 << 13));

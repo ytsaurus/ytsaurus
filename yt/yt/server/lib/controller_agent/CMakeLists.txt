@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-controller_agent)
 
+
 target_compile_options(server-lib-controller_agent PRIVATE
   -Wdeprecated-this-capture
 )
@@ -48,12 +49,7 @@ target_link_libraries(server-lib-controller_agent PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-controller_agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
-)
-
 target_sources(server-lib-controller_agent PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp
@@ -64,6 +60,17 @@ target_sources(server-lib-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_report.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
+)
+
+target_proto_messages(server-lib-controller_agent PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
+)
+
+
+target_proto_outs(server-lib-controller_agent
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-controller_agent
@@ -78,9 +85,3 @@ target_proto_addincls(server-lib-controller_agent
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-controller_agent
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

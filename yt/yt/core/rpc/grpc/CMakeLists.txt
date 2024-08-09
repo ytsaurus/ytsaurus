@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(core-rpc-grpc)
 
+
 target_compile_options(core-rpc-grpc PRIVATE
   -Wdeprecated-this-capture
 )
@@ -52,18 +53,24 @@ target_link_libraries(core-rpc-grpc PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(core-rpc-grpc PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/proto/grpc.proto
-)
-
 target_sources(core-rpc-grpc PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/grpc/proto/grpc.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/server.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/channel.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/grpc/proto/grpc.pb.h
+)
+
+target_proto_messages(core-rpc-grpc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/proto/grpc.proto
+)
+
+
+target_proto_outs(core-rpc-grpc
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(core-rpc-grpc
@@ -77,9 +84,3 @@ target_proto_addincls(core-rpc-grpc
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(core-rpc-grpc
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

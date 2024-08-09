@@ -785,7 +785,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
-            /*mergeRowsOnFlush*/ false);
+            /*mergeRowsOnFlush*/ false,
+            /*useTtlColumn*/ false,
+            /*mergeDeletionsOnFlush*/ false,
+            TabletContext_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground));
 
         // Retained timestamp according to compactionRowMerger.
         auto newRetainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);

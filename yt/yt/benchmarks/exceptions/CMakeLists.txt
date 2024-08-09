@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(benchmark_exception)
 
+
 target_link_libraries(benchmark_exception PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,6 +24,11 @@ target_link_libraries(benchmark_exception PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   cpp-yt-phdr_cache
+)
+
+target_allocator(benchmark_exception
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(benchmark_exception PRIVATE
@@ -41,10 +47,5 @@ target_sources(benchmark_exception PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/exceptions/main.cpp
 )
 
-target_allocator(benchmark_exception
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(benchmark_exception)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-checksums)
 
+
 target_compile_options(restricted-aws-aws-checksums PRIVATE
   -DAWS_CHECKSUMS_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT

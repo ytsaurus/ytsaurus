@@ -553,6 +553,16 @@ public:
         RequestLoadingFromSnapshot(guard);
     }
 
+    int GetIterationCount() const override
+    {
+        return IterationCount_;
+    }
+
+    void IncrementIterationCount()
+    {
+        ++IterationCount_;
+    }
+
     TError CheckClusterState(const TClusterKey& key)
     {
         if (auto error = ClusterLivenessChecker_.Get(key); !error.IsOK()) {
@@ -977,6 +987,26 @@ public:
             return Options_;
         }
 
+        bool HasPreferredSyncReplicaClusters() const
+        {
+            return !TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters.empty() ||
+                Options_->PreferredSyncReplicaClusters;
+        }
+
+        THashSet<TString> GetPreferredSyncReplicaClusters() const
+        {
+            const auto& globalPreferredSyncReplicaClusters =
+                TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters;
+            if (!globalPreferredSyncReplicaClusters.empty()) {
+                return globalPreferredSyncReplicaClusters;
+            } else if (Options_->PreferredSyncReplicaClusters) {
+                return THashSet<TString>(
+                    Options_->PreferredSyncReplicaClusters->begin(),
+                    Options_->PreferredSyncReplicaClusters->end());
+            }
+            return {};
+        }
+
         TTableId GetId() const
         {
             return Id_;
@@ -1109,6 +1139,7 @@ private:
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> TrackingEnabled_ = false;
+    std::atomic<int> IterationCount_ = 0;
 
     TDynamicReplicatedTableTrackerConfigPtr Config_;
 
@@ -1214,6 +1245,8 @@ private:
 
     void RunTrackerIteration()
     {
+        IncrementIterationCount();
+
         if (!AreNodesEqual(ConvertToNode(Config_), ConvertToNode(Host_->GetConfig()))) {
             ApplyConfigChange(Host_->GetConfig());
         }
@@ -1329,7 +1362,7 @@ private:
                     replicaFamilyToReplicasByState,
                     TReplicaFamily{
                         .TableId = tableId,
-                        .ContentType = contentType
+                        .ContentType = contentType,
                     },
                     table.GroupReplicasByTargetState(contentType));
             }
@@ -1339,16 +1372,21 @@ private:
         for (const auto& [collocationId, collocation] : IdToCollocation_) {
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
                 std::optional<THashSet<TStringBuf>> goodReplicaClusters;
+                std::optional<THashSet<TStringBuf>> goodSyncReplicaClusters;
 
                 for (auto tableId : collocation.TableIds) {
                     auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
                         .TableId = tableId,
-                        .ContentType = contentType
+                        .ContentType = contentType,
                     });
+
                     if (it != replicaFamilyToReplicasByState.end()) {
                         THashSet<TStringBuf> tableGoodReplicaClusters;
+                        THashSet<TStringBuf> tableGoodSyncReplicaClusters;
+
                         for (auto* replica : it->second[EReplicaState::GoodSync]) {
                             tableGoodReplicaClusters.insert(replica->GetClusterName());
+                            tableGoodSyncReplicaClusters.insert(replica->GetClusterName());
                         }
                         for (auto* replica : it->second[EReplicaState::GoodAsync]) {
                             tableGoodReplicaClusters.insert(replica->GetClusterName());
@@ -1356,14 +1394,20 @@ private:
 
                         if (!goodReplicaClusters) {
                             goodReplicaClusters = tableGoodReplicaClusters;
+                            goodSyncReplicaClusters = tableGoodSyncReplicaClusters;
                         } else {
-                            for (auto it = goodReplicaClusters->begin(); it != goodReplicaClusters->end();) {
-                                auto nextIt = std::next(it);
-                                if (!tableGoodReplicaClusters.contains(*it)) {
-                                    goodReplicaClusters->erase(it);
+                            auto filterReplicaClusters = [] (auto* result, const auto& mask) {
+                                for (auto it = result->begin(); it != result->end();) {
+                                    auto nextIt = std::next(it);
+                                    if (!mask.contains(*it)) {
+                                        result->erase(it);
+                                    }
+                                    it = nextIt;
                                 }
-                                it = nextIt;
-                            }
+                            };
+
+                            filterReplicaClusters(&*goodReplicaClusters, tableGoodReplicaClusters);
+                            filterReplicaClusters(&*goodSyncReplicaClusters, tableGoodSyncReplicaClusters);
                         }
                     }
                 }
@@ -1380,6 +1424,10 @@ private:
                     THashMap<TString, int>());
                 if (goodReplicaClusters) {
                     for (auto clusterName : *goodReplicaClusters) {
+                        it->second[clusterName] = 1;
+                    }
+                    for (auto clusterName : *goodSyncReplicaClusters) {
+                        YT_VERIFY(it->second[clusterName] >= 1);
                         it->second[clusterName] = 2;
                     }
                 }
@@ -1388,24 +1436,32 @@ private:
 
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
-            std::optional<THashMap<TString, int>> replicaClusterPriorities;
-            const auto& preferredSyncReplicaClusters = table.GetOptions()->PreferredSyncReplicaClusters;
-            if (preferredSyncReplicaClusters) {
-                replicaClusterPriorities.emplace();
+
+            std::optional<THashSet<TString>> preferredReplicas;
+            THashMap<TString, int> goodReplicaPriorities;
+
+            if (table.HasPreferredSyncReplicaClusters()) {
+                preferredReplicas = table.GetPreferredSyncReplicaClusters();
             }
-            if (table.GetCollocationId() != NullObjectId) {
-                replicaClusterPriorities = GetOrCrash(
+
+            if (table.GetCollocationId() == NullObjectId) {
+                for (auto* replica : replicasByState[EReplicaState::GoodAsync]) {
+                    goodReplicaPriorities[replica->GetClusterName()] = 1;
+                }
+                for (auto* replica : replicasByState[EReplicaState::GoodSync]) {
+                    goodReplicaPriorities[replica->GetClusterName()] = 2;
+                }
+            } else {
+                goodReplicaPriorities = GetOrCrash(
                     collocationIdToClusterPriorities[replicaFamily.ContentType],
                     table.GetCollocationId());
             }
 
-            if (preferredSyncReplicaClusters) {
-                for (const auto& clusterName : *preferredSyncReplicaClusters) {
-                    ++(*replicaClusterPriorities)[clusterName];
-                }
-            }
+            auto tableCommands = GenerateCommandsForTable(
+                &replicasByState,
+                preferredReplicas,
+                goodReplicaPriorities);
 
-            auto tableCommands = GenerateCommandsForTable(&replicasByState, replicaClusterPriorities);
             YT_LOG_DEBUG_IF(!tableCommands.empty(),
                 "Generated replica mode change commands "
                 "(TableId: %v, ContentType: %v, CollocationId: %v, Commands: %v)",
@@ -1452,18 +1508,32 @@ private:
 
     std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
         TReplicasByState* replicasByState,
-        const std::optional<THashMap<TString, int>>& replicaClusterPriorities)
+        const std::optional<THashSet<TString>>& preferredReplicas,
+        const THashMap<TString, int>& goodReplicaPriorities)
     {
         auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
         auto& asyncReplicas = (*replicasByState)[EReplicaState::GoodAsync];
         auto syncReplicaCount = syncReplicas.size();
 
-        if (replicaClusterPriorities && !syncReplicas.empty() && !asyncReplicas.empty()) {
+        if (!syncReplicas.empty() && !asyncReplicas.empty()) {
+            // Priorities:
+            // 4 - good-sync and preferred
+            // 3 - good-async and preferred
+            // 2 - good-sync
+            // 1 - good-async
+            // 0/null - bad
             auto getPriority = [&] (auto* replica) {
-                auto it = replicaClusterPriorities->find(replica->GetClusterName());
-                return it != replicaClusterPriorities->end()
-                    ? std::pair(it->second, it->first)
-                    : std::pair(0, replica->GetClusterName());
+                int result = 0;
+
+                auto it = goodReplicaPriorities.find(replica->GetClusterName());
+                if (it != goodReplicaPriorities.end()) {
+                    result += it->second;
+                    if (preferredReplicas && preferredReplicas->contains(replica->GetClusterName())) {
+                        result += 2;
+                    }
+                }
+
+                return std::pair(result, replica->GetClusterName());
             };
 
             SortBy(syncReplicas, getPriority);

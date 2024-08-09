@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(library-cpp-tdigest)
 
+
 target_link_libraries(library-cpp-tdigest PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -38,13 +39,19 @@ target_link_libraries(library-cpp-tdigest PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(library-cpp-tdigest PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/tdigest/tdigest.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/tdigest/tdigest.pb.h
+)
+
 target_proto_messages(library-cpp-tdigest PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/tdigest/tdigest.proto
 )
 
-target_sources(library-cpp-tdigest PRIVATE
-  ${PROJECT_BINARY_DIR}/library/cpp/tdigest/tdigest.pb.h
-  ${PROJECT_SOURCE_DIR}/library/cpp/tdigest/tdigest.cpp
+
+target_proto_outs(library-cpp-tdigest
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(library-cpp-tdigest
@@ -56,9 +63,3 @@ target_proto_addincls(library-cpp-tdigest
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(library-cpp-tdigest
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

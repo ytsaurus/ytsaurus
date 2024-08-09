@@ -616,7 +616,7 @@ public:
             // IsRange and has divisors.
             YT_VERIFY(divisorsEndIndex > 0 && constraint.IsRange());
 
-            auto divisors = MakeRange(ReferenceIdToDivisors_[refColumnId])
+            auto divisors = TRange(ReferenceIdToDivisors_[refColumnId])
                 .Slice(divisorsStartIndex, divisorsEndIndex);
 
             // Collect unique divisors.
@@ -661,7 +661,7 @@ public:
             ui64 cardinalityMinusOne =
                 ValueToUint64(upperValue, signedType) - ValueToUint64(lowerValue, signedType);
 
-            auto uniqueDivisors = MakeRange(mergedDivisors).Slice(savedDivisorsCount, mergedDivisors.size());
+            auto uniqueDivisors = TRange(mergedDivisors).Slice(savedDivisorsCount, mergedDivisors.size());
             expressionEstimation = SaturationArithmeticMultiply(
                 expressionEstimation,
                 Estimate(cardinalityMinusOne, uniqueDivisors));
@@ -824,12 +824,12 @@ public:
         TRowGenerator<TQuotientValueGenerator> rowQuotientGenerator(
             quotientGenerators,
             quotientColumnIds,
-            MakeMutableRange(boundRow.Begin(), boundRow.End()));
+            TMutableRange(boundRow.Begin(), boundRow.End()));
 
         TRowGenerator<TModuloRangeGenerator> rowModuloGenerator(
             moduloGenerators,
             moduloColumnIds,
-            MakeMutableRange(boundRow.Begin(), boundRow.End()));
+            TMutableRange(boundRow.Begin(), boundRow.End()));
 
         std::vector<TRowRange> resultRanges;
         do {
@@ -856,15 +856,15 @@ public:
                     // Included/excluded bounds are also considered inside TQuotientValueGenerator.
                     auto lowerBound = MakeLowerBound(
                         buffer,
-                        MakeRange(boundRow.Begin(), prefixSize),
+                        TRange(boundRow.Begin(), prefixSize),
                         constraintRow[prefixSize].Lower);
                     auto upperBound = MakeUpperBound(
                         buffer,
-                        MakeRange(boundRow.Begin(), prefixSize),
+                        TRange(boundRow.Begin(), prefixSize),
                         constraintRow[prefixSize].Upper);
                     rowRange = std::pair(lowerBound, upperBound);
                 } else {
-                    rowRange = RowRangeFromPrefix(buffer, MakeRange(boundRow.Begin(), prefixSize));
+                    rowRange = RowRangeFromPrefix(buffer, TRange(boundRow.Begin(), prefixSize));
                 }
 
                 YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
@@ -1080,16 +1080,16 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
             if (prefixSize < keyColumnCount) {
                 auto lowerBound = MakeLowerBound(
                     buffer.Get(),
-                    MakeRange(boundRow.Begin(), prefixSize),
+                    TRange(boundRow.Begin(), prefixSize),
                     constraintRow[prefixSize].Lower);
                 auto upperBound = MakeUpperBound(
                     buffer.Get(),
-                    MakeRange(boundRow.Begin(), prefixSize),
+                    TRange(boundRow.Begin(), prefixSize),
                     constraintRow[prefixSize].Upper);
 
                 rowRange = std::pair(lowerBound, upperBound);
             } else {
-                rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
+                rowRange = RowRangeFromPrefix(buffer.Get(), TRange(boundRow.Begin(), prefixSize));
             }
 
             if (resultRanges.empty()) {

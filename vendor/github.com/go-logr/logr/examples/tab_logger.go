@@ -36,10 +36,10 @@ var _ logr.LogSink = &tabLogSink{}
 
 // Note that Init usually takes a pointer so it can modify the receiver to save
 // runtime info.
-func (_ *tabLogSink) Init(info logr.RuntimeInfo) {
+func (*tabLogSink) Init(info logr.RuntimeInfo) {
 }
 
-func (_ tabLogSink) Enabled(level int) bool {
+func (tabLogSink) Enabled(level int) bool {
 	return true
 }
 

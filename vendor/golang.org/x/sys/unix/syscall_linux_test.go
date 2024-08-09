@@ -54,6 +54,12 @@ func TestIoctlGetEthtoolDrvinfo(t *testing.T) {
 				continue
 			}
 
+			if err == unix.EBUSY {
+				// See https://go.dev/issues/67350
+				t.Logf("%s: ethtool driver busy, possible kernel bug", ifi.Name)
+				continue
+			}
+
 			t.Fatalf("failed to get ethtool driver info for %q: %v", ifi.Name, err)
 		}
 

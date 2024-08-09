@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-c-common)
 
+
 target_compile_options(restricted-aws-aws-c-common PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_PTHREAD_GETNAME_TAKES_3ARGS
@@ -95,6 +96,7 @@ target_sources(restricted-aws-aws-c-common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/time.c
 )
 
+
 target_sources_custom(restricted-aws-aws-c-common
   .avx2
   SRCS
@@ -105,4 +107,3 @@ target_sources_custom(restricted-aws-aws-c-common
   -mbmi
   -mbmi2
 )
-

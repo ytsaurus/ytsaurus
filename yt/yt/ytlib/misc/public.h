@@ -42,6 +42,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((TableReplication)           (27))
     ((ChaosReplicationIncoming)   (28))
     ((ChaosReplicationOutgoing)   (29))
+    ((ReadTable)                  (30))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

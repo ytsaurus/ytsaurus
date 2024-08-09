@@ -112,23 +112,6 @@ bool ReadRows(const TReader& reader, std::vector<TRow>* rows)
     return true;
 }
 
-void FormatValue(TStringBuilderBase* builder, TRange<TUnversionedValue> row, TStringBuf format)
-{
-    if (row) {
-        builder->AppendChar('[');
-        JoinToString(
-            builder,
-            row.Begin(),
-            row.End(),
-            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
-                FormatValue(builder, value, format);
-            });
-        builder->AppendChar(']');
-    } else {
-        builder->AppendString("<null>");
-    }
-}
-
 TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
     IVersionedReaderPtr reader,
     size_t chunkRowCount)
@@ -161,7 +144,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     IBlockCachePtr blockCache,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto chunkFormat = chunkMeta->GetChunkFormat();
     const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
@@ -182,7 +166,10 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             TColumnFilter(tableSchema->GetKeyColumnCount()),
             nullptr,
             blockManagerFactory,
-            true);
+            true,
+            nullptr,
+            nullptr,
+            memoryUsageTracker);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
     }
@@ -234,7 +221,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
                 auto key = blockReader.GetKey();
-                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(MakeRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
+                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(TRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
                 blockReader.NextRow();
             }
         };
@@ -299,11 +286,20 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const std::vector<TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
-    return CreateChunkLookupHashTable(chunkId, startBlockIndex, startBlockIndex + blocks.size(), blockCache, chunkMeta, tableSchema, keyComparer);
+    return CreateChunkLookupHashTable(
+        chunkId,
+        startBlockIndex,
+        startBlockIndex + blocks.size(),
+        blockCache,
+        chunkMeta,
+        tableSchema,
+        keyComparer,
+        memoryUsageTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(tracing-example)
 
+
 target_compile_options(tracing-example PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(tracing-example PUBLIC
   yutil
   library-cpp-cpuid_check
   library-tracing-jaeger
+)
+
+target_allocator(tracing-example
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(tracing-example PRIVATE
@@ -44,10 +50,5 @@ target_sources(tracing-example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
 )
 
-target_allocator(tracing-example
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(tracing-example)
-

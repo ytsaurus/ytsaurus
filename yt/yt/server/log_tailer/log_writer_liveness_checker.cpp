@@ -5,6 +5,8 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
+#include <library/cpp/yt/system/exit.h>
+
 namespace NYT::NLogTailer {
 
 using namespace NConcurrency;
@@ -47,7 +49,7 @@ void TLogWriterLivenessChecker::CheckLiveness()
         }
 
         YT_LOG_INFO("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
-        Bootstrap_->Abort();
+        Bootstrap_->Abort(ToUnderlying(EProcessExitCode::OK));
     } else {
         YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
             logWriterPid,

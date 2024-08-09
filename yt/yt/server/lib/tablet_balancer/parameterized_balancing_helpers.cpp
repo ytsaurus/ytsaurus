@@ -36,6 +36,7 @@ static const std::vector<TString> ParameterizedBalancingAttributes = {
 };
 
 constexpr int MaxVerboseLogMessagesPerIteration = 2000;
+constexpr double MinimumAcceptableMetricValue = 1e-30;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +75,8 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
             MinRelativeMetricImprovement),
         .Metric = groupConfig->Metric.Empty()
             ? Metric
-            : groupConfig->Metric
+            : groupConfig->Metric,
+        .Factors = Factors->MergeWith(groupConfig->Factors),
     };
 }
 
@@ -225,13 +227,23 @@ private:
 
     std::vector<TTabletInfo> Tablets_;
     std::vector<TTabletCellInfo> Cells_;
+    std::vector<TTableId> TableIds_;
     THashMap<TNodeAddress, TNodeInfo> Nodes_;
 
     TBoundedPriorityQueue<TMoveActionInfo> MoveActions_;
     TMoveActionInfo BestActionInfo_;
+
+    double TableNormalizingCoefficient_ = 1.0;
+
+
+    std::vector<std::vector<double>> TableByNodeMetric_;
+    std::vector<std::vector<double>> TableByCellMetric_;
+    std::vector<double> TableCellFactors_;
+    std::vector<double> TableNodeFactors_;
+
     double CurrentMetric_;
-    double CellFactor_ = 1;
-    double NodeFactor_ = 1;
+    double CellFactor_ = 1.0;
+    double NodeFactor_ = 1.0;
     int LogMessageCount_ = 0;
 
     int FullRecomputeAttempts_ = 0;
@@ -242,6 +254,7 @@ private:
 
     double CalculateTotalBundleMetric() const;
     void CalculateModifyingFactors();
+    void CalculateAndApplyTableFactors();
 
     void TryMoveTablet(
         TTabletInfo* tablet,
@@ -294,13 +307,12 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     THashMap<TTabletCellId, int> cellInfoIndex;
+    THashMap<TTableId, int> tableInfoIndex;
     THashMap<TString, int> nodeInfoIndex;
 
     Cells_.reserve(std::ssize(cells));
     for (const auto& cell : cells) {
-        auto nodeIt =
-            nodeInfoIndex.try_emplace(cell->NodeAddress.value(), std::ssize(nodeInfoIndex)).first;
-        int nodeIndex = nodeIt->second;
+        int nodeIndex = nodeInfoIndex.try_emplace(cell->NodeAddress.value(), std::ssize(nodeInfoIndex)).first->second;
         auto* nodeInfo = &Nodes_.emplace(*cell->NodeAddress, TNodeInfo{
             .Address = *cell->NodeAddress,
             .Index = nodeIndex,
@@ -343,13 +355,22 @@ void TParameterizedReassignSolver::Initialize()
                     << TErrorAttribute("metric_formula", Config_.Metric)
                     << TErrorAttribute("group", GroupName_)
                     << TErrorAttribute("bundle", Bundle_->Name);
-            } else if (tabletMetric == 0.0) {
+            } else if (tabletMetric <= MinimumAcceptableMetricValue) {
                 YT_LOG_DEBUG_IF(
                     Bundle_->Config->EnableVerboseLogging,
-                    "Skip tablet since it has a zero metric (TabletId: %v, TableId: %v)",
+                    "Skip tablet since it has metric less than %v"
+                    "(TabletId: %v, TableId: %v)",
+                    MinimumAcceptableMetricValue,
                     tabletId,
                     tablet->Table->Id);
                 continue;
+            }
+
+            auto [it, inserted] = tableInfoIndex.try_emplace(tablet->Table->Id, std::ssize(tableInfoIndex));
+            int tableIndex = it->second;
+
+            if (inserted) {
+                TableIds_.push_back(tablet->Table->Id);
             }
 
             Tablets_.push_back(TTabletInfo{
@@ -359,23 +380,43 @@ void TParameterizedReassignSolver::Initialize()
                 .InMemoryMode = tablet->Table->InMemoryMode,
                 .Metric = tabletMetric,
                 .CellIndex = cellIndex,
+                .TableIndex = tableIndex,
                 .NodeIndex = nodeIndex,
             });
         }
     }
 
+    CalculateMemory(cellInfoIndex);
+
     for (const auto& node : Bundle_->NodeStatistics) {
         MaxCellPerNodeCount_ = std::max(MaxCellPerNodeCount_, node.second.TabletSlotCount);
     }
 
+    int tableCount = std::ssize(tableInfoIndex);
+    if (tableCount == 0) {
+        // Therefore there are no tables to balance.
+        return;
+    }
+
+    TableNormalizingCoefficient_ = 1.0 / tableCount;
+
     CalculateModifyingFactors();
+
+    TableByCellMetric_.resize(tableCount, std::vector<double>(std::ssize(cellInfoIndex)));
+    TableByNodeMetric_.resize(tableCount, std::vector<double>(std::ssize(nodeInfoIndex)));
+    TableCellFactors_.resize(tableCount);
+    TableNodeFactors_.resize(tableCount);
 
     for (const auto& tablet : Tablets_) {
         const auto& nodeAdress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
 
         Cells_[tablet.CellIndex].Metric += tablet.Metric * CellFactor_;
         Nodes_[nodeAdress].Metric += tablet.Metric * NodeFactor_;
+        TableByCellMetric_[tablet.TableIndex][tablet.CellIndex] += tablet.Metric;
+        TableByNodeMetric_[tablet.TableIndex][tablet.NodeIndex] += tablet.Metric;
     }
+
+    CalculateAndApplyTableFactors();
 
     if (Bundle_->Config->EnableVerboseLogging) {
         for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
@@ -392,8 +433,6 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     YT_VERIFY(CurrentMetric_ >= 0.);
-
-    CalculateMemory(cellInfoIndex);
 }
 
 void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId, int>& cellInfoIndex)
@@ -510,29 +549,80 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
 
 double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
 {
-    double cellMetric = std::accumulate(
-        Cells_.begin(),
-        Cells_.end(),
-        0.0,
-        [] (double x, const auto& item) {
-            return x + Sqr(item.Metric);
-        });
+    double cellMetric = 0;
+    for (const auto& item : Cells_) {
+        cellMetric += Sqr(item.Metric);
+    }
 
-    double nodeMetric = std::accumulate(
-        Nodes_.begin(),
-        Nodes_.end(),
-        0.0,
-        [] (double x, const auto& item) {
-            return x + Sqr(item.second.Metric);
-        });
+    double nodeMetric = 0;
+    for (const auto& item : Nodes_) {
+        nodeMetric += Sqr(item.second.Metric);
+    }
 
+    double tableCellMetric = 0;
+    for (const auto& tableMetrics : TableByCellMetric_) {
+        for (auto metric : tableMetrics) {
+            tableCellMetric += Sqr(metric);
+        }
+    }
+    tableCellMetric *= TableNormalizingCoefficient_;
+
+    double tableNodeMetric = 0;
+    for (const auto& tableMetrics : TableByNodeMetric_) {
+        for (auto metric : tableMetrics) {
+            tableNodeMetric += Sqr(metric);
+        }
+    }
+    tableNodeMetric *= TableNormalizingCoefficient_;
 
     YT_LOG_DEBUG(
-        "Calculated total metrics (CellMetric: %v, NodeMetric: %v)",
+        "Calculated total metrics (CellMetric: %v, NodeMetric: %v, "
+        "TableCellMetric: %v, TableNodeMetric: %v)",
         cellMetric,
-        nodeMetric);
+        nodeMetric,
+        tableCellMetric,
+        tableNodeMetric);
 
-    return cellMetric + nodeMetric;
+    return cellMetric + nodeMetric + tableCellMetric + tableNodeMetric;
+}
+
+void TParameterizedReassignSolver::CalculateAndApplyTableFactors()
+{
+    for (int tableIndex = 0; tableIndex < std::ssize(TableByCellMetric_); ++tableIndex) {
+        double tableMetric = std::accumulate(
+            TableByCellMetric_[tableIndex].begin(),
+            TableByCellMetric_[tableIndex].end(),
+            0.0,
+            [] (double x, const auto& metric) {
+                return x + metric;
+            });
+        double cellCount = std::ssize(TableByCellMetric_.back());
+        double nodeCount = std::ssize(TableByNodeMetric_.back());
+
+        TableCellFactors_[tableIndex] = cellCount / tableMetric;
+        TableNodeFactors_[tableIndex] = nodeCount / tableMetric;
+
+        //  Per-cell dispersion is less important than per-node so we decrease its absolute value.
+        TableCellFactors_[tableIndex] *= nodeCount / cellCount;
+
+        TableCellFactors_[tableIndex] *= Config_.Factors->TableCell.value();
+        TableNodeFactors_[tableIndex] *= Config_.Factors->TableNode.value();
+
+        YT_LOG_DEBUG_IF(
+            Bundle_->Config->EnableVerboseLogging,
+            "Calculated per-table factors for cells and nodes "
+            "(TableId: %v, TableCellFactor: %v, TableNodeFactor: %v)",
+            TableIds_[tableIndex],
+            TableCellFactors_[tableIndex],
+            TableNodeFactors_[tableIndex]);
+
+        for (auto& value : TableByCellMetric_[tableIndex]) {
+            value *= TableCellFactors_[tableIndex];
+        }
+        for (auto& value : TableByNodeMetric_[tableIndex]) {
+            value *= TableNodeFactors_[tableIndex];
+        }
+    }
 }
 
 void TParameterizedReassignSolver::CalculateModifyingFactors()
@@ -556,6 +646,9 @@ void TParameterizedReassignSolver::CalculateModifyingFactors()
 
     //  Per-cell dispersion is less important than per-node so we decrease its absolute value.
     CellFactor_ *= nodeCount / cellCount;
+
+    CellFactor_ *= Config_.Factors->Cell.value();
+    NodeFactor_ *= Config_.Factors->Node.value();
 
     YT_LOG_DEBUG(
         "Calculated modifying factors (CellFactor: %v, NodeFactor: %v)",
@@ -609,12 +702,21 @@ void TParameterizedReassignSolver::TryMoveTablet(
         return;
     }
 
+    int tableIndex = tablet->TableIndex;
+
     double newMetricDiff = 0;
     if (sourceNode != destinationNode) {
         newMetricDiff +=
-            (sourceNodeMetric - destinationNodeMetric -
-            tablet->Metric * NodeFactor_) *
+            (sourceNodeMetric -
+                destinationNodeMetric -
+                tablet->Metric * NodeFactor_) *
             NodeFactor_;
+
+        newMetricDiff +=
+            (TableByNodeMetric_[tableIndex][sourceNode->Index] -
+                TableByNodeMetric_[tableIndex][destinationNode->Index] -
+                tablet->Metric * TableNodeFactors_[tableIndex]) *
+            TableNodeFactors_[tableIndex] * TableNormalizingCoefficient_;
     } else {
         if (sourceCell->Metric < cell->Metric) {
             // Moving to larger cell on the same node will not make metric smaller.
@@ -627,6 +729,12 @@ void TParameterizedReassignSolver::TryMoveTablet(
         (sourceCell->Metric - cell->Metric -
         tablet->Metric * CellFactor_) *
         CellFactor_;
+
+    newMetricDiff +=
+        (TableByCellMetric_[tableIndex][sourceCell->Index] -
+            TableByCellMetric_[tableIndex][cell->Index] -
+            tablet->Metric * TableCellFactors_[tableIndex]) *
+        TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
 
     newMetricDiff *= 2 * tablet->Metric;
 
@@ -683,12 +791,22 @@ void TParameterizedReassignSolver::ApplyBestAction(int* availableActionCount)
     BestActionInfo_.SourceCell->Metric -= BestActionInfo_.Tablet->Metric * CellFactor_;
     BestActionInfo_.DestinationCell->Metric += BestActionInfo_.Tablet->Metric * CellFactor_;
 
+    TableByCellMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.SourceCell->Index] -=
+        BestActionInfo_.Tablet->Metric * TableCellFactors_[BestActionInfo_.Tablet->TableIndex];
+    TableByCellMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.DestinationCell->Index] +=
+        BestActionInfo_.Tablet->Metric * TableCellFactors_[BestActionInfo_.Tablet->TableIndex];
+
     *availableActionCount -= 1;
 
     if (BestActionInfo_.SourceCell->Node != BestActionInfo_.DestinationCell->Node) {
         BestActionInfo_.Tablet->NodeIndex = BestActionInfo_.DestinationCell->Node->Index;
         BestActionInfo_.SourceCell->Node->Metric -= BestActionInfo_.Tablet->Metric * NodeFactor_;
         BestActionInfo_.DestinationCell->Node->Metric += BestActionInfo_.Tablet->Metric * NodeFactor_;
+
+        TableByNodeMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.SourceCell->Node->Index] -=
+            BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
+        TableByNodeMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.DestinationCell->Node->Index] +=
+            BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
     } else {
         YT_LOG_WARNING("The best action is between cells on the same node "
             "(Node: %v, TabletId: %v)",

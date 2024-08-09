@@ -883,14 +883,8 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     Persist(context, TransactionId);
     Persist(context, OmittedInaccessibleColumns);
     Persist(context, SecurityTags);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 300302) {
-        Persist(context, ChunkCount);
-    }
-    // COMPAT(gepardo)
-    if (context.GetVersion() >= 300705) {
-        Persist(context, Account);
-    }
+    Persist(context, ChunkCount);
+    Persist(context, Account);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

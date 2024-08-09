@@ -6,7 +6,8 @@ from yt.environment.init_query_tracker_state import get_latest_version, create_t
 
 from yt.common import YtError
 
-from yt_commands import wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows
+from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
+                         create_tablet_cell_bundle, sync_create_cells)
 
 import yt_error_codes
 
@@ -81,6 +82,9 @@ class TestMigration(YTEnvSetup):
 
     @authors("mpereskokova")
     def test_aco_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
         remove("//sys/query_tracker", recursive=True, force=True)
 
         client = query_tracker.env.create_native_client()
@@ -106,3 +110,41 @@ class TestMigration(YTEnvSetup):
         assert len(finished_queries_by_start_time) == 1
         assert finished_queries_by_start_time[0]["access_control_objects"] == ["test_aco"]
         assert "access_control_object" not in finished_queries_by_start_time[0]
+
+    @authors("mpereskokova")
+    def test_finished_queries_by_start_time_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+
+        client = query_tracker.env.create_native_client()
+        create_tables_required_version(client, 8)
+
+        insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"query_id": "test_query_id", "start_time": 1, "user": "user", "access_control_objects": ["aco1", "aco2"]}])
+        run_migration(client, 9)
+
+        queries_by_aco = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time] order by (access_control_object, minus_start_time, query_id) LIMIT 3"))
+        assert len(queries_by_aco) == 2
+
+        assert queries_by_aco[0]["query_id"] == "test_query_id"
+        assert queries_by_aco[0]["access_control_object"] == "aco1"
+        assert queries_by_aco[0]["minus_start_time"] == -1
+        assert "access_control_objects" not in queries_by_aco[0]
+        assert "start_time" not in queries_by_aco[0]
+
+        assert queries_by_aco[1]["query_id"] == "test_query_id"
+        assert queries_by_aco[1]["access_control_object"] == "aco2"
+        assert queries_by_aco[1]["minus_start_time"] == -1
+        assert "access_control_objects" not in queries_by_aco[1]
+        assert "start_time" not in queries_by_aco[1]
+
+        queries_by_user = list(select_rows("* from [//sys/query_tracker/finished_queries_by_user_and_start_time]"))
+        assert len(queries_by_user) == 1
+
+        assert queries_by_user[0]["user"] == "user"
+        assert queries_by_user[0]["minus_start_time"] == -1
+        assert "access_control_objects" not in queries_by_user[0]
+        assert "start_time" not in queries_by_user[0]
+
+        assert exists("//sys/query_tracker/finished_queries_by_start_time")

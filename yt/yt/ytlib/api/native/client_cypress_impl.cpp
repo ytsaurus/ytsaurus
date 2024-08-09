@@ -2039,7 +2039,7 @@ private:
                 row = WidenKey(row, keyColumnCount);
             }
 
-            return TKey::FromRowUnchecked(RowBuffer_->CaptureRow(MakeRange(row.Begin(), keyColumnCount)), keyColumnCount);
+            return TKey::FromRowUnchecked(RowBuffer_->CaptureRow(TRange(row.Begin(), keyColumnCount)), keyColumnCount);
         };
 
         return {prepareKey(minKeyRow), prepareKey(maxKeyRow)};

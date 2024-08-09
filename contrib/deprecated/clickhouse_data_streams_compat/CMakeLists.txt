@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-deprecated-clickhouse_data_streams_compat)
 
+
 target_include_directories(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-syncmap-unittests)
 
+
 target_compile_options(yt-yt-library-syncmap-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(yt-yt-library-syncmap-unittests PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-library-syncmap
+)
+
+target_allocator(yt-yt-library-syncmap-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-syncmap-unittests PRIVATE
@@ -46,6 +52,7 @@ target_link_options(yt-yt-library-syncmap-unittests PRIVATE
 target_sources(yt-yt-library-syncmap-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/syncmap/unittests/map_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   yt-yt-library-syncmap-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-syncmap-unittests)
 
 set_property(
   TEST
   yt-yt-library-syncmap-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-syncmap-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-library-syncmap-unittests)
-

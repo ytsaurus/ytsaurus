@@ -776,7 +776,7 @@ private:
 
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumnUsed) {
             return MakeFormattableView(
-                MakeRange(fields, fields + keyColumnUsed),
+                TRange(fields, fields + keyColumnUsed),
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
         };
 

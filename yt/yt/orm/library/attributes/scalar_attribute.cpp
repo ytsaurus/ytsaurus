@@ -135,12 +135,14 @@ TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClearVisitor final
-    : public TProtoVisitor<Message*>
+    : public TProtoVisitor<Message*, TClearVisitor>
 {
+    friend class TProtoVisitor<Message*, TClearVisitor>;
+
 protected:
     void VisitWholeMessage(
         Message* message,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             // Asterisk means clear all fields but keep the message present.
@@ -154,7 +156,7 @@ protected:
     void VisitWholeMapField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             // User supplied a useless trailing asterisk. Avoid quadratic deletion.
@@ -168,7 +170,7 @@ protected:
     void VisitWholeRepeatedField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             // User supplied a useless trailing asterisk. Avoid quadratic deletion.
@@ -183,7 +185,7 @@ protected:
         Message* message,
         const Descriptor* descriptor,
         TString name,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
 
@@ -199,7 +201,7 @@ protected:
             auto root = value
                 ? ConvertToNode(value)
                 : GetEphemeralNodeFactory()->CreateMap();
-            if (RemoveNodeByYPath(root, NYPath::TYPath{Tokenizer_.GetInput()})) {
+            if (RemoveNodeByYPath(root, NYPath::TYPath{GetTokenizerInput()})) {
                 value = ConvertToYsonString(root);
                 auto* item = unknownFields->mutable_field(index)->mutable_length_delimited();
                 *item = SerializeUnknownYsonFieldsItem(name, value.AsStringBuf());
@@ -213,7 +215,7 @@ protected:
     void VisitField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             auto* reflection = message->GetReflection();
@@ -233,7 +235,7 @@ protected:
         const FieldDescriptor* fieldDescriptor,
         Message* entryMessage,
         TString key,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             int index = LocateMapEntry(message, fieldDescriptor, entryMessage).Value();
@@ -253,7 +255,7 @@ protected:
         Message* message,
         const FieldDescriptor* fieldDescriptor,
         int index,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             DeleteRepeatedFieldEntry(message, fieldDescriptor, index);
@@ -280,8 +282,10 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSetVisitor final
-    : public TProtoVisitor<Message*>
+    : public TProtoVisitor<Message*, TSetVisitor>
 {
+    friend class TProtoVisitor<Message*, TSetVisitor>;
+
 public:
     TSetVisitor(
         const INodePtr& value,
@@ -302,7 +306,7 @@ protected:
     void VisitRegularMessage(
         Message* message,
         const Descriptor* descriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             message->Clear();
@@ -336,9 +340,9 @@ protected:
         Message* message,
         const Descriptor* descriptor,
         TString name,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
-        switch (Options_.UnknownYsonFieldModeResolver(CurrentPath_.GetPath())) {
+        switch (Options_.UnknownYsonFieldModeResolver(GetCurrentPath())) {
             case EUnknownYsonFieldsMode::Keep:
                 KeepUnrecognizedField(message, descriptor, name);
                 return;
@@ -390,7 +394,7 @@ protected:
     void VisitAttributeDictionary(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         Y_UNUSED(reason);
 
@@ -418,7 +422,7 @@ protected:
 
         SkipSlash();
 
-        TString key = Tokenizer_.GetLiteralValue();
+        TString key = GetLiteralValue();
         AdvanceOver(key);
 
         auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);
@@ -443,7 +447,7 @@ protected:
     void VisitMapField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             const auto* reflection = message->GetReflection();
@@ -453,7 +457,7 @@ protected:
                 for (const auto& [key, value] : SortedMapChildren()) {
                     auto checkpoint = CheckpointBranchedTraversal(key);
                     TemporarilySetCurrentValue(checkpoint, value);
-                    auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key);
+                    auto keyMessage = ValueOrThrow(MakeMapKeyMessage(fieldDescriptor, key));
                     // The key is obviously missing from the cleared map. This will populate the
                     // entry.
                     OnKeyError(
@@ -484,7 +488,7 @@ protected:
         std::unique_ptr<Message> keyMessage,
         TString key,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (PathComplete() || Recursive_) {
             const auto* reflection = message->GetReflection();
@@ -513,7 +517,7 @@ protected:
     void VisitRepeatedField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()) {
             const auto* reflection = message->GetReflection();
@@ -521,7 +525,7 @@ protected:
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
                 for (const auto& [index, value] : Enumerate(CurrentValue_->AsList()->GetChildren())) {
-                    auto checkpoint = CheckpointBranchedTraversal(int(index));
+                    auto checkpoint = CheckpointBranchedTraversal(index);
                     TemporarilySetCurrentValue(checkpoint, value);
                     // This is a bunch of insertions at the end of the array. Index points at the
                     // end.
@@ -546,7 +550,7 @@ protected:
         Message* message,
         const FieldDescriptor* fieldDescriptor,
         int index,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete() && fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
             ThrowOnError(
@@ -561,7 +565,7 @@ protected:
         Message* message,
         const FieldDescriptor* fieldDescriptor,
         int index,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete() || Recursive_) {
             if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
@@ -583,7 +587,7 @@ protected:
     void VisitSingularField(
         Message* message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete() || Recursive_) {
             if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
@@ -620,7 +624,7 @@ protected:
             try {
                 SyncYPathSet(
                     root,
-                    NYPath::TYPath{Tokenizer_.GetInput()},
+                    NYPath::TYPath{GetTokenizerInput()},
                     ConvertToYsonString(CurrentValue_),
                     Recursive_);
                 value = ConvertToYsonString(root);
@@ -658,8 +662,10 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TComparisonVisitor final
-    : public TProtoVisitor<const std::pair<const Message*, const Message*>&>
+    : public TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>
 {
+    friend class TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>;
+
 public:
     TComparisonVisitor()
     {
@@ -679,7 +685,7 @@ protected:
     void OnDescriptorError(
         const std::pair<const Message*, const Message*>& message,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (error.GetCode() == EErrorCode::Empty) {
             // Both messages are null.
@@ -695,7 +701,7 @@ protected:
         std::unique_ptr<NProtoBuf::Message> keyMessage,
         TString key,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (error.GetCode() == EErrorCode::MissingKey) {
             // Both fields are equally missing.
@@ -720,7 +726,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         int index,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()
             && fieldDescriptor->type() != NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
@@ -745,7 +751,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (error.GetCode() == EErrorCode::MismatchingSize) {
             if (reason == EVisitReason::Path) {
@@ -779,9 +785,9 @@ protected:
                 {
                     Throw(EErrorCode::MalformedPath,
                         "Unexpected relative path specifier %v",
-                        Tokenizer_.GetToken());
+                        GetToken());
                 }
-                Tokenizer_.Advance();
+                AdvanceOver(ui64(indexParseResults.first.Index));
 
                 if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
                     auto next = TTraits::Combine(
@@ -821,7 +827,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (error.GetCode() == EErrorCode::OutOfBounds) {
             // Equally misplaced path. Would have been a size error if it were a mismatch.
@@ -834,7 +840,7 @@ protected:
     void VisitPresentSingularField(
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         if (PathComplete()
             && fieldDescriptor->type() != NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
@@ -856,7 +862,7 @@ protected:
     void VisitMissingSingularField(
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason) override
+        EVisitReason reason)
     {
         Y_UNUSED(message);
         Y_UNUSED(fieldDescriptor);
@@ -869,7 +875,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         EVisitReason reason,
-        TError error) override
+        TError error)
     {
         if (error.GetCode() == EErrorCode::MismatchingPresence) {
             if (!PathComplete()

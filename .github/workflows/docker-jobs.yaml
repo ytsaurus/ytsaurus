@@ -87,7 +87,7 @@ jobs:
           docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
       - name: Query tracker image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
-        if: ${{ inputs.publish-query-tracker && matrix.build-type == 'relwithdebinfo' }}
+        if: ${{ inputs.publish-query-tracker }}
         run: |
           output_path=../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path

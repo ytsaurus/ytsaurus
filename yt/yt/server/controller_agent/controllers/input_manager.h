@@ -45,6 +45,7 @@ struct IInputManagerHost
 
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const = 0;
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
+    virtual IInvokerPoolPtr GetCancelableInvokerPool() const = 0;
 
     virtual IInvokerPtr GetChunkScraperInvoker() const = 0;
 

@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -370,8 +370,28 @@ func TestAliasPrefixMatching(t *testing.T) {
 // executable is `kubectl-plugin`, but we run it as `kubectl plugin`. The help
 // text should reflect the way we run the command.
 func TestPlugin(t *testing.T) {
+	cmd := &Command{
+		Use:  "kubectl-plugin",
+		Args: NoArgs,
+		Annotations: map[string]string{
+			CommandDisplayNameAnnotation: "kubectl plugin",
+		},
+		Run: emptyRun,
+	}
+
+	cmdHelp, err := executeCommand(cmd, "-h")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	checkStringContains(t, cmdHelp, "kubectl plugin [flags]")
+	checkStringContains(t, cmdHelp, "help for kubectl plugin")
+}
+
+// TestPlugin checks usage as plugin with sub commands.
+func TestPluginWithSubCommands(t *testing.T) {
 	rootCmd := &Command{
-		Use:  "plugin",
+		Use:  "kubectl-plugin",
 		Args: NoArgs,
 		Annotations: map[string]string{
 			CommandDisplayNameAnnotation: "kubectl plugin",
@@ -387,6 +407,8 @@ func TestPlugin(t *testing.T) {
 	}
 
 	checkStringContains(t, rootHelp, "kubectl plugin [command]")
+	checkStringContains(t, rootHelp, "help for kubectl plugin")
+	checkStringContains(t, rootHelp, "kubectl plugin [command] --help")
 
 	childHelp, err := executeCommand(rootCmd, "sub", "-h")
 	if err != nil {
@@ -394,6 +416,15 @@ func TestPlugin(t *testing.T) {
 	}
 
 	checkStringContains(t, childHelp, "kubectl plugin sub [flags]")
+	checkStringContains(t, childHelp, "help for sub")
+
+	helpHelp, err := executeCommand(rootCmd, "help", "-h")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	checkStringContains(t, helpHelp, "kubectl plugin help [path to command]")
+	checkStringContains(t, helpHelp, "kubectl plugin help [command]")
 }
 
 // TestChildSameName checks the correct behaviour of cobra in cases,
@@ -2061,12 +2092,12 @@ func TestCommandPrintRedirection(t *testing.T) {
 		t.Error(err)
 	}
 
-	gotErrBytes, err := ioutil.ReadAll(errBuff)
+	gotErrBytes, err := io.ReadAll(errBuff)
 	if err != nil {
 		t.Error(err)
 	}
 
-	gotOutBytes, err := ioutil.ReadAll(outBuff)
+	gotOutBytes, err := io.ReadAll(outBuff)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2746,7 +2777,7 @@ func TestFind(t *testing.T) {
 
 func TestUnknownFlagShouldReturnSameErrorRegardlessOfArgPosition(t *testing.T) {
 	testCases := [][]string{
-		//{"--unknown", "--namespace", "foo", "child", "--bar"}, // FIXME: This test case fails, returning the error `unknown command "foo" for "root"` instead of the expected error `unknown flag: --unknown`
+		// {"--unknown", "--namespace", "foo", "child", "--bar"}, // FIXME: This test case fails, returning the error `unknown command "foo" for "root"` instead of the expected error `unknown flag: --unknown`
 		{"--namespace", "foo", "--unknown", "child", "--bar"},
 		{"--namespace", "foo", "child", "--unknown", "--bar"},
 		{"--namespace", "foo", "child", "--bar", "--unknown"},

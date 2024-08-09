@@ -164,13 +164,13 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
 
         SplitRangesByTablets(
             ranges,
-            MakeRange(tableInfo->Tablets),
+            TRange(tableInfo->Tablets),
             tableInfo->LowerCapBound,
             tableInfo->UpperCapBound,
             [&] (auto shardIt, auto rangesIt, auto rangesItEnd) {
                 if (tableInfo->IsOrdered()) {
                     // Crop ranges for ordered table.
-                    auto nextPivotKey = shardIt != MakeRange(tableInfo->Tablets).end()
+                    auto nextPivotKey = shardIt != TRange(tableInfo->Tablets).end()
                         ? GetPivotKey(*shardIt)
                         : tableInfo->UpperCapBound;
 
@@ -188,7 +188,7 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
                         ranges.GetHolder());
                 } else {
                     makeSubsource(shardIt)->Ranges = MakeSharedRange(
-                        MakeRange(rangesIt, rangesItEnd),
+                        TRange(rangesIt, rangesItEnd),
                         ranges.GetHolder());
                 }
             });
@@ -202,12 +202,12 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
             keys,
             keyWidth,
             fullKeySize,
-            MakeRange(tableInfo->Tablets),
+            TRange(tableInfo->Tablets),
             tableInfo->LowerCapBound,
             tableInfo->UpperCapBound,
             [&] (auto shardIt, auto keysIt, auto keysItEnd) {
                 makeSubsource(shardIt)->Keys = MakeSharedRange(
-                    MakeRange(keysIt, keysItEnd),
+                    TRange(keysIt, keysItEnd),
                     keys.GetHolder());
             });
     }
@@ -334,7 +334,7 @@ public:
             auto flags = MostArchaicFeatureFlags();
             if (response->has_feature_flags()) {
                 FromProto(&flags, response->feature_flags());
-                auto& Logger = this_->Logger;
+                const auto& Logger = this_->Logger;
                 YT_LOG_DEBUG("Got response feature flags (Flags: %v)",
                     ToString(flags));
             }

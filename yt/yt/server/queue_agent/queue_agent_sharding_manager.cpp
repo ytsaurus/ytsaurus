@@ -9,13 +9,18 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
+#include <atomic>
+
 namespace NYT::NQueueAgent {
 
 using namespace NAlertManager;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
 using namespace NQueueClient;
@@ -30,30 +35,39 @@ static constexpr auto& Logger = QueueAgentShardingManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const TString BannedQueueAgentInstanceAttributeName = "banned_queue_agent_instance";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueAgentShardingManager
     : public IQueueAgentShardingManager
 {
 public:
     TQueueAgentShardingManager(
         IInvokerPtr controlInvoker,
+        IClientPtr client,
         IAlertCollectorPtr alertCollector,
         TDynamicStatePtr dynamicState,
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
-        TString queueAgentStage)
+        TString queueAgentStage,
+        TYPath dynamicStateRoot)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
+        , Client_(std::move(client))
         , ControlInvoker_(std::move(controlInvoker))
         , AlertCollector_(std::move(alertCollector))
         , DynamicState_(std::move(dynamicState))
         , MemberClient_(std::move(memberClient))
         , DiscoveryClient_(std::move(discoveryClient))
         , QueueAgentStage_(std::move(queueAgentStage))
+        , DynamicStateRoot_(std::move(dynamicStateRoot))
         , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TQueueAgentShardingManager::Pass, MakeWeak(this)),
-            DynamicConfig_->PassPeriod))
+            DynamicConfig_.Acquire()->PassPeriod))
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
+        , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
     { }
 
     IYPathServicePtr GetOrchidService() const override
@@ -72,9 +86,11 @@ public:
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-        DynamicConfig_ = newConfig;
+        DynamicConfig_.Exchange(newConfig);
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
+
+        SyncBannedQueueAgentInstancesFrequency_.exchange(CalculateSyncBannedQueueAgentInstancesFrequency(*newConfig));
 
         YT_LOG_DEBUG(
             "Updated queue agent manager dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -83,13 +99,16 @@ public:
     }
 
 private:
-    TQueueAgentShardingManagerDynamicConfigPtr DynamicConfig_;
+    using TQueueAgentShardingManagerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueAgentShardingManagerDynamicConfig>;
+    TQueueAgentShardingManagerDynamicConfigAtomicPtr DynamicConfig_;
+    IClientPtr Client_;
     const IInvokerPtr ControlInvoker_;
     const IAlertCollectorPtr AlertCollector_;
     const TDynamicStatePtr DynamicState_;
     const IMemberClientPtr MemberClient_;
     const IDiscoveryClientPtr DiscoveryClient_;
     const TString QueueAgentStage_;
+    const TYPath DynamicStateRoot_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
@@ -100,6 +119,9 @@ private:
     TInstant PassInstant_ = TInstant::Zero();
     //! Index of the current pass iteration.
     i64 PassIndex_ = -1;
+    //! Cached set of banned queue agent instances.
+    THashSet<TMemberId> BannedQueueAgentInstances_;
+    std::atomic<i64> SyncBannedQueueAgentInstancesFrequency_ = 0;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
@@ -164,6 +186,48 @@ private:
         return it->Id;
     }
 
+    bool ShouldSyncBannedQueueAgentInstances() const
+    {
+        auto frequency = SyncBannedQueueAgentInstancesFrequency_.load();
+        if (frequency <= 0) {
+            // NB(apachee): Sync every pass, if SyncBannedInstancesPeriod is too small.
+            return true;
+        }
+
+        return PassIndex_ % frequency == 0;
+    }
+
+    void SyncBannedQueueAgentInstances()
+    {
+        BannedQueueAgentInstances_.clear();
+
+        YT_LOG_DEBUG("Synchronization of banned queue agents started");
+        auto logFinally = Finally([&] {
+            YT_LOG_DEBUG("Synchronization of banned queue agents finished (BannedInstances: %v)", BannedQueueAgentInstances_);
+        });
+
+        auto instancesPath = YPathJoin(DynamicStateRoot_, "instances");
+        auto options = TListNodeOptions{
+            .Attributes = TAttributeFilter({BannedQueueAgentInstanceAttributeName}),
+        };
+
+        auto yson = WaitFor(Client_->ListNode(instancesPath, options))
+            .ValueOrThrow();
+        auto instances = ConvertTo<IListNodePtr>(yson);
+
+        for (const auto& instance : instances->GetChildren()) {
+            YT_VERIFY(instance->GetType() == ENodeType::String);
+            const auto& attributes = instance->Attributes();
+            try {
+                if (attributes.Get<bool>(BannedQueueAgentInstanceAttributeName)) {
+                    BannedQueueAgentInstances_.insert(instance->GetValue<TString>());
+                }
+            } catch (std::exception& ex) {
+                // NB(apachee): Ignore if attribute is missing, or if its value is not bool.
+            }
+        }
+    }
+
     void GuardedPass()
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
@@ -188,8 +252,30 @@ private:
             THROW_ERROR_EXCEPTION("No queue agents in discovery");
         }
 
-        if (queueAgents[0].Id != MemberClient_->GetId()) {
-            YT_LOG_DEBUG("Queue agent is not leading, skipping pass (LeadingHost: %v)", queueAgents[0].Id);
+        if (ShouldSyncBannedQueueAgentInstances()) {
+            SyncBannedQueueAgentInstances();
+        } else {
+            YT_LOG_DEBUG("Skipped the synchronization of banned queue agent instances");
+        }
+
+        // Filter out banned queue agent instances.
+
+        std::vector<TMemberInfo> filteredQueueAgents;
+        filteredQueueAgents.reserve(queueAgents.size());
+
+        for (auto& queueAgent : queueAgents) {
+            if (BannedQueueAgentInstances_.contains(queueAgent.Id)) {
+                continue;
+            }
+            filteredQueueAgents.push_back(std::move(queueAgent));
+        }
+
+        if (filteredQueueAgents.empty()) {
+            THROW_ERROR_EXCEPTION("All active instances are banned, leading host can't be chosen, skipping pass");
+        }
+
+        if (filteredQueueAgents[0].Id != MemberClient_->GetId()) {
+            YT_LOG_DEBUG("Queue agent is not leading, skipping pass (LeadingHost: %v)", filteredQueueAgents[0].Id);
             Active_ = false;
             return;
         } else {
@@ -238,7 +324,7 @@ private:
         std::vector<TQueueAgentObjectMappingTableRow> keysToDelete;
 
         for (const auto& object : allObjects) {
-            auto responsibleQueueAgentHost = PickHost(object, queueAgents);
+            auto responsibleQueueAgentHost = PickHost(object, filteredQueueAgents);
 
             auto currentMappingIt = currentMapping.find(object);
             // We don't want to modify rows for which the host hasn't changed.
@@ -278,23 +364,35 @@ private:
             rowsToModify.size(),
             keysToDelete.size());
     }
+
+    i64 CalculateSyncBannedQueueAgentInstancesFrequency(const TQueueAgentShardingManagerDynamicConfig& dynamicConfig) const
+    {
+        auto syncBannedInstancesPeriodValue = dynamicConfig.SyncBannedInstancesPeriod.GetValue();
+        auto passPeriodValue = dynamicConfig.PassPeriod.GetValue();
+        auto frequency = (syncBannedInstancesPeriodValue + passPeriodValue - 1) / passPeriodValue;
+        return frequency;
+    }
 };
 
 IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IInvokerPtr controlInvoker,
+    IClientPtr client,
     IAlertCollectorPtr alertCollector,
     TDynamicStatePtr dynamicState,
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
-    TString queueAgentStage)
+    TString queueAgentStage,
+    TYPath dynamicStateRoot)
 {
     return New<TQueueAgentShardingManager>(
         std::move(controlInvoker),
+        std::move(client),
         std::move(alertCollector),
         std::move(dynamicState),
         std::move(memberClient),
         std::move(discoveryClient),
-        std::move(queueAgentStage));
+        std::move(queueAgentStage),
+        std::move(dynamicStateRoot));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

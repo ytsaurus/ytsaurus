@@ -120,7 +120,7 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
             });
         }
     } else {
-        auto indexes = MakeRange(columnFilter.GetIndexes());
+        auto indexes = TRange(columnFilter.GetIndexes());
         valueIdMapping.reserve(std::ssize(indexes));
 
         for (auto index : indexes) {

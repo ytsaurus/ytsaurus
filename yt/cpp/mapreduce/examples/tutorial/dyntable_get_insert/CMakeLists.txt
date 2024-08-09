@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dyntable_get_insert)
 
+
 target_compile_options(dyntable_get_insert PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(dyntable_get_insert PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
   cpp-mapreduce-util
+)
+
+target_allocator(dyntable_get_insert
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(dyntable_get_insert PRIVATE
@@ -45,10 +51,5 @@ target_sources(dyntable_get_insert PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/dyntable_get_insert/main.cpp
 )
 
-target_allocator(dyntable_get_insert
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(dyntable_get_insert)
-

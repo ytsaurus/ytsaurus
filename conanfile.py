@@ -10,6 +10,7 @@ class App(ConanFile):
     requires = "linux-headers-generic/6.5.9"
 
     tool_requires = "bison/3.8.2", "m4/1.4.19", "ragel/6.10", "yasm/1.3.0"
+
     generators = "cmake_find_package", "cmake_paths"
 
     def imports(self):

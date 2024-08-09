@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-rapidjson INTERFACE)
 
+
 target_link_libraries(contrib-libs-rapidjson INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

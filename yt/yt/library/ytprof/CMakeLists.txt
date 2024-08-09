@@ -13,12 +13,14 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(allocation_tag_profiler)
+
 add_subdirectory(api)
-add_subdirectory(http)
 add_subdirectory(proto)
+add_subdirectory(http)
+add_subdirectory(allocation_tag_profiler)
 
 add_library(yt-library-ytprof)
+
 
 target_compile_options(yt-library-ytprof PRIVATE
   -Wdeprecated-this-capture

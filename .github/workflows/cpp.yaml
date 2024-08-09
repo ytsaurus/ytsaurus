@@ -139,7 +139,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: false
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -152,7 +152,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: false
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:

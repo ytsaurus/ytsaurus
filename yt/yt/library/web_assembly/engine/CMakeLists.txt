@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-web_assembly-engine)
 
+
 target_compile_options(library-web_assembly-engine PRIVATE
   -DWASM_C_API=WAVM_API
   -DWAVM_API=
@@ -40,8 +41,8 @@ target_sources(library-web_assembly-engine PRIVATE
 
 
 add_global_library_for(library-web_assembly-engine.global
-  library-web_assembly-engine
-)
+  library-web_assembly-engine)
+
 
 target_compile_options(library-web_assembly-engine.global PRIVATE
   -DWASM_C_API=WAVM_API

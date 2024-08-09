@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-profiling-perf)
 
+
 target_compile_options(library-profiling-perf PRIVATE
   -Wdeprecated-this-capture
 )

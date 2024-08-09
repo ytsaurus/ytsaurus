@@ -28,21 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(parallel_io-ut-proto)
+
 
 target_compile_options(parallel_io-ut-proto PRIVATE
   -Wdeprecated-this-capture
@@ -66,6 +53,12 @@ target_sources(parallel_io-ut-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/proto/test_message.pb.h
 )
 
+
+target_proto_outs(parallel_io-ut-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(parallel_io-ut-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -75,9 +68,3 @@ target_proto_addincls(parallel_io-ut-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(parallel_io-ut-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

@@ -13,6 +13,7 @@ SRCS(
     config.cpp
     connection.cpp
     dynamic_config_manager.cpp
+    helpers.cpp
     program.cpp
     server.cpp
 )

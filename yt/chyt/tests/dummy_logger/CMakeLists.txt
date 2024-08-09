@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dummy-logger)
 
+
 target_compile_options(dummy-logger PRIVATE
   -Wdeprecated-this-capture
 )
@@ -25,6 +26,10 @@ target_link_libraries(dummy-logger PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
+)
+
+target_allocator(dummy-logger
+  cpp-ytalloc-impl
 )
 
 target_link_options(dummy-logger PRIVATE
@@ -42,9 +47,5 @@ target_sources(dummy-logger PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
 )
 
-target_allocator(dummy-logger
-  cpp-ytalloc-impl
-)
 
 vcs_info(dummy-logger)
-

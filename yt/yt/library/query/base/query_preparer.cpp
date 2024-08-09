@@ -4,7 +4,6 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
-#include "parser.h"
 #include "query_helpers.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>

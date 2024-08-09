@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-string_utils-url)
 
+
 target_link_libraries(cpp-string_utils-url PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,7 +24,7 @@ target_link_libraries(cpp-string_utils-url PUBLIC
 )
 
 target_sources(cpp-string_utils-url PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/string_utils/url/url.h
   ${PROJECT_SOURCE_DIR}/library/cpp/string_utils/url/url.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/string_utils/url/url.h
 )
 

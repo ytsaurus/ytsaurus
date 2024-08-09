@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(small)
 
 add_library(library-cpp-getopt INTERFACE)
+
 
 target_link_libraries(library-cpp-getopt INTERFACE
   linux-headers-generic::linux-headers-generic
@@ -28,8 +30,8 @@ target_link_libraries(library-cpp-getopt INTERFACE
 
 
 add_global_library_for(library-cpp-getopt.global
-  library-cpp-getopt
-)
+  library-cpp-getopt)
+
 
 target_link_libraries(library-cpp-getopt.global PUBLIC
   linux-headers-generic::linux-headers-generic

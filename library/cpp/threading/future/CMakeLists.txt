@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(subscription)
 
 add_library(cpp-threading-future)
+
 
 target_link_libraries(cpp-threading-future PUBLIC
   linux-headers-generic::linux-headers-generic

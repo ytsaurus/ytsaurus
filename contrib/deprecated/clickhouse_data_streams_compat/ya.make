@@ -4,6 +4,10 @@ LICENSE(Apache-2.0)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
+VERSION(21.10.6.2)
+
+ORIGINAL_SOURCE(https://github.com/ClickHouse/ClickHouse/archive/59536b3bd11f81eca0cff44d46f3a37457bd8c55.tar.gz)
+
 PEERDIR(
     contrib/clickhouse/src
 )

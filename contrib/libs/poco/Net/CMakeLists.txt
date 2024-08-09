@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-poco-Net)
 
+
 target_compile_options(libs-poco-Net PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14

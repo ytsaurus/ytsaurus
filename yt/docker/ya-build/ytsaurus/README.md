@@ -3,7 +3,7 @@
 This configuration allows building the core ytsaurus image from source.
 The bundled python packages are also built from source.
 
-Example: `ytsaurus/ya package package.json --docker --docker-registry my-registry.com`
+Example: `ytsaurus/ya package package.json --docker-registry my-registry.com`
 
 The `--docker-registry` parameter only impacts the resulting image name, which will be `my-registry.com/ytsaurus:local-<commit-SHA>` in this case.
 
@@ -20,4 +20,4 @@ If you want to use another python version for building your image, you can overr
 Currently, [multi-arch](https://wiki.debian.org/Multiarch/Implementation) systems and `USE_LOCAL_PYTHON=yes` in `ya make` do not work together well.
 In order for the build to work, you need to provide python-specific includes (e.g. `/usr/include/<arch-triple>/python3.x`) as a separate include-dir in such a way, that no other headers will clash.
 A simple way to do this is to copy `/usr/include/<arch-triple>/python3.x` into `/my-temp-dir/<arch-triple>/python3.x` and run the `ya package` command with `-DCFLAGS="-I/my/temp-dir`.
-
+Another approach is to create a symlink from `/usr/include/python3.x/<arch-triple>/python3.x` to `/usr/include/<arch-triple>/python3.x`.

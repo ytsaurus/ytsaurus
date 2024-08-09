@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(moody_camel_skew)
 
+
 target_compile_options(moody_camel_skew PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(moody_camel_skew PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(moody_camel_skew
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(moody_camel_skew PRIVATE
@@ -44,10 +50,5 @@ target_sources(moody_camel_skew PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/moody_camel_skew/main.cpp
 )
 
-target_allocator(moody_camel_skew
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(moody_camel_skew)
-

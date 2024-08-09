@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 namespace NYT::NLogTailer {
 
 using namespace NApi::NNative;
@@ -64,10 +66,10 @@ void TBootstrap::Run()
 
 void TBootstrap::SigintHandler()
 {
-    ++SigintCounter_;
-    YT_LOG_INFO("Received SIGINT (SigintCount: %v)", static_cast<int>(SigintCounter_));
-    if (SigintCounter_ > 1) {
-        Abort(InterruptionExitCode);
+    auto counter = ++SigintCounter_;
+    YT_LOG_INFO("Received SIGINT (SigintCount: %v)", counter);
+    if (counter > 1) {
+        Abort(ToUnderlying(EProcessExitCode::OK));
     }
     YT_LOG_INFO("Ignoring first SIGINT");
 }
@@ -97,7 +99,7 @@ void TBootstrap::Abort(int exitCode)
     NLogging::TLogManager::Get()->Shutdown();
     MonitoringManager_->Stop();
     HttpServer_->Stop();
-    _exit(exitCode);
+    AbortProcess(exitCode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

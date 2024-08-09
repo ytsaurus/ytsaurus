@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(benchmark_bus)
 
+
 target_link_libraries(benchmark_bus PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,10 @@ target_link_libraries(benchmark_bus PUBLIC
   yt-yt-core
   cpp-yt-phdr_cache
   cpp-getopt-small
+)
+
+target_allocator(benchmark_bus
+  cpp-ytalloc-impl
 )
 
 target_link_options(benchmark_bus PRIVATE
@@ -42,9 +47,5 @@ target_sources(benchmark_bus PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/bus/main.cpp
 )
 
-target_allocator(benchmark_bus
-  cpp-ytalloc-impl
-)
 
 vcs_info(benchmark_bus)
-

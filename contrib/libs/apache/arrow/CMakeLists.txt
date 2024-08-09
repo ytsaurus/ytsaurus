@@ -21,42 +21,8 @@ get_built_tool_path(
   flatc
 )
 
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
 add_library(libs-apache-arrow)
+
 
 target_compile_options(libs-apache-arrow PUBLIC
   -DARROW_STATIC
@@ -119,24 +85,6 @@ target_link_libraries(libs-apache-arrow PUBLIC
 )
 
 target_sources(libs-apache-arrow PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.bfbs
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/array/array_base.cc
@@ -343,7 +291,26 @@ target_sources(libs-apache-arrow PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.cpp
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.bfbs
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.bfbs
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.bfbs
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.bfbs
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.bfbs
+  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.bfbs
 )
+
 
 target_fbs_source(libs-apache-arrow
   PRIVATE
@@ -404,4 +371,3 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
-

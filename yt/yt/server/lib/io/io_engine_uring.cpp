@@ -1070,7 +1070,7 @@ private:
     {
         int count = 0;
         {
-            TRequestStatsGuard statsGuard(Sensors_->IoSubmitSensors);
+            TRequestStatsGuard statsGuard(Sensors_->IOSubmitSensors);
             count = Uring_.Submit();
         }
         if (count > 0) {

@@ -141,7 +141,7 @@ private:
                 : startSlotIndexes;
 
             auto chunkIndexBlock = BuildChunkIndexBlock(
-                MakeRange(
+                TRange(
                     Entries_.begin() + entryIndex,
                     Entries_.begin() + nextEntryIndex),
                 startSlotIndexesSlice,

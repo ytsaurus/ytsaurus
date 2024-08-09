@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(yt-client-cache-proto)
 
+
 target_include_directories(yt-client-cache-proto PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -50,6 +51,12 @@ target_sources(yt-client-cache-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/cache/proto/config.pb.h
 )
 
+
+target_proto_outs(yt-client-cache-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(yt-client-cache-proto
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -61,9 +68,3 @@ target_proto_addincls(yt-client-cache-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-client-cache-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

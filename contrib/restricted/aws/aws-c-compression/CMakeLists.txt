@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-c-compression)
 
+
 target_compile_options(restricted-aws-aws-c-compression PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_COMPRESSION_USE_IMPORT_EXPORT

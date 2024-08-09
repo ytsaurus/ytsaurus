@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(library-cpp-logger)
 
+
 target_link_libraries(library-cpp-logger PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -33,10 +34,6 @@ target_link_libraries(library-cpp-logger PUBLIC
 )
 
 target_sources(library-cpp-logger PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/logger/all.h
-  ${PROJECT_SOURCE_DIR}/library/cpp/logger/priority.h
-  ${PROJECT_SOURCE_DIR}/library/cpp/logger/record.h
-  ${PROJECT_SOURCE_DIR}/library/cpp/logger/reopen.h
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/backend.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/backend_creator.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/composite.cpp
@@ -52,7 +49,12 @@ target_sources(library-cpp-logger PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/system.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/thread.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/thread_creator.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/logger/all.h
+  ${PROJECT_SOURCE_DIR}/library/cpp/logger/priority.h
+  ${PROJECT_SOURCE_DIR}/library/cpp/logger/record.h
+  ${PROJECT_SOURCE_DIR}/library/cpp/logger/reopen.h
 )
+
 
 generate_enum_serilization(library-cpp-logger
   ${PROJECT_SOURCE_DIR}/library/cpp/logger/priority.h
@@ -60,10 +62,9 @@ generate_enum_serilization(library-cpp-logger
   library/cpp/logger/priority.h
 )
 
-
 add_global_library_for(library-cpp-logger.global
-  library-cpp-logger
-)
+  library-cpp-logger)
+
 
 target_link_libraries(library-cpp-logger.global PUBLIC
   linux-headers-generic::linux-headers-generic

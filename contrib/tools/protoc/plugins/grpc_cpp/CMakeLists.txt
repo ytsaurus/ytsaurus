@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(grpc_cpp)
 
+
 target_compile_options(grpc_cpp PRIVATE
   -DGRPC_USE_ABSL=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
@@ -34,6 +35,11 @@ target_link_libraries(grpc_cpp PUBLIC
   src-compiler-grpc_plugin_support
 )
 
+target_allocator(grpc_cpp
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
+)
+
 target_link_options(grpc_cpp PRIVATE
   -ldl
   -lrt
@@ -49,10 +55,5 @@ target_sources(grpc_cpp PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/cpp_plugin.cc
 )
 
-target_allocator(grpc_cpp
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(grpc_cpp)
-

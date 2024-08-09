@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(core-service_discovery-yp)
 
+
 target_compile_options(core-service_discovery-yp PRIVATE
   -Wdeprecated-this-capture
 )

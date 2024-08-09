@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dns_test)
 
+
 target_compile_options(dns_test PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(dns_test PUBLIC
   yt-yt-ytlib
   library-cpp-getopt
   cpp-yt-misc
+)
+
+target_allocator(dns_test
+  cpp-ytalloc-impl
 )
 
 target_link_options(dns_test PRIVATE
@@ -47,9 +52,5 @@ target_sources(dns_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dns_test/main.cpp
 )
 
-target_allocator(dns_test
-  cpp-ytalloc-impl
-)
 
 vcs_info(dns_test)
-

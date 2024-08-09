@@ -61,6 +61,7 @@ DEFINE_REFCOUNTED_TYPE(IReplicationLogParser)
 
 IReplicationLogParserPtr CreateReplicationLogParser(
     NTableClient::TTableSchemaPtr tableSchema,
+    NTableClient::TTableSchemaPtr physicalSchema,
     TTableMountConfigPtr mountConfig,
     EWorkloadCategory workloadCategory,
     NLogging::TLogger logger);

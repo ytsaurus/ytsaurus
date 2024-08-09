@@ -5,7 +5,7 @@ from yt_commands import (
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
-    sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id,
+    sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id, generate_uuid,
     set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config)
 
 from yt.common import YtError
@@ -688,12 +688,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             },
         })
 
-        table_id = 0
-
         def check(min_data_versions, max_data_versions, max_obsolete_timestamp_ratio):
-            nonlocal table_id
-            table_path = f"//tmp/t{table_id}"
-            table_id += 1
+            table_path = f"//tmp/t{generate_uuid()}"
 
             chunk_ids_path = f"{table_path}/@chunk_ids"
 
@@ -709,11 +705,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     },
                 },
                 compression_codec="none",
+                dynamic_store_auto_flush_period=yson.YsonEntity(),
             )
+
             sync_mount_table(table_path)
             for _ in range(10):
                 insert_rows(table_path, [{"key": 1, "value": "v"}])
-
             sync_flush_table(table_path)
 
             wait(lambda: get(chunk_ids_path))

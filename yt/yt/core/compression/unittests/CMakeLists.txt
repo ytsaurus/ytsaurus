@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-compression)
 
+
 target_compile_options(unittester-core-compression PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-core-compression PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-compression
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-compression PRIVATE
@@ -49,6 +54,7 @@ target_sources(unittester-core-compression PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/unittests/stream_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-core-compression
@@ -68,20 +74,15 @@ set_property(
   TEST
   unittester-core-compression
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-compression)
 
 set_property(
   TEST
   unittester-core-compression
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-compression
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-compression)
-

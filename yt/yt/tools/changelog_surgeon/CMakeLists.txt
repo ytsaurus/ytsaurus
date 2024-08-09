@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(changelog_surgeon)
 
+
 target_link_libraries(changelog_surgeon PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,6 +27,10 @@ target_link_libraries(changelog_surgeon PUBLIC
   server-lib-io
   server-lib-hydra
   cpp-getopt-small
+)
+
+target_allocator(changelog_surgeon
+  cpp-ytalloc-impl
 )
 
 target_link_options(changelog_surgeon PRIVATE
@@ -44,9 +49,5 @@ target_sources(changelog_surgeon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/changelog_surgeon/main.cpp
 )
 
-target_allocator(changelog_surgeon
-  cpp-ytalloc-impl
-)
 
 vcs_info(changelog_surgeon)
-

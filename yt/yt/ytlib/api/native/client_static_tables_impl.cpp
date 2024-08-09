@@ -37,7 +37,15 @@ TFuture<ITableReaderPtr> TClient::CreateTableReader(
     const TRichYPath& path,
     const TTableReaderOptions& options)
 {
-    return NNative::CreateTableReader(this, path, options, New<TNameTable>());
+    return NNative::CreateTableReader(
+        this,
+        path,
+        options,
+        New<TNameTable>(),
+        /*columnFilter*/ {},
+        /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+        /*rpsThrottler*/ GetUnlimitedThrottler(),
+        ReadTableMemoryTracker_);
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(

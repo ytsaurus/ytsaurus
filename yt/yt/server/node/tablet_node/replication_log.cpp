@@ -33,16 +33,14 @@ TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex)
         rowIndex);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, const std::optional<int>& timestampColumnIdOptional)
+TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, int timestampColumnId)
 {
-    auto timetampColumnIndex = timestampColumnIdOptional.value_or(0) + 2;
-    YT_ASSERT(logRow[timetampColumnIndex].Type == EValueType::Uint64);
-    return logRow[timetampColumnIndex].Data.Uint64;
+    const auto& value = logRow[timestampColumnId + 2];
+    YT_VERIFY(value.Type == EValueType::Uint64);
+    return value.Data.Uint64;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedRow BuildOrderedLogRow(
     TUnversionedRow row,
@@ -159,8 +157,6 @@ TUnversionedRow BuildSortedLogRow(
     return logRow;
 }
 
-} // namespace NDetail
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedRow BuildLogRow(
@@ -173,9 +169,9 @@ TUnversionedRow BuildLogRow(
     rowBuilder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
 
     if (tableSchema->IsSorted()) {
-        return NDetail::BuildSortedLogRow(row, changeType, tableSchema, rowBuilder);
+        return BuildSortedLogRow(row, changeType, tableSchema, rowBuilder);
     } else {
-        return NDetail::BuildOrderedLogRow(row, changeType, rowBuilder);
+        return BuildOrderedLogRow(row, changeType, rowBuilder);
     }
 }
 
@@ -188,7 +184,7 @@ TUnversionedRow BuildLogRow(
 
     YT_VERIFY(tableSchema->IsSorted());
 
-    return NDetail::BuildSortedLogRow(row, tableSchema, rowBuilder);
+    return BuildSortedLogRow(row, tableSchema, rowBuilder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,6 +195,7 @@ class TReplicationLogParser
 public:
     TReplicationLogParser(
         TTableSchemaPtr tableSchema,
+        TTableSchemaPtr physicalSchema,
         TTableMountConfigPtr mountConfig,
         EWorkloadCategory workloadCategory,
         NLogging::TLogger logger)
@@ -209,6 +206,9 @@ public:
             tableSchema->HasTimestampColumn()
                 ? std::make_optional(tableSchema->GetColumnIndex(TimestampColumnName))
                 : std::nullopt)
+        , PhysicalSchemaTimestampColumnId_(physicalSchema->HasTimestampColumn()
+                ? physicalSchema->GetColumnIndex(TimestampColumnName)
+                : 0)
         , WorkloadCategory_(workloadCategory)
         , Logger(std::move(logger))
     { }
@@ -229,7 +229,7 @@ public:
         bool isVersioned) override
     {
         *rowIndex = GetLogRowIndex(logRow);
-        *timestamp = NDetail::GetLogRowTimestamp(logRow, TimestampColumnId_);
+        *timestamp = GetLogRowTimestamp(logRow, PhysicalSchemaTimestampColumnId_);
         if (IsSorted_) {
             if (isVersioned) {
                 ParseSortedLogRowWithTimestamps(
@@ -323,6 +323,7 @@ private:
     const bool PreserveTabletIndex_;
     const int TabletIndexColumnId_;
     const std::optional<int> TimestampColumnId_;
+    const int PhysicalSchemaTimestampColumnId_;
     const EWorkloadCategory WorkloadCategory_;
     const NLogging::TLogger Logger;
 
@@ -355,7 +356,7 @@ private:
         }
 
         if (isVersioned) {
-            auto timestamp = NDetail::GetLogRowTimestamp(logRow, TimestampColumnId_);
+            auto timestamp = GetLogRowTimestamp(logRow, PhysicalSchemaTimestampColumnId_);
             YT_VERIFY(TimestampColumnId_);
             mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp, *TimestampColumnId_);
         }
@@ -582,7 +583,7 @@ private:
         YT_VERIFY(readerRows.size() == 1);
 
         i64 actualRowIndex = GetLogRowIndex(readerRows[0]);
-        auto timestamp = NDetail::GetLogRowTimestamp(readerRows[0], TimestampColumnId_);
+        auto timestamp = GetLogRowTimestamp(readerRows[0], PhysicalSchemaTimestampColumnId_);
         YT_VERIFY(actualRowIndex == rowIndex);
 
         YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
@@ -597,12 +598,14 @@ private:
 
 IReplicationLogParserPtr CreateReplicationLogParser(
     TTableSchemaPtr tableSchema,
+    TTableSchemaPtr physicalSchema,
     TTableMountConfigPtr mountConfig,
     EWorkloadCategory workloadCategory,
     NLogging::TLogger logger)
 {
     return New<TReplicationLogParser>(
         std::move(tableSchema),
+        std::move(physicalSchema),
         std::move(mountConfig),
         workloadCategory,
         std::move(logger));

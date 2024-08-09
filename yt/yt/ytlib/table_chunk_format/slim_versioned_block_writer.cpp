@@ -142,7 +142,7 @@ public:
 
     ui32 GetIndex(const TUnversionedValue& value)
     {
-        return GetIndex(MakeRange(&value, 1));
+        return GetIndex(TRange(&value, 1));
     }
 
     void Write(
@@ -419,7 +419,7 @@ TBlock TSlimVersionedBlockWriter::FlushBlock()
         }
 
         {
-            auto rowDictionaryIndex = dictionary.GetIndex(MakeRange(dictionaryValuesScratch));
+            auto rowDictionaryIndex = dictionary.GetIndex(TRange(dictionaryValuesScratch));
             auto rowDictionaryTag = (rowDictionaryIndex << SlimVersionedDictionaryTagIndexShift) | SlimVersionedDictionaryTagEos;
             ptr += WriteVarUint32(ptr, rowDictionaryTag);
         }
@@ -464,7 +464,7 @@ TBlock TSlimVersionedBlockWriter::FlushBlock()
 
             writeValues(
                 ptr,
-                MakeRange(valuesScratch.data(), KeyColumnCount_),
+                TRange(valuesScratch.data(), KeyColumnCount_),
                 keyDictionary);
         }
 
@@ -500,7 +500,7 @@ TBlock TSlimVersionedBlockWriter::FlushBlock()
 
                 writeValues(
                     ptr,
-                    MakeRange(valuesScratch.data() + beginIndex, valuesScratch.data() + endIndex),
+                    TRange(valuesScratch.data() + beginIndex, valuesScratch.data() + endIndex),
                     valueDictionary);
 
                 currentIndex = endIndex;

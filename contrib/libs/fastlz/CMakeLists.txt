@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-fastlz)
 
+
 target_compile_options(contrib-libs-fastlz PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -26,7 +27,7 @@ target_link_libraries(contrib-libs-fastlz PUBLIC
 )
 
 target_sources(contrib-libs-fastlz PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastlz/rename.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastlz/fastlz.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastlz/rename.h
 )
 

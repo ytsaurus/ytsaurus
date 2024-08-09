@@ -179,7 +179,7 @@ public:
 
             return EvaluateQuery(
                 *EvaluationContext_,
-                MakeRange(inputValues.data(), inputValues.size()),
+                TRange(inputValues.data(), inputValues.size()),
                 rowBuffer);
         } catch (const std::exception& ex) {
             return TError("Error evaluating query")

@@ -5,7 +5,6 @@
 #include "helpers.h"
 
 #include <yt/yt/client/api/file_reader.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -360,7 +359,7 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
         .JobIdHi = jobIdAsGuid.Parts64[0],
         .JobIdLo = jobIdAsGuid.Parts64[1]
     };
-    auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
+    auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
     auto resultOrError = WaitFor(LookupRows(
         GetOperationsArchiveJobSpecsPath(),
@@ -410,7 +409,7 @@ TOperationId TClient::TryGetOperationId(
         .JobIdHi = jobIdAsGuid.Parts64[0],
         .JobIdLo = jobIdAsGuid.Parts64[1]
     };
-    auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
+    auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
     auto rowsetOrError = WaitFor(LookupRows(
         GetOperationsArchiveOperationIdsPath(),
@@ -954,7 +953,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
             .JobIdHi = jobIdAsGuid.Parts64[0],
             .JobIdLo = jobIdAsGuid.Parts64[1]
         };
-        auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
+        auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
         auto rowset = WaitFor(LookupRows(
             GetOperationsArchiveJobStderrsPath(),
@@ -1072,7 +1071,7 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
             .JobIdLo = jobIdAsGuid.Parts64[1]
         };
 
-        auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
+        auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
         TLookupRowsOptions lookupOptions;
         const auto& idMapping = NRecords::TJobFailContextDescriptor::Get()->GetIdMapping();
@@ -2155,7 +2154,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         .JobIdHi = jobIdAsGuid.Parts64[0],
         .JobIdLo = jobIdAsGuid.Parts64[1],
     };
-    auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
+    auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
     const auto& jobsTable = NRecords::TJobDescriptor::Get()->GetNameTable();
 

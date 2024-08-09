@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(bin)
 add_subdirectory(unittests)
 
 add_library(yt-tools-scheduler_simulator)
+
 
 target_compile_options(yt-tools-scheduler_simulator PRIVATE
   -Wdeprecated-this-capture

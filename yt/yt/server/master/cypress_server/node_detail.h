@@ -795,7 +795,7 @@ private:
 
 // Traverse all ancestors and collect inheritable attributes.
 void GatherInheritableAttributes(
-    TCypressNode* node,
+    const TCypressNode* node,
     TCompositeNodeBase::TTransientAttributes* attributes,
     ENodeMaterializationReason mode = ENodeMaterializationReason::Create);
 

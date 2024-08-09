@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-tools)
+
 
 target_compile_options(yt-server-tools PRIVATE
   -Wdeprecated-this-capture
@@ -38,5 +40,28 @@ target_sources(yt-server-tools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/seccomp.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/signaler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/tools.cpp
+)
+
+
+add_global_library_for(yt-server-tools.global
+  yt-server-tools)
+
+
+target_compile_options(yt-server-tools.global PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(yt-server-tools.global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-library-process
+  yt-library-containers
+  yt-library-program
+  yt-yt-core
+)
+
+target_sources(yt-server-tools.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/register.cpp
 )
 

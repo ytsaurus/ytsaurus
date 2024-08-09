@@ -12,16 +12,17 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(aws-c-auth)
 add_subdirectory(aws-c-cal)
 add_subdirectory(aws-c-common)
-add_subdirectory(aws-c-compression)
-add_subdirectory(aws-c-event-stream)
 add_subdirectory(aws-c-http)
+add_subdirectory(aws-c-compression)
 add_subdirectory(aws-c-io)
-add_subdirectory(aws-c-mqtt)
-add_subdirectory(aws-c-s3)
-add_subdirectory(aws-c-sdkutils)
-add_subdirectory(aws-checksums)
-add_subdirectory(aws-crt-cpp)
 add_subdirectory(s2n)
+add_subdirectory(aws-c-sdkutils)
+add_subdirectory(aws-c-event-stream)
+add_subdirectory(aws-checksums)
+add_subdirectory(aws-c-mqtt)
+add_subdirectory(aws-crt-cpp)
+add_subdirectory(aws-c-s3)

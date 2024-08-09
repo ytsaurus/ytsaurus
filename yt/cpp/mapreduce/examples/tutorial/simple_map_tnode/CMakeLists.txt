@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(simple_map_tnode)
 
+
 target_compile_options(simple_map_tnode PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(simple_map_tnode PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-interface
   cpp-mapreduce-client
+)
+
+target_allocator(simple_map_tnode
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(simple_map_tnode PRIVATE
@@ -45,10 +51,5 @@ target_sources(simple_map_tnode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
 )
 
-target_allocator(simple_map_tnode
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(simple_map_tnode)
-

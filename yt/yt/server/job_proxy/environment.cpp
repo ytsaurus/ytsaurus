@@ -32,6 +32,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #include <sys/stat.h>
 
 namespace NYT::NJobProxy {
@@ -480,6 +482,11 @@ public:
         return GetUserJobInstance()->GetMajorPageFaultCount();
     }
 
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    {
+        return std::nullopt;
+    }
+
 private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
@@ -537,6 +544,11 @@ public:
         return std::nullopt;
     }
 
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    {
+        return std::nullopt;
+    }
+
     void SetCpuGuarantee(double value) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
@@ -582,7 +594,7 @@ private:
         YT_LOG_ERROR(error, "Fatal error during Porto polling");
 
         NLogging::TLogManager::Get()->Shutdown();
-        _exit(static_cast<int>(EJobProxyExitCode::PortoManagementFailed));
+        AbortProcess(ToUnderlying(EJobProxyExitCode::PortoManagementFailed));
     }
 };
 
@@ -698,6 +710,11 @@ public:
         return 0;
     }
 
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    {
+        return std::nullopt;
+    }
+
 private:
     TAtomicIntrusivePtr<TProcessBase> Process_;
 };
@@ -747,6 +764,11 @@ public:
     }
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
     {
         return std::nullopt;
     }
@@ -845,7 +867,8 @@ class TCriUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
-    TCriUserJobEnvironment()
+    TCriUserJobEnvironment(IJobProxyEnvironmentPtr jobProxyEnvironment)
+        : JobProxyEnvironment_(std::move(jobProxyEnvironment))
     {
         auto username = ::GetUsername();
         Environment_.push_back("USER=" + username);
@@ -954,7 +977,13 @@ public:
         return 0;
     }
 
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    {
+        return JobProxyEnvironment_->GetJobOOMKillCount();
+    }
+
 private:
+    const IJobProxyEnvironmentPtr JobProxyEnvironment_;
     TAtomicIntrusivePtr<TProcessBase> Process_;
     std::vector<TString> Environment_;
 };
@@ -1028,6 +1057,16 @@ public:
         };
     }
 
+    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    {
+        try {
+            return StatisticsFetcher_.GetOOMKillCount();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get OOM kill count");
+            return std::nullopt;
+        }
+    }
+
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TJobId /*jobId*/,
         const TUserJobEnvironmentOptions& options) override
@@ -1045,7 +1084,7 @@ public:
             THROW_ERROR_EXCEPTION("Porto memory tracking is not supported in CRI job environment");
         }
 
-        return New<TCriUserJobEnvironment>();
+        return New<TCriUserJobEnvironment>(this);
     }
 
 private:

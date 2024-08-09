@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-ytlib-table-chunk-format)
 
+
 target_compile_options(unittester-ytlib-table-chunk-format PRIVATE
   -Wdeprecated-this-capture
 )
@@ -33,6 +34,11 @@ target_link_libraries(unittester-ytlib-table-chunk-format PUBLIC
   yt-yt-ytlib
 )
 
+target_allocator(unittester-ytlib-table-chunk-format
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-ytlib-table-chunk-format PRIVATE
   -ldl
   -lrt
@@ -48,6 +54,7 @@ target_link_options(unittester-ytlib-table-chunk-format PRIVATE
 target_sources(unittester-ytlib-table-chunk-format PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/unittests/column_meta_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,21 +75,15 @@ set_property(
   TEST
   unittester-ytlib-table-chunk-format
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-ytlib-table-chunk-format)
 
 set_property(
   TEST
   unittester-ytlib-table-chunk-format
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-ytlib-table-chunk-format
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-ytlib-table-chunk-format)
-

@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <util/string/cast.h>
+
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NOrm::NAttributes {
@@ -400,8 +402,6 @@ TErrorOr<int> LocateMapEntry(
     return TError(EErrorCode::MissingKey, "Key not found in map");
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TErrorOr<TString> MapKeyFieldToString(
     const Message* message,
     const FieldDescriptor* keyFieldDescriptor)
@@ -424,6 +424,23 @@ TErrorOr<TString> MapKeyFieldToString(
                 "Fields of type %v are not supported as map keys",
                 keyFieldDescriptor->type_name());
     }
+}
+
+TErrorOr<std::unique_ptr<Message>> MakeMapKeyMessage(
+    const FieldDescriptor* fieldDescriptor,
+    TString key)
+{
+    auto* descriptor = fieldDescriptor->message_type();
+    std::unique_ptr<Message> result{
+        NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor)->New()};
+
+    auto* keyFieldDescriptor = descriptor->map_key();
+    auto error = SetScalarFieldFromString(result.get(), keyFieldDescriptor, std::move(key));
+
+    if (!error.IsOK()) {
+        return error;
+    }
+    return std::move(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -650,6 +667,15 @@ const EnumValueDescriptor* LookupEnumValue(
     } \
     static_assert(true)
 
+#define _CAST_FROM_STRING(snakeType) \
+    snakeType castValue; \
+    if (!TryFromString(value, castValue)) { \
+        return TError(EErrorCode::InvalidData, \
+            "Cannot convert %v to a " #snakeType, \
+            value); \
+    } \
+    static_assert(true)
+
 #define _CAST_ENUM() \
     const EnumValueDescriptor* enumValue = LookupEnumValue(fieldDescriptor, value); \
     if (enumValue == nullptr) { \
@@ -664,6 +690,14 @@ const EnumValueDescriptor* LookupEnumValue(
         case FieldDescriptor::CPPTYPE_##capsType: \
             { \
                 _CAST(snakeType); \
+                reflection->Set##camelType(message, fieldDescriptor, castValue); \
+            } \
+            break;
+
+#define CASE_SCALAR_WITH_CAST_FROM_STRING(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST_FROM_STRING(snakeType); \
                 reflection->Set##camelType(message, fieldDescriptor, castValue); \
             } \
             break;
@@ -686,13 +720,21 @@ const EnumValueDescriptor* LookupEnumValue(
             reflection->Set##camelType( \
                 message, \
                 fieldDescriptor, \
-                fieldDescriptor->default_value_##snakeType());  \
+                fieldDescriptor->default_value_##snakeType()); \
             break
 
 #define CASE_REPEATED_WITH_CAST(snakeType, camelType, capsType) \
         case FieldDescriptor::CPPTYPE_##capsType: \
             { \
                 _CAST(snakeType); \
+                reflection->SetRepeated##camelType(message, fieldDescriptor, index, castValue); \
+            } \
+            break
+
+#define CASE_REPEATED_WITH_CAST_FROM_STRING(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST_FROM_STRING(snakeType); \
                 reflection->SetRepeated##camelType(message, fieldDescriptor, index, castValue); \
             } \
             break
@@ -716,13 +758,21 @@ const EnumValueDescriptor* LookupEnumValue(
                 message, \
                 fieldDescriptor, \
                 index, \
-                fieldDescriptor->default_value_##snakeType());  \
+                fieldDescriptor->default_value_##snakeType()); \
             break
 
 #define CASE_ADD_WITH_CAST(snakeType, camelType, capsType) \
         case FieldDescriptor::CPPTYPE_##capsType: \
             { \
                 _CAST(snakeType); \
+                reflection->Add##camelType(message, fieldDescriptor, castValue); \
+            } \
+            break
+
+#define CASE_ADD_WITH_CAST_FROM_STRING(snakeType, camelType, capsType) \
+        case FieldDescriptor::CPPTYPE_##capsType: \
+            { \
+                _CAST_FROM_STRING(snakeType); \
                 reflection->Add##camelType(message, fieldDescriptor, castValue); \
             } \
             break
@@ -745,7 +795,7 @@ const EnumValueDescriptor* LookupEnumValue(
             reflection->Add##camelType( \
                 message, \
                 fieldDescriptor, \
-                fieldDescriptor->default_value_##snakeType());  \
+                fieldDescriptor->default_value_##snakeType()); \
             break
 
 #define END_SWITCH(snakeType) \
@@ -815,6 +865,24 @@ TError SetScalarField(
     TString value)
 {
     BEGIN_SWITCH(TString);
+        CASE_SCALAR_DIRECT(TString, String, STRING);
+        CASE_SCALAR_ENUM();
+    END_SWITCH(TString);
+}
+
+TError SetScalarFieldFromString(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(i32, Int32, INT32);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(i64, Int64, INT64);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(ui64, UInt64, UINT64);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(float, Float, FLOAT);
+        CASE_SCALAR_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
         CASE_SCALAR_DIRECT(TString, String, STRING);
         CASE_SCALAR_ENUM();
     END_SWITCH(TString);
@@ -906,6 +974,25 @@ TError SetScalarRepeatedFieldEntry(
     END_SWITCH(TString);
 }
 
+TError SetScalarRepeatedFieldEntryFromString(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(i32, Int32, INT32);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(i64, Int64, INT64);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(ui64, UInt64, UINT64);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(float, Float, FLOAT);
+        CASE_REPEATED_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
+        CASE_REPEATED_DIRECT(TString, String, STRING);
+        CASE_REPEATED_ENUM();
+    END_SWITCH(TString);
+}
+
 TError SetDefaultScalarRepeatedFieldEntryValue(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
@@ -988,6 +1075,23 @@ TError AddScalarRepeatedFieldEntry(
     END_SWITCH(TString);
 }
 
+TError AddScalarRepeatedFieldEntryFromString(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    TString value)
+{
+    BEGIN_SWITCH(TString);
+        CASE_ADD_WITH_CAST_FROM_STRING(i32, Int32, INT32);
+        CASE_ADD_WITH_CAST_FROM_STRING(i64, Int64, INT64);
+        CASE_ADD_WITH_CAST_FROM_STRING(ui32, UInt32, UINT32);
+        CASE_ADD_WITH_CAST_FROM_STRING(ui64, UInt64, UINT64);
+        CASE_ADD_WITH_CAST_FROM_STRING(double, Double, DOUBLE);
+        CASE_ADD_WITH_CAST_FROM_STRING(float, Float, FLOAT);
+        CASE_ADD_WITH_CAST_FROM_STRING(bool, Bool, BOOL);
+        CASE_ADD_DIRECT(TString, String, STRING);
+        CASE_ADD_ENUM();
+    END_SWITCH(TString);
+}
 TError AddDefaultScalarFieldEntryValue(
     Message* message,
     const FieldDescriptor* fieldDescriptor)

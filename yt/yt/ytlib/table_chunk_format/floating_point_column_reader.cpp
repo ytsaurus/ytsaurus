@@ -38,7 +38,7 @@ protected:
         ui64 valueCount = *reinterpret_cast<const ui64*>(ptr);
         ptr += sizeof(ui64);
 
-        Values_ = MakeRange(reinterpret_cast<const T*>(ptr), valueCount);
+        Values_ = TRange(reinterpret_cast<const T*>(ptr), valueCount);
         ptr += sizeof(T) * valueCount;
 
         NullBitmap_ = TReadOnlyBitmap(Values_.end(), valueCount);

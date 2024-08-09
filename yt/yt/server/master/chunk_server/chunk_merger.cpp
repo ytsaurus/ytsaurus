@@ -1109,7 +1109,7 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
     auto [it, _] = NodeToBackoffPeriod_.emplace(nodeId, GetDynamicConfig()->MinBackoffPeriod);
     auto maxBackoffPeriod = GetDynamicConfig()->MaxBackoffPeriod;
     auto backoff = it->second;
-    EmplaceOrCrash(NodesBeingMerged_, nodeId, accountId);
+    AddToNodesBeingMerged(nodeId, accountId);
 
     TDelayedExecutor::Submit(
         BIND([this, this_ = MakeStrong(this), nodeId, accountId] {
@@ -1154,7 +1154,8 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
     }
 
     auto accountId = chunkOwner->Account()->GetId();
-    EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), accountId);
+    AddToNodesBeingMerged(chunkOwner->GetId(), accountId);
+
     DoRegisterSession(chunkOwner);
 }
 
@@ -1164,9 +1165,7 @@ void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
     YT_VERIFY(HasMutationContext());
     YT_VERIFY(NodesBeingMerged_.contains(chunkOwner->GetId()));
 
-    auto accountId = chunkOwner->Account()->GetId();
     EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
-    IncrementPersistentTracker(accountId);
 
     if (IsLeader()) {
         RegisterSessionTransient(chunkOwner);
@@ -2104,11 +2103,9 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         YT_VERIFY(result != EMergeSessionResult::None);
 
-        auto toErase = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
-        auto accountId = toErase->second;
-        NodesBeingMerged_.erase(toErase);
+        auto accountId = GetIteratorOrCrash(NodesBeingMerged_, nodeId)->second;
+        RemoveFromNodesBeingMerged(nodeId);
         NodeToChunkMergerStatus_.erase(nodeId);
-        DecrementPersistentTracker(accountId);
 
         auto* chunkOwner = FindChunkOwner(nodeId);
         if (!chunkOwner) {
@@ -2242,7 +2239,7 @@ void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
             "Cannot reschedule merge: node was destroyed (NodeId: %v, AccountId: %v)",
             nodeId,
             accountId);
-        EraseOrCrash(NodesBeingMerged_, nodeId);
+        RemoveFromNodesBeingMerged(nodeId);
         return;
     }
 
@@ -2252,7 +2249,7 @@ void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
             "Cannot reschedule merge: unable to register merge session (NodeId: %v, AccountId: %v)",
             nodeId,
             accountId);
-        EraseOrCrash(NodesBeingMerged_, nodeId);
+        RemoveFromNodesBeingMerged(nodeId);
         return;
     }
 
@@ -2287,7 +2284,7 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
         Load(context, NodesBeingMergedPerAccount_);
     }
     NeedRestorePersistentStatistics_ = context.GetVersion() >= EMasterReign::ChunkMergerQueuesUsagePerAccount &&
-        context.GetVersion() < EMasterReign::FixMergerStatistics;
+        context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
 
     Load(context, ConfigVersion_);
 }
@@ -2349,6 +2346,24 @@ void TChunkMerger::DecrementTracker(
     if (it->second == TAccountQueuesUsage{}) {
         QueuesUsage_.erase(it);
     }
+}
+
+void TChunkMerger::AddToNodesBeingMerged(NCypressServer::TNodeId nodeId, TAccountId accountId)
+{
+    YT_VERIFY(HasHydraContext());
+
+    EmplaceOrCrash(NodesBeingMerged_, nodeId, accountId);
+    IncrementPersistentTracker(accountId);
+}
+
+void TChunkMerger::RemoveFromNodesBeingMerged(NCypressServer::TNodeId nodeId)
+{
+    YT_VERIFY(HasHydraContext());
+
+    auto it = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
+    auto accountId = it->second;
+    NodesBeingMerged_.erase(it);
+    DecrementPersistentTracker(accountId);
 }
 
 void TChunkMerger::IncrementPersistentTracker(TAccountId accountId)

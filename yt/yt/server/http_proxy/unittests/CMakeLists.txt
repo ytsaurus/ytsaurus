@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-http-proxy)
 
+
 target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,11 @@ target_link_libraries(unittester-http-proxy PUBLIC
   yt-server-http_proxy
 )
 
+target_allocator(unittester-http-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-http-proxy PRIVATE
   -ldl
   -lrt
@@ -50,6 +56,7 @@ target_sources(unittester-http-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/http_proxy_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -70,21 +77,15 @@ set_property(
   TEST
   unittester-http-proxy
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-http-proxy)
 
 set_property(
   TEST
   unittester-http-proxy
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-http-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-http-proxy)
-

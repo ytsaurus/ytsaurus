@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-http-misc)
 
+
 target_link_libraries(cpp-http-misc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -40,9 +41,9 @@ target_sources(cpp-http-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/http/misc/parsed_request.cpp
 )
 
+
 generate_enum_serilization(cpp-http-misc
   ${PROJECT_SOURCE_DIR}/library/cpp/http/misc/httpcodes.h
   INCLUDE_HEADERS
   library/cpp/http/misc/httpcodes.h
 )
-

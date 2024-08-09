@@ -39,6 +39,9 @@ message TReqRegisterNode
     // COMPAT(kvk1920)
     optional bool location_directory_supported = 15;
 
+    optional string rack = 16;
+    optional string data_center = 17;
+
     reserved 2;
 }
 

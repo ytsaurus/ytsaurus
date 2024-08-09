@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-tablet-balancer-lib)
 
+
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   server-lib-tablet_balancer
   tablet_balancer-dry_run-lib
   yt-core-test_framework
+)
+
+target_allocator(unittester-tablet-balancer-lib
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-tablet-balancer-lib PRIVATE
@@ -48,6 +53,7 @@ target_sources(unittester-tablet-balancer-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/bounded_priority_queue_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,20 +74,15 @@ set_property(
   TEST
   unittester-tablet-balancer-lib
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-tablet-balancer-lib)
 
 set_property(
   TEST
   unittester-tablet-balancer-lib
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-tablet-balancer-lib
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-tablet-balancer-lib)
-

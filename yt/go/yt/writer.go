@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -39,11 +40,18 @@ func WithTableWriterConfig(config map[string]any) WriteTableOption {
 	}
 }
 
-// WithExisting table disables automatic table creation.
+// WithExistingTable disables automatic table creation.
 func WithExistingTable() WriteTableOption {
 	return func(w *tableWriter) {
 		w.lazyCreate = false
 		w.eagerCreate = false
+	}
+}
+
+// WithRetries allows to retry flushing several times in case of an error.
+func WithRetries(count uint64) WriteTableOption {
+	return func(w *tableWriter) {
+		w.retryCount = count
 	}
 }
 
@@ -67,6 +75,7 @@ type (
 
 		createOptions           []CreateTableOption
 		batchSize               int
+		retryCount              uint64
 		lazyCreate, eagerCreate bool
 		tableWriterConfig       map[string]any
 
@@ -138,7 +147,13 @@ func (w *tableWriter) Flush() error {
 	}
 
 	opts := &WriteTableOptions{TableWriter: w.tableWriterConfig}
-	if w.err = w.rawWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer); w.err != nil {
+	if err := backoff.Retry(func() error {
+		if err := w.rawWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer); err != nil {
+			return err
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), w.retryCount)); err != nil {
+		w.err = err
 		return w.err
 	}
 
@@ -168,6 +183,7 @@ func WriteTable(ctx context.Context, yc Client, path ypath.Path, opts ...WriteTa
 		ctx:        ctx,
 		yc:         yc,
 		batchSize:  defaultBatchSize,
+		retryCount: 0,
 		lazyCreate: true,
 	}
 

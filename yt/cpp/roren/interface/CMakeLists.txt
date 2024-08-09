@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-roren-interface)
 
+
 target_link_libraries(cpp-roren-interface PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -63,9 +64,9 @@ target_sources(cpp-roren-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/execution_context.cpp
 )
 
+
 generate_enum_serilization(cpp-roren-interface
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.h
   INCLUDE_HEADERS
   yt/cpp/roren/interface/private/raw_transform.h
 )
-

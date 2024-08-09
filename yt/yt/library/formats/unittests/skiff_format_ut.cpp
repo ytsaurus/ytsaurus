@@ -1253,7 +1253,7 @@ TEST_P(TSkiffFormatUuidTestP, Test)
         nonOwningRows.emplace_back(row);
     }
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
-    Y_UNUSED(skiffWriter->Write(MakeRange(nonOwningRows)));
+    Y_UNUSED(skiffWriter->Write(TRange(nonOwningRows)));
     skiffWriter->Close().Get().ThrowOnError();
     ASSERT_EQ(result.Str(), skiffString);
 

@@ -24,6 +24,7 @@
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
+#include <library/cpp/yt/system/exit.h>
 
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
@@ -210,7 +211,7 @@ protected:
 
         // XXX(babenko): ASAN complains about memory leak on graceful exit.
         // Must try to resolve them later.
-        _exit(0);
+        AbortProcess(ToUnderlying(EProcessExitCode::OK));
     }
 
 private:

@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(cpp)
+
 add_subdirectory(cuda_core_dump_simulator)
+add_subdirectory(cpp)
 add_subdirectory(integration)

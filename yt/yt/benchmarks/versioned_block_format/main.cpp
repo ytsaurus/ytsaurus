@@ -148,7 +148,7 @@ public:
             writeTimestampSet.size(),
             deleteTimestampSet.size(),
             MakeFormattableView(
-                MakeRange(writeTimestamps.begin(), writeTimestamps.end()),
+                TRange(writeTimestamps.begin(), writeTimestamps.end()),
                 [] (auto* builder, const auto& timestamps) {
                     builder->AppendFormat("%v", timestamps.size());
                 }));

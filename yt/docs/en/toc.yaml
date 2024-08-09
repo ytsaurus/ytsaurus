@@ -206,9 +206,12 @@ items:
          - name: Operation options
            when: audience == "public"
            href: user-guide/data-processing/operations/operations-options.md
-         - name: Auto-merging chunks at operation output
+         - name: Chunk auto-merge at operation output
            when: audience == "public"
            href: user-guide/data-processing/operations/automerge.md
+         - name: Chunk auto-merge on the master server side
+           when: audience == "public"
+           href: user-guide/data-processing/operations/chunk-merger.md
          - name: Recommendations
            when: audience == "public"
            href: user-guide/data-processing/operations/recommendations.md

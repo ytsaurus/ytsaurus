@@ -613,7 +613,8 @@ func (e *Encoder) WriteFile(
 	options *yt.WriteFileOptions,
 ) (w io.WriteCloser, err error) {
 	call := e.newCall(NewWriteFileParams(path, options))
-	return e.InvokeWrite(ctx, call)
+	w, err = e.InvokeWrite(ctx, call)
+	return
 }
 
 func (e *Encoder) ReadFile(
@@ -670,7 +671,8 @@ func (e *Encoder) WriteTable(
 	options *yt.WriteTableOptions,
 ) (w yt.TableWriter, err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
-	return e.InvokeWriteRow(ctx, call)
+	w, err = e.InvokeWriteRow(ctx, call)
+	return
 }
 
 func (e *Encoder) ReadTable(
@@ -761,6 +763,88 @@ func (e *Encoder) InsertRowBatch(
 	}
 
 	return w.Commit()
+}
+
+func (e *Encoder) PushQueueProducer(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	rows []any,
+	options *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	call := e.newCall(NewPushQueueProducerParams(producerPath, queuePath, sessionID, epoch, options))
+	call.WriteRspChan = make(chan *CallResult, 1)
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+
+	err = e.writeRows(w, rows)
+	if err != nil {
+		return nil, err
+	}
+
+	res := <-call.WriteRspChan
+	err = res.decode(&result)
+
+	return
+}
+
+func (e *Encoder) PushQueueProducerBatch(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	batch yt.RowBatch,
+	options *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	call := e.newCall(NewPushQueueProducerParams(producerPath, queuePath, sessionID, epoch, options))
+	call.RowBatch = batch
+	call.WriteRspChan = make(chan *CallResult, 1)
+
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+
+	res := <-call.WriteRspChan
+	err = res.decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	err = w.Commit()
+	return
+}
+
+func (e *Encoder) CreateQueueProducerSession(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	options *yt.CreateQueueProducerSessionOptions,
+) (result *yt.CreateQueueProducerSessionResult, err error) {
+	call := e.newCall(NewCreateQueueProducerSessionParams(producerPath, queuePath, sessionID, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&result)
+	})
+	return
+}
+
+func (e *Encoder) RemoveQueueProducerSession(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	options *yt.RemoveQueueProducerSessionOptions,
+) (err error) {
+	call := e.newCall(NewRemoveQueueProducerSessionParams(producerPath, queuePath, sessionID, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
 }
 
 func (e *Encoder) LockRows(

@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to YTsaurus's documentation!
-==============================
+Python and CLI interfaces to YTsaurus
+=====================================
 
 Version: |version|.
 
@@ -83,6 +83,7 @@ Source code
 Library is actively developed on GitHub, code is available `here <https://github.com/ytsaurus/ytsaurus/tree/main/yt/python>`_.
 
 .. toctree::
+   :caption: Navigation
    :maxdepth: 1
    :hidden:
 
@@ -90,3 +91,11 @@ Library is actively developed on GitHub, code is available `here <https://github
    package_changelog
    configuration
    cli_commands
+
+.. toctree::
+   :caption: Additional links
+
+   YTsaurus site <https://ytsaurus.tech>
+   YTsaurus docs <https://ytsaurus.tech/docs/en/>
+   Python docs <https://ytsaurus.tech/docs/en/api/python/start>
+   YSON docs <https://ytsaurus.tech/docs/en/user-guide/storage/yson>

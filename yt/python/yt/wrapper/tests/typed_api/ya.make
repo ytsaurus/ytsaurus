@@ -55,6 +55,7 @@ TEST_SRCS(
     test_structured_skiff.py
     test_validation_schema.py
     test_parquet.py
+    test_orc.py
 )
 
 END()

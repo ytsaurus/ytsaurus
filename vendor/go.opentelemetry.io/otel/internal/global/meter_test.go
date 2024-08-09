@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package global // import "go.opentelemetry.io/otel/internal/global"
 
@@ -72,9 +61,11 @@ func TestMeterConcurrentSafe(t *testing.T) {
 			_, _ = mtr.Float64Counter(name)
 			_, _ = mtr.Float64UpDownCounter(name)
 			_, _ = mtr.Float64Histogram(name)
+			_, _ = mtr.Float64Gauge(name)
 			_, _ = mtr.Int64Counter(name)
 			_, _ = mtr.Int64UpDownCounter(name)
 			_, _ = mtr.Int64Histogram(name)
+			_, _ = mtr.Int64Gauge(name)
 			_, _ = mtr.RegisterCallback(zeroCallback)
 			if !once {
 				wg.Done()
@@ -147,18 +138,22 @@ func testSetupAllInstrumentTypes(t *testing.T, m metric.Meter) (metric.Float64Co
 	}, afcounter)
 	require.NoError(t, err)
 
-	sfcounter, err := m.Float64Counter("test_Async_Counter")
+	sfcounter, err := m.Float64Counter("test_Sync_Counter")
 	require.NoError(t, err)
-	_, err = m.Float64UpDownCounter("test_Async_UpDownCounter")
+	_, err = m.Float64UpDownCounter("test_Sync_UpDownCounter")
 	assert.NoError(t, err)
-	_, err = m.Float64Histogram("test_Async_Histogram")
+	_, err = m.Float64Histogram("test_Sync_Histogram")
+	assert.NoError(t, err)
+	_, err = m.Float64Gauge("test_Sync_Gauge")
 	assert.NoError(t, err)
 
-	_, err = m.Int64Counter("test_Async_Counter")
+	_, err = m.Int64Counter("test_Sync_Counter")
 	assert.NoError(t, err)
-	_, err = m.Int64UpDownCounter("test_Async_UpDownCounter")
+	_, err = m.Int64UpDownCounter("test_Sync_UpDownCounter")
 	assert.NoError(t, err)
-	_, err = m.Int64Histogram("test_Async_Histogram")
+	_, err = m.Int64Histogram("test_Sync_Histogram")
+	assert.NoError(t, err)
+	_, err = m.Int64Gauge("test_Sync_Gauge")
 	assert.NoError(t, err)
 
 	return sfcounter, afcounter
@@ -379,4 +374,40 @@ func TestRegistrationDelegation(t *testing.T) {
 	assert.NotPanics(t, func() {
 		assert.NoError(t, reg1.Unregister(), "duplicate unregister calls")
 	})
+}
+
+func TestMeterIdentity(t *testing.T) {
+	type id struct{ name, ver, url string }
+
+	ids := []id{
+		{"name-a", "version-a", "url-a"},
+		{"name-a", "version-a", "url-b"},
+		{"name-a", "version-b", "url-a"},
+		{"name-a", "version-b", "url-b"},
+		{"name-b", "version-a", "url-a"},
+		{"name-b", "version-a", "url-b"},
+		{"name-b", "version-b", "url-a"},
+		{"name-b", "version-b", "url-b"},
+	}
+
+	provider := &meterProvider{}
+	newMeter := func(i id) metric.Meter {
+		return provider.Meter(
+			i.name,
+			metric.WithInstrumentationVersion(i.ver),
+			metric.WithSchemaURL(i.url),
+		)
+	}
+
+	for i, id0 := range ids {
+		for j, id1 := range ids {
+			l0, l1 := newMeter(id0), newMeter(id1)
+
+			if i == j {
+				assert.Samef(t, l0, l1, "Meter(%v) != Meter(%v)", id0, id1)
+			} else {
+				assert.NotSamef(t, l0, l1, "Meter(%v) == Meter(%v)", id0, id1)
+			}
+		}
+	}
 }

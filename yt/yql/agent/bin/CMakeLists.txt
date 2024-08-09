@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(ytserver-yql-agent)
 
+
 target_compile_options(ytserver-yql-agent PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(ytserver-yql-agent PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yql-agent
+)
+
+target_allocator(ytserver-yql-agent
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(ytserver-yql-agent PRIVATE
@@ -44,10 +50,5 @@ target_sources(ytserver-yql-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/bin/main.cpp
 )
 
-target_allocator(ytserver-yql-agent
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(ytserver-yql-agent)
-

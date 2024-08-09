@@ -25,14 +25,25 @@ const (
 	ActionDeny  SecurityAction = "deny"
 )
 
+// TODO: create a different type for InheritanceMode
+type InheritanceMode = string
+
+const (
+	InheritanceModeNone                     InheritanceMode = ""
+	InheritanceModeObjectOnly               InheritanceMode = "object_only"
+	InheritanceModeObjectAndDescendants     InheritanceMode = "object_and_descendants"
+	InheritanceModeDescendantsOnly          InheritanceMode = "descendants_only"
+	InheritanceModeImmediateDescendantsOnly InheritanceMode = "immediate_descendants_only"
+)
+
 type ACE struct {
-	Action           SecurityAction `yson:"action,omitempty"`
-	Subjects         []string       `yson:"subjects,omitempty"`
-	Permissions      []Permission   `yson:"permissions,omitempty"`
-	InheritanceMode  string         `yson:"inheritance_mode,omitempty"`
-	Columns          []string       `yson:"columns,omitempty"`
-	Vital            *bool          `yson:"vital,omitempty"`
-	SubjectTagFilter string         `yson:"subject_tag_filter,omitempty"`
+	Action           SecurityAction  `yson:"action,omitempty"`
+	Subjects         []string        `yson:"subjects,omitempty"`
+	Permissions      []Permission    `yson:"permissions,omitempty"`
+	InheritanceMode  InheritanceMode `yson:"inheritance_mode,omitempty"`
+	Columns          []string        `yson:"columns,omitempty"`
+	Vital            *bool           `yson:"vital,omitempty"`
+	SubjectTagFilter string          `yson:"subject_tag_filter,omitempty"`
 }
 
 func ConvertPermissionType(typ *Permission) (*int32, error) {

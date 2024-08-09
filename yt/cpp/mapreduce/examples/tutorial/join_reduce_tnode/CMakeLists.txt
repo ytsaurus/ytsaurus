@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(join_reduce_tnode)
 
+
 target_compile_options(join_reduce_tnode PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(join_reduce_tnode PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
   cpp-regex-pcre
+)
+
+target_allocator(join_reduce_tnode
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(join_reduce_tnode PRIVATE
@@ -45,10 +51,5 @@ target_sources(join_reduce_tnode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode/main.cpp
 )
 
-target_allocator(join_reduce_tnode
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(join_reduce_tnode)
-

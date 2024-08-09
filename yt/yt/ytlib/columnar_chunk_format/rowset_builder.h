@@ -55,12 +55,13 @@ struct TRowsetBuilderParams
     // Const qualifier is used to force all fields initialization.
     const TRange<EValueType> KeyTypes;
     const ui16 ReadItemWidth;
+    const bool ProduceAll;
+    const bool NewMeta;
     const TCompactVector<ui16, 8> KeyColumnIndexes;
     const TRange<TValueSchema> ValueSchema;
     const TRange<TColumnBase> ColumnInfos;
     const TTimestamp Timestamp;
-    const bool ProduceAll;
-    const bool NewMeta;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker;
 };
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(

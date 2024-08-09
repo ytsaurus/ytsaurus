@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(mock)
 
 get_built_tool_path(
   TOOL_rescompiler_bin
@@ -22,7 +21,10 @@ get_built_tool_path(
   rescompiler
 )
 
+add_subdirectory(mock)
+
 add_executable(unittester-client)
+
 
 target_compile_options(unittester-client PRIVATE
   -Wdeprecated-this-capture
@@ -44,6 +46,10 @@ target_link_libraries(unittester-client PUBLIC
   yt-library-named_value
   yt_proto-yt-formats
   library-cpp-resource
+)
+
+target_allocator(unittester-client
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-client PRIVATE
@@ -93,6 +99,7 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 
+
 add_test(
   NAME
   unittester-client
@@ -112,14 +119,6 @@ set_property(
   TEST
   unittester-client
   PROPERTY
-  PROCESSORS
-  1
-)
-
-set_property(
-  TEST
-  unittester-client
-  PROPERTY
   ENVIRONMENT
 )
 
@@ -133,9 +132,12 @@ resources(unittester-client
   /types/bad
 )
 
-target_allocator(unittester-client
-  cpp-ytalloc-impl
-)
-
 vcs_info(unittester-client)
 
+set_property(
+  TEST
+  unittester-client
+  PROPERTY
+  PROCESSORS
+  1
+)

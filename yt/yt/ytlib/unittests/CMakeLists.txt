@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-ytlib)
 
+
 target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
@@ -41,6 +42,10 @@ target_link_libraries(unittester-ytlib PUBLIC
   cpp-http-server
 )
 
+target_allocator(unittester-ytlib
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-ytlib PRIVATE
   -ldl
   -lrt
@@ -55,6 +60,7 @@ target_link_options(unittester-ytlib PRIVATE
 
 target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/misc/test_connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/arrow_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
@@ -78,6 +84,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/protobuf_helpers_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-ytlib
@@ -97,20 +104,15 @@ set_property(
   TEST
   unittester-ytlib
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-ytlib)
 
 set_property(
   TEST
   unittester-ytlib
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-ytlib
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-ytlib)
-

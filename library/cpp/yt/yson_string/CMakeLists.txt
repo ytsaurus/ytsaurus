@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-yson_string)
 
+
 target_compile_options(cpp-yt-yson_string PRIVATE
   -Wdeprecated-this-capture
 )

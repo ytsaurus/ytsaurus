@@ -119,6 +119,14 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		configAsMap["enable_dynamic_tables"] = true
 	}
 
+	if _, ok := configAsMap["query_sticky_group_size"]; !ok {
+		if speclet.EnableStickyQueryDistribution {
+			configAsMap["query_sticky_group_size"] = speclet.QueryStickyGroupSizeOrDefault()
+		} else {
+			configAsMap["query_sticky_group_size"] = 0
+		}
+	}
+
 	if _, ok := configAsMap["discovery"]; !ok {
 		configAsMap["discovery"] = make(map[string]any)
 	}

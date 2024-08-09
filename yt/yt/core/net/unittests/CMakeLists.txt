@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-net)
 
+
 target_compile_options(unittester-core-net PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-core-net PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-streams-zstd
+)
+
+target_allocator(unittester-core-net
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-net PRIVATE
@@ -50,6 +55,7 @@ target_sources(unittester-core-net PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/network_address_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-core-net
@@ -69,20 +75,15 @@ set_property(
   TEST
   unittester-core-net
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-net)
 
 set_property(
   TEST
   unittester-core-net
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-net
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-net)
-

@@ -103,7 +103,7 @@ public:
 
     void Terminate() override;
 
-    bool DoesOperationsArchiveExist() override;
+    bool DoesOperationsArchiveExist(bool useOperationsArchiveClient = true) override;
 
     // Transactions
     TFuture<ITransactionPtr> StartNativeTransaction(
@@ -916,6 +916,7 @@ private:
 
     const IMemoryUsageTrackerPtr LookupMemoryTracker_;
     const IMemoryUsageTrackerPtr QueryMemoryTracker_;
+    const IMemoryUsageTrackerPtr ReadTableMemoryTracker_;
     const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
@@ -1240,7 +1241,7 @@ private:
     // Operation info
     //
 
-    std::optional<int> TryGetOperationsArchiveVersion();
+    std::optional<int> TryGetOperationsArchiveVersion(bool useOperationsArchiveClient = true);
 
     struct TGetOperationFromCypressResult
     {

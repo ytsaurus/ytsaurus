@@ -13,8 +13,11 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/client/queue_client/partition_reader.h>
 #include <yt/yt/client/queue_client/consumer_client.h>
+#include <yt/yt/client/queue_client/partition_reader.h>
+#include <yt/yt/client/queue_client/producer_client.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <library/cpp/yt/string/format.h>
 
@@ -187,7 +190,8 @@ public:
                 .ValueOrThrow();
 
             return std::ssize(allRowsResult.Rowset->GetRows()) == rowCount;
-        });
+        },
+        Format("%v rows were expected", rowCount));
     }
 
     auto CreateQueueAndConsumer(const TString& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
@@ -645,7 +649,7 @@ using TProducerApiTest = TQueueTestBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TProducerApiTest, TestBasic)
+TEST_F(TProducerApiTest, TestApi)
 {
     TRichYPath producerPath;
     producerPath.SetPath("//tmp/test_producer");
@@ -690,7 +694,15 @@ TEST_F(TProducerApiTest, TestBasic)
     auto nameTable = TNameTable::FromSchema(*queue->GetSchema());
 
     auto result = WaitFor(transaction->PushQueueProducer(
-        producerPath, queuePath, sessionId, epoch, nameTable, rows, TPushQueueProducerOptions{.SequenceNumber = TQueueProducerSequenceNumber{0}}))
+        producerPath,
+        queuePath,
+        sessionId,
+        epoch,
+        nameTable,
+        rows,
+        TPushQueueProducerOptions{
+            .SequenceNumber = TQueueProducerSequenceNumber{0},
+        }))
         .ValueOrThrow();
 
     ASSERT_EQ(result.LastSequenceNumber, TQueueProducerSequenceNumber(9));
@@ -712,6 +724,200 @@ TEST_F(TProducerApiTest, TestBasic)
         "<id=0> \"primary\"; <id=1> \"//tmp/test_queue\"; <id=2> session_1; <id=3> 9; <id=4> 0;"));
 
     ASSERT_EQ(actualSessionRow, expectedSessionRow);
+}
+
+TEST_F(TProducerApiTest, TestProducerClient)
+{
+    TRichYPath producerPath;
+    producerPath.SetPath("//tmp/producer");
+
+    TRichYPath queuePath;
+    queuePath.SetPath("//tmp/queue");
+
+    CreateQueueProducer(producerPath);
+
+    auto queueAttributes = CreateEphemeralAttributes();
+    queueAttributes->Set("tablet_count", 3);
+    auto queue = New<TDynamicTable>(
+            queuePath,
+            New<TTableSchema>(std::vector<TColumnSchema>{
+                TColumnSchema("a", EValueType::Uint64),
+                TColumnSchema("b", EValueType::String)}),
+            queueAttributes);
+
+    auto nameTable = TNameTable::FromSchema(*queue->GetSchema());
+
+    NQueueClient::TQueueProducerSessionId sessionId{ "session_1" };
+
+
+    auto producerClient = CreateProducerClient(
+        Client_,
+        producerPath);
+
+    auto pushBatch = [&] (const IProducerSessionPtr& producerSession, std::optional<i64> startSequenceNumber = std::nullopt) {
+        TUnversionedRowsBuilder rowsBuilder;
+        int rowCount = 10;
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            TUnversionedRowBuilder rowBuilder;
+
+            rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
+
+            TString value = ToString(rowIndex * rowIndex);
+            rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
+
+            if (startSequenceNumber) {
+                rowBuilder.AddValue(MakeUnversionedInt64Value(*startSequenceNumber + rowIndex, 2));
+            }
+
+            rowsBuilder.AddRow(rowBuilder.GetRow());
+        }
+        auto rows = rowsBuilder.Build();
+        if (!producerSession->Write(rows)) {
+            WaitFor(producerSession->GetReadyEvent())
+                .ThrowOnError();
+        }
+    };
+
+    auto checkQueue = [&] (int64_t expectedCount) {
+        WaitForRowCount(queuePath.GetPath(), expectedCount);
+    };
+
+    auto checkProducer = [&] (int64_t expectedLastSequenceNumber, int64_t expectedEpoch) {
+        WaitForPredicate([&] {
+            auto sessionRowsResult = WaitFor(Client_->SelectRows(Format("queue_cluster, queue_path, session_id, sequence_number, epoch from [%v]", producerPath)))
+                .ValueOrThrow();
+            auto sessionRows = sessionRowsResult.Rowset->GetRows();
+
+            auto actualSessionRow = ToString(sessionRows[0]);
+            auto expectedSessionRow = ToString(YsonToSchemalessRow(
+                Format(
+                    "<id=0> \"primary\"; <id=1> \"//tmp/queue\"; <id=2> session_1; <id=3> %v; <id=4> %v;",
+                    expectedLastSequenceNumber, expectedEpoch)));
+
+            return actualSessionRow == expectedSessionRow;
+        }, Format("Producer session with %v last sequence number and %v epoch was expected", expectedLastSequenceNumber, expectedEpoch));
+    };
+
+    {
+        auto producerSession = WaitFor(producerClient->CreateSession(
+            queuePath,
+            nameTable,
+            sessionId,
+            TProducerSessionOptions{
+                .AutoSequenceNumber = true,
+            }))
+            .ValueOrThrow();
+
+        for (int batchId = 0; batchId < 5; ++batchId) {
+            pushBatch(producerSession);
+        }
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(50);
+        checkProducer(49, 0);
+    }
+
+    {
+        auto producerSession = WaitFor(producerClient->CreateSession(
+            queuePath,
+            nameTable,
+            sessionId,
+            TProducerSessionOptions{
+                .AutoSequenceNumber = true,
+            }))
+            .ValueOrThrow();
+
+        for (int batchId = 0; batchId < 2; ++batchId) {
+            pushBatch(producerSession);
+        }
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(70);
+        checkProducer(69, 1);
+    }
+
+    {
+        // Rows will be flushed after each batch.
+        auto producerSession = WaitFor(producerClient->CreateSession(
+            queuePath,
+            nameTable,
+            sessionId,
+            TProducerSessionOptions{
+                .AutoSequenceNumber = true,
+                .MaxBufferSize = 15,
+            }))
+            .ValueOrThrow();
+
+        for (int batchId = 0; batchId < 3; ++batchId) {
+            pushBatch(producerSession);
+            auto size = 70 + (batchId + 1) * 10;
+            checkQueue(size);
+            checkProducer(size - 1, 2);
+        }
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(100);
+        checkProducer(99, 2);
+    }
+
+    auto nameTableWithSequenceNumber = TNameTable::FromSchema(
+        TTableSchema(std::vector<TColumnSchema>{
+                TColumnSchema("a", EValueType::Uint64),
+                TColumnSchema("b", EValueType::String),
+                TColumnSchema("$sequence_number", EValueType::Int64),
+        }));
+
+    auto createSessionWithoutAutoSequenceNumber = [&] {
+        return WaitFor(producerClient->CreateSession(
+            queuePath,
+            nameTable,
+            sessionId))
+            .ValueOrThrow();
+    };
+
+    {
+        auto producerSession = createSessionWithoutAutoSequenceNumber();
+
+        // 5 rows will be ignored as a dublicate and 15 rows will be written.
+        for (int batchId = 0; batchId < 2; ++batchId) {
+            pushBatch(producerSession, 95 + batchId * 10);
+        }
+
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(115);
+        checkProducer(114, 3);
+    }
+
+    {
+        auto producerSession = createSessionWithoutAutoSequenceNumber();
+
+        // All rows will be ignored.
+        pushBatch(producerSession, 105);
+
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(115);
+        checkProducer(114, 4);
+    }
+
+    {
+        auto producerSession = createSessionWithoutAutoSequenceNumber();
+
+        // 1 row will be ignored and 9 rows will written.
+        pushBatch(producerSession, 114);
+
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(124);
+        checkProducer(123, 5);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(frame_pointer)
-add_subdirectory(interop)
+
 add_subdirectory(libunwind)
+add_subdirectory(interop)
+add_subdirectory(frame_pointer)

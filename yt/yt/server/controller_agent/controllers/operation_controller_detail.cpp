@@ -4972,6 +4972,11 @@ IInvokerPtr TOperationControllerBase::GetInvoker(EOperationControllerQueue queue
     return SuspendableInvokerPool->GetInvoker(queue);
 }
 
+IInvokerPoolPtr TOperationControllerBase::GetCancelableInvokerPool() const
+{
+    return CancelableInvokerPool;
+}
+
 IInvokerPtr TOperationControllerBase::GetChunkScraperInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -5251,6 +5256,10 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, bool abortAllJoblets)
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    if (auto delay = Spec_->TestingOperationOptions->FailOperationDelay; delay) {
+        Sleep(*delay);
+    }
 
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
@@ -5689,6 +5698,23 @@ TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocat
     }
 
     return TJobId(jobIdGuid);
+}
+
+TJobletPtr TOperationControllerBase::CreateJoblet(
+    TTask* task,
+    TJobId jobId,
+    TString treeId,
+    int taskJobIndex,
+    std::optional<TString> poolPath,
+    bool treeIsTentative)
+{
+    auto joblet = New<TJoblet>(task, NextJobIndex(), taskJobIndex, std::move(treeId), treeIsTentative);
+
+    joblet->StartTime = TInstant::Now();
+    joblet->JobId = jobId;
+    joblet->PoolPath = std::move(poolPath);
+
+    return joblet;
 }
 
 bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept
@@ -7541,7 +7567,7 @@ void TOperationControllerBase::InferInputRanges()
                 : MaxKey();
 
             auto subrange = CropItems(
-                MakeRange(inferredRanges),
+                TRange(inferredRanges),
                 [&] (auto it) {
                     return !(lowerInitial < it->second);
                 },
@@ -8064,6 +8090,10 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
         return;
     }
 
+    if (table->Dynamic) {
+        return;
+    }
+
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
@@ -8098,7 +8128,9 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    if (auto livePreview = LivePreviews_->find(tableName); livePreview != LivePreviews_->end()) {
+        InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    }
 }
 
 void TOperationControllerBase::AttachToLivePreview(

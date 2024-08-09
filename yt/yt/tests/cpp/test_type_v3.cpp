@@ -87,7 +87,7 @@ TEST_F(TTypeV3Test, TestCreateStaticTable)
             createRow("foo", "[3; 4; 5]"),
             createRow("bar", "[6; 7]"),
         };
-        auto written = tableWriter->Write(MakeRange<TUnversionedRow>(writtenData));
+        auto written = tableWriter->Write(TRange<TUnversionedRow>(writtenData));
         EXPECT_EQ(written, true);
 
         WaitFor(tableWriter->Close())

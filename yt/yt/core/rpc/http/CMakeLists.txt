@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(core-rpc-http)
 
+
 target_compile_options(core-rpc-http PRIVATE
   -Wdeprecated-this-capture
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-tcmalloc-default INTERFACE)
 
+
 target_link_libraries(libs-tcmalloc-default INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,8 +26,8 @@ target_link_libraries(libs-tcmalloc-default INTERFACE
 
 
 add_global_library_for(libs-tcmalloc-default.global
-  libs-tcmalloc-default
-)
+  libs-tcmalloc-default)
+
 
 target_compile_options(libs-tcmalloc-default.global PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

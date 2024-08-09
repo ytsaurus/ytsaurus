@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(server-lib-election)
+
 
 target_compile_options(server-lib-election PRIVATE
   -Wdeprecated-this-capture

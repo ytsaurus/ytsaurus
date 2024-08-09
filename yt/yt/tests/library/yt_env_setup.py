@@ -340,9 +340,6 @@ class YTEnvSetup(object):
     NODE_USE_DIRECT_IO_FOR_READS = "never"
 
     # COMPAT(kvk1920)
-    TEST_LOCATION_AWARE_REPLICATOR = False
-
-    # COMPAT(kvk1920)
     TEST_MAINTENANCE_FLAGS = False
 
     WAIT_FOR_DYNAMIC_CONFIG = True
@@ -855,7 +852,7 @@ class YTEnvSetup(object):
         yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
         yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
         yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 2000, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 5000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
@@ -1592,9 +1589,6 @@ class YTEnvSetup(object):
         # COMPAT(kvk1920)
         if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
             dynamic_master_config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
-
-        if self.TEST_LOCATION_AWARE_REPLICATOR:
-            assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
 
         if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
             dynamic_master_config["node_tracker"]["forbid_maintenance_attribute_writes"] = True

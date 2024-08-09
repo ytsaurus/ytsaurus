@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(library-profiling-sensors_owner)
+
 
 target_compile_options(library-profiling-sensors_owner PRIVATE
   -Wdeprecated-this-capture

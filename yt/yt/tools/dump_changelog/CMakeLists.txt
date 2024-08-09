@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dump-changelog)
 
+
 target_compile_options(dump-changelog PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,11 @@ target_link_libraries(dump-changelog PUBLIC
   server-lib-tablet_node
   server-lib-hydra
   cpp-getopt-small
+)
+
+target_allocator(dump-changelog
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(dump-changelog PRIVATE
@@ -49,10 +55,5 @@ target_sources(dump-changelog PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
 )
 
-target_allocator(dump-changelog
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(dump-changelog)
-

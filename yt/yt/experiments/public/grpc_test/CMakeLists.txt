@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(grpc_test)
 
+
 target_link_libraries(grpc_test PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -39,6 +40,11 @@ target_link_libraries(grpc_test PUBLIC
   core-rpc-grpc
   library-cpp-getopt
   contrib-libs-protobuf
+)
+
+target_allocator(grpc_test
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(grpc_test PRIVATE
@@ -53,18 +59,19 @@ target_link_options(grpc_test PRIVATE
   -lutil
 )
 
+target_sources(grpc_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
+)
+
 target_proto_messages(grpc_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
 )
 
-target_sources(grpc_test PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
-)
 
-target_allocator(grpc_test
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_outs(grpc_test
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(grpc_test
@@ -78,10 +85,4 @@ target_proto_addincls(grpc_test
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(grpc_test
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(grpc_test)
-

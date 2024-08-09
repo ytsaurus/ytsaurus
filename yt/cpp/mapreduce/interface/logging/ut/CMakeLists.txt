@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-cpp-mapreduce-interface-logging-ut)
 
+
 target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,11 @@ target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   mapreduce-interface-logging
+)
+
+target_allocator(yt-cpp-mapreduce-interface-logging-ut
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
@@ -40,6 +46,7 @@ target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
 target_sources(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/ut/log_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -60,21 +67,15 @@ set_property(
   TEST
   yt-cpp-mapreduce-interface-logging-ut
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-cpp-mapreduce-interface-logging-ut)
 
 set_property(
   TEST
   yt-cpp-mapreduce-interface-logging-ut
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-cpp-mapreduce-interface-logging-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-cpp-mapreduce-interface-logging-ut)
-

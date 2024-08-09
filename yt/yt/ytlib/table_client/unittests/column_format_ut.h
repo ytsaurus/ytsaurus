@@ -180,7 +180,7 @@ protected:
     void WriteSegment(NTableChunkFormat::IValueColumnWriter* columnWriter, std::vector<std::optional<TValue>> values)
     {
         auto rows = CreateRows(values);
-        columnWriter->WriteVersionedValues(MakeRange(rows));
+        columnWriter->WriteVersionedValues(TRange(rows));
         columnWriter->FinishCurrentSegment();
     }
 
@@ -211,7 +211,7 @@ protected:
         reader->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
 
         const auto* expectedBegin = expected.data() + startRowIndex;
-        ValidateEqual(MakeRange(expectedBegin, expectedBegin + rowCount), actual);
+        ValidateEqual(TRange(expectedBegin, expectedBegin + rowCount), actual);
     }
 
     std::vector<std::optional<TValue>> MakeVector(int count, const TValue& value)

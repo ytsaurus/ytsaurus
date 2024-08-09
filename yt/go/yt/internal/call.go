@@ -26,8 +26,9 @@ type Call struct {
 	Params Params
 	CallID guid.GUID
 
-	YSONValue []byte
-	RowBatch  yt.RowBatch
+	YSONValue    []byte
+	RowBatch     yt.RowBatch
+	WriteRspChan chan *CallResult
 
 	RequestedProxy string
 	SelectedProxy  string

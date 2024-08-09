@@ -6,6 +6,54 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TComponentFactorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cell_factor", &TThis::Cell)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("node_factor", &TThis::Node)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("table_cell_factor", &TThis::TableCell)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("table_node_factor", &TThis::TableNode)
+        .Optional()
+        .GreaterThanOrEqual(0);
+}
+
+
+TComponentFactorConfigPtr TComponentFactorConfig::MakeIdentity()
+{
+    auto config = New<TComponentFactorConfig>();
+
+    config->Cell = 1;
+    config->Node = 1;
+    config->TableCell = 0;
+    config->TableNode = 0;
+
+    return config;
+}
+
+TComponentFactorConfigPtr TComponentFactorConfig::MergeWith(
+    const TComponentFactorConfigPtr& otherConfig) const
+{
+    auto config = New<TComponentFactorConfig>();
+
+    auto coalesce = [] (auto lhs, auto rhs) {
+        return lhs ? lhs : rhs;
+    };
+
+    config->Cell = coalesce(otherConfig->Cell, Cell);
+    config->Node = coalesce(otherConfig->Node, Node);
+    config->TableCell = coalesce(otherConfig->TableCell, TableCell);
+    config->TableNode = coalesce(otherConfig->TableNode, TableNode);
+
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_reshard", &TThis::EnableReshard)
@@ -27,6 +75,8 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_relative_metric_improvement", &TThis::MinRelativeMetricImprovement)
         .Default()
         .GreaterThanOrEqual(0);
+    registrar.Parameter("factors", &TThis::Factors)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

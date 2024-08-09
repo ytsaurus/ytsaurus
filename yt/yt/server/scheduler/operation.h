@@ -482,7 +482,9 @@ void ParseSpec(
 
 //! A helper that wraps YSON parsing error or invalid node type error into
 //! convenient "Error parsing operation spec string" error.
-NYTree::IMapNodePtr ConvertSpecStringToNode(const NYson::TYsonString& specString);
+NYTree::IMapNodePtr ConvertSpecStringToNode(
+    const NYson::TYsonString& specString,
+    int treeSizeLimit = std::numeric_limits<int>::max());
 
 ////////////////////////////////////////////////////////////////////////////////
 

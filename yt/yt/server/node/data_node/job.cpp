@@ -1660,7 +1660,7 @@ private:
                 MultiReaderMemoryManager_);
 
             while (auto rows = chunkReader.ReadRows(rowBuffer)) {
-                if (!writer->Write(MakeRange(*rows))) {
+                if (!writer->Write(TRange(*rows))) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 }

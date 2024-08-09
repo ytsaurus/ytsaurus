@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(blockcodecs-codecs-fastlz INTERFACE)
 
+
 target_link_libraries(blockcodecs-codecs-fastlz INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,8 +27,8 @@ target_link_libraries(blockcodecs-codecs-fastlz INTERFACE
 
 
 add_global_library_for(blockcodecs-codecs-fastlz.global
-  blockcodecs-codecs-fastlz
-)
+  blockcodecs-codecs-fastlz)
+
 
 target_link_libraries(blockcodecs-codecs-fastlz.global PUBLIC
   linux-headers-generic::linux-headers-generic

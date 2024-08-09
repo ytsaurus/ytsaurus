@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(proto)
 
 add_executable(yt-cpp-mapreduce-library-parallel_io-ut)
+
 
 target_compile_options(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
   -Wdeprecated-this-capture
@@ -39,6 +41,11 @@ target_link_libraries(yt-cpp-mapreduce-library-parallel_io-ut PUBLIC
   cpp-mapreduce-util
 )
 
+target_allocator(yt-cpp-mapreduce-library-parallel_io-ut
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
+)
+
 target_link_options(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
   -ldl
   -lrt
@@ -58,6 +65,7 @@ target_sources(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/parallel_file_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/resource_limiter_ut.cpp
 )
+
 
 set_property(
   TARGET
@@ -92,21 +100,15 @@ set_yunittest_property(
   TEST
   yt-cpp-mapreduce-library-parallel_io-ut
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(yt-cpp-mapreduce-library-parallel_io-ut)
 
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-library-parallel_io-ut
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-cpp-mapreduce-library-parallel_io-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-cpp-mapreduce-library-parallel_io-ut)
-

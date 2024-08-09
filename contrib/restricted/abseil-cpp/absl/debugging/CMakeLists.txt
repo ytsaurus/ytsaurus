@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(abseil-cpp-absl-debugging)
 
+
 target_compile_options(abseil-cpp-absl-debugging PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -34,9 +35,12 @@ target_link_libraries(abseil-cpp-absl-debugging PUBLIC
 target_sources(abseil-cpp-absl-debugging PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/failure_signal_handler.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/address_is_readable.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/decode_rust_punycode.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/demangle.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/demangle_rust.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/elf_mem_image.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/examine_stack.cc
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/utf8_for_code_point.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/vdso_support.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/leak_check.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/stacktrace.cc

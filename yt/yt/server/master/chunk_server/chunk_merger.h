@@ -251,6 +251,9 @@ private:
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
     void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
 
+    void AddToNodesBeingMerged(NCypressServer::TNodeId nodeId, NSecurityServer::TAccountId accountId);
+    void RemoveFromNodesBeingMerged(NCypressServer::TNodeId nodeId);
+
     void IncrementPersistentTracker(NSecurityServer::TAccountId accountId);
     void DecrementPersistentTracker(NSecurityServer::TAccountId accountId);
 

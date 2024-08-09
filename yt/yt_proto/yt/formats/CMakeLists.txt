@@ -28,21 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt_proto-yt-formats)
+
 
 target_link_libraries(yt_proto-yt-formats PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -61,6 +48,12 @@ target_sources(yt_proto-yt-formats PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/formats/yamr.pb.h
 )
 
+
+target_proto_outs(yt_proto-yt-formats
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(yt_proto-yt-formats
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -70,9 +63,3 @@ target_proto_addincls(yt_proto-yt-formats
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt_proto-yt-formats
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

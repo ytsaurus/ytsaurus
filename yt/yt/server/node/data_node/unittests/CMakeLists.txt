@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-data-node)
 
+
 target_compile_options(unittester-data-node PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(unittester-data-node PUBLIC
   yt-core-test_framework
   yt-server-node
   yt-server-tools
+)
+
+target_allocator(unittester-data-node
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-data-node PRIVATE
@@ -48,6 +54,7 @@ target_sources(unittester-data-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,22 +75,16 @@ set_property(
   TEST
   unittester-data-node
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
+  "ASAN_OPTIONS=detect_leaks=0"
 )
+
+vcs_info(unittester-data-node)
 
 set_property(
   TEST
   unittester-data-node
   PROPERTY
-  ENVIRONMENT
-  ASAN_OPTIONS=detect_leaks=0
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-data-node
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-data-node)
-

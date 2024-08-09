@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(server-lib-misc)
+
 
 target_compile_options(server-lib-misc PRIVATE
   -Wdeprecated-this-capture
@@ -53,8 +55,8 @@ target_sources(server-lib-misc PRIVATE
 
 
 add_global_library_for(server-lib-misc.global
-  server-lib-misc
-)
+  server-lib-misc)
+
 
 target_compile_options(server-lib-misc.global PRIVATE
   -Wdeprecated-this-capture

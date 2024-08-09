@@ -868,7 +868,7 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
         return TSharedRefArray();
     }
     return TSharedRefArray(
-        MakeRange(
+        TRange(
             Attachments_.data() + beginIndex,
             Attachments_.data() + endIndex),
         TSharedRefArray::TCopyParts{});

@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-transaction_supervisor)
 
+
 target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wdeprecated-this-capture
 )
@@ -48,12 +49,7 @@ target_link_libraries(server-lib-transaction_supervisor PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-transaction_supervisor PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
-)
-
 target_sources(server-lib-transaction_supervisor PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp
@@ -62,6 +58,17 @@ target_sources(server-lib-transaction_supervisor PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_supervisor.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h
+)
+
+target_proto_messages(server-lib-transaction_supervisor PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
+)
+
+
+target_proto_outs(server-lib-transaction_supervisor
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-transaction_supervisor
@@ -76,9 +83,3 @@ target_proto_addincls(server-lib-transaction_supervisor
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-transaction_supervisor
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

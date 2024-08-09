@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(crypto)
 
 add_library(contrib-libs-openssl)
+
 
 target_compile_options(contrib-libs-openssl PRIVATE
   -DAESNI_ASM

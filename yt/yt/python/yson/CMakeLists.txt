@@ -12,13 +12,15 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS
   Development
 )
-find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(arrow)
 
 add_library(yt-python-yson)
+
 
 target_compile_options(yt-python-yson PRIVATE
   -DPYCXX_PYTHON_2TO3
@@ -71,8 +73,8 @@ target_sources(yt-python-yson PRIVATE
 
 
 add_global_library_for(yt-python-yson.global
-  yt-python-yson
-)
+  yt-python-yson)
+
 
 target_compile_options(yt-python-yson.global PRIVATE
   -DPYCXX_PYTHON_2TO3

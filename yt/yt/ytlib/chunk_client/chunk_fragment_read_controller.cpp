@@ -717,7 +717,7 @@ private:
         if (++request.FetchedPartCount == std::ssize(request.Parts)) {
             if (Options_.PrefetchWholeBlocks) {
                 struct TChunkFragmentReaderTag { };
-                auto block = MergeRefsToRef<TChunkFragmentReaderTag>(MakeRange(request.Parts));
+                auto block = MergeRefsToRef<TChunkFragmentReaderTag>(TRange(request.Parts));
                 YT_VERIFY(std::ssize(block) == request.BlockSize);
                 ProcessBlockResponse(block, request.BlockIndex);
             } else {
@@ -726,7 +726,7 @@ private:
                     response = std::move(request.Parts.front());
                 } else {
                     struct TChunkFragmentReaderTag { };
-                    auto fragment = MergeRefsToRef<TChunkFragmentReaderTag>(MakeRange(request.Parts));
+                    auto fragment = MergeRefsToRef<TChunkFragmentReaderTag>(TRange(request.Parts));
                     response = std::move(fragment);
                 }
             }

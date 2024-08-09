@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/security_client/public.h>
@@ -56,6 +58,10 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_parameterized_metric", &TThis::DefaultParameterizedMetric)
         .Default(DefaultParameterizedMetricFormula)
         .NonEmpty();
+    registrar.Parameter("parameterized_factors", &TThis::ParameterizedFactors)
+        .DefaultCtor([] {
+            return TComponentFactorConfig::MakeIdentity();
+        });
 
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default(DefaultTabletBalancerSchedule);

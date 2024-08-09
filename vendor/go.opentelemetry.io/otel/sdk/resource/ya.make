@@ -20,6 +20,7 @@ GO_TEST_SRCS(
     # env_test.go
     export_test.go
     host_id_test.go
+    resource_experimental_test.go
 )
 
 GO_XTEST_SRCS(

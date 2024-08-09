@@ -173,7 +173,7 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
 template <class TAlloc>
 TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row, NTableClient::TTimestamp retainedTimestamp)
 {
-    return BuildCachedRow(allocator, MakeRange(&row, 1), retainedTimestamp);
+    return BuildCachedRow(allocator, TRange(&row, 1), retainedTimestamp);
 }
 
 template <class TAlloc>

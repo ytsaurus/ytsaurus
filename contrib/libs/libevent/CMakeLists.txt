@@ -13,12 +13,14 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(event_core)
 add_subdirectory(event_extra)
 add_subdirectory(event_openssl)
 add_subdirectory(event_thread)
 
 add_library(contrib-libs-libevent INTERFACE)
+
 
 target_include_directories(contrib-libs-libevent INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/include

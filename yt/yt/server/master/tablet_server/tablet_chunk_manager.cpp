@@ -133,7 +133,7 @@ public:
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
             chunkManager->AttachToChunkList(
                 newRootChunkList,
-                MakeRange(chunkLists).Slice(0, firstTabletIndex));
+                TRange(chunkLists).Slice(0, firstTabletIndex));
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* newTabletChunkList = chunkManager->CloneTabletChunkList(chunkLists[index]->AsChunkList());
@@ -144,7 +144,7 @@ public:
 
             chunkManager->AttachToChunkList(
                 newRootChunkList,
-                MakeRange(chunkLists).Slice(lastTabletIndex + 1, chunkLists.size()));
+                TRange(chunkLists).Slice(lastTabletIndex + 1, chunkLists.size()));
 
             actionCount += newRootChunkList->Children().size();
 
@@ -211,7 +211,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        auto tablets = MakeMutableRange(table->MutableTablets());
+        auto tablets = TMutableRange(table->MutableTablets());
         auto newTablets = tablets.Slice(firstTabletIndex, firstTabletIndex + newTabletCount);
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
@@ -480,13 +480,13 @@ public:
             const auto& oldTabletChunkLists = oldRootChunkLists[contentType]->Children();
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
-                MakeRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
+                TRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
                 newTabletChunkLists[contentType]);
             chunkManager->AttachToChunkList(
                 newRootChunkLists[contentType],
-                MakeRange(oldTabletChunkLists).Slice(lastTabletIndex + 1, oldTabletChunkLists.size()));
+                TRange(oldTabletChunkLists).Slice(lastTabletIndex + 1, oldTabletChunkLists.size()));
         }
 
         // Replace root chunk list.
@@ -518,13 +518,13 @@ public:
 
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            MakeRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
+            TRange(oldTabletChunkLists).Slice(0, firstTabletIndex));
 
         chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkLists);
 
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            MakeRange(oldTabletChunkLists).Slice(lastTabletIndex + 1,  oldTabletChunkLists.size()));
+            TRange(oldTabletChunkLists).Slice(lastTabletIndex + 1,  oldTabletChunkLists.size()));
 
         oldRootChunkList->RemoveOwningNode(hunkStorage);
         hunkStorage->SetChunkList(newRootChunkList);

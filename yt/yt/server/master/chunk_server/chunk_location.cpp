@@ -27,28 +27,15 @@ bool TChunkLocation::TReplicaEqual::operator()(const TChunkPtrWithReplicaInfo& l
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TRealChunkLocation* TChunkLocation::AsReal() const
+int TChunkLocation::GetEffectiveMediumIndex() const
 {
-    YT_ASSERT(!IsImaginary());
-    return static_cast<const TRealChunkLocation*>(this);
+    return Statistics_.medium_index();
 }
 
-TRealChunkLocation* TChunkLocation::AsReal()
+void TChunkLocation::ReserveReplicas(int sizeHint)
 {
-    YT_ASSERT(!IsImaginary());
-    return static_cast<TRealChunkLocation*>(this);
-}
-
-const TImaginaryChunkLocation* TChunkLocation::AsImaginary() const
-{
-    YT_ASSERT(IsImaginary());
-    return static_cast<const TImaginaryChunkLocation*>(this);
-}
-
-TImaginaryChunkLocation* TChunkLocation::AsImaginary()
-{
-    YT_ASSERT(IsImaginary());
-    return static_cast<TImaginaryChunkLocation*>(this);
+    Replicas_.reserve(sizeHint);
+    RandomReplicaIter_ = Replicas_.end();
 }
 
 bool TChunkLocation::AddReplica(TChunkPtrWithReplicaInfo replica)
@@ -67,12 +54,6 @@ bool TChunkLocation::DoAddReplica(TChunkPtrWithReplicaInfo replica)
         RandomReplicaIter_ = it;
     }
     return inserted;
-}
-
-void TChunkLocation::ReserveReplicas(int sizeHint)
-{
-    Replicas_.reserve(sizeHint);
-    RandomReplicaIter_ = Replicas_.end();
 }
 
 bool TChunkLocation::RemoveReplica(TChunkPtrWithReplicaIndex replica)
@@ -235,15 +216,23 @@ void TChunkLocation::ResetLoadScratchData()
 
 void TChunkLocation::Save(TSaveContext& context) const
 {
+    TObject::Save(context);
+
     using NYT::Save;
     Save(context, Node_);
     Save(context, DestroyedReplicas_);
     TSizeSerializer::Save(context, Replicas_.size());
     Save(context, UnapprovedReplicas_);
+    Save(context, Uuid_);
+    Save(context, State_);
+    Save(context, MediumOverride_);
+    Save(context, Statistics_);
 }
 
 void TChunkLocation::Load(TLoadContext& context)
 {
+    TObject::Load(context);
+
     using NYT::Load;
     Load(context, Node_);
 
@@ -264,7 +253,19 @@ void TChunkLocation::Load(TLoadContext& context)
 
     Load(context, UnapprovedReplicas_);
 
+    Load(context, Uuid_);
+    Load(context, State_);
+    Load(context, MediumOverride_);
+    Load(context, Statistics_);
+
     ResetDestroyedReplicasIterator();
+}
+
+TChunkLocation* TChunkLocation::LoadPtr(TLoadContext& context)
+{
+    TChunkLocation* ptr;
+    TRawNonversionedObjectPtrSerializer::Load(context, ptr);
+    return ptr;
 }
 
 i64 TChunkLocation::GetDestroyedReplicasCount() const
@@ -339,111 +340,4 @@ TChunkLocation::TDestroyedReplicasIterator TChunkLocation::TDestroyedReplicasIte
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TImaginaryChunkLocation::TImaginaryChunkLocation()
-    : TImaginaryChunkLocation(GenericMediumIndex, /*node*/ nullptr)
-{ }
-
-TImaginaryChunkLocation::TImaginaryChunkLocation(int mediumIndex, TNode* node)
-    : MediumIndex_(mediumIndex)
-{
-    Node_ = node;
-}
-
-void TImaginaryChunkLocation::Save(NCellMaster::TSaveContext& context) const
-{
-    TChunkLocation::Save(context);
-    // NB: medium index is persisted as part of the node, not as part of the
-    // imaginary location.
-}
-
-void TImaginaryChunkLocation::Load(NCellMaster::TLoadContext& context)
-{
-    TChunkLocation::Load(context);
-}
-
-bool TImaginaryChunkLocation::IsImaginary() const
-{
-    return true;
-}
-
-bool TImaginaryChunkLocation::operator<(const TImaginaryChunkLocation& rhs) const
-{
-    if (auto lhsId = GetObjectId(GetNode()), rhsId = GetObjectId(rhs.GetNode()); lhsId != rhsId) {
-        return lhsId < rhsId;
-    }
-
-    return GetEffectiveMediumIndex() < rhs.GetEffectiveMediumIndex();
-}
-
-int TImaginaryChunkLocation::GetEffectiveMediumIndex() const
-{
-    return MediumIndex_;
-}
-
-TImaginaryChunkLocation* TImaginaryChunkLocation::GetOrCreate(NNodeTrackerServer::TNode* node, int mediumIndex, bool duringSnapshotLoading)
-{
-    return duringSnapshotLoading
-        ? node->GetOrCreateImaginaryChunkLocationDuringSnapshotLoading(mediumIndex)
-        : node->GetOrCreateImaginaryChunkLocation(mediumIndex);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TRealChunkLocation::IsImaginary() const
-{
-    return false;
-}
-
-bool TRealChunkLocation::operator<(const TRealChunkLocation& rhs) const
-{
-    return GetUuid() < rhs.GetUuid();
-}
-
-int TRealChunkLocation::GetEffectiveMediumIndex() const
-{
-    return Statistics_.medium_index();
-}
-
-void TRealChunkLocation::Save(TSaveContext& context) const
-{
-    TObject::Save(context);
-
-    using NYT::Save;
-
-    TChunkLocation::Save(context);
-
-    Save(context, Uuid_);
-    Save(context, State_);
-    Save(context, MediumOverride_);
-    Save(context, Statistics_);
-}
-
-void TRealChunkLocation::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-    TChunkLocation::Load(context);
-
-    using NYT::Load;
-
-    Load(context, Uuid_);
-    Load(context, State_);
-    Load(context, MediumOverride_);
-    Load(context, Statistics_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NChunkServer
-
-namespace NYT::NChunkServer::NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeId GetNodeId(TNode* node)
-{
-    return node->GetId();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NChunkServer::NDetail

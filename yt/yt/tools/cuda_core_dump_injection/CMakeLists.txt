@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_shared_library(cuda_core_dump_injection)
 
+
 target_link_libraries(cuda_core_dump_injection PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -38,5 +39,5 @@ target_sources(cuda_core_dump_injection PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
 )
 
-vcs_info(cuda_core_dump_injection)
 
+vcs_info(cuda_core_dump_injection)

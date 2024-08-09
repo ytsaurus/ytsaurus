@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package global // import "go.opentelemetry.io/otel/internal/global"
 
@@ -47,10 +36,12 @@ type testMeter struct {
 	sfCount   int
 	sfUDCount int
 	sfHist    int
+	sfGauge   int
 
 	siCount   int
 	siUDCount int
 	siHist    int
+	siGauge   int
 
 	callbacks []metric.Callback
 }
@@ -67,6 +58,11 @@ func (m *testMeter) Int64UpDownCounter(name string, options ...metric.Int64UpDow
 
 func (m *testMeter) Int64Histogram(name string, options ...metric.Int64HistogramOption) (metric.Int64Histogram, error) {
 	m.siHist++
+	return &testCountingIntInstrument{}, nil
+}
+
+func (m *testMeter) Int64Gauge(name string, options ...metric.Int64GaugeOption) (metric.Int64Gauge, error) {
+	m.siGauge++
 	return &testCountingIntInstrument{}, nil
 }
 
@@ -97,6 +93,11 @@ func (m *testMeter) Float64UpDownCounter(name string, options ...metric.Float64U
 
 func (m *testMeter) Float64Histogram(name string, options ...metric.Float64HistogramOption) (metric.Float64Histogram, error) {
 	m.sfHist++
+	return &testCountingFloatInstrument{}, nil
+}
+
+func (m *testMeter) Float64Gauge(name string, options ...metric.Float64GaugeOption) (metric.Float64Gauge, error) {
+	m.sfGauge++
 	return &testCountingFloatInstrument{}, nil
 }
 

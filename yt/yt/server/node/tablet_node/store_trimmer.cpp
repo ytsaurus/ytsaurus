@@ -246,6 +246,7 @@ private:
             };
             auto logParser = CreateReplicationLogParser(
                 tabletSnapshot->TableSchema,
+                tabletSnapshot->PhysicalSchema,
                 tabletSnapshot->Settings.MountConfig,
                 EWorkloadCategory::SystemTabletReplication,
                 Logger());

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-client-hedging-unittests)
 
+
 target_compile_options(yt-yt-client-hedging-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,11 @@ target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
   client-unittests-mock
   yt-yt-core
   library-profiling-solomon
+)
+
+target_allocator(yt-yt-client-hedging-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-client-hedging-unittests PRIVATE
@@ -55,6 +61,7 @@ target_sources(yt-yt-client-hedging-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
 )
 
+
 add_test(
   NAME
   yt-yt-client-hedging-unittests
@@ -74,21 +81,15 @@ set_property(
   TEST
   yt-yt-client-hedging-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-client-hedging-unittests)
 
 set_property(
   TEST
   yt-yt-client-hedging-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-client-hedging-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-client-hedging-unittests)
-

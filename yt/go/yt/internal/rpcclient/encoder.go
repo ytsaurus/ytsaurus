@@ -592,6 +592,123 @@ func (e *Encoder) LockRows(
 	return xerrors.New("implement me")
 }
 
+func (e *Encoder) PushQueueProducerBatch(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	batch yt.RowBatch,
+	opts *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	b := batch.(*rowBatch)
+
+	if opts == nil {
+		opts = &yt.PushQueueProducerOptions{}
+	}
+
+	req := &rpc_proxy.TReqPushQueueProducer{
+		TransactionId:    getTxID(opts.TransactionOptions),
+		ProducerPath:     ptr.String(producerPath.String()),
+		QueuePath:        ptr.String(queuePath.String()),
+		SessionId:        ptr.String(sessionID),
+		Epoch:            ptr.Int64(epoch),
+		SequenceNumber:   opts.SequenceNumber,
+		RowsetDescriptor: b.descriptor,
+	}
+	if opts.UserMeta != nil {
+		raw, err := yson.Marshal(opts.UserMeta)
+		if err != nil {
+			return nil, err
+		}
+		req.UserMeta = raw
+	}
+
+	call := e.newCall(MethodPushQueueProducer, NewPushQueueProducerRequest(req), b.attachments)
+	var rsp rpc_proxy.TRspPushQueueProducer
+	err = e.Invoke(ctx, call, &rsp)
+
+	result = &yt.PushQueueProducerResult{
+		LastSequenceNumber: *rsp.LastSequenceNumber,
+		SkippedRowCount:    *rsp.SkippedRowCount,
+	}
+
+	return
+}
+
+func (e *Encoder) PushQueueProducer(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	rows []any,
+	opts *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	batch, err := buildBatch(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, batch, opts)
+}
+
+func (e *Encoder) CreateQueueProducerSession(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	opts *yt.CreateQueueProducerSessionOptions,
+) (result *yt.CreateQueueProducerSessionResult, err error) {
+	req := &rpc_proxy.TReqCreateQueueProducerSession{
+		ProducerPath: ptr.String(producerPath.String()),
+		QueuePath:    ptr.String(queuePath.String()),
+		SessionId:    ptr.String(sessionID),
+	}
+	if opts.UserMeta != nil {
+		req.UserMeta, err = yson.Marshal(opts.UserMeta)
+		if err != nil {
+			return
+		}
+	}
+
+	call := e.newCall(MethodCreateQueueProducerSession, NewCreateQueueProducerSessionRequest(req), nil)
+
+	var rsp rpc_proxy.TRspCreateQueueProducerSession
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	result = &yt.CreateQueueProducerSessionResult{
+		SequenceNumber: *rsp.SequenceNumber,
+		Epoch:          *rsp.Epoch,
+		UserMeta:       rsp.UserMeta,
+	}
+
+	return
+}
+
+func (e *Encoder) RemoveQueueProducerSession(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	opts *yt.RemoveQueueProducerSessionOptions,
+) (err error) {
+
+	req := &rpc_proxy.TReqRemoveQueueProducerSession{
+		ProducerPath: ptr.String(producerPath.String()),
+		QueuePath:    ptr.String(queuePath.String()),
+		SessionId:    ptr.String(sessionID),
+	}
+
+	call := e.newCall(MethodRemoveQueueProducerSession, NewRemoveQueueProducerSessionRequest(req), nil)
+
+	var rsp rpc_proxy.TRspRemoveQueueProducerSession
+	return e.Invoke(ctx, call, &rsp)
+}
+
 func (e *Encoder) InsertRowBatch(
 	ctx context.Context,
 	path ypath.Path,

@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-node-chaos_node)
 
+
 target_compile_options(server-node-chaos_node PRIVATE
   -Wdeprecated-this-capture
 )
@@ -44,12 +45,7 @@ target_link_libraries(server-node-chaos_node PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-node-chaos_node PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_manager.proto
-)
-
 target_sources(server-node-chaos_node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/chaos_node/chaos_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_cell_synchronizer.cpp
@@ -71,6 +67,17 @@ target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replicated_table_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_serialization.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/chaos_node/chaos_manager.pb.h
+)
+
+target_proto_messages(server-node-chaos_node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_manager.proto
+)
+
+
+target_proto_outs(server-node-chaos_node
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-node-chaos_node
@@ -84,9 +91,3 @@ target_proto_addincls(server-node-chaos_node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-node-chaos_node
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

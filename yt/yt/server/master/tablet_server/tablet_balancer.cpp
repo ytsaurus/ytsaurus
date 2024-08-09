@@ -694,7 +694,7 @@ private:
             while (endIt != tablets.end() && (*beginIt)->GetTable() == (*endIt)->GetTable()) {
                 ++endIt;
             }
-            auto tabletRange = MakeRange(beginIt, endIt);
+            auto tabletRange = TRange(beginIt, endIt);
             beginIt = endIt;
 
             const auto* table = tabletRange.Front()->GetTable();

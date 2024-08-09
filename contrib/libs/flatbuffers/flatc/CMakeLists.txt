@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(flatc)
 
+
 target_compile_options(flatc PRIVATE
   -DFLATBUFFERS_LOCALE_INDEPENDENT=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
@@ -30,6 +31,11 @@ target_link_libraries(flatc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   abseil-cpp-absl-base
+)
+
+target_allocator(flatc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(flatc PRIVATE
@@ -82,10 +88,5 @@ target_sources(flatc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/flatbuffers/src/util.cpp
 )
 
-target_allocator(flatc
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(flatc)
-

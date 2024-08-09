@@ -28,6 +28,11 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFileFormat,
+    (Parquet)
+    (ORC)
+);
+
 class TArrowOutputStream
     : public arrow::io::OutputStream
 {
@@ -60,7 +65,7 @@ class TArrowRawIterator
 public:
     TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
 
-    void Initialize(const TString& pathToFile);
+    void Initialize(const TString& inputFilePath, EFileFormat format);
 
     Py::Object iter() override;
     PyObject* iternext() override;

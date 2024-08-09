@@ -33,10 +33,10 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TMessageBundle>
+template <typename TWrappedMessage>
 struct TProtoVisitorTraits;
 
-template <typename TMessageBundle>
+template <typename TWrappedMessage, typename TSelf>
 class TProtoVisitor;
 
 struct TIndexParseResult;

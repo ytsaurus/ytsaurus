@@ -13,10 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(buffered)
-add_subdirectory(json)
-add_subdirectory(prometheus)
-add_subdirectory(spack)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -25,7 +21,13 @@ get_built_tool_path(
   enum_parser
 )
 
+add_subdirectory(prometheus)
+add_subdirectory(buffered)
+add_subdirectory(spack)
+add_subdirectory(json)
+
 add_library(cpp-monlib-encode)
+
 
 target_link_libraries(cpp-monlib-encode PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -36,11 +38,12 @@ target_link_libraries(cpp-monlib-encode PUBLIC
 )
 
 target_sources(cpp-monlib-encode PRIVATE
-  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/encoder_state_enum.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder_state.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/format.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/encoder_state_enum.h_serialized.h
 )
+
 
 generate_enum_serilization(cpp-monlib-encode
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder_state_enum.h
@@ -49,4 +52,3 @@ generate_enum_serilization(cpp-monlib-encode
   INCLUDE_HEADERS
   library/cpp/monlib/encode/encoder_state_enum.h
 )
-

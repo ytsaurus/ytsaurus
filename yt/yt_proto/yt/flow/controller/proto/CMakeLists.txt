@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(flow-controller-proto)
 
+
 target_include_directories(flow-controller-proto PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -50,6 +51,12 @@ target_sources(flow-controller-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
 )
 
+
+target_proto_outs(flow-controller-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(flow-controller-proto
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -61,9 +68,3 @@ target_proto_addincls(flow-controller-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(flow-controller-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

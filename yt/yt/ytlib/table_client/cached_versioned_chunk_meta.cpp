@@ -168,9 +168,9 @@ TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> TCachedVersionedChunkMet
         if (PreparedMeta_.CompareAndSwap(rawCurrentMeta, newPreparedMeta)) {
             PreparedMetaSize_.store(newPreparedMeta->Size);
             if (MemoryTrackerGuard_) {
-                MemoryTrackerGuard_.IncreaseSize(newPreparedMeta->Size);
+                MemoryTrackerGuard_.IncrementSize(newPreparedMeta->Size);
                 if (currentMeta) {
-                    MemoryTrackerGuard_.IncreaseSize(-currentMeta->Size);
+                    MemoryTrackerGuard_.IncrementSize(-currentMeta->Size);
                 }
             }
             currentMeta = newPreparedMeta;

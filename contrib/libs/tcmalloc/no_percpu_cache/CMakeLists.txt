@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-tcmalloc-no_percpu_cache)
 
+
 target_compile_options(libs-tcmalloc-no_percpu_cache PRIVATE
   -DTCMALLOC_256K_PAGES
   -DTCMALLOC_DEPRECATED_PERTHREAD
@@ -35,8 +36,8 @@ target_sources(libs-tcmalloc-no_percpu_cache PRIVATE
 
 
 add_global_library_for(libs-tcmalloc-no_percpu_cache.global
-  libs-tcmalloc-no_percpu_cache
-)
+  libs-tcmalloc-no_percpu_cache)
+
 
 target_compile_options(libs-tcmalloc-no_percpu_cache.global PRIVATE
   -DTCMALLOC_256K_PAGES

@@ -23,6 +23,8 @@
 
 #include <yt/yt/library/program/program.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 
 using namespace NYT;
@@ -52,7 +54,7 @@ private:
     void DoRun(const NLastGetopt::TOptsParseResult& /*result*/) override
     {
         Cerr << "Program " << Argv0_ << " is not known" << Endl;
-        Exit(EProgramExitCode::OptionsError);
+        Exit(ToUnderlying(EProcessExitCode::ArgumentsError));
     }
 };
 

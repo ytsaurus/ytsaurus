@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-h3)
 
+
 target_compile_options(contrib-libs-h3 PRIVATE
   -DH3_PREFIX=
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

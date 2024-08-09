@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-rpc)
 
+
 target_compile_options(unittester-core-rpc PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,10 @@ target_link_libraries(unittester-core-rpc PUBLIC
   rpc-unittests-lib
   yt-core-test_framework
   cpp-testing-common
+)
+
+target_allocator(unittester-core-rpc
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-rpc PRIVATE
@@ -53,6 +58,7 @@ target_sources(unittester-core-rpc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/viable_peer_registry_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-core-rpc
@@ -72,20 +78,15 @@ set_property(
   TEST
   unittester-core-rpc
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-rpc)
 
 set_property(
   TEST
   unittester-core-rpc
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-rpc
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-rpc)
-

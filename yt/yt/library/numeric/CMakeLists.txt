@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(serialize)
 add_subdirectory(unittests)
 
 add_library(yt-library-numeric)
+
 
 target_compile_options(yt-library-numeric PRIVATE
   -Wdeprecated-this-capture

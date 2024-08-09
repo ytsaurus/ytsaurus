@@ -15,8 +15,8 @@ ENDIF()
 
 SRCS(
     computed_columns_ut.cpp
-    ch_yt_converter_ut.cpp
-    yt_ch_converter_ut.cpp
+    ch_to_yt_converter_ut.cpp
+    yt_to_ch_converter_ut.cpp
     framework.cpp
 )
 

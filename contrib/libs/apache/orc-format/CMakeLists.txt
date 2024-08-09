@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(libs-apache-orc-format)
 
+
 target_include_directories(libs-apache-orc-format PUBLIC
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
 )
@@ -49,6 +50,12 @@ target_sources(libs-apache-orc-format PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto/orc_proto.pb.h
 )
 
+
+target_proto_outs(libs-apache-orc-format
+  --cpp_out=${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
+)
+
 target_proto_addincls(libs-apache-orc-format
   ./contrib/libs/apache/orc-format/src/main/proto/orc/proto
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
@@ -59,9 +66,3 @@ target_proto_addincls(libs-apache-orc-format
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(libs-apache-orc-format
-  --cpp_out=${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-)
-

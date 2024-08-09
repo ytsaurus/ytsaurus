@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-memory)
 
+
 target_compile_options(cpp-yt-memory PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,7 @@ target_link_libraries(cpp-yt-memory PUBLIC
   cpp-yt-assert
   cpp-yt-misc
   cpp-yt-malloc
+  cpp-yt-system
 )
 
 target_sources(cpp-yt-memory PRIVATE

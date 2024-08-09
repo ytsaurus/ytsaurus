@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-node_tracker_server)
 
+
 target_compile_options(server-lib-node_tracker_server PRIVATE
   -Wdeprecated-this-capture
 )

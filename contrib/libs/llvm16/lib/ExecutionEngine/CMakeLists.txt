@@ -13,12 +13,14 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(JITLink)
-add_subdirectory(MCJIT)
+
 add_subdirectory(Orc)
 add_subdirectory(RuntimeDyld)
+add_subdirectory(MCJIT)
+add_subdirectory(JITLink)
 
 add_library(llvm16-lib-ExecutionEngine)
+
 
 target_compile_options(llvm16-lib-ExecutionEngine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

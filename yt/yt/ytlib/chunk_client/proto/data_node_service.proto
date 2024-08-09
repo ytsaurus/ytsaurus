@@ -99,8 +99,6 @@ message TReqPutBlocks
 
     // Might be empty, or contain NullChecksum.
     repeated fixed64 block_checksums = 8;
-
-    optional int64 cumulative_block_size = 9;
 }
 
 message TPutBlocksStatistics
@@ -124,7 +122,6 @@ message TReqSendBlocks
     required NYT.NNodeTrackerClient.NProto.TNodeDescriptor target_descriptor = 2;
     required int32 first_block_index = 3;
     required int32 block_count = 4;
-    optional int64 cumulative_block_size = 6;
 }
 
 message TRspSendBlocks

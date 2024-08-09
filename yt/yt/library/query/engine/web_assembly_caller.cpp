@@ -79,7 +79,7 @@ void TCGWebAssemblyCaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run
 
     auto positionIndependentRow = BorrowFromNonPI(row);
     auto copiedRow = CopyIntoCompartment(
-        MakeRange(positionIndependentRow.Begin(), positionIndependentRow.Size()),
+        TRange(positionIndependentRow.Begin(), positionIndependentRow.Size()),
         compartment);
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 5>{
@@ -191,7 +191,7 @@ void TCGWebAssemblyCaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSigna
 
     auto positionIndependentRow = BorrowFromNonPI(input);
     auto copiedRow = CopyIntoCompartment(
-        MakeRange(positionIndependentRow.Begin(), positionIndependentRow.Size()),
+        TRange(positionIndependentRow.Begin(), positionIndependentRow.Size()),
         compartment);
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 3>{

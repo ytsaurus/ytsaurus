@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(certs INTERFACE)
 
+
 target_link_libraries(certs INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -32,8 +33,8 @@ target_link_libraries(certs INTERFACE
 
 
 add_global_library_for(certs.global
-  certs
-)
+  certs)
+
 
 target_link_libraries(certs.global PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -46,6 +47,7 @@ target_sources(certs.global PRIVATE
   ${PROJECT_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
 )
 
+
 resources(certs.global
   ${PROJECT_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
   INPUTS
@@ -53,4 +55,3 @@ resources(certs.global
   KEYS
   /builtin/cacert
 )
-

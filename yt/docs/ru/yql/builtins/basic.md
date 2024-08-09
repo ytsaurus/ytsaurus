@@ -35,21 +35,13 @@
 
 {% include [x](_includes/basic/as_tagged.md) %}
 
-{% if feature_bulk_tables %}
-
-  {% include [x](_includes/basic/table_path_name_recindex.md) %}
-
-{% endif %}
+{% include [x](_includes/basic/table_path_name_recindex.md) %}
 
 {% include [x](_includes/basic/table_row.md) %}
 
-{% if feature_mapreduce %}
+{% include [x](_includes/basic/files.md) %}
 
-  {% include [x](_includes/basic/files.md) %}
-
-  {% include [x](_includes/basic/weakfield.md) %}
-
-{% endif %}
+{% include [x](_includes/basic/weakfield.md) %}
 
 {% include [x](_includes/basic/ensure.md) %}
 

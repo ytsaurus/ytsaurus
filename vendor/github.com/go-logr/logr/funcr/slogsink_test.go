@@ -83,19 +83,100 @@ func TestSlogSink(t *testing.T) {
 	}
 }
 
-func TestSlogSinkNestedGroups(t *testing.T) {
-	capt := &capture{}
-	logger := logr.New(newSink(capt.Func, NewFormatterJSON(Options{})))
-	slogger := slog.New(logr.ToSlogHandler(logger))
-	slogger = slogger.With("out", 0)
-	slogger = slogger.WithGroup("g1").With("mid1", 1)
-	slogger = slogger.WithGroup("g2").With("mid2", 2)
-	slogger = slogger.WithGroup("g3").With("in", 3)
-	slogger.Info("msg", "k", "v")
+func TestSlogSinkGroups(t *testing.T) {
+	testCases := []struct {
+		name   string
+		fn     func(slogger *slog.Logger)
+		expect string
+	}{{
+		name: "no group",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				Info("msg", "k", "v")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","k":"v"}`,
+	}, {
+		name: "1 group with leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").
+				Info("msg", "k", "v")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","g1":{"k":"v"}}`,
+	}, {
+		name: "1 group without leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").
+				Info("msg")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg"}`,
+	}, {
+		name: "1 group with value without leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").With("k1", 1).
+				Info("msg")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","g1":{"k1":1}}`,
+	}, {
+		name: "2 groups with values no leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").With("k1", 1).
+				WithGroup("g2").With("k2", 2).
+				Info("msg")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","g1":{"k1":1,"g2":{"k2":2}}}`,
+	}, {
+		name: "3 empty groups with no values or leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").
+				WithGroup("g2").
+				WithGroup("g3").
+				Info("msg")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg"}`,
+	}, {
+		name: "3 empty groups with no values but with leaf args",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				WithGroup("g1").
+				WithGroup("g2").
+				WithGroup("g3").
+				Info("msg", "k", "v")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","g1":{"g2":{"g3":{"k":"v"}}}}`,
+	}, {
+		name: "multiple groups with and without values",
+		fn: func(slogger *slog.Logger) {
+			slogger.
+				With("k0", 0).
+				WithGroup("g1").
+				WithGroup("g2").
+				WithGroup("g3").With("k3", 3).
+				WithGroup("g4").
+				WithGroup("g5").
+				WithGroup("g6").With("k6", 6).
+				WithGroup("g7").
+				WithGroup("g8").
+				WithGroup("g9").
+				Info("msg")
+		},
+		expect: `{"logger":"","level":0,"msg":"msg","k0":0,"g1":{"g2":{"g3":{"k3":3,"g4":{"g5":{"g6":{"k6":6}}}}}}}`,
+	}}
 
-	expect := `{"logger":"","level":0,"msg":"msg","out":0,"g1":{"mid1":1,"g2":{"mid2":2,"g3":{"in":3,"k":"v"}}}}`
-	if capt.log != expect {
-		t.Errorf("\nexpected %q\n     got %q", expect, capt.log)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			capt := &capture{}
+			logger := logr.New(newSink(capt.Func, NewFormatterJSON(Options{})))
+			slogger := slog.New(logr.ToSlogHandler(logger))
+			tc.fn(slogger)
+			if capt.log != tc.expect {
+				t.Errorf("\nexpected: `%s`\n     got: `%s`", tc.expect, capt.log)
+			}
+		})
 	}
 }
 
@@ -144,7 +225,7 @@ func TestRunSlogTests(t *testing.T) {
 }
 
 func TestLogrSlogConversion(t *testing.T) {
-	f := New(func(prefix, args string) {}, Options{})
+	f := New(func(_, _ string) {}, Options{})
 	f2 := logr.FromSlogHandler(logr.ToSlogHandler(f))
 	if want, got := f, f2; got != want {
 		t.Helper()

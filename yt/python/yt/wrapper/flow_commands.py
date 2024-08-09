@@ -69,7 +69,10 @@ def set_pipeline_spec(pipeline_path, value, spec_path=None, expected_version=Non
     if not is_format_specified:
         value = format.dumps_node(value)
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
+    params = {
+        "pipeline_path": YPath(pipeline_path, client=client),
+        "input_format": format.to_yson_type(),
+    }
     set_param(params, "spec_path", spec_path)
     set_param(params, "expected_version", expected_version)
     set_param(params, "force", force)
@@ -133,7 +136,10 @@ def set_pipeline_dynamic_spec(pipeline_path, value, spec_path=None, expected_ver
     if not is_format_specified:
         value = format.dumps_node(value)
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
+    params = {
+        "pipeline_path": YPath(pipeline_path, client=client),
+        "input_format": format.to_yson_type(),
+    }
     set_param(params, "spec_path", spec_path)
     set_param(params, "expected_version", expected_version)
 

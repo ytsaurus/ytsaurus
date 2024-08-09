@@ -566,7 +566,7 @@ public:
         auto automation = New<TTabletAutomaton>(this);
 
         if (auto controller = Bootstrap_->GetOverloadController()) {
-            automation->RegisterWaitTimeObserver(controller->CreateGenericTracker(
+            automation->RegisterWaitTimeObserver(controller->CreateGenericWaitTimeTracker(
                 TabletCellHydraTracker,
                 Format("%v.%v", TabletCellHydraTracker, SlotIndex_)));
         } else {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "public.h"
 
 #include <yt/yt/client/table_client/public.h>
@@ -65,6 +66,7 @@ struct TParameterizedReassignSolverConfig
     double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;
     TString Metric;
+    TComponentFactorConfigPtr Factors = TComponentFactorConfig::MakeIdentity();
 
     TParameterizedReassignSolverConfig MergeWith(
         const TParameterizedBalancingConfigPtr& groupConfig,

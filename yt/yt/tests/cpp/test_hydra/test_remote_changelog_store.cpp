@@ -143,7 +143,7 @@ protected:
         auto changelog = WaitFor(changelogStore->CreateChangelog(changelogIndex, /*meta*/ {}))
             .ValueOrThrow();
 
-        WaitFor(changelog->Append(MakeRange(Records_.begin(), Records_.begin() + recordCount)))
+        WaitFor(changelog->Append(TRange(Records_.begin(), Records_.begin() + recordCount)))
             .ThrowOnError();
         WaitFor(changelog->Close())
             .ThrowOnError();
@@ -208,7 +208,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadWrite)
     auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1, /*meta*/ {}))
         .ValueOrThrow();
 
-    WaitFor(changelog->Append(MakeRange(Records_.begin(), Records_.begin() + 2)))
+    WaitFor(changelog->Append(TRange(Records_.begin(), Records_.begin() + 2)))
         .ThrowOnError();
     WaitFor(changelog->Close())
         .ThrowOnError();
@@ -289,7 +289,7 @@ TEST_F(TRemoteChangelogStoreTest, TestAppend)
     auto changelogStore = LockStoreFactory(changelogStoreFactory);
     auto changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 25))
         .ValueOrThrow();
-    WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8)))
+    WaitFor(changelog->Append(TRange(Records_.begin() + 6, Records_.begin() + 8)))
         .ThrowOnError();
     WaitFor(changelog->Flush())
         .ThrowOnError();
@@ -310,7 +310,7 @@ TEST_F(TRemoteChangelogStoreTest, TestAppendPrerequisiteCheck)
         .ValueOrThrow();
     WaitFor(prerequisiteTransaction->Abort())
         .ThrowOnError();
-    EXPECT_FALSE(WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
+    EXPECT_FALSE(WaitFor(changelog->Append(TRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
 
     CheckChangelog(changelog, 6);
 }
@@ -326,7 +326,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadOnlyStore)
         .ValueOrThrow();
 
     EXPECT_FALSE(WaitFor(changelog->Truncate(/*recordCount*/ 5)).IsOK());
-    EXPECT_FALSE(WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
+    EXPECT_FALSE(WaitFor(changelog->Append(TRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
 
     CheckChangelog(changelog, 6);
 }
@@ -344,13 +344,13 @@ TEST_F(TRemoteChangelogStoreTest, TestPendingMutations)
         .ValueOrThrow();
 
     for (int index = 0; index < 5; ++index) {
-        YT_UNUSED_FUTURE(changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1)));
+        YT_UNUSED_FUTURE(changelog->Append(TRange(Records_.begin() + index, Records_.begin() + index + 1)));
     }
 
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
 
     for (int index = 5; index < 10; ++index) {
-        YT_UNUSED_FUTURE(changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1)));
+        YT_UNUSED_FUTURE(changelog->Append(TRange(Records_.begin() + index, Records_.begin() + index + 1)));
     }
 
     WaitFor(changelog->Close())

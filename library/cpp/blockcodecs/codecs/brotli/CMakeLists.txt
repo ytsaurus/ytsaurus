@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(blockcodecs-codecs-brotli INTERFACE)
 
+
 target_link_libraries(blockcodecs-codecs-brotli INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -27,8 +28,8 @@ target_link_libraries(blockcodecs-codecs-brotli INTERFACE
 
 
 add_global_library_for(blockcodecs-codecs-brotli.global
-  blockcodecs-codecs-brotli
-)
+  blockcodecs-codecs-brotli)
+
 
 target_link_libraries(blockcodecs-codecs-brotli.global PUBLIC
   linux-headers-generic::linux-headers-generic

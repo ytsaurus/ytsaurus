@@ -506,7 +506,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
             YT_ASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
 
             if (!CurrentKey_.empty()) {
-                if (KeyComparer_(partialRow.Keys(), MakeRange(CurrentKey_)) != 0) {
+                if (KeyComparer_(partialRow.Keys(), TRange(CurrentKey_)) != 0) {
                     break;
                 }
             } else {

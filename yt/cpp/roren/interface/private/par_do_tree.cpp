@@ -355,11 +355,11 @@ void TParDoTreeBuilder::CheckPCollectionType(int nodeId, TStringBuf expectedDesc
 
 void TParDoTreeBuilder::MarkAsOutput(TPCollectionNodeId nodeId, const TDynamicTypeTag& tag)
 {
-    Y_ABORT_UNLESS(!Built_);
+    Y_ABORT_IF(Built_);
+    Y_ABORT_IF(nodeId < 0 || nodeId >= std::ssize(PCollectionNodes_));
+    Y_ABORT_IF(PCollectionNodes_[nodeId].GlobalOutputIndex != InvalidOutputIndex); //GlobalOutputIndex allready set
+    Y_ABORT_IF(nodeId == RootNodeId); //RootNode can't be a GlobalOutput
 
-    Y_ABORT_UNLESS(0 <= nodeId && nodeId < std::ssize(PCollectionNodes_));
-    Y_ABORT_UNLESS(PCollectionNodes_[nodeId].GlobalOutputIndex == InvalidOutputIndex);
-    Y_ABORT_UNLESS(nodeId != RootNodeId);
     PCollectionNodes_[nodeId].GlobalOutputIndex = std::ssize(MarkedOutputTypeTags_);
     MarkedOutputTypeTags_.push_back(tag);
     if (tag) {

@@ -63,7 +63,7 @@ TMutablePIValueRange CapturePIValueRange(
         }
     }
 
-    return MakeMutableRange(captured, length);
+    return TMutableRange(captured, length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +254,7 @@ TMutablePIValueRange CaptureUnversionedValueRange(TExpressionContext* context, T
         }
     }
 
-    return MakeMutableRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
+    return TMutableRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

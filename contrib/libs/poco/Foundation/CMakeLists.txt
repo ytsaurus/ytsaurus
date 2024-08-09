@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-poco-Foundation)
 
+
 target_compile_options(libs-poco-Foundation PRIVATE
   -DHAVE_PTHREAD_SETAFFINITY_NP
   -DHAVE_THREE_PARAM_SCHED_SETAFFINITY
