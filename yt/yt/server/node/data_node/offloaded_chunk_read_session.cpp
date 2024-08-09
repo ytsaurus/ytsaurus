@@ -20,6 +20,9 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
+
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -237,9 +240,40 @@ private:
 
         // TODO(akozhikhov): Cache this reader and chunk state with chunk column mapping.
         int keyCount = keys.Size();
-        return DoLookup(
-            keyCount,
-            CreateVersionedChunkReader(
+
+        IVersionedReaderPtr reader;
+
+        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+            if (chunkState->OverrideTimestamp && Timestamp_ < chunkState->OverrideTimestamp) {
+                reader = CreateEmptyVersionedReader();
+            } else {
+                auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                    TChunkReaderConfig::GetDefault(),
+                    UnderlyingChunkReader_,
+                    chunkState->BlockCache,
+                    Options_,
+                    chunkState->ChunkMeta,
+                    GetCurrentInvoker());
+
+                reader = NColumnarChunkFormat::CreateVersionedChunkReader(
+                    std::move(keys),
+                    Timestamp_,
+                    chunkState->ChunkMeta,
+                    chunkState->TableSchema,
+                    ColumnFilter_,
+                    chunkState->ChunkColumnMapping,
+                    blockManagerFactory,
+                    ProduceAllVersions_,
+                    /*readerStatistics*/ nullptr);
+
+                if (chunkState->OverrideTimestamp) {
+                    reader = CreateTimestampResettingAdapter(
+                        std::move(reader),
+                        chunkState->OverrideTimestamp);
+                }
+            }
+        } else {
+            reader = CreateVersionedChunkReader(
                 TChunkReaderConfig::GetDefault(),
                 UnderlyingChunkReader_,
                 chunkState,
@@ -248,7 +282,10 @@ private:
                 std::move(keys),
                 ColumnFilter_,
                 Timestamp_,
-                ProduceAllVersions_));
+                ProduceAllVersions_);
+        }
+
+        return DoLookup(keyCount, reader);
     }
 
     TFuture<TSharedRef> LookupWithChunkIndex(
