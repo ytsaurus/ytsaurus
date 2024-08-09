@@ -155,6 +155,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_read_request_complexity_limits", &TThis::EnableReadRequestComplexityLimits)
         .Default(false);
+
+    registrar.Parameter("automaton_request_throttler", &TThis::AutomatonRequestThrottler)
+        .DefaultNew();
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
