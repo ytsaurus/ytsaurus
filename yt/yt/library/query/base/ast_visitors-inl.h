@@ -4,6 +4,8 @@
 #include "ast_visitors.h"
 #endif
 
+#include <yt/yt/core/misc/finally.h>
+
 namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,6 +380,35 @@ std::optional<std::vector<TExpressionPtr>> TRewriter<TDerived>::Visit(const std:
         return std::nullopt;
     } else {
         return Visit(*nullableTuple);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TDerived>
+TAliasVisitingAstVisitor<TDerived>::TAliasVisitingAstVisitor(const NAst::TAliasMap& aliasMap)
+    : AliasMap_(aliasMap)
+{ }
+
+template <class TDerived>
+void TAliasVisitingAstVisitor<TDerived>::OnReference(TReferenceExpressionPtr referenceExpr)
+{
+    if (referenceExpr->Reference.TableName) {
+        return;
+    }
+
+    YT_ASSERT(referenceExpr->Reference.CompositeTypeAccessor.IsEmpty());
+
+    auto name = referenceExpr->Reference.ColumnName;
+    auto it = AliasMap_.find(name);
+    if (it != AliasMap_.end()) {
+        if (UsedAliases_.insert(name).second) {
+            auto finally = Finally([&] {
+                UsedAliases_.erase(name);
+            });
+
+            Visit(it->second);
+        }
     }
 }
 
