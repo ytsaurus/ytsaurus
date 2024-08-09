@@ -636,6 +636,8 @@ public:
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
+    std::optional<TDuration> FailOperationDelay;
+
     bool FailSettleJobRequests;
 
     ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;

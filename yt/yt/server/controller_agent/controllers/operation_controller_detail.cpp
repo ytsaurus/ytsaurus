@@ -5257,6 +5257,10 @@ void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, 
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
 
+    if (auto delay = Spec_->TestingOperationOptions->FailOperationDelay; delay) {
+        Sleep(*delay);
+    }
+
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
 

@@ -301,6 +301,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("build_job_spec_proto_delay", &TThis::BuildJobSpecProtoDelay)
         .Default();
+    registrar.Parameter("fail_operation_delay", &TThis::FailOperationDelay)
+        .Default();
     registrar.Parameter("test_job_speculation_timeout", &TThis::TestJobSpeculationTimeout)
         .Default(false);
     registrar.Parameter("crash_controller_agent", &TThis::CrashControllerAgent)
