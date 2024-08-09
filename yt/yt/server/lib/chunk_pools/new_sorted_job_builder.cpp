@@ -94,7 +94,7 @@ public:
 
             LimitVector_.Values[EResourceKind::DataSliceCount] = JobSizeConstraints_->GetMaxDataSlicesPerJob();
 
-            JobSizeTracker_ = CreateJobSizeTracker(LimitVector_, Logger);
+            JobSizeTracker_ = CreateJobSizeTracker(LimitVector_, Options_.JobSizeTrackerOptions, Logger);
         }
 
         if (Options_.EnablePeriodicYielder) {

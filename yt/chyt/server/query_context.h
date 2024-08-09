@@ -160,6 +160,8 @@ public:
 
     void AddStatisticsSample(const NYPath::TYPath& path, i64 sample);
     void MergeStatistics(const TStatistics& statistics);
+    template <class T>
+    void SetRuntimeVariable(const TString& key, const T& value);
     void AddSecondaryQueryId(TQueryId id);
 
     class TStatisticsTimerGuard;
@@ -204,6 +206,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryLogLock_);
     //! CHYT-specific query statistics.
     TStatistics Statistics_;
+    NYTree::IAttributeDictionaryPtr RuntimeVariables_ = NYTree::CreateEphemeralAttributes();
     std::vector<TQueryId> SecondaryQueryIds_;
 
     //! Spinlock controlling lazy client creation.
@@ -278,3 +281,7 @@ void InvalidateCache(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
+
+#define QUERY_CONTEXT_INL_H_
+#include "query_context-inl.h"
+#undef QUERY_CONTEXT_INL_H_

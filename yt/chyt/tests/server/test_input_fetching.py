@@ -1,5 +1,6 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
-                         read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table)
+                         read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table,
+                         print_debug, select_rows)
 
 from yt_type_helpers import optional_type
 
@@ -16,8 +17,12 @@ from yt.common import wait
 from yt.test_helpers import assert_items_equal
 
 import random
+import builtins
 
 import pytest
+import time
+
+from operator import itemgetter
 
 
 class TestInputFetching(ClickHouseTestBase):
@@ -977,6 +982,369 @@ class TestInputFetching(ClickHouseTestBase):
             # But isNull/isNotNull should work fine even with 'any' columns.
             clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is null', exact=1)
             clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is not null', exact=4)
+
+    @staticmethod
+    def make_query(clique, query, **kwargs):
+        kwargs["full_response"] = True
+        result = clique.make_query(query, **kwargs)
+        return result.json()["data"], result.headers["X-ClickHouse-Query-Id"]
+
+    @staticmethod
+    def get_log_messages(log_table, *, query_id=None, query_ids=tuple(), type="QueryFinish", is_initial_query=1):
+        if query_id is not None:
+            assert not query_ids
+            query_ids = (query_id,)
+        assert query_ids
+
+        query_id_filter = ", ".join(f"\"{query_id}\"" for query_id in query_ids)
+        return select_rows(
+            f"* from [{log_table}] where [initial_query_id] in ({query_id_filter}) and [type] = \"{type}\" and [is_initial_query] = {is_initial_query}",
+            verbose=False)
+
+    @staticmethod
+    def wait_for_query_in_log(log_table, query_id=None, query_ids=tuple()):
+        wait(lambda: TestInputFetching.get_log_messages(log_table, query_id=query_id, query_ids=query_ids))
+
+    @staticmethod
+    def get_total_block_rows_read(log_table, query_id):
+        secondary_queries = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=0)
+
+        block_rows = 0
+
+        if secondary_queries:
+            block_rows = sum([
+                secondary_query["chyt_query_statistics"]["block_input_stream"]["block_rows"]["sum"]
+                for secondary_query in secondary_queries
+            ])
+        else:
+            initial_query = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
+            block_rows = initial_query["chyt_query_statistics"]["block_input_stream"]["block_rows"]["sum"]
+
+        print_debug(f"Block rows read by query {query_id}: {block_rows}")
+        return block_rows
+
+    @staticmethod
+    def get_read_in_order_modes(log_table, query_ids):
+        read_in_order_modes = {}
+        for log_message in TestInputFetching.get_log_messages(log_table, query_ids=query_ids):
+            assert log_message["is_initial_query"] == 1
+            assert log_message["type"] == "QueryFinish"
+            read_in_order_modes[log_message["query_id"]] = log_message["chyt_query_runtime_variables"].get("read_in_order_mode", "none")
+        return read_in_order_modes
+
+    @staticmethod
+    def prepare_query_log(log_dir):
+        create("map_node", log_dir)
+
+        log_table = f"{log_dir}/query_log/0"
+
+        config = {
+            "cypress_root_directory": log_dir,
+            "default": {
+                "enabled": True,
+                "max_rows_to_keep": 100000,
+            },
+        }
+
+        return log_table, config
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_optimize_read_in_order_optimizes(self, instance_count):
+        schema = [
+            {"name": "ts", "type": "int64", "sort_order": "ascending"},
+            {"name": "log_level", "type": "string"},
+            {"name": "message", "type": "string"},
+        ]
+
+        table_count = 3
+        chunk_count = 20
+        chunk_row_count = 20
+
+        total_row_count = chunk_row_count * chunk_count * table_count
+        small_query_size = 0.1 * total_row_count
+
+        ts_column = []
+
+        for table_index in range(table_count):
+            table_name = f"//tmp/table-{table_index}"
+            create("table", table_name, attributes={"schema": schema, "chunk_writer": {"block_size": 16}})
+
+            for chunk_index in range(chunk_count):
+                write_table(f"<append=%true>{table_name}", [{
+                    "ts": chunk_index * 256 + row_index,
+                    "log_level": "info" if row_index % 2 else "debug",
+                    "message": f"{row_index}, {chunk_index}, {table_index}"}
+                    for row_index in range(chunk_row_count)])
+                ts_column += [chunk_index * 256 + row_index for row_index in range(chunk_row_count)]
+
+        log_table, query_log_config = self.prepare_query_log(f"//tmp/exporter")
+
+        with Clique(1, config_patch={"yt": {
+                "settings": {
+                    "execution": {
+                        "enable_optimize_read_in_order": True,
+                    },
+                    "testing": {
+                        # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
+                        "local_clique_size": instance_count,
+                    },
+                },
+                "subquery": {
+                    "min_data_weight_per_thread": 30,
+                    "min_slice_data_weight": 1,
+                },
+                "system_log_table_exporters": query_log_config,
+            }}) as clique:
+            result, query_id = self.make_query(
+                clique,
+                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' and ts > {13 * 256 + 2} order by ts limit 6',
+                settings={"chyt.execution.input_streams_per_secondary_query": 4})
+            assert builtins.set(r["message"] for r in result[:3]) == {f"3, 13, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[3:]) == {f"5, 13, {table_index}" for table_index in range(table_count)}
+
+            self.wait_for_query_in_log(log_table, query_id)
+            assert self.get_total_block_rows_read(log_table, query_id) < small_query_size
+
+            result, query_id = self.make_query(
+                clique,
+                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' order by ts desc limit 6',
+                settings={"chyt.execution.input_streams_per_secondary_query": 4})
+            assert builtins.set(r["message"] for r in result[:3]) == {f"19, 19, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[3:]) == {f"17, 19, {table_index}" for table_index in range(table_count)}
+
+            self.wait_for_query_in_log(log_table, query_id)
+            assert self.get_total_block_rows_read(log_table, query_id) < small_query_size
+
+            result, query_id = self.make_query(
+                clique,
+                f'select message from `//tmp/table-1` where log_level = \'debug\' and ts < 1024 order by ts desc limit 5',
+                settings={"chyt.execution.input_streams_per_secondary_query": 64})
+            assert result == [{"message": f"{row_index}, 3, 1"} for row_index in range(18, 8, -2)]
+
+            self.wait_for_query_in_log(log_table, query_id)
+            assert self.get_total_block_rows_read(log_table, query_id) < small_query_size / 3
+
+            result, query_id = self.make_query(
+                clique,
+                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where message = \'13, 18, 1\' order by ts limit 1',
+                settings={"chyt.execution.input_streams_per_secondary_query": 4})
+            assert result == [{"message": "13, 18, 1"}]
+
+            self.wait_for_query_in_log(log_table, query_id)
+            # This query should read at least half of the input.
+            assert self.get_total_block_rows_read(log_table, query_id) > 0.5 * total_row_count
+
+            result, query_id = self.make_query(
+                clique,
+                f'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
+            assert [r["ts"] for r in result] == sorted(ts_column)
+
+            result, query_id = self.make_query(
+                clique,
+                f'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts desc limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
+            assert [r["ts"] for r in result] == sorted(ts_column, reverse=True)
+
+    @authors("achulkov2")
+    def test_optimize_read_in_order_float_nulls(self):
+        int_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+        ]
+
+        float_schema = [
+            {"name": "key", "type": "float", "sort_order": "ascending"},
+        ]
+
+        table_count = 3
+
+        for table_index in range(table_count):
+            table_name = f"//tmp/table-{table_index}-int"
+            create("table", table_name, attributes={"schema": int_schema, "chunk_writer": {"block_size": 16}})
+
+            write_table(f"<append=%true>{table_name}", [
+                {"key": None},
+                {"key": 57},
+                {"key": 1543},
+            ])
+
+            write_table(f"<append=%true>{table_name}", [
+                {"key": 2007},
+                {"key": 4242},
+            ])
+
+        for table_index in range(table_count):
+            table_name = f"//tmp/table-{table_index}-float"
+            create("table", table_name, attributes={"schema": float_schema, "chunk_writer": {"block_size": 16}})
+
+            write_table(f"<append=%true>{table_name}", [
+                {"key": None},
+                {"key": 5.7},
+                {"key": 15.43},
+            ])
+
+            write_table(f"<append=%true>{table_name}", [
+                {"key": 20.07},
+                {"key": 42.42},
+                # Uncommenting the next line would lead to an incorrect query result. C'est la vie.
+                # {"key": float("nan")},
+            ])
+
+        ordered_int_values = sum(([x, x, x] for x in (None, 57, 1543, 2007, 4242)), start=[])
+        ordered_float_values = sum(([x, x, x] for x in (None, 5.7, 15.43, 20.07, 42.42)), start=[])
+
+        with Clique(1, config_patch={"yt": {
+                "settings": {
+                    "execution": {
+                        "enable_optimize_read_in_order": True,
+                    },
+                },
+                "subquery": {
+                    "min_data_weight_per_thread": 30,
+                    "min_slice_data_weight": 1,
+                },
+            }}) as clique:
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_int_values
+
+            # We require nulls direction to be specified explicitly for queries with floating-point key columns.
+            with raises_yt_error(QueryFailedError):
+                result = clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key nulls first limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_int_values
+
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key nulls first limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_float_values
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key nulls last limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key nulls last limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_int_values[::-1]
+
+            # We require nulls direction to be specified explicitly for queries with floating-point key columns.
+            with raises_yt_error(QueryFailedError):
+                result = clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc nulls last limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_int_values[::-1]
+
+            result = clique.make_query(
+                f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc nulls last limit 10000',
+                settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            assert [r["key"] for r in result] == ordered_float_values[::-1]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc nulls first limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc nulls first limit 10000',
+                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_optimize_read_in_order_disabled(self, instance_count):
+        schema = [
+            {"name": "ts", "type": "int64", "sort_order": "ascending"},
+            {"name": "ts_2", "type": "int64", "sort_order": "ascending"},
+            {"name": "message", "type": "string"},
+        ]
+
+        chunk_count = 2
+        chunk_row_count = 20
+
+        table_name = "//tmp/table-0"
+        create("table", table_name, attributes={"schema": schema, "chunk_writer": {"block_size": 16}})
+
+        for chunk_index in range(chunk_count):
+            write_table(f"<append=%true>{table_name}", [{
+                "ts": chunk_index * 256 + row_index,
+                "ts_2": chunk_index * 256 + row_index + 1543,
+                "message": f"{row_index}, {chunk_index}, 0"}
+                for row_index in range(chunk_row_count)])
+
+        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
+
+        with Clique(1, config_patch={"yt": {
+                "settings": {
+                    "execution": {
+                        "enable_optimize_read_in_order": True,
+                    },
+                   "testing": {
+                        # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
+                        "local_clique_size": instance_count,
+                    },
+                },
+                "subquery": {
+                    "min_data_weight_per_thread": 30,
+                    "min_slice_data_weight": 1,
+                },
+                "system_log_table_exporters": query_log_config,
+            }}) as clique:
+            # Queries could have been a test parameter, but CHYT cliques take a while to start,
+            # so we save execution time by performing the checks in one test invocation.
+            # Also, query log takes a few seconds to write messages, so we run all checks in the end.
+            expected_read_in_order_modes = {}
+            def register_query_check(query, read_in_order_mode):
+                _, query_id = self.make_query(
+                    clique,
+                    query,
+                    settings={"chyt.execution.input_streams_per_secondary_query": 4})
+                expected_read_in_order_modes[query_id] = read_in_order_mode
+
+            register_query_check('select message from "//tmp/table-0" order by ts limit 1', read_in_order_mode="forward")
+            register_query_check('select message from "//tmp/table-0" order by ts desc limit 1', read_in_order_mode="backward")
+            # No LIMIT.
+            register_query_check('select message from "//tmp/table-0" order by ts desc', read_in_order_mode="none")
+            # Incompatible read directions.
+            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 limit 1', read_in_order_mode="none")
+            # These are fine though.
+            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 desc limit 1', read_in_order_mode="backward")
+            register_query_check('select message from "//tmp/table-0" order by ts, ts_2 limit 1', read_in_order_mode="forward")
+            # No ORDER BY.
+            register_query_check('select message from "//tmp/table-0" limit 5', read_in_order_mode="none")
+            # Complex expressions in ORDER BY.
+            register_query_check('select message from "//tmp/table-0" order by ts * 2 limit 1', read_in_order_mode="none")
+            # It seems that CH flattens tuples in ORDER BY somewhere along the way, so this works.
+            register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1', read_in_order_mode="backward")
+            # Positional arguments in ORDER BY are supported.
+            register_query_check('select ts from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="forward")
+            # Ordering by non-key columns.
+            register_query_check('select message from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="none")
+            register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
+
+            self.wait_for_query_in_log(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
+            read_in_order_modes = self.get_read_in_order_modes(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
+            for query_id, expected_read_in_order_mode in expected_read_in_order_modes.items():
+                assert read_in_order_modes[query_id] == expected_read_in_order_mode
+
+
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

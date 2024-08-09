@@ -67,6 +67,17 @@ TResourceVector TResourceVector::operator*(double scale) const
     return result;
 }
 
+TResourceVector& TResourceVector::PartialMultiply(double scale, const std::vector<EResourceKind>& resourceKinds, i64 clampValue)
+{
+    i64 smallClamp = clampValue / scale;
+
+    for (auto kind : resourceKinds) {
+        Values[kind] = std::clamp(Values[kind], -smallClamp, smallClamp) * scale;
+    }
+
+    return *this;
+}
+
 bool TResourceVector::Violates(const TResourceVector& limits) const
 {
     for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {

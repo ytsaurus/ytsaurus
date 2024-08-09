@@ -29,6 +29,8 @@ struct TResourceVector
 
     TResourceVector operator*(double scale) const;
 
+    TResourceVector& PartialMultiply(double scale, const std::vector<EResourceKind>& resourceKinds, i64 clampValue);
+
     bool Violates(const TResourceVector& limits) const;
     THashSet<EResourceKind> ViolatedResources(const TResourceVector& limits) const;
 

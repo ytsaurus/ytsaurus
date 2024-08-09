@@ -18,6 +18,7 @@
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -114,9 +115,13 @@ class TInputFetcher
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
+    DEFINE_BYREF_RW_PROPERTY(TInputStreamDirectory, InputStreamDirectory);
     DEFINE_BYREF_RW_PROPERTY(TChunkStripeListPtr, ResultStripeList, New<TChunkStripeList>());
     using TMiscExtMap = THashMap<TChunkId, TRefCountedMiscExtPtr>;
     DEFINE_BYREF_RW_PROPERTY(TMiscExtMap, MiscExtMap);
+    //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
+    DEFINE_BYREF_RW_PROPERTY(int, OperandCount, 0);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTablePtr>, InputTables);
 
 public:
     TInputFetcher(
@@ -187,11 +192,6 @@ private:
 
     std::vector<DB::DataTypes> KeyColumnDataTypes_;
 
-    //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
-    int OperandCount_ = 0;
-
-    std::vector<TTablePtr> InputTables_;
-
     TSubqueryConfigPtr Config_;
 
     TRowBufferPtr RowBuffer_;
@@ -220,7 +220,7 @@ private:
                 Invoker_,
                 Client_,
                 TColumnarStatisticsFetcher::TOptions{
-                    .Config = Config_->ChunkSliceFetcher,
+                    .Config = Config_->ColumnarStatisticsFetcher,
                     .Mode = EColumnarStatisticsFetcherMode::FromMaster,
                     .Logger = Logger,
                 });
@@ -243,7 +243,8 @@ private:
             columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
         }
 
-        for (auto& stripe : ResultStripes_) {
+        for (int operandIndex = 0; operandIndex < std::ssize(ResultStripes_); ++operandIndex) {
+            auto& stripe = ResultStripes_[operandIndex];
             auto& dataSlices = stripe->DataSlices;
 
             auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
@@ -254,7 +255,7 @@ private:
                     EKeyConditionScale::TopLevelDataSlice,
                     dataSlice->LowerLimit().KeyBound,
                     dataSlice->UpperLimit().KeyBound,
-                    dataSlice->GetInputStreamIndex()).can_be_true;
+                    operandIndex).can_be_true;
             };
 
             auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
@@ -426,7 +427,7 @@ private:
 
             for (auto& dataSlice : InputDataSlices_[tableIndex]) {
                 YT_VERIFY(!dataSlice->IsLegacy);
-                dataSlice->SetInputStreamIndex(operandIndex);
+                dataSlice->SetInputStreamIndex(tableIndex);
 
                 if (!VirtualColumnNames_.empty()) {
                     dataSlice->VirtualRowIndex = 0;
@@ -439,6 +440,16 @@ private:
         }
 
         DataSourceDirectory_ = std::move(dataSourceDirectory);
+
+        std::vector<NChunkPools::TInputStreamDescriptor> inputStreams;
+        for (const auto& [tableIndex, dataSource] : Enumerate(DataSourceDirectory_->DataSources())) {
+            auto& descriptor = inputStreams.emplace_back(
+                /*isTeleportable*/ false,
+                /*isPrimary*/ true,
+                /*isVersioned*/ dataSource.GetType() == EDataSourceType::VersionedTable);
+            descriptor.SetTableIndex(tableIndex);
+        }
+        InputStreamDirectory_ = TInputStreamDirectory(std::move(inputStreams));
 
         YT_LOG_INFO("Data slices ready");
     }
@@ -574,7 +585,7 @@ private:
         MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
             *QueryContext_->Settings->FetchChunksReadOptions,
-            nullptr /*nodeDirectory*/,
+            Client_->GetNativeConnection()->GetNodeDirectory(),
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
@@ -834,9 +845,12 @@ TQueryInput FetchInput(
         .ThrowOnError();
 
     return TQueryInput{
+        .OperandCount = inputFetcher->OperandCount(),
+        .InputTables = std::move(inputFetcher->InputTables()),
         .StripeList = std::move(inputFetcher->ResultStripeList()),
         .MiscExtMap = std::move(inputFetcher->MiscExtMap()),
         .DataSourceDirectory = std::move(inputFetcher->DataSourceDirectory()),
+        .InputStreamDirectory = std::move(inputFetcher->InputStreamDirectory()),
     };
 }
 
@@ -886,28 +900,29 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
 }
 
 std::vector<TSubquery> BuildThreadSubqueries(
-    const TChunkStripeListPtr& inputStripeList,
-    std::optional<int> keyColumnCount,
-    EPoolKind poolKind,
-    TDataSourceDirectoryPtr dataSourceDirectory,
+    const TQueryInput& queryInput,
+    const TQueryAnalysisResult& queryAnalysisResult,
     int jobCount,
     std::optional<double> samplingRate,
     const TStorageContext* storageContext,
     const TSubqueryConfigPtr& config)
 {
+    const auto& inputStripeList = queryInput.StripeList;
+
     auto* queryContext = storageContext->QueryContext;
     const auto& Logger = storageContext->Logger;
 
     YT_LOG_INFO(
         "Building subqueries (TotalDataWeight: %v, TotalChunkCount: %v, TotalRowCount: %v, "
-        "JobCount: %v, PoolKind: %v, SamplingRate: %v, KeyColumnCount: %v)",
+        "JobCount: %v, PoolKind: %v, ReadInOrderMode: %v, SamplingRate: %v, KeyColumnCount: %v)",
         inputStripeList->TotalDataWeight,
         inputStripeList->TotalChunkCount,
         inputStripeList->TotalRowCount,
         jobCount,
-        poolKind,
+        queryAnalysisResult.PoolKind,
+        queryAnalysisResult.ReadInOrderMode,
         samplingRate,
-        keyColumnCount);
+        queryAnalysisResult.KeyColumnCount);
 
     std::vector<TSubquery> subqueries;
 
@@ -916,50 +931,60 @@ std::vector<TSubquery> BuildThreadSubqueries(
         return subqueries;
     }
 
-    auto jobSizeConstraints = CreateClickHouseJobSizeConstraints(
+    auto jobSizeSpec = CreateClickHouseJobSizeSpec(
+        queryContext->Settings->Execution,
         config,
         inputStripeList->TotalDataWeight,
         inputStripeList->TotalRowCount,
         jobCount,
         samplingRate,
+        queryAnalysisResult.ReadInOrderMode,
         Logger);
 
     IPersistentChunkPoolPtr chunkPool;
 
-    if (poolKind == EPoolKind::Unordered) {
+    if (queryAnalysisResult.PoolKind == EPoolKind::Unordered) {
         chunkPool = CreateUnorderedChunkPool(
             TUnorderedChunkPoolOptions{
-                .JobSizeConstraints = jobSizeConstraints,
+                .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),
             },
             TInputStreamDirectory({TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/)}));
-    } else if (poolKind == EPoolKind::Sorted) {
-        YT_VERIFY(keyColumnCount);
-        TComparator comparator(std::vector<ESortOrder>(*keyColumnCount, ESortOrder::Ascending));
+    } else if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
+        YT_VERIFY(queryAnalysisResult.KeyColumnCount);
+        TComparator comparator(std::vector<ESortOrder>(*queryAnalysisResult.KeyColumnCount, ESortOrder::Ascending));
+
+        // TODO(achulkov2): Make using this fetcher configurable? Not sure whether it could cause degradations. IMO it should make things better.
+        auto chunkSliceFetcher = CreateChunkSliceFetcher(
+            queryContext->Host->GetConfig()->Subquery->ChunkSliceFetcher,
+            queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
+            queryContext->Host->GetClickHouseFetcherInvoker(),
+            /*chunkScraper*/ nullptr,
+            queryContext->Client(),
+            queryContext->RowBuffer,
+            queryContext->Logger);
+
         chunkPool = CreateNewSortedChunkPool(
             TSortedChunkPoolOptions{
                 .SortedJobOptions = TSortedJobOptions{
                     .EnableKeyGuarantee = true,
                     .PrimaryComparator = comparator,
-                    .PrimaryPrefixLength = *keyColumnCount,
+                    .PrimaryPrefixLength = *queryAnalysisResult.KeyColumnCount,
                     .ShouldSlicePrimaryTableByKeys = true,
                     .ValidateOrder = false,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
+                    .JobSizeTrackerOptions = jobSizeSpec.JobSizeTrackerOptions,
                 },
                 .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
-                .JobSizeConstraints = jobSizeConstraints,
+                .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),
             },
-            CreateCallbackChunkSliceFetcherFactory(BIND([] { return IChunkSliceFetcherPtr{}; })),
-            TInputStreamDirectory({
-                // isVersioned is almost a meaningless specification for modern sorted pool.
-                // By forcefully considering both streams to be versioned, we only disable some
-                // sanity checks that are wrong for dynamic tables.
-                TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, true /*isVersioned*/),
-                TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, true /*isVersioned*/)
-            }));
+            CreateCallbackChunkSliceFetcherFactory(BIND([chunkSliceFetcher = std::move(chunkSliceFetcher)] {
+                return chunkSliceFetcher;
+            })),
+            queryInput.InputStreamDirectory);
     } else {
         Y_UNREACHABLE();
     }
@@ -967,7 +992,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
     auto adjustDataSliceForPool = [&] (const TLegacyDataSlicePtr& dataSlice) {
         YT_VERIFY(!dataSlice->IsLegacy);
 
-        if (poolKind == EPoolKind::Unordered) {
+        if (queryAnalysisResult.PoolKind == EPoolKind::Unordered) {
             dataSlice->LowerLimit().KeyBound = TKeyBound();
             dataSlice->UpperLimit().KeyBound = TKeyBound();
 
@@ -979,9 +1004,9 @@ std::vector<TSubquery> BuildThreadSubqueries(
             }
 
         } else {
-            YT_VERIFY(keyColumnCount);
-            dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, *keyColumnCount, queryContext->RowBuffer);
-            dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, *keyColumnCount, queryContext->RowBuffer);
+            YT_VERIFY(queryAnalysisResult.KeyColumnCount);
+            dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, *queryAnalysisResult.KeyColumnCount, queryContext->RowBuffer);
+            dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, *queryAnalysisResult.KeyColumnCount, queryContext->RowBuffer);
 
             if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                 // New sorted pool makes no use of chunk slice bounds.
@@ -1022,7 +1047,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
             for (const auto& dataSlice : chunkStripe->DataSlices) {
                 YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->ReadRangeIndex) {
-                    auto comparator = dataSourceDirectory->DataSources()[dataSlice->GetTableIndex()].GetComparator();
+                    auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()].GetComparator();
                     inputReadRangeRegistry.ApplyReadRange(dataSlice, comparator);
                 }
 
@@ -1032,7 +1057,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         }
 
         subquery.Cookie = cookie;
-        if (poolKind == EPoolKind::Sorted) {
+        if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
             auto bounds = static_cast<ISortedChunkPool*>(chunkPool.Get())->GetBounds(cookie);
             subquery.Bounds.first = TOwningKeyBound::FromRowUnchecked(
                 TUnversionedOwningRow(bounds.first.Prefix),
@@ -1045,43 +1070,30 @@ std::vector<TSubquery> BuildThreadSubqueries(
         }
     }
 
-    // Pools not always produce suitable stripelists for further query
-    // analyzer business transform them to the proper state.
-    if (poolKind == EPoolKind::Unordered) {
-        // Stripe lists from unordered pool consist of lot of stripes; we expect a single
-        // stripe with lots of data slices inside, so we flatten them.
-        for (auto& subquery : subqueries) {
-            auto flattenedStripe = New<TChunkStripe>();
-            for (const auto& stripe : subquery.StripeList->Stripes) {
-                for (const auto& dataSlice : stripe->DataSlices) {
-                    flattenedStripe->DataSlices.emplace_back(dataSlice);
-                }
-            }
-            auto flattenedStripeList = New<TChunkStripeList>();
-            AddStripeToList(std::move(flattenedStripe), flattenedStripeList);
-            subquery.StripeList.Swap(flattenedStripeList);
+    // Pools do not produce results suitable for further query analysis.
+    // For each subquery, we produce a single potentially empty slice for each operand.
+    // Each slice contains a flattened list of all corresponding data slices.
+    // In the end, each stripe list contains exactly one or two stripes, depending
+    // on the number of operands.
+    for (auto& subquery : subqueries) {
+        auto flattenedStripeList = New<TChunkStripeList>();
+        flattenedStripeList->Stripes.resize(queryInput.OperandCount);
+        for (int operandIndex = 0; operandIndex < queryInput.OperandCount; ++operandIndex) {
+            flattenedStripeList->Stripes[operandIndex] = New<TChunkStripe>();
         }
-    } else {
-        // Stripe lists from sorted pool sometimes miss stripes from certain inputs; we want
-        // empty stripes to be present in any case.
-        for (auto& subquery : subqueries) {
-            auto fullStripeList = New<TChunkStripeList>();
-            fullStripeList->Stripes.resize(inputStripeList->Stripes.size());
-            for (auto& stripe : subquery.StripeList->Stripes) {
-                int operandIndex = stripe->GetInputStreamIndex();
-                YT_VERIFY(operandIndex >= 0);
-                YT_VERIFY(operandIndex < std::ssize(fullStripeList->Stripes));
-                YT_VERIFY(!fullStripeList->Stripes[operandIndex]);
-                fullStripeList->Stripes[operandIndex] = std::move(stripe);
-                AccountStripeInList(fullStripeList->Stripes[operandIndex], fullStripeList);
+        for (const auto& stripe : subquery.StripeList->Stripes) {
+            int operandIndex = queryInput.InputTables[stripe->GetTableIndex()]->OperandIndex;
+            YT_VERIFY(operandIndex >= 0);
+            YT_VERIFY(operandIndex < queryInput.OperandCount);
+            auto& flattenedStripe = flattenedStripeList->Stripes[operandIndex];
+            for (const auto& dataSlice : stripe->DataSlices) {
+                flattenedStripe->DataSlices.push_back(dataSlice);
             }
-            for (auto& stripe : fullStripeList->Stripes) {
-                if (!stripe) {
-                    stripe = New<TChunkStripe>();
-                }
-            }
-            subquery.StripeList.Swap(fullStripeList);
         }
+        for (const auto& stripe : flattenedStripeList->Stripes) {
+            AccountStripeInList(stripe, flattenedStripeList);
+        }
+        subquery.StripeList.Swap(flattenedStripeList);
     }
 
     YT_LOG_INFO("Pool produced subqueries (SubqueryCount: %v)", subqueries.size());
@@ -1099,7 +1111,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
     }
 
     // TODO(dakovalkov): Should we do it for Unordered chunk pool for the sake of better caching?
-    if (poolKind == EPoolKind::Sorted) {
+    if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
         std::sort(subqueries.begin(), subqueries.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
             return lhs.Cookie < rhs.Cookie;
         });

@@ -221,6 +221,7 @@ public:
     {
         static const std::vector<TColumnSchema> queryLogExtraColumns {
             TColumnSchema("chyt_query_statistics", ESimpleLogicalValueType::Any),
+            TColumnSchema("chyt_query_runtime_variables", ESimpleLogicalValueType::Any),
             TColumnSchema("chyt_secondary_query_ids",
                 OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))),
         };
@@ -260,6 +261,7 @@ public:
         size_t queryIndex = 0;
 
         int statisticsColumnId = nameTable->GetIdOrThrow("chyt_query_statistics");
+        int runtimeVariablesColumnId = nameTable->GetIdOrThrow("chyt_query_runtime_variables");
         int secondaryQueryIdsColumnId = nameTable->GetIdOrThrow("chyt_secondary_query_ids");
 
         for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
@@ -267,6 +269,8 @@ public:
                 if (queryInfos[queryIndex].has_value()) {
                     auto ysonStatistics = ConvertToYsonString(
                         queryInfos[queryIndex]->Statistics);
+                    auto ysonRuntimeVariables = ConvertToYsonString(
+                        queryInfos[queryIndex]->RuntimeVariables);
                     auto ysonSecondaryQueryIds = ConvertToYsonString(
                         queryInfos[queryIndex]->SecondaryQueryIds);
 
@@ -274,6 +278,10 @@ public:
                         MakeUnversionedAnyValue(
                             ysonStatistics.AsStringBuf(),
                             statisticsColumnId)));
+                    rows[rowIndex].PushBack(rowBuffer->CaptureValue(
+                        MakeUnversionedAnyValue(
+                            ysonRuntimeVariables.AsStringBuf(),
+                            runtimeVariablesColumnId)));
                     rows[rowIndex].PushBack(rowBuffer->CaptureValue(
                         MakeUnversionedCompositeValue(
                             ysonSecondaryQueryIds.AsStringBuf(),

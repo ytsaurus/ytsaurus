@@ -17,6 +17,12 @@ DEFINE_ENUM(EPoolKind,
     (Sorted)
 );
 
+DEFINE_ENUM(EReadInOrderMode,
+    (None)
+    (Forward)
+    (Backward)
+);
+
 struct TQueryAnalysisResult
 {
     std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
@@ -24,6 +30,7 @@ struct TQueryAnalysisResult
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
+    EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
 };
 
 struct TSecondaryQuery
@@ -104,6 +111,8 @@ private:
     void InferSortedJoinKeyColumns(bool needSortedPool);
 
     void OptimizeQueryProcessingStage();
+
+    EReadInOrderMode InferReadInOrderMode() const;
 
     IStorageDistributorPtr GetStorage(const DB::ASTTableExpression* tableExpression) const;
 

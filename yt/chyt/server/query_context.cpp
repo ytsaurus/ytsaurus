@@ -676,6 +676,8 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
     {
         auto guard = Guard(QueryLogLock_);
         result.Statistics = Statistics_;
+        // It is unlikely that the variables will change after query is finished, but let's be safe.
+        result.RuntimeVariables = RuntimeVariables_->Clone();
         result.SecondaryQueryIds = SecondaryQueryIds_;
     }
 

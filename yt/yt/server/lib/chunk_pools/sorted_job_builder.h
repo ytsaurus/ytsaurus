@@ -4,6 +4,7 @@
 
 #include "chunk_pool.h"
 #include "new_job_manager.h"
+#include "job_size_tracker.h"
 
 #include <yt/yt/client/table_client/comparator.h>
 
@@ -32,6 +33,8 @@ struct TSortedJobOptions
     //! An upper bound for a total number of slices that is allowed. If this value
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
+
+    TJobSizeTrackerOptions JobSizeTrackerOptions;
 
     void Persist(const TPersistenceContext& context);
 };

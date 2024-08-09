@@ -140,6 +140,10 @@ void TExecutionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_min_max_filtering", &TThis::EnableMinMaxFiltering)
         .Default(true);
+
+    // TODO(achulkov2): Set to false by default. This is temporary to run all tests and verify that nothing fails.
+    registrar.Parameter("enable_optimize_read_in_order", &TThis::EnableOptimizeReadInOrder)
+        .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,6 +284,8 @@ void TShowTablesConfig::Register(TRegistrar registrar)
 
 void TSubqueryConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("columnar_statistics_fetcher", &TThis::ColumnarStatisticsFetcher)
+        .DefaultNew();
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
     registrar.Parameter("max_job_count_for_pool", &TThis::MaxJobCountForPool)
