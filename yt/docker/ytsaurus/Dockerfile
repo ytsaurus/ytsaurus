@@ -145,6 +145,10 @@ COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 # CHYT credits files.
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 
+# Install YT client for setup script.
+RUN python3.8 -m pip install ytsaurus-client
+RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+
 # Setup script.
 COPY ./setup_cluster_for_chyt.sh /setup_cluster_for_chyt.sh
 RUN chmod 755 /setup_cluster_for_chyt.sh
