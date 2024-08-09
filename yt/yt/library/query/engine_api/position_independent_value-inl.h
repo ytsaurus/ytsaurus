@@ -75,4 +75,3 @@ Y_FORCE_INLINE void CopyPositionIndependent(TPIValue* destination, const TPIValu
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

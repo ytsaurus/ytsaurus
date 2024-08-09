@@ -32,7 +32,7 @@ static constexpr size_t MaxExpressionDepth = 50;
 struct TQueryPreparerBufferTag
 { };
 
-constexpr int MaxQueryLimit = 10'000'000;
+constexpr i64 MaxQueryLimit = std::numeric_limits<i64>::max() - 2;
 constexpr int MaxJoinNumber = 200;
 constexpr int MaxMultiJoinGroupNumber = 15;
 
