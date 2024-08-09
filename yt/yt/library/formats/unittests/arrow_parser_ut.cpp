@@ -25,6 +25,8 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
+using namespace std::string_literals;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string GetEos()
@@ -259,6 +261,47 @@ std::string MakeStructArrow(const std::vector<std::string>& stringData, const st
     std::vector<std::shared_ptr<arrow::Array>> columns = {structArray};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tuple<int, int, int>> columnParameters)
+{
+    auto* pool = arrow::default_memory_pool();
+
+    auto makeColumn = [&]<class TBuilder, class TType, class TValue>(int precision, int scale) {
+        auto builder = std::make_shared<TBuilder>(std::make_shared<TType>(precision, scale), pool);
+        for (const auto& value : values) {
+            Verify(builder->Append(TValue(std::string(value))));
+        }
+        return builder->Finish().ValueOrDie();
+    };
+
+    std::vector<std::shared_ptr<arrow::Array>> columns;
+    for (const auto& [bitness, precision, scale] : columnParameters) {
+        if (bitness == 128) {
+            columns.push_back(makeColumn.template operator()<arrow::Decimal128Builder, arrow::Decimal128Type, arrow::Decimal128>(precision, scale));
+        } else if (bitness == 256) {
+            columns.push_back(makeColumn.template operator()<arrow::Decimal256Builder, arrow::Decimal256Type, arrow::Decimal256>(precision, scale));
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    arrow::FieldVector fields;
+    for (const auto& [bitness, precision, scale] : columnParameters) {
+        std::shared_ptr<arrow::DataType> type;
+        if (bitness == 128) {
+            type = std::make_shared<arrow::Decimal128Type>(precision, scale);
+        } else if (bitness == 256) {
+            type = std::make_shared<arrow::Decimal256Type>(precision, scale);
+        } else {
+            YT_ABORT();
+        }
+        fields.push_back(std::make_shared<arrow::Field>(Format("decimal%v_%v_%v", bitness, precision, scale), type));
+    }
+
+    auto recordBatch = arrow::RecordBatch::Make(arrow::schema(std::move(fields)), columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
@@ -499,6 +542,47 @@ TEST(TArrowParserTest, Struct)
 
     auto secondNode = GetComposite(collectedRows.GetRowValue(1, "struct"));
     ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"two\";2;]");
+}
+
+TEST(TArrowParserTest, DecimalVariousPrecisions)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("decimal128_10_3", DecimalLogicalType(10, 3)),
+        TColumnSchema("decimal128_35_3", DecimalLogicalType(35, 3)),
+        TColumnSchema("decimal128_38_3", EValueType::String),
+        TColumnSchema("decimal256_76_3", EValueType::String),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    std::vector<TString> values = {"3.141", "0.000", "-2.718", "9999999.999"};
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeDecimalArrows(values, {{128, 10, 3}, {128, 35, 3}, {128, 38, 3}, {256, 76, 3}}));
+    parser->Finish();
+
+    auto collectStrings = [&] (TStringBuf columnName) {
+        std::vector<TString> result;
+        for (size_t index = 0; index < values.size(); ++index) {
+            result.push_back(collectedRows.GetRowValue(index, columnName).AsString());
+        }
+        return result;
+    };
+    
+    std::vector<TString> expectedValues128_10_3 = 
+        {"\x80\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00"s, "\x7f\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x02\x54\x0b\xe3\xff"s};
+    std::vector<TString> expectedValues128_35_3 = 
+        {
+            "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s, 
+            "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
+        };
+    std::vector<TString> expectedValues128_38_3 = values;
+    std::vector<TString> expectedValues128_76_3 = values;
+    ASSERT_EQ(expectedValues128_10_3, collectStrings("decimal128_10_3"));
+    ASSERT_EQ(expectedValues128_35_3, collectStrings("decimal128_35_3"));
+    ASSERT_EQ(expectedValues128_38_3, collectStrings("decimal128_38_3"));
+    ASSERT_EQ(expectedValues128_76_3, collectStrings("decimal256_76_3"));
 }
 
 TEST(TArrowParserTest, BlockingInput)
