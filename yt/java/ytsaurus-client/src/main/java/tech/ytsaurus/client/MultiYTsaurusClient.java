@@ -14,6 +14,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -188,6 +189,8 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
         Duration preferredAllowance = Duration.ofMillis(100);
+        Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
+                YTsaurusClient::builder;
 
         Builder() {
         }
@@ -393,7 +396,7 @@ class MultiExecutor implements Closeable {
             List<String> clusters, MultiYTsaurusClient.Builder builder) {
         List<YTsaurusClient> result = new ArrayList<>();
         for (String cluster : clusters) {
-            var clientBuilder = YTsaurusClient.builder()
+            var clientBuilder = builder.clientBuilderSupplier.get()
                     .setClusters(cluster)
                     .setConfig(builder.config)
                     .setRpcCompression(builder.compression);
