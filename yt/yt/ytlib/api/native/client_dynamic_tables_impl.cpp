@@ -2541,7 +2541,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
             unresolveOptions.FallbackTableSchema = replicaFallbackInfo.OriginalTableSchema;
             unresolveOptions.FallbackReplicaId = replicaFallbackInfo.ReplicaId;
-            resultOrError = WaitFor(replicaFallbackInfo.Client->PullQueue(
+            resultOrError = WaitFor(DynamicPointerCast<IInternalClient>(replicaFallbackInfo.Client)->PullQueueUnauthenticated(
                 replicaFallbackInfo.Path,
                 offset,
                 partitionIndex,
