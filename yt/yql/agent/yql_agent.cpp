@@ -126,6 +126,10 @@ public:
             ? ConvertToYsonString(*SingletonsConfig_)
             : EmptyMap;
 
+        if (!Config_->DqManagerConfig->AddressResolver) {
+            Config_->DqManagerConfig->AddressResolver = SingletonsConfig_->AddressResolver;
+        }
+
         THashSet<TString> presentClusters;
         for (const auto& cluster : clustersConfig->GetChildren()) {
             presentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());

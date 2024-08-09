@@ -214,6 +214,8 @@ void TDqManagerConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("use_ipv4", &TThis::UseIPv4)
         .Default(false);
+    registrar.Parameter("address_resolver", &TThis::AddressResolver)
+        .Default();
 
     registrar.Parameter("yt_backends", &TThis::YtBackends)
         .Default();
