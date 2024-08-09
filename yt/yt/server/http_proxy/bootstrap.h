@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
+#include <yt/yt/client/driver/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
@@ -22,7 +24,7 @@
 #include <yt/yt/library/containers/public.h>
 #include <yt/yt/library/containers/disk_manager/public.h>
 
-#include <yt/yt/client/driver/public.h>
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
 
@@ -63,7 +65,7 @@ public:
 
     const TProxyConfigPtr& GetConfig() const;
     TProxyDynamicConfigPtr GetDynamicConfig() const;
-    const NApi::IClientPtr& GetRootClient() const;
+    const NApi::NNative::IClientPtr& GetRootClient() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
     const NDriver::IDriverPtr& GetDriverV3() const;
     const NDriver::IDriverPtr& GetDriverV4() const;
@@ -98,8 +100,7 @@ private:
     NHttp::IServerPtr MonitoringServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
-    NApi::IClientPtr RootClient_;
-    NApi::NNative::IClientPtr NativeClient_;
+    NApi::NNative::IClientPtr RootClient_;
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
@@ -133,7 +134,9 @@ private:
     THostsHandlerPtr HostsHandler_;
     TClusterConnectionHandlerPtr ClusterConnectionHandler_;
     TPingHandlerPtr PingHandler_;
-    TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
+    TDiscoverVersionsHandlerPtr DiscoverVersionsHandler_;
+
+    NProfiling::TSolomonProxyPtr SolomonProxy_;
 
     IAccessCheckerPtr AccessChecker_;
 
