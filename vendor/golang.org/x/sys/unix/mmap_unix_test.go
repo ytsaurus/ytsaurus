@@ -49,3 +49,22 @@ func TestMmap(t *testing.T) {
 		t.Fatalf("Munmap: %v", err)
 	}
 }
+
+func TestMmapPtr(t *testing.T) {
+	p, err := unix.MmapPtr(-1, 0, nil, uintptr(2*unix.Getpagesize()),
+		unix.PROT_NONE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		t.Fatalf("MmapPtr: %v", err)
+	}
+
+	if _, err := unix.MmapPtr(-1, 0, p, uintptr(unix.Getpagesize()),
+		unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE|unix.MAP_FIXED); err != nil {
+		t.Fatalf("MmapPtr: %v", err)
+	}
+
+	*(*byte)(p) = 42
+
+	if err := unix.MunmapPtr(p, uintptr(2*unix.Getpagesize())); err != nil {
+		t.Fatalf("MunmapPtr: %v", err)
+	}
+}

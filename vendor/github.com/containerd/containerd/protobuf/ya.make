@@ -14,7 +14,6 @@ END()
 
 RECURSE(
     gotest
-    plugin
     proto
     types
 )

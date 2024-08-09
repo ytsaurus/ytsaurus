@@ -7,7 +7,3 @@ SRCS(
 )
 
 END()
-
-RECURSE(
-    logtest
-)

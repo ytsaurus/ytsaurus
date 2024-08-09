@@ -35,12 +35,12 @@ RECURSE(
 
 IF (OS_LINUX)
     RECURSE(
-#        dynamic
+        #        dynamic
     )
 ENDIF()
 
 IF (OS_DARWIN)
     RECURSE(
-#        dynamic
+        #        dynamic
     )
 ENDIF()
