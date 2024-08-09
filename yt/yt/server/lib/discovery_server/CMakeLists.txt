@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(unittests)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -29,7 +28,10 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(server-lib-discovery_server)
+
 
 target_compile_options(server-lib-discovery_server PRIVATE
   -Wdeprecated-this-capture
@@ -50,7 +52,6 @@ target_proto_messages(server-lib-discovery_server PRIVATE
 )
 
 target_sources(server-lib-discovery_server PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/discovery_server.cpp
@@ -59,6 +60,13 @@ target_sources(server-lib-discovery_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/member.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
+)
+
+
+target_proto_outs(server-lib-discovery_server
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-discovery_server
@@ -72,9 +80,3 @@ target_proto_addincls(server-lib-discovery_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-discovery_server
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

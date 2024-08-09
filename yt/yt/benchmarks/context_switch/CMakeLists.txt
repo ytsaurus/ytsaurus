@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(context_switch)
 
+
 target_compile_options(context_switch PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,10 @@ target_link_libraries(context_switch PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(context_switch
+  cpp-ytalloc-impl
 )
 
 target_link_options(context_switch PRIVATE
@@ -44,9 +49,5 @@ target_sources(context_switch PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/context_switch/main.cpp
 )
 
-target_allocator(context_switch
-  cpp-ytalloc-impl
-)
 
 vcs_info(context_switch)
-

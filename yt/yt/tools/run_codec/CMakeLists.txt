@@ -16,12 +16,17 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(run_codec)
 
+
 target_link_libraries(run_codec PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(run_codec
+  cpp-lfalloc-yt
 )
 
 target_link_options(run_codec PRIVATE
@@ -40,9 +45,5 @@ target_sources(run_codec PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
 )
 
-target_allocator(run_codec
-  cpp-lfalloc-yt
-)
 
 vcs_info(run_codec)
-

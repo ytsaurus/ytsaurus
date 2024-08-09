@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(rescompiler)
 
+
 target_link_libraries(rescompiler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   library-cpp-resource
+)
+
+target_allocator(rescompiler
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(rescompiler PRIVATE
@@ -39,10 +45,5 @@ target_sources(rescompiler PRIVATE
   ${PROJECT_SOURCE_DIR}/tools/rescompiler/main.cpp
 )
 
-target_allocator(rescompiler
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(rescompiler)
-

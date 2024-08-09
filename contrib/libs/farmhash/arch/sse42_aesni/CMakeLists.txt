@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(farmhash-arch-sse42_aesni)
 
+
 target_compile_options(farmhash-arch-sse42_aesni PRIVATE
   -msse4.2
   -maes

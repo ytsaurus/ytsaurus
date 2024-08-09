@@ -12,7 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(gtest_main)
-add_subdirectory(lib)
-add_subdirectory(native)
 add_subdirectory(yt_unittest_lib)
+add_subdirectory(native)
+add_subdirectory(lib)

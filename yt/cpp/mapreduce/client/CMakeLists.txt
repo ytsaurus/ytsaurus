@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-mapreduce-client)
 
+
 target_compile_options(cpp-mapreduce-client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -77,9 +78,9 @@ target_sources(cpp-mapreduce-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/dummy_job_profiler.cpp
 )
 
+
 generate_enum_serilization(cpp-mapreduce-client
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/structured_table_formats.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/client/structured_table_formats.h
 )
-

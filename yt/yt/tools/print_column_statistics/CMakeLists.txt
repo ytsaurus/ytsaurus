@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(print_column_statistics)
 
+
 target_link_libraries(print_column_statistics PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,6 +26,11 @@ target_link_libraries(print_column_statistics PUBLIC
   yt-yt-ytlib
   cpp-yt-phdr_cache
   yt-yt-core
+)
+
+target_allocator(print_column_statistics
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(print_column_statistics PRIVATE
@@ -43,10 +49,5 @@ target_sources(print_column_statistics PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/print_column_statistics/main.cpp
 )
 
-target_allocator(print_column_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(print_column_statistics)
-

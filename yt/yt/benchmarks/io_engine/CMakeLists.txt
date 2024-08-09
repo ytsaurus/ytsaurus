@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(io_engine)
 
+
 target_compile_options(io_engine PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,11 @@ target_link_libraries(io_engine PUBLIC
   cpp-getopt-small
 )
 
+target_allocator(io_engine
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
+)
+
 target_link_options(io_engine PRIVATE
   -ldl
   -lrt
@@ -50,10 +56,5 @@ target_sources(io_engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io_engine/main.cpp
 )
 
-target_allocator(io_engine
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(io_engine)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(blockcodecs-codecs-legacy_zstd06 INTERFACE)
 
+
 target_link_libraries(blockcodecs-codecs-legacy_zstd06 INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,8 +27,8 @@ target_link_libraries(blockcodecs-codecs-legacy_zstd06 INTERFACE
 
 
 add_global_library_for(blockcodecs-codecs-legacy_zstd06.global
-  blockcodecs-codecs-legacy_zstd06
-)
+  blockcodecs-codecs-legacy_zstd06)
+
 
 target_link_libraries(blockcodecs-codecs-legacy_zstd06.global PUBLIC
   linux-headers-generic::linux-headers-generic

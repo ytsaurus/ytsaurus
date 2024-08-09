@@ -28,35 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_executable(proto)
+
 
 target_link_libraries(proto PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -64,6 +37,11 @@ target_link_libraries(proto PUBLIC
   yutil
   library-cpp-cpuid_check
   contrib-libs-protobuf
+)
+
+target_allocator(proto
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(proto PRIVATE
@@ -77,22 +55,23 @@ target_link_options(proto PRIVATE
   -ldl
 )
 
+target_sources(proto PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
+)
+
 target_proto_messages(proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_base.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_full.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_part.proto
 )
 
-target_sources(proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/main.cpp
-)
 
-target_allocator(proto
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_outs(proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(proto
@@ -105,10 +84,4 @@ target_proto_addincls(proto
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(proto)
-

@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(include)
+
 add_subdirectory(lib)
+add_subdirectory(include)
 add_subdirectory(utils)
 
 add_library(contrib-libs-llvm16 INTERFACE)
+
 
 target_include_directories(contrib-libs-llvm16 INTERFACE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-auth)
 
+
 target_compile_options(unittester-library-auth PRIVATE
   -Wdeprecated-this-capture
 )
@@ -33,6 +34,10 @@ target_link_libraries(unittester-library-auth PUBLIC
   yt-library-auth
 )
 
+target_allocator(unittester-library-auth
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-library-auth PRIVATE
   -ldl
   -lrt
@@ -48,6 +53,7 @@ target_link_options(unittester-library-auth PRIVATE
 target_sources(unittester-library-auth PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/unittests/auth_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,20 +74,15 @@ set_property(
   TEST
   unittester-library-auth
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-auth)
 
 set_property(
   TEST
   unittester-library-auth
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-auth
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-auth)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(profiling-example)
 
+
 target_compile_options(profiling-example PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(profiling-example PUBLIC
   library-profiling-solomon
   library-profiling-tcmalloc
   library-profiling-perf
+)
+
+target_allocator(profiling-example
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 
 target_link_options(profiling-example PRIVATE
@@ -46,10 +52,5 @@ target_sources(profiling-example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/example/main.cpp
 )
 
-target_allocator(profiling-example
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
-)
 
 vcs_info(profiling-example)
-

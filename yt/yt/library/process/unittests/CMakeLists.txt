@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-process)
 
+
 target_compile_options(unittester-library-process PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,10 @@ target_link_libraries(unittester-library-process PUBLIC
   yt-yt-core
   yt-core-test_framework
   yt-library-process
+)
+
+target_allocator(unittester-library-process
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-library-process PRIVATE
@@ -51,6 +56,7 @@ target_sources(unittester-library-process PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-library-process
@@ -70,20 +76,15 @@ set_property(
   TEST
   unittester-library-process
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-process)
 
 set_property(
   TEST
   unittester-library-process
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-process
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-process)
-

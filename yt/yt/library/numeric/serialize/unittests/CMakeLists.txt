@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-yt-library-numeric)
 
+
 target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,11 @@ target_link_libraries(unittester-yt-library-numeric PUBLIC
   library-numeric-serialize
 )
 
+target_allocator(unittester-yt-library-numeric
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
+)
+
 target_link_options(unittester-yt-library-numeric PRIVATE
   -ldl
   -lrt
@@ -49,6 +55,7 @@ target_link_options(unittester-yt-library-numeric PRIVATE
 target_sources(unittester-yt-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize/unittests/double_array_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -69,21 +76,15 @@ set_property(
   TEST
   unittester-yt-library-numeric
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-yt-library-numeric)
 
 set_property(
   TEST
   unittester-yt-library-numeric
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-yt-library-numeric
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-yt-library-numeric)
-

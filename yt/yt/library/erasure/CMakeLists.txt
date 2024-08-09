@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(impl)
 
 add_library(yt-library-erasure)
+
 
 target_compile_options(yt-library-erasure PRIVATE
   -Wdeprecated-this-capture

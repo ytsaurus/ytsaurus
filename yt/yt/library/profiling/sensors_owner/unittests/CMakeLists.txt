@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-profiling-sensors_owner-unittests)
 
+
 target_compile_options(yt-yt-library-profiling-sensors_owner-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(yt-yt-library-profiling-sensors_owner-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-profiling-sensors_owner
+)
+
+target_allocator(yt-yt-library-profiling-sensors_owner-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-profiling-sensors_owner-unittests PRIVATE
@@ -45,6 +51,7 @@ target_link_options(yt-yt-library-profiling-sensors_owner-unittests PRIVATE
 target_sources(yt-yt-library-profiling-sensors_owner-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/sensors_owner/unittests/sensors_owner_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   yt-yt-library-profiling-sensors_owner-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-profiling-sensors_owner-unittests)
 
 set_property(
   TEST
   yt-yt-library-profiling-sensors_owner-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-profiling-sensors_owner-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-library-profiling-sensors_owner-unittests)
-

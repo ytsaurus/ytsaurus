@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(chyt-client-protos)
 
+
 target_include_directories(chyt-client-protos PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -50,6 +51,12 @@ target_sources(chyt-client-protos PRIVATE
   ${PROJECT_BINARY_DIR}/yt/chyt/client/protos/query_service.pb.h
 )
 
+
+target_proto_outs(chyt-client-protos
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(chyt-client-protos
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -61,9 +68,3 @@ target_proto_addincls(chyt-client-protos
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(chyt-client-protos
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

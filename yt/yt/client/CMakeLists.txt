@@ -13,37 +13,27 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+add_subdirectory(query_tracker_client)
+add_subdirectory(formats)
 add_subdirectory(arrow)
+add_subdirectory(table_client)
+add_subdirectory(unittests)
 add_subdirectory(cache)
 add_subdirectory(driver)
 add_subdirectory(federated)
-add_subdirectory(formats)
 add_subdirectory(hedging)
-add_subdirectory(query_tracker_client)
-add_subdirectory(table_client)
-add_subdirectory(unittests)
 
-set(
-  YT_RPC_MODIFY_ROWS_STRONG_LOCKS_VERSION
-  2
-)
+set(YT_RPC_MODIFY_ROWS_STRONG_LOCKS_VERSION 2)
 
-set(
-  YT_RPC_PROXY_CLIENT_PROTOCOL_VERSION_MINOR
-  1
-)
+set(YT_RPC_PROXY_CLIENT_PROTOCOL_VERSION_MINOR 1)
 
-set(
-  YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR
-  1
-)
+set(YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR 1)
 
-set(
-  YT_RPC_PROXY_SERVER_PROTOCOL_VERSION_MINOR
-  2
-)
+set(YT_RPC_PROXY_SERVER_PROTOCOL_VERSION_MINOR 2)
 
 add_library(yt-yt-client)
+
 
 target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
@@ -74,7 +64,6 @@ target_link_libraries(yt-yt-client PUBLIC
 )
 
 target_sources(yt-yt-client PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/client_common.cpp
@@ -233,10 +222,11 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/packet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/protocol.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/requests.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
 )
+
 
 configure_file(
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/protocol_version_variables.h.in
   ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
 )
-

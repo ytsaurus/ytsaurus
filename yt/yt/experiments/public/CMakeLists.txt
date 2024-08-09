@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(arithmetic_expression)
 add_subdirectory(bus_echo_client)
 add_subdirectory(bus_echo_server)
@@ -29,11 +30,8 @@ add_subdirectory(footprint)
 add_subdirectory(formats_test)
 add_subdirectory(grpc_test)
 add_subdirectory(gwp_asan_test)
-add_subdirectory(http_server)
 add_subdirectory(hydra_stress_test)
 add_subdirectory(in_memory_nbd_server)
-add_subdirectory(log_compression)
-add_subdirectory(lsm_simulator)
 add_subdirectory(moody_camel_skew)
 add_subdirectory(per_cpu_workload_model)
 add_subdirectory(periodic)
@@ -43,3 +41,6 @@ add_subdirectory(throttler)
 add_subdirectory(uring)
 add_subdirectory(value_dictionary_compression)
 add_subdirectory(ytserver_dummy)
+add_subdirectory(http_server)
+add_subdirectory(log_compression)
+add_subdirectory(lsm_simulator)

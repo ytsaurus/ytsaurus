@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(mock)
+
 add_subdirectory(unittests)
+add_subdirectory(mock)
 
 add_library(yt-core-http)
+
 
 target_compile_options(yt-core-http PRIVATE
   -Wdeprecated-this-capture

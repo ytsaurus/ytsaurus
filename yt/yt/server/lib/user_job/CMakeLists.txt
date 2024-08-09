@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-user_job)
 
+
 target_compile_options(server-lib-user_job PRIVATE
   -Wdeprecated-this-capture
 )
@@ -46,13 +47,19 @@ target_link_libraries(server-lib-user_job PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-user_job PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/user_job/config.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.pb.h
+)
+
 target_proto_messages(server-lib-user_job PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.proto
 )
 
-target_sources(server-lib-user_job PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/user_job/config.cpp
+
+target_proto_outs(server-lib-user_job
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-user_job
@@ -66,9 +73,3 @@ target_proto_addincls(server-lib-user_job
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-user_job
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

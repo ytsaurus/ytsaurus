@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(clickhouse-src-Common)
 
+
 target_compile_options(clickhouse-src-Common PUBLIC
   -DOS_LINUX
 )

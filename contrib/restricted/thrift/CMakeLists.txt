@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-restricted-thrift)
 
+
 target_compile_options(contrib-restricted-thrift PRIVATE
   -Wno-deprecated-declarations
   -Wno-unused-function

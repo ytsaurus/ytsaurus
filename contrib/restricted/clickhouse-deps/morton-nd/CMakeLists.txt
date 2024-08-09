@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-clickhouse-deps-morton-nd INTERFACE)
 
+
 target_include_directories(restricted-clickhouse-deps-morton-nd INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/clickhouse-deps/morton-nd/include
 )

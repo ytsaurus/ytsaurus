@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-backtrace_introspector-unittests)
 
+
 target_link_libraries(yt-yt-library-backtrace_introspector-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,6 +26,11 @@ target_link_libraries(yt-yt-library-backtrace_introspector-unittests PUBLIC
   cpp-testing-gtest_main
   yt-library-backtrace_introspector
   yt-core-test_framework
+)
+
+target_allocator(yt-yt-library-backtrace_introspector-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
@@ -42,6 +48,7 @@ target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
 target_sources(yt-yt-library-backtrace_introspector-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -62,21 +69,15 @@ set_property(
   TEST
   yt-yt-library-backtrace_introspector-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-backtrace_introspector-unittests)
 
 set_property(
   TEST
   yt-yt-library-backtrace_introspector-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-backtrace_introspector-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-library-backtrace_introspector-unittests)
-

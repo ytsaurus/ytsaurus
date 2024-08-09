@@ -21,28 +21,8 @@ get_built_tool_path(
   flatc
 )
 
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/libs/flatbuffers/flatc
-  flatc
-)
-
 add_library(client-arrow-fbs)
+
 
 target_link_libraries(client-arrow-fbs PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -52,6 +32,10 @@ target_link_libraries(client-arrow-fbs PUBLIC
 )
 
 target_sources(client-arrow-fbs PRIVATE
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.h
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.iter.fbs.h
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.h
@@ -64,11 +48,8 @@ target_sources(client-arrow-fbs PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.bfbs
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.bfbs
   ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.bfbs
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
 )
+
 
 target_fbs_source(client-arrow-fbs
   PRIVATE
@@ -105,4 +86,3 @@ target_fbs_source(client-arrow-fbs
   -I
   ${PROJECT_SOURCE_DIR}
 )
-

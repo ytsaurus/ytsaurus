@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yql-plugin-bridge INTERFACE)
 
+
 target_link_libraries(yql-plugin-bridge INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,8 +27,8 @@ target_link_libraries(yql-plugin-bridge INTERFACE
 
 
 add_global_library_for(yql-plugin-bridge.global
-  yql-plugin-bridge
-)
+  yql-plugin-bridge)
+
 
 target_link_libraries(yql-plugin-bridge.global PUBLIC
   linux-headers-generic::linux-headers-generic

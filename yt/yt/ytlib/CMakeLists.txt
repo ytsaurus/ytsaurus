@@ -12,1083 +12,59 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(discovery_client)
-add_subdirectory(distributed_throttler)
-add_subdirectory(misc)
 add_subdirectory(query_tracker_client)
-add_subdirectory(queue_client)
-add_subdirectory(table_chunk_format)
+add_subdirectory(distributed_throttler)
+add_subdirectory(unittests)
+add_subdirectory(misc)
 add_subdirectory(table_client)
 add_subdirectory(tablet_client)
-add_subdirectory(unittests)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
+add_subdirectory(queue_client)
+add_subdirectory(table_chunk_format)
 
 add_library(yt-yt-ytlib)
+
 
 target_compile_options(yt-yt-ytlib PRIVATE
   -Wdeprecated-this-capture
@@ -1219,107 +195,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
 )
 
 target_sources(yt-yt-ytlib PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_object.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/cell_directory.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/hive_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/format.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/user_directory.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/action.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
@@ -1697,7 +572,109 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_object.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/cell_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/hive_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/format.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/user_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/action.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
 )
+
 
 add_custom_command(
   OUTPUT
@@ -2328,6 +1305,11 @@ add_custom_command(
   yt/yt/core/yson/string.h
 )
 
+target_proto_outs(yt-yt-ytlib
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(yt-yt-ytlib
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -2341,15 +1323,9 @@ target_proto_addincls(yt-yt-ytlib
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(yt-yt-ytlib
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-
 add_global_library_for(yt-yt-ytlib.global
-  yt-yt-ytlib
-)
+  yt-yt-ytlib)
+
 
 target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wdeprecated-this-capture

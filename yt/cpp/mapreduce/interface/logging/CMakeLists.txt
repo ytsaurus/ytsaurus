@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(ut)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -22,7 +21,10 @@ get_built_tool_path(
   enum_parser
 )
 
+add_subdirectory(ut)
+
 add_library(mapreduce-interface-logging)
+
 
 target_compile_options(mapreduce-interface-logging PRIVATE
   -Wdeprecated-this-capture
@@ -41,9 +43,9 @@ target_sources(mapreduce-interface-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/yt_log.cpp
 )
 
+
 generate_enum_serilization(mapreduce-interface-logging
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/logger.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/logging/logger.h
 )
-

@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(yt-cpp-mapreduce-io-ut)
 
+
 target_link_libraries(yt-cpp-mapreduce-io-ut PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -39,6 +40,11 @@ target_link_libraries(yt-cpp-mapreduce-io-ut PUBLIC
   cpp-testing-gtest_main
   cpp-mapreduce-io
   contrib-libs-protobuf
+)
+
+target_allocator(yt-cpp-mapreduce-io-ut
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-cpp-mapreduce-io-ut PRIVATE
@@ -53,16 +59,17 @@ target_link_options(yt-cpp-mapreduce-io-ut PRIVATE
   -lutil
 )
 
+target_sources(yt-cpp-mapreduce-io-ut PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/end_of_stream_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/readers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/yamr_table_reader_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/io/ut/ut_row.pb.h
+)
+
 target_proto_messages(yt-cpp-mapreduce-io-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/ut_row.proto
 )
 
-target_sources(yt-cpp-mapreduce-io-ut PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/io/ut/ut_row.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/end_of_stream_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/readers_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/ut/yamr_table_reader_ut.cpp
-)
 
 add_test(
   NAME
@@ -83,20 +90,12 @@ set_property(
   TEST
   yt-cpp-mapreduce-io-ut
   PROPERTY
-  PROCESSORS
-  1
-)
-
-set_property(
-  TEST
-  yt-cpp-mapreduce-io-ut
-  PROPERTY
   ENVIRONMENT
 )
 
-target_allocator(yt-cpp-mapreduce-io-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_outs(yt-cpp-mapreduce-io-ut
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(yt-cpp-mapreduce-io-ut
@@ -110,10 +109,12 @@ target_proto_addincls(yt-cpp-mapreduce-io-ut
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(yt-cpp-mapreduce-io-ut
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(yt-cpp-mapreduce-io-ut)
 
+set_property(
+  TEST
+  yt-cpp-mapreduce-io-ut
+  PROPERTY
+  PROCESSORS
+  1
+)

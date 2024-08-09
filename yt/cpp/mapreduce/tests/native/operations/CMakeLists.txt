@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-cpp-mapreduce-tests-native-operations)
 
+
 target_compile_options(yt-cpp-mapreduce-tests-native-operations PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,11 @@ target_link_libraries(yt-cpp-mapreduce-tests-native-operations PUBLIC
   mapreduce-tests-gtest_main
   tests-native-proto_lib
   cpp-mapreduce-util
+)
+
+target_allocator(yt-cpp-mapreduce-tests-native-operations
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-cpp-mapreduce-tests-native-operations PRIVATE
@@ -59,6 +65,7 @@ target_sources(yt-cpp-mapreduce-tests-native-operations PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/prepare_operation.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/raw_operations.cpp
 )
+
 
 set_property(
   TARGET
@@ -93,21 +100,15 @@ set_yunittest_property(
   TEST
   yt-cpp-mapreduce-tests-native-operations
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(yt-cpp-mapreduce-tests-native-operations)
 
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-tests-native-operations
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-cpp-mapreduce-tests-native-operations
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-cpp-mapreduce-tests-native-operations)
-

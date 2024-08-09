@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-server-lib-tablet_server)
 
+
 target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -29,6 +30,10 @@ target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   yt-core-test_framework
   client-unittests-mock
   yt_proto-yt-client
+)
+
+target_allocator(unittester-server-lib-tablet_server
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-server-lib-tablet_server PRIVATE
@@ -46,6 +51,7 @@ target_link_options(unittester-server-lib-tablet_server PRIVATE
 target_sources(unittester-server-lib-tablet_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/unittests/replicated_table_tracker_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,20 +72,15 @@ set_property(
   TEST
   unittester-server-lib-tablet_server
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-server-lib-tablet_server)
 
 set_property(
   TEST
   unittester-server-lib-tablet_server
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-server-lib-tablet_server
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-server-lib-tablet_server)
-

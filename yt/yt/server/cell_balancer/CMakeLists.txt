@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-cell_balancer)
+
 
 target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture

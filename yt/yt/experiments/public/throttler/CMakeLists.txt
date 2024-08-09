@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(throttler)
 
+
 target_compile_options(throttler PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(throttler PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   cpp-getopt-small
+)
+
+target_allocator(throttler
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(throttler PRIVATE
@@ -45,10 +51,5 @@ target_sources(throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/throttler/main.cpp
 )
 
-target_allocator(throttler
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(throttler)
-

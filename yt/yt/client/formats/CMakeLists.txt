@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-client-formats)
 
+
 target_compile_options(yt-client-formats PRIVATE
   -Wdeprecated-this-capture
 )

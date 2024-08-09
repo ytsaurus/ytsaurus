@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(cpp-porto-proto)
 
+
 target_link_libraries(cpp-porto-proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -45,6 +46,12 @@ target_sources(cpp-porto-proto PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/porto/proto/rpc.pb.h
 )
 
+
+target_proto_outs(cpp-porto-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(cpp-porto-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -54,9 +61,3 @@ target_proto_addincls(cpp-porto-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(cpp-porto-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

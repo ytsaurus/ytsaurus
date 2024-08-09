@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(library-ytprof-proto)
 
+
 target_include_directories(library-ytprof-proto PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -49,6 +50,12 @@ target_sources(library-ytprof-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/ytprof/proto/profile.pb.h
 )
 
+
+target_proto_outs(library-ytprof-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(library-ytprof-proto
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -59,9 +66,3 @@ target_proto_addincls(library-ytprof-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(library-ytprof-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

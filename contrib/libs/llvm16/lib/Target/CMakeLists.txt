@@ -13,15 +13,17 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+add_subdirectory(X86)
+add_subdirectory(WebAssembly)
 add_subdirectory(AArch64)
 add_subdirectory(ARM)
 add_subdirectory(BPF)
 add_subdirectory(NVPTX)
 add_subdirectory(PowerPC)
-add_subdirectory(WebAssembly)
-add_subdirectory(X86)
 
 add_library(llvm16-lib-Target)
+
 
 target_compile_options(llvm16-lib-Target PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

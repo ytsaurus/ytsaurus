@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(cpp-xdelta3-proto)
 
+
 target_link_libraries(cpp-xdelta3-proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -45,6 +46,12 @@ target_sources(cpp-xdelta3-proto PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/xdelta3/proto/state_header.pb.h
 )
 
+
+target_proto_outs(cpp-xdelta3-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(cpp-xdelta3-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -54,9 +61,3 @@ target_proto_addincls(cpp-xdelta3-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(cpp-xdelta3-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(benchmark_formats)
 
+
 target_link_libraries(benchmark_formats PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,11 @@ target_link_libraries(benchmark_formats PUBLIC
   yt-yt-core
   yt-yt-client
   yt-library-formats
+)
+
+target_allocator(benchmark_formats
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(benchmark_formats PRIVATE
@@ -42,10 +48,5 @@ target_sources(benchmark_formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/formats/main.cpp
 )
 
-target_allocator(benchmark_formats
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(benchmark_formats)
-

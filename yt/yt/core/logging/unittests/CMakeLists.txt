@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-logging)
 
+
 target_compile_options(unittester-core-logging PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-core-logging PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-streams-zstd
+)
+
+target_allocator(unittester-core-logging
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-logging PRIVATE
@@ -47,6 +52,7 @@ target_link_options(unittester-core-logging PRIVATE
 target_sources(unittester-core-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/unittests/logging_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -67,20 +73,15 @@ set_property(
   TEST
   unittester-core-logging
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-logging)
 
 set_property(
   TEST
   unittester-core-logging
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-logging
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-logging)
-

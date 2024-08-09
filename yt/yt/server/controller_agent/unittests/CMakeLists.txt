@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-controller-agent)
 
+
 target_compile_options(unittester-controller-agent PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-controller-agent PUBLIC
   cpp-testing-gtest_main
   yt-server-controller_agent
   lib-chunk_pools-mock
+)
+
+target_allocator(unittester-controller-agent
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-controller-agent PRIVATE
@@ -51,6 +57,7 @@ target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-controller-agent
@@ -70,21 +77,15 @@ set_property(
   TEST
   unittester-controller-agent
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-controller-agent)
 
 set_property(
   TEST
   unittester-controller-agent
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-controller-agent
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-controller-agent)
-

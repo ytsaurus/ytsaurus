@@ -37,6 +37,7 @@ get_built_tool_path(
 
 add_executable(unittester-formats)
 
+
 target_compile_options(unittester-formats PRIVATE
   -Wdeprecated-this-capture
 )
@@ -60,6 +61,10 @@ target_link_libraries(unittester-formats PUBLIC
   contrib-libs-protobuf
 )
 
+target_allocator(unittester-formats
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-formats PRIVATE
   -ldl
   -lrt
@@ -77,7 +82,6 @@ target_proto_messages(unittester-formats PRIVATE
 )
 
 target_sources(unittester-formats PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
@@ -95,7 +99,9 @@ target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
 )
+
 
 add_test(
   NAME
@@ -116,29 +122,12 @@ set_property(
   TEST
   unittester-formats
   PROPERTY
-  PROCESSORS
-  1
-)
-
-set_property(
-  TEST
-  unittester-formats
-  PROPERTY
   ENVIRONMENT
 )
 
-resources(unittester-formats
-  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
-  INPUTS
-  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
-  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
-  KEYS
-  /types/good
-  /types/bad
-)
-
-target_allocator(unittester-formats
-  cpp-ytalloc-impl
+target_proto_outs(unittester-formats
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(unittester-formats
@@ -154,10 +143,22 @@ target_proto_addincls(unittester-formats
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(unittester-formats
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+resources(unittester-formats
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
+  KEYS
+  /types/good
+  /types/bad
 )
 
 vcs_info(unittester-formats)
 
+set_property(
+  TEST
+  unittester-formats
+  PROPERTY
+  PROCESSORS
+  1
+)

@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(footprint)
 
+
 target_link_libraries(footprint PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-ytlib
+)
+
+target_allocator(footprint
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(footprint PRIVATE
@@ -40,10 +46,5 @@ target_sources(footprint PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/footprint/main.cpp
 )
 
-target_allocator(footprint
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(footprint)
-

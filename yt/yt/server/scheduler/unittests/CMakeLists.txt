@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-scheduler)
 
+
 target_compile_options(unittester-scheduler PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-scheduler PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-scheduler
+)
+
+target_allocator(unittester-scheduler
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-scheduler PRIVATE
@@ -51,6 +57,7 @@ target_sources(unittester-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduler_helpers_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-scheduler
@@ -70,21 +77,15 @@ set_property(
   TEST
   unittester-scheduler
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-scheduler)
 
 set_property(
   TEST
   unittester-scheduler
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-scheduler
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-scheduler)
-

@@ -13,51 +13,25 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(unittests)
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(server-lib-chunk_server)
+
 
 target_compile_options(server-lib-chunk_server PRIVATE
   -Wdeprecated-this-capture
@@ -71,18 +45,24 @@ target_link_libraries(server-lib-chunk_server PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-chunk_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job.pb.h
+)
+
 target_proto_messages(server-lib-chunk_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
 )
 
-target_sources(server-lib-chunk_server PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/helpers.cpp
+
+target_proto_outs(server-lib-chunk_server
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-chunk_server
@@ -96,9 +76,3 @@ target_proto_addincls(server-lib-chunk_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-chunk_server
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

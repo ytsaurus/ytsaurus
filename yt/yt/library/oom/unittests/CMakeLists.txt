@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-oom-unittests)
 
+
 target_compile_options(yt-yt-library-oom-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(yt-yt-library-oom-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-oom
+)
+
+target_allocator(yt-yt-library-oom-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(yt-yt-library-oom-unittests PRIVATE
@@ -45,6 +51,7 @@ target_link_options(yt-yt-library-oom-unittests PRIVATE
 target_sources(yt-yt-library-oom-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/oom/unittests/oom_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   yt-yt-library-oom-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-oom-unittests)
 
 set_property(
   TEST
   yt-yt-library-oom-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-oom-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(yt-yt-library-oom-unittests)
-

@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(protos)
 
 add_library(yt-chyt-client INTERFACE)
+
 
 target_link_libraries(yt-chyt-client INTERFACE
   linux-headers-generic::linux-headers-generic

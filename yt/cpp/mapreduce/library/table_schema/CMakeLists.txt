@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-library-table_schema)
 
+
 target_compile_options(mapreduce-library-table_schema PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,8 +30,8 @@ target_link_libraries(mapreduce-library-table_schema PUBLIC
 )
 
 target_sources(mapreduce-library-table_schema PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.h
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/arrow.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.h
 )
 

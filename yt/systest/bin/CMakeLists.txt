@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(systest)
 
+
 target_compile_options(systest PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(systest PUBLIC
   library-cpp-cpuid_check
   yt-library-program
   yt-systest
+)
+
+target_allocator(systest
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(systest PRIVATE
@@ -46,10 +52,5 @@ target_sources(systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/bin/main.cpp
 )
 
-target_allocator(systest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(systest)
-

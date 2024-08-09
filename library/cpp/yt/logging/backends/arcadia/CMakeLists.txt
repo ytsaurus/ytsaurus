@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(logging-backends-arcadia)
 
+
 target_compile_options(logging-backends-arcadia PRIVATE
   -Wdeprecated-this-capture
 )

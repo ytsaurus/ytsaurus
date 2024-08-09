@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(logging)
 
+
 target_compile_options(logging PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(logging PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(logging
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(logging PRIVATE
@@ -44,10 +50,5 @@ target_sources(logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/logging/main.cpp
 )
 
-target_allocator(logging
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(logging)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(Target-WebAssembly-Disassembler)
 
+
 target_compile_options(Target-WebAssembly-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

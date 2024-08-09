@@ -12,10 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
+find_package(Python3 REQUIRED)
 
 add_library(yt-server-kafka_proxy)
+
 
 target_compile_options(yt-server-kafka_proxy PRIVATE
   -Wdeprecated-this-capture
@@ -39,7 +40,6 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
 )
 
 target_sources(yt-server-kafka_proxy PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/connection.cpp
@@ -48,7 +48,9 @@ target_sources(yt-server-kafka_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
 )
+
 
 add_custom_command(
   OUTPUT
@@ -72,4 +74,3 @@ add_custom_command(
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
 )
-

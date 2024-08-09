@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(dry_run)
 add_subdirectory(unittests)
 
 add_library(server-lib-tablet_balancer)
+
 
 target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wdeprecated-this-capture

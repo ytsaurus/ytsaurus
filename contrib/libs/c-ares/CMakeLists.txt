@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-c-ares)
 
+
 target_compile_options(contrib-libs-c-ares PUBLIC
   -DCARES_STATICLIB
 )

@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-job_proxy)
+
 
 target_compile_options(yt-server-job_proxy PRIVATE
   -Wdeprecated-this-capture

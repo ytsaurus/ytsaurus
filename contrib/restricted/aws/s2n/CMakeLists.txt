@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-s2n)
 
+
 target_compile_options(restricted-aws-s2n PRIVATE
   -DS2N_ATOMIC_SUPPORTED
   -DS2N_CLOEXEC_SUPPORTED
@@ -239,6 +240,7 @@ target_sources(restricted-aws-s2n PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/s2n/utils/s2n_timer.c
 )
 
+
 target_sources_custom(restricted-aws-s2n
   .avx2
   SRCS
@@ -326,4 +328,3 @@ target_sources_custom(restricted-aws-s2n
   -mbmi
   -mbmi2
 )
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-restricted-uriparser)
 
+
 target_compile_options(contrib-restricted-uriparser PRIVATE
   -DURI_LIBRARY_BUILD
   -DURI_VISIBILITY

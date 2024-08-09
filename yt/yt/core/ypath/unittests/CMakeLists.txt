@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-ypath)
 
+
 target_compile_options(unittester-core-ypath PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-core-ypath PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-ypath
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-ypath PRIVATE
@@ -46,6 +51,7 @@ target_link_options(unittester-core-ypath PRIVATE
 target_sources(unittester-core-ypath PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/unittests/tokenizer_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,20 +72,15 @@ set_property(
   TEST
   unittester-core-ypath
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-ypath)
 
 set_property(
   TEST
   unittester-core-ypath
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-ypath
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-ypath)
-

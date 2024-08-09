@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-undumpable-unittests)
 
+
 target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-undumpable
+)
+
+target_allocator(yt-yt-library-undumpable-unittests
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 
 target_link_options(yt-yt-library-undumpable-unittests PRIVATE
@@ -44,6 +50,7 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
 target_sources(yt-yt-library-undumpable-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -64,21 +71,15 @@ set_property(
   TEST
   yt-yt-library-undumpable-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-undumpable-unittests)
 
 set_property(
   TEST
   yt-yt-library-undumpable-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-undumpable-unittests
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
-)
-
-vcs_info(yt-yt-library-undumpable-unittests)
-

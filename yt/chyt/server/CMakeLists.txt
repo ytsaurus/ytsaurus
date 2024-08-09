@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(bin)
+
 add_subdirectory(protos)
 add_subdirectory(unittests)
+add_subdirectory(bin)
 
 add_library(yt-chyt-server)
+
 
 target_compile_options(yt-chyt-server PRIVATE
   -Wdeprecated-this-capture
@@ -125,8 +127,8 @@ target_sources(yt-chyt-server PRIVATE
 
 
 add_global_library_for(yt-chyt-server.global
-  yt-chyt-server
-)
+  yt-chyt-server)
+
 
 target_compile_options(yt-chyt-server.global PRIVATE
   -Wdeprecated-this-capture

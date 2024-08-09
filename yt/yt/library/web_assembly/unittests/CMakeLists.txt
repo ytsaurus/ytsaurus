@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-web-assembly)
 
+
 target_compile_options(unittester-web-assembly PRIVATE
   -DWASM_C_API=WAVM_API
   -DWAVM_API=
@@ -39,6 +40,11 @@ target_link_libraries(unittester-web-assembly PUBLIC
   library-web_assembly-api
 )
 
+target_allocator(unittester-web-assembly
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-web-assembly PRIVATE
   -rdynamic
   -ldl
@@ -56,6 +62,7 @@ target_sources(unittester-web-assembly PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
 )
+
 
 add_test(
   NAME
@@ -76,21 +83,15 @@ set_property(
   TEST
   unittester-web-assembly
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-web-assembly)
 
 set_property(
   TEST
   unittester-web-assembly
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-web-assembly
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-web-assembly)
-

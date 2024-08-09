@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(offline_controller)
 
+
 target_compile_options(offline_controller PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,10 @@ target_link_libraries(offline_controller PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
   yt-library-coredumper
+)
+
+target_allocator(offline_controller
+  cpp-ytalloc-impl
 )
 
 target_link_options(offline_controller PRIVATE
@@ -49,9 +54,5 @@ target_sources(offline_controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_controller/main.cpp
 )
 
-target_allocator(offline_controller
-  cpp-ytalloc-impl
-)
 
 vcs_info(offline_controller)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cypress_nbd_server)
 
+
 target_link_libraries(cypress_nbd_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -28,6 +29,11 @@ target_link_libraries(cypress_nbd_server PUBLIC
   server-lib-nbd
   yt-yt-ytlib
   yt_proto-yt-client
+)
+
+target_allocator(cypress_nbd_server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cypress_nbd_server PRIVATE
@@ -46,10 +52,5 @@ target_sources(cypress_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/cypress_nbd_server/main.cpp
 )
 
-target_allocator(cypress_nbd_server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(cypress_nbd_server)
-

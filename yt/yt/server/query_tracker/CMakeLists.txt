@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-query_tracker)
+
 
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture

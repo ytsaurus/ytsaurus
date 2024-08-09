@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-coroutine)
 
+
 target_compile_options(restricted-boost-coroutine PUBLIC
   -DBOOST_COROUTINES_NO_DEPRECATION_WARNING
 )

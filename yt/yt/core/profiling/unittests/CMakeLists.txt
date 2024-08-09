@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-profiling)
 
+
 target_compile_options(unittester-core-profiling PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-core-profiling PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-profiling
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-profiling PRIVATE
@@ -47,6 +52,7 @@ target_sources(unittester-core-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -67,20 +73,15 @@ set_property(
   TEST
   unittester-core-profiling
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-profiling)
 
 set_property(
   TEST
   unittester-core-profiling
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-profiling
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-profiling)
-

@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-threading-thread_local)
 
+
 target_link_libraries(cpp-threading-thread_local PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -36,9 +37,9 @@ target_sources(cpp-threading-thread_local PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/thread_local/thread_local.cpp
 )
 
+
 generate_enum_serilization(cpp-threading-thread_local
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/thread_local/thread_local.h
   INCLUDE_HEADERS
   library/cpp/threading/thread_local/thread_local.h
 )
-

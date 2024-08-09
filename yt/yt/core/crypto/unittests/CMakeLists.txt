@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-crypto)
 
+
 target_compile_options(unittester-core-crypto PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-core-crypto PUBLIC
   yt-yt-core
   core-rpc-grpc
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-crypto
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-crypto PRIVATE
@@ -48,6 +53,7 @@ target_sources(unittester-core-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/unittests/crypto_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/unittests/tls_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,20 +74,15 @@ set_property(
   TEST
   unittester-core-crypto
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-crypto)
 
 set_property(
   TEST
   unittester-core-crypto
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-crypto
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-crypto)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-query-agent)
 
+
 target_compile_options(unittester-query-agent PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-query-agent PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-node
+)
+
+target_allocator(unittester-query-agent
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-query-agent PRIVATE
@@ -45,6 +51,7 @@ target_link_options(unittester-query-agent PRIVATE
 target_sources(unittester-query-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/unittests/replication_log_batch_reader_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   unittester-query-agent
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-query-agent)
 
 set_property(
   TEST
   unittester-query-agent
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-query-agent
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-query-agent)
-

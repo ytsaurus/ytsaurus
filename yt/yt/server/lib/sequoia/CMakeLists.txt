@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-sequoia)
 
+
 target_compile_options(server-lib-sequoia PRIVATE
   -Wdeprecated-this-capture
 )
@@ -46,14 +47,20 @@ target_link_libraries(server-lib-sequoia PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-sequoia PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/cypress_transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/protobuf_helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h
+)
+
 target_proto_messages(server-lib-sequoia PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/proto/transaction_manager.proto
 )
 
-target_sources(server-lib-sequoia PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/cypress_transaction.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/protobuf_helpers.cpp
+
+target_proto_outs(server-lib-sequoia
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-sequoia
@@ -68,9 +75,3 @@ target_proto_addincls(server-lib-sequoia
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-sequoia
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

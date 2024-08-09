@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-exec_node)
 
+
 target_compile_options(server-lib-exec_node PRIVATE
   -Wdeprecated-this-capture
 )
@@ -49,18 +50,24 @@ target_link_libraries(server-lib-exec_node PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-exec_node PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
-)
-
 target_sources(server-lib-exec_node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h
+)
+
+target_proto_messages(server-lib-exec_node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
+)
+
+
+target_proto_outs(server-lib-exec_node
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-exec_node
@@ -76,9 +83,3 @@ target_proto_addincls(server-lib-exec_node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-exec_node
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

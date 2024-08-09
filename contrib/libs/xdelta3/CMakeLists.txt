@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-xdelta3)
 
+
 target_compile_options(contrib-libs-xdelta3 PRIVATE
   -DNOT_MAIN=1
   -DSECONDARY_DJW=1

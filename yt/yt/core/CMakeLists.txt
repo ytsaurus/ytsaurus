@@ -13,28 +13,30 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(actions)
-add_subdirectory(bus)
-add_subdirectory(compression)
-add_subdirectory(concurrency)
-add_subdirectory(crypto)
+
+add_subdirectory(misc)
 add_subdirectory(http)
 add_subdirectory(https)
+add_subdirectory(service_discovery)
+add_subdirectory(rpc)
+add_subdirectory(test_framework)
+add_subdirectory(actions)
+add_subdirectory(concurrency)
+add_subdirectory(net)
+add_subdirectory(tracing)
+add_subdirectory(yson)
+add_subdirectory(bus)
+add_subdirectory(compression)
+add_subdirectory(crypto)
 add_subdirectory(json)
 add_subdirectory(logging)
-add_subdirectory(misc)
-add_subdirectory(net)
 add_subdirectory(phoenix)
 add_subdirectory(profiling)
-add_subdirectory(rpc)
-add_subdirectory(service_discovery)
-add_subdirectory(test_framework)
-add_subdirectory(tracing)
 add_subdirectory(ypath)
-add_subdirectory(yson)
 add_subdirectory(ytree)
 
 add_library(yt-yt-core)
+
 
 target_compile_options(yt-yt-core PRIVATE
   -mpclmul
@@ -353,8 +355,8 @@ target_sources(yt-yt-core PRIVATE
 
 
 add_global_library_for(yt-yt-core.global
-  yt-yt-core
-)
+  yt-yt-core)
+
 
 target_compile_options(yt-yt-core.global PRIVATE
   -mpclmul

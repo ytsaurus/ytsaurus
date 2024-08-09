@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-google-benchmark)
 
+
 target_compile_options(restricted-google-benchmark PUBLIC
   -DBENCHMARK_STATIC_DEFINE
 )

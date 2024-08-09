@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-client-hedging)
+
 
 target_compile_options(yt-client-hedging PRIVATE
   -Wdeprecated-this-capture

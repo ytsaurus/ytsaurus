@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(example)
+
 add_subdirectory(jaeger)
+add_subdirectory(example)
 add_subdirectory(unittests)
 
 add_library(yt-library-tracing)
+
 
 target_compile_options(yt-library-tracing PRIVATE
   -Wdeprecated-this-capture

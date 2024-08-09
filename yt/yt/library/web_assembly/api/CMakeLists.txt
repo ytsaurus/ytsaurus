@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-web_assembly-api)
 
+
 target_compile_options(library-web_assembly-api PRIVATE
   -Wdeprecated-this-capture
 )

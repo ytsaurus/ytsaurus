@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(insert)
 
+
 target_compile_options(insert PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(insert PUBLIC
   yt-yt-client
   yt-yt-ytlib
   cpp-getopt-small
+)
+
+target_allocator(insert
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(insert PRIVATE
@@ -48,10 +54,5 @@ target_sources(insert PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/insert/main.cpp
 )
 
-target_allocator(insert
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(insert)
-

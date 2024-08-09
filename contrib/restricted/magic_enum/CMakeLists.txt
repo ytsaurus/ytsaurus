@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-restricted-magic_enum INTERFACE)
 
+
 target_include_directories(contrib-restricted-magic_enum INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/magic_enum/include
 )

@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(default)
+
 add_subdirectory(malloc_extension)
 add_subdirectory(no_percpu_cache)
+add_subdirectory(default)
 
 add_library(contrib-libs-tcmalloc)
+
 
 target_compile_options(contrib-libs-tcmalloc PRIVATE
   -DTCMALLOC_256K_PAGES
@@ -37,8 +39,8 @@ target_sources(contrib-libs-tcmalloc PRIVATE
 
 
 add_global_library_for(contrib-libs-tcmalloc.global
-  contrib-libs-tcmalloc
-)
+  contrib-libs-tcmalloc)
+
 
 target_compile_options(contrib-libs-tcmalloc.global PRIVATE
   -DTCMALLOC_256K_PAGES

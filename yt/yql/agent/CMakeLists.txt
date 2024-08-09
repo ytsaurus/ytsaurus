@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(bin)
+
 add_subdirectory(unittests)
+add_subdirectory(bin)
 
 add_library(yt-yql-agent)
+
 
 target_compile_options(yt-yql-agent PRIVATE
   -Wdeprecated-this-capture

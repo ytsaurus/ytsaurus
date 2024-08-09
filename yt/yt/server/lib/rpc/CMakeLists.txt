@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-rpc)
 
+
 target_compile_options(server-lib-rpc PRIVATE
   -Wdeprecated-this-capture
 )

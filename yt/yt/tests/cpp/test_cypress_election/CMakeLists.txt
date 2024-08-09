@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cpp-integration-test-cypress-election)
 
+
 target_compile_options(cpp-integration-test-cypress-election PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,10 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
   yt-yt-ytlib
 )
 
+target_allocator(cpp-integration-test-cypress-election
+  cpp-ytalloc-impl
+)
+
 target_link_options(cpp-integration-test-cypress-election PRIVATE
   -ldl
   -lrt
@@ -49,6 +54,7 @@ target_link_options(cpp-integration-test-cypress-election PRIVATE
 target_sources(cpp-integration-test-cypress-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_cypress_election/test_cypress_election.cpp
 )
+
 
 add_test(
   NAME
@@ -69,20 +75,15 @@ set_property(
   TEST
   cpp-integration-test-cypress-election
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(cpp-integration-test-cypress-election)
 
 set_property(
   TEST
   cpp-integration-test-cypress-election
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(cpp-integration-test-cypress-election
-  cpp-ytalloc-impl
-)
-
-vcs_info(cpp-integration-test-cypress-election)
-

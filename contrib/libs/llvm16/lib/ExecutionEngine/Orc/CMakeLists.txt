@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(Shared)
+
 add_subdirectory(TargetProcess)
+add_subdirectory(Shared)
 
 add_library(lib-ExecutionEngine-Orc)
+
 
 target_compile_options(lib-ExecutionEngine-Orc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

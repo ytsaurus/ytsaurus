@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(deps)
 
 add_executable(yt-yt-library-profiling-unittests)
+
 
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
@@ -34,6 +36,11 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   library-profiling-tcmalloc
   library-profiling-resource_tracker
   library-profiling-perf
+)
+
+target_allocator(yt-yt-library-profiling-unittests
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 
 target_link_options(yt-yt-library-profiling-unittests PRIVATE
@@ -59,6 +66,7 @@ target_sources(yt-yt-library-profiling-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
 )
 
+
 add_test(
   NAME
   yt-yt-library-profiling-unittests
@@ -78,21 +86,15 @@ set_property(
   TEST
   yt-yt-library-profiling-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-profiling-unittests)
 
 set_property(
   TEST
   yt-yt-library-profiling-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-profiling-unittests
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
-)
-
-vcs_info(yt-yt-library-profiling-unittests)
-

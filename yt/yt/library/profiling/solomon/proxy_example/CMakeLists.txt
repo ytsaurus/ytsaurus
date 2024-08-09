@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(proxy-example)
 
+
 target_compile_options(proxy-example PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(proxy-example PUBLIC
   yutil
   library-cpp-cpuid_check
   library-profiling-solomon
+)
+
+target_allocator(proxy-example
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(proxy-example PRIVATE
@@ -44,10 +50,5 @@ target_sources(proxy-example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/proxy_example/main.cpp
 )
 
-target_allocator(proxy-example
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(proxy-example)
-

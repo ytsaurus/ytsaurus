@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(mapreduce_lambda)
 
+
 target_compile_options(mapreduce_lambda PRIVATE
   -Wdeprecated-this-capture
 )
@@ -42,6 +43,11 @@ target_link_libraries(mapreduce_lambda PUBLIC
   cpp-mapreduce-client
   mapreduce-library-lambda
   contrib-libs-protobuf
+)
+
+target_allocator(mapreduce_lambda
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(mapreduce_lambda PRIVATE
@@ -61,13 +67,14 @@ target_proto_messages(mapreduce_lambda PRIVATE
 )
 
 target_sources(mapreduce_lambda PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/data.pb.h
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/data.pb.h
 )
 
-target_allocator(mapreduce_lambda
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+
+target_proto_outs(mapreduce_lambda
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(mapreduce_lambda
@@ -81,10 +88,4 @@ target_proto_addincls(mapreduce_lambda
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(mapreduce_lambda
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(mapreduce_lambda)
-

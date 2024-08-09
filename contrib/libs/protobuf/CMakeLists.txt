@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-protobuf)
 
+
 target_compile_options(contrib-libs-protobuf PRIVATE
   -DGOOGLE_PROTOBUF_CMAKE_BUILD
   -DHAVE_ZLIB
@@ -35,17 +36,6 @@ target_link_libraries(contrib-libs-protobuf PUBLIC
 )
 
 target_sources(contrib-libs-protobuf PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/any.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/api.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/descriptor.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/duration.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/empty.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/field_mask.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/source_context.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/struct.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/timestamp.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/type.proto
-  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/wrappers.proto
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/any.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/any.pb.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/any_lite.cc
@@ -129,7 +119,19 @@ target_sources(contrib-libs-protobuf PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/wire_format.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/wire_format_lite.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/wrappers.pb.cc
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/any.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/api.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/descriptor.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/duration.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/empty.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/field_mask.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/source_context.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/struct.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/timestamp.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/type.proto
+  ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/wrappers.proto
 )
+
 
 copy_file(
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src/google/protobuf/any.proto
@@ -186,10 +188,9 @@ copy_file(
   ${PROJECT_BINARY_DIR}/contrib/libs/protobuf/src/google/protobuf/wrappers.proto
 )
 
-
 add_global_library_for(contrib-libs-protobuf.global
-  contrib-libs-protobuf
-)
+  contrib-libs-protobuf)
+
 
 target_compile_options(contrib-libs-protobuf.global PRIVATE
   -DGOOGLE_PROTOBUF_CMAKE_BUILD

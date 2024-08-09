@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(proto)
+
 add_subdirectory(state)
+add_subdirectory(proto)
 add_subdirectory(xdelta_codec)

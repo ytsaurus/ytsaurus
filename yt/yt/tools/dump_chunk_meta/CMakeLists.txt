@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dump-chunk-meta)
 
+
 target_compile_options(dump-chunk-meta PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(dump-chunk-meta PUBLIC
   yt-yt-core
   yt-library-program
   cpp-getopt-small
+)
+
+target_allocator(dump-chunk-meta
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(dump-chunk-meta PRIVATE
@@ -48,10 +54,5 @@ target_sources(dump-chunk-meta PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
 )
 
-target_allocator(dump-chunk-meta
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(dump-chunk-meta)
-

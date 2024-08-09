@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-iostreams)
 
+
 target_compile_options(restricted-boost-iostreams PRIVATE
   -DBOOST_IOSTREAMS_USE_DEPRECATED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

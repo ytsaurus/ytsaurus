@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-decimal)
 
+
 target_compile_options(unittester-library-decimal PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-library-decimal PUBLIC
   cpp-testing-gtest_main
   yt-core-test_framework
   yt-library-decimal
+)
+
+target_allocator(unittester-library-decimal
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-library-decimal PRIVATE
@@ -46,6 +51,7 @@ target_link_options(unittester-library-decimal PRIVATE
 target_sources(unittester-library-decimal PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/decimal/unittests/decimal_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,20 +72,15 @@ set_property(
   TEST
   unittester-library-decimal
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-decimal)
 
 set_property(
   TEST
   unittester-library-decimal
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-decimal
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-decimal)
-

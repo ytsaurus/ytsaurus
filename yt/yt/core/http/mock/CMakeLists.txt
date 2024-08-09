@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(core-http-mock)
 
+
 target_compile_options(core-http-mock PRIVATE
   -Wdeprecated-this-capture
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(orm-library-query)
 
+
 target_compile_options(orm-library-query PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough

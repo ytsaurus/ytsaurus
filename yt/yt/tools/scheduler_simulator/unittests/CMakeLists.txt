@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-scheduler-simulator)
 
+
 target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
 )
@@ -35,6 +36,10 @@ target_link_libraries(unittester-scheduler-simulator PUBLIC
   yt-core-test_framework
 )
 
+target_allocator(unittester-scheduler-simulator
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-scheduler-simulator PRIVATE
   -ldl
   -lrt
@@ -51,6 +56,7 @@ target_sources(unittester-scheduler-simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/operation_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/control_thread_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -71,20 +77,15 @@ set_property(
   TEST
   unittester-scheduler-simulator
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-scheduler-simulator)
 
 set_property(
   TEST
   unittester-scheduler-simulator
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-scheduler-simulator
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-scheduler-simulator)
-

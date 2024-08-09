@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(skiff)
 
+
 target_compile_options(skiff PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(skiff PUBLIC
   yt-yt-client
   yt-library-formats
   library-cpp-getopt
+)
+
+target_allocator(skiff
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(skiff PRIVATE
@@ -49,10 +55,5 @@ target_sources(skiff PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/skiff/experimental_yson_pull_format.cpp
 )
 
-target_allocator(skiff
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(skiff)
-

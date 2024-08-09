@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-cell_server)
 
+
 target_compile_options(server-lib-cell_server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -54,6 +55,12 @@ target_sources(server-lib-cell_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.pb.h
 )
 
+
+target_proto_outs(server-lib-cell_server
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(server-lib-cell_server
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -65,9 +72,3 @@ target_proto_addincls(server-lib-cell_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-cell_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

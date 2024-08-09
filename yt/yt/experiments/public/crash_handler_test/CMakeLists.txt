@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(crash_handler_tests)
 
+
 target_link_libraries(crash_handler_tests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(crash_handler_tests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(crash_handler_tests PRIVATE
@@ -40,10 +46,5 @@ target_sources(crash_handler_tests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/crash_handler_test/main.cpp
 )
 
-target_allocator(crash_handler_tests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(crash_handler_tests)
-

@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-tools)
+
 
 target_compile_options(yt-server-tools PRIVATE
   -Wdeprecated-this-capture
@@ -42,8 +44,8 @@ target_sources(yt-server-tools PRIVATE
 
 
 add_global_library_for(yt-server-tools.global
-  yt-server-tools
-)
+  yt-server-tools)
+
 
 target_compile_options(yt-server-tools.global PRIVATE
   -Wdeprecated-this-capture

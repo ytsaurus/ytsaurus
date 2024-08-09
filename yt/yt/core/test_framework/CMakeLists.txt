@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-core-test_framework)
 
+
 target_compile_options(yt-core-test_framework PRIVATE
   -Wdeprecated-this-capture
 )
@@ -41,8 +42,8 @@ target_sources(yt-core-test_framework PRIVATE
 
 
 add_global_library_for(yt-core-test_framework.global
-  yt-core-test_framework
-)
+  yt-core-test_framework)
+
 
 target_compile_options(yt-core-test_framework.global PRIVATE
   -Wdeprecated-this-capture

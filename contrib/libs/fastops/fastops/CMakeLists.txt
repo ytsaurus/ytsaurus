@@ -13,12 +13,14 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(avx)
-add_subdirectory(avx2)
 add_subdirectory(core)
+add_subdirectory(avx2)
 add_subdirectory(plain)
 
 add_library(libs-fastops-fastops)
+
 
 target_link_libraries(libs-fastops-fastops PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -29,7 +31,7 @@ target_link_libraries(libs-fastops-fastops PUBLIC
 )
 
 target_sources(libs-fastops-fastops PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.h
 )
 

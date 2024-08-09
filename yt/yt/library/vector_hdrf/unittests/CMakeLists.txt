@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-fair-share-update)
 
+
 target_compile_options(unittester-fair-share-update PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-fair-share-update PUBLIC
   cpp-testing-gtest_main
   yt-library-vector_hdrf
   yt-core-test_framework
+)
+
+target_allocator(unittester-fair-share-update
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-fair-share-update PRIVATE
@@ -46,6 +52,7 @@ target_link_options(unittester-fair-share-update PRIVATE
 target_sources(unittester-fair-share-update PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-fair-share-update
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-fair-share-update)
 
 set_property(
   TEST
   unittester-fair-share-update
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-fair-share-update
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-fair-share-update)
-

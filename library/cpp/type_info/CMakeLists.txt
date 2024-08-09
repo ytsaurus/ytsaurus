@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(ut)
 
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -22,7 +21,10 @@ get_built_tool_path(
   enum_parser
 )
 
+add_subdirectory(ut)
+
 add_library(library-cpp-type_info)
+
 
 target_link_libraries(library-cpp-type_info PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -44,9 +46,9 @@ target_sources(library-cpp-type_info PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_list.cpp
 )
 
+
 generate_enum_serilization(library-cpp-type_info
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_list.h
   INCLUDE_HEADERS
   library/cpp/type_info/type_list.h
 )
-

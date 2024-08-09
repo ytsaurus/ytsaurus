@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(prepare_operation)
 
+
 target_compile_options(prepare_operation PRIVATE
   -Wdeprecated-this-capture
 )
@@ -41,6 +42,11 @@ target_link_libraries(prepare_operation PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
   contrib-libs-protobuf
+)
+
+target_allocator(prepare_operation
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(prepare_operation PRIVATE
@@ -55,18 +61,19 @@ target_link_options(prepare_operation PRIVATE
   -lutil
 )
 
+target_sources(prepare_operation PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
+)
+
 target_proto_messages(prepare_operation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.proto
 )
 
-target_sources(prepare_operation PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/main.cpp
-)
 
-target_allocator(prepare_operation
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_outs(prepare_operation
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(prepare_operation
@@ -80,10 +87,4 @@ target_proto_addincls(prepare_operation
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(prepare_operation
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(prepare_operation)
-

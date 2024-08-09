@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-error-skeleton)
 
+
 target_compile_options(unittester-library-error-skeleton PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-library-error-skeleton PUBLIC
   cpp-testing-gtest_main
   yt-library-error_skeleton
   yt-core-test_framework
+)
+
+target_allocator(unittester-library-error-skeleton
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-library-error-skeleton PRIVATE
@@ -46,6 +51,7 @@ target_link_options(unittester-library-error-skeleton PRIVATE
 target_sources(unittester-library-error-skeleton PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,20 +72,15 @@ set_property(
   TEST
   unittester-library-error-skeleton
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-error-skeleton)
 
 set_property(
   TEST
   unittester-library-error-skeleton
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-error-skeleton
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-error-skeleton)
-

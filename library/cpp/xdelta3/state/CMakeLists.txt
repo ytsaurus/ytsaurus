@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-xdelta3-state)
 
+
 target_link_libraries(cpp-xdelta3-state PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

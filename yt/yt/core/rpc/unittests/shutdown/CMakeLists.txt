@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-rpc-shutdown)
 
+
 target_compile_options(unittester-core-rpc-shutdown PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,10 @@ target_link_libraries(unittester-core-rpc-shutdown PUBLIC
   cpp-testing-common
 )
 
+target_allocator(unittester-core-rpc-shutdown
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-core-rpc-shutdown PRIVATE
   -ldl
   -lrt
@@ -49,6 +54,7 @@ target_link_options(unittester-core-rpc-shutdown PRIVATE
 target_sources(unittester-core-rpc-shutdown PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_shutdown_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -69,20 +75,15 @@ set_property(
   TEST
   unittester-core-rpc-shutdown
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-rpc-shutdown)
 
 set_property(
   TEST
   unittester-core-rpc-shutdown
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-rpc-shutdown
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-rpc-shutdown)
-

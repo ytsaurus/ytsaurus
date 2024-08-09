@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-concept_check INTERFACE)
 
+
 target_include_directories(restricted-boost-concept_check INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/concept_check/include
 )

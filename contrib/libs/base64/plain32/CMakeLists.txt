@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-base64-plain32)
 
+
 target_link_libraries(libs-base64-plain32 PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,6 +27,7 @@ target_sources(libs-base64-plain32 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/base64/plain32/lib.c
 )
 
+
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/base64/plain32/codec_plain.c
@@ -43,4 +45,3 @@ set_property(
   COMPILE_OPTIONS
   -std=c11
 )
-

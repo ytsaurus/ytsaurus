@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cpp-integration-test-native-api)
 
+
 target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,10 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
+)
+
+target_allocator(cpp-integration-test-native-api
+  cpp-ytalloc-impl
 )
 
 target_link_options(cpp-integration-test-native-api PRIVATE
@@ -54,6 +59,7 @@ target_sources(cpp-integration-test-native-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
 )
 
+
 add_test(
   NAME
   cpp-integration-test-native-api
@@ -73,20 +79,15 @@ set_property(
   TEST
   cpp-integration-test-native-api
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(cpp-integration-test-native-api)
 
 set_property(
   TEST
   cpp-integration-test-native-api
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(cpp-integration-test-native-api
-  cpp-ytalloc-impl
-)
-
-vcs_info(cpp-integration-test-native-api)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-cpp-mapreduce-tests-native-misc_core_http)
 
+
 target_compile_options(yt-cpp-mapreduce-tests-native-misc_core_http PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,11 @@ target_link_libraries(yt-cpp-mapreduce-tests-native-misc_core_http PUBLIC
   mapreduce-tests-yt_unittest_lib
   mapreduce-tests-gtest_main
   cpp-mapreduce-util
+)
+
+target_allocator(yt-cpp-mapreduce-tests-native-misc_core_http
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-cpp-mapreduce-tests-native-misc_core_http PRIVATE
@@ -72,6 +78,7 @@ target_sources(yt-cpp-mapreduce-tests-native-misc_core_http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/whoami.cpp
 )
 
+
 set_property(
   TARGET
   yt-cpp-mapreduce-tests-native-misc_core_http
@@ -105,22 +112,16 @@ set_yunittest_property(
   TEST
   yt-cpp-mapreduce-tests-native-misc_core_http
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
+  "YT_TESTS_USE_CORE_HTTP_CLIENT=yes"
 )
+
+vcs_info(yt-cpp-mapreduce-tests-native-misc_core_http)
 
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-tests-native-misc_core_http
   PROPERTY
-  ENVIRONMENT
-  YT_TESTS_USE_CORE_HTTP_CLIENT=yes
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-cpp-mapreduce-tests-native-misc_core_http
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-cpp-mapreduce-tests-native-misc_core_http)
-

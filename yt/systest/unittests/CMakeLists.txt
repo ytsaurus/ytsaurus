@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-yt-systest)
 
+
 target_compile_options(unittester-yt-systest PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-yt-systest PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-systest
+)
+
+target_allocator(unittester-yt-systest
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-yt-systest PRIVATE
@@ -50,6 +56,7 @@ target_sources(unittester-yt-systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/unittests/util.cpp
 )
 
+
 add_test(
   NAME
   unittester-yt-systest
@@ -69,21 +76,15 @@ set_property(
   TEST
   unittester-yt-systest
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-yt-systest)
 
 set_property(
   TEST
   unittester-yt-systest
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-yt-systest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-yt-systest)
-

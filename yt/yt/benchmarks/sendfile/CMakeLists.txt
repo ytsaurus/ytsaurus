@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(sendfile)
 
+
 target_compile_options(sendfile PRIVATE
   -Wdeprecated-this-capture
 )
@@ -25,6 +26,11 @@ target_link_libraries(sendfile PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
+)
+
+target_allocator(sendfile
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(sendfile PRIVATE
@@ -42,10 +48,5 @@ target_sources(sendfile PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/sendfile/main.c
 )
 
-target_allocator(sendfile
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(sendfile)
-

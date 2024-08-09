@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-cpp-terminate_handler)
 
+
 target_link_libraries(library-cpp-terminate_handler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -28,8 +29,8 @@ target_sources(library-cpp-terminate_handler PRIVATE
 
 
 add_global_library_for(library-cpp-terminate_handler.global
-  library-cpp-terminate_handler
-)
+  library-cpp-terminate_handler)
+
 
 target_link_libraries(library-cpp-terminate_handler.global PUBLIC
   linux-headers-generic::linux-headers-generic

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(versioned_block_format)
 
+
 target_compile_options(versioned_block_format PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(versioned_block_format PUBLIC
   yt-yt-client
   yt-yt-core
   library-cpp-getopt
+)
+
+target_allocator(versioned_block_format
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(versioned_block_format PRIVATE
@@ -48,6 +54,7 @@ target_sources(versioned_block_format PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/versioned_block_format/main.cpp
 )
 
+
 add_test(
   NAME
   versioned_block_format
@@ -63,6 +70,8 @@ set_property(
   SMALL
 )
 
+vcs_info(versioned_block_format)
+
 set_property(
   TEST
   versioned_block_format
@@ -70,11 +79,3 @@ set_property(
   PROCESSORS
   1
 )
-
-target_allocator(versioned_block_format
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(versioned_block_format)
-

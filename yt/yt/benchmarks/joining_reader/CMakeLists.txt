@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(joining_reader)
 
+
 target_compile_options(joining_reader PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(joining_reader PUBLIC
   yt-yt-ytlib
   yt-yt-client
   yt-yt-core
+)
+
+target_allocator(joining_reader
+  cpp-ytalloc-impl
 )
 
 target_link_options(joining_reader PRIVATE
@@ -47,6 +52,7 @@ target_sources(joining_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/joining_reader/main.cpp
 )
 
+
 add_test(
   NAME
   joining_reader
@@ -62,6 +68,8 @@ set_property(
   SMALL
 )
 
+vcs_info(joining_reader)
+
 set_property(
   TEST
   joining_reader
@@ -69,10 +77,3 @@ set_property(
   PROCESSORS
   1
 )
-
-target_allocator(joining_reader
-  cpp-ytalloc-impl
-)
-
-vcs_info(joining_reader)
-

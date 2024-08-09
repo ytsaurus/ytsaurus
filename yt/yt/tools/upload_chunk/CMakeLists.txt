@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(upload_chunk)
 
+
 target_compile_options(upload_chunk PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(upload_chunk PUBLIC
   server-lib-io
   yt-yt-ytlib
   cpp-getopt-small
+)
+
+target_allocator(upload_chunk
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(upload_chunk PRIVATE
@@ -48,10 +54,5 @@ target_sources(upload_chunk PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/upload_chunk/main.cpp
 )
 
-target_allocator(upload_chunk
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(upload_chunk)
-

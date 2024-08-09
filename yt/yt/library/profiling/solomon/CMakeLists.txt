@@ -13,7 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(proxy_example)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -29,7 +28,10 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(proxy_example)
+
 add_library(library-profiling-solomon)
+
 
 target_compile_options(library-profiling-solomon PRIVATE
   -Wdeprecated-this-capture
@@ -51,12 +53,7 @@ target_link_libraries(library-profiling-solomon PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(library-profiling-solomon PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_dump.proto
-)
-
 target_sources(library-profiling-solomon PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/helpers.cpp
@@ -69,6 +66,17 @@ target_sources(library-profiling-solomon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_set.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/tag_registry.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
+)
+
+target_proto_messages(library-profiling-solomon PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_dump.proto
+)
+
+
+target_proto_outs(library-profiling-solomon
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(library-profiling-solomon
@@ -81,9 +89,3 @@ target_proto_addincls(library-profiling-solomon
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(library-profiling-solomon
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

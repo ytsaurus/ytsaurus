@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(rpc_proxy_example)
 
+
 target_link_libraries(rpc_proxy_example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,6 +26,10 @@ target_link_libraries(rpc_proxy_example PUBLIC
   yt-yt-client
   yt-library-program
   cpp-getopt-small
+)
+
+target_allocator(rpc_proxy_example
+  cpp-ytalloc-impl
 )
 
 target_link_options(rpc_proxy_example PRIVATE
@@ -43,9 +48,5 @@ target_sources(rpc_proxy_example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/examples/rpc_proxy_sample/main.cpp
 )
 
-target_allocator(rpc_proxy_example
-  cpp-ytalloc-impl
-)
 
 vcs_info(rpc_proxy_example)
-

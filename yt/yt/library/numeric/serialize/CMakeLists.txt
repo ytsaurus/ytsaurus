@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(library-numeric-serialize INTERFACE)
+
 
 target_link_libraries(library-numeric-serialize INTERFACE
   linux-headers-generic::linux-headers-generic

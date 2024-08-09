@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(yt-client-hedging-proto)
 
+
 target_link_libraries(yt-client-hedging-proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -47,6 +48,12 @@ target_sources(yt-client-hedging-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/hedging/proto/config.pb.h
 )
 
+
+target_proto_outs(yt-client-hedging-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(yt-client-hedging-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -57,9 +64,3 @@ target_proto_addincls(yt-client-hedging-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-client-hedging-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

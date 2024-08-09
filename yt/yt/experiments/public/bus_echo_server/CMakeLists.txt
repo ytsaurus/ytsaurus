@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(bus_echo_server)
 
+
 target_link_libraries(bus_echo_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,11 @@ target_link_libraries(bus_echo_server PUBLIC
   yt-yt-core
   yt-library-program
   library-cpp-getopt
+)
+
+target_allocator(bus_echo_server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(bus_echo_server PRIVATE
@@ -42,10 +48,5 @@ target_sources(bus_echo_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/bus_echo_server/main.cpp
 )
 
-target_allocator(bus_echo_server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(bus_echo_server)
-

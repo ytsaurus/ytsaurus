@@ -12,7 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(arrow)
-add_subdirectory(avro)
 add_subdirectory(orc)
 add_subdirectory(orc-format)
+add_subdirectory(avro)

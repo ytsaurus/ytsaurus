@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-googletest-googletest)
 
+
 target_compile_options(restricted-googletest-googletest PUBLIC
   -DGTEST_HAS_POSIX_RE=0
   -DGTEST_HAS_STD_WSTRING=1

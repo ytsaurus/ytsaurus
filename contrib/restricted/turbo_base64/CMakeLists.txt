@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-restricted-turbo_base64)
 
+
 target_compile_options(contrib-restricted-turbo_base64 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -29,6 +30,7 @@ target_sources(contrib-restricted-turbo_base64 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64d.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
 )
+
 
 target_sources_custom(contrib-restricted-turbo_base64
   .avx
@@ -48,4 +50,3 @@ target_sources_custom(contrib-restricted-turbo_base64
   -mbmi
   -mbmi2
 )
-

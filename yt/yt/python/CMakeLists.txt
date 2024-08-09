@@ -12,7 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(common)
-add_subdirectory(driver)
-add_subdirectory(yson)
+
 add_subdirectory(yson_shared)
+add_subdirectory(common)
+add_subdirectory(yson)
+add_subdirectory(driver)

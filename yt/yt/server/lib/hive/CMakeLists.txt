@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-hive)
 
+
 target_compile_options(server-lib-hive PRIVATE
   -Wdeprecated-this-capture
 )
@@ -47,12 +48,7 @@ target_link_libraries(server-lib-hive PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-hive PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
-)
-
 target_sources(server-lib-hive PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
@@ -60,6 +56,17 @@ target_sources(server-lib-hive PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/logical_time_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
+)
+
+target_proto_messages(server-lib-hive PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
+)
+
+
+target_proto_outs(server-lib-hive
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-hive
@@ -74,9 +81,3 @@ target_proto_addincls(server-lib-hive
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-hive
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

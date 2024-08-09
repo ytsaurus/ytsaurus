@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-library-error_skeleton INTERFACE)
+
 
 target_link_libraries(yt-library-error_skeleton INTERFACE
   linux-headers-generic::linux-headers-generic
@@ -27,8 +29,8 @@ target_link_libraries(yt-library-error_skeleton INTERFACE
 
 
 add_global_library_for(yt-library-error_skeleton.global
-  yt-library-error_skeleton
-)
+  yt-library-error_skeleton)
+
 
 target_compile_options(yt-library-error_skeleton.global PRIVATE
   -Wdeprecated-this-capture

@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(force_commit_tx)
 
+
 target_link_libraries(force_commit_tx PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-ytlib
+)
+
+target_allocator(force_commit_tx
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(force_commit_tx PRIVATE
@@ -40,10 +46,5 @@ target_sources(force_commit_tx PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/force_commit_tx/main.cpp
 )
 
-target_allocator(force_commit_tx
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(force_commit_tx)
-

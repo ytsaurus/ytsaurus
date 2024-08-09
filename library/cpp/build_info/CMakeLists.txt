@@ -12,25 +12,17 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
+find_package(Python3 REQUIRED)
 
-set(
-  KOSHER_SVN_VERSION
-  
-)
+set(KOSHER_SVN_VERSION )
 
-set(
-  SANDBOX_TASK_ID
-  0
-)
+set(SANDBOX_TASK_ID 0)
 
-set(
-  BUILD_TYPE
-  RELEASE
-)
+set(BUILD_TYPE RELEASE)
 
 add_library(library-cpp-build_info)
+
 
 target_include_directories(library-cpp-build_info PUBLIC
   ${PROJECT_BINARY_DIR}/library/cpp/build_info
@@ -44,13 +36,14 @@ target_link_libraries(library-cpp-build_info PUBLIC
 )
 
 target_sources(library-cpp-build_info PRIVATE
-  ${PROJECT_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
   ${PROJECT_SOURCE_DIR}/library/cpp/build_info/build_info_static.cpp
   ${PROJECT_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
   ${PROJECT_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
   ${PROJECT_BINARY_DIR}/library/cpp/build_info/sandbox.cpp
   ${PROJECT_BINARY_DIR}/library/cpp/build_info/build_info.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
 )
+
 
 add_custom_command(
   OUTPUT
@@ -74,4 +67,3 @@ configure_file(
   ${PROJECT_SOURCE_DIR}/library/cpp/build_info/build_info.cpp.in
   ${PROJECT_BINARY_DIR}/library/cpp/build_info/build_info.cpp
 )
-

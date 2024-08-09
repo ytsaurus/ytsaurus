@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(unittester-tablet-node)
 
+
 target_compile_options(unittester-tablet-node PRIVATE
   -Wdeprecated-this-capture
 )
@@ -46,6 +47,11 @@ target_link_libraries(unittester-tablet-node PUBLIC
   yt-server-tools
   lib-hydra-mock
   contrib-libs-protobuf
+)
+
+target_allocator(unittester-tablet-node
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-tablet-node PRIVATE
@@ -65,7 +71,6 @@ target_proto_messages(unittester-tablet-node PRIVATE
 )
 
 target_sources(unittester-tablet-node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
@@ -80,7 +85,9 @@ target_sources(unittester-tablet-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
 )
+
 
 add_test(
   NAME
@@ -101,20 +108,12 @@ set_property(
   TEST
   unittester-tablet-node
   PROPERTY
-  PROCESSORS
-  1
-)
-
-set_property(
-  TEST
-  unittester-tablet-node
-  PROPERTY
   ENVIRONMENT
 )
 
-target_allocator(unittester-tablet-node
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+target_proto_outs(unittester-tablet-node
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(unittester-tablet-node
@@ -131,10 +130,12 @@ target_proto_addincls(unittester-tablet-node
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(unittester-tablet-node
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(unittester-tablet-node)
 
+set_property(
+  TEST
+  unittester-tablet-node
+  PROPERTY
+  PROCESSORS
+  1
+)

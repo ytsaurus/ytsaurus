@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-query-tracker-proxy)
 
+
 target_compile_options(unittester-query-tracker-proxy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(unittester-query-tracker-proxy PUBLIC
   yt-server-query_tracker
   client-unittests-mock
   yt-core-test_framework
+)
+
+target_allocator(unittester-query-tracker-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-query-tracker-proxy PRIVATE
@@ -47,6 +53,7 @@ target_link_options(unittester-query-tracker-proxy PRIVATE
 target_sources(unittester-query-tracker-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/unittests/query_tracker_proxy_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -67,21 +74,15 @@ set_property(
   TEST
   unittester-query-tracker-proxy
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-query-tracker-proxy)
 
 set_property(
   TEST
   unittester-query-tracker-proxy
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-query-tracker-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-query-tracker-proxy)
-

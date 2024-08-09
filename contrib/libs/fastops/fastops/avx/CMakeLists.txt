@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(fastops-fastops-avx)
 
+
 target_compile_options(fastops-fastops-avx PRIVATE
   -mavx
   -msse4
@@ -33,7 +34,7 @@ target_link_libraries(fastops-fastops-avx PUBLIC
 )
 
 target_sources(fastops-fastops-avx PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.h
 )
 

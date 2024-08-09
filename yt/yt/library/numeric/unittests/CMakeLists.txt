@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-numeric)
 
+
 target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,11 @@ target_link_libraries(unittester-library-numeric PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-numeric
+)
+
+target_allocator(unittester-library-numeric
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-numeric PRIVATE
@@ -52,6 +58,7 @@ target_sources(unittester-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/util_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-library-numeric
@@ -71,21 +78,15 @@ set_property(
   TEST
   unittester-library-numeric
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-numeric)
 
 set_property(
   TEST
   unittester-library-numeric
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-numeric
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-library-numeric)
-

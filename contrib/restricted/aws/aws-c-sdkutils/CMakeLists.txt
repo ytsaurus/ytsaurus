@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-c-sdkutils)
 
+
 target_compile_options(restricted-aws-aws-c-sdkutils PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_SDKUTILS_USE_IMPORT_EXPORT

@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_executable(unittester-all)
 
+
 target_compile_options(unittester-all PRIVATE
   -Wdeprecated-this-capture
 )
@@ -52,6 +53,11 @@ target_link_libraries(unittester-all PUBLIC
   yt-server-tools
 )
 
+target_allocator(unittester-all
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-all PRIVATE
   -ldl
   -lrt
@@ -69,6 +75,7 @@ target_sources(unittester-all PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
 )
 
+
 add_test(
   NAME
   unittester-all
@@ -82,14 +89,6 @@ set_property(
   PROPERTY
   LABELS
   SMALL
-)
-
-set_property(
-  TEST
-  unittester-all
-  PROPERTY
-  PROCESSORS
-  1
 )
 
 set_property(
@@ -127,10 +126,12 @@ resources(unittester-all
   /configs/vanilla_spec.yson
 )
 
-target_allocator(unittester-all
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
 vcs_info(unittester-all)
 
+set_property(
+  TEST
+  unittester-all
+  PROPERTY
+  PROCESSORS
+  1
+)

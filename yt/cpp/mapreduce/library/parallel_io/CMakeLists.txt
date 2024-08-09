@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(ut)
 add_subdirectory(ut_core_http)
 
 add_library(mapreduce-library-parallel_io)
+
 
 target_compile_options(mapreduce-library-parallel_io PRIVATE
   -Wdeprecated-this-capture

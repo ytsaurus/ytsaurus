@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(lib-Transforms-Scalar)
 
+
 target_compile_options(lib-Transforms-Scalar PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

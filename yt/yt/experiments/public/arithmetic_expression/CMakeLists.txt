@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(arithmetic_expression)
 
+
 target_link_libraries(arithmetic_expression PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(arithmetic_expression
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(arithmetic_expression PRIVATE
@@ -40,10 +46,5 @@ target_sources(arithmetic_expression PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/arithmetic_expression/main.cpp
 )
 
-target_allocator(arithmetic_expression
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(arithmetic_expression)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(distributed_throttler)
 
+
 target_link_libraries(distributed_throttler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,6 +27,11 @@ target_link_libraries(distributed_throttler PUBLIC
   ytserver
   server-lib-discovery_server
   discovery_server-unittests-mock
+)
+
+target_allocator(distributed_throttler
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(distributed_throttler PRIVATE
@@ -44,10 +50,5 @@ target_sources(distributed_throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/distributed_throttler/main.cpp
 )
 
-target_allocator(distributed_throttler
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(distributed_throttler)
-

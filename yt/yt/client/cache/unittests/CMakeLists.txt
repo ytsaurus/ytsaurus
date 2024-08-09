@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-client-cache-unittests)
 
+
 target_compile_options(yt-yt-client-cache-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(yt-yt-client-cache-unittests PUBLIC
   cpp-testing-gtest_main
   cpp-testing-common
   yt-client-cache
+)
+
+target_allocator(yt-yt-client-cache-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-client-cache-unittests PRIVATE
@@ -49,6 +55,7 @@ target_sources(yt-yt-client-cache-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/rpc_ut.cpp
 )
 
+
 add_test(
   NAME
   yt-yt-client-cache-unittests
@@ -68,21 +75,15 @@ set_property(
   TEST
   yt-yt-client-cache-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-client-cache-unittests)
 
 set_property(
   TEST
   yt-yt-client-cache-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-client-cache-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-client-cache-unittests)
-

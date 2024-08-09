@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(dynamic_table_nbd_server)
 
+
 target_link_libraries(dynamic_table_nbd_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,6 +27,11 @@ target_link_libraries(dynamic_table_nbd_server PUBLIC
   yt-library-program
   library-query-engine
   server-lib-nbd
+)
+
+target_allocator(dynamic_table_nbd_server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(dynamic_table_nbd_server PRIVATE
@@ -44,10 +50,5 @@ target_sources(dynamic_table_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dynamic_table_nbd_server/main.cpp
 )
 
-target_allocator(dynamic_table_nbd_server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(dynamic_table_nbd_server)
-

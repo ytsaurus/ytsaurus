@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(job_statistics)
 
+
 target_compile_options(job_statistics PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(job_statistics PUBLIC
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
+)
+
+target_allocator(job_statistics
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(job_statistics PRIVATE
@@ -44,10 +50,5 @@ target_sources(job_statistics PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
 )
 
-target_allocator(job_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(job_statistics)
-
