@@ -9,6 +9,9 @@
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/client/table_client/config.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
@@ -228,9 +231,12 @@ class TAsyncBlockWindowManager
 public:
     TAsyncBlockWindowManager(
         std::vector<TGroupBlockHolder> blockHolders,
-        NChunkClient::TBlockFetcherPtr blockFetcher)
+        NChunkClient::TBlockFetcherPtr blockFetcher,
+        NTracing::TTraceContextPtr traceContext)
         : BlockHolders_(std::move(blockHolders))
         , BlockFetcher_(std::move(blockFetcher))
+        , TraceContext_(std::move(traceContext))
+        , FinishGuard_(TraceContext_)
     {
         BlockCountStatistics_.resize(BlockHolders_.size(), 0);
         BlockSizeStatistics_.resize(BlockHolders_.size(), 0);
@@ -283,6 +289,8 @@ public:
         // Skip to window.
         std::vector<TFuture<TBlock>> pendingBlocks;
         pendingBlocks.reserve(BlockHolders_.size());
+
+        NTracing::TCurrentTraceContextGuard guard(TraceContext_);
 
         readerStatistics->SkipToBlockCallCount += BlockHolders_.size();
         for (auto& blockHolder : BlockHolders_) {
@@ -348,6 +356,10 @@ private:
 
     std::vector<ui32> BlockCountStatistics_;
     std::vector<ui64> BlockSizeStatistics_;
+
+    // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
+    NTracing::TTraceContextPtr TraceContext_;
+    NTracing::TTraceContextFinishGuard FinishGuard_;
 };
 
 TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
@@ -356,9 +368,16 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     IBlockCachePtr blockCache,
     TClientChunkReadOptions chunkReadOptions,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    IInvokerPtr sessionInvoker)
+    IInvokerPtr sessionInvoker,
+    const std::optional<NYT::NChunkClient::TDataSource>& dataSource)
 {
     return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> windowsList) -> std::unique_ptr<IBlockManager> {
+        auto traceContext = NTracing::CreateTraceContextFromCurrent("ChunkReader");
+
+        if (dataSource) {
+            PackBaggageForChunkReader(traceContext, *dataSource, NTableClient::MakeExtraChunkTags(chunkMeta->Misc()));
+        }
+
         std::vector<TRange<ui32>> groupBlockIndexes;
         groupBlockIndexes.reserve(blockHolders.size());
         for (const auto& blockHolder : blockHolders) {
@@ -382,6 +401,8 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
 
         TBlockFetcherPtr blockFetcher;
         if (!blockInfos.empty()) {
+            NTracing::TCurrentTraceContextGuard guard(traceContext);
+
             auto createBlockFetcherStartInstant = GetCpuInstant();
             auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(config->WindowSize));
 
@@ -411,7 +432,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
                 createBlockFetcherTime);
         }
 
-        return std::make_unique<TAsyncBlockWindowManager>(std::move(blockHolders), std::move(blockFetcher));
+        return std::make_unique<TAsyncBlockWindowManager>(std::move(blockHolders), std::move(blockFetcher), std::move(traceContext));
     };
 }
 

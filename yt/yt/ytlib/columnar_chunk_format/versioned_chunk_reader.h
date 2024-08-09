@@ -7,6 +7,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -22,7 +24,8 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
-    IInvokerPtr sessionInvoker = nullptr);
+    IInvokerPtr sessionInvoker = nullptr,
+    const std::optional<NYT::NChunkClient::TDataSource>& dataSource = std::nullopt);
 
 TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
     NChunkClient::IBlockCachePtr blockCache,
@@ -62,6 +65,12 @@ TSharedRange<NTableClient::TRowRange> ClipRanges(
     NTableClient::TUnversionedRow lower,
     NTableClient::TUnversionedRow upper,
     THolderPtr holder);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRange<TRowRange> ConvertLegacyRanges(
+    NTableClient::TLegacyOwningKey lowerLimit,
+    NTableClient::TLegacyOwningKey upperLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
