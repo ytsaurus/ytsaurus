@@ -1231,6 +1231,9 @@ private:
             spec->Resources.CpusetCpus = cpusetCpu;
         }
 
+        // Allow strace in job shell.
+        spec->CapabilitiesToAdd.push_back("SYS_PTRACE");
+
         return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
     }
 
