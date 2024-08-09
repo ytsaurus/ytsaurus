@@ -412,7 +412,7 @@ public:
     }
 
     TPollJobShellResponse PollJobShell(
-        const TJobShellDescriptor& jobShellDescriptor,
+        const TJobShellDescriptor& /* jobShellDescriptor */,
         const TYsonString& serializedParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

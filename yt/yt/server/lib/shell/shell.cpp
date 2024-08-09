@@ -111,9 +111,6 @@ public:
 
         TDelayedExecutor::CancelAndClear(InactivityCookie_);
         YT_UNUSED_FUTURE(Writer_->Abort());
-        if (Instance_) {
-            Instance_->Destroy();
-        }
         Reader_->SetReadDeadline(TInstant::Now() + TerminatedShellReadTimeout);
         TerminatedPromise_.TrySet();
         YT_LOG_INFO(error, "Shell terminated");
@@ -130,8 +127,6 @@ protected:
     const int Index_;
     int CurrentHeight_;
     int CurrentWidth_;
-
-    IInstancePtr Instance_;
 
     bool IsRunning_ = false;
 
@@ -344,8 +339,18 @@ public:
         return TerminatedPromise_;
     }
 
+    void Terminate(const TError& error) override
+    {
+        TShellBase::Terminate(error);
+
+        if (Instance_) {
+            Instance_->Destroy();
+        }
+    }
+
 private:
     const IPortoExecutorPtr PortoExecutor_;
+    IInstancePtr Instance_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
