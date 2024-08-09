@@ -638,6 +638,10 @@ public:
 
     bool FailGetJobSpec;
 
+    std::optional<TDuration> FailOperationDelay;
+
+    bool FailSettleJobRequests;
+
     ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
 
     bool LogResidualCustomJobMetricsOnTermination;
