@@ -1,8 +1,6 @@
 UNION()
 
 FILES(
-    Dockerfile
-
     package.json
 )
 
