@@ -122,6 +122,8 @@ void TStderrWriter::Upload(
 
 void TStderrWriter::DoWrite(const void* buf_, size_t len)
 {
+    TotalSize_ += len;
+
     const char* buf = static_cast<const char*>(buf_);
 
     if (Head_.Size() < PartLimit_) {
@@ -142,12 +144,48 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     Tail_->Write(buf, len);
 }
 
-TString TStderrWriter::GetCurrentData() const
+NApi::TGetJobStderrResponse TStderrWriter::GetCurrentData(const NApi::TGetJobStderrOptions& options) const
 {
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());
-    SaveCurrentDataTo(&stringStream);
-    return stringStream.Str();
+    auto limit = options.Limit.value_or(0);
+    auto offset = options.Offset.value_or(0);
+    SaveCurrentDataTo(&stringStream, offset || limit);
+    auto data = stringStream.Str();
+    auto endOffset = TotalSize_;
+    const i64 currentFirstAbsolutePos = TotalSize_ > static_cast<i64>(data.size()) ? TotalSize_ - data.size() : 0;
+    i64 dataBeginOffset = 0;
+    if (offset >= 0) {
+        if (offset >= currentFirstAbsolutePos) {
+            dataBeginOffset = offset - currentFirstAbsolutePos;
+        } else {
+            dataBeginOffset = 0;
+            if (limit > 0) {
+                limit = limit - (currentFirstAbsolutePos - offset);
+                if (limit < 0) {
+                    return {
+                        .Data = TSharedRef{},
+                        .TotalSize = TotalSize_,
+                        .EndOffset = offset + options.Limit.value_or(0),
+                    };
+                }
+            }
+        }
+    }
+    if (offset || limit) {
+        if (dataBeginOffset >= static_cast<i64>(data.size())) {
+            data = "";
+            endOffset = 0;
+        } else {
+            data = data.substr(dataBeginOffset, limit ? limit : data.npos);
+            endOffset = currentFirstAbsolutePos + dataBeginOffset + data.size();
+        }
+    }
+    return {
+        .Data = TSharedRef::FromString(data),
+        .TotalSize = TotalSize_,
+        .EndOffset = endOffset,
+    };
 }
 
 size_t TStderrWriter::GetCurrentSize() const
@@ -159,12 +197,14 @@ size_t TStderrWriter::GetCurrentSize() const
     return sizeCounter.GetSize();
 }
 
-void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
+void TStderrWriter::SaveCurrentDataTo(IOutputStream* output, bool noPrefix) const
 {
-    output->Write(Head_.Begin(), Head_.Size());
+    if (!Tail_ || !noPrefix) {
+        output->Write(Head_.Begin(), Head_.Size());
+    }
 
     if (Tail_) {
-        if (Tail_->IsOverflowed()) {
+        if (Tail_->IsOverflowed() && !noPrefix) {
             static const TStringBuf skipped = "\n...skipped...\n";
             output->Write(skipped);
         }

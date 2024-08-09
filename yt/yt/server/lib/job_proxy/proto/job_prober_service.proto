@@ -35,11 +35,16 @@ message TRspPollJobShell
 }
 
 message TReqGetStderr
-{ }
+{
+    optional int64 limit = 1;
+    optional int64 offset = 2;
+}
 
 message TRspGetStderr
 {
     required bytes stderr_data = 1;
+    optional int64 end_offset = 2;
+    optional int64 total_size = 3;
 }
 
 message TReqInterrupt

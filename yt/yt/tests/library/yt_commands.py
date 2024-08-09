@@ -621,6 +621,15 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def get_job_stderr_paged(operation_id, job_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    output_stream = BytesIO()
+    rsp = execute_command("get_job_stderr", kwargs, return_response=True, output_stream=output_stream)
+    rsp.wait()
+    result = rsp.response_parameters()
+    result["data"] = output_stream.getvalue()
+    return result
 
 def get_job_fail_context(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
