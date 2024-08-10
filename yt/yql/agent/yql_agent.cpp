@@ -122,12 +122,12 @@ public:
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
 
-        auto SingletonsConfigDefaultLogging = CloneYsonStruct(SingletonsConfig_);
+        auto singletonsConfigDefaultLogging = CloneYsonStruct(SingletonsConfig_);
         // Compressed logs is broken if plugin tries to open and write to them.
-        SingletonsConfigDefaultLogging->Logging = TLogManagerConfig::CreateDefault();
+        singletonsConfigDefaultLogging->Logging = TLogManagerConfig::CreateDefault();
 
-        auto singletonsConfigString = SingletonsConfigDefaultLogging
-            ? ConvertToYsonString(SingletonsConfigDefaultLogging)
+        auto singletonsConfigString = singletonsConfigDefaultLogging
+            ? ConvertToYsonString(singletonsConfigDefaultLogging)
             : EmptyMap;
 
         THashSet<TString> presentClusters;
