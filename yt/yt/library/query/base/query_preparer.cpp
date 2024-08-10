@@ -1435,7 +1435,7 @@ private:
     std::set<TString> UsedAliases_;
     size_t Depth_ = 0;
 
-    THashMap<std::pair<TString, EValueType>, TConstAggregateFunctionExpressionPtr> AggregateLookup_;
+    THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
 
 public:
     TBuilderCtx(
@@ -1539,20 +1539,16 @@ public:
             argument,
             subexpressionName);
 
-        TExpressionGenerator generator = [=, this] (EValueType type) {
+        TExpressionGenerator generator = [=, this] (EValueType type) -> TConstExpressionPtr {
             auto key = std::pair(subexpressionName, type);
             auto found = AggregateLookup_.find(key);
             if (found != AggregateLookup_.end()) {
                 return found->second;
             } else {
                 auto argExpression = typer.second(type);
-                TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
-                    MakeLogicalType(GetLogicalType(type), false),
-                    subexpressionName,
-                    std::vector{argExpression},
-                    type,
-                    type,
-                    functionName);
+                auto expr = New<TReferenceExpression>(
+                    MakeLogicalType(GetLogicalType(type), /*required*/ false),
+                    subexpressionName);
                 YT_VERIFY(AggregateLookup_.emplace(key, expr).second);
                 return expr;
             }
@@ -1560,7 +1556,6 @@ public:
 
         return TUntypedExpression{typer.first, std::move(generator), false};
     }
-
 
     TUntypedExpression OnExpression(
         const NAst::TExpression* expr);
@@ -1894,6 +1889,8 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
 
     const auto& descriptor = Functions->GetFunction(functionName);
 
+    // TODO(lukyan): Merge TAggregateFunctionTypeInferrer and TAggregateTypeInferrer.
+
     if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
@@ -1913,6 +1910,8 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             operandTypers.push_back(untypedArgument.Generator);
         }
         AfterGroupBy_ = true;
+
+        // TODO(lukyan): Move following code into GetAggregateColumnPtr or remove GetAggregateColumnPtr function.
 
         int stateConstraintIndex;
         int resultConstraintIndex;
@@ -1939,7 +1938,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             genericAssignments = std::move(genericAssignments),
             formalArguments = std::move(formalArguments),
             source = functionExpr->GetSource(Source)
-        ] (EValueType type) mutable {
+        ] (EValueType type) mutable -> TConstExpressionPtr {
             auto key = std::pair(subexpressionName, type);
             auto foundCached = AggregateLookup_.find(key);
             if (foundCached != AggregateLookup_.end()) {
@@ -1971,13 +1970,9 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 stateType,
                 type);
 
-            TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
-                MakeLogicalType(GetLogicalType(type), false),
-                subexpressionName,
-                typedOperands,
-                stateType,
-                type,
-                functionName);
+            auto expr = New<TReferenceExpression>(
+                MakeLogicalType(GetLogicalType(type), /*required*/ false),
+                subexpressionName);
             AggregateLookup_.emplace(key, expr);
 
             return expr;

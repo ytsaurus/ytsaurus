@@ -101,22 +101,6 @@ TFunctionExpression::TFunctionExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateFunctionExpression::TAggregateFunctionExpression(
-    const NTableClient::TLogicalTypePtr& type,
-    TString exprName,
-    std::vector<TConstExpressionPtr> arguments,
-    EValueType stateType,
-    EValueType resultType,
-    TString functionName)
-    : TReferenceExpression(type, std::move(exprName))
-    , Arguments(std::move(arguments))
-    , StateType(stateType)
-    , ResultType(resultType)
-    , FunctionName(std::move(functionName))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TUnaryOpExpression::TUnaryOpExpression(EValueType type)
     : TExpression(type)
 { }

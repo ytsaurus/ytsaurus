@@ -113,25 +113,6 @@ struct TFunctionExpression
 
 DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
 
-struct TAggregateFunctionExpression
-    : public TReferenceExpression
-{
-    std::vector<TConstExpressionPtr> Arguments;
-    EValueType StateType;
-    EValueType ResultType;
-    TString FunctionName;
-
-    TAggregateFunctionExpression(
-        const NTableClient::TLogicalTypePtr& type,
-        TString exprName,
-        std::vector<TConstExpressionPtr> arguments,
-        EValueType stateType,
-        EValueType resultType,
-        TString functionName);
-};
-
-DEFINE_REFCOUNTED_TYPE(TAggregateFunctionExpression)
-
 struct TUnaryOpExpression
     : public TExpression
 {
