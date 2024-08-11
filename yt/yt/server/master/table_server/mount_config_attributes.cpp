@@ -3,6 +3,8 @@
 #include "private.h"
 #include "table_node.h"
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>

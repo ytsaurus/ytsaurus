@@ -17,6 +17,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>

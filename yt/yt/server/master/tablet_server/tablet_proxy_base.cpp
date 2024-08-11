@@ -6,6 +6,8 @@
 #include "tablet_manager.h"
 #include "tablet_owner_base.h"
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>

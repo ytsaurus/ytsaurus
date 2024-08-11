@@ -1,6 +1,7 @@
 #include "table_collocation_proxy.h"
 #include "table_collocation.h"
-#include "table_manager.h"
+
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 

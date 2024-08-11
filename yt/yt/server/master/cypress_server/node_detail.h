@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cypress_manager.h"
+#include "type_handler.h"
 #include "node.h"
 #include "private.h"
 

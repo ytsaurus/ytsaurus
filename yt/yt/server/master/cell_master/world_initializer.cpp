@@ -8,6 +8,7 @@
 
 #include <yt/yt/server/master/cell_server/config.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/yt/server/master/object_server/private.h>

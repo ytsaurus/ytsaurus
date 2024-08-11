@@ -20,6 +20,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_visitor.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>

@@ -189,7 +189,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

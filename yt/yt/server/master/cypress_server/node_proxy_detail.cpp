@@ -15,9 +15,9 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/medium_base.h>
 
-#include <yt/yt/server/master/object_server/yson_intern_registry.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/account.h>
@@ -36,6 +36,8 @@
 
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
