@@ -1106,7 +1106,6 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
     switch (Host_->GetSpec()->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
-            descriptor->State = EInputChunkState::Waiting;
             Host_->OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Input chunk %v is unavailable",
                 chunkId));
             break;

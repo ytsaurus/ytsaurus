@@ -35,13 +35,6 @@ TAuthenticationOptions TAuthenticationOptions::FromServiceTicketAuth(const IServ
     };
 }
 
-TAuthenticationOptions TAuthenticationOptions::FromUserTicket(const TString& userTicket)
-{
-    return {
-        .UserTicket = userTicket
-    };
-}
-
 const TString& TAuthenticationOptions::GetAuthenticatedUser() const
 {
     static const TString UnknownUser("<unknown>");
@@ -59,3 +52,4 @@ NRpc::TAuthenticationIdentity TAuthenticationOptions::GetAuthenticationIdentity(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
+

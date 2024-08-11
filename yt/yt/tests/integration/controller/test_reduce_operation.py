@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, print_debug, raises_yt_error, set_nodes_banned, update_controller_agent_config, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, set, exists, insert_rows, alter_table, write_file, read_table, write_table, reduce,
     erase, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
@@ -3230,79 +3230,6 @@ for line in sys.stdin:
             {"a": 1, "b": 2},
         ]
         assert expected == read_table("//tmp/table0")
-
-    @authors("coteeq")
-    def test_controller_survives_two_failed_jobs(self):
-        create("table", "//tmp/t_in", attributes={
-            "schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"},
-            ],
-            "replication_factor": 1,
-        })
-        write_table(
-            "//tmp/t_in",
-            [
-                {"key": 1, "value": 1},
-                {"key": 2, "value": 1},
-                {"key": 3, "value": 1},
-            ]
-        )
-
-        # Filter out nodes which host the input table,
-        # so we do not accidentally ban nodes with jobs.
-        chunk_ids = get("//tmp/t_in/@chunk_ids")
-        assert len(chunk_ids) == 1
-        table_nodes = [str(node) for node in get("#" + str(chunk_ids[0]) + "/@stored_replicas")]
-        assert len(table_nodes) == 1
-        all_nodes = get("//sys/cluster_nodes")
-        non_table_nodes = [node for node in all_nodes if node not in table_nodes]
-        assert len(non_table_nodes) == self.NUM_NODES - 1
-        scheduling_filter = " | ".join(non_table_nodes)
-
-        update_controller_agent_config("chunk_location_throttler/limit", 0.0)
-
-        op = reduce(
-            track=False,
-            command="cat",
-            in_=["//tmp/t_in"],
-            out=["<create=%true>//tmp/t_out"],
-            reduce_by=["key"],
-            spec={
-                "testing": {
-                    # Need some delay, so we can ban nodes before job started
-                    "build_job_spec_proto_delay": 2000,
-                    # Need delay before actual fail occurs, so failed jobs arrive "simultaneously"
-                    "fail_operation_delay": 1000,
-
-                },
-                "pivot_keys": [[2]],
-                "unavailable_chunk_strategy": "fail",
-                "unavailable_chunk_tactics": "fail",
-                "scheduling_tag_filter": scheduling_filter,
-                "job_io": {
-                    "table_reader": {
-                        # Fail fast
-                        "retry_count": 1,
-                    }
-                },
-            }
-        )
-
-        def is_running():
-            state = op.get_state()
-            print_debug(state)
-            return state == "running"
-
-        wait(is_running)
-
-        try:
-            set_nodes_banned(table_nodes, True)
-
-            with raises_yt_error("is unavailable"):
-                op.track()
-        finally:
-            set_nodes_banned(table_nodes, False)
 
 
 ##################################################################

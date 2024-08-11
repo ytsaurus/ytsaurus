@@ -1093,22 +1093,9 @@ private:
         TPartition* partition,
         const std::vector<TSortedChunkStorePtr>& stores)
     {
-        if (stores.empty()) {
-            return MaxTimestamp;
-        }
-
-        auto minKey = stores.front()->GetMinKey();
-        auto upperBoundKey = stores.front()->GetUpperBoundKey();
-        for (int index = 1; index < ssize(stores); ++index) {
-            minKey = std::min(minKey, stores[index]->GetMinKey());
-            upperBoundKey = std::max(upperBoundKey, stores[index]->GetUpperBoundKey());
-        }
-
         auto result = MaxTimestamp;
         auto handleStore = [&] (const ISortedStorePtr& store) {
-            if (minKey < store->GetUpperBoundKey() && store->GetMinKey() < upperBoundKey) {
-                result = std::min(result, store->GetMinTimestamp());
-            }
+            result = std::min(result, store->GetMinTimestamp());
         };
 
         auto* tablet = partition->GetTablet();

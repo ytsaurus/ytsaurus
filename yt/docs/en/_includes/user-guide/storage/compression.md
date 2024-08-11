@@ -5,7 +5,7 @@ This section describes the compression algorithms supported by {{product-name}}.
 By default, user data in {{product-name}} is stored and transmitted in compressed form.
 
 The system performs compression:
-1. When writing to a table or file, data is split into parts — [chunks](../../../user-guide/storage/chunks.md).
+1. When writing to a table or file, data is split into parts — [chunks](../../../user-guide/storage/chunks.md) — of a fixed size. The default chunk size is 16 MB.
 2. Each chunk is compressed using the algorithm specified for that file or table and written to the disk.
 3. For network transmission, data is read from the disk already in compressed form.
 
@@ -16,7 +16,7 @@ Chunks, files, and tables can be compressed in the {{product-name}} system.
 The compression algorithm is specified in the `compression_codec` attribute:
 
 - For chunks, the `compression_codec` attribute specifies the compression algorithm for all chunk blocks. Different chunks within a file or table can be compressed using different algorithms.
-- For tables and files, `compression_codec` defines the default compression algorithm. It will be used if no algorithm is specified for individual file or table chunks. The default `compression_codec` value: for tables — `lz4`, for files — `none` (without compression).
+- For tables and files, `compression_codec` defines the default compression algorithm. It will be used if no algorithm is specified for individual file or table chunks. The default `compression_codec` value: for tables — `lz4`, for files — `none`.
 
 The degree of data compression is specified in the `compressed_data_size` and `uncompressed_data_size` attributes of a chunk, table, or file:
 
@@ -36,7 +36,8 @@ yt set //path/to/table/@compression_codec zstd_3
 yt merge --src //path/to/table --dst //path/to/table --spec '{force_transform = %true}'
 ```
 
-To change the compression algorithm of a [dynamic table](../../../user-guide/dynamic-tables/overview.md), set a new value for the `compression_codec` attribute. Then run the `remount-table` command. The old chunks will eventually be recompressed in the process of compaction. The compression rate depends on the table size, the write speed, and the background compaction settings.
+To change the compression algorithm of a [dynamic table](../../../user-guide/dynamic-tables/overview.md), set a new value for the `compression_codec` attribute. Then run the `remount-table` command.
+The old chunks will eventually be recompressed in the process of compaction. The compression rate depends on the table size, the write speed, and the background compaction settings.
 
 CLI
 
@@ -63,27 +64,39 @@ If the table is permanently written to, there is usually no need for [forced com
 
 ## Best practices { #best_practice }
 
-- Compression is usually not applied to files that are used as [symlinks](../../../user-guide/storage/links.md) to chunks in an operation.
+- For files that are used in the operation as [symlinks](../../../user-guide/storage/links.md) to chunks, the `none` algorithm is used most often.
 - `lz4` is often used for actual data. The algorithm provides high compression and decompression rates at an acceptable compression ratio.
 - When you need maximum compression and long runtime is acceptable, `brotli_8` is often used.
 - For operations consisting of a small number of jobs, for example, `final sort` or `sorted merge`, we recommend adding a separate processing stage — data compression in a merge operation with a large number of jobs.
 
-{% note warning "Attention" %}
+{% note warning "Attention!" %}
 
-While strong compression algorithms (`zlib`, `zstd`, `brotli`) save disk space, they compress data significantly slower than the default algorithm (`lz4`). Using algorithms with substantial compression can lead to a significant increase in operation execution time. We recommend using them only for tables that take up a lot of space but rarely change.
+Although algorithms with substantial compression — `zlib`, `zstd`, and `brotli` — can save disk space, their compression rate is much lower than the compression rate of the default `lz4` algorithm.
+Using algorithms with substantial compression can lead to a significant increase in operation execution time. We recommend using them only for tables that take up a lot of space but rarely change.
 
 {% endnote %}
 
+{% if audience == internal %}
+
+## Deprecated compression algorithms { #deprecated }
+
+In version 0.18.2 and higher, some compression algorithms are deprecated:
+
+- `brotli3`, `brotli5`, `brotli8` (>= 18.0): Algorithms corresponding to compression levels 3, 5, and 8 of the [brotli](https://github.com/google/brotli) algorithm. They compress efficiently but slowly (150 mb/s, 50 mb/s, and 20 mb/s, respectively). Use `brotli_3`, `brotli_5`, and `brotli_8`.
+- `zlib6` (`gzip_normal` up to 0.17.3): We recommend using `zlib_6`.
+- `zlib9` (`gzip_best_compression` up to 0.17.3): We recommend using `zlib_9`.
+- `zstd`: We recommend using `zstd_[1..21]` with the required compression level.
+
+{% endif %}
+
 ## Comparing compression algorithms { #benchmarks }
 
-The following method applies only to static tables.
-
-To determine which algorithm is best for a particular table, run `yt run-compression-benchmarks TABLE`. A sample that is 1 GB by default will be taken from the table. It will be compressed by all algorithms.
-
-After the operation is complete, you will see `codec/cpu/encode`, `codec/cpu/decode`, and `compression_ratio` for each algorithm. For more information, see [Job stats](../../../user-guide/problems/jobstatistics.md#system_stats).
+This method works only for static tables. To determine which algorithm is best for a particular table, run ```yt run-compression-benchmarks TABLE```.
+A sample that is 1 GB by default will be taken from the table. It will be compressed by all algorithms.
+After the operation is complete, you will see ```codec/cpu/encode```, ```codec/cpu/decode```, and ```compression_ratio``` for each algorithm.
 
 For algorithms with multiple compression levels, the minimum, medium, and maximum levels are used by default.
-To obtain results for all levels, use the `--all-codecs` option.
+To obtain results for all levels, use the ```--all-codecs``` option.
 
 CLI
 ```bash

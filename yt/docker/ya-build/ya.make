@@ -7,8 +7,6 @@ FILES(
 END()
 
 RECURSE(
-    chyt
-    strawberry
     ytsaurus
     ytsaurus-server-override
 )

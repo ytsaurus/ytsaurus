@@ -120,11 +120,7 @@ Deleting a replica:
 yt remove '#replica-id'
 ```
 
-#### Adding a replica to an existing replicated table {#add-new-replica}
-
-If you want to add a replica with fully coping the data of an existing replica, use the replica copy {% if audience == "public" %}tool{% else %}[tool](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#add-table-replica-script){% endif %}.
-
-If you want to add a new replica or you already have a replica table that stores the required data state, use one of the two attributes (`start_replication_timestamp` or `start_replication_row_indexes`) when creating a `table_replica` object. With `start_replication_timestamp`, all changes that have a commit ts strictly greater than the specified value (in the sense of the metacluster timestamp) will be replicated. If you need to initiate replication from an arbitrary moment of time, the most convenient way is to specify a timestamp obtained by calling generate-timestamp for the metacluster. With `start_replication_row_indexes`, you need to specify the row index (and do so for each tablet of the replicated table) from where you want data to replicate. You can obtain relevant row indexes from the get-tablet-infos query.
+When creating a replica, you can specify the `start_replication_timestamp` attribute. Then all changes that have a commit ts strictly greater than the specified value will be replicated. This parameter enables you to connect a new replica to an existing replicated table on the fly (assuming that you somehow managed to make a copy of the table as of the specified timestamp). We are talking about timestamps in the meta cluster sense.
 
 ### Creating replica tables
 

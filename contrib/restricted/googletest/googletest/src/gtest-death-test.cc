@@ -32,8 +32,6 @@
 
 #include "gtest/gtest-death-test.h"
 
-#include <stdlib.h>
-
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -117,7 +115,7 @@ GTEST_DEFINE_string_(
 GTEST_DEFINE_bool_(
     death_test_use_fork,
     testing::internal::BoolFromGTestEnv("death_test_use_fork", false),
-    "Instructs to use fork()/_Exit() instead of clone() in death tests. "
+    "Instructs to use fork()/_exit() instead of clone() in death tests. "
     "Ignored and always uses fork() on POSIX systems where clone() is not "
     "implemented. Useful when running under valgrind or similar tools if "
     "those do not support clone(). Valgrind 3.3.1 will just fail if "
@@ -301,7 +299,7 @@ enum DeathTestOutcome { IN_PROGRESS, DIED, LIVED, RETURNED, THREW };
     fputc(kDeathTestInternalError, parent);
     fprintf(parent, "%s", message.c_str());
     fflush(parent);
-    _Exit(1);
+    _exit(1);
   } else {
     fprintf(stderr, "%s", message.c_str());
     fflush(stderr);
@@ -513,7 +511,7 @@ std::string DeathTestImpl::GetErrorLogs() { return GetCapturedStderr(); }
 // Signals that the death test code which should have exited, didn't.
 // Should be called only in a death test child process.
 // Writes a status byte to the child's status file descriptor, then
-// calls _Exit(1).
+// calls _exit(1).
 void DeathTestImpl::Abort(AbortReason reason) {
   // The parent process considers the death test to be a failure if
   // it finds any data in our pipe.  So, here we write a single flag byte
@@ -525,13 +523,13 @@ void DeathTestImpl::Abort(AbortReason reason) {
   GTEST_DEATH_TEST_CHECK_SYSCALL_(posix::Write(write_fd(), &status_ch, 1));
   // We are leaking the descriptor here because on some platforms (i.e.,
   // when built as Windows DLL), destructors of global objects will still
-  // run after calling _Exit(). On such systems, write_fd_ will be
+  // run after calling _exit(). On such systems, write_fd_ will be
   // indirectly closed from the destructor of UnitTestImpl, causing double
   // close if it is also closed here. On debug configurations, double close
   // may assert. As there are no in-process buffers to flush here, we are
   // relying on the OS to close the descriptor after the process terminates
   // when the destructors are not run.
-  _Exit(1);  // Exits w/o any normal exit hooks (we were supposed to crash)
+  _exit(1);  // Exits w/o any normal exit hooks (we were supposed to crash)
 }
 
 // Returns an indented copy of stderr output for a death test.
@@ -630,13 +628,13 @@ bool DeathTestImpl::Passed(bool status_ok) {
 #ifndef GTEST_OS_WINDOWS
 // Note: The return value points into args, so the return value's lifetime is
 // bound to that of args.
-static std::vector<char*> CreateArgvFromArgs(std::vector<std::string>& args) {
-  std::vector<char*> result;
-  result.reserve(args.size() + 1);
-  for (auto& arg : args) {
-    result.push_back(&arg[0]);
+static std::unique_ptr<char*[]> CreateArgvFromArgs(
+    std::vector<std::string>& args) {
+  auto result = std::make_unique<char*[]>(args.size() + 1);
+  for (size_t i = 0; i < args.size(); ++i) {
+    result[i] = &args[i][0];
   }
-  result.push_back(nullptr);  // Extra null terminator.
+  result[args.size()] = nullptr;  // extra null terminator
   return result;
 }
 #endif
@@ -785,7 +783,7 @@ DeathTest::TestRole WindowsDeathTest::AssumeRole() {
       StreamableToString(static_cast<unsigned int>(::GetCurrentProcessId())) +
       // size_t has the same width as pointers on both 32-bit and 64-bit
       // Windows platforms.
-      // See https://msdn.microsoft.com/en-us/library/tcxf1dw6.aspx.
+      // See http://msdn.microsoft.com/en-us/library/tcxf1dw6.aspx.
       "|" + StreamableToString(reinterpret_cast<size_t>(write_handle)) + "|" +
       StreamableToString(reinterpret_cast<size_t>(event_handle_.Get()));
 
@@ -1036,8 +1034,8 @@ DeathTest::TestRole FuchsiaDeathTest::AssumeRole() {
   // "Fuchsia Test Component" which contains a "Fuchsia Component Manifest")
   // Launching processes is a privileged operation in Fuchsia, and the
   // declaration indicates that the ability is required for the component.
-  std::vector<char*> argv = CreateArgvFromArgs(args);
-  status = fdio_spawn_etc(child_job, FDIO_SPAWN_CLONE_ALL, argv[0], argv.data(),
+  std::unique_ptr<char*[]> argv = CreateArgvFromArgs(args);
+  status = fdio_spawn_etc(child_job, FDIO_SPAWN_CLONE_ALL, argv[0], argv.get(),
                           nullptr, 2, spawn_actions,
                           child_process_.reset_and_get_address(), nullptr);
   GTEST_DEATH_TEST_CHECK_(status == ZX_OK);
@@ -1335,7 +1333,7 @@ static pid_t ExecDeathTestSpawnChild(char* const* argv, int close_fd) {
 #endif  // GTEST_HAS_CLONE
 
   if (use_fork && (child_pid = fork()) == 0) {
-    _Exit(ExecDeathTestChildMain(&args));
+    _exit(ExecDeathTestChildMain(&args));
   }
 #endif  // GTEST_OS_QNX
 #ifdef GTEST_OS_LINUX
@@ -1388,8 +1386,8 @@ DeathTest::TestRole ExecDeathTest::AssumeRole() {
   // is necessary.
   FlushInfoLog();
 
-  std::vector<char*> argv = CreateArgvFromArgs(args);
-  const pid_t child_pid = ExecDeathTestSpawnChild(argv.data(), pipe_fd[0]);
+  std::unique_ptr<char*[]> argv = CreateArgvFromArgs(args);
+  const pid_t child_pid = ExecDeathTestSpawnChild(argv.get(), pipe_fd[0]);
   GTEST_DEATH_TEST_CHECK_SYSCALL_(close(pipe_fd[1]));
   set_child_pid(child_pid);
   set_read_fd(pipe_fd[0]);

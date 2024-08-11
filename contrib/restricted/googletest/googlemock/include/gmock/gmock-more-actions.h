@@ -592,9 +592,8 @@ namespace internal {
 // Overloads for other custom-callables are provided in the
 // internal/custom/gmock-generated-actions.h header.
 template <typename F, typename... Args>
-auto InvokeArgument(F &&f,
-                    Args... args) -> decltype(std::forward<F>(f)(args...)) {
-  return std::forward<F>(f)(args...);
+auto InvokeArgument(F f, Args... args) -> decltype(f(args...)) {
+  return f(args...);
 }
 
 template <std::size_t index, typename... Params>
@@ -607,7 +606,7 @@ struct InvokeArgumentAction {
     internal::FlatTuple<Args &&...> args_tuple(FlatTupleConstructTag{},
                                                std::forward<Args>(args)...);
     return params.Apply([&](const Params &...unpacked_params) {
-      auto &&callable = std::move(args_tuple.template Get<index>());
+      auto &&callable = args_tuple.template Get<index>();
       return internal::InvokeArgument(
           std::forward<decltype(callable)>(callable), unpacked_params...);
     });
