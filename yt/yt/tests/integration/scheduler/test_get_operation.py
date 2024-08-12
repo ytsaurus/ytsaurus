@@ -4,8 +4,8 @@ from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls, get,
     set, remove,
     exists, make_ace, start_transaction, lock, insert_rows, lookup_rows, write_table, map, vanilla, abort_op,
-    complete_op, suspend_op, resume_op, get_operation, list_operations, run_test_vanilla,
-    clean_operations, get_operation_cypress_path, sync_create_cells,
+    complete_op, suspend_op, resume_op, get_operation, list_operations, run_test_vanilla, run_sleeping_vanilla,
+    clean_operations, get_operation_cypress_path, sync_create_cells, create_pool,
     sync_mount_table, sync_unmount_table, update_controller_agent_config,
     update_op_parameters, raises_yt_error)
 
@@ -568,12 +568,31 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         wait(lambda: _get_operation_from_archive(op.id))
-        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"] == {"default": {"slot_index": 0}}
+        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0
 
         release_breakpoint()
         clean_operations()
 
-        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"] == {"default": {"slot_index": 0}}
+        assert get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0
+
+    @authors("omgronny")
+    def test_ephemeral_pools_in_get_operation(self):
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
+        op.wait_for_state("running")
+
+        create_pool("real_pool")
+        op1 = run_sleeping_vanilla(spec={"pool": "real_pool"})
+        op1.wait_for_state("running")
+
+        def get_operation_scheduling_attributes(op_id):
+            return get_operation(op_id)["scheduling_attributes_per_pool_tree"]["default"]
+
+        assert get_operation_scheduling_attributes(op.id)["running_in_ephemeral_pool"]
+        assert not get_operation_scheduling_attributes(op1.id)["running_in_ephemeral_pool"]
+
+        remove("//sys/pools/real_pool")
+
+        wait(lambda: get_operation_scheduling_attributes(op1.id)["running_in_ephemeral_pool"])
 
 
 ##################################################################
