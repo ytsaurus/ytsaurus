@@ -98,6 +98,9 @@ void TQueueAgentShardingManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("pass_period", &TThis::PassPeriod)
         .Default(TDuration::Seconds(5))
         .GreaterThan(TDuration::Zero());
+    registrar.Parameter("sync_banned_instances_period", &TThis::SyncBannedInstancesPeriod)
+        .Default(TDuration::Seconds(60))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

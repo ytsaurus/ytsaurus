@@ -1236,6 +1236,10 @@ class TestMultipleAgents(TestQueueAgentBase):
             "policy": "watching",
             "pass_period": 75,
         },
+        "queue_agent_sharding_manager": {
+            "sync_banned_instances_period": 1000,
+            "pass_period": 1000,
+        },
     }
 
     @authors("nadya73")
@@ -1452,6 +1456,47 @@ class TestMultipleAgents(TestQueueAgentBase):
                 wait(lambda: "queue_agent_sharding_manager_pass_failed" in alert_manager_orchid.get_alerts())
             else:
                 wait(lambda: "queue_agent_sharding_manager_pass_failed" not in alert_manager_orchid.get_alerts())
+
+    @authors("apachee")
+    @pytest.mark.timeout(90)
+    def test_ban_queue_agent_instance(self):
+        consumer_path = "//tmp/c"
+        create("queue_consumer", consumer_path)
+
+        def get_mapping():
+            return list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
+        wait(lambda: len(get_mapping()) > 0)
+        mapping = get_mapping()
+
+        print_debug("original mapping: ", mapping)
+
+        assert mapping[0]["object"] == f"primary:{consumer_path}"
+        original_host = mapping[0]["host"]
+
+        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        wait(lambda: list(get_mapping())[0]["host"] != original_host)
+
+        print_debug("mapping after ban: ", get_mapping())
+
+        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", False)
+        wait(lambda: list(get_mapping())[0]["host"] == original_host)
+
+        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        wait(lambda: list(get_mapping())[0]["host"] != original_host)
+
+        # Any value except True should be treated as False.
+        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", "anime")
+        wait(lambda: list(get_mapping())[0]["host"] == original_host)
+
+        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        wait(lambda: list(get_mapping())[0]["host"] != original_host)
+
+        # Absence of the value should also be treated as False.
+        remove(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance")
+        wait(lambda: list(get_mapping())[0]["host"] == original_host)
+
+        print_debug("final mapping: ", get_mapping())
+        assert mapping == get_mapping()
 
 
 class TestMasterIntegration(TestQueueAgentBase):

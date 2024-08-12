@@ -30,11 +30,13 @@ DEFINE_REFCOUNTED_TYPE(IQueueAgentShardingManager)
 
 IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IInvokerPtr controlInvoker,
+    NApi::IClientPtr client,
     NAlertManager::IAlertCollectorPtr alertCollector,
     NQueueClient::TDynamicStatePtr dynamicState,
     NDiscoveryClient::IMemberClientPtr memberClient,
     NDiscoveryClient::IDiscoveryClientPtr discoveryClient,
-    TString queueAgentStage);
+    TString queueAgentStage,
+    NYPath::TYPath dynamicStateRoot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

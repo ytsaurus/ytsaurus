@@ -156,6 +156,7 @@ class TQueueAgentShardingManagerDynamicConfig
 {
 public:
     TDuration PassPeriod;
+    TDuration SyncBannedInstancesPeriod;
 
     REGISTER_YSON_STRUCT(TQueueAgentShardingManagerDynamicConfig);
 
