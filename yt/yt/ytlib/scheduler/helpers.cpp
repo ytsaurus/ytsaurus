@@ -289,6 +289,12 @@ const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
     return path;
 }
 
+const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath()
+{
+    static const TYPath path = "//sys/operations_archive/job_trace_events";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

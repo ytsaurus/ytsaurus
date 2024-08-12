@@ -2833,6 +2833,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 
+    proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
+
     return proxyConfig;
 }
 

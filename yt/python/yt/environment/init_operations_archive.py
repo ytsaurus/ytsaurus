@@ -546,6 +546,31 @@ TRANSFORMS[52] = [
             })),
 ]
 
+TRANSFORMS[53] = [
+    Conversion(
+        "job_trace_events",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("trace_id_hi", "uint64"),
+                ("trace_id_lo", "uint64"),
+                ("event_index", "int64"),
+            ], [
+                ("event", "string"),
+                ("event_time", "int64"),
+            ],
+            default_lock="operations_cleaner",
+            get_pivot_keys=get_default_pivots,
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+                "atomicity": "none",
+            })),
+]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 

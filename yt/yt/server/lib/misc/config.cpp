@@ -191,6 +191,8 @@ void TJobReporterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("job_profile_handler", &TThis::JobProfileHandler)
         .DefaultNew();
+    registrar.Parameter("job_trace_event_handler", &TThis::JobTraceEventHandler)
+        .DefaultNew();
 
     registrar.Parameter("user", &TThis::User)
         .Default(NRpc::RootUserName);
@@ -228,6 +230,7 @@ void TJobReporterConfig::Register(TRegistrar registrar)
         config->JobStderrHandler->Path = NScheduler::GetOperationsArchiveJobStderrsPath();
         config->JobFailContextHandler->Path = NScheduler::GetOperationsArchiveJobFailContextsPath();
         config->JobProfileHandler->Path = NScheduler::GetOperationsArchiveJobProfilesPath();
+        config->JobTraceEventHandler->Path = NScheduler::GetOperationsArchiveJobTraceEventsPath();
     });
 
     registrar.Postprocessor([] (TThis* config) {

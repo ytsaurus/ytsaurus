@@ -101,6 +101,8 @@ struct IJobController
 
     virtual IJobProxyLogManagerPtr GetJobProxyLogManager() const = 0;
 
+    virtual std::optional<int> GetOperationsArchiveVersion() const = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };

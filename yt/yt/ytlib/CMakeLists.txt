@@ -38,6 +38,7 @@ find_package(Python3 REQUIRED)
 find_package(Python3 REQUIRED)
 find_package(Python3 REQUIRED)
 find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -563,6 +564,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
@@ -588,6 +590,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
@@ -1082,6 +1085,29 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
   --output-include
   yt/yt/core/yson/string.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
 )
 
 add_custom_command(

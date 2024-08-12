@@ -87,6 +87,7 @@ const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
 const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 const NYPath::TYPath& GetOperationsArchiveOperationIdsPath();
+const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath();
 
 const NYPath::TYPath& GetUserToDefaultPoolMapPath();
 
