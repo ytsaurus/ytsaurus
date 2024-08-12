@@ -5,6 +5,7 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "transaction.h"
+#include "store_flusher.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -263,7 +264,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp /*currentTimestamp*/,
-        const TWriterProfilerPtr& writerProfiler) {
+        const TWriterProfilerPtr& writerProfiler,
+        const TFlushTaskInfoPtr& task)
+    {
         ISchemalessChunkWriterPtr tableWriter;
 
         auto updateProfilerGuard = Finally([&] {
@@ -344,6 +347,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
             });
 
+        auto updateWriterStatistics = [&] {
+            auto guard = Guard(task->RuntimeData.SpinLock);
+            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
+        };
+
         std::vector<TUnversionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
@@ -365,6 +373,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
+
+            updateWriterStatistics();
         }
 
         if (rowCount == 0) {
@@ -375,6 +385,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(tableWriter->Close())
             .ThrowOnError();
+
+        updateWriterStatistics();
 
         std::vector<TChunkInfo> chunkInfos{
             TChunkInfo{
