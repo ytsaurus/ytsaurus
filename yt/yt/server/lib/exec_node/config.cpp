@@ -886,6 +886,12 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);
+
+    registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
+        .Default(false);
+
+    registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

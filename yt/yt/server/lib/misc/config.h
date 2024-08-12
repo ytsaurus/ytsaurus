@@ -221,6 +221,7 @@ public:
     TArchiveHandlerConfigPtr JobStderrHandler;
     TArchiveHandlerConfigPtr JobFailContextHandler;
     TArchiveHandlerConfigPtr JobProfileHandler;
+    TArchiveHandlerConfigPtr JobTraceEventHandler;
 
     TString User;
     bool ReportStatisticsLz4;

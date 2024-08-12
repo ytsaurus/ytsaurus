@@ -393,6 +393,9 @@ private:
         }
 
         JobProxyConfigTemplate_->DnsOverRpcResolver = CloneYsonStruct(GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver);
+
+        JobProxyConfigTemplate_->EnableCudaProfileEventStreaming = GetConfig()->ExecNode->JobProxy->EnableCudaProfileEventStreaming;
+        JobProxyConfigTemplate_->JobTraceEventProcessor = GetConfig()->ExecNode->JobProxy->JobTraceEventProcessor;
     }
 
     void OnDynamicConfigChanged(

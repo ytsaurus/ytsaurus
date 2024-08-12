@@ -772,6 +772,10 @@ public:
     //! Forward variables from job proxy environment to user job.
     bool ForwardAllEnvironmentVariables;
 
+    bool EnableCudaProfileEventStreaming;
+
+    NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
+
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 
     static void Register(TRegistrar registrar);

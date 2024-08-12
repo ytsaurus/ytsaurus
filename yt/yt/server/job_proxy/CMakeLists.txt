@@ -54,4 +54,6 @@ target_sources(yt-server-job_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_synchronizer_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_write_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/trace_event_processor.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/trace_consumer.cpp
 )

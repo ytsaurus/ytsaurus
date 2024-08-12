@@ -1,0 +1,56 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TJobTraceEvent
+    fields:
+      - cpp_name: OperationIdHi
+        cpp_type: ui64
+        column_name: operation_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: OperationIdLo
+        cpp_type: ui64
+        column_name: operation_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdHi
+        cpp_type: ui64
+        column_name: job_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdLo
+        cpp_type: ui64
+        column_name: job_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: TraceIdHi
+        cpp_type: ui64
+        column_name: trace_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: TraceIdLo
+        cpp_type: ui64
+        column_name: trace_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: EventIndex
+        cpp_type: i64
+        column_name: event_index
+        column_type: Int64
+        sort_order: Ascending
+
+      - cpp_name: Event
+        cpp_type: TString
+        column_name: event
+        column_type: String
+
+      - cpp_name: EventTime
+        cpp_type: i64
+        column_name: event_time
+        column_type: Int64

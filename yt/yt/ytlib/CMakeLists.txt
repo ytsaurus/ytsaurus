@@ -1055,6 +1055,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
@@ -1500,6 +1501,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
@@ -1848,6 +1850,28 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
   --output-include
   yt/yt/core/yson/string.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
 )
 add_custom_command(
   OUTPUT

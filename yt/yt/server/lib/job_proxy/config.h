@@ -165,6 +165,23 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTraceEventProcessorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TJobReporterConfigPtr Reporter;
+
+    int LoggingInterval;
+
+    REGISTER_YSON_STRUCT(TJobTraceEventProcessorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobTraceEventProcessorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyInternalConfig
     : public TNativeServerConfig
 {
@@ -290,6 +307,12 @@ public:
     bool UseRetryingChannels;
 
     NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
+
+    bool EnableCudaProfileEventStreaming;
+
+    TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
+
+    std::optional<int> OperationsArchiveVersion;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
