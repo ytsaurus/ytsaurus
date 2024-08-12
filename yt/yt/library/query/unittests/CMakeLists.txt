@@ -14,6 +14,7 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(helpers)
 add_subdirectory(udf)
 
 add_executable(unittester-query)
@@ -39,6 +40,7 @@ target_link_libraries(unittester-query PUBLIC
   library-query-distributed
   library-query-engine
   library-query-engine_api
+  query-unittests-helpers
   query-unittests-udf
   contrib-libs-sparsehash
 )

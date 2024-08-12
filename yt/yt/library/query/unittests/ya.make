@@ -42,6 +42,7 @@ PEERDIR(
     yt/yt/library/query/distributed
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api
+    yt/yt/library/query/unittests/helpers
     yt/yt/library/query/unittests/udf
     contrib/libs/sparsehash
 )

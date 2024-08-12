@@ -765,6 +765,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto validate = [&] {
+            THROW_ERROR_EXCEPTION_IF(!table->IsDynamic() || !indexTable->IsDynamic(),
+                "Both table and index table must be dynamic");
             if (!indexTable->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
             }

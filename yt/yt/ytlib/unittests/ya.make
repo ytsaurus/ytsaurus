@@ -23,6 +23,7 @@ SRCS(
     permission_cache_ut.cpp
     replication_reader_ut.cpp
     row_merger_ut.cpp
+    secondary_index_ut.cpp
     serialize_ut.cpp
     sorted_merging_reader_ut.cpp
     striped_erasure_ut.cpp
@@ -39,6 +40,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/library/query/engine
+    yt/yt/library/query/unittests/helpers
     yt/yt/library/query/row_comparer
 
     yt/yt/build

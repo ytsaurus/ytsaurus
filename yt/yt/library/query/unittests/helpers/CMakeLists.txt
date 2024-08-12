@@ -12,13 +12,24 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(engine_api)
-add_subdirectory(misc)
-add_subdirectory(proto)
-add_subdirectory(base)
-add_subdirectory(row_comparer_api)
-add_subdirectory(engine)
-add_subdirectory(row_comparer)
-add_subdirectory(unittests)
-add_subdirectory(distributed)
+add_library(query-unittests-helpers)
+
+
+target_compile_options(query-unittests-helpers PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(query-unittests-helpers PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  library-query-base
+  library-query-engine
+)
+
+target_sources(query-unittests-helpers PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/helpers/helpers.cpp
+)
+

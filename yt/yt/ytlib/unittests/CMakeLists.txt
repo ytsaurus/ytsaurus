@@ -33,6 +33,7 @@ target_link_libraries(unittester-ytlib PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-query-engine
+  query-unittests-helpers
   library-query-row_comparer
   yt-yt-build
   yt-yt-core
@@ -76,6 +77,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/permission_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/row_merger_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/secondary_index_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp

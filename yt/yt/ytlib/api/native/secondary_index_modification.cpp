@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
+
+#include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -50,7 +52,7 @@ class TSecondaryIndexModifier
 {
 public:
     TSecondaryIndexModifier(
-        ITransactionPtr transaction,
+        std::function<TLookupSignature> lookuper,
         NTabletClient::TTableMountInfoPtr tableMountInfo,
         std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
         TRange<TUnversionedSubmittedRow> mergedModifications,
@@ -69,7 +71,7 @@ private:
     using TResultingRowMap = THashMap<NTableClient::TKey, NTableClient::TMutableUnversionedRow>;
     using TIndexKeyToTableKeyMap = THashMap<NTableClient::TUnversionedRow, NTableClient::TKey>;
 
-    const ITransactionPtr Transaction_;
+    const std::function<TLookupSignature> Lookuper_;
     const NTabletClient::TTableMountInfoPtr TableMountInfo_;
     const std::vector<NTabletClient::TTableMountInfoPtr> IndexInfos_;
     const NTableClient::TNameTablePtr NameTable_;
@@ -129,13 +131,13 @@ DEFINE_REFCOUNTED_TYPE(TSecondaryIndexModifier)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSecondaryIndexModifier::TSecondaryIndexModifier(
-    ITransactionPtr transaction,
+    std::function<TLookupSignature> lookuper,
     TTableMountInfoPtr tableMountInfo,
     std::vector<TTableMountInfoPtr> indexInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
     IExpressionEvaluatorCachePtr expressionEvaluatorCache,
     TLogger logger)
-    : Transaction_(std::move(transaction))
+    : Lookuper_(std::move(lookuper))
     , TableMountInfo_(std::move(tableMountInfo))
     , IndexInfos_(std::move(indexInfos))
     , NameTable_(TNameTable::FromSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Primary]))
@@ -166,7 +168,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     for (int index = 0; index < std::ssize(IndexInfos_); ++index) {
         auto& descriptor = IndexDescriptors_[index];
         const auto& indexInfo = IndexInfos_[index];
-        const auto& indexSchema = *indexInfo->Schemas[ETableSchemaKind::Write];
+        const auto& indexSchema = *indexInfo->Schemas[ETableSchemaKind::Primary];
 
         if (const auto& predicate = TableMountInfo_->Indices[index].Predicate) {
             auto parsedSource = ParseSource(*predicate, EParseMode::Expression);
@@ -178,19 +180,19 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         switch (auto kind = descriptor.Kind = TableMountInfo_->Indices[index].Kind) {
             case ESecondaryIndexKind::FullSync:
                 ValidateFullSyncIndexSchema(
-                    *TableMountInfo_->Schemas[ETableSchemaKind::Write],
+                    *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
                     indexSchema);
                 break;
 
             case ESecondaryIndexKind::Unfolding:
                 descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(
                     FindUnfoldingColumnAndValidate(
-                        *TableMountInfo_->Schemas[ETableSchemaKind::Write],
+                        *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
                         indexSchema));
                 break;
 
             case ESecondaryIndexKind::Unique:
-                ValidateUniqueIndexSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Write], indexSchema);
+                ValidateUniqueIndexSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Primary], indexSchema);
                 break;
 
             default:
@@ -232,12 +234,12 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 
 TFuture<void> TSecondaryIndexModifier::LookupRows()
 {
+    int keyColumnCount = TableMountInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
+
     std::vector<TUnversionedRow> lookupKeys;
     lookupKeys.reserve(MergedModifications_.size());
     for (const auto& modification : MergedModifications_) {
-        auto key = TKey(modification.Row.FirstNElements(TableMountInfo_
-            ->Schemas[ETableSchemaKind::Primary]
-            ->GetKeyColumnCount()));
+        auto key = TKey(modification.Row.FirstNElements(keyColumnCount));
         auto [_, inserted] = InitialRowMap_.insert({key, {}});
         if (inserted) {
             lookupKeys.push_back(RowBuffer_->CaptureRow(key.Elements()));
@@ -248,13 +250,13 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
     options.KeepMissingRows = false;
     options.ColumnFilter = TColumnFilter(PositionToIdMapping_);
 
-    return Transaction_->LookupRows(
+    return Lookuper_(
         TableMountInfo_->Path,
         NameTable_,
         MakeSharedRange(std::move(lookupKeys), RowBuffer_),
         options)
-        .Apply(BIND([&] (const TUnversionedLookupRowsResult& result) {
-            SetInitialAndResultingRows(result.Rowset->GetRows());
+        .ApplyUnique(BIND([&, this_ = MakeStrong(this)] (TSharedRange<TUnversionedRow>&& result) {
+            SetInitialAndResultingRows(result);
         }));
 }
 
@@ -321,12 +323,12 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
     for (int index = 0; index < std::ssize(IndexInfos_); ++index) {
         modificationRequestEvents.push_back(
             ProduceModificationsForIndex(index)
-                .Apply(BIND([
+                .ApplyUnique(BIND([
                     this,
                     this_ = MakeStrong(this),
                     index,
                     enqueueModificationRequests
-                ] (TSharedRange<TRowModification> modifications) {
+                ] (TSharedRange<TRowModification>&& modifications) {
                     enqueueModificationRequests(
                         IndexInfos_[index]->Path,
                         NameTable_,
@@ -655,18 +657,17 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
     TLookupRowsOptions options;
     options.ColumnFilter = TColumnFilter(std::move(tableKeyColumnIds));
     options.KeepMissingRows = true;
-    return Transaction_->LookupRows(
+    return Lookuper_(
         uniqueIndexPath,
         NameTable_,
         MakeSharedRange(indexKeys),
         options)
-        .Apply(BIND([
+        .ApplyUnique(BIND([
             uniqueIndexPath,
             extraIndexKeys = std::move(extraIndexKeys),
             indexKeys = std::move(indexKeys),
             tableKeyColumnPositions = std::move(tableKeyColumnPositions)
-        ] (TUnversionedLookupRowsResult result) {
-            auto indexRows = result.Rowset->GetRows();
+        ] (TSharedRange<TUnversionedRow>&& indexRows) {
             for (int rowNumber = 0; rowNumber < std::ssize(indexKeys); ++rowNumber) {
                 auto indexRow = indexRows[rowNumber];
                 if (!indexRow) {
@@ -685,7 +686,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                     if (tableKey[keyColumnPosition] != tableKeyColumnInIndex) {
                         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::UniqueIndexConflict,
                             "Conflict in unique index around index key %v. Write with the key %v "
-                            "conflicts with the record %v present in the index table",
+                            "conflicts with the row %v present in the index table",
                             indexKey,
                             tableKey,
                             indexRow)
@@ -694,6 +695,23 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                 }
             }
         }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::function<TLookupSignature> MakeLookuper(ITransactionPtr transaction)
+{
+    return [transaction = std::move(transaction)] (
+        NYPath::TYPath path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TLegacyKey> keys,
+        TLookupRowsOptions options)
+    {
+        return transaction->LookupRows(path, nameTable, keys, options)
+            .ApplyUnique(BIND([] (TUnversionedLookupRowsResult&& result) {
+                return result.Rowset->GetRows();
+            }));
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -707,12 +725,29 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     NLogging::TLogger logger)
 {
     return New<TSecondaryIndexModifier>(
-        std::move(transaction),
+        MakeLookuper(transaction),
         std::move(tableMountInfo),
         std::move(indexMountInfos),
         std::move(mergedModifications),
         std::move(expressionEvaluatorCache),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
+    std::function<TLookupSignature> lookuper,
+    NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
+    TRange<TUnversionedSubmittedRow> mergedModifications)
+{
+    return New<TSecondaryIndexModifier>(
+        std::move(lookuper),
+        std::move(tableMountInfo),
+        std::move(indexMountInfos),
+        std::move(mergedModifications),
+        CreateExpressionEvaluatorCache(New<TExpressionEvaluatorCacheConfig>()),
+        TLogger("UnitTest"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
