@@ -3991,7 +3991,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
-        auto specNode = ConvertSpecStringToNode(specString);
+        auto specNode = ConvertSpecStringToNode(specString, Config_->OperationSpecTreeSizeLimit);
         auto providedSpecNode = CloneNode(specNode)->AsMap();
         providedSpecNode->RemoveChild("secure_vault");
 

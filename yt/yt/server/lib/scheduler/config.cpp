@@ -1193,6 +1193,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_fair_share_preupdate_offloading", &TThis::EnableFairSharePreUpdateOffloading)
         .Default(false);
 
+    registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
+        .Default(std::numeric_limits<int>::max());
+
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });

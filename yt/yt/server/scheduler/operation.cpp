@@ -656,13 +656,15 @@ void ParseSpec(
     }
 }
 
-IMapNodePtr ConvertSpecStringToNode(const TYsonString& specString)
+IMapNodePtr ConvertSpecStringToNode(
+    const TYsonString& specString,
+    int treeSizeLimit)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     IMapNodePtr specNode;
     try {
-        specNode = ConvertToNode(specString)->AsMap();
+        specNode = ConvertToNode(specString, GetEphemeralNodeFactory(), treeSizeLimit)->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec string")
             << ex;

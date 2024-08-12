@@ -981,6 +981,8 @@ public:
 
     bool EnableFairSharePreUpdateOffloading;
 
+    int OperationSpecTreeSizeLimit;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
