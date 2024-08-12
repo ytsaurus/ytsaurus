@@ -45,6 +45,8 @@
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
 
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
+
 #include <yt/yt/ytlib/journal_client/erasure_repair.h>
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
 #include <yt/yt/ytlib/journal_client/helpers.h>
@@ -2129,16 +2131,39 @@ private:
         IChunkWriterPtr confirmingWriter,
         TChunkStatePtr oldChunkState)
     {
-        auto reader = CreateVersionedChunkReader(
-            NTableClient::TChunkReaderConfig::GetDefault(),
-            std::move(remoteReader),
-            oldChunkState,
-            TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta),
-            readerOptions,
-            MakeSingletonRowRange(MinKey(), MaxKey()),
-            /*columnFilter*/ {},
-            AllCommittedTimestamp,
-            /*produceAllVersions*/ true);
+        IVersionedReaderPtr reader;
+
+        if (oldChunkMeta->format() == ToUnderlying(EChunkFormat::TableVersionedColumnar)) {
+            auto chunkMeta = TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta);
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                NTableClient::TChunkReaderConfig::GetDefault(),
+                std::move(remoteReader),
+                oldChunkState->BlockCache,
+                readerOptions,
+                chunkMeta,
+                GetCurrentInvoker());
+
+            reader = NColumnarChunkFormat::CreateVersionedChunkReader(
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                AllCommittedTimestamp,
+                chunkMeta,
+                oldChunkState->TableSchema,
+                TColumnFilter(),
+                oldChunkState->ChunkColumnMapping,
+                blockManagerFactory,
+                /*produceAllVersions*/ true);
+        } else {
+            reader = CreateVersionedChunkReader(
+                NTableClient::TChunkReaderConfig::GetDefault(),
+                std::move(remoteReader),
+                oldChunkState,
+                TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta),
+                readerOptions,
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                /*columnFilter*/ {},
+                AllCommittedTimestamp,
+                /*produceAllVersions*/ true);
+        }
 
         auto writer = CreateVersionedChunkWriter(
             New<TChunkWriterConfig>(),
