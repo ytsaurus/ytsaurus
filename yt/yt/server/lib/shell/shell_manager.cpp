@@ -81,11 +81,8 @@ class TShellManagerBase
     : public IShellManager
 {
 public:
-    TShellManagerBase(
-        const TShellManagerConfig& config,
-        IInstancePtr rootInstance = nullptr)
-        : RootInstance_(std::move(rootInstance))
-        , PreparationDir_(CombinePaths(config.PreparationDir, GetSandboxRelPath(ESandboxKind::Home)))
+    TShellManagerBase(const TShellManagerConfig& config)
+        : PreparationDir_(CombinePaths(config.PreparationDir, GetSandboxRelPath(ESandboxKind::Home)))
         , WorkingDir_(CombinePaths(config.WorkingDir, GetSandboxRelPath(ESandboxKind::Home)))
         , EnableJobShellSeccopm(config.EnableJobShellSeccopm)
         , UserId_(config.UserId)
@@ -122,7 +119,6 @@ public:
     }
 
 protected:
-    const IInstancePtr RootInstance_;
     const TString PreparationDir_;
     const TString WorkingDir_;
     const bool EnableJobShellSeccopm;
@@ -192,7 +188,8 @@ public:
         const TShellManagerConfig& config,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance)
-        : TShellManagerBase(config, std::move(rootInstance))
+        : TShellManagerBase(config)
+        , RootInstance_(std::move(rootInstance))
         , PortoExecutor_(std::move(portoExecutor))
     { }
 
@@ -352,6 +349,7 @@ public:
     }
 
 private:
+    const IInstancePtr RootInstance_;
     const IPortoExecutorPtr PortoExecutor_;
 
 #ifdef _linux_
@@ -402,8 +400,8 @@ class TShellManager
     : public TShellManagerBase
 {
 public:
-    TShellManager(const TShellManagerConfig& config)
-        : TShellManagerBase(config, nullptr)
+    explicit TShellManager(const TShellManagerConfig& config)
+        : TShellManagerBase(config)
     {
         Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
         Environment_.emplace_back(Format("G_HOME=%v", WorkingDir_));
@@ -412,7 +410,7 @@ public:
     }
 
     TPollJobShellResponse PollJobShell(
-        const TJobShellDescriptor& /* jobShellDescriptor */,
+        const TJobShellDescriptor& /*jobShellDescriptor*/,
         const TYsonString& serializedParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
