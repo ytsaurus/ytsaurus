@@ -185,6 +185,7 @@ def test_escape_c():
     assert escape_c(b"\0\1What about some bytes?") == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
 
 
+@authors("denvr")
 def test_hide_params():
     headers = {
         "Authorization": "sec",
