@@ -1166,6 +1166,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
 
+    registrar.Parameter("enable_job_archive_ttl", &TThis::EnableJobArchiveTtl)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

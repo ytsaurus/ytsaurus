@@ -6,7 +6,7 @@ from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, insert_rows, run_sleeping_vanilla, print_debug,
     update_controller_agent_config,
-    lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
+    lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, set, sync_create_cells, raises_yt_error)
 
 import yt_error_codes
 
@@ -511,6 +511,25 @@ class TestGetJob(_TestGetJobCommon):
             assert job_info.get("controller_state") == "running"
             assert job_info.get("archive_state") == "running"
             assert job_info.get("is_stale")
+
+    @authors("omgronny")
+    def test_job_archive_ttl(self):
+        set("//sys/operations_archive/jobs/@max_data_ttl", 3000)
+        update_controller_agent_config("enable_job_archive_ttl", True)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "archive_ttl": 10000000,
+            },
+        )
+        (job_id,) = wait_breakpoint()
+        release_breakpoint()
+
+        time.sleep(5)
+
+        get_job(op.id, job_id)
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):

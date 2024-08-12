@@ -181,3 +181,8 @@ types:
         cpp_type: NYson::TYsonString
         column_name: archive_features
         column_type: Any
+
+      - cpp_name: Ttl
+        cpp_type: ui64
+        column_name: $ttl
+        column_type: Uint64

@@ -1321,6 +1321,8 @@ public:
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
 
+    std::optional<TDuration> ArchiveTtl;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

@@ -819,6 +819,10 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
+    if (userJobSpec) {
+        joblet->ArchiveTtl = userJobSpec->ArchiveTtl;
+    }
+
     joblet->EnabledJobProfiler = SelectProfiler();
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {

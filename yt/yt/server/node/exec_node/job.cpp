@@ -3524,8 +3524,13 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (JobSpecExt_->has_probing_job_competition_id()) {
         report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_->probing_job_competition_id()));
     }
-    if (JobSpecExt_ && JobSpecExt_->has_task_name()) {
+    if (JobSpecExt_->has_task_name()) {
         report.SetTaskName(JobSpecExt_->task_name());
+    }
+    if (UserJobSpec_ &&
+        UserJobSpec_->has_archive_ttl())
+    {
+        report.SetTtl(FromProto<TDuration>(UserJobSpec_->archive_ttl()));
     }
 
     return report;

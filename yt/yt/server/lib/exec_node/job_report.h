@@ -41,6 +41,7 @@ public:
     void SetJobCompetitionId(TJobId jobCompetitionId);
     void SetProbingJobCompetitionId(TJobId CompetitionId);
     void SetTaskName(const TString& taskName);
+    void SetTtl(TDuration ttl);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
