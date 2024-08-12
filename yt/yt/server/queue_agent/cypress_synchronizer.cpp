@@ -207,6 +207,57 @@ private:
             }
         }
 
+        void AppendObjectWithErrorAndBasicAttributes(
+            const TObject& object,
+            const IAttributeDictionaryPtr& attributes,
+            const TString& chaosReplicatedTableQueueAgentStage,
+            const TError& error,
+            const NLogging::TLogger& logger)
+        {
+            auto Logger = logger;
+
+            auto fillFromAttribute = [&] <typename TTo> (TStringBuf attribute, std::optional<TTo>& attributeField) {
+                try {
+                    attributeField = attributes->Find<TTo>(attribute);
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG(ex, "Error parsing attribute %Qv",
+                        attribute);
+                    attributeField = std::nullopt;
+                }
+            };
+
+            auto fillBasicFieldsFromAttributes = [&] (auto& row) {
+                fillFromAttribute("attribute_revision", row.Revision);
+                fillFromAttribute("type", row.ObjectType);
+                fillFromAttribute("queue_agent_stage", row.QueueAgentStage);
+                if (row.QueueAgentStage) {
+                    return;
+                }
+                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && chaosReplicatedTableQueueAgentStage) {
+                    row.QueueAgentStage = chaosReplicatedTableQueueAgentStage;
+                }
+            };
+
+            switch (object.Type) {
+                case ECypressSyncObjectType::Queue:
+                    QueueRows.push_back({
+                        .Ref = object.Object,
+                        .RowRevision = NextRowRevision(object.RowRevision),
+                        .SynchronizationError = error,
+                    });
+                    fillBasicFieldsFromAttributes(QueueRows.back());
+                    break;
+                case ECypressSyncObjectType::Consumer:
+                    ConsumerRows.push_back({
+                        .Ref = object.Object,
+                        .RowRevision = NextRowRevision(object.RowRevision),
+                        .SynchronizationError = error,
+                    });
+                    fillBasicFieldsFromAttributes(ConsumerRows.back());
+                    break;
+            }
+        }
+
         void AppendReplicatedObjectWithError(
             const TObject& object,
             const TError& error,
@@ -608,13 +659,6 @@ private:
                     object.Object,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
-                std::optional<NHydra::TRevision> revision;
-                try {
-                    revision = attributes->Find<NHydra::TRevision>("attribute_revision");
-                } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Error parsing attribute revision for object %v", object.Object);
-                }
-
                 // First, we try to interpret the attributes as one of two types: a queue, or a consumer.
                 // If successful, we prepare an updated row for the corresponding state table.
                 try {
@@ -627,7 +671,12 @@ private:
                         ex,
                         "Error parsing object attributes (Object: %v)",
                         object.Object);
-                    RowsWithErrors_.AppendObjectWithError(object, ex, revision);
+                    RowsWithErrors_.AppendObjectWithErrorAndBasicAttributes(
+                        object,
+                        attributes,
+                        DynamicConfigSnapshot_->ChaosReplicatedTableQueueAgentStage,
+                        ex,
+                        Logger);
                 }
 
                 if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
