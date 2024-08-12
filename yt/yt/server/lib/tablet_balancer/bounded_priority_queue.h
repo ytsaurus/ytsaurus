@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/property.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,6 +11,9 @@ namespace NYT::NTabletBalancer {
 template <class TPayload>
 class TBoundedPriorityQueue
 {
+public:
+    DEFINE_BYVAL_RO_PROPERTY(double, BestDiscardedCost);
+
 public:
     using TElement = std::pair<double, TPayload>;
 
@@ -29,7 +34,6 @@ private:
     const int Capacity_;
 
     std::vector<TElement> Elements_;
-    double BestDiscardedCost_ = std::numeric_limits<double>::min();
 
     static bool LessComparator(const TElement& lhs, const TElement& rhs);
 
