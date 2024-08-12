@@ -785,7 +785,7 @@ private:
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist(/*useOperationsArchiveClient*/ false);
         }
         return *ArchiveExists_;
     }

@@ -347,6 +347,8 @@ public:
 
     TDuration FlowPipelineControllerRpcTimeout;
 
+    EMasterChannelKind ReadArchiveStateFrom;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
