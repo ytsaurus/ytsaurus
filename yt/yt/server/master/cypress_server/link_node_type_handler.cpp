@@ -2,9 +2,11 @@
 #include "link_node.h"
 #include "link_node_proxy.h"
 #include "shard.h"
-#include "portal_exit_node.h"
 #include "private.h"
 #include "config.h"
+
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/yt/server/master/object_server/path_resolver.h>
 

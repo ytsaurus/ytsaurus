@@ -31,6 +31,7 @@
 #include <boost/geometry/algorithms/detail/recalculate.hpp>
 
 #include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/promote_integral.hpp>
 #include <boost/geometry/util/select_calculation_type.hpp>
 
@@ -177,17 +178,17 @@ struct cartesian_segments
             typedef typename promote_integral<CoordinateType>::type calc_type;
 
             calc_type const numerator
-                = boost::numeric_cast<calc_type>(ratio.numerator());
+                = util::numeric_cast<calc_type>(ratio.numerator());
             calc_type const denominator
-                = boost::numeric_cast<calc_type>(ratio.denominator());
-            calc_type const dx_calc = boost::numeric_cast<calc_type>(dx);
-            calc_type const dy_calc = boost::numeric_cast<calc_type>(dy);
+                = util::numeric_cast<calc_type>(ratio.denominator());
+            calc_type const dx_calc = util::numeric_cast<calc_type>(dx);
+            calc_type const dy_calc = util::numeric_cast<calc_type>(dy);
 
             set<0>(point, get<0, 0>(segment)
-                   + boost::numeric_cast<CoordinateType>(
+                   + util::numeric_cast<CoordinateType>(
                          math::divide<calc_type>(numerator * dx_calc, denominator)));
             set<1>(point, get<0, 1>(segment)
-                   + boost::numeric_cast<CoordinateType>(
+                   + util::numeric_cast<CoordinateType>(
                          math::divide<calc_type>(numerator * dy_calc, denominator)));
         }
 
@@ -459,6 +460,7 @@ struct cartesian_segments
 
         bool collinear = sides.collinear();
 
+        //TODO: remove this when rescaling is removed
         // Calculate the differences again
         // (for rescaled version, this is different from dx_p etc)
         coordinate_type const dx_p = get<0>(p2) - get<0>(p1);
@@ -531,6 +533,16 @@ struct cartesian_segments
                             p_is_point, q_is_point);
                 }
             }
+        }
+
+        if (equals_point_point(p1, q1) || equals_point_point(p1, q2))
+        {
+            return Policy::segments_share_common_point(sides, sinfo, p1);
+        }
+
+        if (equals_point_point(p2, q1) || equals_point_point(p2, q2))
+        {
+            return Policy::segments_share_common_point(sides, sinfo, p2);
         }
 
         return Policy::segments_crosses(sides, sinfo, p, q);

@@ -1,6 +1,7 @@
 #include "secondary_index_proxy.h"
 #include "secondary_index.h"
-#include "table_manager.h"
+
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 

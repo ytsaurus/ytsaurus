@@ -328,7 +328,7 @@ inline RealNumber orient2dtail(vec2d<RealNumber> const& p1,
         * std::numeric_limits<RealNumber>::epsilon();
     absolute_bound = C_relative_bound * magnitude + sub_bound * std::abs(det);
     det += (t1[0] * t2[1] + t2[0] * t1[1]) - (t3[0] * t4[1] + t4[0] * t3[1]);
-    if (Robustness == 2 || std::abs(det) >= absolute_bound)
+    if (BOOST_GEOMETRY_CONDITION(Robustness == 2) || std::abs(det) >= absolute_bound)
     {
         return det; //C estimate
     }
@@ -457,7 +457,10 @@ RealNumber incircle(std::array<RealNumber, 2> const& p1,
     RealNumber det = A_13 * (A_21_x_A_32[0] - A_31_x_A_22[0])
       + A_23 * (A_31_x_A_12[0] - A_11_x_A_32[0])
       + A_33 * (A_11_x_A_22[0] - A_21_x_A_12[0]);
-    if(Robustness == 0) return det;
+    if (BOOST_GEOMETRY_CONDITION(Robustness == 0))
+    {
+        return det;
+    }
 
     RealNumber magnitude =
           (std::abs(A_21_x_A_32[0]) + std::abs(A_31_x_A_22[0])) * A_13
@@ -585,7 +588,10 @@ RealNumber incircle(std::array<RealNumber, 2> const& p1,
     det = std::accumulate(det_expansion.begin(),
                           det_expansion.begin() + det_expansion_nz,
                           static_cast<RealNumber>(0));
-    if(Robustness == 1) return det;
+    if (BOOST_GEOMETRY_CONDITION(Robustness == 1))
+    {
+        return det;
+    }
     RealNumber B_relative_bound =
           (2 + 12 * std::numeric_limits<RealNumber>::epsilon())
         * std::numeric_limits<RealNumber>::epsilon();

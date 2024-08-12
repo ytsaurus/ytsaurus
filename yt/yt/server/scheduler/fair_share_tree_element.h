@@ -736,6 +736,8 @@ private:
     const TSchedulerCompositeElement* GetNearestAncestorWithResourceLimits(const TSchedulerCompositeElement* element) const;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
+
+    void PropagateIsEphemeral();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerPoolElement)
@@ -824,6 +826,8 @@ public:
 
     void SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters);
     TOperationFairShareTreeRuntimeParametersPtr GetRuntimeParameters() const;
+
+    void SetRunningInEphemeralPool(bool runningInEphemeralPool);
 
     void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;

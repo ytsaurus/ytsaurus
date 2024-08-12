@@ -56,7 +56,7 @@ struct traversal_ring_creator
                 Reverse1, Reverse2, OverlayType,
                 Geometry1, Geometry2, Turns, Clusters,
                 RobustPolicy,
-                decltype(std::declval<Strategy>().side()),
+                Strategy,
                 Visitor
             > traversal_type;
 
@@ -72,7 +72,7 @@ struct traversal_ring_creator
             Strategy const& strategy,
             RobustPolicy const& robust_policy, Visitor& visitor)
         : m_trav(geometry1, geometry2, turns, clusters,
-                 robust_policy, strategy.side(), visitor)
+                 robust_policy, strategy, visitor)
         , m_geometry1(geometry1)
         , m_geometry2(geometry2)
         , m_turns(turns)

@@ -1,10 +1,10 @@
 // Boost.Geometry
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2014-2020.
 // Modifications copyright (c) 2014-2020 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Use, modification and distribution is subject to the Boost Software License,
@@ -19,7 +19,7 @@
 
 #include <boost/geometry/core/radius.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 #include <boost/geometry/util/normalize_spheroidal_coordinates.hpp>
 
@@ -136,7 +136,7 @@ public:
                //&& geometry::math::abs(sigma) < pi
                && counter < BOOST_GEOMETRY_DETAIL_VINCENTY_MAX_STEPS ); // robustness
 
-        if (BOOST_GEOMETRY_CONDITION(CalcCoordinates))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcCoordinates)
         {
             result.lat2
                 = atan2( sin_U1 * cos_sigma + cos_U1 * sin_sigma * cos_azimuth12,
@@ -151,13 +151,13 @@ public:
             result.lon2 = lon1 + L;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(CalcRevAzimuth))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcRevAzimuth)
         {
             result.reverse_azimuth
                 = atan2(sin_alpha, -sin_U1 * sin_sigma + cos_U1 * cos_sigma * cos_azimuth12); // (12)
         }
 
-        if (BOOST_GEOMETRY_CONDITION(CalcQuantities))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcQuantities)
         {
             typedef differential_quantities<CT, EnableReducedLength, EnableGeodesicScale, 2> quantities;
             quantities::apply(lon1, lat1, result.lon2, result.lat2,
@@ -166,7 +166,7 @@ public:
                               result.reduced_length, result.geodesic_scale);
         }
 
-        if (BOOST_GEOMETRY_CONDITION(CalcCoordinates))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcCoordinates)
         {
             // For longitudes close to the antimeridian the result can be out
             // of range. Therefore normalize.

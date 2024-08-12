@@ -414,6 +414,9 @@ public:
         return *Controller_.Get();
     }
 
+    void SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/) override
+    { }
+
     bool IsTreeErased(const TString& /*treeId*/) const override
     {
         return false;

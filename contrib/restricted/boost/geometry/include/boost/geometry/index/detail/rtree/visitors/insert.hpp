@@ -30,7 +30,7 @@
 #include <boost/geometry/index/detail/rtree/node/subtree_destroyer.hpp>
 #include <boost/geometry/index/detail/rtree/options.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 namespace boost { namespace geometry { namespace index {
 
@@ -328,12 +328,11 @@ protected:
         // Enlarge it in case if it's not bounding geometry type.
         // It's because Points and Segments are compared WRT machine epsilon
         // This ensures that leafs bounds correspond to the stored elements
-        if (BOOST_GEOMETRY_CONDITION((
-                std::is_same<Element, value_type>::value
-             && ! index::detail::is_bounding_geometry
-                    <
-                        typename indexable_type<translator_type>::type
-                    >::value )) )
+        if BOOST_GEOMETRY_CONSTEXPR ((std::is_same<Element, value_type>::value)
+                                    && ! index::detail::is_bounding_geometry
+                                            <
+                                                typename indexable_type<translator_type>::type
+                                            >::value)
         {
             geometry::detail::expand_by_epsilon(m_element_bounds);
         }
@@ -425,16 +424,16 @@ protected:
         // Enlarge bounds of a leaf node.
         // It's because Points and Segments are compared WRT machine epsilon
         // This ensures that leafs' bounds correspond to the stored elements.
-        if (BOOST_GEOMETRY_CONDITION((
-                std::is_same<Node, leaf>::value
-             && ! index::detail::is_bounding_geometry
-                    <
-                        typename indexable_type<translator_type>::type
-                    >::value )))
+        if BOOST_GEOMETRY_CONSTEXPR ((std::is_same<Node, leaf>::value)
+                                     && ! index::detail::is_bounding_geometry
+                                            <
+                                                typename indexable_type<translator_type>::type
+                                            >::value)
         {
             geometry::detail::expand_by_epsilon(n_box);
             geometry::detail::expand_by_epsilon(additional_nodes[0].first);
         }
+
 #endif
 
         // node is not the root - just add the new node

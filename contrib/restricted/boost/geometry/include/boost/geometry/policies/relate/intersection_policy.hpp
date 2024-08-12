@@ -67,6 +67,19 @@ public:
             );
     }
 
+    template <typename SegmentIntersectionInfo, typename Point>
+    static inline return_type
+    segments_share_common_point(side_info const& sides,
+                                SegmentIntersectionInfo const& sinfo,
+                                Point const& p)
+    {
+        return return_type
+            (
+                pts_policy::segments_share_common_point(sides, sinfo, p),
+                dir_policy::segments_share_common_point(sides, sinfo, p)
+            );
+    }
+
     template <typename Segment1, typename Segment2, typename Ratio>
     static inline return_type segments_collinear(
                                         Segment1 const& segment1,

@@ -3,7 +3,7 @@
 // Copyright (c) 2007-2013 Barend Gehrels, Amsterdam, the Netherlands.
 // Copyright (c) 2008-2013 Bruno Lalande, Paris, France.
 // Copyright (c) 2009-2013 Mateusz Loskot, London, UK.
-// Copyright (c) 2013-2014 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2013-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2017-2023.
 // Modifications copyright (c) 2017-2023 Oracle and/or its affiliates.
@@ -37,7 +37,7 @@
 
 #include <boost/geometry/strategies/default_strategy.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/range.hpp>
 
 
@@ -104,7 +104,7 @@ struct range_remove_spikes
         std::size_t cleaned_count = cleaned.size();
 
         // For a closed-polygon, remove closing point, this makes checking first point(s) easier and consistent
-        if ( BOOST_GEOMETRY_CONDITION(geometry::closure<Range>::value == geometry::closed) )
+        if BOOST_GEOMETRY_CONSTEXPR (geometry::closure<Range>::value == geometry::closed)
         {
             --cleaned_e;
             --cleaned_count;
@@ -148,7 +148,7 @@ struct range_remove_spikes
         }
 
         // Close if necessary
-        if ( BOOST_GEOMETRY_CONDITION(geometry::closure<Range>::value == geometry::closed) )
+        if BOOST_GEOMETRY_CONSTEXPR (geometry::closure<Range>::value == geometry::closed)
         {
             BOOST_GEOMETRY_ASSERT(cleaned_e != cleaned.end());
             *cleaned_e = *cleaned_b;

@@ -42,7 +42,7 @@
 #include <boost/geometry/strategies/covered_by.hpp>
 #include <boost/geometry/strategies/disjoint.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/type_traits.hpp>
 
 
@@ -238,9 +238,16 @@ struct multi_point_multi_geometry
 
             if (boundaries > 0)
             {
-                if (BOOST_GEOMETRY_CONDITION(is_linear) && boundaries % 2 == 0)
+                if BOOST_GEOMETRY_CONSTEXPR (is_linear)
                 {
-                    found_interior = true;
+                    if (boundaries % 2 == 0)
+                    {
+                        found_interior = true;
+                    }
+                    else
+                    {
+                        found_boundary = true;    
+                    }
                 }
                 else
                 {

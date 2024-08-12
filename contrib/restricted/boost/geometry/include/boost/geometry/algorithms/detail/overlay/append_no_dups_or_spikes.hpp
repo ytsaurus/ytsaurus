@@ -1,10 +1,10 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2014-2020.
 // Modifications copyright (c) 2014-2020 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Use, modification and distribution is subject to the Boost Software License,
@@ -29,7 +29,7 @@
 
 #include <boost/geometry/core/closure.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/range.hpp>
 
 
@@ -53,30 +53,32 @@ inline bool points_equal_or_close(Point1 const& point1,
         return true;
     }
 
-    if (BOOST_GEOMETRY_CONDITION(! RobustPolicy::enabled))
+    if BOOST_GEOMETRY_CONSTEXPR (! RobustPolicy::enabled)
     {
         return false;
     }
+    else // else prevents unreachable code warning
+    {
+        // Try using specified robust policy
+        using robust_point_type = typename geometry::robust_point_type
+            <
+                Point1,
+                RobustPolicy
+            >::type;
 
-    // Try using specified robust policy
-    typedef typename geometry::robust_point_type
-    <
-        Point1,
-        RobustPolicy
-    >::type robust_point_type;
+        robust_point_type point1_rob, point2_rob;
+        geometry::recalculate(point1_rob, point1, robust_policy);
+        geometry::recalculate(point2_rob, point2, robust_policy);
 
-    robust_point_type point1_rob, point2_rob;
-    geometry::recalculate(point1_rob, point1, robust_policy);
-    geometry::recalculate(point2_rob, point2, robust_policy);
+        // Only if this is the case the same strategy can be used.
+        BOOST_STATIC_ASSERT((std::is_same
+                                <
+                                    typename geometry::cs_tag<Point1>::type,
+                                    typename geometry::cs_tag<robust_point_type>::type
+                                >::value));
 
-    // Only if this is the case the same strategy can be used.
-    BOOST_STATIC_ASSERT((std::is_same
-                            <
-                                typename geometry::cs_tag<Point1>::type,
-                                typename geometry::cs_tag<robust_point_type>::type
-                            >::value));
-
-    return detail::equals::equals_point_point(point1_rob, point2_rob, strategy);
+        return detail::equals::equals_point_point(point1_rob, point2_rob, strategy);
+    }
 }
 
 
@@ -214,7 +216,7 @@ inline void remove_spikes_at_closure(Ring& ring, Strategy const& strategy,
 template <typename Ring, typename Strategy>
 inline void fix_closure(Ring& ring, Strategy const& strategy)
 {
-    if (BOOST_GEOMETRY_CONDITION(geometry::closure<Ring>::value == geometry::open))
+    if BOOST_GEOMETRY_CONSTEXPR (geometry::closure<Ring>::value == geometry::open)
     {
         if (! boost::empty(ring)
             && detail::equals::equals_point_point(range::front(ring), range::back(ring), strategy))

@@ -25,6 +25,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -33,6 +35,7 @@
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
 
@@ -762,6 +765,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto validate = [&] {
+            THROW_ERROR_EXCEPTION_IF(!table->IsDynamic() || !indexTable->IsDynamic(),
+                "Both table and index table must be dynamic");
             if (!indexTable->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
             }

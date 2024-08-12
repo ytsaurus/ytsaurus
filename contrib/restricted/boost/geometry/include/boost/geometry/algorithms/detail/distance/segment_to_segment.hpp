@@ -1,7 +1,8 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
-// Copyright (c) 2014-2021, Oracle and/or its affiliates.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
+// Copyright (c) 2014-2021, Oracle and/or its affiliates.
 // Contributed and/or modified by Menelaos Karavelas, on behalf of Oracle
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
@@ -28,7 +29,7 @@
 #include <boost/geometry/strategies/distance.hpp>
 #include <boost/geometry/strategies/tags.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 
 namespace boost { namespace geometry
@@ -82,21 +83,23 @@ public:
         std::size_t imin = std::distance(boost::addressof(d[0]),
                                          std::min_element(d, d + 4));
 
-        if (BOOST_GEOMETRY_CONDITION(is_comparable<strategy_type>::value))
+        if BOOST_GEOMETRY_CONSTEXPR (is_comparable<strategy_type>::value)
         {
             return d[imin];
         }
-
-        switch (imin)
+        else // else prevents unreachable code warning
         {
-        case 0:
-            return strategy.apply(q[0], p[0], p[1]);
-        case 1:
-            return strategy.apply(q[1], p[0], p[1]);
-        case 2:
-            return strategy.apply(p[0], q[0], q[1]);
-        default:
-            return strategy.apply(p[1], q[0], q[1]);
+            switch (imin)
+            {
+            case 0:
+                return strategy.apply(q[0], p[0], p[1]);
+            case 1:
+                return strategy.apply(q[1], p[0], p[1]);
+            case 2:
+                return strategy.apply(p[0], q[0], q[1]);
+            default:
+                return strategy.apply(p[1], q[0], q[1]);
+            }
         }
     }
 };

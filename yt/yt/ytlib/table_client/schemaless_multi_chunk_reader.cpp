@@ -16,6 +16,7 @@
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
 #include "versioned_chunk_reader.h"
+#include "versioned_reader_adapter.h"
 #include "remote_dynamic_store_reader.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -36,6 +37,8 @@
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
@@ -1209,6 +1212,41 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         if (chunkSpec.has_max_clip_timestamp()) {
             YT_ASSERT(chunkSpec.max_clip_timestamp() != NullTimestamp);
             effectiveTimestamp = std::min(effectiveTimestamp, chunkSpec.max_clip_timestamp());
+        }
+
+        if (versionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+            if (chunkState->OverrideTimestamp && effectiveTimestamp < chunkState->OverrideTimestamp) {
+                return CreateEmptyVersionedReader();
+            }
+
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                config,
+                remoteReader,
+                chunkState->BlockCache,
+                chunkReadOptions,
+                chunkState->ChunkMeta,
+                // Enable current invoker for range reads.
+                GetCurrentInvoker(),
+                chunkState->DataSource);
+
+            auto reader = NColumnarChunkFormat::CreateVersionedChunkReader(
+                NColumnarChunkFormat::ConvertLegacyRanges(lowerLimit.GetLegacyKey(), upperLimit.GetLegacyKey()),
+                effectiveTimestamp,
+                chunkState->ChunkMeta,
+                chunkState->TableSchema,
+                TColumnFilter(),
+                chunkState->ChunkColumnMapping,
+                blockManagerFactory,
+                /*produceAllVersions*/ false,
+                /*readerStatistics*/ nullptr);
+
+            if (chunkState->OverrideTimestamp) {
+                return CreateTimestampResettingAdapter(
+                    std::move(reader),
+                    chunkState->OverrideTimestamp);
+            } else {
+                return reader;
+            }
         }
 
         return CreateVersionedChunkReader(

@@ -1000,6 +1000,7 @@
   "yt/yt/library/query/row_comparer/CMakeLists.txt":"",
   "yt/yt/library/query/row_comparer_api/CMakeLists.txt":"",
   "yt/yt/library/query/unittests/CMakeLists.txt":"",
+  "yt/yt/library/query/unittests/helpers/CMakeLists.txt":"",
   "yt/yt/library/query/unittests/udf/CMakeLists.txt":"",
   "yt/yt/library/random/CMakeLists.txt":"",
   "yt/yt/library/re2/CMakeLists.txt":"",

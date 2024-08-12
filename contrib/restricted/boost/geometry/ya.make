@@ -40,7 +40,6 @@ PEERDIR(
     contrib/restricted/boost/range
     contrib/restricted/boost/rational
     contrib/restricted/boost/serialization
-    contrib/restricted/boost/smart_ptr
     contrib/restricted/boost/static_assert
     contrib/restricted/boost/thread
     contrib/restricted/boost/throw_exception

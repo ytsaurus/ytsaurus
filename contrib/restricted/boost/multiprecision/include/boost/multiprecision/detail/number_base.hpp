@@ -150,10 +150,17 @@ template <class tag, class Arg1, class Arg2, class Arg3, class Arg4>
 struct is_number_expression<detail::expression<tag, Arg1, Arg2, Arg3, Arg4> > : public std::integral_constant<bool, true>
 {};
 
+namespace detail {
+template <class Val, class Backend>
+struct canonical;
+}
+
 template <class T, class Num>
 struct is_compatible_arithmetic_type
     : public std::integral_constant<bool, 
-          std::is_convertible<T, Num>::value && !std::is_same<T, Num>::value && !is_number_expression<T>::value>
+          std::is_convertible<T, Num>::value && !std::is_same<T, Num>::value && !is_number_expression<T>::value
+          && (std::is_constructible<typename Num::backend_type, typename detail::canonical<T, typename Num::backend_type>::type>::value 
+             || std::is_assignable<typename Num::backend_type, typename detail::canonical<T, typename Num::backend_type>::type>::value || is_number<T>::value || is_number_expression<T>::value)>
 {};
 
 namespace detail {

@@ -137,6 +137,13 @@ inline void discard_duplicate_start_turns(Turns& turns,
                 {
                     for (std::size_t const& i : it->second)
                     {
+                        if (turns[i].cluster_id != turn.cluster_id)
+                        {
+                            // The turns are not part of the same cluster,
+                            // or one is clustered and the other is not.
+                            // This is not corresponding.
+                            continue;
+                        }
                         if (corresponding_turn(turn, turns[i],
                                                geometry0, geometry1))
                         {

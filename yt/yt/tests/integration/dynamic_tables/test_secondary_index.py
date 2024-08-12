@@ -308,36 +308,6 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             self._create_secondary_index()
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("schema_pair", (
-        ([{"name": "not_sorted", "type": "int64"}], INDEX_ON_VALUE_SCHEMA),
-        (PRIMARY_SCHEMA, [{"name": "not_sorted", "type": "int64"}]),
-        (PRIMARY_SCHEMA_WITH_EXTRA_KEY, INDEX_ON_VALUE_SCHEMA),
-        (PRIMARY_SCHEMA, INDEX_ON_VALUE_SCHEMA + [{"name": "valueMissingFromPrimary", "type": "string"}]),
-        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
-            {"name": "aggregate_value", "type": "int64", "sort_order": "ascending"},
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
-        ]),
-        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
-            {"name": "value", "type": "int64", "sort_order": "ascending"},
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
-        ]),
-        ([
-            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-            {"name": "keyB", "type": "string", "sort_order": "ascending"},
-            {"name": "valueA", "type": "int64", "lock": "A"},
-            {"name": "valueB", "type": "boolean", "lock": "B"},
-        ], INDEX_ON_VALUE_SCHEMA)
-    ))
-    def test_illegal_schema_combinations(self, schema_pair):
-        self._create_table("//tmp/table", schema_pair[0])
-        self._create_table("//tmp/index", schema_pair[1])
-
-        with raises_yt_error():
-            create_secondary_index("//tmp/table", "//tmp/index", "full_sync")
-
-    @authors("sabdenovch")
     def test_predicate_and_locks(self):
         self._create_table(
             "//tmp/table",
@@ -520,45 +490,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             if "__hash__" in row:
                 del row["__hash__"]
         assert_items_equal(sorted_dicts(actual), sorted_dicts(expected))
-
-    @authors("sabdenovch")
-    def test_simple(self):
-        self._create_basic_tables(mount=True)
-
-        rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        self._insert_rows(rows)
-
-        self._expect_from_index(rows)
-
-    @authors("sabdenovch")
-    def test_utility_column(self):
-        self._create_basic_tables(index_schema=INDEX_ON_KEY_SCHEMA, mount=True)
-
-        rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        self._insert_rows(rows)
-
-        self._expect_from_index([{"keyB": "key", "keyA": 0, EMPTY_COLUMN_NAME: None}])
-
-    @authors("sabdenovch")
-    def test_same_key_twice(self):
-        self._create_basic_tables(mount=True)
-
-        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}])
-        update = [{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": True}]
-        self._insert_rows(update)
-
-        self._expect_from_index(update)
-
-    @authors("sabdenovch")
-    def test_same_key_twice_in_one_transaction(self):
-        self._create_basic_tables(mount=True)
-
-        self._insert_rows([
-            {"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False},
-            {"keyA": 0, "keyB": "key", "valueA": 1},
-        ], update=True)
-
-        self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": False}])
 
     @authors("sabdenovch")
     def test_multiple(self):

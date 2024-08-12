@@ -929,6 +929,11 @@ void TSchedulerCompositeElement::AddChild(TSchedulerElement* child, bool enabled
         child->PersistentAttributes_.ResetOnElementEnabled();
     }
 
+    if (child->IsOperation()) {
+        auto* childOperation = static_cast<TSchedulerOperationElement*>(child);
+        childOperation->SetRunningInEphemeralPool(IsDefaultConfigured());
+    }
+
     auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
     auto& list = enabled ? EnabledChildren_ : DisabledChildren_;
     AddChild(&map, &list, child);
@@ -1278,6 +1283,8 @@ void TSchedulerPoolElement::SetConfig(TPoolConfigPtr config)
 
     DoSetConfig(std::move(config));
     DefaultConfigured_ = false;
+
+    PropagateIsEphemeral();
 }
 
 void TSchedulerPoolElement::SetDefaultConfig()
@@ -1286,6 +1293,8 @@ void TSchedulerPoolElement::SetDefaultConfig()
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
+
+    PropagateIsEphemeral();
 }
 
 void TSchedulerPoolElement::SetObjectId(NObjectClient::TObjectId objectId)
@@ -1751,6 +1760,13 @@ std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
         : Parent_->GetRedirectToCluster();
 }
 
+void TSchedulerPoolElement::PropagateIsEphemeral()
+{
+    for (auto* child : GetChildOperations()) {
+        child->SetRunningInEphemeralPool(DefaultConfigured_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
@@ -1986,6 +2002,11 @@ void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRun
 TOperationFairShareTreeRuntimeParametersPtr TSchedulerOperationElement::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
+}
+
+void TSchedulerOperationElement::SetRunningInEphemeralPool(bool runningInEphemeralPool)
+{
+    OperationHost_->SetRunningInEphemeralPool(TreeId_, runningInEphemeralPool);
 }
 
 TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const

@@ -16,11 +16,6 @@
 #include <cstddef>
 #include <utility>
 
-#include <boost/numeric/conversion/cast.hpp>
-
-#include <boost/geometry/util/math.hpp>
-#include <boost/geometry/util/calculation_type.hpp>
-
 #include <boost/geometry/core/access.hpp>
 #include <boost/geometry/core/tags.hpp>
 #include <boost/geometry/core/coordinate_dimension.hpp>
@@ -35,6 +30,9 @@
 #include <boost/geometry/strategies/normalize.hpp>
 #include <boost/geometry/strategies/spherical/azimuth.hpp>
 #include <boost/geometry/strategies/spherical/disjoint_box_box.hpp>
+
+#include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/calculation_type.hpp>
 
 
 namespace boost { namespace geometry { namespace strategy { namespace disjoint

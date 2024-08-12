@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
