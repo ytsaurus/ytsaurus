@@ -66,14 +66,14 @@ template <typename T>
     requires std::is_trivially_copyable_v<T>
 T* TVectorOverMemoryChunkProvider<T>::Begin()
 {
-    return &std::bit_cast<T*>(DataHolder_->GetRef().data())[0];
+    return std::bit_cast<T*>(DataHolder_->GetRef().data());
 }
 
 template <typename T>
     requires std::is_trivially_copyable_v<T>
 T* TVectorOverMemoryChunkProvider<T>::End()
 {
-    return &std::bit_cast<T*>(DataHolder_->GetRef().data())[Size_];
+    return std::bit_cast<T*>(DataHolder_->GetRef().data()) + Size_;
 }
 
 template <typename T>
