@@ -8,6 +8,39 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+    requires std::is_trivially_copyable_v<T>
+class TVectorOverMemoryChunkProvider
+{
+public:
+    TVectorOverMemoryChunkProvider(
+        TRefCountedTypeCookie cookie,
+        IMemoryChunkProviderPtr memoryChunkProvider);
+
+    void PushBack(T value);
+    i64 Size() const;
+
+    T& operator[](i64 index);
+    const T& operator[](i64 index) const;
+
+    T* Begin();
+    T* End();
+
+    bool Empty() const;
+
+private:
+    static inline constexpr i64 MinCapacity = 1024;
+
+    i64 Capacity() const;
+
+    i64 Size_ = 0;
+    const IMemoryChunkProviderPtr Provider_;
+    TRefCountedTypeCookie Cookie_;
+    std::unique_ptr<TAllocationHolder> DataHolder_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTopCollectorBase
 {
 public:
@@ -80,8 +113,8 @@ private:
     std::vector<TExpressionContext> StringLikeValueContexts_;
     std::vector<int> StringLikeValueEmptyContextIds_;
 
-    TChunkedMemoryPool HeapPool_;
-    std::vector<TRowAndBuffer, TChunkedMemoryPoolAllocator<TRowAndBuffer>> Heap_;
+    TVectorOverMemoryChunkProvider<TRowAndBuffer> Heap_;
+    i64 Limit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,3 +136,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
+
+#define TOP_COLLECTOR_INL_H
+#include "top_collector-inl.h"
+#undef TOP_COLLECTOR_INL_H

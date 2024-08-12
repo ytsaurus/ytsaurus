@@ -1178,6 +1178,20 @@ TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
     }, HasSubstr("ORDER BY used without LIMIT"));
 }
 
+TEST_F(TQueryPrepareTest, OrderByWithNegativeLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    EXPECT_THROW_THAT({
+        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
+    }, HasSubstr("Error while parsing query: syntax error, unexpected `-`, expecting int64 literal"));
+}
+
 TEST_F(TQueryPrepareTest, OffsetLimit)
 {
     auto split = MakeSplit({
@@ -5786,6 +5800,40 @@ TEST_F(TQueryEvaluateTest, OrderBy)
         HasSubstr("Comparison with NaN"));
 
     SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, OrderByWithHugeLimit)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}});
+
+    auto source = std::vector<TString>{
+        "a=3",
+        "a=2",
+        "a=1",
+    };
+
+    auto result = YsonToRows({
+        "a=1",
+        "a=2",
+        "a=3",
+    }, split);
+
+    Evaluate("a FROM [//t] order by a limit 9223372036854775805", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, OrderByWithSmallLimit)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}});
+
+    auto source = std::vector<TString>{
+        "a=3",
+        "a=2",
+        "a=1",
+    };
+
+    auto result = YsonToRows({}, split);
+
+    Evaluate("a FROM [//t] order by a limit 0", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)

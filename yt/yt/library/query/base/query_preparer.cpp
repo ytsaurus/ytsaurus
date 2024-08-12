@@ -33,7 +33,7 @@ static constexpr size_t MaxExpressionDepth = 50;
 struct TQueryPreparerBufferTag
 { };
 
-constexpr ssize_t MaxQueryLimit = 10000000;
+constexpr i64 MaxQueryLimit = std::numeric_limits<i64>::max() - 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
