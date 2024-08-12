@@ -84,9 +84,9 @@ private:
         char Padding[CacheLineSize];
 
         int ConcurrentScheduleAllocationCalls = 0;
-        int MaxConcurrentControllerScheduleAllocationCalls = 0;
+        int MaxConcurrentControllerScheduleAllocationCalls = std::numeric_limits<int>::max();
         TDuration ConcurrentScheduleAllocationExecDuration;
-        TDuration MaxConcurrentControllerScheduleAllocationExecDuration;
+        TDuration MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Max();
 
         TDuration ScheduleAllocationExecDurationEstimate;
     };
