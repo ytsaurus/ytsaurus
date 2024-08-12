@@ -19,7 +19,6 @@
 #define BOOST_GEOMETRY_STRATEGIES_CARTESIAN_CENTROID_WEIGHTED_LENGTH_HPP
 
 #include <boost/math/special_functions/fpclassify.hpp>
-#include <boost/numeric/conversion/cast.hpp>
 
 #include <boost/geometry/algorithms/assign.hpp>
 
@@ -32,6 +31,7 @@
 #include <boost/geometry/strategies/centroid.hpp>
 
 #include <boost/geometry/util/algorithm.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/select_most_precise.hpp>
 
 
@@ -132,7 +132,7 @@ public :
                 typedef typename geometry::coordinate_type<ResultPoint>::type coordinate_type;
                 geometry::set<dimension>(
                     centroid,
-                    boost::numeric_cast<coordinate_type>(
+                    util::numeric_cast<coordinate_type>(
                         geometry::get<dimension>(state.average_sum) / state.length
                     )
                 );

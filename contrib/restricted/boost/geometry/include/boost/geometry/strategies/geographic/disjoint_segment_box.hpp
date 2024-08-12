@@ -16,8 +16,6 @@
 #include <cstddef>
 #include <utility>
 
-#include <boost/numeric/conversion/cast.hpp>
-
 #include <boost/geometry/util/math.hpp>
 #include <boost/geometry/util/calculation_type.hpp>
 

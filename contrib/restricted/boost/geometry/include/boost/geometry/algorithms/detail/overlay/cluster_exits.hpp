@@ -1,6 +1,7 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2020 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2020-2023.
 // Modifications copyright (c) 2020-2023 Oracle and/or its affiliates.
@@ -24,7 +25,7 @@
 #include <boost/geometry/algorithms/detail/overlay/overlay_type.hpp>
 #include <boost/geometry/algorithms/detail/overlay/sort_by_side.hpp>
 #include <boost/geometry/algorithms/detail/signed_size_type.hpp>
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 #if defined(BOOST_GEOMETRY_DEBUG_INTERSECTION) \
     || defined(BOOST_GEOMETRY_OVERLAY_REPORT_WKT) \
@@ -199,13 +200,14 @@ public :
                     // Points to different target
                     return false;
                 }
-                if (first_run
-                    && BOOST_GEOMETRY_CONDITION(OverlayType == overlay_buffer)
-                    && target.turn_index >= 0)
+                if BOOST_GEOMETRY_CONSTEXPR (OverlayType == overlay_buffer)
                 {
-                    // Target already assigned, so there are more targets
-                    // or more ways to the same target
-                    return false;
+                    if (first_run && target.turn_index >= 0)
+                    {
+                        // Target already assigned, so there are more targets
+                        // or more ways to the same target
+                        return false;
+                    }
                 }
 
                 target = lti;

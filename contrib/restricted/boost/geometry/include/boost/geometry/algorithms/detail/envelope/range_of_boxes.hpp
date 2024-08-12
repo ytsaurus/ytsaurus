@@ -32,8 +32,8 @@
 #include <boost/geometry/core/coordinate_system.hpp>
 #include <boost/geometry/core/coordinate_type.hpp>
 
+#include <boost/geometry/util/is_inverse_spheroidal_coordinates.hpp>
 #include <boost/geometry/util/math.hpp>
-#include <boost/geometry/util/normalize_spheroidal_coordinates.hpp>
 #include <boost/geometry/util/range.hpp>
 
 #include <boost/geometry/views/detail/indexed_point_view.hpp>

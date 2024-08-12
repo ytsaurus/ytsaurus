@@ -24,7 +24,6 @@
 #include <cstddef>
 #include <type_traits>
 
-#include <boost/numeric/conversion/cast.hpp>
 #include <boost/range/begin.hpp>
 #include <boost/range/end.hpp>
 #include <boost/range/size.hpp>
@@ -45,6 +44,7 @@
 
 #include <boost/geometry/geometries/concepts/check.hpp>
 
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/range.hpp>
 
 #include <boost/geometry/views/detail/closed_clockwise_view.hpp>
@@ -80,7 +80,7 @@ struct point_to_box
         typedef typename coordinate_type<Box>::type coordinate_type;
 
         set<Index, Dimension>(box,
-                boost::numeric_cast<coordinate_type>(get<Dimension>(point)));
+                util::numeric_cast<coordinate_type>(get<Dimension>(point)));
         point_to_box
             <
                 Point, Box,

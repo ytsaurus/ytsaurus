@@ -53,7 +53,7 @@
 #include <boost/geometry/strategies/convex_hull/spherical.hpp>
 #include <boost/geometry/strategies/default_strategy.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/range.hpp>
 #include <boost/geometry/util/sequence.hpp>
 #include <boost/geometry/util/type_traits.hpp>
@@ -240,7 +240,7 @@ struct convex_hull<Box, box_tag>
         geometry::detail::assign_box_corners_oriented<Reverse>(box, arr);
 
         std::move(arr.begin(), arr.end(), range::back_inserter(out));
-        if (BOOST_GEOMETRY_CONDITION(Close))
+        if BOOST_GEOMETRY_CONSTEXPR (Close)
         {
             range::push_back(out, range::front(out));
         }

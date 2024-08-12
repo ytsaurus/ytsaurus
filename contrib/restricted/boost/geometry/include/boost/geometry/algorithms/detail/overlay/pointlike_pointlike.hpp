@@ -36,7 +36,7 @@
 
 #include <boost/geometry/policies/compare.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 
 namespace boost { namespace geometry
@@ -261,13 +261,15 @@ struct multipoint_multipoint_point
     {
         typedef geometry::less<void, -1, Strategy> less_type;
 
-        if (BOOST_GEOMETRY_CONDITION(OverlayType != overlay_difference)
-            && boost::size(multipoint1) > boost::size(multipoint2))
+        if BOOST_GEOMETRY_CONSTEXPR (OverlayType != overlay_difference)
         {
-            return multipoint_multipoint_point
-                <
-                    MultiPoint2, MultiPoint1, PointOut, OverlayType
-                >::apply(multipoint2, multipoint1, robust_policy, oit, strategy);
+            if (boost::size(multipoint1) > boost::size(multipoint2))
+            {
+                return multipoint_multipoint_point
+                    <
+                        MultiPoint2, MultiPoint1, PointOut, OverlayType
+                    >::apply(multipoint2, multipoint1, robust_policy, oit, strategy);
+            }
         }
 
         typedef typename boost::range_value<MultiPoint2>::type point2_type;

@@ -3,11 +3,10 @@
 // Copyright (c) 2007-2015 Barend Gehrels, Amsterdam, the Netherlands.
 // Copyright (c) 2008-2015 Bruno Lalande, Paris, France.
 // Copyright (c) 2009-2015 Mateusz Loskot, London, UK.
-// Copyright (c) 2013-2015 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2013-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2015, 2017, 2019.
 // Modifications copyright (c) 2015-2019 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Menelaos Karavelas, on behalf of Oracle
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
@@ -23,7 +22,7 @@
 #include <boost/geometry/core/cs.hpp>
 #include <boost/geometry/policies/robustness/robust_point_type.hpp>
 #include <boost/geometry/strategies/side.hpp>
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 
 
@@ -85,30 +84,27 @@ inline bool point_is_spike_or_equal(Point1 const& last_point,
         return true;
     }
 
-    if (BOOST_GEOMETRY_CONDITION(! RobustPolicy::enabled))
+    if BOOST_GEOMETRY_CONSTEXPR (! RobustPolicy::enabled)
     {
         return false;
     }
+    else // else prevents unreachable code warning
+    {
+        // Try using specified robust policy
+        using robust_point_type = typename geometry::robust_point_type
+            <
+                Point1,
+                RobustPolicy
+            >::type;
 
-    // Try using specified robust policy
-    typedef typename geometry::robust_point_type
-    <
-        Point1,
-        RobustPolicy
-    >::type robust_point_type;
+        robust_point_type last_point_rob, segment_a_rob, segment_b_rob;
+        geometry::recalculate(last_point_rob, last_point, robust_policy);
+        geometry::recalculate(segment_a_rob, segment_a, robust_policy);
+        geometry::recalculate(segment_b_rob, segment_b, robust_policy);
 
-    robust_point_type last_point_rob, segment_a_rob, segment_b_rob;
-    geometry::recalculate(last_point_rob, last_point, robust_policy);
-    geometry::recalculate(segment_a_rob, segment_a, robust_policy);
-    geometry::recalculate(segment_b_rob, segment_b, robust_policy);
-
-    return point_is_spike_or_equal
-        (
-            last_point_rob,
-            segment_a_rob,
-            segment_b_rob,
-            strategy
-        );
+        return point_is_spike_or_equal(last_point_rob, segment_a_rob, segment_b_rob,
+                                       strategy);
+    }
 }
 
 template
@@ -133,25 +129,27 @@ inline bool point_is_collinear(Point1 const& last_point,
 
     // This part (or whole method, because it is then trivial)
     // will be removed after rescaling
-    if (BOOST_GEOMETRY_CONDITION(! RobustPolicy::enabled))
+    if BOOST_GEOMETRY_CONSTEXPR (! RobustPolicy::enabled)
     {
         return false;
     }
+    else // else prevents unreachable code warning
+    {
+        // Redo, using specified robust policy
+        using robust_point_type = typename geometry::robust_point_type
+            <
+                Point1,
+                RobustPolicy
+            >::type;
 
-    // Redo, using specified robust policy
-    typedef typename geometry::robust_point_type
-    <
-        Point1,
-        RobustPolicy
-    >::type robust_point_type;
+        robust_point_type last_point_rob, segment_a_rob, segment_b_rob;
+        geometry::recalculate(last_point_rob, last_point, robust_policy);
+        geometry::recalculate(segment_a_rob, segment_a, robust_policy);
+        geometry::recalculate(segment_b_rob, segment_b, robust_policy);
 
-    robust_point_type last_point_rob, segment_a_rob, segment_b_rob;
-    geometry::recalculate(last_point_rob, last_point, robust_policy);
-    geometry::recalculate(segment_a_rob, segment_a, robust_policy);
-    geometry::recalculate(segment_b_rob, segment_b, robust_policy);
-
-    int const side_rob = strategy.apply(segment_a_rob, segment_b_rob, last_point_rob);
-    return side_rob == 0;
+        int const side_rob = strategy.apply(segment_a_rob, segment_b_rob, last_point_rob);
+        return side_rob == 0;
+    }
 }
 
 

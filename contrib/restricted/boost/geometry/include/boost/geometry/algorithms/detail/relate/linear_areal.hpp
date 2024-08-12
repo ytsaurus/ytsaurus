@@ -17,25 +17,20 @@
 #include <boost/core/ignore_unused.hpp>
 #include <boost/range/size.hpp>
 
-#include <boost/geometry/core/assert.hpp>
-#include <boost/geometry/core/topological_dimension.hpp>
-
-#include <boost/geometry/util/condition.hpp>
-#include <boost/geometry/util/range.hpp>
-#include <boost/geometry/util/type_traits.hpp>
-
-#include <boost/geometry/algorithms/num_interior_rings.hpp>
 #include <boost/geometry/algorithms/detail/point_on_border.hpp>
-#include <boost/geometry/algorithms/detail/sub_range.hpp>
-#include <boost/geometry/algorithms/detail/single_geometry.hpp>
-
-#include <boost/geometry/algorithms/detail/relate/point_geometry.hpp>
-#include <boost/geometry/algorithms/detail/relate/turns.hpp>
 #include <boost/geometry/algorithms/detail/relate/boundary_checker.hpp>
 #include <boost/geometry/algorithms/detail/relate/follow_helpers.hpp>
-
+#include <boost/geometry/algorithms/detail/relate/point_geometry.hpp>
+#include <boost/geometry/algorithms/detail/relate/turns.hpp>
+#include <boost/geometry/algorithms/detail/single_geometry.hpp>
+#include <boost/geometry/algorithms/detail/sub_range.hpp>
+#include <boost/geometry/algorithms/num_interior_rings.hpp>
+#include <boost/geometry/core/assert.hpp>
+#include <boost/geometry/core/topological_dimension.hpp>
 #include <boost/geometry/geometries/helper_geometry.hpp>
-
+#include <boost/geometry/util/constexpr.hpp>
+#include <boost/geometry/util/range.hpp>
+#include <boost/geometry/util/type_traits.hpp>
 #include <boost/geometry/views/detail/closed_clockwise_view.hpp>
 
 namespace boost { namespace geometry
@@ -854,30 +849,30 @@ struct linear_areal
                 m_exit_watcher.reset_detected_exit();
             }
 
-            if ( BOOST_GEOMETRY_CONDITION( util::is_multi<OtherGeometry>::value )
-              && m_first_from_unknown )
+            if BOOST_GEOMETRY_CONSTEXPR (util::is_multi<OtherGeometry>::value)
             {
-                // For MultiPolygon many x/u operations may be generated as a first IP
-                // if for all turns x/u was generated and any of the Polygons doesn't contain the LineString
-                // then we know that the LineString is outside
-                // Similar with the u/u turns, if it was the first one it doesn't mean that the
-                // Linestring came from the exterior
-                if ( ( m_previous_operation == overlay::operation_blocked
-                    && ( op != overlay::operation_blocked // operation different than block
-                        || seg_id.multi_index != m_previous_turn_ptr->operations[op_id].seg_id.multi_index ) ) // or the next single-geometry
-                  || ( m_previous_operation == overlay::operation_union
-                    && ! turn_on_the_same_ip<op_id>(*m_previous_turn_ptr, *it,
-                                                    strategy) )
-                   )
+                if (m_first_from_unknown)
                 {
-                    update<interior, exterior, '1', TransposeResult>(res);
-                    if ( m_first_from_unknown_boundary_detected )
+                    // For MultiPolygon many x/u operations may be generated as a first IP
+                    // if for all turns x/u was generated and any of the Polygons doesn't contain the LineString
+                    // then we know that the LineString is outside
+                    // Similar with the u/u turns, if it was the first one it doesn't mean that the
+                    // Linestring came from the exterior
+                    if ((m_previous_operation == overlay::operation_blocked
+                        && (op != overlay::operation_blocked // operation different than block
+                            || seg_id.multi_index != m_previous_turn_ptr->operations[op_id].seg_id.multi_index)) // or the next single-geometry
+                     || (m_previous_operation == overlay::operation_union
+                        && ! turn_on_the_same_ip<op_id>(*m_previous_turn_ptr, *it, strategy)))
                     {
-                        update<boundary, exterior, '0', TransposeResult>(res);
-                    }
+                        update<interior, exterior, '1', TransposeResult>(res);
+                        if ( m_first_from_unknown_boundary_detected )
+                        {
+                            update<boundary, exterior, '0', TransposeResult>(res);
+                        }
 
-                    m_first_from_unknown = false;
-                    m_first_from_unknown_boundary_detected = false;
+                        m_first_from_unknown = false;
+                        m_first_from_unknown_boundary_detected = false;
+                    }
                 }
             }
 
@@ -1037,7 +1032,7 @@ struct linear_areal
                     }
                 }
 
-                if ( BOOST_GEOMETRY_CONDITION( util::is_multi<OtherGeometry>::value ) )
+                if BOOST_GEOMETRY_CONSTEXPR (util::is_multi<OtherGeometry>::value)
                 {
                     m_first_from_unknown = false;
                     m_first_from_unknown_boundary_detected = false;
@@ -1123,9 +1118,9 @@ struct linear_areal
                         }
                         else
                         {
-                            if ( BOOST_GEOMETRY_CONDITION( util::is_multi<OtherGeometry>::value )
+                            if BOOST_GEOMETRY_CONSTEXPR (util::is_multi<OtherGeometry>::value)
                               /*&& ( op == overlay::operation_blocked
-                                || op == overlay::operation_union )*/ ) // if we're here it's u or x
+                                || op == overlay::operation_union )*/ // if we're here it's u or x
                             {
                                 m_first_from_unknown = true;
                             }
@@ -1150,9 +1145,9 @@ struct linear_areal
                                 }
                                 else
                                 {
-                                    if ( BOOST_GEOMETRY_CONDITION( util::is_multi<OtherGeometry>::value )
+                                    if BOOST_GEOMETRY_CONSTEXPR (util::is_multi<OtherGeometry>::value)
                                       /*&& ( op == overlay::operation_blocked
-                                        || op == overlay::operation_union )*/ ) // if we're here it's u or x
+                                        || op == overlay::operation_union )*/ // if we're here it's u or x
                                     {
                                         BOOST_GEOMETRY_ASSERT(m_first_from_unknown);
                                         m_first_from_unknown_boundary_detected = true;
@@ -1200,18 +1195,20 @@ struct linear_areal
             // For MultiPolygon many x/u operations may be generated as a first IP
             // if for all turns x/u was generated and any of the Polygons doesn't contain the LineString
             // then we know that the LineString is outside
-            if ( BOOST_GEOMETRY_CONDITION( util::is_multi<OtherGeometry>::value )
-              && m_first_from_unknown )
+            if BOOST_GEOMETRY_CONSTEXPR (util::is_multi<OtherGeometry>::value)
             {
-                update<interior, exterior, '1', TransposeResult>(res);
-                if ( m_first_from_unknown_boundary_detected )
+                if (m_first_from_unknown)
                 {
-                    update<boundary, exterior, '0', TransposeResult>(res);
-                }
+                    update<interior, exterior, '1', TransposeResult>(res);
+                    if ( m_first_from_unknown_boundary_detected )
+                    {
+                        update<boundary, exterior, '0', TransposeResult>(res);
+                    }
 
-                // done below
-                //m_first_from_unknown = false;
-                //m_first_from_unknown_boundary_detected = false;
+                    // done below
+                    //m_first_from_unknown = false;
+                    //m_first_from_unknown_boundary_detected = false;
+                }
             }
 
             // here, the possible exit is the real one

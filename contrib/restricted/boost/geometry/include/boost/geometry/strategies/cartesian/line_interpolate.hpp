@@ -17,6 +17,7 @@
 #include <boost/geometry/strategies/line_interpolate.hpp>
 #include <boost/geometry/strategies/cartesian/distance_pythagoras.hpp>
 #include <boost/geometry/util/algorithm.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/select_calculation_type.hpp>
 
 
@@ -67,10 +68,10 @@ public:
             // NOTE: numeric_cast is a leftover from convert, it could probably be ommited.
             // NOTE: the order of points is different than in the formula above
             //       this is also a leftover from the previous implementation
-            calc_t coord0 = boost::numeric_cast<calc_t>(get<dimension>(p0));
-            calc_t coord1 = boost::numeric_cast<calc_t>(get<dimension>(p1));
+            calc_t coord0 = util::numeric_cast<calc_t>(get<dimension>(p0));
+            calc_t coord1 = util::numeric_cast<calc_t>(get<dimension>(p1));
             calc_t result = calc_t(coord1 * fraction) + calc_t(coord0 * one_minus_fraction);
-            set<dimension>(p, boost::numeric_cast<coord_t>(result));
+            set<dimension>(p, util::numeric_cast<coord_t>(result));
         });
     }
 };

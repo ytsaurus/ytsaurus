@@ -20,7 +20,6 @@
 #define BOOST_GEOMETRY_ALGORITHMS_DETAIL_EQUALS_COLLECT_VECTORS_HPP
 
 
-#include <boost/numeric/conversion/cast.hpp>
 #include <boost/range/size.hpp>
 
 #include <boost/geometry/algorithms/detail/normalize.hpp>
@@ -35,6 +34,7 @@
 #include <boost/geometry/geometries/concepts/check.hpp>
 
 #include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/range.hpp>
 
 #include <boost/geometry/views/detail/closed_clockwise_view.hpp>
@@ -77,7 +77,7 @@ struct collected_vector_cartesian
 
     bool normalize()
     {
-        T magnitude = math::sqrt(boost::numeric_cast<T>(dx * dx + dy * dy));
+        T magnitude = math::sqrt(util::numeric_cast<T>(dx * dx + dy * dy));
 
         // NOTE: shouldn't here math::equals() be called?
         if (magnitude > 0)

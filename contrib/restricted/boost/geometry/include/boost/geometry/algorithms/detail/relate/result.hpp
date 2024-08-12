@@ -27,7 +27,7 @@
 #include <boost/geometry/core/coordinate_dimension.hpp>
 #include <boost/geometry/core/exception.hpp>
 #include <boost/geometry/core/static_assert.hpp>
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/sequence.hpp>
 
 namespace boost { namespace geometry {
@@ -292,15 +292,18 @@ struct interrupt_dispatch<Mask, true>
     template <char V>
     static inline bool check_element(char m)
     {
-        if ( BOOST_GEOMETRY_CONDITION(V >= '0' && V <= '9') )
+        if BOOST_GEOMETRY_CONSTEXPR (V >= '0' && V <= '9')
         {
             return m == 'F' || ( m < V && m >= '0' && m <= '9' );
         }
-        else if ( BOOST_GEOMETRY_CONDITION(V == 'T') )
+        else if BOOST_GEOMETRY_CONSTEXPR (V == 'T')
         {
             return m == 'F';
         }
-        return false;
+        else
+        {
+            return false;
+        }
     }
 };
 
