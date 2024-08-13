@@ -116,15 +116,15 @@ def prepare_python_modules(
         return os.path.join(python_root, "contrib", path)
 
     def prepare_bindings_library(module_path, library_path, name):
-        patterns = ["*{name}.so", "*{name}_lib.dylib"]
+        patterns = ["*{name}.so", "*{name}.dylib"]
         replace(os.path.join(source_root, module_path), output_path)
         if prepare_bindings_libraries:
             dir = os.path.join(build_root, library_path)
-            lib_paths = list(itertools.chain([glob.glob(os.path.join(dir, pattern.format(name=name))) for pattern in patterns]))
-            if not lib_paths and not:
+            lib_paths = list(itertools.chain.from_iterable([glob.glob(os.path.join(dir, pattern.format(name=name))) for pattern in patterns]))
+            if not lib_paths:
                 raise RuntimeError("Bindings library {name} was not found in {dir}".format(name=name, dir=dir))
             if len(lib_paths) > 1:
-                raise RuntimeError("Several bindings libraries {name} were found in {dir}".format(name=name, dir=dir))
+                raise RuntimeError("Several bindings libraries {name} were found in {dir}: {lib_paths}".format(name=name, dir=dir, lib_paths=lib_paths))
             lib_path = lib_paths[0]
             cp(
                 lib_path,
@@ -210,10 +210,10 @@ def prepare_python_modules(
         #     module_path="yt/yt/python/yt_driver_bindings",
         #     library_path="yt/yt/python/driver/native_shared/",
         #     name="driver_lib")
-        # prepare_bindings_library(
-        #     module_path="yt/yt/python/yt_driver_rpc_bindings",
-        #     library_path="yt/yt/python/driver/rpc_shared/",
-        #     name="driver_rpc_lib")
+        prepare_bindings_library(
+            module_path="yt/yt/python/yt_driver_rpc_bindings",
+            library_path="yt/yt/python/driver/rpc_shared/",
+            name="driver_rpc_lib")
 
     if prepare_binary_symlinks:
         for binary in YT_PREFIX_BINARIES:
