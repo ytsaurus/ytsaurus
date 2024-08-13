@@ -245,11 +245,6 @@ public:
         return stub;
     }
 
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return true;
-    }
-
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
@@ -673,11 +668,9 @@ protected:
             .TreeConfig = TreeConfig_,
         };
 
-        rootElement->InitializeFairShareUpdate(now, context);
+        rootElement->InitializeFairShareUpdate(now);
 
-        if (strategyHost->IsFairSharePreUpdateOffloadingEnabled()) {
-            rootElement->PreUpdate(&preUpdateContext);
-        }
+        rootElement->PreUpdate(&preUpdateContext);
 
         NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
         updateExecutor.Run();

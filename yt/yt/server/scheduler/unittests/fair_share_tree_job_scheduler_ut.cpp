@@ -251,11 +251,6 @@ public:
         return stub;
     }
 
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return true;
-    }
-
     TFairShareTreeAllocationSchedulerNodeState* GetNodeState(const TExecNodePtr node)
     {
         return &GetOrCrash(NodeToState_, node);
@@ -820,7 +815,7 @@ protected:
             now,
             previousUpdateTime);
 
-        rootElement->InitializeFairShareUpdate(now, context);
+        rootElement->InitializeFairShareUpdate(now);
 
         rootElement->PreUpdate(&preUpdateContext);
 

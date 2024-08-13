@@ -1110,19 +1110,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto resourceLimits = NodeManager_->GetResourceLimits(filter);
-
-        if (!IsFairSharePreUpdateOffloadingEnabled()) {
-            auto value = std::pair(GetCpuInstant(), resourceLimits);
-            auto it = CachedResourceLimitsByTags_.find(filter);
-            if (it == CachedResourceLimitsByTags_.end()) {
-                CachedResourceLimitsByTags_.emplace(filter, std::move(value));
-            } else {
-                it->second = std::move(value);
-            }
-        }
-
-        return resourceLimits;
+        return NodeManager_->GetResourceLimits(filter);
     }
 
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
@@ -1796,8 +1784,6 @@ private:
         NYson::TYsonString Alerts;
     };
 
-    mutable THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
-
     IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
     std::unique_ptr<IYsonConsumer> OffloadedEventLogWriterConsumer_;
@@ -1815,8 +1801,6 @@ private:
     THashMap<TString, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
-
-    std::atomic<bool> EnableFairSharePreUpdateOffloading_ = true;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2373,7 +2357,6 @@ private:
             BackgroundThreadPool_->Configure(Config_->BackgroundThreadCount);
 
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
-            EnableFairSharePreUpdateOffloading_.store(Config_->EnableFairSharePreUpdateOffloading);
         }
 
         ++ConfigRevision_;
@@ -3577,20 +3560,6 @@ private:
         FinishOperation(operation);
     }
 
-    void RemoveExpiredResourceLimitsTags()
-    {
-        std::vector<TSchedulingTagFilter> toRemove;
-        for (const auto& [filter, record] : CachedResourceLimitsByTags_) {
-            if (record.first + DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout) < GetCpuInstant()) {
-                toRemove.push_back(filter);
-            }
-        }
-
-        for (const auto& filter : toRemove) {
-            EraseOrCrash(CachedResourceLimitsByTags_, filter);
-        }
-    }
-
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
@@ -3603,8 +3572,6 @@ private:
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        RemoveExpiredResourceLimitsTags();
 
         auto nodeYsons = NodeManager_->BuildNodeYsonList();
         BuildYsonFluently(consumer)
@@ -3629,20 +3596,9 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     // TODO(renadeen): we should move this map into tree orchid.
                     .Item("resource_limits_by_tags")
-                        .Do([&] (TFluentAny fluent) {
-                            if (IsFairSharePreUpdateOffloadingEnabled()) {
-                                fluent.DoMapFor(Strategy_->GetResourceLimitsByTagFilter(), [] (TFluentMap fluent, const auto& pair) {
-                                    const auto& [filter, limits] = pair;
-                                    fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(limits);
-                                });
-                            } else {
-                                fluent.DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                                    const auto& [filter, record] = pair;
-                                    if (!filter.IsEmpty()) {
-                                        fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
-                                    }
-                                });
-                            }
+                        .DoMapFor(Strategy_->GetResourceLimitsByTagFilter(), [] (TFluentMap fluent, const auto& pair) {
+                            const auto& [filter, limits] = pair;
+                            fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(limits);
                         })
                     .Item("medium_directory").Value(
                         Bootstrap_
@@ -4020,11 +3976,6 @@ private:
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
-    }
-
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return EnableFairSharePreUpdateOffloading_.load();
     }
 
     void LogOperationFinished(

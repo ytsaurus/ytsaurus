@@ -84,17 +84,11 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::InitializeUpdate(TInstant /*now*/, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
+void TSchedulerElement::InitializeUpdate(TInstant /*now*/)
 {
     YT_VERIFY(Mutable_);
 
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
-    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
-        TotalResourceLimits_ = context->TotalResourceLimits;
-        // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
-        SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits(nullptr);
-        ResourceLimits_ = ComputeResourceLimits();
-    }
 
     if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
@@ -547,10 +541,6 @@ TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits(TFairS
 
     auto tagFilter = TreeConfig_->NodesFilter & GetSchedulingTagFilter();
 
-    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
-        return GetHost()->GetResourceLimits(tagFilter);
-    }
-
     auto& resourceLimitsByTagFilter = context->ResourceLimitsByTagFilter;
     auto it = resourceLimitsByTagFilter.find(tagFilter);
     if (it != resourceLimitsByTagFilter.end()) {
@@ -738,7 +728,7 @@ void TSchedulerCompositeElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TSchedulerCompositeElement::InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
+void TSchedulerCompositeElement::InitializeUpdate(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
@@ -746,7 +736,7 @@ void TSchedulerCompositeElement::InitializeUpdate(TInstant now, const std::optio
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
-        child->InitializeUpdate(now, context);
+        child->InitializeUpdate(now);
 
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
@@ -765,7 +755,7 @@ void TSchedulerCompositeElement::InitializeUpdate(TInstant now, const std::optio
         }
     }
 
-    TSchedulerElement::InitializeUpdate(now, context);
+    TSchedulerElement::InitializeUpdate(now);
 }
 
 void TSchedulerCompositeElement::PreUpdate(TFairSharePreUpdateContext* context)
@@ -1818,7 +1808,7 @@ std::optional<TDuration> TSchedulerOperationElement::GetSpecifiedFairShareStarva
 void TSchedulerOperationElement::DisableNonAliveElements()
 { }
 
-void TSchedulerOperationElement::InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
+void TSchedulerOperationElement::InitializeUpdate(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
@@ -1835,7 +1825,7 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now, const std::optio
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
 
-    TSchedulerElement::InitializeUpdate(now, context);
+    TSchedulerElement::InitializeUpdate(now);
 
     // NB(eshcherbin): This is a hotfix, see YT-19127.
     if (Spec_->ApplySpecifiedResourceLimitsToDemand && MaybeSpecifiedResourceLimits_) {
@@ -1844,26 +1834,6 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now, const std::optio
             TJobResources());
         ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
         PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
-    }
-
-    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
-        // NB: It was moved from regular fair share update for performing split.
-        // It can be performed in fair share thread as second step of preupdate.
-        if (context->Now >= PersistentAttributes_.LastBestAllocationShareUpdateTime + TreeConfig_->BestAllocationShareUpdatePeriod &&
-            AreTotalResourceLimitsStable())
-        {
-            auto allocationLimits = GetAdjustedResourceLimits(
-                ResourceDemand_,
-                TotalResourceLimits_,
-                GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-            PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
-            PersistentAttributes_.LastBestAllocationShareUpdateTime = context->Now;
-
-            YT_LOG_DEBUG("Updated operation best allocation share (AdjustedResourceLimits: %v, TotalResourceLimits: %v, BestAllocationShare: %.6g)",
-                FormatResources(allocationLimits),
-                FormatResources(TotalResourceLimits_),
-                PersistentAttributes_.BestAllocationShare);
-        }
     }
 
     for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
@@ -2445,7 +2415,7 @@ TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
     , TSchedulerRootElementFixedState(other)
 { }
 
-void TSchedulerRootElement::InitializeFairShareUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
+void TSchedulerRootElement::InitializeFairShareUpdate(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
@@ -2453,7 +2423,7 @@ void TSchedulerRootElement::InitializeFairShareUpdate(TInstant now, const std::o
 
     DisableNonAliveElements();
 
-    InitializeUpdate(now, context);
+    InitializeUpdate(now);
 }
 
 /// Steps of fair share post update:

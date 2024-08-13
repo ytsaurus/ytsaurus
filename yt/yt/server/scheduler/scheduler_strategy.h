@@ -101,8 +101,6 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
     virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
-
-    virtual bool IsFairSharePreUpdateOffloadingEnabled() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
