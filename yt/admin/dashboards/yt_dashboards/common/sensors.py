@@ -13,6 +13,10 @@ class YtSystemTags(Enum):
 
 yt_host = YtSystemTags.HostContainer
 
+MonitoringServiceTag = MonitoringTag("service")
+# TODO(achulkov): This is actually promised to be "job" in README. Should we change it?
+GrafanaServiceTag = GrafanaTag("service")
+
 ##################################################################
 
 
@@ -20,9 +24,9 @@ class ProjectSensorBase:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.cls_monitoring_service is not None:
-            self.tags[MonitoringTag("service")] = self.cls_monitoring_service
+            self.tags[MonitoringServiceTag] = self.cls_monitoring_service
         if self.cls_grafana_service is not None:
-            self.tags[GrafanaTag("service")] = self.cls_grafana_service
+            self.tags[GrafanaServiceTag] = self.cls_grafana_service
 
 
 def ProjectSensor(monitoring_service=None, grafana_service=None, base=Sensor):
@@ -116,21 +120,21 @@ MasterRpc =        ProjectSensor("master_rpc",        "yt-master")  # noqa: E222
 MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master")  # noqa: E222
 
 # Misc.
-HttpProxy = ProjectSensor("http_proxy", "yt_proxies")
-RpcProxy = ProjectSensor("rpc_proxy", "yt_rpc_proxies")
-RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt_rpc_proxies", base=RpcBase)
-RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt_rpc_proxies")
-RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
+HttpProxy = ProjectSensor("http_proxy", "yt-http-proxy")
+RpcProxy = ProjectSensor("rpc_proxy", "yt-rpc-proxy")
+RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt-rpc-proxy", base=RpcBase)
+RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt-rpc-proxy")
+RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt-rpc-proxy")
 RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
 
 # BundleController
-BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222
+BundleController = ProjectSensor("bundle_controller", "yt-bundle-controller")  # noqa: E222
 
 # TabletBalancer
-TabletBalancer = ProjectSensor("tablet_balancer", "yt_tablet_balancer")  # noqa: E222
+TabletBalancer = ProjectSensor("tablet_balancer", "yt-tablet-balancer")  # noqa: E222
 
 # CHYT
-Chyt = ProjectSensor("clickhouse", "chyt")
+Chyt = ProjectSensor("clickhouse", "yt-chyt")
 
 # Flow
 FlowController = ProjectSensor("controller")  # noqa: E222
