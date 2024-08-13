@@ -1104,6 +1104,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("extra_environment", &TThis::ExtraEnvironment)
         .Default();
 
+    registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
+        .Default();
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(

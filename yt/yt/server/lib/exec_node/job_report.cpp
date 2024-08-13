@@ -178,6 +178,11 @@ TNodeJobReport TNodeJobReport::ArchiveFeatures(const TYsonString& archiveFeature
     return std::move(*this);
 }
 
+void TNodeJobReport::SetTtl(TDuration ttl)
+{
+    Ttl_ = ttl;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

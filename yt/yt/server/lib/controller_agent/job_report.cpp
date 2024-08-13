@@ -51,6 +51,12 @@ TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerS
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::Ttl(std::optional<TDuration> ttl)
+{
+    Ttl_ = ttl;
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

@@ -9529,6 +9529,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
     }
 
+    if (Config->EnableJobArchiveTtl && jobSpecConfig->ArchiveTtl) {
+        jobSpec->set_archive_ttl(ToProto<i64>(*jobSpecConfig->ArchiveTtl));
+    }
+
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
@@ -10490,7 +10494,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
         jobReport
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .Address(joblet->NodeDescriptor.Address));
+            .Address(joblet->NodeDescriptor.Address)
+            .Ttl(joblet->ArchiveTtl));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

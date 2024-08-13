@@ -1163,6 +1163,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
         .DefaultNew();
 
+    registrar.Parameter("enable_job_archive_ttl", &TThis::EnableJobArchiveTtl)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

@@ -711,6 +711,10 @@ void TTask::ScheduleJob(
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
+    if (userJobSpec) {
+        joblet->ArchiveTtl = userJobSpec->ArchiveTtl;
+    }
+
     joblet->EnabledJobProfiler = SelectProfiler();
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {

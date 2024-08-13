@@ -1218,6 +1218,8 @@ public:
 
     TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
+    bool EnableJobArchiveTtl;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

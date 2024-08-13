@@ -158,6 +158,8 @@ struct TJoblet
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
+    std::optional<TDuration> ArchiveTtl;
+
     // Used only for persistence.
     TJoblet() = default;
 
