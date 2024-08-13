@@ -25,7 +25,7 @@ void TVectorOverMemoryChunkProvider<T>::PushBack(T value)
     if (Size_ == Capacity()) {
         i64 newCapacity = Capacity() * 2;
         auto newDataHolder = Provider_->Allocate(sizeof(T) * newCapacity, Cookie_);
-        ::memcpy(static_cast<void*>(newDataHolder->GetRef().Begin()), static_cast<void*>(Begin()), Capacity());
+        ::memcpy(static_cast<void*>(newDataHolder->GetRef().Begin()), static_cast<void*>(Begin()), Capacity() * sizeof(T));
         DataHolder_.swap(newDataHolder);
     }
 
@@ -43,7 +43,7 @@ template <typename T>
     requires std::is_trivially_copyable_v<T>
 i64 TVectorOverMemoryChunkProvider<T>::Capacity() const
 {
-    return DataHolder_->GetRef().Size();
+    return DataHolder_->GetRef().Size() / sizeof(T);
 }
 
 template <typename T>
