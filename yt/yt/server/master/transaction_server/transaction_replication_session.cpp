@@ -93,14 +93,12 @@ TTransactionReplicationSessionBase::TTransactionReplicationSessionBase(
     TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
     std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
-    bool enableMirroringToSequoia,
-    bool enableBoomerangsIdentity)
+    bool enableMirroringToSequoia)
     : Bootstrap_(bootstrap)
     , RequestInfo_(std::move(requestInfo))
     , Logger(MakeLogger(RequestInfo_))
     , AllTransactionIds_(NormalizeTransactionIds(std::move(transactionIds)))
     , MirroringToSequoiaEnabled_(enableMirroringToSequoia)
-    , EnableBoomerangsIdentity_(enableBoomerangsIdentity)
 {
     Initialize();
 }
@@ -580,10 +578,6 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
         request->set_boomerang_mutation_type(Mutation_->GetType());
         // TODO(shakurov): less copying?
         request->set_boomerang_mutation_data(ToString(Mutation_->GetData()));
-
-        if (RequestInfo_ && EnableBoomerangsIdentity_) {
-            WriteAuthenticationIdentityToProto(request.Get(), RequestInfo_->Identity);
-        }
     }
 
     YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(),
@@ -744,8 +738,7 @@ void RunTransactionReplicationSessionAndReply(
     const IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
     bool enableMutationBoomerangs,
-    bool enableMirroringToSequoia,
-    bool enableBoomerangsIdentity)
+    bool enableMirroringToSequoia)
 {
     YT_VERIFY(context);
 
@@ -759,8 +752,7 @@ void RunTransactionReplicationSessionAndReply(
             bootstrap,
             std::move(transactionIds),
             std::move(requestInfo),
-            enableMirroringToSequoia,
-            enableBoomerangsIdentity);
+            enableMirroringToSequoia);
         replicationSession->SetMutation(std::move(mutation));
         YT_UNUSED_FUTURE(replicationSession->Run(syncWithUpstream, context));
     } else {
@@ -769,8 +761,7 @@ void RunTransactionReplicationSessionAndReply(
             bootstrap,
             std::move(transactionIds),
             std::move(requestInfo),
-            enableMirroringToSequoia,
-            enableBoomerangsIdentity);
+            enableMirroringToSequoia);
         YT_UNUSED_FUTURE(replicationSession->Run(syncWithUpstream)
             .Apply(BIND([=, mutation = std::move(mutation)] (const TError& error) {
                 if (error.IsOK()) {
@@ -787,15 +778,13 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    bool enableMirroringToSequoia,
-    bool enableBoomerangsIdentity)
+    bool enableMirroringToSequoia)
 {
     auto replicationSession = New<TTransactionReplicationSessionWithoutBoomerangs>(
         bootstrap,
         std::move(transactionIds),
         /*requestInfo*/ std::nullopt,
-        enableMirroringToSequoia,
-        enableBoomerangsIdentity);
+        enableMirroringToSequoia);
     return replicationSession->Run(syncWithUpstream);
 }
 

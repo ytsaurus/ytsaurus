@@ -378,8 +378,6 @@ public:
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
     bool AllowEveryoneCreateSecondaryIndices;
-    // COMPAT(babenko)
-    bool EnableBoomerangsIdentity;
 
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;
