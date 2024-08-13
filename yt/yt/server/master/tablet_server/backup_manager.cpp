@@ -1041,7 +1041,7 @@ private:
         for (const auto& descriptor : replicaBackupDescriptors) {
             const auto* replica = tabletManager->FindTableReplica(descriptor.ReplicaId);
             if (!replica || replica->GetTable() != table) {
-                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table")
+                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table", descriptor.ReplicaId)
                     << TErrorAttribute("table_id", table->GetId());
             }
             if (!validateModes) {

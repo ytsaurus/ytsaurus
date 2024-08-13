@@ -1492,7 +1492,7 @@ private:
             return;
         }
 
-        YT_LOG_ERROR(TError(message) << error);
+        YT_LOG_ERROR(TError(TRuntimeFormat(message)) << error);
 
         CleanupUserProcesses();
 

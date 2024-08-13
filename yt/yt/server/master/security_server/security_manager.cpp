@@ -840,7 +840,7 @@ public:
 
     template <class... TArgs>
     void ThrowWithDetailedViolatedResources(
-        const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TArgs&&... args)
+        const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TFormatString<TArgs...> format, TArgs&&... args)
     {
         auto violatedResources = limits.GetViolatedBy(usage);
 
@@ -849,8 +849,8 @@ public:
         SerializeViolatedClusterResourceLimitsInCompactFormat(violatedResources, &writer, Bootstrap_);
         writer.Flush();
 
-        THROW_ERROR(TError(std::forward<TArgs>(args)...)
-            << TErrorAttribute("violated_resources", TYsonString(output.Str())));
+        THROW_ERROR_EXCEPTION(format, std::forward<TArgs>(args)...)
+            << TErrorAttribute("violated_resources", TYsonString(output.Str()));
     }
 
     void ThrowInvalidResourceLimitsChange(
@@ -886,11 +886,12 @@ public:
     }
 
     template <class... TArgs>
-    void ThrowAccountOvercommitted(TAccount* account, TArgs&&... args)
+    void ThrowAccountOvercommitted(TAccount* account, TFormatString<TArgs...> format, TArgs&&... args)
     {
         ThrowWithDetailedViolatedResources(
             account->ClusterResourceLimits(),
             ComputeAccountTotalChildrenLimitsForValidation(account),
+            format,
             std::forward<TArgs>(args)...);
     }
 
@@ -2478,7 +2479,7 @@ public:
                     : TString());
 
             THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded, errorMessage)
+                NSecurityClient::EErrorCode::AccountLimitExceeded, std::move(errorMessage), TError::DisableFormat)
                 << TErrorAttribute("usage", usage)
                 << TErrorAttribute("increase", increase)
                 << TErrorAttribute("limit", limit.ToUnderlying());

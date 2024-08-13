@@ -129,7 +129,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
         } else {
             errorMessage = Format("Format %Qlv is disabled", formatType);
         }
-        THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, errorMessage)
+        THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, std::move(errorMessage), TError::DisableFormat)
             << TErrorAttribute("origin", origin);
     }
 

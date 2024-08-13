@@ -4434,7 +4434,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
         }
         auto errorMessage = errorMessageBuilder.Flush();
-        DoFailOperation(TError(errorMessage));
+        DoFailOperation(TError(std::move(errorMessage), TError::DisableFormat));
         return;
     }
 
@@ -5777,7 +5777,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            suppressionErrors.emplace_back("Output table %v is dynamic", table->Path);
+            suppressionErrors.push_back(TError("Output table %v is dynamic", table->Path));
             break;
         }
     }
@@ -5786,9 +5786,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         if (table->ExternalCellTag == connection->GetPrimaryMasterCellTag() &&
             !connection->GetSecondaryMasterCellTags().empty())
         {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Output table %v is non-external and cluster is multicell",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5796,9 +5796,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     // TODO(ifsmirnov): YT-11498. This is not the suppression you are looking for.
     for (const auto& table : InputManager->GetInputTables()) {
         if (table->Schema->HasNontrivialSchemaModification()) {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Input table %v has non-trivial schema modification",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5813,7 +5813,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
             NRe2::StringPiece(AuthenticatedUser.data()),
             *Config->LegacyLivePreviewUserBlacklist))
         {
-            suppressionErrors.emplace_back(TError(
+            suppressionErrors.push_back(TError(
                 "User %Qv belongs to legacy live preview suppression blacklist; in order "
                 "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
@@ -5824,7 +5824,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     }
 
     if (IntermediateOutputCellTagList.size() != 1 && IsLegacyIntermediateLivePreviewSupported() && suppressionErrors.empty()) {
-        suppressionErrors.emplace_back(TError(
+        suppressionErrors.push_back(TError(
             "Legacy live preview appears to have been disabled in the controller agents config when the operation started"));
     }
 
@@ -7120,7 +7120,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 {
                     const auto& rspOrError = getAttributesRspsOrError[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file ", path);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %v", path);
                     const auto& rsp = rspOrError.Value();
                     const auto& linkRsp = getLinkAttributesRspsOrError[index];
                     index++;

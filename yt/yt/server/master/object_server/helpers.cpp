@@ -68,7 +68,7 @@ void ValidateFolderId(const TString& folderId)
 {
     static constexpr size_t MaxFolderIdLength = 256;
     if (folderId.size() > MaxFolderIdLength) {
-        THROW_ERROR_EXCEPTION("Folder id %Qv is too long")
+        THROW_ERROR_EXCEPTION("Folder id %Qv is too long", folderId)
             << TErrorAttribute("length", folderId.size())
             << TErrorAttribute("max_folder_id_length", MaxFolderIdLength);
     }

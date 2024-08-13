@@ -1956,16 +1956,16 @@ static TError TryFillJobPools(
 
     for (auto& job : jobs) {
         if (!job.PoolTree) {
-            return TError(Format("Pool tree is missing in job %v", job.Id));
+            return TError("Pool tree is missing in job %v", job.Id);
         }
         auto optionsIt = schedulingOptionPerPoolTree.find(*job.PoolTree);
         if (optionsIt == schedulingOptionPerPoolTree.end()) {
-            return TError(Format("Pool tree %Qv is not found in scheduling_options_per_pool_tree", *job.PoolTree));
+            return TError("Pool tree %Qv is not found in scheduling_options_per_pool_tree", *job.PoolTree);
         }
         const auto& optionsNode = optionsIt->second;
         auto poolNode = optionsNode->AsMap()->FindChild("pool");
         if (!poolNode) {
-            return TError(Format("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree));
+            return TError("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree);
         }
         job.Pool = ConvertTo<TString>(poolNode);
     }

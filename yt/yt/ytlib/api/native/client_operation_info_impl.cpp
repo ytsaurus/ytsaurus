@@ -733,7 +733,7 @@ TOperation TClient::DoGetOperation(
             if (!options.IncludeRuntime) {
                 THROW_ERROR_EXCEPTION(
                     "Operation alias cannot be resolved without using runtime information; "
-                    "consider setting include_runtime = %true");
+                    "consider setting include_runtime = %%true");
             }
             operationId = ResolveOperationAlias(alias, options, deadline);
         });

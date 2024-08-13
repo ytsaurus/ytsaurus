@@ -791,7 +791,7 @@ public:
             }
 
             if (table->GetUpstreamReplicaId() || indexTable->GetUpstreamReplicaId()) {
-                THROW_ERROR_EXCEPTION("Cannot create %Qlv on replica tables");
+                THROW_ERROR_EXCEPTION("Cannot create secondary index on replica tables");
             }
 
             switch (tableType) {

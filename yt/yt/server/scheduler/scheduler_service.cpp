@@ -120,7 +120,7 @@ private:
         auto error = TError("Operation aborted by user request")
             << TErrorAttribute("user", user);
         if (request->has_abort_message()) {
-            error = error << TError(request->abort_message());
+            error = error << TError(TRuntimeFormat(request->abort_message()));
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);

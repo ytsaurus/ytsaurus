@@ -71,13 +71,37 @@ TValue TPathVisitorUtil::ValueOrThrow(TErrorOr<TValue> errorOrValue) const
     }
 }
 
-template <typename... Args>
-[[noreturn]] void TPathVisitorUtil::Throw(Args&&... args) const
+#define IMPLEMENT_ORM_THROW(...) \
+    THROW_ERROR TError(__VA_ARGS__) \
+        << TErrorAttribute("path", Tokenizer_.GetPath()) \
+        << TErrorAttribute("position", CurrentPath_.GetPath()); \
+    static_assert(true)
+
+template <class U>
+    requires (!CStringLiteral<std::remove_cvref_t<U>>)
+[[noreturn]] void TPathVisitorUtil::Throw(U&& u) const
 {
-    THROW_ERROR TError(std::forward<Args>(args)...)
-        << TErrorAttribute("path", Tokenizer_.GetPath())
-        << TErrorAttribute("position", CurrentPath_.GetPath());
+    IMPLEMENT_ORM_THROW(std::forward<U>(u));
 }
+
+template <class... TArgs>
+[[noreturn]] void TPathVisitorUtil::Throw(TFormatString<TArgs...> format, TArgs&&... args) const
+{
+    IMPLEMENT_ORM_THROW(format, std::forward<TArgs>(args)...);
+}
+
+template <class... TArgs>
+[[noreturn]] void TPathVisitorUtil::Throw(TErrorCode code, TFormatString<TArgs...> format, TArgs&&... args) const
+{
+    IMPLEMENT_ORM_THROW(code, format, std::forward<TArgs>(args)...);
+}
+
+[[noreturn]] inline void TPathVisitorUtil::Throw() const
+{
+    IMPLEMENT_ORM_THROW();
+}
+
+#undef IMPLEMENT_ORM_THROW
 
 ////////////////////////////////////////////////////////////////////////////////
 

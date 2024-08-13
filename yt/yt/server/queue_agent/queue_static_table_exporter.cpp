@@ -313,6 +313,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
             "Error fetching attributes %v for path %v",
+            attributeKeys,
             path);
 
         YT_LOG_DEBUG(

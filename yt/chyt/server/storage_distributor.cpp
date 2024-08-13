@@ -942,7 +942,8 @@ public:
             TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
 
             if (!distributeJoin && analyzer.HasInOperator()) {
-                THROW_ERROR_EXCEPTION("IN operator with local join policy is unsupported (CHYT-1000); ",
+                THROW_ERROR_EXCEPTION(
+                    "IN operator with local join policy is unsupported (CHYT-1000); "
                     "to fix the problem you can rewrite join's first argument as a subquery");
             }
 

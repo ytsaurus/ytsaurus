@@ -114,7 +114,7 @@ public:
 
         THashMap<TString, TError> alerts;
         for (const auto& [category, aggregatedAlert] : categoryToAggregatedAlerts) {
-            alerts.emplace(category, TError(*aggregatedAlert.ErrorCode, *aggregatedAlert.Description) << aggregatedAlert.Errors);
+            alerts.emplace(category, TError(*aggregatedAlert.ErrorCode, TRuntimeFormat(*aggregatedAlert.Description)) << aggregatedAlert.Errors);
         }
 
         auto guard = WriterGuard(SpinLock_);

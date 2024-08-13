@@ -538,18 +538,13 @@ Runtime::LinkResult TWebAssemblyCompartment::LinkModule(const IR::Module& irModu
     auto linkResult = Runtime::linkModule(irModule, linker);
 
     if (!linkResult.success) {
-        TStringBuilder description;
-
-        description.AppendString("WebAssembly linkage error. Missing: ");
-
-        for (int i = 0; i < std::ssize(linkResult.missingImports) - 1; ++i) {
-            description.AppendString(linkResult.missingImports[i].exportName);
-            description.AppendString(", ");
-        }
-
-        description.AppendString(linkResult.missingImports.back().exportName);
-
-        THROW_ERROR_EXCEPTION(description.Flush());
+        THROW_ERROR_EXCEPTION(
+            "WebAssembly linkage error. Missing: %v",
+            MakeFormattableView(
+                linkResult.missingImports,
+                [] (TStringBuilderBase* builder, const auto& missingImport) {
+                    FormatValue(builder, missingImport.exportName, "v");
+                }));
     }
 
     return linkResult;

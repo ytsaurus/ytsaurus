@@ -4087,7 +4087,7 @@ private:
 
             auto cellTag = FromProto<TCellTag>(exportData.destination_cell_tag());
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-                THROW_ERROR_EXCEPTION("Cell %v is not registered");
+                THROW_ERROR_EXCEPTION("Cell %v is not registered", cellTag);
             }
 
             if (chunk->ChunkMeta() && chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
@@ -4223,7 +4223,7 @@ private:
             auto* subrequests,
             auto* subresponses,
             auto handler,
-            const char* errorMessage)
+            TFormatString<> errorMessage)
         {
             for (auto& subrequest : *subrequests) {
                 auto* subresponse = subresponses ? subresponses->Add() : nullptr;
@@ -6074,7 +6074,7 @@ private:
         if (auto channel = FindChunkReplicatorChannel(chunk)) {
             return channel;
         } else {
-            THROW_ERROR_EXCEPTION("Chunk replicator for chunk %Qlv is not alive")
+            THROW_ERROR_EXCEPTION("Chunk replicator for chunk %v is not alive", chunk->GetId())
                 << TErrorAttribute("shard_index", chunk->GetShardIndex());
         }
     }

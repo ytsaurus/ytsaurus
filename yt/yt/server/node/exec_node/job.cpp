@@ -1851,7 +1851,8 @@ void TJob::DoSetResult(
     if (CommonConfig_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
-                error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
+                error
+                    <<= TError("Test error %v", index);
             }
             YT_LOG_DEBUG(error, "TestJobErrorTruncation");
         }

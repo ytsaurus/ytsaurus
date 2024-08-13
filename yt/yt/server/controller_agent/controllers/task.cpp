@@ -2125,7 +2125,7 @@ void TTask::RegisterStripe(
                 TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
                     TError("Restarted job produced dissimilar output; "
                            "this may lead to inconsistent operation results; "
-                           "consider setting enable_intermediate_output_recalculation=%false.")
+                           "consider setting enable_intermediate_output_recalculation=%%false.")
                         << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor())
                         << TErrorAttribute("job_id", joblet->JobId));
             }

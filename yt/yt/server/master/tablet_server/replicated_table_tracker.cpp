@@ -472,7 +472,6 @@ private:
         std::atomic<TInstant> LastUpdateTime_ = {};
         TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
 
-
         TFuture<void> CheckClusterState()
         {
             return ClusterStateCache_->Get({Client_, ClusterName_});

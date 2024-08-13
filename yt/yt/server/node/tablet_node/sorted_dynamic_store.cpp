@@ -1029,7 +1029,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TString& message) {
+        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TFormatString<>& message) {
             THROW_ERROR_EXCEPTION(errorCode, message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
