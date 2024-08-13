@@ -1037,27 +1037,12 @@ public:
             // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
             // And it *is* coordinated by this cell, even though there's no corresponding 'native' object.
 
-            NProto::TReqStartForeignTransaction startRequest;
-            ToProto(startRequest.mutable_id(), effectiveTransactionId);
-            if (effectiveParentTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), effectiveParentTransactionId);
-            }
-            if (currentTransaction->GetTitle()) {
-                startRequest.set_title(*currentTransaction->GetTitle());
-            }
-            startRequest.set_upload(currentTransaction->IsUpload());
-            if (const auto* attributes = transaction->GetAttributes()) {
-                if (auto operationType = attributes->Find("operation_type")) {
-                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
-                }
-                if (auto operationId = attributes->Find("operation_id")) {
-                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
-                }
-                if (auto operationTitle = attributes->Find("operation_title")) {
-                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
-                }
-            }
-            multicellManager->PostToMasters(startRequest, cellTags);
+            PostForeignTransactionStart(
+                currentTransaction,
+                effectiveTransactionId,
+                effectiveParentTransactionId,
+                cellTags,
+                transaction);
         }
 
         return shouldExternalize
@@ -1092,6 +1077,72 @@ public:
         }
 
         return {};
+    }
+
+    void PostForeignTransactionStart(
+        TTransaction* transaction,
+        TTransactionId transactionId,
+        TTransactionId parentTransactionId,
+        TCellTagList dstCellTags,
+        TTransaction* transactionAttributeHolderOverride) override
+    {
+        NProto::TReqStartForeignTransaction startRequest;
+
+        ToProto(startRequest.mutable_id(), transactionId);
+
+        if (parentTransactionId) {
+            ToProto(startRequest.mutable_parent_id(), parentTransactionId);
+        }
+
+        if (auto title = transaction->GetTitle()) {
+            startRequest.set_title(*title);
+        }
+
+        startRequest.set_upload(transaction->IsUpload());
+
+        if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
+            if (const auto* attributes = transaction->GetAttributes()) {
+                if (auto operationType = attributes->Find("operation_type")) {
+                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                }
+                if (auto operationId = attributes->Find("operation_id")) {
+                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                }
+                if (auto operationTitle = attributes->Find("operation_title")) {
+                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                }
+            }
+
+            auto* user = transaction->Acd().GetOwner()->AsUser();
+            if (IsObjectAlive(user)) {
+                startRequest.set_user(user->GetName());
+            } else {
+                YT_LOG_ALERT("Transaction user is not alive during %v (TransactionId: %v)",
+                    transaction->GetId() == transactionId
+                    ? "replication"
+                    : "externalization",
+                    transaction->GetId());
+            }
+        } else {
+            // TODO(shakurov): this is a reproduction of an old bug. Remove.
+            const auto* attributes = transactionAttributeHolderOverride
+                ? transactionAttributeHolderOverride->GetAttributes()
+                : transaction->GetAttributes();
+            if (attributes) {
+                if (auto operationType = attributes->Find("operation_type")) {
+                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                }
+                if (auto operationId = attributes->Find("operation_id")) {
+                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                }
+                if (auto operationTitle = attributes->Find("operation_title")) {
+                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                }
+            }
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(startRequest, dstCellTags);
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId) override
@@ -2091,6 +2142,22 @@ private:
                 << TErrorAttribute("transaction_id", hintId)
                 << TErrorAttribute("parent_transaction_id", parentId);
         }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetRootUser();
+        // COMPAT(shakurov): in 24.2, user will never be null.
+        if (request->has_user()) {
+            const auto& userName = request->user();
+            user = securityManager->FindUserByName(userName, true /*activeLifeStageOnly*/);
+            if (!IsObjectAlive(user)) {
+                YT_LOG_ALERT("Foreign transaction user not found, falling back to root (User: %v)",
+                    userName);
+                user = securityManager->GetRootUser();
+            }
+        }
+
+        // NB: DoStartTransaction below cares about authenticated user.
+        TAuthenticatedUserGuard userGuard(securityManager, user);
 
         auto title = YT_PROTO_OPTIONAL(*request, title);
 
