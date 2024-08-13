@@ -423,6 +423,7 @@ public:
     bool EnableColumnarValueStatistics;
     bool EnableRowCountInColumnarStatistics;
     bool EnableSegmentMetaInBlocks;
+    bool EnableColumnMetaInChunkMeta;
 
     NYTree::INodePtr CastAnyToCompositeNode;
 

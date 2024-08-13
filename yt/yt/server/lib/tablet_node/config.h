@@ -242,6 +242,7 @@ public:
 
     bool SingleColumnGroupByDefault;
     bool EnableSegmentMetaInBlocks;
+    bool EnableColumnMetaInChunkMeta;
 
     bool EnableHunkColumnarProfiling;
 

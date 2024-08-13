@@ -124,6 +124,10 @@ TTableSettings GetTableSettings(
         result.Provided.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
         result.Provided.StoreWriterOptions->SingleColumnGroupByDefault = result.EffectiveMountConfig->SingleColumnGroupByDefault;
         result.Provided.StoreWriterOptions->EnableSegmentMetaInBlocks = result.EffectiveMountConfig->EnableSegmentMetaInBlocks;
+        result.Provided.StoreWriterOptions->EnableColumnMetaInChunkMeta = result.EffectiveMountConfig->EnableColumnMetaInChunkMeta;
+        THROW_ERROR_EXCEPTION_IF(!result.Provided.StoreWriterOptions->EnableColumnMetaInChunkMeta &&
+            !result.Provided.StoreWriterOptions->EnableSegmentMetaInBlocks,
+            "At least one of \"enable_segment_meta_in_blocks\" or \"enable_column_meta_chunk_meta\" must be true");
         if (result.Provided.StoreWriterOptions->ChunkFormat) {
             ValidateTableChunkFormatVersioned(*result.Provided.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
         }

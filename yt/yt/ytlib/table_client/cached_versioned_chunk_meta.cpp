@@ -143,16 +143,18 @@ TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> TCachedVersionedChunkMet
                     ColumnGroupInfos(),
                     DataBlockMeta());
 
-                auto fromProtoMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromProtoSegmentMetas(
-                    ChunkSchema_,
-                    ColumnMeta(),
-                    DataBlockMeta(),
-                    blockProvider);
+                if (ColumnMeta()) {
+                    auto fromProtoMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromProtoSegmentMetas(
+                        ChunkSchema_,
+                        ColumnMeta(),
+                        DataBlockMeta(),
+                        blockProvider);
 
-                NColumnarChunkFormat::TPreparedChunkMeta::VerifyEquality(
-                    *fromProtoMeta,
-                    *newPreparedMeta,
-                    DataBlockMeta());
+                    NColumnarChunkFormat::TPreparedChunkMeta::VerifyEquality(
+                        *fromProtoMeta,
+                        *newPreparedMeta,
+                        DataBlockMeta());
+                }
             } else {
                 newPreparedMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromProtoSegmentMetas(
                     ChunkSchema_,

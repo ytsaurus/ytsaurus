@@ -313,6 +313,7 @@ protected:
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
         options->EnableSegmentMetaInBlocks = true;
+        options->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -775,6 +776,7 @@ protected:
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
         options->EnableSegmentMetaInBlocks = true;
+        options->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(

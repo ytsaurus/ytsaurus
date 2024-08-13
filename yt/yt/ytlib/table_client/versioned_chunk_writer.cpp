@@ -670,6 +670,10 @@ public:
             dataSink)
         , DataToBlockFlush_(Config_->BlockSize)
     {
+        THROW_ERROR_EXCEPTION_IF(!Options_->EnableColumnMetaInChunkMeta && !Options_->EnableSegmentMetaInBlocks,
+            "Bad chunk writer options. At least one of \"enable_column_meta_in_chunk_meta\" or "
+            "\"enable_segment_meta_in_blocks\" must be true");
+
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
             BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(Options_->EnableSegmentMetaInBlocks));
@@ -872,17 +876,26 @@ private:
 
         auto meta = EncodingChunkWriter_->GetMeta();
 
+        YT_VERIFY(Options_->EnableSegmentMetaInBlocks || Options_->EnableColumnMetaInChunkMeta);
+
         if (Options_->EnableSegmentMetaInBlocks) {
             ToProto(ColumnGroupInfosExt_.mutable_column_to_group(), ColumnToGroupIndex_);
             SetProtoExtension(meta->mutable_extensions(), ColumnGroupInfosExt_);
         }
 
-        NProto::TColumnMetaExt columnMetaExt;
-        for (const auto& valueColumnWriter : ValueColumnWriters_) {
-            *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
+        if (Options_->EnableColumnMetaInChunkMeta) {
+            NProto::TColumnMetaExt columnMetaExt;
+            for (const auto& valueColumnWriter : ValueColumnWriters_) {
+                *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
+            }
+            *columnMetaExt.add_columns() = TimestampWriter_->ColumnMeta();
+            SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
+        } else {
+            auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
+            chunkFeatures |= EChunkFeatures::NoColumnMetaInChunkMeta;
+            meta->set_features(ToProto<ui64>(chunkFeatures));
         }
-        *columnMetaExt.add_columns() = TimestampWriter_->ColumnMeta();
-        SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
+
         meta->UpdateMemoryUsage();
     }
 
