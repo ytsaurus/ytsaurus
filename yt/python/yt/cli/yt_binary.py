@@ -1353,6 +1353,7 @@ def add_list_queries_parser(add_parser):
 
 def add_alter_query_parser(add_parser):
     parser = add_parser("alter-query", yt.alter_query)
+    parser.add_argument("query_id", type=str, help="query id")
     add_structured_argument(parser, "--annotations", help='a YSON map of annotations')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
