@@ -43,6 +43,7 @@ class TYqlEngineConfig
 public:
     TString Stage;
     TDuration QueryProgressGetPeriod;
+    TDuration StartQueryAttemptPeriod;
 
     REGISTER_YSON_STRUCT(TYqlEngineConfig);
 

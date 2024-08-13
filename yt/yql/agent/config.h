@@ -169,6 +169,8 @@ class TYqlAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
+    int MaxSimultaneousQueries;
+
     REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
 
     static void Register(TRegistrar registrar);

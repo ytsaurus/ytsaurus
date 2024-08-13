@@ -106,6 +106,7 @@ public:
     TYqlAgent(
         TSingletonsConfigPtr singletonsConfig,
         TYqlAgentConfigPtr yqlAgentConfig,
+        TYqlAgentDynamicConfigPtr dynamicConfig,
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
@@ -116,6 +117,8 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
+        , DynamicConfig_(std::move(dynamicConfig))
+        , ActiveQueries_(0)
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
@@ -183,16 +186,20 @@ public:
 
     void OnDynamicConfigChanged(
         const TYqlAgentDynamicConfigPtr& /*oldConfig*/,
-        const TYqlAgentDynamicConfigPtr& /*newConfig*/) override
-    { }
+        const TYqlAgentDynamicConfigPtr& newConfig) override
+    {
+        DynamicConfig_ = newConfig;
+    }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
     {
         YT_LOG_INFO("Starting query (QueryId: %v, User: %v)", queryId, user);
 
-        return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, user, request)
+        auto result = BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, user, request)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
+
+        return result;
     }
 
     TFuture<void> AbortQuery(TQueryId queryId) override
@@ -232,6 +239,15 @@ public:
         }
     }
 
+    TRspGetYqlAgentState GetYqlAgentState() override
+    {
+        TRspGetYqlAgentState response;
+        response.set_ready_to_get_queries(
+            ActiveQueries_.load() < DynamicConfig_->MaxSimultaneousQueries);
+
+        return response;
+    }
+
 private:
     const TSingletonsConfigPtr SingletonsConfig_;
     const TYqlAgentConfigPtr Config_;
@@ -240,12 +256,18 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
 
+    TYqlAgentDynamicConfigPtr DynamicConfig_;
+
+    std::atomic<int> ActiveQueries_;
+
     std::unique_ptr<NYqlPlugin::IYqlPlugin> YqlPlugin_;
 
     IThreadPoolPtr ThreadPool_;
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
+        ActiveQueries_.fetch_add(1);
+
         static const auto EmptyMap = TYsonString(TString("{}"));
 
         const auto& Logger = YqlAgentLogger().WithTag("QueryId: %v", queryId);
@@ -320,8 +342,10 @@ private:
                 }
             }
             response.mutable_yql_response()->Swap(&yqlResponse);
+            ActiveQueries_.fetch_add(-1);
             return {response, wireRowsets};
         } catch (const std::exception& ex) {
+            ActiveQueries_.fetch_add(-1);
             auto error = TError("YQL plugin call failed") << TError(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
@@ -363,6 +387,7 @@ private:
 IYqlAgentPtr CreateYqlAgent(
     TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
+    TYqlAgentDynamicConfigPtr dynamicConfig,
     TClusterDirectoryPtr clusterDirectory,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
@@ -371,6 +396,7 @@ IYqlAgentPtr CreateYqlAgent(
     return New<TYqlAgent>(
         std::move(singletonsConfig),
         std::move(config),
+        std::move(dynamicConfig),
         std::move(clusterDirectory),
         std::move(clientDirectory),
         std::move(controlInvoker),

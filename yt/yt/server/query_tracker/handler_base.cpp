@@ -151,7 +151,7 @@ void TQueryHandlerBase::StopProgressWriter()
     }
 }
 
-ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
+ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previousState) const
 {
     YT_LOG_DEBUG("Starting incarnation transaction");
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
@@ -184,8 +184,8 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
     if (optionalRecords[0]->Incarnation != Incarnation_) {
         THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v incarnation mismatch: expected %v, actual %v", QueryId_, Incarnation_, optionalRecords[0]->Incarnation);
     }
-    if (optionalRecords[0]->State != EQueryState::Running) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v is not running, actual state is %Qlv", QueryId_, optionalRecords[0]->State);
+    if (optionalRecords[0]->State != previousState) {
+        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v is not in state %Qlv, actual state is %Qlv", QueryId_, previousState, optionalRecords[0]->State);
     }
     YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
     return transaction;
@@ -205,7 +205,19 @@ void TQueryHandlerBase::OnQueryFailed(const TError& error)
     YT_LOG_INFO(error, "Query failed");
 
     while (true) {
-        if (TryWriteQueryState(EQueryState::Failing, error, {})) {
+        if (TryWriteQueryState(EQueryState::Failing, EQueryState::Running, error, {})) {
+            break;
+        }
+        TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
+    }
+}
+
+void TQueryHandlerBase::OnQueryStarted()
+{
+    YT_LOG_INFO("Query started");
+
+    while (true) {
+        if (TryWriteQueryState(EQueryState::Running, EQueryState::Pending, {}, {})) {
             break;
         }
         TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
@@ -248,7 +260,7 @@ void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRow
     }
 
     while (true) {
-        if (TryWriteQueryState(EQueryState::Completing, {}, wireRowsetOrErrors)) {
+        if (TryWriteQueryState(EQueryState::Completing, EQueryState::Running, {}, wireRowsetOrErrors)) {
             break;
         }
         TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
@@ -302,10 +314,10 @@ void TQueryHandlerBase::TryWriteProgress()
     }
 }
 
-bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
+bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
     try {
-        auto transaction = StartIncarnationTransaction();
+        auto transaction = StartIncarnationTransaction(previousState);
         auto rowBuffer = New<TRowBuffer>();
         {
             TActiveQueryPartial newRecord{
@@ -313,9 +325,12 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& erro
                 .State = state,
                 .Progress = Progress_,
                 .Error = error,
-                .ResultCount = wireRowsetOrErrors.size(),
-                .FinishTime = TInstant::Now(),
             };
+            if (state == EQueryState::Completing || state == EQueryState::Failing) {
+                newRecord.FinishTime = TInstant::Now();
+                newRecord.ResultCount = wireRowsetOrErrors.size();
+            }
+
             std::vector newRows = {
                 newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
             };
@@ -349,7 +364,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& erro
         }
         WaitFor(transaction->Commit())
             .ThrowOnError();
-        YT_LOG_INFO("Query final state written (State: %v)", state);
+        YT_LOG_INFO("Query state written (State: %v)", state);
         return true;
     } catch (const std::exception& ex) {
         if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {

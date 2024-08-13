@@ -96,6 +96,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting CHYT query");
+        OnQueryStarted();
 
         AsyncQueryResult_ = BIND(&TChytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())

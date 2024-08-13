@@ -42,6 +42,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting QL query");
+        OnQueryStarted();
         AsyncQueryResult_ = QueryClient_->SelectRows(Query_);
         AsyncQueryResult_.Subscribe(BIND(&TQLQueryHandler::OnQueryFinish, MakeWeak(this)).Via(GetCurrentInvoker()));
     }
