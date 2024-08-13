@@ -17,6 +17,7 @@ target_link_libraries(cpp-yt-threading PUBLIC
   yutil
   cpp-yt-assert
   cpp-yt-cpu_clock
+  cpp-yt-exception
   cpp-yt-system
   cpp-yt-memory
 )
