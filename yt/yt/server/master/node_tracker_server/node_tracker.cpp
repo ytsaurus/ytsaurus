@@ -968,7 +968,6 @@ private:
     THashMap<TString, TRack*> NameToRackMap_;
     THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
-    TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
     TPeriodicExecutorPtr ResetNodePendingRestartMaintenanceExecutor_;
 
@@ -2041,12 +2040,6 @@ private:
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
             NodeStatisticsGossipExecutor_->Start();
-
-            // COMPAT(aleksandra-zh).
-            FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
-                BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this)));
-            FullNodeStatesGossipExecutor_->Start();
         }
 
         for (auto& group : NodeGroups_) {
@@ -2066,11 +2059,6 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
-
-        if (FullNodeStatesGossipExecutor_) {
-            YT_UNUSED_FUTURE(FullNodeStatesGossipExecutor_->Stop());
-            FullNodeStatesGossipExecutor_.Reset();
-        }
 
         if (NodeStatisticsGossipExecutor_) {
             YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
@@ -2299,18 +2287,6 @@ private:
             request.entries_size());
 
         multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
-    }
-
-    void OnNodeStatesGossip()
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsLocalMasterCellRegistered()) {
-            return;
-        }
-
-        TReqSendNodeStates request;
-        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger()));
     }
 
     void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)
@@ -2762,9 +2738,6 @@ private:
 
     void ReconfigureGossipPeriods()
     {
-        if (FullNodeStatesGossipExecutor_) {
-            FullNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->FullNodeStatesGossipPeriod);
-        }
         if (NodeStatisticsGossipExecutor_) {
             NodeStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsGossipPeriod);
         }
