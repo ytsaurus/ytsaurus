@@ -153,7 +153,6 @@ private:
     TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
     std::atomic<bool> EnableCypressTransactionsInSequoia_;
-    std::atomic<bool> EnableBoomerangsIdentity_;
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
@@ -220,22 +219,11 @@ private:
         return EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire);
     }
 
-    bool IsBoomerangsIdentityEnabled() const noexcept
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return EnableBoomerangsIdentity_.load(std::memory_order::acquire);
-    }
-
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        EnableBoomerangsIdentity_.store(
-            config->EnableBoomerangsIdentity,
-            std::memory_order::release);
-
         const auto& sequoiaManagerConfig = config->SequoiaManager;
         EnableCypressTransactionsInSequoia_.store(
             sequoiaManagerConfig->Enable && sequoiaManagerConfig->EnableCypressTransactionsInSequoia,
@@ -789,8 +777,7 @@ private:
             context,
             chunkManager->CreateExecuteBatchMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled(),
-            IsBoomerangsIdentityEnabled());
+            AreCypressTransactionsInSequoiaEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -820,8 +807,7 @@ private:
             context,
             chunkManager->CreateAttachChunkTreesMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled(),
-            IsBoomerangsIdentityEnabled());
+            AreCypressTransactionsInSequoiaEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
@@ -867,8 +853,7 @@ private:
             context,
             chunkManager->CreateCreateChunkListsMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled(),
-            IsBoomerangsIdentityEnabled());
+            AreCypressTransactionsInSequoiaEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
@@ -918,8 +903,7 @@ private:
             context,
             chunkManager->CreateCreateChunkMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled(),
-            IsBoomerangsIdentityEnabled());
+            AreCypressTransactionsInSequoiaEnabled());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)

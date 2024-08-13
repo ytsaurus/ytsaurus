@@ -1321,8 +1321,7 @@ public:
                 /*syncWithUpstream*/ false,
                 Bootstrap_,
                 prerequisiteTransactionIds,
-                IsMirroringToSequoiaEnabled(),
-                IsBoomerangsIdentityEnabled()));
+                IsMirroringToSequoiaEnabled()));
         }
 
         if (!cellIdsToSyncWith.empty()) {
@@ -2545,13 +2544,6 @@ private:
             boomerangRequest.set_boomerang_mutation_type(request->boomerang_mutation_type());
             boomerangRequest.set_boomerang_mutation_data(request->boomerang_mutation_data());
 
-            if (request->has_user()) {
-                boomerangRequest.set_user(request->user());
-            }
-            if (request->has_user_tag()) {
-                boomerangRequest.set_user_tag(request->user_tag());
-            }
-
             multicellManager->PostToMaster(boomerangRequest, destinationCellTag);
         }
 
@@ -3340,14 +3332,6 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
-    }
-
-    bool IsBoomerangsIdentityEnabled()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        return config->EnableBoomerangsIdentity;
     }
 
     // NB: This function doesn't work properly if Cypress transaction service is

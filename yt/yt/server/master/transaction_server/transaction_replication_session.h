@@ -88,16 +88,11 @@ protected:
     // necessary just for this case.
     const bool MirroringToSequoiaEnabled_;
 
-    // COMPAT(babenko)
-    bool EnableBoomerangsIdentity_;
-
     TTransactionReplicationSessionBase(
         NCellMaster::TBootstrap* bootstrap,
         std::vector<TTransactionId> transactionIds,
         std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
-        bool enableMirroringToSequoia,
-        // COMPAT(babenko)
-        bool enableBoomerangsIdentity);
+        bool enableMirroringToSequoia);
 
     [[noreturn]] void LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const;
 
@@ -284,8 +279,7 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    bool enableMirroringToSequoia,
-    bool enableBoomerangsIdentity);
+    bool enableMirroringToSequoia);
 
 //! Returns a future that will set when the provided mutation has been applied
 //!  (after all necessary preliminary steps for applying it has been taken).
@@ -301,8 +295,7 @@ void RunTransactionReplicationSessionAndReply(
     const NRpc::IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
     bool enableMutationBoomerangs,
-    bool enableMirroringToSequoia,
-    bool enableBoomerangsIdentity);
+    bool enableMirroringToSequoia);
 
 ////////////////////////////////////////////////////////////////////////////////
 
