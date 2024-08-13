@@ -40,6 +40,8 @@ public:
 
     bool EnableCypressTransactionsInSequoia;
 
+    bool EnableGroundUpdateQueues;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 
     static void Register(TRegistrar registrar);

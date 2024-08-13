@@ -94,6 +94,11 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+        if (!config->EnableGroundUpdateQueues) {
+            return;
+        }
+
         TSequoiaQueueRecord record{
             .Table = table,
             .Row = std::move(row),
