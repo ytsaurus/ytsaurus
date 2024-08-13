@@ -922,7 +922,9 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
     DELTA_PROXY_CONFIG = {
         "coordinator": {
+            "heartbeat_interval": 100,
             "cypress_timeout": 50,
+            "death_age": 500,
         },
     }
 
@@ -1006,8 +1008,17 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
         wait(lambda: self._check_no_read_only())
 
-    @authors("alexkolodezny")
+    @authors("alexkolodezny", "aleksandra-zh")
     def test_read_only_proxy_availability(self):
+        def check_proxies_online():
+            rsp = requests.get(self._get_proxy_address() + "/hosts/all")
+            rsp.raise_for_status()
+
+            proxies = rsp.json()
+            assert len(proxies) > 0
+            for proxy in proxies:
+                assert not proxy["dead"]
+
         self._build_snapshot_and_check(True)
 
         time.sleep(2)
@@ -1015,8 +1026,13 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         rsp = requests.get(self._get_proxy_address() + "/ping")
         rsp.raise_for_status()
 
+        check_proxies_online()
+
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+        time.sleep(2)
+        check_proxies_online()
 
         self._master_exit_read_only()
 

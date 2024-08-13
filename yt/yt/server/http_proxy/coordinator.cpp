@@ -103,6 +103,32 @@ TCoordinatorProxy::TCoordinatorProxy(const TProxyEntryPtr& proxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::vector<TString> GetInstances(
+    NApi::IClientPtr client,
+    const TYPath& path,
+    bool fromSubdirectories = false)
+{
+    std::vector<TString> instances;
+    if (fromSubdirectories) {
+        auto directory = WaitFor(client->GetNode(path))
+            .ValueOrThrow();
+        for (const auto& subdirectory : ConvertToNode(directory)->AsMap()->GetChildren()) {
+            for (const auto& instance : subdirectory.second->AsMap()->GetChildren()) {
+                instances.push_back(subdirectory.first + "/" + instance.first);
+            }
+        }
+    } else {
+        auto rsp = WaitFor(client->ListNode(path)).ValueOrThrow();
+        auto rspList = ConvertToNode(rsp)->AsList();
+        for (const auto& node : rspList->GetChildren()) {
+            instances.push_back(node->GetValue<TString>());
+        }
+    }
+    return instances;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCoordinator::TCoordinator(
     TProxyConfigPtr config,
     TBootstrap* bootstrap)
@@ -293,9 +319,48 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     return proxies;
 }
 
+void TCoordinator::UpdateReadOnly()
+{
+    const TYPath path = "//sys/primary_masters";
+
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Follower;
+    options.Timeout = Config_->OrchidTimeout;
+
+    auto instances = GetInstances(Client_, path);
+    std::vector<TFuture<TYsonString>> responses;
+    for (const auto& instance : instances) {
+        responses.push_back(Client_->GetNode(path + "/" + instance + "/orchid/monitoring/hydra"));
+    }
+
+    bool readOnly = true;
+    for (const auto& future : responses) {
+        auto ysonOrError = WaitFor(future);
+        if (!ysonOrError.IsOK()) {
+            continue;
+        }
+
+        auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
+
+        if (auto errorNode = rspMap->FindChild("error")) {
+            continue;
+        }
+
+        readOnly &= ConvertTo<bool>(rspMap->GetChildOrThrow("read_only"));
+    }
+
+    MastersInReadOnly_ = readOnly;
+}
+
 void TCoordinator::UpdateState()
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    try {
+        UpdateReadOnly();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error updating read-only");
+    }
 
     auto selfPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
 
@@ -384,7 +449,7 @@ bool TCoordinator::IsDead(const TProxyEntryPtr& proxy, TInstant at) const
         return true;
     }
 
-    return proxy->Liveness->UpdatedAt + Config_->DeathAge < at;
+    return proxy->Liveness->UpdatedAt + GetDeathAge() < at;
 }
 
 bool TCoordinator::IsUnavailable(TInstant at) const
@@ -396,7 +461,7 @@ bool TCoordinator::IsUnavailable(TInstant at) const
         }
     }
 
-    return IsBanned() || AvailableAt_.Load() + Config_->DeathAge < at;
+    return IsBanned() || AvailableAt_.Load() + GetDeathAge() < at;
 }
 
 TLivenessPtr TCoordinator::GetSelfLiveness()
@@ -437,6 +502,15 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
     LastStatistics_ = networkStatistics;
 
     return liveness;
+}
+
+TDuration TCoordinator::GetDeathAge() const
+{
+    if (MastersInReadOnly_) {
+        return Config_->ReadOnlyDeathAge;
+    }
+
+    return Config_->DeathAge;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -573,10 +647,12 @@ void TPingHandler::HandleRequest(
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiscoverVersionsHandler::TDiscoverVersionsHandler(
+    TCoordinatorPtr coordinator,
     NApi::NNative::IConnectionPtr connection,
     NApi::IClientPtr client,
     TCoordinatorConfigPtr config)
-    : Connection_(std::move(connection))
+    : Coordinator_(std::move(coordinator))
+    , Connection_(std::move(connection))
     , Client_(std::move(client))
     , Config_(std::move(config))
 { }
@@ -697,7 +773,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListProxies(
             if (!livenessPtr) {
                 instance.Error = TError("Liveness attribute is missing");
             } else {
-                instance.Online = (livenessPtr->UpdatedAt + Config_->DeathAge >= timeNow);
+                instance.Online = (livenessPtr->UpdatedAt + Coordinator_->GetDeathAge() >= timeNow);
             }
         }
         if (instance.Online) {
@@ -711,40 +787,18 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListProxies(
     return instances;
 }
 
-std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TYPath& path, bool fromSubdirectories)
-{
-    std::vector<TString> instances;
-    if (fromSubdirectories) {
-        auto directory = WaitFor(Client_->GetNode(path))
-            .ValueOrThrow();
-        for (const auto& subdirectory : ConvertToNode(directory)->AsMap()->GetChildren()) {
-            for (const auto& instance : subdirectory.second->AsMap()->GetChildren()) {
-                instances.push_back(subdirectory.first + "/" + instance.first);
-            }
-        }
-    } else {
-        auto rsp = WaitFor(Client_->ListNode(path)).ValueOrThrow();
-        auto rspList = ConvertToNode(rsp)->AsList();
-        for (const auto& node : rspList->GetChildren()) {
-            instances.push_back(node->GetValue<TString>());
-        }
-    }
-    return instances;
-}
-
 std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
     const TYPath& path,
     const std::vector<TString>& instances,
     const TString& type,
     const TYPath& suffix)
 {
-    const auto OrchidTimeout = TDuration::Seconds(1);
-
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Follower;
-    options.Timeout = OrchidTimeout;
+    options.Timeout = Config_->OrchidTimeout;
 
     std::vector<TFuture<TYsonString>> responses;
+    responses.reserve(instances.size());
     for (const auto& instance : instances) {
         responses.push_back(Client_->GetNode(path + "/" + instance + suffix));
     }
@@ -883,10 +937,10 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
         }
     };
 
-    add(GetAttributes("//sys/primary_masters", GetInstances("//sys/primary_masters"), "primary_master"));
-    add(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master"));
-    add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
-    add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
+    add(GetAttributes("//sys/primary_masters", GetInstances(Client_, "//sys/primary_masters"), "primary_master"));
+    add(GetAttributes("//sys/secondary_masters", GetInstances(Client_, "//sys/secondary_masters", true), "secondary_master"));
+    add(GetAttributes("//sys/scheduler/instances", GetInstances(Client_, "//sys/scheduler/instances"), "scheduler"));
+    add(GetAttributes("//sys/controller_agents/instances", GetInstances(Client_, "//sys/controller_agents/instances"), "controller_agent"));
     add(ListComponent("cluster_nodes", "cluster_node"));
     add(ListJobProxies());
     add(ListProxies("http_proxies", "http_proxy"));
