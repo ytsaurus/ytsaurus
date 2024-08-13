@@ -106,8 +106,6 @@ public:
 
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
 
-    bool IsFairSharePreUpdateOffloadingEnabled() const override;
-
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;

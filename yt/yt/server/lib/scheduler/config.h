@@ -986,8 +986,6 @@ public:
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
-    bool EnableFairSharePreUpdateOffloading;
-
     int OperationSpecTreeSizeLimit;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
