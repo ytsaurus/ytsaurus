@@ -45,8 +45,12 @@ void TCoordinatorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("death_age", &TThis::DeathAge)
         .Default(TDuration::Minutes(2));
+    registrar.Parameter("read_only_death_age", &TThis::ReadOnlyDeathAge)
+        .Default(TDuration::Minutes(20));
     registrar.Parameter("cypress_timeout", &TThis::CypressTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("orchid_timeout", &TThis::OrchidTimeout)
+        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("show_ports", &TThis::ShowPorts)
         .Default(false);
