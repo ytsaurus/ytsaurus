@@ -73,6 +73,9 @@ public:
     // Testing option.
     bool ThrowOnLeaseRevokation;
 
+    // COMPAT(shakurov)
+    bool EnableStartForeignTransactionFixes;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);
