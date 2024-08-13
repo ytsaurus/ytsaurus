@@ -1797,7 +1797,6 @@ class TestLookupRpcProxy(TestLookup):
 
         keys = [{"key": i} for i in range(100)]
         rows = [{"key": i, "value": str(i)} for i in range(100)]
-        empty_result = [yson.YsonEntity() for i in range(100)]
 
         insert_rows("//tmp/t", rows)
         assert lookup_rows("//tmp/t", keys, timeout=1000) == rows
@@ -1819,4 +1818,4 @@ class TestLookupRpcProxy(TestLookup):
         assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == rows
 
         _set_timeout_slack_options(1000)
-        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == empty_result
+        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True,) == []

@@ -2232,7 +2232,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         expected = gen_rows(0, 10) + [None for i in range(10, 20)] + gen_rows(20, 30)
 
-        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True)
+        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True, keep_missing_rows=True)
         assert_items_equal(actual, expected)
 
 

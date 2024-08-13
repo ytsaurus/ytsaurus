@@ -3537,6 +3537,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3606,6 +3607,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3716,6 +3718,7 @@ private:
                     auto* subresponse = response->add_subresponses();
                     auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
                     subresponse->set_attachment_count(attachments.size());
+                    ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                     response->Attachments().insert(
                         response->Attachments().end(),
                         attachments.begin(),
@@ -5802,7 +5805,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                NYT::ToProto(response->mutable_statistics(), result);
+                ToProto(response->mutable_statistics(), result);
 
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
             });

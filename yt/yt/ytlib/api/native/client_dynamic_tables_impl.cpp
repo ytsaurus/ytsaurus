@@ -1008,10 +1008,6 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     TDecoderWithMapping decoderWithMapping,
     TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler)
 {
-    if (options.EnablePartialResult && options.KeepMissingRows) {
-        THROW_ERROR_EXCEPTION("Options \"enable_partial_result\" and \"keep_missing_rows\" cannot be used together");
-    }
-
     if (options.RetentionTimestamp > options.Timestamp) {
         THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestamp")
             << TErrorAttribute("retention_timestamp", options.RetentionTimestamp)
@@ -1238,13 +1234,13 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         NObjectClient::TObjectId TabletId;
         NHydra::TRevision MountRevision = NHydra::NullRevision;
         std::vector<TLegacyKey> Keys;
-        size_t OffsetInResult;
+        int OffsetInResult;
 
         TQueryServiceProxy::TRspMultireadPtr Response;
     };
 
     std::vector<std::vector<TBatch>> batchesByCells;
-    THashMap<TCellId, size_t> cellIdToBatchIndex;
+    THashMap<TCellId, int> cellIdToBatchIndex;
     std::vector<TCellId> cellIds;
 
     auto inMemoryMode = EInMemoryMode::None;
@@ -1253,7 +1249,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         auto itemsBegin = sortedKeys.begin();
         auto itemsEnd = sortedKeys.end();
 
-        size_t keySize = schema->GetKeyColumnCount();
+        int keySize = schema->GetKeyColumnCount();
 
         itemsBegin = std::lower_bound(
             itemsBegin,
@@ -1436,21 +1432,36 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
     auto* responseCodec = NCompression::GetCodec(connectionConfig->LookupRowsResponseCodec);
 
-    for (int channelIndex = 0; channelIndex < ssize(results); ++channelIndex) {
+    TLookupRowsResult<IRowset> lookupResult;
+
+    for (int channelIndex = 0; channelIndex < std::ssize(results); ++channelIndex) {
         if (options.EnablePartialResult && !results[channelIndex].IsOK()) {
+            int batchOffset = 0;
+            for (const auto& cellDescriptor : cellDescriptorsByPeer[channelIndex]) {
+                auto cellId = cellDescriptor->CellId;
+                const auto& batches = batchesByCells[cellIdToBatchIndex[cellId]];
+                for (const auto& batch : batches) {
+                    for (int index = 0; index < std::ssize(batch.Keys); ++index) {
+                        lookupResult.UnavailableKeyIndexes.push_back(batch.OffsetInResult + index);
+                    }
+                }
+                batchOffset += ssize(batches);
+            }
             continue;
         }
 
         const auto& result = results[channelIndex].ValueOrThrow();
-
         int batchOffset = 0;
         for (const auto& cellDescriptor : cellDescriptorsByPeer[channelIndex]) {
             auto cellId = cellDescriptor->CellId;
             const auto& batches = batchesByCells[cellIdToBatchIndex[cellId]];
-            for (int localBatchIndex = 0; localBatchIndex < ssize(batches); ++localBatchIndex) {
+            for (int localBatchIndex = 0; localBatchIndex < std::ssize(batches); ++localBatchIndex) {
+                const auto& batch = batches[localBatchIndex];
                 const auto& attachment = result->Attachments()[batchOffset + localBatchIndex];
-
                 if (options.EnablePartialResult && attachment.Empty()) {
+                    for (int index = 0; index < std::ssize(batch.Keys); ++index) {
+                        lookupResult.UnavailableKeyIndexes.push_back(batch.OffsetInResult + index);
+                    }
                     continue;
                 }
 
@@ -1461,14 +1472,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     .ValueOrThrow();
 
                 auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
-
-                const auto& batch = batches[localBatchIndex];
-
-                for (size_t index = 0; index < batch.Keys.size(); ++index) {
+                for (int index = 0; index < std::ssize(batch.Keys); ++index) {
                     uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(reader.get());
                 }
             }
-            batchOffset += ssize(batches);
+            batchOffset += std::ssize(batches);
         }
     }
 
@@ -1478,12 +1486,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
     std::vector<TTypeErasedRow> resultRows;
     resultRows.resize(keys.Size());
-
     for (int index = 0; index < std::ssize(keys); ++index) {
         resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
     }
 
-    if (!options.KeepMissingRows && !options.EnablePartialResult) {
+    if (!options.KeepMissingRows) {
         resultRows.erase(
             std::remove_if(
                 resultRows.begin(),
@@ -1494,11 +1501,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             resultRows.end());
     }
 
-    auto rowRange = ReinterpretCastRange<TRow>(
-        MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)));
-    return {
-        .Rowset = CreateRowset(resultSchema, std::move(rowRange)),
-    };
+    Sort(lookupResult.UnavailableKeyIndexes);
+    lookupResult.Rowset = CreateRowset(
+        resultSchema,
+        ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer))));
+    return lookupResult;
 }
 
 TSelectRowsResult TClient::DoSelectRows(
