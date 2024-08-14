@@ -339,7 +339,7 @@ private:
         if (QueueObject_.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION(
                 "Invalid type of %v: expected %Qlv, %Qlv found",
-                QueueObject_.GetPath(),
+                Queue_,
                 EObjectType::Table,
                 QueueObject_.Type);
         }
@@ -348,13 +348,13 @@ private:
             QueueObject_.GetPath(), {"chunk_count", "dynamic", "schema", "schema_id"});
 
         if (!attributes->Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", QueueObject_.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", Queue_);
         }
 
         QueueSchema_ = attributes->Get<TTableSchemaPtr>("schema");
         QueueSchemaId_ = attributes->Get<TMasterTableSchemaId>("schema_id");
         if (QueueSchema_->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", QueueObject_.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", Queue_);
         }
 
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
@@ -370,7 +370,7 @@ private:
         if (destinationConfig.OriginatingQueueId != QueueObject_.ObjectId) {
             THROW_ERROR_EXCEPTION(
                 "Destination config is not configured to accept exports from queue %v, configured id %v does not match queue id %v",
-                QueueObject_.GetPath(),
+                Queue_,
                 destinationConfig.OriginatingQueueId,
                 QueueObject_.ObjectId);
         }
@@ -563,7 +563,7 @@ private:
 
         req->set_upload_transaction_title(Format(
             "Exporting queue %v to static table %v",
-            QueueObject_.GetPath(),
+            Queue_,
             DestinationObject_.GetPath()));
 
         auto cellTags = GetAffectedCellTags(
@@ -579,7 +579,7 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error starting upload to %v", QueueObject_.GetPath());
+            rspOrError, "Error starting upload to %v", Queue_);
 
         const auto& rsp = rspOrError.Value();
 
