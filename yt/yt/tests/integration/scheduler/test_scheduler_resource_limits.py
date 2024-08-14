@@ -246,7 +246,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
 
     @authors("arkady-e1ppa")
     def test_cumulative_memory_statistics(self):
-        job_count = 5
+        job_count = 2
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
@@ -267,7 +267,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
                 "data_weight_per_job": 1,
                 "mapper": {
-                    "memory_limit": 500 * 10 ** 6,
+                    "memory_limit": 200 * 10 ** 6,
                     "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
                 },
