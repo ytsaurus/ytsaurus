@@ -64,6 +64,7 @@
 
 #include <util/random/shuffle.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace NYT::NChunkClient {
@@ -1842,6 +1843,7 @@ private:
             OnSessionSucceeded();
             return;
         }
+        std::sort(blockIndexes.begin(), blockIndexes.end());
 
         std::vector<TBlockWithCookie> cachedBlocks;
         std::vector<TBlockWithCookie> uncachedBlocks;
@@ -1929,6 +1931,7 @@ private:
     }
 
     //! Fetches blocks from nodes and adds them to block cache via cookies.
+    //! Blocks must be sorted by block index.
     //! Returns |True| if more blocks can be requested and |False| otherwise.
     bool FetchBlocksFromNodes(
         const TReplicationReaderPtr& reader,
@@ -2070,6 +2073,10 @@ private:
         auto& requestedBlockIndexes = result.Value().RequestedBlocks;
         auto requestedBlockIndexIt = requestedBlockIndexes.begin();
         auto responseBlockIt = responseBlocks.begin();
+
+        // Two pointer algorithm requires block indexes to be sorted.
+        YT_VERIFY(std::is_sorted(blockIndexes.begin(), blockIndexes.end()));
+        YT_VERIFY(std::is_sorted(requestedBlockIndexes.begin(), requestedBlockIndexes.end()));
 
         for (int index = 0; index < std::ssize(blockIndexes); ++index) {
             int blockIndex = blockIndexes[index];
