@@ -1081,6 +1081,11 @@ def add_select_rows_parser(add_parser):
     parser.add_argument("--print-statistics", default=None, action="store_true")
     parser.add_argument("--syntax-version", type=int)
     parser.add_argument("--udf-registry-path", type=str)
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--merge-versioned-rows", dest="merge_versioned_rows",
+                       default=None, action="store_true")
+    group.add_argument("--do-not-merge-versioned-rows", dest="merge_versioned_rows",
+                       default=None, action="store_false")
 
     error_message = "Use 'select-rows' instead of 'select'"
 
