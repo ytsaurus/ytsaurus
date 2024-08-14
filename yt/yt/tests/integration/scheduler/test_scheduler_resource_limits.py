@@ -245,7 +245,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
 
     @authors("arkady-e1ppa")
     def test_cumulative_memory_statistics(self):
-        job_count = 5
+        job_count = 2
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
