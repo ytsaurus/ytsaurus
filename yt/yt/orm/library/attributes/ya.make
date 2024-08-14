@@ -10,6 +10,7 @@ SRCS(
     proto_visitor.cpp
     scalar_attribute.cpp
     unwrapping_consumer.cpp
+    yson_builder.cpp
     ytree.cpp
 )
 
