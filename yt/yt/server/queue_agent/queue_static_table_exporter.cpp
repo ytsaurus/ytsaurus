@@ -169,9 +169,10 @@ private:
 
     static constexpr TStringBuf ExportProgressAttributeName_ = "queue_static_export_progress";
     static constexpr TStringBuf ExportDestinationAttributeName_ = "queue_static_export_destination";
+    static constexpr TStringBuf ExporterAttributeName_ = "queue_static_exporter";
 
     //! Performs the following steps:
-    //!   1) Starts transaction, obtains locks on input queue (snapshot) and export directory (exclusive).
+    //!   1) Starts transaction, obtains locks on input queue (snapshot), and <export_directory>/@queue_static_exporter attribute (shared).
     //!   2) Determines the export fragment timestamp as the largest fragment timestamp which is not greater than the
     //!      current physical time.
     //!      A fragment timestamp is always divisible by the export period in seconds.
@@ -194,9 +195,17 @@ private:
             .ValueOrThrow();
 
         auto transactionId = transaction->GetId();
-        WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
-            .ThrowOnError();
-        WaitFor(transaction->LockNode(ExportConfig_.ExportDirectory, ELockMode::Exclusive))
+        auto queueObjectId = WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
+            .ValueOrThrow()
+            .NodeId;
+
+        // Take it for guarantee that only one queue agent instance do this export.
+        WaitFor(transaction->LockNode(
+            ExportConfig_.ExportDirectory,
+            ELockMode::Shared,
+            TLockNodeOptions{
+                .ChildKey = TString(ExporterAttributeName_),
+            }))
             .ThrowOnError();
 
         Options_.TransactionId = transactionId;
@@ -206,7 +215,7 @@ private:
         ExportInstant_ = TInstant::Now();
         ComputeExportFragmentUnixTs();
 
-        QueueObject_ = TUserObject(Queue_, transactionId);
+        QueueObject_ = TUserObject(FromObjectId(queueObjectId), transactionId);
 
         PrepareQueueForExport();
         auto currentExportProgress = ValidateDestinationAndFetchProgress();
@@ -506,7 +515,7 @@ private:
 
         YT_LOG_DEBUG(
             "Created output node for export (DestinationPath: %v, OutputTableNamePattern: %v, UseUpperBoundForTableNames: %v, ExportTtl: %v, ExportFragmentUnixTs: %v)",
-            destinationPath,
+            DestinationObject_.GetPath(),
             ExportConfig_.OutputTableNamePattern,
             ExportConfig_.UseUpperBoundForTableNames,
             ExportConfig_.ExportTtl,
