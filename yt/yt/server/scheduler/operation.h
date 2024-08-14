@@ -38,6 +38,7 @@ struct TOperationPoolTreeAttributes
     : public NYTree::TYsonStructLite
 {
     std::optional<int> SlotIndex;
+    bool RunningInEphemeralPool;
 
     REGISTER_YSON_STRUCT_LITE(TOperationPoolTreeAttributes);
 
@@ -134,6 +135,8 @@ struct IOperationStrategyHost
     virtual const NYson::TYsonString& GetTrimmedAnnotations() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
+
+    virtual void SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool) = 0;
 
     virtual bool IsTreeErased(const TString& treeId) const = 0;
 
@@ -345,6 +348,7 @@ public:
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
+    void SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool) override;
 
     std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override;
 
