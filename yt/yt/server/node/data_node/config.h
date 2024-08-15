@@ -536,6 +536,9 @@ public:
     // Delay before blob session block free.
     std::optional<TDuration> DelayBeforeBlobSessionBlockFree;
 
+    // Delay before cancelling chunk
+    std::optional<TDuration> ChunkCancellationDelay;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);

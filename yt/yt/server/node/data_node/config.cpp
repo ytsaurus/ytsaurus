@@ -521,6 +521,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_before_blob_session_block_free", &TThis::DelayBeforeBlobSessionBlockFree)
         .Default();
 
+    registrar.Parameter("chunk_cancellation_delay", &TThis::ChunkCancellationDelay)
+        .Default();
+
     registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
         .Default(0.75);
 }
