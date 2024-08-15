@@ -33,6 +33,8 @@ inline const NProfiling::TProfiler ExecNodeProfiler("/exec_node");
 inline const NLogging::TLogger JobInputCacheLogger("JobInputCache");
 inline const NProfiling::TProfiler JobInputCacheProfiler = ExecNodeProfiler.WithPrefix("/job_input_cache");
 
+inline const NProfiling::TProfiler GpuManagerProfiler = ExecNodeProfiler.WithPrefix("/gpu_manager");
+
 constexpr int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
