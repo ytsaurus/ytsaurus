@@ -12,25 +12,26 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(misc)
-add_subdirectory(exception)
-add_subdirectory(assert)
-add_subdirectory(yson)
-add_subdirectory(yson_string)
-add_subdirectory(coding)
-add_subdirectory(string)
-add_subdirectory(small_containers)
-add_subdirectory(malloc)
-add_subdirectory(memory)
-add_subdirectory(system)
-add_subdirectory(logging)
-add_subdirectory(containers)
-add_subdirectory(global)
-add_subdirectory(threading)
-add_subdirectory(cpu_clock)
-add_subdirectory(error)
-add_subdirectory(backtrace)
-add_subdirectory(mlock)
-add_subdirectory(stockpile)
-add_subdirectory(phdr_cache)
+add_library(cpp-yt-global)
+
+
+target_compile_options(cpp-yt-global PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(cpp-yt-global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  cpp-yt-assert
+  cpp-yt-misc
+  cpp-yt-memory
+  cpp-yt-threading
+)
+
+target_sources(cpp-yt-global PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/global/impl.cpp
+)
+

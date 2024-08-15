@@ -63,6 +63,8 @@ target_link_libraries(yt-yt-core PUBLIC
   cpp-streams-brotli
   cpp-yt-assert
   cpp-yt-containers
+  cpp-yt-global
+  cpp-yt-error
   cpp-yt-logging
   yt-logging-plain_text_formatter
   cpp-yt-misc
@@ -200,6 +202,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/linear_probe.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/relaxed_mpsc_queue.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/origin_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/parser_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/pattern_formatter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/phoenix.cpp
@@ -219,6 +222,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistic_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/string_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/stripped_error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/cache_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/utf8_decoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/zerocopy_output_writer.cpp
@@ -383,6 +387,8 @@ target_link_libraries(yt-yt-core.global PUBLIC
   cpp-streams-brotli
   cpp-yt-assert
   cpp-yt-containers
+  cpp-yt-global
+  cpp-yt-error
   cpp-yt-logging
   yt-logging-plain_text_formatter
   cpp-yt-misc
