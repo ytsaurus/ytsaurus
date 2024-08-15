@@ -261,7 +261,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnique_24_1)                                    (2591))  // sabdenovch
     ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
     ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
-    // 24.2 starts here.
+    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

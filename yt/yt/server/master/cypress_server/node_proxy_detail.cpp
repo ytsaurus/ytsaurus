@@ -410,7 +410,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::ExpirationTime: {
-            ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -429,7 +429,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::ExpirationTimeout: {
-            ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
 
