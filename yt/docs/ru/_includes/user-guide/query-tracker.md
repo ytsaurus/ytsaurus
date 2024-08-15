@@ -8,6 +8,7 @@ Query tracker позволяет:
 + Отслеживать исполнение.
 + Сохранять результаты.
 + Смотреть историю запросов.
++ Делиться запросами с другими.
 
 [Пример работы с Query tracker](#example).
 
@@ -49,9 +50,9 @@ Query tracker позволяет:
   + В [SPYT](../../user-guide/data-processing/spyt/overview.md) необходимо указывать параметр `discovery_path` — директория для служебных данных существующего кластера Spark.
 + `draft` — является ли запрос черновиком. Такие запросы завершаются автоматически без исполнения.
 + `annotations` — произвольные аннотации к запросу. Позволяют осуществлять удобный поиск по запросам. В формате YSON.
-+ `access_control_object` — название объекта в `//sys/access_control_object_namespaces/queries/`, который определяет доступ к запросу для других пользователей.
++ `access_control_objects` — список объектов в `//sys/access_control_object_namespaces/queries/`, который определяет доступ к запросу для других пользователей.
 
-Пример: `start_query(engine="yql", query="SELECT * FROM my_table", access_control_object="my_aco")`
+Пример: `start_query(engine="yql", query="SELECT * FROM my_table", access_control_objects=["my_aco"])`
 
 ### abort_query {#abort-query}
 
@@ -140,13 +141,13 @@ Query tracker позволяет:
 Опциональные параметры:
 
 + `annotations` — новые аннотации для запроса.
-+ `access_control_object` — новый access control object для запроса.
++ `access_control_objects` — новый список access control object для запроса.
 
-Пример: `alter_query(query_id="my_query_id", access_control_object="my_new_aco")`.
+Пример: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
 
 ## Access control {#access-control}
 
-Для управления доступом к запросам и их результатам, в запрос сохраняется опциональная строка `access_control_object`, которая указывает на `//sys/access_control_object_namespace/queries/[access_control_object]`.
+Для управления доступом к запросам и их результатам, в запрос сохраняется список строк `access_control_objects`, которые указывают на `//sys/access_control_object_namespace/queries/[access_control_object]`.
 
 Access Control Object (ACO) — это объект с атрибутом `@principal_acl`, который задаёт правила доступа тем же способом, что и `@acl` для нод Кипариса. Подробнее можно почитать в разделе [Контроль доступа](../../user-guide/storage/access-control.md).
 
@@ -154,7 +155,8 @@ Access Control Object (ACO) — это объект с атрибутом `@prin
 
 `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 
-Все API используют ACO для проверки доступа: 
+Все API используют ACO для проверки доступа:
+
 + `Use` даёт доступ к запросу.
 + `Read` даёт доступ к результатам запроса.
 + `Administer` даёт доступ к изменению и остановке запроса.
@@ -172,19 +174,21 @@ Access Control Object (ACO) — это объект с атрибутом `@prin
 Также есть несколько особенностей:
 
 + Создатель запроса всегда имеет доступ к своим запросам.
-+ Если у запроса нет ACO, для проверки используется ACO по умолчанию — `nobody`.
++ Если в запросе несколько ACO, то для получения доступа достаточно иметь доступ к одному из них.
 
 Для удобства ytsaurus-k8s-operator создаёт следующие ACO:
+
 + `nobody`. Ничего не разрешает.
 + `everyone`. Разрешает всем пользователям `Use` и `Read`.
 + `everyone-use`. Разрешает всем пользователям `Use`.
-  
++ `everyone-share`. Такой же, как everyone, но не отображается в `list_queries`
+
 ## Пример {#example}
 
 Типичный сценарий работы с Query tracker выглядит следующим образом:
 
 1. Отправляем запрос на исполнение.
-   + `start_query(engine="yql", query="SELECT * from //home/me/my_table", access_control_object="my_team_aco")`.
+   + `start_query(engine="yql", query="SELECT * from //home/me/my_table", access_control_objects=["my_team_aco"])`.
 2. Получаем список запросов, доступных для нас.
    + `list_queries()`.
 3. Получаем информацию о нашем запросе.
@@ -196,4 +200,4 @@ Access Control Object (ACO) — это объект с атрибутом `@prin
 6. Читаем результат.
    + `read_query_result(query_id="my_query_id", result_index=0)`.
 7. Меняем ACO запроса, открывая доступ для всех.
-   + `alter_query(query_id="my_query_id", access_control_object="share_with_everyone_aco")`.
+   + `alter_query(query_id="my_query_id", access_control_objects=["everyone"])`.
