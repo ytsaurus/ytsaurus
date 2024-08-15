@@ -628,8 +628,8 @@ TRANSFORMS[54] = [
 
 
 def are_hunks_enabled(client):
-    hunks_path = "//sys/@config/tablet_manager/enable_hunks"
-    return client.exists(hunks_path) and client.get(hunks_path)
+    # Hunks are enabled by default now
+    return True
 
 
 def check_operations_archive_version(client, target_version):
