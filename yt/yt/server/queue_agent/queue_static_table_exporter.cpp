@@ -169,9 +169,10 @@ private:
 
     static constexpr TStringBuf ExportProgressAttributeName_ = "queue_static_export_progress";
     static constexpr TStringBuf ExportDestinationAttributeName_ = "queue_static_export_destination";
+    static constexpr TStringBuf ExporterAttributeName_ = "queue_static_exporter";
 
     //! Performs the following steps:
-    //!   1) Starts transaction, obtains locks on input queue (snapshot) and export directory (exclusive).
+    //!   1) Starts transaction, obtains locks on input queue (snapshot) and <export_directory>/@queue_static_exporter attribute (shared).
     //!   2) Determines the export fragment timestamp as the largest fragment timestamp which is not greater than the
     //!      current physical time.
     //!      A fragment timestamp is always divisible by the export period in seconds.
@@ -194,9 +195,17 @@ private:
             .ValueOrThrow();
 
         auto transactionId = transaction->GetId();
-        WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
-            .ThrowOnError();
-        WaitFor(transaction->LockNode(ExportConfig_.ExportDirectory, ELockMode::Exclusive))
+        auto queueObjectId = WaitFor(transaction->LockNode(Queue_, ELockMode::Snapshot))
+            .ValueOrThrow()
+            .NodeId;
+
+        // Take it for guarantee that only one queue agent instance do this export.
+        WaitFor(transaction->LockNode(
+            ExportConfig_.ExportDirectory,
+            ELockMode::Shared,
+            TLockNodeOptions{
+                .ChildKey = TString(ExporterAttributeName_),
+            }))
             .ThrowOnError();
 
         Options_.TransactionId = transactionId;
@@ -206,7 +215,7 @@ private:
         ExportInstant_ = TInstant::Now();
         ComputeExportFragmentUnixTs();
 
-        QueueObject_ = TUserObject(Queue_, transactionId);
+        QueueObject_ = TUserObject(FromObjectId(queueObjectId), transactionId);
 
         PrepareQueueForExport();
         auto currentExportProgress = ValidateDestinationAndFetchProgress();
@@ -325,11 +334,12 @@ private:
     void PrepareQueueForExport()
     {
         GetAndFillBasicAttributes(QueueObject_, /*populateSecurityTags*/ true);
+        YT_VERIFY(QueueObject_.GetObjectIdPath() == QueueObject_.GetPath());
 
         if (QueueObject_.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION(
                 "Invalid type of %v: expected %Qlv, %Qlv found",
-                QueueObject_.GetPath(),
+                Queue_,
                 EObjectType::Table,
                 QueueObject_.Type);
         }
@@ -338,13 +348,13 @@ private:
             QueueObject_.GetPath(), {"chunk_count", "dynamic", "schema", "schema_id"});
 
         if (!attributes->Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", QueueObject_.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be a dynamic table", Queue_);
         }
 
         QueueSchema_ = attributes->Get<TTableSchemaPtr>("schema");
         QueueSchemaId_ = attributes->Get<TMasterTableSchemaId>("schema_id");
         if (QueueSchema_->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", QueueObject_.GetPath());
+            THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", Queue_);
         }
 
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
@@ -360,7 +370,7 @@ private:
         if (destinationConfig.OriginatingQueueId != QueueObject_.ObjectId) {
             THROW_ERROR_EXCEPTION(
                 "Destination config is not configured to accept exports from queue %v, configured id %v does not match queue id %v",
-                QueueObject_.GetPath(),
+                Queue_,
                 destinationConfig.OriginatingQueueId,
                 QueueObject_.ObjectId);
         }
@@ -505,7 +515,7 @@ private:
 
         YT_LOG_DEBUG(
             "Created output node for export (DestinationPath: %v, OutputTableNamePattern: %v, UseUpperBoundForTableNames: %v, ExportTtl: %v, ExportFragmentUnixTs: %v)",
-            destinationPath,
+            DestinationObject_.GetPath(),
             ExportConfig_.OutputTableNamePattern,
             ExportConfig_.UseUpperBoundForTableNames,
             ExportConfig_.ExportTtl,
@@ -553,7 +563,7 @@ private:
 
         req->set_upload_transaction_title(Format(
             "Exporting queue %v to static table %v",
-            QueueObject_.GetPath(),
+            Queue_,
             DestinationObject_.GetPath()));
 
         auto cellTags = GetAffectedCellTags(
@@ -569,7 +579,7 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, "Error starting upload to %v", QueueObject_.GetPath());
+            rspOrError, "Error starting upload to %v", Queue_);
 
         const auto& rsp = rspOrError.Value();
 
