@@ -262,8 +262,9 @@ private:
         YT_VERIFY(!LockId_);
         YT_VERIFY(!IsLeader());
 
+        auto transactionId = Transaction_->GetId();
         TLockNodeOptions options;
-        options.TransactionId = Transaction_->GetId(),
+        options.TransactionId = transactionId;
         options.Waitable = true;
         auto rspOrError = WaitFor(
             Client_->LockNode(FromObjectId(LockNodeId_), ELockMode::Exclusive, std::move(options)));
@@ -274,7 +275,7 @@ private:
             // will end up with a conflict, so it's safer to create a new transaction in case
             // of any errors.
             YT_LOG_DEBUG(rspOrError, "Failed to create lock (TransactionId: %v)",
-                Transaction_->GetId());
+                transactionId);
             LockNodeId_ = NullObjectId;
             Transaction_.Reset();
             rspOrError.ThrowOnError();
