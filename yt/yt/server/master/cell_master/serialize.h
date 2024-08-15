@@ -197,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnique_24_1)                                    (2591))  // sabdenovch
     ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
     ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
+    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -229,6 +230,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnique)                                         (2628))  // sabdenovch
     ((DropImaginaryChunkLocations)                                  (2629))  // kvk1920
     ((RackDataCenter)                                               (2630))  // proller
+    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate)        (2631))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
