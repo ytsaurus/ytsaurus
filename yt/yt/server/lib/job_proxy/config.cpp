@@ -285,6 +285,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operations_archive_version", &TThis::OperationsArchiveVersion)
         .Default();
+    registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
+        .Default(TDuration::Seconds(30));
 
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
@@ -335,6 +337,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
             config->RetryAttempts = 10;
             return config;
         });
+
+    registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
