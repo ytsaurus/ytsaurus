@@ -12,29 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(plain_text_formatter)
-add_subdirectory(backends)
-
-add_library(cpp-yt-logging)
 
 
-target_compile_options(cpp-yt-logging PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(cpp-yt-logging PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-assert
-  cpp-yt-memory
-  cpp-yt-misc
-  cpp-yt-yson_string
-)
-
-target_sources(cpp-yt-logging PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

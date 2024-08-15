@@ -12,33 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(orm-library-attributes)
 
 
-target_compile_options(orm-library-attributes PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-)
-
-target_link_libraries(orm-library-attributes PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-yt-client
-)
-
-target_sources(orm-library-attributes PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/merge_attributes.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/path_visitor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/proto_visitor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/unwrapping_consumer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/yson_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

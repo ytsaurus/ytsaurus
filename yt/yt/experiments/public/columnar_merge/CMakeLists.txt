@@ -12,54 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(columnar_merge)
 
 
-target_compile_options(columnar_merge PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_include_directories(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
-)
-
-target_link_libraries(columnar_merge PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  library-query-row_comparer
-  yt-yt-core
-  yt-yt-client
-  yt-yt-ytlib
-  yt-server-node
-  server-lib-io
-  library-cpp-getopt
-)
-
-target_allocator(columnar_merge
-  cpp-ytalloc-impl
-)
-
-target_link_options(columnar_merge PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
-)
-
-
-vcs_info(columnar_merge)

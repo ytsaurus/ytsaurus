@@ -12,23 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(server-lib-rpc)
 
 
-target_compile_options(server-lib-rpc PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(server-lib-rpc PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  ytserver
-)
-
-target_sources(server-lib-rpc PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

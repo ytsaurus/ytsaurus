@@ -12,21 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(library-cpp-dbg_output)
 
 
-target_link_libraries(library-cpp-dbg_output PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-colorizer
-)
-
-target_sources(library-cpp-dbg_output PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/dbg_output/dump.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/dbg_output/dumpers.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/dbg_output/engine.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

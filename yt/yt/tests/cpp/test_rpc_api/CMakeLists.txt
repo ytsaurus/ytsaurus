@@ -12,83 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(cpp-integration-test-rpc-api)
 
 
-target_compile_options(cpp-integration-test-rpc-api PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(cpp-integration-test-rpc-api PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  tests-cpp-test_base
-  yt-yt-ytlib
-  yt-core-test_framework
-  yt-library-named_value
-  libs-apache-arrow
-)
-
-target_allocator(cpp-integration-test-rpc-api
-  cpp-ytalloc-impl
-)
-
-target_link_options(cpp-integration-test-rpc-api PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(cpp-integration-test-rpc-api PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
-)
-
-
-add_test(
-  NAME
-  cpp-integration-test-rpc-api
-  COMMAND
-  cpp-integration-test-rpc-api
-)
-
-set_property(
-  TEST
-  cpp-integration-test-rpc-api
-  PROPERTY
-  LABELS
-  LARGE
-)
-
-set_property(
-  TEST
-  cpp-integration-test-rpc-api
-  PROPERTY
-  ENVIRONMENT
-  "USE_YT_RECIPE_BUILT_FROM_SOURCE=yes"
-)
-
-vcs_info(cpp-integration-test-rpc-api)
-
-set_property(
-  TEST
-  cpp-integration-test-rpc-api
-  PROPERTY
-  PROCESSORS
-  1
-)

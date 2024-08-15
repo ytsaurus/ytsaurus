@@ -12,49 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(Target-ARM-MCTargetDesc)
 
 
-target_compile_options(Target-ARM-MCTargetDesc PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(Target-ARM-MCTargetDesc PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
-)
-
-target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  libs-llvm16-include
-  llvm16-lib-BinaryFormat
-  llvm16-lib-MC
-  lib-MC-MCDisassembler
-  llvm16-lib-Support
-  Target-ARM-TargetInfo
-  Target-ARM-Utils
-  llvm16-lib-TargetParser
-)
-
-target_sources(Target-ARM-MCTargetDesc PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMAsmBackend.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFObjectWriter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFStreamer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMInstPrinter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCAsmInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCCodeEmitter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCExpr.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCTargetDesc.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachORelocationInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachObjectWriter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMTargetStreamer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMUnwindOpAsm.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFObjectWriter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFStreamer.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

@@ -12,32 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_shared_library(cuda_core_dump_injection)
 
 
-target_link_libraries(cuda_core_dump_injection PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_options(cuda_core_dump_injection PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -Wl,-z,notext
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-)
-
-target_sources(cuda_core_dump_injection PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
-)
-
-
-vcs_info(cuda_core_dump_injection)

@@ -13,8 +13,10 @@
 # changes in this file.
 
 
-add_subdirectory(libs)
-add_subdirectory(restricted)
-add_subdirectory(tools)
-add_subdirectory(clickhouse)
-add_subdirectory(deprecated)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
+

@@ -12,33 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(blockcodecs-codecs-bzip INTERFACE)
 
 
-target_link_libraries(blockcodecs-codecs-bzip INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-libbz2
-  cpp-blockcodecs-core
-)
-
-
-add_global_library_for(blockcodecs-codecs-bzip.global
-  blockcodecs-codecs-bzip)
-
-
-target_link_libraries(blockcodecs-codecs-bzip.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  contrib-libs-libbz2
-  cpp-blockcodecs-core
-)
-
-target_sources(blockcodecs-codecs-bzip.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/blockcodecs/codecs/bzip/bzip.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

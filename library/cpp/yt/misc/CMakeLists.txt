@@ -12,27 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(cpp-yt-misc)
 
 
-target_compile_options(cpp-yt-misc PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(cpp-yt-misc PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-exception
-  cpp-yt-assert
-)
-
-target_sources(cpp-yt-misc PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/misc/guid.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/misc/source_location.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/misc/thread_name.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/misc/variant.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

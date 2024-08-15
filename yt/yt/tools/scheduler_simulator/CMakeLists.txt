@@ -12,35 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(bin)
-add_subdirectory(unittests)
-
-add_library(yt-tools-scheduler_simulator)
 
 
-target_compile_options(yt-tools-scheduler_simulator PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-tools-scheduler_simulator PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-server-scheduler
-)
-
-target_sources(yt-tools-scheduler_simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_description.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/private.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/scheduler_strategy_host.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/shared_data.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_shard.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_worker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/control_thread.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/event_log.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 

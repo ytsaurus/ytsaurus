@@ -12,43 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-add_subdirectory(ut)
-
-add_library(cpp-mapreduce-util)
 
 
-target_compile_options(cpp-mapreduce-util PRIVATE
-  -Wdeprecated-this-capture
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(cpp-mapreduce-util PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  tools-enum_parser-enum_serialization_runtime
-  cpp-mapreduce-common
-  cpp-mapreduce-interface
-)
-
-target_sources(cpp-mapreduce-util PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
-)
-
-
-generate_enum_serilization(cpp-mapreduce-util
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
-  INCLUDE_HEADERS
-  yt/cpp/mapreduce/util/wait_for_tablets_state.h
-)

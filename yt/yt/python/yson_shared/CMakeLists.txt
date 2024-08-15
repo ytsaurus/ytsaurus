@@ -12,49 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
-add_shared_library(yson_lib)
 
 
-target_compile_options(yson_lib PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+endif()
 
-target_link_libraries(yson_lib PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  Python3::Module
-  yt-yt-core
-  yt-python-common
-  yt-python-yson
-  python-yson-arrow
-)
-
-target_link_options(yson_lib PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -Wl,-z,notext
-  -Wl,-Bsymbolic
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-
-use_export_script(yson_lib
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson_shared/yson3.exports
-)
-
-vcs_info(yson_lib)
