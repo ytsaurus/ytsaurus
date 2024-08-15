@@ -1003,7 +1003,7 @@ class TestInputFetching(ClickHouseTestBase):
 
     @staticmethod
     def wait_for_query_in_log(log_table, query_id=None, query_ids=tuple()):
-        wait(lambda: TestInputFetching.get_log_messages(log_table, query_id=query_id, query_ids=query_ids))
+        wait(lambda: len(TestInputFetching.get_log_messages(log_table, query_id=query_id, query_ids=query_ids)) == (1 if query_id is not None else len(query_ids)))
 
     @staticmethod
     def get_total_block_rows_read(log_table, query_id):
@@ -1084,6 +1084,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "settings": {
                     "execution": {
                         "enable_optimize_read_in_order": True,
+                        "assume_no_null_keys": True,
                     },
                     "testing": {
                         # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
@@ -1147,52 +1148,65 @@ class TestInputFetching(ClickHouseTestBase):
                 settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
             assert [r["ts"] for r in result] == sorted(ts_column, reverse=True)
 
+    def _register_query_check(self, expected_read_in_order_modes, clique, query, expected_read_in_order_mode, expected_result=None, query_settings=None):
+        result, query_id = self.make_query(
+            clique,
+            query,
+            settings=query_settings or {})
+        if expected_result is not None:
+            assert result == expected_result
+        expected_read_in_order_modes[query_id] = expected_read_in_order_mode
+
+    def _check_read_in_order_modes(self, log_table, expected_read_in_order_modes):
+        self.wait_for_query_in_log(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
+        read_in_order_modes = self.get_read_in_order_modes(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
+        print_debug(expected_read_in_order_modes)
+        print_debug(read_in_order_modes)
+        for query_id, expected_read_in_order_mode in expected_read_in_order_modes.items():
+            assert read_in_order_modes[query_id] == expected_read_in_order_mode, f"Mode differs from expected for query {query_id}"
+
     @authors("achulkov2")
-    def test_optimize_read_in_order_float_nulls(self):
-        int_schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-        ]
+    def test_optimize_read_in_order_nulls_and_nans(self):
+        def generate_test_params(key_column_type, required, add_nulls, add_nans):
+            assert key_column_type in {"int", "float"}
 
-        float_schema = [
-            {"name": "key", "type": "float", "sort_order": "ascending"},
-        ]
+            table_name_prefix = f"//tmp/table-{key_column_type}-{required}-{add_nulls}-{add_nans}"
 
-        table_count = 3
+            schema = [
+                {"name": "key", "type": "int64" if key_column_type == "int" else "float", "sort_order": "ascending", "required": required},
+            ]
 
-        for table_index in range(table_count):
-            table_name = f"//tmp/table-{table_index}-int"
-            create("table", table_name, attributes={"schema": int_schema, "chunk_writer": {"block_size": 16}})
+            table_count = 3
 
-            write_table(f"<append=%true>{table_name}", [
-                {"key": None},
-                {"key": 57},
-                {"key": 1543},
-            ])
+            data = [[5.7, 15.43], [20.07, 42.42]]
+            if key_column_type == "int":
+                data = [[int(str(k).replace(".", "")) for k in chunk_data] for chunk_data in data]
+            if add_nulls:
+                data[0] = [None] + data[0]
+            if add_nans:
+                assert key_column_type == "float"
+                data[1] += [float("nan")]
 
-            write_table(f"<append=%true>{table_name}", [
-                {"key": 2007},
-                {"key": 4242},
-            ])
+            ordered_keys = sum(([x, x, x] for x in data[0] + data[1]), start=[])
 
-        for table_index in range(table_count):
-            table_name = f"//tmp/table-{table_index}-float"
-            create("table", table_name, attributes={"schema": float_schema, "chunk_writer": {"block_size": 16}})
+            table_names = []
+            for table_index in range(table_count):
+                table_name = f"{table_name_prefix}-{table_index}"
+                create("table", table_name, attributes={"schema": schema, "chunk_writer": {"block_size": 16}})
+                table_names.append(table_name)
 
-            write_table(f"<append=%true>{table_name}", [
-                {"key": None},
-                {"key": 5.7},
-                {"key": 15.43},
-            ])
+                for chunk_data in data:
+                    write_table(f"<append=%true>{table_name}", [{"key": k} for k in chunk_data])
 
-            write_table(f"<append=%true>{table_name}", [
-                {"key": 20.07},
-                {"key": 42.42},
-                # Uncommenting the next line would lead to an incorrect query result. C'est la vie.
-                # {"key": float("nan")},
-            ])
+            concatenated_table_expression = ", ".join(f'"{name}"' for name in table_names)
+            concatenated_table_expression = f"concatYtTables({concatenated_table_expression})"
 
-        ordered_int_values = sum(([x, x, x] for x in (None, 57, 1543, 2007, 4242)), start=[])
-        ordered_float_values = sum(([x, x, x] for x in (None, 5.7, 15.43, 20.07, 42.42)), start=[])
+            return {
+                "table": concatenated_table_expression,
+                "ordered_table": [{"key": k if str(k) != "nan" else str(k)} for k in ordered_keys],
+            }
+
+        log_table, query_log_config = self.prepare_query_log(f"//tmp/exporter")
 
         with Clique(1, config_patch={"yt": {
                 "settings": {
@@ -1204,68 +1218,129 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_data_weight_per_thread": 30,
                     "min_slice_data_weight": 1,
                 },
+                "system_log_table_exporters": query_log_config,
             }}) as clique:
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_int_values
+            expected_read_in_order_modes = {}
+            def register_query_check(query, read_in_order_mode, result, settings=None):
+                settings = settings or {}
+                settings.update({"chyt.execution.input_streams_per_secondary_query": 8})
+                self._register_query_check(expected_read_in_order_modes, clique, query, expected_read_in_order_mode=read_in_order_mode, expected_result=result, query_settings=settings)
 
-            # We require nulls direction to be specified explicitly for queries with floating-point key columns.
-            with raises_yt_error(QueryFailedError):
-                result = clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            # settings={"chyt.execution.assume_no_null_keys": 1}
+            test_params = generate_test_params(key_column_type="int", required=True, add_nulls=False, add_nans=False)
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls first limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
 
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key nulls first limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_int_values
+            test_params = generate_test_params(key_column_type="int", required=False, add_nulls=False, add_nans=False)
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"], settings={"chyt.execution.assume_no_null_keys": 1})
+            # Default for desc is fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1], settings={"chyt.execution.assume_no_null_keys": 1})
 
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key nulls first limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_float_values
+            test_params = generate_test_params(key_column_type="int", required=False, add_nulls=True, add_nans=False)
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls first limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"])
+            # Default for desc is fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key nulls last limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            test_params = generate_test_params(key_column_type="float", required=True, add_nulls=False, add_nans=False)
+            # Default direction for ASC is fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"])
+            # Still fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"], settings={"chyt.execution.assume_no_nan_keys": 1})
+            # Default direction for DESC is not fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"][::-1])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1], settings={"chyt.execution.assume_no_nan_keys": 1})
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key nulls last limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            test_params = generate_test_params(key_column_type="float", required=True, add_nulls=False, add_nans=True)
+            # Default direction for ASC is fine.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"])
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1])
 
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_int_values[::-1]
+            test_params = generate_test_params(key_column_type="float", required=False, add_nulls=False, add_nans=False)
+            # No optimization if there could be both NULLs and NANs.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls last limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"])
+            # No optimization if there could be both NULLs and NANs.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls first limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"])
+            # No optimization if there could be both NULLs and NANs.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls last limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"][::-1])
+            # No optimization if there could be both NULLs and NANs.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="none", result=test_params["ordered_table"][::-1])
+            # Let's just check some of the combinations, I am tired of writing this test.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls first limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"], settings={"chyt.execution.assume_no_nan_keys": 1})
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1], settings={"chyt.execution.assume_no_null_keys": 1})
+            register_query_check(
+                f'select * from {test_params["table"]} order by key limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"], settings={"chyt.execution.assume_no_null_keys": 1, "chyt.execution.assume_no_nan_keys": 1})
 
-            # We require nulls direction to be specified explicitly for queries with floating-point key columns.
-            with raises_yt_error(QueryFailedError):
-                result = clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            test_params = generate_test_params(key_column_type="float", required=False, add_nulls=True, add_nans=False)
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls first limit 10000',
+                read_in_order_mode="forward", result=test_params["ordered_table"], settings={"chyt.execution.assume_no_nan_keys": 1})
 
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc nulls last limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_int_values[::-1]
+            test_params = generate_test_params(key_column_type="float", required=False, add_nulls=False, add_nans=True)
+            register_query_check(
+                f'select * from {test_params["table"]} order by key desc nulls first limit 10000',
+                read_in_order_mode="backward", result=test_params["ordered_table"][::-1], settings={"chyt.execution.assume_no_null_keys": 1})
 
-            result = clique.make_query(
-                f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc nulls last limit 10000',
-                settings={"chyt.execution.input_streams_per_secondary_query": 8})
-            assert [r["key"] for r in result] == ordered_float_values[::-1]
+            test_params = generate_test_params(key_column_type="float", required=False, add_nulls=True, add_nans=True)
+            # There is nothing we can actually do to make to optimize these queries.
+            register_query_check(
+                f'select * from {test_params["table"]} order by key nulls last limit 10000',
+                # None values will be at the end instead of the beginning.
+                read_in_order_mode="none", result=test_params["ordered_table"][3:] + test_params["ordered_table"][:3])
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-int", "//tmp/table-1-int", "//tmp/table-2-int") order by key desc nulls first limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(
-                    f'select * from concatYtTables("//tmp/table-0-float", "//tmp/table-1-float", "//tmp/table-2-float") order by key desc nulls first limit 10000',
-                    settings={"chyt.execution.input_streams_per_secondary_query": 8})
 
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
@@ -1295,6 +1370,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "settings": {
                     "execution": {
                         "enable_optimize_read_in_order": True,
+                        "assume_no_null_keys": True,
                     },
                    "testing": {
                         # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
@@ -1312,11 +1388,8 @@ class TestInputFetching(ClickHouseTestBase):
             # Also, query log takes a few seconds to write messages, so we run all checks in the end.
             expected_read_in_order_modes = {}
             def register_query_check(query, read_in_order_mode):
-                _, query_id = self.make_query(
-                    clique,
-                    query,
-                    settings={"chyt.execution.input_streams_per_secondary_query": 4})
-                expected_read_in_order_modes[query_id] = read_in_order_mode
+                settings = {"chyt.execution.input_streams_per_secondary_query": 8}
+                self._register_query_check(expected_read_in_order_modes, clique, query, expected_read_in_order_mode=read_in_order_mode, query_settings=settings)
 
             register_query_check('select message from "//tmp/table-0" order by ts limit 1', read_in_order_mode="forward")
             register_query_check('select message from "//tmp/table-0" order by ts desc limit 1', read_in_order_mode="backward")
@@ -1335,16 +1408,13 @@ class TestInputFetching(ClickHouseTestBase):
             register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1', read_in_order_mode="backward")
             # Positional arguments in ORDER BY are supported.
             register_query_check('select ts from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="forward")
+            # Aliases also work.
+            register_query_check('with ts as ts2 select message from "//tmp/table-0" order by ts2 limit 1', read_in_order_mode="forward")
             # Ordering by non-key columns.
             register_query_check('select message from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="none")
             register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
 
-            self.wait_for_query_in_log(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
-            read_in_order_modes = self.get_read_in_order_modes(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
-            for query_id, expected_read_in_order_mode in expected_read_in_order_modes.items():
-                assert read_in_order_modes[query_id] == expected_read_in_order_mode
-
-
+            self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

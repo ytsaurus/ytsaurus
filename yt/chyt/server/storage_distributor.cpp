@@ -487,8 +487,8 @@ public:
 
     bool ReadInOrder() const
     {
-        YT_VERIFY(QueryAnalysisResult_);
-        return QueryAnalysisResult_->ReadInOrderMode != EReadInOrderMode::None;
+        YT_VERIFY(QueryAnalyzer_);
+        return QueryAnalyzer_->GetReadInOrderMode() != EReadInOrderMode::None;
     }
 
     DB::QueryPipelineBuilderPtr ExtractPipeline(std::function<void()> commitCallback)
@@ -988,14 +988,13 @@ public:
         }
 
         analyzer.Prepare();
-        auto queryAnalysisResult = analyzer.Analyze();
 
         auto nodes = GetNodesToDistribute(queryContext, DistributionSeed_, isDistributedJoin);
         // If there is only one node, then its result is final, since
         // we do not need to merge aggregation states from different streams.
         // When reading in order we can produce more subqueries than nodes,
         // so this optimization is not applicable.
-        if (queryAnalysisResult.ReadInOrderMode == EReadInOrderMode::None && nodes.size() == 1) {
+        if (analyzer.GetReadInOrderMode() == EReadInOrderMode::None && nodes.size() == 1) {
             return DB::QueryProcessingStage::Complete;
         }
 

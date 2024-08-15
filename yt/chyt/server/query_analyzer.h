@@ -64,6 +64,9 @@ public:
     //! Prepare method should be called before GetOptimizedQueryProcessingStage.
     DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
 
+    //! Prepare method should be called before GetReadInOrderMode.
+    EReadInOrderMode GetReadInOrderMode() const;
+
     //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
 
@@ -99,6 +102,8 @@ private:
 
     std::optional<DB::QueryProcessingStage::Enum> OptimizedQueryProcessingStage_;
 
+    EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
+
     std::vector<DB::ASTPtr> JoinKeyRightExpressions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
@@ -112,7 +117,7 @@ private:
 
     void OptimizeQueryProcessingStage();
 
-    EReadInOrderMode InferReadInOrderMode() const;
+    void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
     IStorageDistributorPtr GetStorage(const DB::ASTTableExpression* tableExpression) const;
 

@@ -105,7 +105,7 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
         jobCount += jobSizeTrackerOptions.LimitProgressionLength - 1;
 
         // This helps us actually produce small jobs when we need them.
-        inputSliceDataWeight = std::max<int>(1, startDataWeightPerJob * 0.1);
+        inputSliceDataWeight = std::max<i64>(1, startDataWeightPerJob * 0.1);
     }
 
     // It is important to watch the ratio of total data weight to input slice data weight, to avoid dealing with too many slices.

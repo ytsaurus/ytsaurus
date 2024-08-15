@@ -144,6 +144,10 @@ void TExecutionSettings::Register(TRegistrar registrar)
     // TODO(achulkov2): Set to false by default. This is temporary to run all tests and verify that nothing fails.
     registrar.Parameter("enable_optimize_read_in_order", &TThis::EnableOptimizeReadInOrder)
         .Default(true);
+    registrar.Parameter("assume_no_null_keys", &TThis::AssumeNoNullKeys)
+        .Default(false);
+    registrar.Parameter("assume_no_nan_keys", &TThis::AssumeNoNanKeys)
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

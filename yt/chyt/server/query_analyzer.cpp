@@ -267,7 +267,7 @@ DB::ASTPtr CreateKeyComparison(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-EReadInOrderMode GetReadInOrderMode(ESortOrder sortOrder, int direction)
+EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, int direction)
 {
     // Descending sort order is not actually supported in CHYT, but let's prepare for the moment it is.
     switch (sortOrder) {
@@ -652,6 +652,16 @@ DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage(
     return *OptimizedQueryProcessingStage_;
 }
 
+EReadInOrderMode TQueryAnalyzer::GetReadInOrderMode() const
+{
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared, but GetReadInOrderMode method is already called; "
+            "this is a bug; please, file an issue in the relevant queue");
+    }
+
+    return ReadInOrderMode_;
+}
+
 void TQueryAnalyzer::OptimizeQueryProcessingStage()
 {
     const auto& settings = StorageContext_->Settings;
@@ -744,26 +754,26 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::Complete;
 }
 
-EReadInOrderMode TQueryAnalyzer::InferReadInOrderMode() const
+void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys)
 {
     auto selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
 
     // Read in order is forbidden in JOINs and queries with aggregation.
     // It might be useful in some of these cases, but that is a question for another day.
     if (Join_ || selectQuery->groupBy() || selectQuery->having() || selectQuery->window() || selectQuery->limitBy()) {
-        return EReadInOrderMode::None;
+        return;
     }
 
     // Read in order makes no sense without requested order.
     // Native CH optimizations will do the trick.
     if (!selectQuery->orderBy()) {
-        return EReadInOrderMode::None;
+        return;
     }
 
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
     if (!selectQuery->limitLength() && !getContext()->getSettingsRef().limit) {
-        return EReadInOrderMode::None;
+        return;
     }
 
     YT_VERIFY(YtTableCount_ == 1);
@@ -771,14 +781,14 @@ EReadInOrderMode TQueryAnalyzer::InferReadInOrderMode() const
 
     // If the underlying table is not sorted we cannot help in any way.
     if (!schema->IsSorted()) {
-        return EReadInOrderMode::None;
+        return;
     }
 
     auto commonDirection = EReadInOrderMode::None;
 
     // Columns from the ORDER BY clause must form a prefix of the table's primary key.
     if (std::ssize(selectQuery->orderBy()->children) > schema->GetKeyColumnCount()) {
-        return EReadInOrderMode::None;
+        return;
     }
 
     std::vector<TString> floatKeyColumnsWithoutExplicitNullsDirection;
@@ -792,75 +802,65 @@ EReadInOrderMode TQueryAnalyzer::InferReadInOrderMode() const
                 "this is a bug; please contact cluster administrators");
         }
 
-        // The name can contain functions. While it is possible to support tuples
-        // and even monotonic functions, I do not think there is much use.
-        auto columnName = orderByElement->children.front()->getColumnName();
+        auto orderByElementColumnIdentifier = orderByElement->children.front()->as<DB::ASTIdentifier>();
+        // Functions are not supported. It is possible, but I do not think there is much use.
+        if (!orderByElementColumnIdentifier) {
+            return;
+        }
 
         // Correct index range and sort order presence is guaranteed by the key column count above.
         const auto& schemaColumn = schema->Columns()[columnIndex];
         YT_VERIFY(schemaColumn.SortOrder());
 
         // Columns from the ORDER BY clause must form a prefix of the table's primary key.
-        if (columnName != schemaColumn.Name()) {
-            return EReadInOrderMode::None;
+        if (orderByElementColumnIdentifier->name() != schemaColumn.Name()) {
+            return;
         }
 
         // All requested directions must align and form either a forward or backward read of the underlying table.
-        auto columnDirection = GetReadInOrderMode(*schemaColumn.SortOrder(), orderByElement->direction);
+        auto columnDirection = GetReadInOrderColumnDirection(*schemaColumn.SortOrder(), orderByElement->direction);
         if (commonDirection == EReadInOrderMode::None) {
             commonDirection = columnDirection;
         } else if (commonDirection != columnDirection) {
-            return EReadInOrderMode::None;
+            return;
         }
 
-        // See float-related comments below.
-        if (IsFloatingPointType(schemaColumn.CastToV1Type()) && !orderByElement->nulls_direction_was_explicitly_specified) {
-            floatKeyColumnsWithoutExplicitNullsDirection.push_back(schemaColumn.Name());
+        // In YT, NULL values compare less than any other values. In ClickHouse, NULL value placement
+        // depends solely on the placement requested in the query, which defaults to NULLS LAST.
+        // Since we combine both YT and CH sorting in this mode, there is only one acceptable direction
+        // depending on the requested sort order. Otherwise, we cannot use this mode, except in cases
+        // when we know that no NULLS are present. We check all of this below.
+
+        bool isFloat = IsFloatingPointType(schemaColumn.CastToV1Type());
+        bool isRequired = schemaColumn.Required();
+
+        bool couldHaveNulls = !isRequired && !assumeNoNullKeys;
+        bool couldHaveNans = isFloat && !assumeNoNanKeys;
+
+        // Sadly, with both NANs and NULLs we are just screwed. In YT NAN values are larger than any others,
+        // but in CHYT they are always placed together with NULLs. These two approaches contradict each other,
+        // so we cannot optimize.
+        if (couldHaveNulls && couldHaveNans) {
+            return;
+        }
+
+        // The value of nulls_direction is equal to direction for NULLS LAST and to the opposite
+        // of direction for NULLS FIRST.
+
+        // For ASC (d = 1), we need NULLS FIRST (nd = -d = -1).
+        // For DSC (d = -1), we need NULLS LAST (nd =  d = -1).
+        if (couldHaveNulls && orderByElement->nulls_direction != -1) {
+            return;
+        }
+
+        // For ASC (d = 1), we need NANS LAST => NULLS LAST    (nd =   d = 1).
+        // For DSC (d = -1), we need NANS FIRST => NULLS FIRST (nd =  -d = 1).
+        if (couldHaveNans && orderByElement->nulls_direction != 1) {
+            return;
         }
     }
 
-    // See the last comment in this function.
-    if (!floatKeyColumnsWithoutExplicitNullsDirection.empty()) {
-        THROW_ERROR_EXCEPTION(
-            "Nulls direction must be specified explicitly for key columns of floating-point "
-            "types when using optimize_read_in_order is enabled; see docs for more details")
-            << TErrorAttribute("problematic_columns", floatKeyColumnsWithoutExplicitNullsDirection);
-    }
-
-    // In YT, NULL values compare less than any other values. In ClickHouse, NULL value placement
-    // depends solely on the placement requested in the query, which defaults to NULLS LAST.
-    // Since we combine both YT and CH sorting in this mode, there is only one acceptable direction
-    // depending on the requested sort order. In cases when the unsupported option turns out to be
-    // the default (for ascending sorts), we tweak the query to avoid additional user turmoil.
-    if (commonDirection != EReadInOrderMode::None) {
-        for (const auto& orderByElementAst : selectQuery->orderBy()->children) {
-            auto orderByElement = orderByElementAst->as<DB::ASTOrderByElement>();
-
-            // The value of nulls_direction is equal to direction for NULLS LAST and to the opposite
-            // of direction for NULLS FIRST.
-            // For ASC (d = 1), we need NULLS FIRST (nd = -d = -1).
-            // For DSC (d = -1), we need NULLS LAST (nd =  d = -1).
-            if (orderByElement->nulls_direction != -1) {
-                THROW_ERROR_EXCEPTION_IF(
-                    orderByElement->nulls_direction_was_explicitly_specified,
-                    "Specified nulls direction is incompatible with enabled optimize_read_in_order mode; "
-                    "please turn it off via query settings, specify another nulls direction or use the default nulls direction");
-                YT_LOG_DEBUG(
-                    "Reversing ORDER BY nulls direction (ColumnName: %v, Direction: %v, NullsDirection: %v -> -1)",
-                    orderByElement->children.front()->getColumnName(),
-                    orderByElement->direction,
-                    orderByElement->nulls_direction);
-                orderByElement->nulls_direction = -1;
-                orderByElement->nulls_direction_was_explicitly_specified = true;
-            }
-        }
-    }
-    // Sadly, with NANs we are just screwed. In YT these values are larger than any others, but in
-    // CHYT they are always placed together with NULLs. These two approaches contradict each other.
-    // To warn about such cases without disabling this optimization for tables with floating-point
-    // key columns completely, we require to specify nulls direction explicitly as a green light.
-
-    return commonDirection;
+    ReadInOrderMode_ = commonDirection;
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze() const
@@ -913,11 +913,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         result.TableSchemas.emplace_back(storage->GetSchema());
     }
 
-    if (settings->Execution->EnableOptimizeReadInOrder) {
-        result.ReadInOrderMode = InferReadInOrderMode();
-    }
+    result.ReadInOrderMode = ReadInOrderMode_;
 
-    if (result.ReadInOrderMode != EReadInOrderMode::None) {
+    if (ReadInOrderMode_ != EReadInOrderMode::None) {
         result.PoolKind = EPoolKind::Sorted;
         result.KeyColumnCount = Storages_[0]->GetSchema()->GetKeyColumnCount();
     } else {
@@ -1227,6 +1225,9 @@ void TQueryAnalyzer::Prepare()
     }
     if (settings->Execution->OptimizeQueryProcessingStage) {
         OptimizeQueryProcessingStage();
+    }
+    if (settings->Execution->EnableOptimizeReadInOrder) {
+        InferReadInOrderMode(settings->Execution->AssumeNoNullKeys, settings->Execution->AssumeNoNanKeys);
     }
 
     Prepared_ = true;
