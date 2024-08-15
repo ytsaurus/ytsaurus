@@ -29,5 +29,6 @@ IF (NOT OPENSOURCE)
         sevenpct
         abc_integration_client
         timbertruck
+        libs
     )
 ENDIF()
