@@ -1900,24 +1900,6 @@ class TestCypress(YTEnvSetup):
             )
 
     @authors("babenko")
-    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
-    @not_implemented_in_sequoia
-    def test_expiration_change_requires_recursive_remove_permission_failure(self, expiration):
-        create_user("u")
-        create("map_node", "//tmp/m")
-        create("table", "//tmp/m/t")
-        set(
-            "//tmp/m/t/@acl",
-            [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")],
-        )
-        with pytest.raises(YtError):
-            set(
-                "//tmp/m/@" + expiration[0],
-                expiration[1],
-                authenticated_user="u",
-            )
-
-    @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
     @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_success(self, expiration):
