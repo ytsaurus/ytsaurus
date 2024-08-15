@@ -122,6 +122,11 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+        if (!config->EnableGroundUpdateQueues) {
+            return;
+        }
+
         auto& queueState = QueueStates_[queue];
 
         TTableUpdateQueueRecord record{

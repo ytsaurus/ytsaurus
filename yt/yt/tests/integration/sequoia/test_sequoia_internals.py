@@ -78,6 +78,12 @@ class TestSequoiaInternals(YTEnvSetup):
         "11": {"roles": ["sequoia_node_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
     def lookup_path_to_node_id(self, path):
         return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 

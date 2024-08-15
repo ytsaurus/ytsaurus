@@ -436,6 +436,12 @@ class TestSequoiaQueues(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
     def _pause_sequoia_queue(self):
         set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
 
