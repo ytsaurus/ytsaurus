@@ -1519,10 +1519,13 @@ private:
                         continue;
                     }
                     if (!syncReplicaIds.contains(replicaInfo->ReplicaId)) {
-                        futures->push_back(MakeFuture(TError(
+                        auto error = TError(
                             NTabletClient::EErrorCode::SyncReplicaNotInSync,
                             "Cannot write to sync replica %v since it is not in-sync yet",
-                            replicaInfo->ReplicaId)));
+                            replicaInfo->ReplicaId)
+                            << TErrorAttribute("replica_cluster", replicaInfo->ClusterName)
+                            << TErrorAttribute("replica_path", replicaInfo->ReplicaPath);
+                        futures->push_back(MakeFuture(std::move(error)));
                         return;
                     }
                 }
