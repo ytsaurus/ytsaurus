@@ -265,8 +265,12 @@ public:
                 return false;
             }
 
-            auto loadedBlocks = FetchedBlocks_.GetUnique()
-                .ValueOrThrow();
+            auto loadedBlocksOrError = FetchedBlocks_.GetUnique();
+            if (!loadedBlocksOrError.IsOK()) {
+                return false;
+            }
+
+            auto loadedBlocks = std::move(loadedBlocksOrError).Value();
 
             size_t index = 0;
             for (auto& blockHolder : BlockHolders_) {
