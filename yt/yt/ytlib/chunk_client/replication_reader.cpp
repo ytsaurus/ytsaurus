@@ -282,7 +282,7 @@ private:
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
 
-    bool CanFetchingSeedsFromMaster() const
+    bool CanFetchSeedsFromMaster() const
     {
         return Options_->AllowFetchingSeedsFromMaster && !Options_->UseProxyingDataNodeService;
     }
@@ -299,7 +299,7 @@ private:
             }
         }
 
-        YT_VERIFY(CanFetchingSeedsFromMaster());
+        YT_VERIFY(CanFetchSeedsFromMaster());
         const auto& chunkReplicaCache = Client_->GetNativeConnection()->GetChunkReplicaCache();
         auto futures = chunkReplicaCache->GetReplicas({DecodeChunkId(ChunkId_).Id});
         YT_VERIFY(futures.size() == 1);
@@ -308,7 +308,7 @@ private:
 
     void DiscardSeeds(const TFuture<TAllyReplicasInfo>& future)
     {
-        if (!CanFetchingSeedsFromMaster()) {
+        if (!CanFetchSeedsFromMaster()) {
             // We're not allowed to ask master for seeds.
             // Better keep the initial ones.
             return;
@@ -1230,7 +1230,7 @@ protected:
                 "No feasible seeds to start a pass"));
 
             auto reader = Reader_.Lock();
-            if (reader && reader->CanFetchingSeedsFromMaster()) {
+            if (reader && reader->CanFetchSeedsFromMaster()) {
                 OnRetryFailed();
             } else {
                 OnSessionFailed(/*fatal*/ true);
