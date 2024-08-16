@@ -3,6 +3,8 @@
 #include "config.h"
 #include "columnar_conversion.h"
 #include "custom_data_types.h"
+// TODO(achulkov2): Is this include needed?
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -960,7 +962,8 @@ class TDecimalConverter
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
         || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
-        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int256>);
 
     using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
@@ -968,6 +971,7 @@ public:
 
     TDecimalConverter(int precision, int scale)
         : Precision_(precision)
+        , YTDecimalSize_(TDecimal::GetValueBinarySize(Precision_))
         , DataType_(std::make_shared<DB::DataTypeDecimal<TClickHouseDecimal>>(precision, scale))
     { }
 
@@ -983,7 +987,7 @@ public:
         auto ysonItem = cursor->GetCurrent();
         auto data = ysonItem.UncheckedAsString();
 
-        YT_ASSERT(data.size() == DecimalSize);
+        YT_ASSERT(std::ssize(data) == YTDecimalSize_);
 
         ParseAndPushBackDecimal(data);
 
@@ -1044,6 +1048,7 @@ public:
 
 private:
     int Precision_;
+    i64 YTDecimalSize_;
     DB::DataTypePtr DataType_;
     DB::MutableColumnPtr Column_;
     TDecimalColumn* DecimalColumn_;
@@ -1059,7 +1064,16 @@ private:
             auto parsedValue = TDecimal::ParseBinary64(Precision_, ytValue);
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
-            auto parsedValue = TDecimal::ParseBinary128(Precision_, ytValue);
+            // For compatibility with YQL, decimals with precision from 36 to
+            // 38, which technically fit into 128 bits, are represented with 256
+            // bits in YT. ClickHouse uses 128 bits to represent decimals with
+            // these precisions, so the binary sizes are different.
+            auto parsedValue = YTDecimalSize_ == DecimalSize
+                ? TDecimal::ParseBinary128(Precision_, ytValue)
+                : TDecimal::ParseBinary256As128(Precision_, ytValue);
+            memcpy(&chValue, &parsedValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int256>) {
+            auto parsedValue = TDecimal::ParseBinary256(Precision_, ytValue);
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else {
             YT_ABORT();
@@ -1377,14 +1391,15 @@ private:
         const auto& decimalType = descriptor.GetType()->AsDecimalTypeRef();
         int precision = decimalType.GetPrecision();
         int scale = decimalType.GetScale();
-        auto valueSize = TDecimal::GetValueBinarySize(precision);
 
-        if (valueSize == sizeof(DB::Int32)) {
+        if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal32>)) {
             return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
-        } else if (valueSize == sizeof(DB::Int64)) {
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal64>)) {
             return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
-        } else if (valueSize == sizeof(DB::Int128)) {
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal128>)) {
             return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal256>)) {
+            return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
         }
 
         YT_ABORT();

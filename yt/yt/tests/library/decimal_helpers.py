@@ -3,7 +3,7 @@ import struct
 
 from yt.yson import get_bytes, YsonStringProxy
 
-MAX_DECIMAL_PRECISION = 35
+MAX_DECIMAL_PRECISION = 76
 
 
 class _YtNaN(object):
@@ -24,14 +24,16 @@ YtNaN = _YtNaN()
 
 
 def _get_decimal_byte_size(precision):
-    if precision < 0 or precision > 38:
+    if precision < 0 or precision > MAX_DECIMAL_PRECISION:
         raise ValueError("Bad precision: {}".format(precision))
     elif precision <= 9:
         return 4
     elif precision <= 18:
         return 8
-    else:
+    elif precision <= 35:
         return 16
+    else:
+        return 32
 
 
 _DECIMAL_CONTEXT = decimal.Context(prec=2 * MAX_DECIMAL_PRECISION)
@@ -50,18 +52,21 @@ def encode_decimal(decimal_value, precision, scale):
             4: b"\xFF\xFF\xFF\xFE",
             8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
             16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
+            32: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
         }[_get_decimal_byte_size(precision)]
     elif decimal_value == decimal.Decimal("-Inf"):
         return {
             4: b"\x00\x00\x00\x02",
             8: b"\x00\x00\x00\x00\x00\x00\x00\x02",
             16: b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02",
+            32: b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02",
         }[_get_decimal_byte_size(precision)]
     elif decimal_value.is_nan():
         return {
             4: b"\xFF\xFF\xFF\xFF",
             8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
             16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+            32: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
         }[_get_decimal_byte_size(precision)]
 
     scaled = decimal_value.scaleb(scale, context=_DECIMAL_CONTEXT)
@@ -82,6 +87,8 @@ def encode_decimal(decimal_value, precision, scale):
         return struct.pack(">Q", intval)
     elif byte_size == 16:
         return struct.pack(">QQ", intval >> 64, intval & 0xFFFFFFFFFFFFFFFF)
+    elif byte_size == 32:
+        return struct.pack(">QQQQ", intval >> 192, (intval >> 128) & 0xFFFFFFFFFFFFFFFF, (intval >> 64) & 0xFFFFFFFFFFFFFFFF, intval & 0xFFFFFFFFFFFFFFFF)
     else:
         raise RuntimeError("Unexpected precision: {}".format(precision))
 
@@ -115,6 +122,9 @@ def decode_decimal(yt_binary_value, precision, scale):
     elif len(yt_binary_value) == 16:
         hi, lo = struct.unpack(">QQ", yt_binary_value)
         intval = (hi << 64) | lo
+    elif len(yt_binary_value) == 32:
+        p3, p2, p1, p0 = struct.unpack(">QQQQ", yt_binary_value)
+        intval = (p3 << 192) | (p2 << 128) | (p1 << 64) | p0
     else:
         raise AssertionError("Unexpected length: {}".format(len(yt_binary_value)))
     intval -= 1 << (len(yt_binary_value) * 8 - 1)

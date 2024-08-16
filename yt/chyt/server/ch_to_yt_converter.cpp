@@ -5,6 +5,7 @@
 #include "custom_data_types.h"
 #include "format.h"
 #include "columnar_conversion.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -503,16 +504,21 @@ class TDecimalConverter
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
         || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
-        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int256>);
 
     using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
     static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
+    static constexpr i64 MaxYTDecimalSize = sizeof(DB::Int256);
 
     TDecimalConverter(int precision, int scale)
         : Precision_(precision)
         , Scale_(scale)
-    { }
+        , YTDecimalSize_(TDecimal::GetValueBinarySize(Precision_))
+    {
+        YT_VERIFY(YTDecimalSize_ <= MaxYTDecimalSize);
+    }
 
     void InitColumn(const DB::IColumn* column) override
     {
@@ -525,18 +531,18 @@ public:
     {
         YT_VERIFY(values.size() == Column_->size());
 
-        Buffer_.resize(values.size() * DecimalSize);
+        Buffer_.resize(values.size() * YTDecimalSize_);
 
         const char* data = Column_->template getRawDataBegin<DecimalSize>();
 
         for (int index = 0; index < std::ssize(values); ++index) {
             const char* chValue = data + DecimalSize * index;
-            char* ytValue = Buffer_.begin() + DecimalSize * index;
+            char* ytValue = Buffer_.begin() + YTDecimalSize_ * index;
             DoConvertDecimal(ytValue, chValue);
 
             values[index].Type = EValueType::String;
             values[index].Data.String = ytValue;
-            values[index].Length = DecimalSize;
+            values[index].Length = YTDecimalSize_;
         }
     }
 
@@ -548,10 +554,10 @@ public:
             const char* data = Column_->template getRawDataBegin<DecimalSize>();
             const char* chValue = data + DecimalSize * CurrentValueIndex_;
 
-            char ytValue[DecimalSize];
+            char ytValue[MaxYTDecimalSize];
             DoConvertDecimal(ytValue, chValue);
 
-            writer->WriteBinaryString(TStringBuf(ytValue, DecimalSize));
+            writer->WriteBinaryString(TStringBuf(ytValue, YTDecimalSize_));
         }
         ++CurrentValueIndex_;
     }
@@ -564,6 +570,7 @@ public:
 private:
     int Precision_;
     int Scale_;
+    i64 YTDecimalSize_;
 
     const TDecimalColumn* Column_ = nullptr;
     i64 CurrentValueIndex_ = 0;
@@ -575,15 +582,27 @@ private:
         if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int32>) {
             i32 value;
             memcpy(&value, chValue, DecimalSize);
-            TDecimal::WriteBinary32(Precision_, value, ytValue, DecimalSize);
+            TDecimal::WriteBinary32(Precision_, value, ytValue, YTDecimalSize_);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int64>) {
             i64 value;
             memcpy(&value, chValue, DecimalSize);
-            TDecimal::WriteBinary64(Precision_, value, ytValue, DecimalSize);
+            TDecimal::WriteBinary64(Precision_, value, ytValue, YTDecimalSize_);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
             TDecimal::TValue128 value;
             memcpy(&value, chValue, DecimalSize);
-            TDecimal::WriteBinary128(Precision_, value, ytValue, DecimalSize);
+            // For compatibility with YQL, decimals with precision from 36 to
+            // 38, which technically fit into 128 bits, are represented with 256
+            // bits in YT. ClickHouse uses 128 bits to represent decimals with
+            // these precisions, so the binary sizes are different.
+            if (YTDecimalSize_ == DecimalSize) {
+                TDecimal::WriteBinary128(Precision_, value, ytValue, YTDecimalSize_);
+            } else {
+                TDecimal::WriteBinary128As256(Precision_, value, ytValue, YTDecimalSize_);
+            }
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int256>) {
+            TDecimal::TValue256 value;
+            memcpy(&value, chValue, DecimalSize);
+            TDecimal::WriteBinary256(Precision_, std::move(value), ytValue, YTDecimalSize_);
         } else {
             YT_ABORT();
         }
@@ -1033,10 +1052,10 @@ private:
         int precision = DB::getDecimalPrecision(*dataType);
         int scale = DB::getDecimalScale(*dataType);
 
-        if (precision > 35) {
+        if (precision > MaxSupportedCHDecimalPrecision) {
             THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
-                "maximum decimal precision in YT is 35",
-                DataType_->getName())
+                "maximum decimal precision in YT is %v",
+                DataType_->getName(), MaxSupportedCHDecimalPrecision)
                 << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
         }
 
@@ -1048,10 +1067,7 @@ private:
             case DB::TypeIndex::Decimal128:
                 return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
             case DB::TypeIndex::Decimal256:
-                // Decimal256 has precision in range [39:76], which is more than
-                // maximum supported precision in YT decimal type (35).
-                // We should not get here because precision has already been checked.
-                YT_ABORT();
+                return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
             default:
                 YT_ABORT();
         }
