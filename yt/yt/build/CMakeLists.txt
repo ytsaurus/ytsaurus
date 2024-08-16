@@ -61,6 +61,7 @@ target_link_libraries(yt-yt-build PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  dummy-vcs
 )
 
 target_sources(yt-yt-build PRIVATE

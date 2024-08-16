@@ -35,11 +35,16 @@ ELSE()
 ENDIF()
 
 SRCS(
-  config.h.in
-  build.cpp.in
-  build.h
+    config.h.in
+    build.cpp.in
+    build.h
 
-  ya_version.cpp
+    ya_version.cpp
 )
+
+PEERDIR(
+    build/scripts/c_templates
+)
+
 
 END()

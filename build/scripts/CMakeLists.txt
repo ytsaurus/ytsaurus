@@ -13,5 +13,4 @@
 # changes in this file.
 
 
-add_subdirectory(scripts)
-add_subdirectory(induced)
+add_subdirectory(c_templates)

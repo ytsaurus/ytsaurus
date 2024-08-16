@@ -12,6 +12,16 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(scripts)
-add_subdirectory(induced)
+add_library(dummy-vcs)
+
+
+target_link_libraries(dummy-vcs PUBLIC
+  linux-headers-generic::linux-headers-generic
+)
+
+target_sources(dummy-vcs PRIVATE
+  ${PROJECT_SOURCE_DIR}/build/scripts/c_templates/svn_interface.c
+)
+

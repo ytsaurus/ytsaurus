@@ -35,6 +35,8 @@
   "build/induced/by_bison/CMakeLists.txt":"",
   "build/internal/conf/internal.conf":"yt/go/opensource_conf_internal.conf",
   "build/mapping.conf.json":"devtools/ya/opensource/mapping.conf.json",
+  "build/scripts/CMakeLists.txt":"",
+  "build/scripts/c_templates/CMakeLists.txt":"",
   "build/scripts/export_script_gen.py":"",
   "build/scripts/generate_vcs_info.py":"",
   "build/scripts/re_replace.py":"",
