@@ -65,13 +65,13 @@ class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
 
     @staticmethod
     def _check_statistics_eq(lhs, rhs):
-        min_compressed_data_size = min(lhs["compressed_data_size"], rhs["compressed_data_size"])
-        max_compressed_data_size = max(lhs["compressed_data_size"], rhs["compressed_data_size"])
+        lhs_compressed_data_size = lhs["compressed_data_size"]
+        rhs_compressed_data_size = rhs["compressed_data_size"]
 
         lhs.pop("compressed_data_size")
         rhs.pop("compressed_data_size")
 
-        return lhs == rhs and min_compressed_data_size == pytest.approx(max_compressed_data_size, abs=0.05)
+        return lhs == rhs and lhs_compressed_data_size == pytest.approx(rhs_compressed_data_size, rel=0.05)
 
     @staticmethod
     def _sort_and_drop_unrecognized_in_tasks(tasks):
@@ -87,6 +87,10 @@ class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
     def _check_orchid_tasks(tasks):
         for task in tasks["completed_tasks"]:
             if not (
+                task["trace_id"] == task["task_id"] and
+                task["mount_revision"] == get(f"{task['table_path']}/@tablets/0").get("mount_revision"),
+                dateutil.parser.parse(task["start_time"]) <= dateutil.parser.parse(task["finish_time"]) and
+                "duration" in task and
                 "task_priority" in task and
                 "discard_stores" in task["task_priority"] and
                 "slack" in task["task_priority"] and

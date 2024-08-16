@@ -54,6 +54,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskAborted(TGuid taskId)
 template <class TTaskInfo>
 void TBackgroundActivityOrchid<TTaskInfo>::OnTaskStarted(TGuid taskId)
 {
+    auto guard = Guard(SpinLock_);
+
     if (auto it = PendingTasks_.find(taskId); it != PendingTasks_.end()) {
         auto&& task = it->second;
 
