@@ -112,6 +112,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/election/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/timestamp_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hydra/version.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/replication_card.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/replication_card_cache.cpp

@@ -277,6 +277,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_residency_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_id.cpp

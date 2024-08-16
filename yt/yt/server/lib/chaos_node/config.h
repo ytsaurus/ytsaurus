@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/library/dynamic_config/public.h>
 
 namespace NYT::NChaosNode {
@@ -133,6 +135,7 @@ public:
     TTransactionManagerConfigPtr TransactionManager;
 
     TChaosManagerConfigPtr ChaosManager;
+    NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
 
     TCoordinatorManagerConfigPtr CoordinatorManager;
 

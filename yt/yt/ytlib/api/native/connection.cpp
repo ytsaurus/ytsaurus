@@ -850,6 +850,9 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
+        if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
+            ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
+        }
 
         Config_.Store(dynamicConfig);
     }

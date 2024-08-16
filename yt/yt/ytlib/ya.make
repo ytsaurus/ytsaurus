@@ -107,6 +107,8 @@ SRCS(
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_residency_cache.cpp
+    chaos_client/replication_cards_watcher.cpp
+    chaos_client/replication_cards_watcher_client.cpp
 
     chaos_client/proto/alien_cell.proto
     chaos_client/proto/chaos_master_service.proto

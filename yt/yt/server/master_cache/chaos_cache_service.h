@@ -2,7 +2,9 @@
 
 #include "private.h"
 
-#include <yt/yt/client/api/public.h>
+#include <yt/yt/server/lib/chaos_cache/public.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -13,8 +15,9 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateChaosCacheService(
+    NChaosCache::TChaosCacheConfigPtr config,
     IInvokerPtr invoker,
-    NApi::IClientPtr client,
+    NApi::NNative::IClientPtr client,
     TChaosCachePtr cache,
     NRpc::IAuthenticatorPtr authenticator);
 
