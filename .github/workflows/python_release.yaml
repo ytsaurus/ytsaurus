@@ -102,6 +102,7 @@ jobs:
 
           ytsaurus/yt/python/packages/build_python_libraries_with_docker.sh
           cp "$YA_BUILD_PATH/yt/yt/python/yson_shared/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
+          cp "$YA_BUILD_PATH/yt/yt/python/driver/rpc_shared/driver_rpc_lib.so" ../build/yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
 
       - name: Build package
         id: build
