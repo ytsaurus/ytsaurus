@@ -381,7 +381,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
     // we must only unref it once - on the native cell.
     if (table->IsNative()) {
         if (auto* secondaryIndex = table->GetIndexTo()) {
-            secondaryIndex->SetIndexTable(nullptr);
+            secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
             YT_LOG_ALERT_IF(refCounter > 0,
@@ -394,7 +394,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
         }
 
         for (auto* secondaryIndex : table->SecondaryIndices()) {
-            secondaryIndex->SetTable(nullptr);
+            secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
             YT_LOG_ALERT_IF(refCounter > 0,

@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropImaginaryChunkLocations)                                  (2629))  // kvk1920
     ((RackDataCenter)                                               (2630))  // proller
     ((NonrecursivePermissionCheckOnExpirationSettingsUpdate)        (2631))  // babenko
+    ((SecondaryIndexExternalCellTag)                                (2632))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

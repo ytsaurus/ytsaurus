@@ -153,8 +153,8 @@ public:
     virtual TSecondaryIndex* CreateSecondaryIndex(
         NObjectClient::TObjectId hintId,
         ESecondaryIndexKind type,
-        TTableNode* table,
-        TTableNode* secondaryIndex,
+        TTableId table,
+        TTableId secondaryIndex,
         std::optional<TString> predicate) = 0;
 
     // Table collocation management.

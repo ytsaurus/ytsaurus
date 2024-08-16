@@ -13,8 +13,8 @@ class TSecondaryIndex
     , public TRefTracked<TSecondaryIndex>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TTableNode*, Table);
-    DEFINE_BYVAL_RW_PROPERTY(TTableNode*, IndexTable);
+    DEFINE_BYVAL_RW_PROPERTY(TTableId, TableId);
+    DEFINE_BYVAL_RW_PROPERTY(TTableId, IndexTableId);
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, Predicate);

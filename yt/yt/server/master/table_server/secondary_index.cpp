@@ -26,8 +26,8 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     TObject::Save(context);
 
     using NYT::Save;
-    Save(context, Table_);
-    Save(context, IndexTable_);
+    Save(context, TableId_);
+    Save(context, IndexTableId_);
     Save(context, Kind_);
     Save(context, ExternalCellTag_);
     Save(context, Predicate_);
@@ -38,8 +38,16 @@ void TSecondaryIndex::Load(TLoadContext& context)
     TObject::Load(context);
 
     using NYT::Load;
-    Load(context, Table_);
-    Load(context, IndexTable_);
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexExternalCellTag) {
+        Load(context, TableId_);
+        Load(context, IndexTableId_);
+    } else {
+        auto* table = Load<TTableNode*>(context);
+        auto* indexTable = Load<TTableNode*>(context);
+        TableId_ = table->GetId();
+        IndexTableId_ = indexTable->GetId();
+    }
     Load(context, Kind_);
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= EMasterReign::SecondaryIndexReplication) {
