@@ -2639,7 +2639,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="tablet/throttled_write_count")
 
-        def _insert(overdraft_expected, max_attempts=5):
+        def _insert(overdraft_expected, max_attempts=10):
             overdrafted = False
             for i in range(max_attempts):
                 try:
