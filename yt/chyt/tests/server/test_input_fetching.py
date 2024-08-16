@@ -20,9 +20,6 @@ import random
 import builtins
 
 import pytest
-import time
-
-from operator import itemgetter
 
 
 class TestInputFetching(ClickHouseTestBase):
@@ -1078,9 +1075,10 @@ class TestInputFetching(ClickHouseTestBase):
                     for row_index in range(chunk_row_count)])
                 ts_column += [chunk_index * 256 + row_index for row_index in range(chunk_row_count)]
 
-        log_table, query_log_config = self.prepare_query_log(f"//tmp/exporter")
+        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
 
-        with Clique(1, config_patch={"yt": {
+        with Clique(1, config_patch={
+            "yt": {
                 "settings": {
                     "execution": {
                         "enable_optimize_read_in_order": True,
@@ -1095,8 +1093,9 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_data_weight_per_thread": 30,
                     "min_slice_data_weight": 1,
                 },
-                "system_log_table_exporters": query_log_config,
-            }}) as clique:
+                "system_log_table_exporters": query_log_config
+            },
+        }) as clique:
             result, query_id = self.make_query(
                 clique,
                 f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' and ts > {13 * 256 + 2} order by ts limit 6',
@@ -1109,7 +1108,7 @@ class TestInputFetching(ClickHouseTestBase):
 
             result, query_id = self.make_query(
                 clique,
-                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' order by ts desc limit 6',
+                'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' order by ts desc limit 6',
                 settings={"chyt.execution.input_streams_per_secondary_query": 4})
             assert builtins.set(r["message"] for r in result[:3]) == {f"19, 19, {table_index}" for table_index in range(table_count)}
             assert builtins.set(r["message"] for r in result[3:]) == {f"17, 19, {table_index}" for table_index in range(table_count)}
@@ -1119,7 +1118,7 @@ class TestInputFetching(ClickHouseTestBase):
 
             result, query_id = self.make_query(
                 clique,
-                f'select message from `//tmp/table-1` where log_level = \'debug\' and ts < 1024 order by ts desc limit 5',
+                'select message from `//tmp/table-1` where log_level = \'debug\' and ts < 1024 order by ts desc limit 5',
                 settings={"chyt.execution.input_streams_per_secondary_query": 64})
             assert result == [{"message": f"{row_index}, 3, 1"} for row_index in range(18, 8, -2)]
 
@@ -1128,7 +1127,7 @@ class TestInputFetching(ClickHouseTestBase):
 
             result, query_id = self.make_query(
                 clique,
-                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where message = \'13, 18, 1\' order by ts limit 1',
+                'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where message = \'13, 18, 1\' order by ts limit 1',
                 settings={"chyt.execution.input_streams_per_secondary_query": 4})
             assert result == [{"message": "13, 18, 1"}]
 
@@ -1138,13 +1137,13 @@ class TestInputFetching(ClickHouseTestBase):
 
             result, query_id = self.make_query(
                 clique,
-                f'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts limit 10000',
+                'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts limit 10000',
                 settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
             assert [r["ts"] for r in result] == sorted(ts_column)
 
             result, query_id = self.make_query(
                 clique,
-                f'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts desc limit 10000',
+                'select ts from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") order by ts desc limit 10000',
                 settings={"chyt.execution.input_streams_per_secondary_query": 8}, verbose=False)
             assert [r["ts"] for r in result] == sorted(ts_column, reverse=True)
 
@@ -1206,9 +1205,10 @@ class TestInputFetching(ClickHouseTestBase):
                 "ordered_table": [{"key": k if str(k) != "nan" else str(k)} for k in ordered_keys],
             }
 
-        log_table, query_log_config = self.prepare_query_log(f"//tmp/exporter")
+        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
 
-        with Clique(1, config_patch={"yt": {
+        with Clique(1, config_patch={
+            "yt": {
                 "settings": {
                     "execution": {
                         "enable_optimize_read_in_order": True,
@@ -1219,8 +1219,10 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_slice_data_weight": 1,
                 },
                 "system_log_table_exporters": query_log_config,
-            }}) as clique:
+            },
+        }) as clique:
             expected_read_in_order_modes = {}
+
             def register_query_check(query, read_in_order_mode, result, settings=None):
                 settings = settings or {}
                 settings.update({"chyt.execution.input_streams_per_secondary_query": 8})
@@ -1341,7 +1343,6 @@ class TestInputFetching(ClickHouseTestBase):
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
 
-
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_optimize_read_in_order_disabled(self, instance_count):
@@ -1366,13 +1367,14 @@ class TestInputFetching(ClickHouseTestBase):
 
         log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
 
-        with Clique(1, config_patch={"yt": {
+        with Clique(1, config_patch={
+            "yt": {
                 "settings": {
                     "execution": {
                         "enable_optimize_read_in_order": True,
                         "assume_no_null_keys": True,
                     },
-                   "testing": {
+                    "testing": {
                         # This is a workaround for simultaneous mounts when exporting query log in cliques with multiple instances.
                         "local_clique_size": instance_count,
                     },
@@ -1382,11 +1384,13 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_slice_data_weight": 1,
                 },
                 "system_log_table_exporters": query_log_config,
-            }}) as clique:
+            },
+        }) as clique:
             # Queries could have been a test parameter, but CHYT cliques take a while to start,
             # so we save execution time by performing the checks in one test invocation.
             # Also, query log takes a few seconds to write messages, so we run all checks in the end.
             expected_read_in_order_modes = {}
+
             def register_query_check(query, read_in_order_mode):
                 settings = {"chyt.execution.input_streams_per_secondary_query": 8}
                 self._register_query_check(expected_read_in_order_modes, clique, query, expected_read_in_order_mode=read_in_order_mode, query_settings=settings)

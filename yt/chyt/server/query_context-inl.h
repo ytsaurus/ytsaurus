@@ -14,7 +14,7 @@ void TQueryContext::SetRuntimeVariable(const TString& key, const T& value)
     auto guard = Guard(QueryLogLock_);
     YT_VERIFY(RuntimeVariables_);
     if (RuntimeVariables_->Contains(key)) {
-        YT_LOG_WARNING(
+        YT_LOG_DEBUG(
             "Overwriting existing runtime variable in query context (Key: %v, OldValue: %v, NewValue: %v)",
             key,
             NYson::ConvertToYsonString(RuntimeVariables_->GetYson(key), NYson::EYsonFormat::Text),
