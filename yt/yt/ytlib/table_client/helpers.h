@@ -47,6 +47,13 @@ void PipeReaderToWriterByBatches(
     const TRowBatchReadOptions& options,
     TDuration pipeDelay);
 
+void PipeReaderToAdaptiveWriterByBatches(
+    const ISchemalessChunkReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& startingOptions,
+    TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> optionsUpdater,
+    TDuration pipeDelay);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Checks whether chunk with `chunkSortColumns' sort columns

@@ -313,6 +313,7 @@ public:
     TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     std::optional<int> OperationsArchiveVersion;
+    TDuration PipeReaderTimeoutThreshold;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
@@ -346,6 +347,8 @@ public:
     bool UseRetryingChannels;
 
     NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
+
+    TDuration PipeReaderTimeoutThreshold;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

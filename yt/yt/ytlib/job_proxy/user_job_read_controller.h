@@ -28,8 +28,7 @@ struct IUserJobReadController
 {
     //! Returns closure that launches data transfer to given async output.
     virtual TCallback<TFuture<void>()> PrepareJobInputTransfer(
-        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput,
-        bool enableContextSaving = true) = 0;
+        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput) = 0;
 
     virtual double GetProgress() const = 0;
     virtual TFuture<std::vector<TBlob>> GetInputContext() const = 0;
@@ -51,8 +50,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TString localHostName);
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    TString localHostName,
+    TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero());
 
 ////////////////////////////////////////////////////////////////////////////////
 

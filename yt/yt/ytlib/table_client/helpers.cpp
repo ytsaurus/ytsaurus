@@ -165,6 +165,21 @@ void PipeReaderToWriterByBatches(
         pipeDelay);
 }
 
+void PipeReaderToAdaptiveWriterByBatches(
+    const ISchemalessChunkReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& startingOptions,
+    TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> optionsUpdater,
+    TDuration pipeDelay)
+{
+    PipeReaderToAdaptiveWriterByBatches(
+        CreateApiFromSchemalessChunkReaderAdapter(reader),
+        writer,
+        startingOptions,
+        std::move(optionsUpdater),
+        pipeDelay);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumnCount(

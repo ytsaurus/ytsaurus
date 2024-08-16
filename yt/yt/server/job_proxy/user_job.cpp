@@ -290,7 +290,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             GetSandboxRelPath(ESandboxKind::Udf),
             ChunkReadOptions_,
-            Host_->GetLocalHostName());
+            Host_->GetLocalHostName(),
+            Config_->PipeReaderTimeoutThreshold);
     }
 
     TJobResult Run() override
@@ -1105,8 +1106,7 @@ private:
         //! NB: Context saving effectively forces writer to ignore pipe capacity limit
         //! as it only ever flushes once the socket is closed.
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
-            asyncOutput,
-            /*enableContextSaving*/ !(JobIOConfig_->PipeCapacity.has_value() || JobIOConfig_->UseDeliveryFencedPipeWriter));
+            asyncOutput);
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
