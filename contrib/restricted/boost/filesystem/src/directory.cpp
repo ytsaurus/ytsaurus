@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <memory>
 #include <boost/scope/unique_fd.hpp>
 
 #if defined(_POSIX_THREAD_SAFE_FUNCTIONS) && (_POSIX_THREAD_SAFE_FUNCTIONS >= 0) && defined(_SC_THREAD_SAFE_FUNCTIONS) && \
@@ -90,25 +91,15 @@ namespace filesystem {
 
 BOOST_FILESYSTEM_DECL void directory_entry::refresh_impl(system::error_code* ec) const
 {
-    system::error_code local_ec;
-    m_symlink_status = detail::symlink_status(m_path, &local_ec);
+    m_status = filesystem::file_status();
+    m_symlink_status = filesystem::file_status();
+
+    m_symlink_status = detail::symlink_status(m_path, ec);
 
     if (!filesystem::is_symlink(m_symlink_status))
     {
         // Also works if symlink_status fails - set m_status to status_error as well
         m_status = m_symlink_status;
-
-        if (BOOST_UNLIKELY(!!local_ec))
-        {
-            if (!ec)
-                BOOST_FILESYSTEM_THROW(filesystem_error("boost::filesystem::directory_entry::refresh", m_path, local_ec));
-
-            *ec = local_ec;
-            return;
-        }
-
-        if (ec)
-            ec->clear();
     }
     else
     {
@@ -668,8 +659,8 @@ extra_data_format g_extra_data_format = file_directory_information_format;
  * Must be large enough to accommodate at least one FILE_DIRECTORY_INFORMATION or *_DIR_INFO struct and one filename.
  * NTFS, VFAT, exFAT and ReFS support filenames up to 255 UTF-16/UCS-2 characters. (For ReFS, there is no information
  * on the on-disk format, and it is possible that it supports longer filenames, up to 32768 UTF-16/UCS-2 characters.)
- * The buffer cannot be larger than 64k, because up to Windows 8.1, NtQueryDirectoryFile and GetFileInformationByHandleEx
- * fail with ERROR_INVALID_PARAMETER when trying to retrieve the filenames from a network share.
+ * The buffer cannot be larger than 64k, otherwise up to Windows 8.1, NtQueryDirectoryFile and GetFileInformationByHandleEx
+ * fail with ERROR_INVALID_PARAMETER when trying to retrieve filenames from a network share.
  */
 BOOST_CONSTEXPR_OR_CONST std::size_t dir_itr_extra_size = 65536u;
 
@@ -1087,7 +1078,94 @@ BOOST_CONSTEXPR_OR_CONST err_t not_found_error_code = ERROR_PATH_NOT_FOUND;
 
 } // namespace
 
-#if defined(BOOST_WINDOWS_API)
+#if defined(BOOST_POSIX_API)
+
+//! Tests if the directory is empty
+bool is_empty_directory(boost::scope::unique_fd&& fd, path const& p, error_code* ec)
+{
+#if !defined(BOOST_FILESYSTEM_USE_READDIR_R)
+    // Use a more optimal implementation without the overhead of constructing the iterator state
+
+    struct closedir_deleter
+    {
+        using result_type = void;
+        result_type operator() (DIR* dir) const noexcept
+        {
+            ::closedir(dir);
+        }
+    };
+
+    int err;
+
+#if defined(BOOST_FILESYSTEM_HAS_FDOPENDIR_NOFOLLOW)
+    std::unique_ptr< DIR, closedir_deleter > dir(::fdopendir(fd.get()));
+    if (BOOST_UNLIKELY(!dir))
+    {
+        err = errno;
+    fail:
+        emit_error(err, p, ec, "boost::filesystem::is_empty");
+        return false;
+    }
+
+    // At this point fd will be closed by closedir
+    fd.release();
+#else // defined(BOOST_FILESYSTEM_HAS_FDOPENDIR_NOFOLLOW)
+    std::unique_ptr< DIR, closedir_deleter > dir(::opendir(p.c_str()));
+    if (BOOST_UNLIKELY(!dir))
+    {
+        err = errno;
+    fail:
+        emit_error(err, p, ec, "boost::filesystem::is_empty");
+        return false;
+    }
+#endif // defined(BOOST_FILESYSTEM_HAS_FDOPENDIR_NOFOLLOW)
+
+    while (true)
+    {
+        errno = 0;
+        struct dirent* const ent = ::readdir(dir.get());
+        if (!ent)
+        {
+            err = errno;
+            if (err != 0)
+                goto fail;
+
+            return true;
+        }
+
+        // Skip dot and dot-dot entries
+        if (!(ent->d_name[0] == path::dot
+            && (ent->d_name[1] == static_cast< path::string_type::value_type >('\0') ||
+                (ent->d_name[1] == path::dot && ent->d_name[2] == static_cast< path::string_type::value_type >('\0')))))
+        {
+            return false;
+        }
+    }
+
+#else // !defined(BOOST_FILESYSTEM_USE_READDIR_R)
+
+    filesystem::directory_iterator itr;
+#if defined(BOOST_FILESYSTEM_HAS_FDOPENDIR_NOFOLLOW)
+    filesystem::detail::directory_iterator_params params{ std::move(fd) };
+    filesystem::detail::directory_iterator_construct(itr, p, directory_options::none, &params, ec);
+#else
+    filesystem::detail::directory_iterator_construct(itr, p, directory_options::none, nullptr, ec);
+#endif
+    return itr == filesystem::directory_iterator();
+
+#endif // !defined(BOOST_FILESYSTEM_USE_READDIR_R)
+}
+
+#else // BOOST_WINDOWS_API
+
+//! Tests if the directory is empty
+bool is_empty_directory(unique_handle&& h, path const& p, error_code* ec)
+{
+    filesystem::directory_iterator itr;
+    filesystem::detail::directory_iterator_params params{ h.get(), false };
+    filesystem::detail::directory_iterator_construct(itr, p, directory_options::none, &params, ec);
+    return itr == filesystem::directory_iterator();
+}
 
 //! Initializes directory iterator implementation
 void init_directory_iterator_impl() noexcept
