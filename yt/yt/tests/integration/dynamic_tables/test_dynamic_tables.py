@@ -2271,6 +2271,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    @pytest.mark.timeout(120)
     def test_traverse_table_with_alter_and_ranges_stress(self, optimize_for):
         sync_create_cells(1)
         schema1 = [
