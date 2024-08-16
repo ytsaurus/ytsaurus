@@ -791,8 +791,6 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         return;
     }
 
-    std::vector<TString> floatKeyColumnsWithoutExplicitNullsDirection;
-
     for (const auto& [columnIndex, orderByElementAst] : Enumerate(selectQuery->orderBy()->children)) {
         auto orderByElement = orderByElementAst->as<DB::ASTOrderByElement>();
 
