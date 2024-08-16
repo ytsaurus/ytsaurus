@@ -1603,6 +1603,8 @@ private:
 
         TUpdateAction action;
         ToProto(action.mutable_created_collocation_data(), collocationData);
+        YT_LOG_ALERT_UNLESS(collocationData.Options,
+            "Null collocation options detected upon replication collocation creation");
         EnqueueAction(std::move(action), "ReplicationCollocationCreated");
     }
 
@@ -1699,7 +1701,8 @@ private:
                         if (!tableIds.empty()) {
                             snapshot.Collocations.push_back(TTableCollocationData{
                                 .Id = tableCollocation->GetId(),
-                                .TableIds = std::move(tableIds)
+                                .TableIds = std::move(tableIds),
+                                .Options = tableCollocation->ReplicationCollocationOptions(),
                             });
                         }
                     }

@@ -109,6 +109,7 @@ void ToProto(
     for (auto tableId : collocationData.TableIds) {
         ToProto(protoCollocationData->add_table_ids(), tableId);
     }
+    protoCollocationData->set_options(ConvertToYsonString(collocationData.Options).ToString());
 }
 
 void FromProto(
@@ -119,6 +120,10 @@ void FromProto(
     collocationData->TableIds.reserve(protoCollocationData.table_ids_size());
     for (auto protoTableId : protoCollocationData.table_ids()) {
         collocationData->TableIds.push_back(FromProto<TTableId>(protoTableId));
+    }
+    // COMPAT(akozhikhov).
+    if (protoCollocationData.has_options()) {
+        collocationData->Options = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(protoCollocationData.options()));
     }
 }
 
@@ -995,15 +1000,29 @@ public:
 
         THashSet<TString> GetPreferredSyncReplicaClusters() const
         {
-            const auto& globalPreferredSyncReplicaClusters =
+            // Priority from highest to lowest: global cluster option, collocation option, table option.
+
+            const auto& globalPreferredClusters =
                 TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters;
-            if (!globalPreferredSyncReplicaClusters.empty()) {
-                return globalPreferredSyncReplicaClusters;
-            } else if (Options_->PreferredSyncReplicaClusters) {
+            if (!globalPreferredClusters.empty()) {
+                return globalPreferredClusters;
+            }
+
+            if (CollocationId_ != NullObjectId) {
+                const auto& collocation = GetOrCrash(TableTracker_->IdToCollocation_, CollocationId_);
+                if (const auto& collocationPreferredClusters = collocation.Options->PreferredSyncReplicaClusters) {
+                    return THashSet<TString>(
+                        collocationPreferredClusters->begin(),
+                        collocationPreferredClusters->end());
+                }
+            }
+
+            if (Options_->PreferredSyncReplicaClusters) {
                 return THashSet<TString>(
                     Options_->PreferredSyncReplicaClusters->begin(),
                     Options_->PreferredSyncReplicaClusters->end());
             }
+
             return {};
         }
 
@@ -1150,6 +1169,7 @@ private:
     struct TTableCollocation
     {
         THashSet<TTableId> TableIds;
+        TReplicationCollocationOptionsPtr Options;
     };
 
     THashMap<TTableId, TReplicatedTable> IdToTable_;
@@ -1787,7 +1807,7 @@ private:
 
     void OnReplicationCollocationCreated(TTableCollocationData data)
     {
-        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] () mutable {
             YT_LOG_DEBUG("Replication collocation created (CollocationId: %v)",
                 data.Id);
 
@@ -1808,6 +1828,9 @@ private:
                     table->SetCollocationId(data.Id);
                 }
             }
+
+            YT_VERIFY(data.Options);
+            it->second.Options = std::move(data.Options);
         }));
     }
 

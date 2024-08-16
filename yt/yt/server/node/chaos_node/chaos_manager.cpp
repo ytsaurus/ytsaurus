@@ -2253,10 +2253,7 @@ private:
                 if (oldCollocation->ReplicationCards().empty()) {
                     ReplicationCollocationDestroyed_.Fire(oldCollocation->GetId());
                 } else {
-                    ReplicationCollocationCreated_.Fire(TTableCollocationData{
-                        .Id = oldCollocation->GetId(),
-                        .TableIds = oldCollocation->GetReplicationCardIds()
-                    });
+                    FireReplicationCardCollocationUpdated(oldCollocation);
                 }
             }
             if (oldCollocation->ReplicationCards().empty()) {
@@ -2268,10 +2265,7 @@ private:
             EmplaceOrCrash(collocation->ReplicationCards(), replicationCard);
             if (!migration) {
                 collocation->SetSize(collocation->GetSize() + 1);
-                ReplicationCollocationCreated_.Fire(TTableCollocationData{
-                    .Id = collocation->GetId(),
-                    .TableIds = collocation->GetReplicationCardIds()
-                });
+                FireReplicationCardCollocationUpdated(collocation);
             } else if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
                 BindReplicationCardCollocationToRTT(collocation);
@@ -2316,7 +2310,7 @@ private:
     {
         ReplicationCollocationCreated_.Fire(TTableCollocationData{
             .Id = collocation->GetId(),
-            .TableIds = collocation->GetReplicationCardIds()
+            .TableIds = collocation->GetReplicationCardIds(),
         });
     }
 

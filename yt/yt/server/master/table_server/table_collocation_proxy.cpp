@@ -1,5 +1,6 @@
 #include "table_collocation_proxy.h"
 #include "table_collocation.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -45,11 +46,16 @@ private:
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
+        const auto* collocation = GetThisImpl();
+
         attributes->push_back(EInternedAttributeKey::ExternalCellTag);
         attributes->push_back(EInternedAttributeKey::TableIds);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePaths)
             .SetOpaque(true));
         attributes->push_back(EInternedAttributeKey::CollocationType);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
+            .SetWritable(true)
+            .SetPresent(collocation->GetType() == ETableCollocationType::Replication));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -93,11 +99,48 @@ private:
                     .Value(collocation->GetType());
                 return true;
 
+            case EInternedAttributeKey::ReplicatedTableOptions:
+                if (collocation->GetType() != ETableCollocationType::Replication) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(collocation->ReplicationCollocationOptions());
+
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        auto* collocation = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::ReplicatedTableOptions: {
+                ValidateNoTransaction();
+
+                if (collocation->GetType() != ETableCollocationType::Replication) {
+                    break;
+                }
+
+                auto options = ConvertTo<NTabletClient::TReplicationCollocationOptionsPtr>(value);
+
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                tableManager->UpdateReplicationCollocationOptions(collocation, std::move(options));
+
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

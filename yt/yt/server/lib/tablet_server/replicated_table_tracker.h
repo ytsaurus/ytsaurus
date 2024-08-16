@@ -72,6 +72,7 @@ struct TTableCollocationData
 {
     NTableClient::TTableCollocationId Id;
     std::vector<NTableClient::TTableId> TableIds;
+    NTabletClient::TReplicationCollocationOptionsPtr Options = New<NTabletClient::TReplicationCollocationOptions>();
 };
 
 void ToProto(

@@ -184,6 +184,10 @@ public:
 
     virtual void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) = 0;
 
+    virtual void UpdateReplicationCollocationOptions(
+        TTableCollocation* collocation,
+        NTabletClient::TReplicationCollocationOptionsPtr options) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 };
