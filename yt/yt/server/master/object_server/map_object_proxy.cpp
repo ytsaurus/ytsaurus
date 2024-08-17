@@ -162,10 +162,10 @@ int TNonversionedMapObjectProxyBase<TObject>::GetChildCount() const
 }
 
 template <class TObject>
-std::vector<std::pair<TString, INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
+std::vector<std::pair<std::string, INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    std::vector<std::pair<TString, INodePtr>> result;
+    std::vector<std::pair<std::string, INodePtr>> result;
     result.reserve(keyToChild.size());
     for (const auto& [key, child] : keyToChild) {
         result.emplace_back(key, GetProxy(child));
@@ -175,23 +175,30 @@ std::vector<std::pair<TString, INodePtr>> TNonversionedMapObjectProxyBase<TObjec
 }
 
 template <class TObject>
-std::vector<TString> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
+std::vector<std::string> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    return NYT::GetKeys(keyToChild);
+    // TODO(babenko): migrate to std::string
+    // Must be just ```return NYT::GetKeys(keyToChild);'''
+    std::vector<std::string> result;
+    for (const auto& [key, _] : keyToChild) {
+        result.push_back(key);
+    }
+    return result;
 }
 
 template <class TObject>
-INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const TString& key) const
+INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const std::string& key) const
 {
-    auto* child = TBase::GetThisImpl()->FindChild(key);
+    // TODO(babenko): migrate to std::string
+    auto* child = TBase::GetThisImpl()->FindChild(TString(key));
     return child
         ? GetProxy(child)
         : nullptr;
 }
 
 template <class TObject>
-std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
+std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
     const IConstNodePtr& child)
 {
     auto childProxy = FromNode(child);
@@ -201,7 +208,7 @@ std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
-    const TString& /*key*/,
+    const std::string& /*key*/,
     const INodePtr& /*child*/)
 {
     THROW_ERROR_EXCEPTION("Use TNonversionedMapObjectFactoryBase::AttachChild() instead");
@@ -270,7 +277,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRemoveChild(
 }
 
 template <class TObject>
-bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const TString& key)
+bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const std::string& key)
 {
     auto child = FindChild(key);
     if (!child) {
@@ -699,7 +706,7 @@ void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
 template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::Create(
     EObjectType type,
-    const TString& path,
+    const TYPath& path,
     IAttributeDictionary* attributes)
 {
     TObjectProxyBase::DeclareMutating();
@@ -771,8 +778,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
 
 template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::Copy(
-    const TString& sourcePath,
-    const TString& targetPath,
+    const TYPath& sourcePath,
+    const TYPath& targetPath,
     ENodeCloneMode mode,
     bool ignoreExisting)
 {
@@ -974,10 +981,11 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 
     auto key = parent->GetChildKeyOrThrow(child);
     parent->DetachChild(child);
+    // TODO(babenko): migrate to std::string
     LogEvent({
         EEventType::DetachChild,
         parent,
-        key,
+        TString(key),
         child
     });
 }

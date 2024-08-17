@@ -418,7 +418,8 @@ private:
                 bool available = alive && !banned;
                 if (available) {
                     if (addresses.size() == 0) {
-                        addresses[DefaultAddressType] = TAddressMap{{DefaultNetworkName, child.first}};
+                        // TODO(babenko): migrate to std::string
+                        addresses[DefaultAddressType] = TAddressMap{{DefaultNetworkName, TString(child.first)}};
                     }
                     proxies.push_back({addresses, role});
                 }

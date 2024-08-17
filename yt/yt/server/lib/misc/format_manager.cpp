@@ -135,7 +135,9 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
 
     const auto& defaultAttributes = formatConfig->DefaultAttributes;
     auto* attributes = formatNode->MutableAttributes();
-    for (const auto& [key, defaultValue] : defaultAttributes->GetChildren()) {
+    for (const auto& [key_, defaultValue] : defaultAttributes->GetChildren()) {
+        // TODO(babenko): migrate to std::string
+        auto key = TString(key_);
         auto value = attributes->FindYson(key);
         if (!value) {
             attributes->SetYson(key, ConvertToYsonString(defaultValue));

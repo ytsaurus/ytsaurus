@@ -274,7 +274,8 @@ void TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::AssembleTree()
         for (const auto& [key, id] : children) {
             auto* childNode = GetOrCrash(OldIdToNode_, id);
             AttachChildToNode(trunkParentNode->GetTrunkNode(), childNode);
-            attachedChildren.Insert(key, childNode->GetTrunkNode());
+            // TODO(babenko): migrate to std::string
+            attachedChildren.Insert(TString(key), childNode->GetTrunkNode());
             ++trunkParentNode->ChildCountDelta();
         }
     }
@@ -3013,7 +3014,7 @@ int TCypressMapNodeProxy::GetChildCount() const
     return result;
 }
 
-std::vector<std::pair<TString, INodePtr>> TCypressMapNodeProxy::GetChildren() const
+std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren() const
 {
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -3022,7 +3023,7 @@ std::vector<std::pair<TString, INodePtr>> TCypressMapNodeProxy::GetChildren() co
         Transaction_,
         &keyToChildStorage);
 
-    std::vector<std::pair<TString, INodePtr>> result;
+    std::vector<std::pair<std::string, INodePtr>> result;
     result.reserve(keyToChildMap.size());
     for (const auto& [key, child] : keyToChildMap) {
         result.emplace_back(key, GetProxy(child));
@@ -3031,7 +3032,7 @@ std::vector<std::pair<TString, INodePtr>> TCypressMapNodeProxy::GetChildren() co
     return result;
 }
 
-std::vector<TString> TCypressMapNodeProxy::GetKeys() const
+std::vector<std::string> TCypressMapNodeProxy::GetKeys() const
 {
     THashMap<TString, TCypressNode*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -3040,7 +3041,7 @@ std::vector<TString> TCypressMapNodeProxy::GetKeys() const
         Transaction_,
         &keyToChildStorage);
 
-    std::vector<TString> result;
+    std::vector<std::string> result;
     for (const auto& [key, child] : keyToChildMap) {
         result.push_back(key);
     }
@@ -3048,7 +3049,7 @@ std::vector<TString> TCypressMapNodeProxy::GetKeys() const
     return result;
 }
 
-INodePtr TCypressMapNodeProxy::FindChild(const TString& key) const
+INodePtr TCypressMapNodeProxy::FindChild(const std::string& key) const
 {
     auto* trunkChildNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -3058,7 +3059,7 @@ INodePtr TCypressMapNodeProxy::FindChild(const TString& key) const
     return trunkChildNode ? GetProxy(trunkChildNode) : nullptr;
 }
 
-bool TCypressMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
+bool TCypressMapNodeProxy::AddChild(const std::string& key, const NYTree::INodePtr& child)
 {
     YT_ASSERT(!key.empty());
 
@@ -3066,12 +3067,14 @@ bool TCypressMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& 
         return false;
     }
 
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
+    // TODO(babenko): migrate to std::string
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
     auto& children = impl->MutableChildren();
-    children.Set(key, trunkChildImpl);
+    // TODO(babenko): migrate to std::string
+    children.Set(TString(key), trunkChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(TrunkNode_);
@@ -3085,7 +3088,7 @@ bool TCypressMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& 
     return true;
 }
 
-bool TCypressMapNodeProxy::RemoveChild(const TString& key)
+bool TCypressMapNodeProxy::RemoveChild(const std::string& key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -3097,7 +3100,8 @@ bool TCypressMapNodeProxy::RemoveChild(const TString& key)
     }
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
+    // TODO(babenko): migrate to std::string
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified(EModificationType::Content);
@@ -3116,7 +3120,8 @@ void TCypressMapNodeProxy::RemoveChild(const INodePtr& child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
+    // TODO(babenko): migrate to std::string
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified(EModificationType::Content);
@@ -3140,12 +3145,14 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
+    // TODO(babenko): migrate to std::string
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
 
     auto& children = impl->MutableChildren();
 
     DetachChild(oldChildImpl);
-    children.Set(key, newTrunkChildImpl);
+    // TODO(babenko): migrate to std::string
+    children.Set(TString(key), newTrunkChildImpl);
     AttachChild(newChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -3154,7 +3161,7 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     SetModified(EModificationType::Content);
 }
 
-std::optional<TString> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child)
+std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
     return FindNodeKey(
         Bootstrap_->GetCypressManager(),
@@ -3229,15 +3236,17 @@ IYPathService::TResolveResult TCypressMapNodeProxy::ResolveRecursive(
 
 void TCypressMapNodeProxy::DoRemoveChild(
     TCypressMapNode* impl,
-    const TString& key,
+    const std::string& key,
     TCypressNode* childImpl)
 {
     auto* trunkChildImpl = childImpl->GetTrunkNode();
     auto& children = impl->MutableChildren();
     if (Transaction_) {
-        children.Set(key, nullptr);
+        // TODO(babenko): migrate to std::string
+        children.Set(TString(key), nullptr);
     } else {
-        children.Remove(key, trunkChildImpl);
+        // TODO(babenko): migrate to std::string
+        children.Remove(TString(key), trunkChildImpl);
     }
     DetachChild(childImpl);
     --impl->ChildCountDelta();

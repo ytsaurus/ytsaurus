@@ -116,9 +116,9 @@ public:
 
     NTableServer::TMasterTableSchema* GetSchema(NTableServer::TMasterTableSchemaId schemaId) const;
 
-    void RegisterChild(TString key, TNodeId childId);
+    void RegisterChild(const std::string& key, TNodeId childId);
     bool HasChildren() const;
-    std::vector<std::pair<TString, TNodeId>> GetChildren() const;
+    std::vector<std::pair<std::string, TNodeId>> GetChildren() const;
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -126,7 +126,7 @@ private:
     const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& SchemaIdToSchema_;
     TMemoryInput Stream_;
 
-    std::vector<std::pair<TString, TNodeId>> Children_;
+    std::vector<std::pair<std::string, TNodeId>> Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

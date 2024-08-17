@@ -106,7 +106,7 @@ struct TYsonParserAdapter
         class Iterator
         {
         public:
-            Iterator(const std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>>& key_value_pairs, size_t index) : KeyValuePairs_(key_value_pairs), Index_(index) {}
+            Iterator(const std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>>& key_value_pairs, size_t index) : KeyValuePairs_(key_value_pairs), Index_(index) {}
             KeyValuePair operator *() const { return (*KeyValuePairs_)[Index_]; }
             Iterator & operator ++() { ++Index_; return *this; }
             Iterator operator ++(int) { auto res = *this; ++Index_; return res; }
@@ -114,7 +114,7 @@ struct TYsonParserAdapter
         private:
             // Children of the parent's map node.
             // We store it here to lock the order and to return std::string_view on keys in some methods.
-            std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
+            std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
             size_t Index_ = 0;
         };
 
@@ -131,9 +131,9 @@ struct TYsonParserAdapter
 #endif
 
     private:
-        std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>> GetKeyValuePairs() const;
+        std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> GetKeyValuePairs() const;
         NYTree::IMapNodePtr MapNode_;
-        mutable std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
+        mutable std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
     };
 
     // Parses an YSON document, returns the reference to its root element if succeeded.

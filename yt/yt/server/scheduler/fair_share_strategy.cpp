@@ -1774,7 +1774,9 @@ private:
         THashSet<TString>* treeIdsWithChangedFilter,
         THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key : poolsMap->GetKeys()) {
+        for (const auto& key_ : poolsMap->GetKeys()) {
+            // TODO(babenko): migrate to std::string
+            auto key = TString(key_);
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {

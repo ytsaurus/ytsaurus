@@ -226,7 +226,7 @@ private:
             auto* protoClusterDirectory = response->mutable_cluster_directory();
             for (const auto& [key, child] : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
-                protoItem->set_name(key);
+                protoItem->set_name(ToProto<TProtobufString>(key));
                 protoItem->set_config(ConvertToYsonString(child).ToString());
             }
         }

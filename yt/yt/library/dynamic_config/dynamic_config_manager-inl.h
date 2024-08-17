@@ -221,7 +221,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
                 auto configMapNode = configNode->AsMap();
 
-                if (MakeBooleanFormula(configFilter).IsSatisfiedBy(InstanceTags_)) {
+                // TODO(babenko): migrate to std::string
+                if (MakeBooleanFormula(TString(configFilter)).IsSatisfiedBy(InstanceTags_)) {
                     if (matchedConfigNode) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::DuplicateMatchingDynamicConfigs,

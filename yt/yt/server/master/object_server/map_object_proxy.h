@@ -57,15 +57,15 @@ public:
     void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     int GetChildCount() const override;
-    std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
-    std::vector<TString> GetKeys() const override;
-    NYTree::INodePtr FindChild(const TString& key) const override;
-    std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
+    std::vector<std::string> GetKeys() const override;
+    NYTree::INodePtr FindChild(const std::string& key) const override;
+    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
-    bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
+    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    bool RemoveChild(const TString& key) override;
+    bool RemoveChild(const std::string& key) override;
 
     std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
 
@@ -73,11 +73,11 @@ public:
 
     TSelfPtr Create(
         EObjectType type,
-        const TString& path,
+        const NYPath::TYPath& path,
         NYTree::IAttributeDictionary* attributes);
     TSelfPtr Copy(
-        const TString& sourcePath,
-        const TString& targetPath,
+        const NYPath::TYPath& sourcePath,
+        const NYPath::TYPath& targetPath,
         NCypressClient::ENodeCloneMode mode,
         bool ignoreExisting);
 

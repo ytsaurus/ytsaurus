@@ -1537,7 +1537,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
 static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
-    const std::vector<std::pair<TString, INodePtr>>& jobNodes,
+    const std::vector<std::pair<std::string, INodePtr>>& jobNodes,
     const std::function<bool(const INodePtr&)>& filter,
     const THashSet<TString>& attributes,
     std::vector<TJob>* jobs)
