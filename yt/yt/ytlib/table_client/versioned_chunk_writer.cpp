@@ -93,7 +93,7 @@ public:
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
-        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics))
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -290,6 +290,9 @@ protected:
             ColumnarStatistics_.ChunkRowCount.reset();
         }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
+        if (!ColumnarStatistics_.LargeStatistics.Empty() && Config_->EnableLargeColumnarStatistics) {
+            SetProtoExtension(meta->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_.LargeStatistics));
+        }
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;

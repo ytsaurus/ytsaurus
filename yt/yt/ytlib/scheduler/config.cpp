@@ -1472,6 +1472,7 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("foreign_table_lookup_keys_threshold", &TThis::ForeignTableLookupKeysThreshold)
         .Default();
 
+
     registrar.Postprocessor([] (TReduceOperationSpec* spec) {
         NTableClient::ValidateSortColumns(spec->JoinBy);
         NTableClient::ValidateSortColumns(spec->ReduceBy);

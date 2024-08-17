@@ -618,6 +618,7 @@ public:
             std::move(logger),
             NullRealmId,
             std::move(authenticator))
+        , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
         , Connection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
@@ -838,6 +839,7 @@ public:
     }
 
 private:
+    TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
     const NApi::NNative::IConnectionPtr Connection_;
@@ -5697,6 +5699,12 @@ private:
         NApi::TTableWriterOptions options;
         if (request->has_config()) {
             options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        } else {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
+        }
+
+        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
+            options.Config->EnableLargeColumnarStatistics = true;
         }
         // NB: Input comes directly from user and thus requires additional validation.
         options.ValidateAnyIsValidYson = true;

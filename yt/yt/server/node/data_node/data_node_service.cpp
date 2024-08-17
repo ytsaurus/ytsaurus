@@ -2291,6 +2291,7 @@ private:
                     "Columnar statistics chunk meta extension missing");
             }
             const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
+            auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
 
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;
@@ -2304,9 +2305,19 @@ private:
             TColumnarStatistics columnarStatistics;
             i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
 
-            FromProto(&columnarStatistics, columnarStatisticsExt, chunkRowCount);
+            FromProto(
+                &columnarStatistics,
+                columnarStatisticsExt,
+                largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
+                chunkRowCount);
+            auto selectedStatistics = columnarStatistics.SelectByColumnNames(nameTable, columnStableNames);
             ToProto(subresponse->mutable_columnar_statistics(),
-                columnarStatistics.SelectByColumnNames(nameTable, columnStableNames));
+                selectedStatistics);
+
+            const auto& largeStatistics = selectedStatistics.LargeStatistics;
+            if (!largeStatistics.Empty()) {
+                ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
+            }
 
             // COMPAT(denvid): legacy response fields. Remove once all clusters are 23.2+.
 

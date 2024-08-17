@@ -47,6 +47,7 @@ target_proto_messages(yt_proto-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/bloom_filter.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/error.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/guid.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/hyperloglog.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/protobuf_helpers.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/tracing/proto/span.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.proto
@@ -63,6 +64,7 @@ target_sources(yt_proto-yt-core PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/bloom_filter.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/error.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/guid.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/hyperloglog.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/tracing/proto/span.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h

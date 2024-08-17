@@ -227,7 +227,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         }
 
                         if (chunkReadOptions.GranuleFilter && chunkMeta->ColumnarStatisticsExt()) {
-                            auto allColumnStatistics = FromProto<TColumnarStatistics>(*chunkMeta->ColumnarStatisticsExt(), chunkMeta->Misc().row_count());
+                            TColumnarStatistics allColumnStatistics;
+                            FromProto(
+                                &allColumnStatistics,
+                                *chunkMeta->ColumnarStatisticsExt(),
+                                chunkMeta->LargeColumnarStatisticsExt() ? &*chunkMeta->LargeColumnarStatisticsExt() : nullptr,
+                                chunkMeta->Misc().row_count());
 
                             if (chunkReadOptions.GranuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
                                 readRange = TReadRange::MakeEmpty();

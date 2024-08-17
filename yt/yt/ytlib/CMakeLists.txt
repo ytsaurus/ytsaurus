@@ -246,7 +246,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_collocation_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_action_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_commit_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_helpers.cpp

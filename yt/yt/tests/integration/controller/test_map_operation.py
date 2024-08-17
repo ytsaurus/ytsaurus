@@ -11,7 +11,7 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config)
+    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
@@ -38,6 +38,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_UNIQUE_COUNT_CHECK = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -145,6 +146,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{v1,v2}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'v1': 1, 'v2': 1}
+
     @authors("ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     @pytest.mark.timeout(150)
@@ -161,6 +166,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted_dicts(new_data) == sorted_dicts([{"index": i} for i in range(count)])
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -187,6 +196,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_output2") == [{"value": 42}]
         assert sorted_dicts(read_table("//tmp/t_output1")) == [{"index": i} for i in range(count)]
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
     def test_write_two_outputs_consistently(self):

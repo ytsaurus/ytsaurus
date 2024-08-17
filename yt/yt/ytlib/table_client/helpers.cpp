@@ -45,6 +45,8 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/compression/codec.h>
+
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/random.h>
@@ -836,6 +838,7 @@ void ToProto(
 void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    const NProto::TLargeColumnarStatisticsExt* protoLargeStatisticsExt,
     i64 chunkRowCount)
 {
     FromProto(&statistics->ColumnDataWeights, protoStatisticsExt.column_data_weights());
@@ -857,6 +860,59 @@ void FromProto(
     }
     statistics->ChunkRowCount = chunkRowCount;
     statistics->LegacyChunkRowCount = 0;
+
+    // Extract large statistics
+    if (protoLargeStatisticsExt) {
+        FromProto(&statistics->LargeStatistics, *protoLargeStatisticsExt);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr NCompression::ECodec HllCodecId = NCompression::ECodec::Zlib_1;
+
+void FromProto(
+    TLargeColumnarStatistics* statistics,
+    const NProto::TLargeColumnarStatisticsExt& protoLargeStatisticsExt)
+{
+    if (!protoLargeStatisticsExt.has_column_hyperloglog_digests()) {
+        return;
+    }
+
+    auto allDigests = NCompression::GetCodec(HllCodecId)->Decompress(
+        TSharedRef::FromString(protoLargeStatisticsExt.column_hyperloglog_digests()));
+
+    int numDigests = std::ssize(allDigests) / TColumnarHyperLogLogDigest::RegisterCount;
+
+    YT_VERIFY(std::ssize(allDigests) % TColumnarHyperLogLogDigest::RegisterCount == 0);
+    statistics->ColumnHyperLogLogDigests.reserve(numDigests);
+
+    const char* start = allDigests.data();
+    for (int i = 0; i < numDigests; ++i) {
+        statistics->ColumnHyperLogLogDigests.emplace_back(TRange<char>(
+             start + i * TColumnarHyperLogLogDigest::RegisterCount,
+             start + (i + 1) * TColumnarHyperLogLogDigest::RegisterCount));
+    }
+}
+
+void ToProto(
+    NProto::TLargeColumnarStatisticsExt* protoStatisticsExt,
+    const TLargeColumnarStatistics& statistics)
+{
+    if (statistics.ColumnHyperLogLogDigests.empty()) {
+        return;
+    }
+    TString allDigests;
+    allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount);
+    for (const auto& digest : statistics.ColumnHyperLogLogDigests) {
+        allDigests += TStringBuf(
+            digest.Data().begin(),
+            digest.Data().size());
+    }
+    auto compressed = NCompression::GetCodec(HllCodecId)->Compress(
+        TSharedRef::FromString(allDigests));
+    protoStatisticsExt->set_column_hyperloglog_digests(
+        compressed.begin(), compressed.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,7 +61,6 @@ SRCS(
     api/native/sync_replica_cache.cpp
     api/native/table_collocation_type_handler.cpp
     api/native/table_reader.cpp
-    api/native/table_writer.cpp
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp

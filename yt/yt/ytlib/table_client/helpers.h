@@ -230,7 +230,18 @@ void ToProto(
 void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    const NProto::TLargeColumnarStatisticsExt* protoLargeStatisticsExt,
     i64 chunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TLargeColumnarStatistics* statistics,
+    const NProto::TLargeColumnarStatisticsExt& protoLargeStatisticsExt);
+
+void ToProto(
+    NProto::TLargeColumnarStatisticsExt* protoStatisticsExt,
+    const TLargeColumnarStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

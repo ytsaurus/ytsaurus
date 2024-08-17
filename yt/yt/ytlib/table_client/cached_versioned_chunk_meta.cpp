@@ -95,6 +95,9 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
         ClearColumnMeta();
     }
 
+    // Do not keep large columnar statistics
+    LargeColumnarStatisticsExt_ = std::nullopt;
+
     if (memoryTracker) {
         MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
             memoryTracker,

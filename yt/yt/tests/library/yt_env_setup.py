@@ -267,7 +267,11 @@ class YTEnvSetup(object):
 
     DELTA_NODE_FLAVORS = []
 
-    DELTA_DRIVER_CONFIG = {}
+    DELTA_DRIVER_CONFIG = {
+        "table_writer": {
+            "enable_large_columnar_statistics": True,
+        },
+    }
     DELTA_DRIVER_LOGGING_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -285,10 +289,118 @@ class YTEnvSetup(object):
         },
         "controller_agent": {
             "enable_table_column_renaming": True,
+            "map_operation_options": {
+                "spec_template": {
+                    "job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                }
+            },
+            "map_reduce_operation_options": {
+                "spec_template": {
+                    "map_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                    "sort_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                    "reduce_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                }
+            },
+            "sort_operation_options": {
+                "spec_template": {
+                    "merge_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                    "partition_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                    "sort_job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                }
+            },
+            "sorted_merge_operation_options": {
+                "spec_template": {
+                    "job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                },
+            },
+            "unordered_merge_operation_options": {
+                "spec_template": {
+                    "job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                },
+            },
+            "ordered_merge_operation_options": {
+                "spec_template": {
+                    "job_io": {
+                        "table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                        "dynamic_table_writer": {
+                            "enable_large_columnar_statistics": True,
+                        },
+                    },
+                },
+            },
         },
     }
     DELTA_PROXY_CONFIG = {}
-    DELTA_RPC_PROXY_CONFIG = {}
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "enable_large_columnar_statistics": True,
+        },
+    }
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
