@@ -850,10 +850,12 @@ protected:
 template <class TNonOwnedChild>
 class TMapNodeChildren
 {
+private:
     using TMaybeOwnedChild = std::conditional_t<
         std::is_pointer_v<TNonOwnedChild>,
         NObjectServer::TStrongObjectPtr<std::remove_pointer_t<TNonOwnedChild>>,
-        TNonOwnedChild>;
+        TNonOwnedChild
+    >;
 
     static TMaybeOwnedChild ToOwnedOnLoad(TNonOwnedChild child);
     static TMaybeOwnedChild Clone(const TMaybeOwnedChild& child);
@@ -861,8 +863,8 @@ class TMapNodeChildren
 
 public:
     static constexpr bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
-    using TKeyToChild = THashMap<TString, TNonOwnedChild>;
-    using TChildToKey = THashMap<TMaybeOwnedChild, TString>;
+    using TKeyToChild = THashMap<std::string, TNonOwnedChild, THash<std::string_view>, TEqualTo<std::string_view>>;
+    using TChildToKey = THashMap<TMaybeOwnedChild, std::string>;
 
     static bool IsNull(TNonOwnedChild child) noexcept;
 
@@ -877,10 +879,10 @@ public:
 
     void RecomputeMasterMemoryUsage();
 
-    void Set(const TString& key, TNonOwnedChild child);
-    void Insert(const TString& key, TNonOwnedChild child);
-    void Remove(const TString& key, TNonOwnedChild child);
-    bool Contains(const TString& key) const;
+    void Set(const std::string& key, TNonOwnedChild child);
+    void Insert(const std::string& key, TNonOwnedChild child);
+    void Remove(const std::string& key, TNonOwnedChild child);
+    bool Contains(const std::string& key) const;
 
     const TKeyToChild& KeyToChild() const;
     const TChildToKey& ChildToKey() const;

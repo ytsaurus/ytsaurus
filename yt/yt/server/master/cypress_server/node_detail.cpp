@@ -906,7 +906,7 @@ void TMapNodeChildren<TNonOwnedChild>::RecomputeMasterMemoryUsage()
 }
 
 template <class TNonOwnedChild>
-void TMapNodeChildren<TNonOwnedChild>::Set(const TString& key, TNonOwnedChild child)
+void TMapNodeChildren<TNonOwnedChild>::Set(const std::string& key, TNonOwnedChild child)
 {
     MaybeVerifyIsTrunk(child);
 
@@ -927,7 +927,7 @@ void TMapNodeChildren<TNonOwnedChild>::Set(const TString& key, TNonOwnedChild ch
 }
 
 template <class TNonOwnedChild>
-void TMapNodeChildren<TNonOwnedChild>::Insert(const TString& key, TNonOwnedChild child)
+void TMapNodeChildren<TNonOwnedChild>::Insert(const std::string& key, TNonOwnedChild child)
 {
     MaybeVerifyIsTrunk(child);
 
@@ -940,7 +940,7 @@ void TMapNodeChildren<TNonOwnedChild>::Insert(const TString& key, TNonOwnedChild
 }
 
 template <class TNonOwnedChild>
-void TMapNodeChildren<TNonOwnedChild>::Remove(const TString& key, TNonOwnedChild child)
+void TMapNodeChildren<TNonOwnedChild>::Remove(const std::string& key, TNonOwnedChild child)
 {
     MaybeVerifyIsTrunk(child);
 
@@ -955,7 +955,7 @@ void TMapNodeChildren<TNonOwnedChild>::Remove(const TString& key, TNonOwnedChild
 }
 
 template <class TNonOwnedChild>
-bool TMapNodeChildren<TNonOwnedChild>::Contains(const TString& key) const
+bool TMapNodeChildren<TNonOwnedChild>::Contains(const std::string& key) const
 {
     return KeyToChild_.find(key) != KeyToChild_.end();
 }
@@ -1151,7 +1151,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBranch(
         } else {
             const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
-            THashMap<TString, TCypressNode*> keyToChildStorage;
+            TKeyToCypressNode keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
                 cypressManager,
                 originatingNode->GetTrunkNode()->template As<TImpl>(),
@@ -1251,7 +1251,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoClone(
 
     const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
-    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    TKeyToCypressNode keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode()->template As<TCypressMapNode>(),
@@ -1302,7 +1302,7 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
 
     const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
-    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    TKeyToCypressNode keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         node->GetTrunkNode()->template As<TImpl>(),

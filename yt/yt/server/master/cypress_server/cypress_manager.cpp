@@ -3910,15 +3910,15 @@ private:
         NProto::TReqLockForeignNode request;
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);
         ToProto(request.mutable_node_id(), trunkNode->GetId());
-        request.set_mode(static_cast<int>(lock->Request().Mode));
+        request.set_mode(ToProto<int>(lock->Request().Mode));
         switch (lock->Request().Key.Kind) {
             case ELockKeyKind::None:
                 break;
             case ELockKeyKind::Child:
-                request.set_child_key(lock->Request().Key.Name);
+                request.set_child_key(ToProto<TProtobufString>(lock->Request().Key.Name));
                 break;
             case ELockKeyKind::Attribute:
-                request.set_attribute_key(lock->Request().Key.Name);
+                request.set_attribute_key(ToProto<TProtobufString>(lock->Request().Key.Name));
                 break;
             default:
                 break;
@@ -3962,7 +3962,7 @@ private:
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-                THashMap<TString, TCypressNode*> children;
+                TKeyToCypressNode children;
                 for (const auto* node : originators) {
                     const auto* mapNode = node->As<TCypressMapNode>();
                     for (const auto& [key, child] : mapNode->KeyToChild()) {

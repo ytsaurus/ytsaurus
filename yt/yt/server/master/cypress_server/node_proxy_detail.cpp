@@ -65,6 +65,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -1224,7 +1226,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         void VisitMap(TCypressNode* node)
         {
             Writer_.OnBeginMap();
-            THashMap<TString, TCypressNode*> keyToChildMapStorage;
+            TKeyToCypressNode keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
                 node->As<TCypressMapNode>(),
@@ -2971,7 +2973,7 @@ void TCypressMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    TKeyToCypressNode keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode_->As<TCypressMapNode>(),
@@ -3016,7 +3018,7 @@ int TCypressMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren() const
 {
-    THashMap<TString, TCypressNode*> keyToChildStorage;
+    TKeyToCypressNode keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode_->As<TCypressMapNode>(),
@@ -3034,19 +3036,13 @@ std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren(
 
 std::vector<std::string> TCypressMapNodeProxy::GetKeys() const
 {
-    THashMap<TString, TCypressNode*> keyToChildStorage;
+    TKeyToCypressNode keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode_->As<TCypressMapNode>(),
         Transaction_,
         &keyToChildStorage);
-
-    std::vector<std::string> result;
-    for (const auto& [key, child] : keyToChildMap) {
-        result.push_back(key);
-    }
-
-    return result;
+    return NYT::GetKeys(keyToChildMap);
 }
 
 INodePtr TCypressMapNodeProxy::FindChild(const std::string& key) const
@@ -3285,7 +3281,7 @@ void TCypressMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    TKeyToCypressNode keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         TrunkNode_->As<TCypressMapNode>(),

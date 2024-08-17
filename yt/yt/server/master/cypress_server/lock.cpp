@@ -35,7 +35,7 @@ TLockRequest::TLockRequest(ELockMode mode)
     : Mode(mode)
 { }
 
-TLockRequest TLockRequest::MakeSharedChild(const TString& key)
+TLockRequest TLockRequest::MakeSharedChild(const std::string& key)
 {
     TLockRequest result(ELockMode::Shared);
     result.Key.Kind = ELockKeyKind::Child;
@@ -43,7 +43,7 @@ TLockRequest TLockRequest::MakeSharedChild(const TString& key)
     return result;
 }
 
-TLockRequest TLockRequest::MakeSharedAttribute(const TString& key)
+TLockRequest TLockRequest::MakeSharedAttribute(const std::string& key)
 {
     TLockRequest result(ELockMode::Shared);
     result.Key.Kind = ELockKeyKind::Attribute;
