@@ -561,10 +561,10 @@ public:
         auto perCellPermissionValidationProfiler = PermissionValidationProfiler
             .WithSparse()
             .WithDefaultDisabled();
-        CheckPermissionTimer_ = perCellPermissionValidationProfiler
-            .Timer("/check_permission_wall_time");
-        AclIterationTimer_ = perCellPermissionValidationProfiler
-            .Timer("/acl_iteration_wall_time");
+        CheckPermissionGauge_ = perCellPermissionValidationProfiler
+            .TimeGauge("/check_permission_cumulative_time");
+        AclIterationGauge_ = perCellPermissionValidationProfiler
+            .TimeGauge("/acl_iteration_cumulative_time");
     }
 
     void OnAccountsProfiling()
@@ -2205,7 +2205,7 @@ public:
                 break;
             }
         }
-        AclIterationTimer_.Record(aclIterationTimer.GetElapsedTime());
+        AclIterationGauge_.Update(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2224,7 +2224,7 @@ public:
                 currentDepth);
         }
 
-        CheckPermissionTimer_.Record(checkPermissionTimer.GetElapsedTime());
+        CheckPermissionGauge_.Update(checkPermissionTimer.GetElapsedTime());
         return checker.GetResponse();
     }
 
@@ -2891,8 +2891,8 @@ private:
 
     bool MustRecomputeMembershipClosure_ = false;
 
-    TEventTimer CheckPermissionTimer_;
-    TEventTimer AclIterationTimer_;
+    TTimeGauge CheckPermissionGauge_;
+    TTimeGauge AclIterationGauge_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
