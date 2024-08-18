@@ -112,7 +112,7 @@ public:
         return DoListAcds(object->As<TImpl>());
     }
 
-    std::optional<std::vector<TString>> ListColumns(TObject* object) override
+    std::optional<std::vector<std::string>> ListColumns(TObject* object) override
     {
         return DoListColumns(object->As<TImpl>());
     }
@@ -194,7 +194,7 @@ protected:
         return {};
     }
 
-    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* /*object*/)
+    virtual std::optional<std::vector<std::string>> DoListColumns(TImpl* /*object*/)
     {
         return std::nullopt;
     }

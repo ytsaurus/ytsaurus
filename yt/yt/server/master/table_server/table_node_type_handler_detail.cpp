@@ -603,11 +603,11 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
 }
 
 template <class TImpl>
-std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
+std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
     const auto& schema = *node->GetSchema()->AsTableSchema();
 
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
         result.push_back(column.Name());

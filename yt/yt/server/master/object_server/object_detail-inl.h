@@ -124,7 +124,7 @@ template <class T>
 
     NSecurityServer::TPermissionCheckOptions checkOptions;
     if (request->has_columns()) {
-        checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        checkOptions.Columns = FromProto<std::vector<std::string>>(request->columns().items());
     }
     if (request->has_vital()) {
         checkOptions.Vital = request->vital();

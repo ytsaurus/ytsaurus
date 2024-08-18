@@ -351,7 +351,7 @@ public:
             branchedNode->template As<TImpl>());
     }
 
-    std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const override
+    std::optional<std::vector<std::string>> ListColumns(TCypressNode* node) const override
     {
         return DoListColumns(node->template As<TImpl>());
     }
@@ -485,7 +485,7 @@ protected:
         return false;
     }
 
-    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* /*node*/) const
+    virtual std::optional<std::vector<std::string>> DoListColumns(TImpl* /*node*/) const
     {
         return std::nullopt;
     }

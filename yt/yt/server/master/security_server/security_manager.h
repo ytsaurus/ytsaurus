@@ -39,14 +39,14 @@ inline const NProfiling::TProfiler PermissionValidationProfiler("/permission_val
 struct TPermissionCheckTarget
 {
     NObjectServer::TObject* Object;
-    std::optional<TString> Column;
+    std::optional<std::string> Column;
 };
 
 //! Specifies additional options for permission check.
 struct TPermissionCheckOptions
 {
     //! If given, indicates that only a subset of columns are to affected by the operation.
-    std::optional<std::vector<TString>> Columns;
+    std::optional<std::vector<std::string>> Columns;
     //! Should be given whenever RegisterQueueConsumer permission is checked; defined vitality
     //! of the consumer to be registered.
     std::optional<bool> Vital;
