@@ -287,8 +287,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        CreateChunkRequestQueueProvider_->ReconfigureUser(user->GetName());
-        ExecuteBatchRequestQueueProvider_->ReconfigureUser(user->GetName());
+        // TODO(babenko): switch to std::string
+        CreateChunkRequestQueueProvider_->ReconfigureUser(TString(user->GetName()));
+        ExecuteBatchRequestQueueProvider_->ReconfigureUser(TString(user->GetName()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)

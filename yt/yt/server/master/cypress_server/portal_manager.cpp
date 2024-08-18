@@ -169,7 +169,7 @@ public:
 
                 portalExitInfo->set_inherit_acl(node->Acd().Inherit());
 
-                portalExitInfo->set_owner(node->Acd().GetOwner()->GetName());
+                portalExitInfo->set_owner(ToProto<TProtobufString>(node->Acd().GetOwner()->GetName()));
 
                 if (auto annotationNode = FindClosestAncestorWithAnnotation(node)) {
                     portalExitInfo->mutable_effective_annotation()->set_annotation(*annotationNode->TryGetAnnotation());

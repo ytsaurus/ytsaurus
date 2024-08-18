@@ -2499,7 +2499,7 @@ private:
                 TReqReplicateMaintenanceRequestCreation addMaintenance;
                 addMaintenance.set_component(ToProto<i32>(EMaintenanceComponent::ClusterNode));
                 addMaintenance.set_comment(request.Comment);
-                addMaintenance.set_user(request.User);
+                addMaintenance.set_user(ToProto<TProtobufString>(request.User));
                 addMaintenance.set_type(ToProto<i32>(request.Type));
                 addMaintenance.set_address(node->GetDefaultAddress());
                 ToProto(addMaintenance.mutable_id(), id);

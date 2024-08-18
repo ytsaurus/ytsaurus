@@ -13,7 +13,7 @@ class TNetworkProject
     : public NObjectServer::TObject
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(ui32, ProjectId);
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 

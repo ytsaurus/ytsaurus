@@ -308,7 +308,7 @@ TUser::TUser(TUserId id)
     , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
-void TUser::SetName(const TString& name)
+void TUser::SetName(const std::string& name)
 {
     TSubject::SetName(name);
     InitializeCounters();

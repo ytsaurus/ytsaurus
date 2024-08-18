@@ -175,7 +175,7 @@ private:
         response->set_action(static_cast<int>(result.Action));
         if (result.Subject) {
             ToProto(response->mutable_subject_id(), result.Subject->GetId());
-            response->set_subject_name(result.Subject->GetName());
+            response->set_subject_name(ToProto<TProtobufString>(result.Subject->GetName()));
         }
 
         context->SetResponseInfo("Action: %v", result.Action);

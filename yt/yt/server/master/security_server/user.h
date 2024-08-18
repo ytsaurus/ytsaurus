@@ -240,7 +240,7 @@ public:
     using TSubject::TSubject;
     explicit TUser(TUserId id);
 
-    void SetName(const TString& name) override;
+    void SetName(const std::string& name) override;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

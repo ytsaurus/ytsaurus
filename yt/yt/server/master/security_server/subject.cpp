@@ -16,12 +16,12 @@ TSubject::TSubject(TSubjectId id)
     , Acd_(this)
 { }
 
-TString TSubject::GetName() const
+const std::string& TSubject::GetName() const
 {
     return Name_;
 }
 
-void TSubject::SetName(const TString& name)
+void TSubject::SetName(const std::string& name)
 {
     Name_ = name;
 }

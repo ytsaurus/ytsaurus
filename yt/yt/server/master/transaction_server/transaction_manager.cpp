@@ -1115,7 +1115,7 @@ public:
 
             auto* user = transaction->Acd().GetOwner()->AsUser();
             if (IsObjectAlive(user)) {
-                startRequest.set_user(user->GetName());
+                startRequest.set_user(ToProto<TProtobufString>(user->GetName()));
             } else {
                 YT_LOG_ALERT("Transaction user is not alive during %v (TransactionId: %v)",
                     transaction->GetId() == transactionId

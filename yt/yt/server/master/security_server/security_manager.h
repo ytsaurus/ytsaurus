@@ -144,10 +144,10 @@ public:
     virtual TAccount* GetAccountOrThrow(TAccountId id) = 0;
 
     //! Returns account with a given name (|nullptr| if none).
-    virtual TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Returns account with a given name (throws if none).
-    virtual TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
 
 
     //! Returns "root" built-in account.
@@ -244,13 +244,13 @@ public:
 
 
     //! Returns user with a given name (|nullptr| if none).
-    virtual TUser* FindUserByName(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TUser* FindUserByName(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Returns user with a given name or alias (|nullptr| if none).
-    virtual TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TUser* FindUserByNameOrAlias(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Returns user with a given name (throws if none).
-    virtual TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TUser* GetUserByNameOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Finds user by id, throws if nothing is found.
     virtual TUser* GetUserOrThrow(TUserId id) = 0;
@@ -266,7 +266,7 @@ public:
 
 
     //! Returns group with a given name or alias (|nullptr| if none).
-    virtual TGroup* FindGroupByNameOrAlias(const TString& name) = 0;
+    virtual TGroup* FindGroupByNameOrAlias(const std::string& name) = 0;
 
     //! Returns "everyone" built-in group.
     virtual TGroup* GetEveryoneGroup() = 0;
@@ -288,10 +288,10 @@ public:
     virtual TSubject* GetSubjectOrThrow(TSubjectId id) = 0;
 
     //! Returns subject (a user or a group) with a given name or alias (|nullptr| if none).
-    virtual TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TSubject* FindSubjectByNameOrAlias(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Returns subject (a user or a group) with a given name or alias (throws if none).
-    virtual TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
+    virtual TSubject* GetSubjectByNameOrAliasOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
 
     //! Adds a new member into the group. Throws on failure.
     virtual void AddMember(TGroup* group, TSubject* member, bool ignoreExisting) = 0;
@@ -301,19 +301,19 @@ public:
 
 
     //! Updates the name of the subject.
-    virtual void RenameSubject(TSubject* subject, const TString& newName) = 0;
+    virtual void RenameSubject(TSubject* subject, const std::string& newName) = 0;
 
 
     //! Returns network project with a given name (|nullptr| if none).
-    virtual TNetworkProject* FindNetworkProjectByName(const TString& name) = 0;
+    virtual TNetworkProject* FindNetworkProjectByName(const std::string& name) = 0;
 
     //! Updates the name of the network project.
-    virtual void RenameNetworkProject(TNetworkProject* networkProject, const TString& newName) = 0;
+    virtual void RenameNetworkProject(TNetworkProject* networkProject, const std::string& newName) = 0;
 
 
     //! Returns a map from proxy role name to proxy role for proxy roles
     //! with a given proxy kind.
-    virtual const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const = 0;
+    virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const = 0;
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
@@ -454,7 +454,7 @@ public:
     DECLARE_INTERFACE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
     //! Set list of aliases for subject. Throws on failure.
-    virtual void SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases) = 0;
+    virtual void SetSubjectAliases(TSubject* subject, const std::vector<std::string>& aliases) = 0;
 
     //! Returns CPU profiler tag for a specific user.
     virtual NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) = 0;
