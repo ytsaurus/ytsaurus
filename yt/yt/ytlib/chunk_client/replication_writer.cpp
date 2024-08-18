@@ -860,7 +860,7 @@ private:
                 }
 
                 auto address = innerError->Attributes().Find<TString>("address");
-                auto needRetry = address->Empty() || std::count_if(
+                auto needRetry = !address || std::count_if(
                     lockedWriter->Nodes_.begin(),
                     lockedWriter->Nodes_.end(),
                     [&] (const auto& node) -> bool {
