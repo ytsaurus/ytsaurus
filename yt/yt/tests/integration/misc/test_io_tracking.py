@@ -1226,8 +1226,8 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         }, intermediate_account="tmp")
 
         assert paths["map"]["read"] == ["//tmp/table_in"] * 4
-        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
-        assert paths["auto_merge"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["map"]["write"] == ["<intermediate-0>"] * 4
+        assert paths["auto_merge"]["read"] == ["<intermediate-0>"] * 4
         assert paths["auto_merge"]["write"] == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
@@ -1293,8 +1293,8 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         }, intermediate_account="gepardo")
 
         assert paths[task_name]["read"] == ["//tmp/table_in"] * 12
-        assert sorted(paths[task_name]["write"]) == ["<intermediate_0>"] * 6 + ["<intermediate_1>"] * 6
-        assert sorted(paths["auto_merge"]["read"]) == ["<intermediate_0>"] * 6 + ["<intermediate_1>"] * 6
+        assert sorted(paths[task_name]["write"]) == ["<intermediate-0>"] * 6 + ["<intermediate-1>"] * 6
+        assert sorted(paths["auto_merge"]["read"]) == ["<intermediate-0>"] * 6 + ["<intermediate-1>"] * 6
         assert sorted(paths["auto_merge"]["write"]) == ["//tmp/table_out1"] * 2 + ["//tmp/table_out2"] * 2
 
         output_data = read_table("//tmp/table_out1") + read_table("//tmp/table_out2")
@@ -1525,8 +1525,8 @@ class TestMapReduceJobIOTracking(TestJobIOTrackingBase):
         })
 
         assert paths["map"]["read"] == ["//tmp/table_in"]
-        assert paths["map"]["write"] == ["<intermediate_0>"]
-        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["map"]["write"] == ["<intermediate-0>"]
+        assert paths["reduce"]["read"] == ["<intermediate-0>"]
         assert paths["reduce"]["write"] == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
@@ -1581,8 +1581,8 @@ cat
 
         assert paths["map"]["read"] == ["//tmp/table_in"] * 4
         assert sorted(paths["map"]["write"]) == \
-            ["//tmp/table_out_map1"] * 4 + ["//tmp/table_out_map2"] + ["<intermediate_0>"] * 4
-        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 4
+            ["//tmp/table_out_map1"] * 4 + ["//tmp/table_out_map2"] + ["<intermediate-0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate-0>"] * 4
         assert paths["reduce"]["write"] == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out_map1")) == [{"a": i} for i in range(4)]
@@ -1623,8 +1623,8 @@ cat
         })
 
         assert paths["partition"]["read"] == ["//tmp/table_in"]
-        assert paths["partition"]["write"] == ["<intermediate_0>"]
-        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["partition"]["write"] == ["<intermediate-0>"]
+        assert paths["reduce"]["read"] == ["<intermediate-0>"]
         assert paths["reduce"]["write"] == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
@@ -1673,10 +1673,10 @@ cat
         })
 
         assert paths["map"]["read"] == ["//tmp/table_in"] * 4
-        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
-        assert paths["combine"]["read"] == ["<intermediate_0>"] * 4
-        assert paths["combine"]["write"] == ["<intermediate_0>"]
-        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["map"]["write"] == ["<intermediate-0>"] * 4
+        assert paths["combine"]["read"] == ["<intermediate-0>"] * 4
+        assert paths["combine"]["write"] == ["<intermediate-0>"]
+        assert paths["reduce"]["read"] == ["<intermediate-0>"]
         assert paths["reduce"]["write"] == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
@@ -1726,12 +1726,12 @@ cat
         })
 
         assert paths["map"]["read"] == ["//tmp/table_in"] * 8
-        assert paths["map"]["write"] == ["<intermediate_0>"]
-        assert paths["part1"]["read"] == ["<intermediate_0>"] * 2
-        assert paths["part1"]["write"] == ["<intermediate_0>"] * 2
-        assert paths["part2"]["read"] == ["<intermediate_0>"] * 4
-        assert paths["part2"]["write"] == ["<intermediate_0>"] * 4
-        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 5
+        assert paths["map"]["write"] == ["<intermediate-0>"]
+        assert paths["part1"]["read"] == ["<intermediate-0>"] * 2
+        assert paths["part1"]["write"] == ["<intermediate-0>"] * 2
+        assert paths["part2"]["read"] == ["<intermediate-0>"] * 4
+        assert paths["part2"]["write"] == ["<intermediate-0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate-0>"] * 5
         assert paths["reduce"]["write"] == ["//tmp/table_out"] * 5
 
         assert sorted_dicts(read_table("//tmp/table_out")) == table_data
@@ -1778,10 +1778,10 @@ cat
         })
 
         assert paths["map"]["read"] == ["//tmp/table_in"] * 8
-        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
-        assert paths["intermediate"]["read"] == ["<intermediate_0>"] * 4
-        assert paths["intermediate"]["write"] == ["<intermediate_0>"] * 4
-        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["map"]["write"] == ["<intermediate-0>"] * 4
+        assert paths["intermediate"]["read"] == ["<intermediate-0>"] * 4
+        assert paths["intermediate"]["write"] == ["<intermediate-0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate-0>"] * 4
         assert paths["reduce"]["write"] == ["//tmp/table_out"] * 4
 
         assert sorted_dicts(read_table("//tmp/table_out")) == table_data
@@ -1882,8 +1882,8 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
 
         paths = self._gather_events(raw_events, op)
         assert paths["simple_sort"]["read"] == sort_jobs * ["//tmp/table_in"]
-        assert paths["simple_sort"]["write"] == sort_jobs * ["<intermediate_0>"]
-        assert paths["sorted_merge"]["read"] == sort_jobs * ["<intermediate_0>"]
+        assert paths["simple_sort"]["write"] == sort_jobs * ["<intermediate-0>"]
+        assert paths["sorted_merge"]["read"] == sort_jobs * ["<intermediate-0>"]
         assert paths["sorted_merge"]["write"] == merge_jobs * ["//tmp/table_out"]
 
         self._check_output_table()
@@ -1914,8 +1914,8 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         })
 
         assert paths["partition"]["read"] == ["//tmp/table_in"] * 2
-        assert paths["partition"]["write"] == ["<intermediate_0>"] * 2
-        assert paths["final"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["partition"]["write"] == ["<intermediate-0>"] * 2
+        assert paths["final"]["read"] == ["<intermediate-0>"] * 4
         assert paths["final"]["write"] == ["//tmp/table_out"] * 2
 
         self._check_output_table()
@@ -1949,10 +1949,10 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         })
 
         assert paths["part0"]["read"] == ["//tmp/table_in"] * 8
-        assert paths["part0"]["write"] == ["<intermediate_0>"] * 2
-        assert paths["part1"]["read"] == ["<intermediate_0>"] * 4
-        assert paths["part1"]["write"] == ["<intermediate_0>"] * 2
-        assert paths["final"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["part0"]["write"] == ["<intermediate-0>"] * 2
+        assert paths["part1"]["read"] == ["<intermediate-0>"] * 4
+        assert paths["part1"]["write"] == ["<intermediate-0>"] * 2
+        assert paths["final"]["read"] == ["<intermediate-0>"] * 4
         assert paths["final"]["write"] == ["//tmp/table_out"] * 4
 
         self._check_output_table()
@@ -1994,10 +1994,10 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         })
 
         assert paths["partition"]["read"] == ["//tmp/table_in"] * 8
-        assert paths["partition"]["write"] == ["<intermediate_0>"] * 8
-        assert paths["intermediate"]["read"] == ["<intermediate_0>"] * 8
-        assert paths["intermediate"]["write"] == ["<intermediate_0>"] * 8
-        assert paths["merge"]["read"] == ["<intermediate_0>"] * 8
+        assert paths["partition"]["write"] == ["<intermediate-0>"] * 8
+        assert paths["intermediate"]["read"] == ["<intermediate-0>"] * 8
+        assert paths["intermediate"]["write"] == ["<intermediate-0>"] * 8
+        assert paths["merge"]["read"] == ["<intermediate-0>"] * 8
         assert paths["merge"]["write"] == ["//tmp/table_out"] * 8
 
         self._check_output_table()
@@ -2030,8 +2030,8 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         })
 
         assert paths["partition"]["read"] == ["//tmp/table_in"] * 20
-        assert paths["partition"]["write"] == ["<intermediate_0>"] * 2
-        assert paths["merge"]["read"] == ["<intermediate_0>"] * 2
+        assert paths["partition"]["write"] == ["<intermediate-0>"] * 2
+        assert paths["merge"]["read"] == ["<intermediate-0>"] * 2
         assert paths["merge"]["write"] == ["//tmp/table_out"] * 2
 
         assert sorted(read_table("//tmp/table_out"), key=lambda e: e["value"]) == table_data

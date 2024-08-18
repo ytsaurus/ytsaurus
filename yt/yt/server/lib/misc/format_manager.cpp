@@ -66,7 +66,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
             if (!formatNode) {
                 continue;
             }
-            auto origin = Format("%v/file_paths/%d/@format in %Qlv operation spec", taskPath, i, operationType);
+            auto origin = Format("%v/file_paths/%v/@format in %Qlv operation spec", taskPath, i, operationType);
             ValidateAndPatchFormatNode(formatNode, origin);
             filePathNode->MutableAttributes()->Set("format", std::move(formatNode));
         }

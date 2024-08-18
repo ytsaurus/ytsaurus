@@ -889,7 +889,7 @@ auto RetryJobIsNotRunning(
     auto rspOrError = invokeRequest();
     for (int retry = 0; needRetry(rspOrError) && retry < RetryCount; ++retry) {
         YT_LOG_DEBUG("Job state is \"running\" but job phase is not, retrying "
-            "(OperationId: %v, JobId: %v, Retry: %d, RetryCount: %d, RetryBackoff: %v, Error: %v)",
+            "(OperationId: %v, JobId: %v, Retry: %v, RetryCount: %v, RetryBackoff: %v, Error: %v)",
             operationId,
             jobId,
             retry,
