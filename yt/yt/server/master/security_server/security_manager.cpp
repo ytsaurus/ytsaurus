@@ -554,13 +554,13 @@ public:
         for (auto i = 0; i < AccountProfilingProducerCount; ++i) {
             auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
             producer->SetEnabled(false);
-            AccountProfiler
+            AccountProfiler()
                 .WithGlobal()
                 .WithDefaultDisabled()
                 .AddProducer("", producer);
         }
 
-        auto perCellPermissionValidationProfiler = PermissionValidationProfiler
+        auto perCellPermissionValidationProfiler = SecurityProfiler()
             .WithSparse()
             .WithDefaultDisabled();
         CheckPermissionGauge_ = perCellPermissionValidationProfiler

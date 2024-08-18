@@ -391,7 +391,7 @@ void TUser::Load(TLoadContext& context)
 
 void TUser::InitializeCounters()
 {
-    auto profiler = SecurityProfiler
+    auto profiler = SecurityProfiler()
         .WithSparse()
         .WithTag("user", Name_);
 

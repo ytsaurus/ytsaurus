@@ -29,11 +29,6 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NProfiling::TProfiler AccountProfiler("/accounts");
-inline const NProfiling::TProfiler PermissionValidationProfiler("/permission_validation");
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Describes an object (or its part) for which permission check
 //! was carried out.
 struct TPermissionCheckTarget
