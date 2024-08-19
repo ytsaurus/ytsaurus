@@ -12,6 +12,7 @@ namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +35,7 @@ TString TAccountResourceUsageLease::GetCapitalizedObjectName() const
     return Format("Account usage lease %v", GetId());
 }
 
-TString TAccountResourceUsageLease::GetObjectPath() const
+TYPath TAccountResourceUsageLease::GetObjectPath() const
 {
     return Format("//sys/account_resource_usage_leases/%v", GetId());
 }

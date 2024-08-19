@@ -338,7 +338,7 @@ TString TSchedulerPoolTree::GetCapitalizedObjectName() const
     return Format("Scheduler pool tree %Qv", TreeName_);
 }
 
-TString TSchedulerPoolTree::GetObjectPath() const
+TYPath TSchedulerPoolTree::GetObjectPath() const
 {
     return Format("//sys/pool_trees/%v", TreeName_);
 }

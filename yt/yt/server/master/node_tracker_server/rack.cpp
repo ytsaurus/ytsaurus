@@ -5,6 +5,8 @@
 
 namespace NYT::NNodeTrackerServer {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString TRack::GetLowercaseObjectName() const
@@ -17,7 +19,7 @@ TString TRack::GetCapitalizedObjectName() const
     return Format("Rack %Qv", GetName());
 }
 
-TString TRack::GetObjectPath() const
+TYPath TRack::GetObjectPath() const
 {
     return Format("//sys/racks/%v", GetName());
 }

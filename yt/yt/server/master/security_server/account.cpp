@@ -237,7 +237,7 @@ TString TAccount::GetCapitalizedObjectName() const
     return Format("Account %Qv", GetName());
 }
 
-TString TAccount::GetObjectPath() const
+TYPath TAccount::GetObjectPath() const
 {
     return Format("//sys/accounts/%v", GetName());
 }

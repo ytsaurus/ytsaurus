@@ -4,6 +4,8 @@
 
 namespace NYT::NNodeTrackerServer {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString TDataCenter::GetLowercaseObjectName() const
@@ -16,7 +18,7 @@ TString TDataCenter::GetCapitalizedObjectName() const
     return Format("Data center %Qv", GetName());
 }
 
-TString TDataCenter::GetObjectPath() const
+TYPath TDataCenter::GetObjectPath() const
 {
     return Format("//sys/data_centers/%v", GetName());
 }

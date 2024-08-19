@@ -37,6 +37,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -146,7 +147,7 @@ TString TChunk::GetCapitalizedObjectName() const
     }
 }
 
-TString TChunk::GetObjectPath() const
+TYPath TChunk::GetObjectPath() const
 {
     return Format("//sys/chunks/%v", GetId());
 }

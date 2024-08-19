@@ -324,7 +324,7 @@ TString TUser::GetCapitalizedObjectName() const
     return Format("User %Qv", Name_);
 }
 
-TString TUser::GetObjectPath() const
+TYPath TUser::GetObjectPath() const
 {
     return Format("//sys/users/%v", GetName());
 }

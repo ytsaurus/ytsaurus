@@ -607,7 +607,7 @@ TString TNode::GetCapitalizedObjectName() const
     return Format("Node %v", GetDefaultAddress());
 }
 
-TString TNode::GetObjectPath() const
+TYPath TNode::GetObjectPath() const
 {
     return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
 }

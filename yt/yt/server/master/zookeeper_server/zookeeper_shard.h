@@ -26,7 +26,7 @@ public:
     // Logging stuff.
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     // Persistence.
     void Save(NCellMaster::TSaveContext& context) const;
