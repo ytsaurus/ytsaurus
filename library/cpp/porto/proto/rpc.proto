@@ -473,6 +473,7 @@ message TCred {
 message TCapabilities {
     repeated string cap = 1;
     optional string hex = 2;        // out
+    optional bool action = 3;       // in, null - rewrite, true - append, false - remove
 }
 
 
