@@ -164,11 +164,11 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             chunkMeta,
             tableSchema,
             TColumnFilter(tableSchema->GetKeyColumnCount()),
-            nullptr,
+            /*chunkColumnMapping*/ nullptr,
             blockManagerFactory,
-            true,
-            nullptr,
-            nullptr,
+            /*produceAll*/ true,
+            /*readerStatistics*/ nullptr,
+            /*keyFilterStatistics*/ nullptr,
             memoryUsageTracker);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
@@ -294,7 +294,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     return CreateChunkLookupHashTable(
         chunkId,
         startBlockIndex,
-        startBlockIndex + blocks.size(),
+        startBlockIndex + std::ssize(blocks),
         blockCache,
         chunkMeta,
         tableSchema,

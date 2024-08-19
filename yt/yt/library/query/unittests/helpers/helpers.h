@@ -11,8 +11,9 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRandomExpressionGenerator
+class TRandomExpressionGenerator
 {
+public:
     TTableSchemaPtr Schema;
     TRowBufferPtr RowBuffer;
     TColumnEvaluatorPtr ColumnEvaluator;
