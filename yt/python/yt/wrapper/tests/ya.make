@@ -68,7 +68,7 @@ DEPENDS(
 
     # It is used in some tests to run separate cluster.
     # TODO(ignat): improve tests machinery to avoid using yt_local.
-    yt/python/yt/local/bin/yt_local_make
+    yt/python/yt/local/bin/yt_local_native_make
 
     # It is used for yt job-tool tests.
     # yt/python/yt/wrapper/bin/yt_make

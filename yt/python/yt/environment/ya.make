@@ -15,8 +15,6 @@ ELSE()
 
         yt/python/contrib/python-requests
 
-        yt/yt/library/tracing/py
-
         contrib/python/six
     )
 

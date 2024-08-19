@@ -14,7 +14,7 @@ PEERDIR(
 )
 
 DEPENDS(
-    yt/python/yt/local/bin/yt_local_make
+    yt/python/yt/local/bin/yt_local_native_make
     yt/yt/packages/tests_package
 )
 

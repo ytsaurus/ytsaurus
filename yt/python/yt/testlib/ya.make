@@ -17,6 +17,8 @@ ELSE()
         yt/python/yt/local
         yt/python/yt/environment
         yt/python/yt/environment/arcadia_interop
+
+        yt/yt/python/yt_driver_rpc_bindings
     )
 ENDIF()
 
