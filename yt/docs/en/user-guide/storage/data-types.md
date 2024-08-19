@@ -1,1 +1,1 @@
-{% include [Типы данных](../../_includes/user-guide/storage/data-types.md) %}
+{% include [Data types](../../_includes/user-guide/storage/data-types.md) %}
