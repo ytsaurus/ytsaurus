@@ -18,7 +18,7 @@ if (POLICY CMP0132)
   cmake_policy(SET CMP0132 NEW)
 endif()
 
-project(YT LANGUAGES C CXX)
+project(YT LANGUAGES C CXX ASM)
 
 set(BUILD_SHARED_LIBS Off)
 set(CMAKE_CXX_STANDARD 20)
