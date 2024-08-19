@@ -65,6 +65,12 @@ class TestSequoiaInternals(YTEnvSetup):
         "11": {"roles": ["sequoia_node_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
     @authors("h0pless")
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)

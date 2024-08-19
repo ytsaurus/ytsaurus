@@ -436,6 +436,12 @@ class TestSequoiaQueues(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
     @authors("aleksandra-zh")
     def test_link(self):
         create("map_node", "//tmp/m1")
