@@ -20,6 +20,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_visitor.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
@@ -187,6 +189,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isQueue = table->IsQueue();
     bool isQueueConsumer = table->IsQueueConsumer();
     bool isQueueProducer = table->IsQueueProducer();
+    bool isNative = table->IsNative();
 
     TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ isDynamic);
 
@@ -419,9 +422,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecondaryIndices)
-        .SetPresent(isDynamic && !table->SecondaryIndices().empty()));
+        .SetPresent(isDynamic && !table->SecondaryIndices().empty() && isNative));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IndexTo)
-        .SetPresent(isDynamic && table->GetIndexTo()));
+        .SetPresent(isDynamic && table->GetIndexTo() && isNative));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CustomRuntimeData)
         .SetWritable(true)
         .SetRemovable(true)
@@ -1052,18 +1055,19 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::SecondaryIndices: {
-            if (!table->IsDynamic() || table->SecondaryIndices().empty()) {
+            if (!table->IsDynamic() || table->SecondaryIndices().empty() || table->IsForeign()) {
                 return false;
             }
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& tableManager = Bootstrap_->GetTableManager();
 
             BuildYsonFluently(consumer)
                 .DoMapFor(
                     table->SecondaryIndices(),
                     [&] (auto fluent, TSecondaryIndex* secondaryIndex) {
                         auto indexPath = cypressManager->GetNodePath(
-                            secondaryIndex->GetIndexTable(),
+                            tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()),
                             /*transaction*/ nullptr);
                         auto kind = secondaryIndex->GetKind();
 
@@ -1079,13 +1083,16 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::IndexTo: {
-            if (!table->IsDynamic() || !table->GetIndexTo()) {
+            if (!table->IsDynamic() || !table->GetIndexTo() || table->IsForeign()) {
                 return false;
             }
 
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& tableManager = Bootstrap_->GetTableManager();
+
             auto* secondaryIndex = table->GetIndexTo();
-            auto tablePath = Bootstrap_->GetCypressManager()->GetNodePath(
-                secondaryIndex->GetTable(),
+            auto tablePath = cypressManager->GetNodePath(
+                tableManager->GetTableNodeOrThrow(secondaryIndex->GetTableId()),
                 /*transaction*/ nullptr);
             auto kind = secondaryIndex->GetKind();
 
@@ -1982,7 +1989,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     for (const auto* index : trunkTable->SecondaryIndices()) {
         auto* protoIndexInfo = response->add_indices();
-        ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTable()->GetId());
+        ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTableId());
         protoIndexInfo->set_index_kind(ToProto<i32>(index->GetKind()));
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
@@ -2187,8 +2194,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->IsEmpty() && !table->IsDynamic());
 
         if (table->IsDynamic()) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
             for (const auto* index : table->SecondaryIndices()) {
-                const auto& indexTableSchema = index->GetIndexTable()->GetSchema()->AsTableSchema();
+                auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {
                     case ESecondaryIndexKind::FullSync:
                         ValidateFullSyncIndexSchema(*schema, *indexTableSchema);
@@ -2202,7 +2211,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             }
 
             if (const auto* index = table->GetIndexTo()) {
-                const auto& tableSchema = index->GetTable()->GetSchema()->AsTableSchema();
+                auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                const auto& tableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {
                     case ESecondaryIndexKind::FullSync:
                         ValidateFullSyncIndexSchema(*tableSchema, *schema);

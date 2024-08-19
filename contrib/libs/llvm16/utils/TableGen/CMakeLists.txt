@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(GlobalISel)
 
 add_executable(llvm-tblgen)
+
 
 target_compile_options(llvm-tblgen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
@@ -34,6 +36,11 @@ target_link_libraries(llvm-tblgen PUBLIC
   llvm16-lib-TableGen
   utils-TableGen-GlobalISel
   cpp-sanitizer-include
+)
+
+target_allocator(llvm-tblgen
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(llvm-tblgen PRIVATE
@@ -106,10 +113,5 @@ target_sources(llvm-tblgen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/X86RecognizableInstr.cpp
 )
 
-target_allocator(llvm-tblgen
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(llvm-tblgen)
-

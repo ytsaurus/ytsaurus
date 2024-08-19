@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(parse-rpc-header)
 
+
 target_compile_options(parse-rpc-header PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,11 @@ target_link_libraries(parse-rpc-header PUBLIC
   yt-yt-core
   yt-library-program
   yt_proto-yt-core
+)
+
+target_allocator(parse-rpc-header
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(parse-rpc-header PRIVATE
@@ -49,10 +55,5 @@ target_sources(parse-rpc-header PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/parse_rpc_header/main.cpp
 )
 
-target_allocator(parse-rpc-header
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(parse-rpc-header)
-

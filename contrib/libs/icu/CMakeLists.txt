@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-icu)
 
+
 target_compile_options(contrib-libs-icu PRIVATE
   -DU_COMMON_IMPLEMENTATION
   -DU_I18N_IMPLEMENTATION
@@ -509,8 +510,8 @@ target_sources(contrib-libs-icu PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/io/ustream.cpp
 )
 
+
 target_rodata_sources(contrib-libs-icu
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/icudt75_dat.rodata
 )
-

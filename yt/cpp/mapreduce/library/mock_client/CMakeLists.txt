@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-library-mock_client)
 
+
 target_compile_options(mapreduce-library-mock_client PRIVATE
   -Wdeprecated-this-capture
 )

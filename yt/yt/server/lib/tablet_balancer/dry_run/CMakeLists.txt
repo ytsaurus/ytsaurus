@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(lib)
 
 add_executable(tablet-balancer-dry-mode)
+
 
 target_compile_options(tablet-balancer-dry-mode PRIVATE
   -Wdeprecated-this-capture
@@ -29,6 +31,11 @@ target_link_libraries(tablet-balancer-dry-mode PUBLIC
   tablet_balancer-dry_run-lib
   cpp-getopt-small
   cpp-yt-logging
+)
+
+target_allocator(tablet-balancer-dry-mode
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(tablet-balancer-dry-mode PRIVATE
@@ -47,10 +54,5 @@ target_sources(tablet-balancer-dry-mode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/main.cpp
 )
 
-target_allocator(tablet-balancer-dry-mode
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(tablet-balancer-dry-mode)
-

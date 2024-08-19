@@ -934,11 +934,11 @@ class TestDataApiBase(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueA
             assert update(actual_row, expected_row) == actual_row
 
     @staticmethod
-    def _wait_assert_rows_contain(callback, expected_rows):
+    def _wait_assert_rows_contain(callback, expected_rows, ignore_exceptions=True):
         def check():
             return len(callback()) == len(expected_rows)
 
-        wait(check, ignore_exceptions=True)
+        wait(check, ignore_exceptions=ignore_exceptions)
 
         actual_rows = callback()
 
@@ -1221,6 +1221,8 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
         set(f"{consumer_replicated_table}/@abc", 123)
         set(f"{queue_replicated_table}/@inherit_acl", False)
+        for queue_replica in queue_replicas:
+            set(f"{queue_replica['replica_path']}/@inherit_acl", False, driver=get_driver(cluster="remote_0"))
 
         insert_rows(queue_replicated_table, [{"data": "foo"}])
         insert_rows(queue_replicated_table, [{"data": "bar"}])
@@ -1234,7 +1236,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
             lambda: pull_consumer(consumer_replicas[0]["replica_path"], f"primary:{queue_replicated_table}", offset=1,
                                   partition_index=0, authenticated_user="test", driver=get_driver(cluster="remote_0")), [
                 {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-            ])
+            ], ignore_exceptions=False)
 
         # Thus, it is important that we check permissions before performing redirection.
         set(f"{consumer_replicated_table}/@inherit_acl", False)

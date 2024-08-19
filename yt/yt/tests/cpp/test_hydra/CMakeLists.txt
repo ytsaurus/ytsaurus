@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cpp-integration-test-hydra)
 
+
 target_compile_options(cpp-integration-test-hydra PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,10 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
   yt-core-test_framework
 )
 
+target_allocator(cpp-integration-test-hydra
+  cpp-ytalloc-impl
+)
+
 target_link_options(cpp-integration-test-hydra PRIVATE
   -ldl
   -lrt
@@ -49,6 +54,7 @@ target_link_options(cpp-integration-test-hydra PRIVATE
 target_sources(cpp-integration-test-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
 )
+
 
 add_test(
   NAME
@@ -69,20 +75,15 @@ set_property(
   TEST
   cpp-integration-test-hydra
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(cpp-integration-test-hydra)
 
 set_property(
   TEST
   cpp-integration-test-hydra
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(cpp-integration-test-hydra
-  cpp-ytalloc-impl
-)
-
-vcs_info(cpp-integration-test-hydra)
-

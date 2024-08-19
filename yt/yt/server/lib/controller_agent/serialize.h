@@ -51,6 +51,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoteInputForOperations)             (301511))
     ((JobDeterminismValidation)             (301512))
     ((MultipleJobsInAllocation)             (301513))
+    ((OperationIncarnationInJoblet)         (301514))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

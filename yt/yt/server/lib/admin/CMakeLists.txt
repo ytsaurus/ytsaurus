@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-admin)
 
+
 target_compile_options(server-lib-admin PRIVATE
   -Wdeprecated-this-capture
 )

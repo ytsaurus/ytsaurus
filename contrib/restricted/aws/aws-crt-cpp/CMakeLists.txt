@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-aws-aws-crt-cpp)
 
+
 target_compile_options(restricted-aws-aws-crt-cpp PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT

@@ -302,6 +302,7 @@ public:
 
     TCancelableContextPtr GetCancelableContext() const override;
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    IInvokerPoolPtr GetCancelableInvokerPool() const override;
 
     TCompositePendingJobCount GetPendingJobCount() const override;
     i64 GetFailedJobCount() const override;
@@ -365,7 +366,7 @@ public:
 
     void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
 
-    ui64 NextJobIndex() override;
+    ui64 NextJobIndex();
     void InitUserJobSpecTemplate(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
@@ -515,6 +516,14 @@ public:
     TJobExperimentBasePtr GetJobExperiment() override;
 
     TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
+
+    TJobletPtr CreateJoblet(
+        TTask* task,
+        TJobId jobId,
+        TString treeId,
+        int taskJobIndex,
+        std::optional<TString> poolPath,
+        bool treeIsTentative) override;
 
 protected:
     const IOperationControllerHostPtr Host;

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cpp_api_demo)
 
+
 target_compile_options(cpp_api_demo PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(cpp_api_demo PUBLIC
   yt-yt-core
   yt-yt-client
   yt-yt-ytlib
+)
+
+target_allocator(cpp_api_demo
+  cpp-ytalloc-impl
 )
 
 target_link_options(cpp_api_demo PRIVATE
@@ -47,9 +52,5 @@ target_sources(cpp_api_demo PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/cpp_api_demo/demo.cpp
 )
 
-target_allocator(cpp_api_demo
-  cpp-ytalloc-impl
-)
 
 vcs_info(cpp_api_demo)
-

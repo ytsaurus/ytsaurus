@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-sudo-fixup)
 
+
 target_compile_options(yt-sudo-fixup PRIVATE
   -Wdeprecated-this-capture
 )
@@ -23,6 +24,11 @@ target_compile_options(yt-sudo-fixup PRIVATE
 target_link_libraries(yt-sudo-fixup PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
+)
+
+target_allocator(yt-sudo-fixup
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-sudo-fixup PRIVATE
@@ -38,10 +44,5 @@ target_sources(yt-sudo-fixup PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
 )
 
-target_allocator(yt-sudo-fixup
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(yt-sudo-fixup)
-

@@ -72,30 +72,32 @@ const TJobResources& TSchedulingContextBase::ResourceLimits() const
     return ResourceLimits_;
 }
 
-const TJobResourcesWithQuota& TSchedulingContextBase::UnconditionalDiscount() const
+TJobResourcesWithQuota TSchedulingContextBase::GetUnconditionalDiscount() const
 {
-    return UnconditionalDiscount_;
+    return ToJobResourcesWithQuota(UnconditionalDiscount_);
 }
 
-TJobResourcesWithQuota TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationId operationId) const
+const TSchedulingContextBase::TJobResourcesWithQuotaDiscount& TSchedulingContextBase::ConditionalDiscountForOperation(TOperationIndex operationIndex) const
 {
-    return GetOrDefault(ConditionalDiscountMap_, operationId);
+    // NB(eshcherbin): |VectorAtOr| returns |const T&|, so we must provide an explicit default value not to shoot ourself.
+    static constexpr TJobResourcesWithQuotaDiscount ZeroDiscount;
+    return VectorAtOr(ConditionalDiscounts_, operationIndex, ZeroDiscount);
+}
+
+TJobResourcesWithQuota TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationIndex operationIndex) const
+{
+    return ToJobResourcesWithQuota(ConditionalDiscountForOperation(operationIndex));
 }
 
 TJobResourcesWithQuota TSchedulingContextBase::GetMaxConditionalDiscount() const
 {
-    return MaxConditionalDiscount_;
+    return ToJobResourcesWithQuota(MaxConditionalDiscount_);
 }
 
 void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources)
 {
-    UnconditionalDiscount_.SetJobResources(UnconditionalDiscount_.ToJobResources() + allocationResources.ToJobResources());
-
-    if (DiscountMediumIndex_) {
-        auto compactedDiskQuota = GetDiskQuotaWithCompactedDefaultMedium(allocationResources.DiskQuota());
-        UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium[*DiscountMediumIndex_] +=
-            GetOrDefault(compactedDiskQuota.DiskSpacePerMedium, *DiscountMediumIndex_);
-    }
+    UnconditionalDiscount_.JobResources += allocationResources.ToJobResources();
+    UnconditionalDiscount_.DiscountMediumDiskQuota += GetDiscountMediumQuota(allocationResources.DiskQuota());
 }
 
 const TDiskResources& TSchedulingContextBase::DiskResources() const
@@ -123,7 +125,7 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(
     const TJobResources& conditionalDiscount,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    auto resourceRequest = ResourceUsage_ + allocationResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount);
+    auto resourceRequest = ResourceUsage_ + allocationResources - (UnconditionalDiscount_.JobResources + conditionalDiscount);
     bool canSatisfyResourceRequest = true;
 
     #define XX(name, Name) \
@@ -141,17 +143,26 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(
 
 bool TSchedulingContextBase::CanStartAllocationForOperation(
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
-    TOperationId operationId,
+    TOperationIndex operationIndex,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
+    auto diskRequest = allocationResourcesWithQuota.DiskQuota();
+    if (DiscountMediumIndex_) {
+        if (DiskResources_.DefaultMediumIndex == *DiscountMediumIndex_ && diskRequest.DiskSpaceWithoutMedium) {
+            diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] += *diskRequest.DiskSpaceWithoutMedium;
+            diskRequest.DiskSpaceWithoutMedium.reset();
+        }
+
+        i64 totalDiskQuotaDiscount = UnconditionalDiscount_.DiscountMediumDiskQuota + ConditionalDiscountForOperation(operationIndex).DiscountMediumDiskQuota;
+        diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] = std::max(diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] - totalDiskQuotaDiscount, 0l);
+    }
+
     std::vector<TDiskQuota> diskRequests(DiskRequests_);
-    auto diskRequest = Max(TDiskQuota{},
-        GetDiskQuotaWithCompactedDefaultMedium(allocationResourcesWithQuota.DiskQuota()) - (UnconditionalDiscount_.DiskQuota() + GetConditionalDiscountForOperation(operationId).DiskQuota()));
     diskRequests.push_back(std::move(diskRequest));
 
     bool canSatisfyResourceRequest = CanSatisfyResourceRequest(
         allocationResourcesWithQuota.ToJobResources(),
-        GetConditionalDiscountForOperation(operationId).ToJobResources(),
+        ConditionalDiscountForOperation(operationIndex).JobResources,
         unsatisfiedResources);
     bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
     (*unsatisfiedResources)[EJobResourceWithDiskQuotaType::DiskQuota] |= !canSatisfyDiskQuotaRequests;
@@ -163,7 +174,7 @@ bool TSchedulingContextBase::CanStartMoreAllocations(
     const std::optional<TJobResources>& customMinSpareAllocationResources) const
 {
     auto minSpareAllocationResources = customMinSpareAllocationResources.value_or(DefaultMinSpareAllocationResources_);
-    if (!CanSatisfyResourceRequest(minSpareAllocationResources, MaxConditionalDiscount_.ToJobResources())) {
+    if (!CanSatisfyResourceRequest(minSpareAllocationResources, MaxConditionalDiscount_.JobResources)) {
         return false;
     }
 
@@ -250,20 +261,19 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() cons
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount() const
 {
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.ToJobResources();
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources;
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
 {
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.ToJobResources() + GetConditionalDiscountForOperation(operationId).ToJobResources();
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources + ConditionalDiscountForOperation(operationIndex).JobResources;
 }
 
-TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const
+TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
 {
     auto diskResources = DiskResources_;
     if (DiscountMediumIndex_) {
-        auto discountForOperation = GetOrDefault(UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_) +
-            GetOrDefault(GetConditionalDiscountForOperation(operationId).DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_);
+        auto discountForOperation = UnconditionalDiscount_.DiscountMediumDiskQuota + ConditionalDiscountForOperation(operationIndex).DiscountMediumDiskQuota;
 
         auto& diskLocation = diskResources.DiskLocationResources.front();
         diskLocation.Usage = std::max(0l, diskLocation.Usage - discountForOperation);
@@ -305,35 +315,53 @@ void TSchedulingContextBase::SetSchedulingStopReason(ESchedulingStopReason resul
     SchedulingStopReason_ = result;
 }
 
+void TSchedulingContextBase::InitializeConditionalDiscounts(int capacity)
+{
+    ConditionalDiscounts_.reserve(capacity);
+}
+
 void TSchedulingContextBase::ResetDiscounts()
 {
     UnconditionalDiscount_ = {};
-    ConditionalDiscountMap_.clear();
+    ConditionalDiscounts_.clear();
     MaxConditionalDiscount_ = {};
 }
 
-void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discountForOperation)
+void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation)
 {
-    TJobResourcesWithQuota conditionalDiscount(discountForOperation.ToJobResources());
+    TJobResourcesWithQuotaDiscount conditionalDiscount(discountForOperation.ToJobResources(), GetDiscountMediumQuota(discountForOperation.DiskQuota()));
+    AssignVectorAt(ConditionalDiscounts_, operationIndex, conditionalDiscount);
 
-    if (DiscountMediumIndex_) {
-        auto compactedDiscount = GetDiskQuotaWithCompactedDefaultMedium(discountForOperation.DiskQuota());
-        conditionalDiscount.DiskQuota().DiskSpacePerMedium[*DiscountMediumIndex_] =
-            GetOrDefault(compactedDiscount.DiskSpacePerMedium, *DiscountMediumIndex_);
-    }
-
-    EmplaceOrCrash(ConditionalDiscountMap_, operationId, conditionalDiscount);
-    MaxConditionalDiscount_ = Max(MaxConditionalDiscount_, conditionalDiscount);
+    MaxConditionalDiscount_.JobResources = Max(MaxConditionalDiscount_.JobResources, conditionalDiscount.JobResources);
+    MaxConditionalDiscount_.DiscountMediumDiskQuota = std::max(MaxConditionalDiscount_.DiscountMediumDiskQuota, conditionalDiscount.DiscountMediumDiskQuota);
 }
 
-TDiskQuota TSchedulingContextBase::GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const
+TJobResourcesWithQuota TSchedulingContextBase::ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const
 {
-    if (diskQuota.DiskSpaceWithoutMedium) {
-        diskQuota.DiskSpacePerMedium[DiskResources_.DefaultMediumIndex] += *diskQuota.DiskSpaceWithoutMedium;
-        diskQuota.DiskSpaceWithoutMedium = {};
+    return TJobResourcesWithQuota(resources.JobResources, ToDiscountDiskQuota(resources.DiscountMediumDiskQuota));
+}
+
+TDiskQuota TSchedulingContextBase::ToDiscountDiskQuota(std::optional<i64> discountMediumQuota) const
+{
+    TDiskQuota diskQuota;
+    if (DiscountMediumIndex_ && discountMediumQuota) {
+        diskQuota.DiskSpacePerMedium.emplace(*DiscountMediumIndex_, *discountMediumQuota);
+    }
+    return diskQuota;
+}
+
+i64 TSchedulingContextBase::GetDiscountMediumQuota(const TDiskQuota& diskQuota) const
+{
+    if (!DiscountMediumIndex_) {
+        return 0;
     }
 
-    return diskQuota;
+    i64 quota = GetOrDefault(diskQuota.DiskSpacePerMedium, *DiscountMediumIndex_);
+    if (DiskResources_.DefaultMediumIndex == *DiscountMediumIndex_) {
+        quota += diskQuota.DiskSpaceWithoutMedium.value_or(0);
+    }
+
+    return quota;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

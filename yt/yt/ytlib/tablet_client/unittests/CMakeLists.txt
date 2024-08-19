@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-ytlib-tablet-client)
 
+
 target_compile_options(unittester-ytlib-tablet-client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -33,6 +34,11 @@ target_link_libraries(unittester-ytlib-tablet-client PUBLIC
   yt-yt-ytlib
 )
 
+target_allocator(unittester-ytlib-tablet-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(unittester-ytlib-tablet-client PRIVATE
   -ldl
   -lrt
@@ -48,6 +54,7 @@ target_link_options(unittester-ytlib-tablet-client PRIVATE
 target_sources(unittester-ytlib-tablet-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -68,21 +75,15 @@ set_property(
   TEST
   unittester-ytlib-tablet-client
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-ytlib-tablet-client)
 
 set_property(
   TEST
   unittester-ytlib-tablet-client
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-ytlib-tablet-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-ytlib-tablet-client)
-

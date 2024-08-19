@@ -255,7 +255,7 @@ private:
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
         const TNode* node,
-        const TRealChunkLocation* location,
+        const TChunkLocation* location,
         int replicaIndex,
         EChunkReplicaState replicaState,
         int mediumIndex)
@@ -302,7 +302,7 @@ private:
                     chunkManager,
                     chunkId,
                     location->GetNode(),
-                    location->IsImaginary() ? nullptr : location->AsReal(),
+                    location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
                     location->GetEffectiveMediumIndex());
@@ -1040,17 +1040,17 @@ private:
                 return AllSet(requestAttributeFromAllPeers("/@local_scan_flags"))
                     .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
                         auto builder = BuildYsonStringFluently().BeginMap();
-                        THashSet<TString> seenScanKinds;
+                        THashSet<EChunkScanKind> seenScanKinds;
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
                                 YT_LOG_DEBUG(rspOrError, "Failed to request chunk scan flags from peer");
                                 continue;
                             }
 
-                            auto chunkScanFlags = ConvertTo<IMapNodePtr>(TYsonString{rspOrError.Value()->value()});
-                            for (const auto& [scanKind, flag] : chunkScanFlags->GetChildren()) {
+                            auto chunkScanFlags = ConvertTo<THashMap<EChunkScanKind, bool>>(TYsonString{rspOrError.Value()->value()});
+                            for (auto [scanKind, flag] : chunkScanFlags) {
                                 if (seenScanKinds.insert(scanKind).second) {
-                                    builder.Item(scanKind).Value(flag);
+                                    builder.Item(FormatEnum(scanKind)).Value(flag);
                                 }
                             }
                         }

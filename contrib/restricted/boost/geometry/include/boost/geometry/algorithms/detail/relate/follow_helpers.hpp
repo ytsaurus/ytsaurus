@@ -30,6 +30,7 @@
 
 #include <boost/geometry/util/condition.hpp>
 #include <boost/geometry/util/range.hpp>
+#include <boost/geometry/util/type_traits.hpp>
 
 #include <type_traits>
 
@@ -42,10 +43,12 @@ namespace detail { namespace relate {
 // NOTE: This iterates through single geometries for which turns were not generated.
 //       It doesn't mean that the geometry is disjoint, only that no turns were detected.
 
-template <std::size_t OpId,
-          typename Geometry,
-          typename Tag = typename geometry::tag<Geometry>::type,
-          bool IsMulti = std::is_base_of<multi_tag, Tag>::value
+template
+<
+    std::size_t OpId,
+    typename Geometry,
+    typename Tag = typename geometry::tag<Geometry>::type,
+    bool IsMulti = util::is_multi<Geometry>::value
 >
 struct for_each_disjoint_geometry_if
     : public not_implemented<Tag>

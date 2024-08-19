@@ -6,10 +6,14 @@ SRCS(
     dns_resolver.go
 )
 
-GO_TEST_SRCS(dns_resolver_test.go)
+GO_XTEST_SRCS(
+    dns_resolver_test.go
+    fake_net_resolver_test.go
+)
 
 END()
 
 RECURSE(
     gotest
+    internal
 )

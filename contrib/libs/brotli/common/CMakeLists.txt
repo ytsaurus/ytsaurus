@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-brotli-common)
 
+
 target_compile_options(libs-brotli-common PRIVATE
   -DBROTLI_BUILD_PORTABLE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

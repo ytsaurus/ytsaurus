@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(lib-Bitstream-Reader)
 
+
 target_compile_options(lib-Bitstream-Reader PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

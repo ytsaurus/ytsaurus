@@ -236,7 +236,7 @@ void BuildFileSpecs(
 
 TString GetIntermediatePath(int streamIndex)
 {
-    return Format("<intermediate_%d>", streamIndex);
+    return Format("<intermediate-%v>", streamIndex);
 }
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(

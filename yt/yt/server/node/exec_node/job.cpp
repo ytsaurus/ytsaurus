@@ -1851,7 +1851,8 @@ void TJob::DoSetResult(
     if (CommonConfig_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
-                error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
+                error
+                    <<= TError("Test error %v", index);
             }
             YT_LOG_DEBUG(error, "TestJobErrorTruncation");
         }
@@ -2809,6 +2810,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
+        proxyConfig->CheckUserJobOOMKill = proxyDynamicConfig->CheckUserJobOOMKill;
         if (proxyDynamicConfig->JobEnvironment) {
             proxyConfig->JobEnvironment = PatchNode(proxyConfig->JobEnvironment, proxyDynamicConfig->JobEnvironment);
         }
@@ -2817,6 +2819,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
         proxyConfig->RetryingChannelConfig = proxyDynamicConfig->RetryingChannelConfig;
+        proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
@@ -2831,6 +2834,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
+
+    proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     return proxyConfig;
 }
@@ -3216,6 +3221,11 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
                 }
             }
         }
+        if (auto processSignal = resultError.FindMatching(EProcessErrorCode::Signal)) {
+            if (processSignal->Attributes().Find<bool>("oom_killed").value_or(false)) {
+                return EAbortReason::ResourceOverdraft;
+            }
+        }
     }
 
     return std::nullopt;
@@ -3516,8 +3526,13 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (JobSpecExt_->has_probing_job_competition_id()) {
         report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_->probing_job_competition_id()));
     }
-    if (JobSpecExt_ && JobSpecExt_->has_task_name()) {
+    if (JobSpecExt_->has_task_name()) {
         report.SetTaskName(JobSpecExt_->task_name());
+    }
+    if (UserJobSpec_ &&
+        UserJobSpec_->has_archive_ttl())
+    {
+        report.SetTtl(FromProto<TDuration>(UserJobSpec_->archive_ttl()));
     }
 
     return report;

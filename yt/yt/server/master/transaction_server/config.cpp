@@ -82,6 +82,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_transaction_actions_for_cypress_transactions", &TThis::ForbidTransactionActionsForCypressTransactions)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

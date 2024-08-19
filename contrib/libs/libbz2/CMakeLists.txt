@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-libbz2)
 
+
 target_compile_options(contrib-libs-libbz2 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

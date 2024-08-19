@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(cell-balancer-unittests)
 
+
 target_compile_options(cell-balancer-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(cell-balancer-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-cell_balancer
+)
+
+target_allocator(cell-balancer-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cell-balancer-unittests PRIVATE
@@ -46,6 +52,7 @@ target_sources(cell-balancer-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/chaos_scheduler_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   cell-balancer-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(cell-balancer-unittests)
 
 set_property(
   TEST
   cell-balancer-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(cell-balancer-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(cell-balancer-unittests)
-

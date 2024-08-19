@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(operation_tracker)
 
+
 target_compile_options(operation_tracker PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,11 @@ target_link_libraries(operation_tracker PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
   mapreduce-library-operation_tracker
+)
+
+target_allocator(operation_tracker
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(operation_tracker PRIVATE
@@ -45,10 +51,5 @@ target_sources(operation_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
 )
 
-target_allocator(operation_tracker
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(operation_tracker)
-

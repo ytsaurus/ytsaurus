@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
+#include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
+#include <yt/yt/ytlib/chaos_client/replication_cards_watcher_client.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
@@ -48,6 +50,65 @@ using NYT::FromProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TReplicationCacheCallbacks
+    : public IReplicationCardWatcherClientCallbacks
+{
+public:
+    TReplicationCacheCallbacks(
+        TWeakPtr<TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>> cache,
+        const NLogging::TLogger& logger)
+        : Cache_(std::move(cache))
+        , Logger(logger)
+    { }
+
+    void OnReplicationCardUpdated(
+        const TReplicationCardId& replicationCardId,
+        TReplicationCardPtr replicationCard,
+        NTransactionClient::TTimestamp timestamp) override
+    {
+        YT_LOG_DEBUG("Replication card updated (ReplicationCardId: %v, Timestamp: %v, ReplicationCard: %v)",
+            replicationCardId,
+            timestamp,
+            *replicationCard);
+
+        if (auto cache = Cache_.Lock()) {
+            cache->Set(GetKey(replicationCardId), replicationCard);
+        }
+    }
+
+    void OnReplicationCardDeleted(const TReplicationCardId& replicationCardId) override
+    {
+        YT_LOG_DEBUG("Replication card deleted (ReplicationCardId: %v)",
+            replicationCardId);
+
+        if (auto cache = Cache_.Lock()) {
+            cache->InvalidateActive(GetKey(replicationCardId));
+        }
+    }
+
+    void OnUnknownReplicationCard(const TReplicationCardId& replicationCardId) override
+    {
+        OnReplicationCardDeleted(replicationCardId);
+    }
+
+    void OnNothingChanged(const TReplicationCardId& replicationCardId) override
+    {
+        YT_LOG_DEBUG("Nothing changed (ReplicationCardId: %v)",
+            replicationCardId);
+    }
+
+private:
+    const TWeakPtr<TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>> Cache_;
+    const NLogging::TLogger Logger;
+
+    static TReplicationCardCacheKey GetKey(const TReplicationCardId& replicationCardId)
+    {
+        return TReplicationCardCacheKey{replicationCardId, MinimalFetchOptions};
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TReplicationCardCache
     : public IReplicationCardCache
     , public TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>
@@ -64,15 +125,24 @@ public:
 
     IChannelPtr GetChaosCacheChannel();
 
+    void Reconfigure(const TReplicationCardCacheDynamicConfigPtr& config) override;
+
 protected:
     class TGetSession;
 
     const TReplicationCardCacheConfigPtr Config_;
     const TWeakPtr<NNative::IConnection> Connection_;
     const IChannelPtr ChaosCacheChannel_;
+    const IReplicationCardsWatcherClientPtr WatcherClient_;
     const NLogging::TLogger Logger;
 
     IChannelPtr CreateChaosCacheChannel(const NNative::IConnectionPtr& connection);
+
+    void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
+
+private:
+    std::atomic<bool> EnableWatching_ = false;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,12 +231,45 @@ TReplicationCardCache::TReplicationCardCache(
     , Config_(std::move(config))
     , Connection_(connection)
     , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection)))
+    , WatcherClient_(CreateReplicationCardsWatcherClient(
+        std::make_unique<TReplicationCacheCallbacks>(
+            MakeWeak(this),
+            logger),
+        ChaosCacheChannel_,
+        Connection_))
     , Logger(logger)
+    , EnableWatching_(Config_->EnableWatching)
 { }
 
 TFuture<TReplicationCardPtr> TReplicationCardCache::GetReplicationCard(const TReplicationCardCacheKey& key)
 {
-    return TAsyncExpiringCache::Get(key);
+    bool shouldWatch = EnableWatching_.load() && MinimalFetchOptions.Contains(key.FetchOptions);
+    TFuture<TReplicationCardPtr> future;
+
+    if (!shouldWatch || key.FetchOptions == MinimalFetchOptions) {
+        future = TAsyncExpiringCache::Get(key);
+    } else {
+        auto newKey = TReplicationCardCacheKey{
+            .CardId = key.CardId,
+            .FetchOptions = MinimalFetchOptions,
+            .RefreshEra = key.RefreshEra,
+        };
+
+        future = TAsyncExpiringCache::Get(newKey);
+    }
+
+    if (shouldWatch) {
+        YT_LOG_DEBUG("Will watch replication card (ReplicationCardId: %v)",
+            key.CardId);
+
+        future.Subscribe(BIND([this_ = MakeStrong(this), id = key.CardId] (const TErrorOr<TReplicationCardPtr>& card) {
+            if (card.IsOK()) {
+                this_->WatcherClient_->WatchReplicationCard(id);
+            }
+        }));
+    }
+
+    return future;
 }
 
 TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCardCacheKey& key, bool /*isPeriodicUpdate*/) noexcept
@@ -199,6 +302,21 @@ void TReplicationCardCache::ForceRefresh(const TReplicationCardCacheKey& key, co
 void TReplicationCardCache::Clear()
 {
     TAsyncExpiringCache::Clear();
+}
+
+void TReplicationCardCache::OnRemoved(const TReplicationCardCacheKey& key) noexcept
+{
+    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::OnRemoved(key);
+    if (key.FetchOptions == MinimalFetchOptions) {
+        WatcherClient_->StopWatchingReplicationCard(key.CardId);
+    }
+}
+
+void TReplicationCardCache::Reconfigure(const TReplicationCardCacheDynamicConfigPtr& config)
+{
+    if (config->EnableWatching) {
+        EnableWatching_.store(*config->EnableWatching);
+    }
 }
 
 IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(const NNative::IConnectionPtr& connection)

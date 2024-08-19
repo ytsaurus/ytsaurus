@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-clickhouse_deps-h3_compat INTERFACE)
 
+
 target_link_libraries(cpp-clickhouse_deps-h3_compat INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

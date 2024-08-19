@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-job_proxy)
 
+
 target_compile_options(server-lib-job_proxy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -45,14 +46,20 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-job_proxy PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
+)
+
 target_proto_messages(server-lib-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
 )
 
-target_sources(server-lib-job_proxy PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
+
+target_proto_outs(server-lib-job_proxy
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-job_proxy
@@ -66,9 +73,3 @@ target_proto_addincls(server-lib-job_proxy
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-job_proxy
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

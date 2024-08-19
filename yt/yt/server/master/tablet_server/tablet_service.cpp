@@ -7,6 +7,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
 

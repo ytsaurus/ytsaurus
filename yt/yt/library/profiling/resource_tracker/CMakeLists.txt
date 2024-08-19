@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-profiling-resource_tracker)
 
+
 target_compile_options(library-profiling-resource_tracker PRIVATE
   -Wdeprecated-this-capture
 )

@@ -265,6 +265,7 @@ func (a *API) Create(
 	ctx context.Context,
 	alias string,
 	specletOptions map[string]any,
+	secrets map[string]any,
 ) error {
 	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
@@ -390,6 +391,18 @@ func (a *API) Create(
 
 	if err != nil {
 		return err
+	}
+
+	if secrets != nil {
+		_, err = a.Ytc.CreateNode(
+			ctx,
+			a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets"),
+			yt.NodeDocument,
+			getCreateSecretNodeOptions(secrets, txOptions),
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -779,4 +792,51 @@ func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.O
 	ctlOptions := a.ctl.DescribeOptions(ctlSpeclet)
 
 	return append(strawberryOptions, ctlOptions...), nil
+}
+
+func (a *API) GetSecrets(ctx context.Context, alias string) (secrets map[string]any, err error) {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return nil, err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return nil, err
+	}
+
+	secretsPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets")
+	secretsNodeExists, err := a.Ytc.NodeExists(ctx, secretsPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if secretsNodeExists {
+		err = a.Ytc.GetNode(
+			ctx,
+			secretsPath,
+			&secrets,
+			nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return
+}
+
+func (a *API) SetSecrets(ctx context.Context, alias string, secrets map[string]any) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+
+	secretsPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "secrets")
+
+	_, err := a.Ytc.CreateNode(
+		ctx,
+		secretsPath,
+		yt.NodeDocument,
+		getCreateSecretNodeOptions(secrets, nil),
+	)
+	return err
 }

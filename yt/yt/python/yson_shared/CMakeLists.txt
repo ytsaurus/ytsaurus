@@ -12,12 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS
   Development
 )
-find_package(linux-headers-generic REQUIRED)
 
 add_shared_library(yson_lib)
+
 
 target_compile_options(yson_lib PRIVATE
   -DPYCXX_PYTHON_2TO3
@@ -51,9 +52,9 @@ target_link_options(yson_lib PRIVATE
   -lutil
 )
 
+
 use_export_script(yson_lib
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson_shared/yson3.exports
 )
 
 vcs_info(yson_lib)
-

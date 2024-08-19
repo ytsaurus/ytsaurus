@@ -32,6 +32,8 @@ struct TTable
     int OperandIndex = 0;
     bool Dynamic = false;
     bool IsPartitioned = false;
+    //! Total row count in the table from row_count attribute. Make sense only for static tables.
+    std::optional<i64> RowCount;
 
     //! Only for dynamic tables.
     NTabletClient::TTableMountInfoPtr TableMountInfo;

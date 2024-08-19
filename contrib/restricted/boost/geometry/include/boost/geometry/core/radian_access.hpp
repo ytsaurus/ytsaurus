@@ -23,13 +23,12 @@
 
 #include <cstddef>
 
-#include <boost/numeric/conversion/cast.hpp>
-
 #include <boost/geometry/core/access.hpp>
 #include <boost/geometry/core/cs.hpp>
 #include <boost/geometry/core/coordinate_promotion.hpp>
 
 #include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 
 
 
@@ -48,7 +47,7 @@ struct degree_radian_converter
 
     static inline coordinate_type get(Geometry const& geometry)
     {
-        return boost::numeric_cast
+        return util::numeric_cast
             <
                 coordinate_type
             >(geometry::get<Dimension>(geometry)
@@ -57,7 +56,7 @@ struct degree_radian_converter
 
     static inline void set(Geometry& geometry, coordinate_type const& radians)
     {
-        geometry::set<Dimension>(geometry, boost::numeric_cast
+        geometry::set<Dimension>(geometry, util::numeric_cast
             <
                 coordinate_type
             >(radians * math::r2d<coordinate_type>()));
@@ -113,7 +112,7 @@ struct degree_radian_converter_box_segment
 
     static inline coordinate_type get(Geometry const& geometry)
     {
-        return boost::numeric_cast
+        return util::numeric_cast
             <
                 coordinate_type
             >(geometry::get<Index, Dimension>(geometry)
@@ -122,7 +121,7 @@ struct degree_radian_converter_box_segment
 
     static inline void set(Geometry& geometry, coordinate_type const& radians)
     {
-        geometry::set<Index, Dimension>(geometry, boost::numeric_cast
+        geometry::set<Index, Dimension>(geometry, util::numeric_cast
             <
                 coordinate_type
             >(radians * math::r2d<coordinate_type>()));

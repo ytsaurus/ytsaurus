@@ -3,7 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt.common import wait
 
 from yt_commands import (
-    create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
+    create, create_secondary_index, create_table_replica, create_table_collocation,
     authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows, commit_transaction, start_transaction,
@@ -106,6 +106,8 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 
 
 class TestSecondaryIndexBase(DynamicTablesBase):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
     def _mount(self, *tables, cell_count=1):
         sync_create_cells(cell_count)
         for table in tables:
@@ -115,8 +117,12 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         for table in tables:
             sync_unmount_table(table)
 
-    def _create_table(self, table_path, table_schema, external_cell_tag=11):
-        return create_dynamic_table(table_path, table_schema, external_cell_tag=external_cell_tag)
+    def _create_table(self, table_path, table_schema):
+        attributes = {
+            "dynamic": True,
+            "schema": table_schema,
+        }
+        return create("table", table_path, attributes=attributes)
 
     def _create_secondary_index(
         self,
@@ -172,21 +178,21 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
             sync_unmount_table(table)
             sync_unmount_table(table + "_replica", driver=self.REPLICA_DRIVER)
 
-    def _create_table(self, table_path, table_schema, external_cell_tag=11):
+    def _create_table(self, table_path, table_schema):
+        # Force the same external cell tag due to collocations.
+        attributes = {"schema": table_schema, "dynamic": True, "external_cell_tag": 11}
         table_id = create(
             "replicated_table",
             table_path,
-            attributes={
-                "schema": table_schema,
-                "dynamic": True,
-                "external_cell_tag": external_cell_tag,
-            })
+            attributes=attributes,
+        )
 
         replica_id = create_table_replica(
             table_path,
             self.REPLICA_CLUSTER_NAME,
             table_path + "_replica",
-            attributes={"mode": "sync"})
+            attributes={"mode": "sync"},
+        )
 
         create(
             "table",
@@ -246,14 +252,14 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
 
     @authors("sabdenovch")
-    def test_create_index(self):
+    def test_create_and_delete_index(self):
         table_id, index_table_id, index_id, _ = self._create_basic_tables()
 
-        assert get("#{}/@kind".format(index_id)) == "full_sync"
-        assert get("#{}/@table_id".format(index_id)) == table_id
-        assert get("#{}/@table_path".format(index_id)) == "//tmp/table"
-        assert get("#{}/@index_table_id".format(index_id)) == index_table_id
-        assert get("#{}/@index_table_path".format(index_id)) == "//tmp/index_table"
+        assert get(f"#{index_id}/@kind") == "full_sync"
+        assert get(f"#{index_id}/@table_id") == table_id
+        assert get(f"#{index_id}/@table_path") == "//tmp/table"
+        assert get(f"#{index_id}/@index_table_id") == index_table_id
+        assert get(f"#{index_id}/@index_table_path") == "//tmp/index_table"
 
         assert get("//tmp/table/@secondary_indices") == {
             index_id: {
@@ -268,15 +274,11 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "kind": "full_sync",
         }
 
-    @authors("sabdenovch")
-    def test_delete_index(self):
-        _, _, index_id, _ = self._create_basic_tables()
-
         remove(f"#{index_id}")
+
         assert not exists("//tmp/table/@secondary_indices")
         assert not exists("//tmp/index_table/@index_to")
-        if self.NUM_SECONDARY_MASTER_CELLS:
-            wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
+        wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
     def test_delete_primary_table(self):
@@ -306,36 +308,6 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         self._mount("//tmp/table")
         with raises_yt_error("Cannot create index on a mounted table"):
             self._create_secondary_index()
-
-    @authors("sabdenovch")
-    @pytest.mark.parametrize("schema_pair", (
-        ([{"name": "not_sorted", "type": "int64"}], INDEX_ON_VALUE_SCHEMA),
-        (PRIMARY_SCHEMA, [{"name": "not_sorted", "type": "int64"}]),
-        (PRIMARY_SCHEMA_WITH_EXTRA_KEY, INDEX_ON_VALUE_SCHEMA),
-        (PRIMARY_SCHEMA, INDEX_ON_VALUE_SCHEMA + [{"name": "valueMissingFromPrimary", "type": "string"}]),
-        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
-            {"name": "aggregate_value", "type": "int64", "sort_order": "ascending"},
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
-        ]),
-        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
-            {"name": "value", "type": "int64", "sort_order": "ascending"},
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
-        ]),
-        ([
-            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-            {"name": "keyB", "type": "string", "sort_order": "ascending"},
-            {"name": "valueA", "type": "int64", "lock": "A"},
-            {"name": "valueB", "type": "boolean", "lock": "B"},
-        ], INDEX_ON_VALUE_SCHEMA)
-    ))
-    def test_illegal_schema_combinations(self, schema_pair):
-        self._create_table("//tmp/table", schema_pair[0])
-        self._create_table("//tmp/index", schema_pair[1])
-
-        with raises_yt_error():
-            create_secondary_index("//tmp/table", "//tmp/index", "full_sync")
 
     @authors("sabdenovch")
     def test_predicate_and_locks(self):
@@ -372,6 +344,30 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         alter_table("//tmp/table", schema=PRIMARY_SCHEMA + [{"name": "extraValue", "type": "int64"}])
         alter_table("//tmp/index_table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
+
+
+##################################################################
+
+
+# This test suite is not iterated over with replicated tables, because:
+# 1) Collocations beyond portals are not supported yet;
+# 2) Replicated tables cannot be moved or copied.
+class TestSecondaryIndexPortal(TestSecondaryIndexBase):
+    @authors("sabdenovch")
+    def test_forbid_create_beyond_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        with raises_yt_error("Table and index table native cell tags differ"):
+            self._create_basic_tables(
+                index_table_path="//tmp/p/index_table")
+
+    @authors("sabdenovch")
+    def test_forbid_move_beyond_portal(self):
+        self._create_basic_tables()
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+            copy("//tmp/table", "//tmp/p/table")
+        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+            copy("//tmp/index_table", "//tmp/p/index_table")
 
 
 ##################################################################
@@ -520,45 +516,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             if "__hash__" in row:
                 del row["__hash__"]
         assert_items_equal(sorted_dicts(actual), sorted_dicts(expected))
-
-    @authors("sabdenovch")
-    def test_simple(self):
-        self._create_basic_tables(mount=True)
-
-        rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        self._insert_rows(rows)
-
-        self._expect_from_index(rows)
-
-    @authors("sabdenovch")
-    def test_utility_column(self):
-        self._create_basic_tables(index_schema=INDEX_ON_KEY_SCHEMA, mount=True)
-
-        rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        self._insert_rows(rows)
-
-        self._expect_from_index([{"keyB": "key", "keyA": 0, EMPTY_COLUMN_NAME: None}])
-
-    @authors("sabdenovch")
-    def test_same_key_twice(self):
-        self._create_basic_tables(mount=True)
-
-        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}])
-        update = [{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": True}]
-        self._insert_rows(update)
-
-        self._expect_from_index(update)
-
-    @authors("sabdenovch")
-    def test_same_key_twice_in_one_transaction(self):
-        self._create_basic_tables(mount=True)
-
-        self._insert_rows([
-            {"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False},
-            {"keyA": 0, "keyB": "key", "valueA": 1},
-        ], update=True)
-
-        self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": False}])
 
     @authors("sabdenovch")
     def test_multiple(self):
@@ -959,36 +916,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"keyA": 0, "valueA": 0, "valueB": False},
             {"keyA": 1, "valueA": 0, "valueB": False},
         ])
-
-
-##################################################################
-
-
-class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-    @authors("sabdenovch")
-    def test_different_cell_tags(self):
-        self._create_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
-        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
-        with raises_yt_error("Table and index table external cell tags differ"):
-            self._create_secondary_index()
-
-    @authors("sabdenovch")
-    def test_forbid_create_beyond_portal(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
-        with raises_yt_error("Table and index table native cell tags differ"):
-            self._create_basic_tables(
-                index_table_path="//tmp/p/index_table")
-
-    @authors("sabdenovch")
-    def test_forbid_move_beyond_portal(self):
-        self._create_basic_tables()
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
-        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
-            copy("//tmp/table", "//tmp/p/table")
-        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
-            copy("//tmp/index_table", "//tmp/p/index_table")
 
 
 ##################################################################

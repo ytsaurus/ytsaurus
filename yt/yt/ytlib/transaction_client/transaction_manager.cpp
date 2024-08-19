@@ -1193,7 +1193,7 @@ private:
 
         auto connection = Owner_->ClusterDirectory_->FindConnection(CellTagFromId(cellId));
         if (!connection) {
-            THROW_ERROR_EXCEPTION("No cell with id %v is known");
+            THROW_ERROR_EXCEPTION("No cell with id %v is known", cellId);
         }
 
         return connection->GetCellDirectory()->GetChannelByCellIdOrThrow(cellId);

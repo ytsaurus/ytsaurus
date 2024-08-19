@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(batch_request)
 add_subdirectory(dyntable_get_insert)
 add_subdirectory(job_statistics)
@@ -23,11 +24,11 @@ add_subdirectory(multiple_input_multiple_output_reduce_protobuf)
 add_subdirectory(multiple_input_multiple_output_reduce_tnode)
 add_subdirectory(multiple_input_reduce_tnode)
 add_subdirectory(operation_tracker)
-add_subdirectory(pass_table_as_file)
 add_subdirectory(prepare_operation)
 add_subdirectory(profile_cpu)
 add_subdirectory(profile_memory)
 add_subdirectory(protobuf_complex_types)
+add_subdirectory(pass_table_as_file)
 add_subdirectory(simple_map_lambda)
 add_subdirectory(simple_map_protobuf)
 add_subdirectory(simple_map_tnode)

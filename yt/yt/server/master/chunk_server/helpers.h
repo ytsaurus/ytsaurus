@@ -37,11 +37,11 @@ template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
 template <class TRequest>
-TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(
+TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectory(
     const IDataNodeTrackerPtr& dataNodeTracker,
     const TRequest& request);
 template <class TRequest>
-TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
+TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
     const TNode* node,
     const IDataNodeTrackerPtr& dataNodeTracker,
     const TRequest& request);

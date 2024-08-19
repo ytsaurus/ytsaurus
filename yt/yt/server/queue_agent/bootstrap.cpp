@@ -183,11 +183,13 @@ void TBootstrap::DoRun()
 
     QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
         ControlInvoker_,
+        NativeClient_,
         CreateAlertCollector(AlertManager_),
         DynamicState_,
         MemberClient_,
         DiscoveryClient_,
-        Config_->QueueAgent->Stage);
+        Config_->QueueAgent->Stage,
+        Config_->DynamicState->Root);
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,

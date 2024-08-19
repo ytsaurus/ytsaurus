@@ -1,10 +1,10 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2015-2016 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2018-2020.
 // Modifications copyright (c) 2018-2020 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Use, modification and distribution is subject to the Boost Software License,
@@ -26,7 +26,7 @@
 #include <boost/geometry/core/access.hpp>
 #endif
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 #include <cstddef>
 #include <map>
@@ -391,11 +391,19 @@ struct traversal_switch_detector
     {
         for (turn_type& turn : m_turns)
         {
+            constexpr auto order1 = geometry::point_order<Geometry1>::value;
+            constexpr bool reverse1 = (order1 == boost::geometry::counterclockwise)
+                ? ! Reverse1 : Reverse1;
+
+            constexpr auto order2 = geometry::point_order<Geometry2>::value;
+            constexpr bool reverse2 = (order2 == boost::geometry::counterclockwise)
+                ? ! Reverse2 : Reverse2;
+
             // For difference, for the input walked through in reverse,
             // the meaning is reversed: what is isolated is actually not,
             // and vice versa.
             bool const reverseMeaningInTurn
-                    = (Reverse1 || Reverse2)
+                    = (reverse1 || reverse2)
                       && ! turn.is_self()
                       && ! turn.is_clustered()
                       && uu_or_ii(turn)
@@ -409,8 +417,8 @@ struct traversal_switch_detector
                 {
                     bool const reverseMeaningInOp
                         = reverseMeaningInTurn
-                          && ((op.seg_id.source_index == 0 && Reverse1)
-                               || (op.seg_id.source_index == 1 && Reverse2));
+                          && ((op.seg_id.source_index == 0 && reverse1)
+                               || (op.seg_id.source_index == 1 && reverse2));
 
                     // It is assigned to isolated if it's property is "Yes",
                     // (one connected interior, or chained).
@@ -525,19 +533,21 @@ struct traversal_switch_detector
             return ! uu_or_ii(turn);
         }
 
-        if (BOOST_GEOMETRY_CONDITION(target_operation == operation_union))
+        if BOOST_GEOMETRY_CONSTEXPR (target_operation == operation_union)
         {
             // It is a cluster, check zones
             // (assigned by sort_by_side/handle colocations) of both operations
             return turn.operations[0].enriched.zone
                     == turn.operations[1].enriched.zone;
         }
-
-        // For an intersection, two regions connect if they are not ii
-        // (ii-regions are isolated) or, in some cases, not iu (for example
-        // when a multi-polygon is inside an interior ring and connecting it)
-        return ! (turn.both(operation_intersection)
-                  || turn.combination(operation_intersection, operation_union));
+        else // else prevents unreachable code warning
+        {
+            // For an intersection, two regions connect if they are not ii
+            // (ii-regions are isolated) or, in some cases, not iu (for example
+            // when a multi-polygon is inside an interior ring and connecting it)
+            return ! (turn.both(operation_intersection)
+                      || turn.combination(operation_intersection, operation_union));
+        }
     }
 
     void create_region(signed_size_type& new_region_id, ring_identifier const& ring_id,
@@ -682,11 +692,13 @@ struct traversal_switch_detector
         {
             turn_type const& turn = m_turns[turn_index];
 
-            if (turn.discarded
-                && BOOST_GEOMETRY_CONDITION(target_operation == operation_intersection))
+            if BOOST_GEOMETRY_CONSTEXPR (target_operation == operation_intersection)
             {
-                // Discarded turn (union currently still needs it to determine regions)
-                continue;
+                if (turn.discarded)
+                {
+                    // Discarded turn (union currently still needs it to determine regions)
+                    continue;
+                }
             }
 
             for (auto const& op : turn.operations)

@@ -795,7 +795,7 @@ void SetNodeTagFilter(
         mutations->AlertsToFire.push_back({
             .Id = "bundle_has_forbidden_dc",
             .BundleName = bundleName,
-            .Description = Format("Data centers %Qv are forbidden for bundle %Qv",
+            .Description = Format("Data centers %v are forbidden for bundle %Qv",
                 targetConfig->ForbiddenDataCenters,
                 bundleName)});
     }

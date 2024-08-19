@@ -31,6 +31,8 @@
 #include <boost/geometry/index/detail/rtree/node/subtree_destroyer.hpp>
 #include <boost/geometry/index/parameters.hpp>
 
+#include <boost/geometry/util/constexpr.hpp>
+
 namespace boost { namespace geometry { namespace index { namespace detail { namespace rtree {
 
 namespace pack_utils {
@@ -343,11 +345,10 @@ private:
             // NOTE: this is done only if the Indexable is a different kind of Geometry
             //   than the bounds (only Box for now). Spatial predicates are checked
             //   the same way for Geometry of the same kind.
-            if ( BOOST_GEOMETRY_CONDITION((
-                    ! index::detail::is_bounding_geometry
-                        <
-                            typename indexable_type<translator_type>::type
-                        >::value )) )
+            if BOOST_GEOMETRY_CONSTEXPR (! index::detail::is_bounding_geometry
+                                            <
+                                                typename indexable_type<translator_type>::type
+                                            >::value)
             {
                 elements_box.expand_by_epsilon();
             }

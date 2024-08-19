@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(cri)
+
 add_subdirectory(disk_manager)
+add_subdirectory(cri)
 add_subdirectory(unittests)
 
 add_library(yt-library-containers)
+
 
 target_compile_options(yt-library-containers PRIVATE
   -Wdeprecated-this-capture

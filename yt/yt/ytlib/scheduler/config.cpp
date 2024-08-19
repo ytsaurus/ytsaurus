@@ -196,6 +196,8 @@ void TJobIOConfig::Register(TRegistrar registrar)
     registrar.Parameter("buffer_row_count", &TThis::BufferRowCount)
         .Default(10 * 1000)
         .GreaterThan(0);
+    registrar.Parameter("use_adaptive_buffer_row_count", &TThis::UseAdaptiveRowCount)
+        .Default(false);
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()
@@ -300,6 +302,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("cancellation_stage", &TThis::CancelationStage)
         .Default();
     registrar.Parameter("build_job_spec_proto_delay", &TThis::BuildJobSpecProtoDelay)
+        .Default();
+    registrar.Parameter("fail_operation_delay", &TThis::FailOperationDelay)
         .Default();
     registrar.Parameter("test_job_speculation_timeout", &TThis::TestJobSpeculationTimeout)
         .Default(false);
@@ -1102,6 +1106,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("extra_environment", &TThis::ExtraEnvironment)
         .Default();
 
+    registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
+        .Default();
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(
@@ -1464,6 +1471,7 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("foreign_table_lookup_keys_threshold", &TThis::ForeignTableLookupKeysThreshold)
         .Default();
+
 
     registrar.Postprocessor([] (TReduceOperationSpec* spec) {
         NTableClient::ValidateSortColumns(spec->JoinBy);

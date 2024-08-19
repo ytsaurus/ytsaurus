@@ -137,7 +137,7 @@ void TColumnarStatisticsFetcher::OnResponse(
             }
         } else {
             if (subresponse.has_columnar_statistics()) {
-                FromProto(&statistics, subresponse.columnar_statistics(), Chunks_[chunkIndex]->GetTotalRowCount());
+                FromProto(&statistics, subresponse.columnar_statistics(), &subresponse.large_columnar_statistics(), Chunks_[chunkIndex]->GetTotalRowCount());
             } else {
                 // COMPAT(denvid): Delete this with deleting deprecated fields from TRspGetColumnarStatistics.TSubresponse.
                 statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.column_data_weights());

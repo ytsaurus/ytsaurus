@@ -115,9 +115,14 @@ TEST(Lock, TestChildKey)
 
     tx1->Set(workingDir + "/map-node/child1", 11);
 
+    // should be ok
+    tx1->Lock(workingDir + "/map-node", ELockMode::LM_SHARED, TLockOptions().ChildKey("non-existent-key"));
+
     EXPECT_THROW(
-        tx1->Lock(workingDir + "/map-node", ELockMode::LM_EXCLUSIVE, TLockOptions().ChildKey("non-existent-key")),
+        tx1->Lock(workingDir + "/map-node", ELockMode::LM_EXCLUSIVE, TLockOptions().ChildKey("non-existent-key-2")),
         TErrorResponse);
+
+    tx1->Set(workingDir + "/map-node/non-existent-key", 13);
 
     auto tx2 = client->StartTransaction();
 
@@ -128,6 +133,14 @@ TEST(Lock, TestChildKey)
     EXPECT_THROW(
         tx2->Lock(workingDir + "/map-node", ELockMode::LM_SHARED, TLockOptions().ChildKey("child1")),
         TErrorResponse);
+
+    // lock is already taken
+    EXPECT_THROW(
+        tx2->Lock(workingDir + "/map-node", ELockMode::LM_SHARED, TLockOptions().ChildKey("non-existent-key")),
+        TErrorResponse);
+
+    // locked
+    EXPECT_THROW(tx2->Set(workingDir + "/map-node/non-existent-key", 15), TErrorResponse);
 
     // should be ok
     tx2->Lock(workingDir + "/map-node", ELockMode::LM_SHARED, TLockOptions().ChildKey("child2"));

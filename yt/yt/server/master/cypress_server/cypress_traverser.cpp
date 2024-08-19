@@ -101,7 +101,7 @@ private:
         auto& entry = Stack_.emplace_back(trunkNode);
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
-                THashMap<TString, TCypressNode*> childMapStorage;
+                TKeyToCypressNode childMapStorage;
                 const auto& childMap = GetMapNodeChildMap(
                     CypressManager_,
                     trunkNode->As<TCypressMapNode>(),

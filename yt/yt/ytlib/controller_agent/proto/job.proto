@@ -302,6 +302,8 @@ message TUserJobSpec
 
     optional bool enable_fuse = 75 [default = false];
 
+    optional int64 archive_ttl = 76;
+
     reserved 38, 48, 61, 62;
 }
 

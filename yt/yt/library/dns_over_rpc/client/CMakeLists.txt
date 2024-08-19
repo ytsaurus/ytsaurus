@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(library-dns_over_rpc-client)
 
+
 target_compile_options(library-dns_over_rpc-client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -42,15 +43,21 @@ target_link_libraries(library-dns_over_rpc-client PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(library-dns_over_rpc-client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.pb.h
+)
+
 target_proto_messages(library-dns_over_rpc-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.proto
 )
 
-target_sources(library-dns_over_rpc-client PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/helpers.cpp
+
+target_proto_outs(library-dns_over_rpc-client
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(library-dns_over_rpc-client
@@ -63,9 +70,3 @@ target_proto_addincls(library-dns_over_rpc-client
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(library-dns_over_rpc-client
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

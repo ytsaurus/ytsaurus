@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(read_arrow)
 
+
 target_compile_options(read_arrow PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(read_arrow PUBLIC
   yt-yt-client
   yt-library-program
   library-cpp-getopt
+)
+
+target_allocator(read_arrow
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(read_arrow PRIVATE
@@ -46,10 +52,5 @@ target_sources(read_arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/read_arrow/main.cpp
 )
 
-target_allocator(read_arrow
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(read_arrow)
-

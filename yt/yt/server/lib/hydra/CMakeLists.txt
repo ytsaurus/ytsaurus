@@ -13,9 +13,6 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(dry_run)
-add_subdirectory(mock)
-add_subdirectory(unittests)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -31,7 +28,12 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(dry_run)
+add_subdirectory(mock)
+add_subdirectory(unittests)
+
 add_library(server-lib-hydra)
+
 
 target_compile_options(server-lib-hydra PRIVATE
   -Wdeprecated-this-capture
@@ -56,12 +58,7 @@ target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-hydra PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
-)
-
 target_sources(server-lib-hydra PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp
@@ -102,6 +99,17 @@ target_sources(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_store_thunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
+)
+
+target_proto_messages(server-lib-hydra PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
+)
+
+
+target_proto_outs(server-lib-hydra
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-hydra
@@ -116,9 +124,3 @@ target_proto_addincls(server-lib-hydra
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-hydra
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

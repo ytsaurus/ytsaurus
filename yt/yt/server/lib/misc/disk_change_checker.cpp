@@ -76,7 +76,11 @@ void TDiskChangeChecker::OnDiskChangeCheck()
 
     // Fast path.
     if (!diskInfosOrError.IsOK()) {
-        YT_LOG_INFO(diskInfosOrError, "Failed to list disk infos");
+        YT_LOG_EVENT(
+            Logger,
+            diskInfosOrError.FindMatching(NRpc::EErrorCode::NoSuchService) ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Info,
+            diskInfosOrError,
+            "Failed to list disk infos");
         return;
     }
 

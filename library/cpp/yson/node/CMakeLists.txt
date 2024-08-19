@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-yson-node)
 
+
 target_link_libraries(cpp-yson-node PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -40,9 +41,9 @@ target_sources(cpp-yson-node PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/serialize.cpp
 )
 
+
 generate_enum_serilization(cpp-yson-node
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/node.h
   INCLUDE_HEADERS
   library/cpp/yson/node/node.h
 )
-

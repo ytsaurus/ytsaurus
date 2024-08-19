@@ -244,16 +244,6 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
 
         TBoomerangMutationGuard boomerangMutationGuard;
 
-        std::optional<NSecurityServer::TAuthenticatedUserGuard> userGuard;
-        if (request->has_user()) {
-            auto identity = ParseAuthenticationIdentityFromProto(*request);
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto* user = securityManager->FindUserByName(identity.User, /*activeLifeStageOnly*/ true);
-            if (IsObjectAlive(user)) {
-                userGuard.emplace(Bootstrap_->GetSecurityManager(), user, identity.UserTag);
-            }
-        }
-
         const auto& automaton = hydraFacade->GetAutomaton();
         StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);
     }

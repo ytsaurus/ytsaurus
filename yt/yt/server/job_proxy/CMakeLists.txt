@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-server-job_proxy)
+
 
 target_compile_options(yt-server-job_proxy PRIVATE
   -Wdeprecated-this-capture
@@ -64,5 +66,7 @@ target_sources(yt-server-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/user_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_synchronizer_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_write_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/trace_event_processor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/trace_consumer.cpp
 )
 

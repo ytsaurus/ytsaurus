@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
+add_subdirectory(zstd)
 add_subdirectory(brotli)
 add_subdirectory(bzip)
 add_subdirectory(fastlz)
@@ -20,4 +22,3 @@ add_subdirectory(lz4)
 add_subdirectory(lzma)
 add_subdirectory(snappy)
 add_subdirectory(zlib)
-add_subdirectory(zstd)

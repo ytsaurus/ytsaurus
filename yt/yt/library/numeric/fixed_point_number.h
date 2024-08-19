@@ -27,7 +27,7 @@ class TFixedPointNumber
 public:
     static constexpr Underlying ScalingFactor = ComputePower<Underlying>(10, DecimalPrecision);
 
-    TFixedPointNumber();
+    TFixedPointNumber() = default;
 
     TFixedPointNumber(i64 value);
 
@@ -108,7 +108,7 @@ public:
     }
 
 private:
-    Underlying Value_;
+    Underlying Value_{};
 };
 
 template <typename U, int P>

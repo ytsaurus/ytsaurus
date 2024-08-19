@@ -13,13 +13,15 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(AsmParser)
-add_subdirectory(Disassembler)
+
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
+add_subdirectory(AsmParser)
+add_subdirectory(Disassembler)
 
 add_library(lib-Target-AArch64)
+
 
 target_compile_options(lib-Target-AArch64 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

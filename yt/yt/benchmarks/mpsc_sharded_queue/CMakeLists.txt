@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(mpsc_sharded_queue)
 
+
 target_compile_options(mpsc_sharded_queue PRIVATE
   -Wdeprecated-this-capture
 )
@@ -27,6 +28,10 @@ target_link_libraries(mpsc_sharded_queue PUBLIC
   library-cpp-cpuid_check
   library-cpp-getopt
   yt-yt-core
+)
+
+target_allocator(mpsc_sharded_queue
+  cpp-ytalloc-impl
 )
 
 target_link_options(mpsc_sharded_queue PRIVATE
@@ -45,9 +50,5 @@ target_sources(mpsc_sharded_queue PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/mpsc_sharded_queue/main.cpp
 )
 
-target_allocator(mpsc_sharded_queue
-  cpp-ytalloc-impl
-)
 
 vcs_info(mpsc_sharded_queue)
-

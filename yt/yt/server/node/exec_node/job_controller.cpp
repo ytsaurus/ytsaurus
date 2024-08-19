@@ -521,6 +521,11 @@ public:
         return JobProxyLogManager_;
     }
 
+    std::optional<int> GetOperationsArchiveVersion() const override
+    {
+        return OperationsArchiveVersion_;
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
     TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;
@@ -584,6 +589,8 @@ private:
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
+
+    std::atomic<std::optional<int>> OperationsArchiveVersion_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -1511,6 +1518,10 @@ private:
             // We get vcpu here. Need to replace it with real cpu back.
             auto& resourceLimits = *allocationStartInfos.back().mutable_resource_limits();
             resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
+        }
+
+        if (response->has_operations_archive_version()) {
+            OperationsArchiveVersion_ = response->operations_archive_version();
         }
 
         CreateAndStartAllocations(std::move(allocationStartInfos));

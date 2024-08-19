@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-incumbent_client)
 
+
 target_compile_options(server-lib-incumbent_client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -54,6 +55,12 @@ target_sources(server-lib-incumbent_client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.pb.h
 )
 
+
+target_proto_outs(server-lib-incumbent_client
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(server-lib-incumbent_client
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -65,9 +72,3 @@ target_proto_addincls(server-lib-incumbent_client
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-incumbent_client
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

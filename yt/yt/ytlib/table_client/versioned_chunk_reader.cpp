@@ -693,6 +693,9 @@ public:
         const auto& chunkSchema = ChunkMeta_->ChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
+        THROW_ERROR_EXCEPTION_IF(!columnMeta, "Old versioned scan reader cannot read chunks without column meta, "
+            "consider enabling new scan reader");
+
         KeyColumnReaders_.resize(sortOrders.size());
         for (int keyColumnIndex = 0;
              keyColumnIndex < chunkSchema->GetKeyColumnCount();

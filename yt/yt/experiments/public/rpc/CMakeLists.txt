@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(rpc)
 
+
 target_compile_options(rpc PRIVATE
   -Wdeprecated-this-capture
 )
@@ -48,6 +49,10 @@ target_link_libraries(rpc PUBLIC
   contrib-libs-protobuf
 )
 
+target_allocator(rpc
+  cpp-ytalloc-impl
+)
+
 target_link_options(rpc PRIVATE
   -ldl
   -lrt
@@ -60,17 +65,19 @@ target_link_options(rpc PRIVATE
   -lutil
 )
 
+target_sources(rpc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/rpc/main.pb.h
+)
+
 target_proto_messages(rpc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.proto
 )
 
-target_sources(rpc PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/rpc/main.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.cpp
-)
 
-target_allocator(rpc
-  cpp-ytalloc-impl
+target_proto_outs(rpc
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(rpc
@@ -86,10 +93,4 @@ target_proto_addincls(rpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(rpc
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
 vcs_info(rpc)
-

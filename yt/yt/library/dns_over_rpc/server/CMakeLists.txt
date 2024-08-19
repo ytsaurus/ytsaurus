@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-dns_over_rpc-server)
 
+
 target_compile_options(library-dns_over_rpc-server PRIVATE
   -Wdeprecated-this-capture
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-aws-sdk-cpp-aws-cpp-sdk-s3)
 
+
 target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT

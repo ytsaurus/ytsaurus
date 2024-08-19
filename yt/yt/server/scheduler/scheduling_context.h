@@ -81,17 +81,20 @@ struct ISchedulingContext
     virtual const TDiskResources& DiskResources() const = 0;
     virtual const std::vector<TDiskQuota>& DiskRequests() const = 0;
 
-    //! Used during preemption to allow second-chance scheduling.
+    //! Discounts are used during preemption to allow second-chance scheduling.
+    using TOperationIndex = int;
+    //! Capacity should be greater than the maximum operation index.
+    virtual void InitializeConditionalDiscounts(int capacity) = 0;
     virtual void ResetDiscounts() = 0;
-    virtual const TJobResourcesWithQuota& UnconditionalDiscount() const = 0;
+    virtual TJobResourcesWithQuota GetUnconditionalDiscount() const = 0;
     virtual void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) = 0;
     virtual TJobResourcesWithQuota GetMaxConditionalDiscount() const = 0;
-    virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const = 0;
-    virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discount) = 0;
-    virtual TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
+    virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const = 0;
+    virtual void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discount) = 0;
+    virtual TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const = 0;
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
-    virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
+    virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const = 0;
 
     virtual const std::vector<TAllocationPtr>& StartedAllocations() const = 0;
     virtual const std::vector<TAllocationPtr>& RunningAllocations() const = 0;
@@ -100,7 +103,7 @@ struct ISchedulingContext
     //! Returns |true| if node has enough resources to start allocation with given limits.
     virtual bool CanStartAllocationForOperation(
         const TJobResourcesWithQuota& allocationResources,
-        TOperationId operationId,
+        TOperationIndex operationIndex,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const = 0;
     //! Returns |true| if any more new allocations can be scheduled at this node.
     virtual bool CanStartMoreAllocations(

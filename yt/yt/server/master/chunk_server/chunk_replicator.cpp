@@ -211,7 +211,7 @@ public:
         }
         const auto& chunkReplicas = replicasOrError.Value();
         for (auto replica : chunkReplicas) {
-            if (GetChunkLocationNode(replica)->GetDefaultAddress() == NodeAddress_) {
+            if (replica.GetPtr()->GetNode()->GetDefaultAddress() == NodeAddress_) {
                 continue;
             }
             if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
@@ -1050,7 +1050,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
                 replicas.begin(),
                 replicas.end(),
                 [&, mediumIndex = mediumIndex] (const auto& replica) {
-                    return GetChunkLocationNode(replica) == node && replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex;
+                    return replica.GetPtr()->GetNode() == node && replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex;
                 });
             if (it == replicas.end()) {
                 missingReplicas[mediumIndex].push_back(nodePtrWithIndexes);
@@ -1559,8 +1559,10 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 bool TChunkReplicator::TryScheduleRemovalJob(
     IJobSchedulingContext* context,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
-    TRealChunkLocation* location)
+    TChunkLocation* location)
 {
+    YT_VERIFY(location);
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndexes.Id);
@@ -1588,7 +1590,7 @@ bool TChunkReplicator::TryScheduleRemovalJob(
         context->GetNode(),
         IsObjectAlive(chunk) ? chunk : nullptr,
         chunkIdWithIndexes,
-        location ? location->GetUuid() : InvalidChunkLocationUuid);
+        location->GetUuid());
     context->ScheduleJob(job);
 
     if (IsObjectAlive(chunk)) {
@@ -1873,7 +1875,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto& mediumIndexSet = it->second;
 
             for (const auto& replica : replicasOrError.Value()) {
-                auto* pushNode = GetChunkLocationNode(replica);
+                auto* pushNode = replica.GetPtr()->GetNode();
                 for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
                         if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
@@ -2097,7 +2099,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                     continue;
                 }
 
-                if (TryScheduleRemovalJob(context, replica, location->IsImaginary() ? nullptr : location->AsReal())) {
+                if (TryScheduleRemovalJob(context, replica, location)) {
                     location->SetDestroyedReplicasIterator(replicaIterator, shardId);
                 } else {
                     ++misscheduledRemovalJobs;
@@ -2144,7 +2146,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                     YT_LOG_ALERT(
                         "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
                         chunkIdWithIndexes);
-                } else if (TryScheduleRemovalJob(context, chunkIdWithIndexes, location->IsImaginary() ? nullptr : location->AsReal())) {
+                } else if (TryScheduleRemovalJob(context, chunkIdWithIndexes, location)) {
                     queue.erase(replica);
                 } else {
                     ++misscheduledRemovalJobs;
@@ -2968,32 +2970,27 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
             return;
         }
         const auto& replica = unsucceededJob->GetChunkIdWithIndexes();
-        TChunkLocation* location;
-        if (node->UseImaginaryChunkLocations()) {
-            location = node->GetImaginaryChunkLocation(replica.MediumIndex);
-        } else {
-            auto* removalJob = static_cast<TRemovalJob*>(unsucceededJob.Get());
-            auto locationUuid = removalJob->ChunkLocationUuid();
-            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-            location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-            if (!location) {
-                YT_LOG_ALERT(
-                    "Cannot reschedule chunk removal job; location not found "
-                    "(Chunk: %v, LocationUuid: %v)",
-                    replica,
-                    locationUuid);
-                return;
-            }
+        auto* removalJob = static_cast<TRemovalJob*>(unsucceededJob.Get());
+        auto locationUuid = removalJob->ChunkLocationUuid();
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+        if (!location) {
+            YT_LOG_ALERT(
+                "Cannot reschedule chunk removal job; location not found "
+                "(Chunk: %v, LocationUuid: %v)",
+                replica,
+                locationUuid);
+            return;
+        }
 
-            if (location->GetEffectiveMediumIndex() != replica.MediumIndex) {
-                YT_LOG_DEBUG(
-                    "Chunk removal job was not rescheduled because location's medium has been changed "
-                    "(Chunk: %v, LocationUuid: %v, LocationMediumIndex: %v)",
-                    replica,
-                    locationUuid,
-                    location->GetEffectiveMediumIndex());
-                return;
-            }
+        if (location->GetEffectiveMediumIndex() != replica.MediumIndex) {
+            YT_LOG_DEBUG(
+                "Chunk removal job was not rescheduled because location's medium has been changed "
+                "(Chunk: %v, LocationUuid: %v, LocationMediumIndex: %v)",
+                replica,
+                locationUuid,
+                location->GetEffectiveMediumIndex());
+            return;
         }
         location->AddToChunkRemovalQueue(replica);
     }

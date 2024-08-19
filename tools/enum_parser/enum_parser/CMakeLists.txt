@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(enum_parser)
 
+
 target_link_libraries(enum_parser PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,6 +24,11 @@ target_link_libraries(enum_parser PUBLIC
   library-cpp-cpuid_check
   cpp-getopt-small
   tools-enum_parser-parse_enum
+)
+
+target_allocator(enum_parser
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(enum_parser PRIVATE
@@ -40,10 +46,5 @@ target_sources(enum_parser PRIVATE
   ${PROJECT_SOURCE_DIR}/tools/enum_parser/enum_parser/main.cpp
 )
 
-target_allocator(enum_parser
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(enum_parser)
-

@@ -37,6 +37,7 @@ get_built_tool_path(
 
 add_executable(unittester-core-ytree)
 
+
 target_compile_options(unittester-core-ytree PRIVATE
   -Wdeprecated-this-capture
 )
@@ -54,6 +55,10 @@ target_link_libraries(unittester-core-ytree PUBLIC
   contrib-libs-protobuf
 )
 
+target_allocator(unittester-core-ytree
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-core-ytree PRIVATE
   -ldl
   -lrt
@@ -66,12 +71,7 @@ target_link_options(unittester-core-ytree PRIVATE
   -lutil
 )
 
-target_proto_messages(unittester-core-ytree PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/proto/test.proto
-)
-
 target_sources(unittester-core-ytree PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/core/ytree/unittests/proto/test.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/resolver_ut.cpp
@@ -83,7 +83,13 @@ target_sources(unittester-core-ytree PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/ytree/unittests/proto/test.pb.h
 )
+
+target_proto_messages(unittester-core-ytree PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/proto/test.proto
+)
+
 
 add_test(
   NAME
@@ -104,25 +110,12 @@ set_property(
   TEST
   unittester-core-ytree
   PROPERTY
-  PROCESSORS
-  4
-)
-
-set_property(
-  TEST
-  unittester-core-ytree
-  PROPERTY
   ENVIRONMENT
 )
 
-generate_enum_serilization(unittester-core-ytree
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
-  INCLUDE_HEADERS
-  yt/yt/core/ytree/unittests/serialize_ut.h
-)
-
-target_allocator(unittester-core-ytree
-  cpp-ytalloc-impl
+target_proto_outs(unittester-core-ytree
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(unittester-core-ytree
@@ -137,10 +130,18 @@ target_proto_addincls(unittester-core-ytree
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(unittester-core-ytree
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+generate_enum_serilization(unittester-core-ytree
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
+  INCLUDE_HEADERS
+  yt/yt/core/ytree/unittests/serialize_ut.h
 )
 
 vcs_info(unittester-core-ytree)
 
+set_property(
+  TEST
+  unittester-core-ytree
+  PROPERTY
+  PROCESSORS
+  1
+)

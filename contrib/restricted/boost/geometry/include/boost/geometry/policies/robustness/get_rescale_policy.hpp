@@ -38,6 +38,7 @@
 #include <boost/geometry/policies/robustness/no_rescale_policy.hpp>
 #include <boost/geometry/policies/robustness/rescale_policy.hpp>
 #include <boost/geometry/policies/robustness/robust_type.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/type_traits.hpp>
 
 // TEMP
@@ -70,7 +71,7 @@ inline void scale_box_to_integer_range(Box const& box,
         <
             typename geometry::coordinate_type<Point>::type
         >::type num_type;
-    num_type const diff = boost::numeric_cast<num_type>(detail::get_max_size(box));
+    num_type const diff = util::numeric_cast<num_type>(detail::get_max_size(box));
     num_type const range = 10000000.0; // Define a large range to get precise integer coordinates
     num_type const half = 0.5;
     if (math::equals(diff, num_type())
@@ -81,8 +82,8 @@ inline void scale_box_to_integer_range(Box const& box,
     }
     else
     {
-        factor = boost::numeric_cast<num_type>(
-            boost::numeric_cast<boost::long_long_type>(half + range / diff));
+        factor = util::numeric_cast<num_type>(
+            util::numeric_cast<boost::long_long_type>(half + range / diff));
         BOOST_GEOMETRY_ASSERT(factor >= 1);
     }
 
@@ -90,7 +91,7 @@ inline void scale_box_to_integer_range(Box const& box,
     detail::assign_point_from_index<0>(box, min_point);
     num_type const two = 2;
     boost::long_long_type const min_coordinate
-        = boost::numeric_cast<boost::long_long_type>(-range / two);
+        = util::numeric_cast<boost::long_long_type>(-range / two);
     assign_values(min_robust_point, min_coordinate, min_coordinate);
 }
 

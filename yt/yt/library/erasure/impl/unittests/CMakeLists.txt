@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-erasure)
 
+
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,10 @@ target_link_libraries(unittester-library-erasure PUBLIC
   yt-yt-build
   yt-core-test_framework
   library-erasure-impl
+)
+
+target_allocator(unittester-library-erasure
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-library-erasure PRIVATE
@@ -47,6 +52,7 @@ target_link_options(unittester-library-erasure PRIVATE
 target_sources(unittester-library-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -67,20 +73,15 @@ set_property(
   TEST
   unittester-library-erasure
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-erasure)
 
 set_property(
   TEST
   unittester-library-erasure
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-erasure
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-erasure)
-

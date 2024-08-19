@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(clickhouse-base-widechar_width)
 
+
 target_compile_options(clickhouse-base-widechar_width PUBLIC
   -DOS_LINUX
 )

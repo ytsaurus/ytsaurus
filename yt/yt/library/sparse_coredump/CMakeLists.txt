@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-library-sparse_coredump)
+
 
 target_compile_options(yt-library-sparse_coredump PRIVATE
   -Wdeprecated-this-capture

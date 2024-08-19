@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-monlib-metrics)
 
+
 target_link_libraries(cpp-monlib-metrics PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -31,7 +32,6 @@ target_link_libraries(cpp-monlib-metrics PUBLIC
 )
 
 target_sources(cpp-monlib-metrics PRIVATE
-  ${PROJECT_BINARY_DIR}/library/cpp/monlib/metrics/metric_value_type.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/ewma.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/fake.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/histogram_collector_explicit.cpp
@@ -46,7 +46,9 @@ target_sources(cpp-monlib-metrics PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/metric_value.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/summary_collector.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/summary_snapshot.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/monlib/metrics/metric_value_type.h_serialized.h
 )
+
 
 generate_enum_serilization(cpp-monlib-metrics
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/metric_value_type.h
@@ -55,4 +57,3 @@ generate_enum_serilization(cpp-monlib-metrics
   INCLUDE_HEADERS
   library/cpp/monlib/metrics/metric_value_type.h
 )
-

@@ -28,63 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt-systest-proto)
+
 
 target_link_libraries(yt-systest-proto PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -110,6 +55,12 @@ target_sources(yt-systest-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/systest/proto/validator.pb.h
 )
 
+
+target_proto_outs(yt-systest-proto
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
 target_proto_addincls(yt-systest-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -120,9 +71,3 @@ target_proto_addincls(yt-systest-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-systest-proto
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

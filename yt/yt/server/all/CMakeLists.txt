@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_executable(ytserver-all)
+
 
 target_compile_options(ytserver-all PRIVATE
   -Wdeprecated-this-capture
@@ -53,6 +55,11 @@ target_link_libraries(ytserver-all PUBLIC
   yt-library-oom
 )
 
+target_allocator(ytserver-all
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
 target_link_options(ytserver-all PRIVATE
   -ldl
   -lrt
@@ -69,10 +76,5 @@ target_sources(ytserver-all PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/main.cpp
 )
 
-target_allocator(ytserver-all
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(ytserver-all)
-

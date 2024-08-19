@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-clickhouse-server)
 
+
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,10 @@ target_link_libraries(unittester-clickhouse-server PUBLIC
   yt-yt-build
   yt-core-test_framework
   yt-chyt-server
+)
+
+target_allocator(unittester-clickhouse-server
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-clickhouse-server PRIVATE
@@ -52,6 +57,7 @@ target_sources(unittester-clickhouse-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/framework.cpp
 )
 
+
 add_test(
   NAME
   unittester-clickhouse-server
@@ -71,20 +77,15 @@ set_property(
   TEST
   unittester-clickhouse-server
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-clickhouse-server)
 
 set_property(
   TEST
   unittester-clickhouse-server
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-clickhouse-server
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-clickhouse-server)
-

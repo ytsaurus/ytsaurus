@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-zstd)
 
+
 target_compile_options(contrib-libs-zstd PRIVATE
   -DZSTD_LEGACY_SUPPORT=1
   -DZSTD_MULTITHREAD

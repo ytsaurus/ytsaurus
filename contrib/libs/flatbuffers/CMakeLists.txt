@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(flatc)
 
 add_library(contrib-libs-flatbuffers)
+
 
 target_compile_options(contrib-libs-flatbuffers PRIVATE
   -DFLATBUFFERS_LOCALE_INDEPENDENT=1

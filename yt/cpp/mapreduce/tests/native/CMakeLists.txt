@@ -12,8 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
+add_subdirectory(proto_lib)
 add_subdirectory(misc)
 add_subdirectory(misc_core_http)
 add_subdirectory(operations)
 add_subdirectory(operations_core_http)
-add_subdirectory(proto_lib)

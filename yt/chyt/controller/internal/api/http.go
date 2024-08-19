@@ -227,6 +227,12 @@ func (c CmdParameter) AsExplicit() CmdParameter {
 	return c
 }
 
+// AsRequired returns a copy of the parameter with Required field set to true.
+func (c CmdParameter) AsRequired() CmdParameter {
+	c.Required = true
+	return c
+}
+
 type HandlerFunc func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any)
 
 type CmdDescriptor struct {

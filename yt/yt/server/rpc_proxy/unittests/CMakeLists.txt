@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-rpc-proxy)
 
+
 target_compile_options(unittester-rpc-proxy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-rpc-proxy PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-rpc_proxy
+)
+
+target_allocator(unittester-rpc-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-rpc-proxy PRIVATE
@@ -45,6 +51,7 @@ target_link_options(unittester-rpc-proxy PRIVATE
 target_sources(unittester-rpc-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/unittests/rpc_proxy_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   unittester-rpc-proxy
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-rpc-proxy)
 
 set_property(
   TEST
   unittester-rpc-proxy
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-rpc-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-rpc-proxy)
-

@@ -31,6 +31,8 @@
 
 #include <boost/geometry/geometries/helper_geometry.hpp>
 
+#include <boost/geometry/util/numeric_cast.hpp>
+
 namespace boost { namespace geometry
 {
 
@@ -836,7 +838,7 @@ struct areal_areal
             segment_identifier const& seg_id = turn.operations[OpId].seg_id;
 
             signed_size_type
-                count = boost::numeric_cast<signed_size_type>(
+                count = util::numeric_cast<signed_size_type>(
                             geometry::num_interior_rings(
                                 detail::single_geometry(analyser.geometry, seg_id)));
 

@@ -45,14 +45,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename... Args>
-[[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
+template <typename... TArgs>
+[[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, TFormatString<TArgs...> format, TArgs&&... args)
 {
     THROW_ERROR_EXCEPTION(
         "Error converting %Qv of type %Qv to ClickHouse",
         descriptor.GetDescription(),
         *descriptor.GetType())
-            << TError(args...);
+            << TError(format, std::forward<TArgs>(args)...);
 }
 
 //! Perform assignment column = newColumn also checking that new column is similar

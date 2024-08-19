@@ -2820,10 +2820,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_collocated_replicated_tables(self):
-        # TODO(akozhikhov): Fix with new RTT service.
-        if self.is_multicell():
-            return
-
         set("//sys/@config/tablet_manager/replicate_table_collocations", False)
 
         self._create_cells()
@@ -2871,22 +2867,43 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
              get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2)) and
              get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4)))
 
-        if get("#{}/@mode".format(replica1)) == "async":
-            expected_sync_cluster = "primary"
-            expected_replica1_mode = "sync"
-            expected_replica2_mode = "async"
-        else:
-            expected_sync_cluster = self.REPLICA_CLUSTER_NAME
-            expected_replica1_mode = "async"
-            expected_replica2_mode = "sync"
+        expected_sync_cluster = None
+        expected_replica1_mode = None
+        expected_replica2_mode = None
+
+        def _change_expected_state():
+            nonlocal expected_sync_cluster
+            nonlocal expected_replica1_mode
+            nonlocal expected_replica2_mode
+            if get("#{}/@mode".format(replica1)) == "async":
+                expected_sync_cluster = "primary"
+                expected_replica1_mode = "sync"
+                expected_replica2_mode = "async"
+            else:
+                expected_sync_cluster = self.REPLICA_CLUSTER_NAME
+                expected_replica1_mode = "async"
+                expected_replica2_mode = "sync"
+
+        def _check_state_as_expected():
+            return \
+                get("#{}/@mode".format(replica1)) == expected_replica1_mode and \
+                get("#{}/@mode".format(replica2)) == expected_replica2_mode and \
+                get("#{}/@mode".format(replica3)) == expected_replica1_mode and \
+                get("#{}/@mode".format(replica4)) == expected_replica2_mode
+
+        _change_expected_state()
+        assert not _check_state_as_expected()
         set("//tmp/t1/@replicated_table_options/preferred_sync_replica_clusters", [expected_sync_cluster])
         set("//tmp/t2/@replicated_table_options/preferred_sync_replica_clusters", [expected_sync_cluster])
 
-        wait(lambda:
-             get("#{}/@mode".format(replica1)) == expected_replica1_mode and
-             get("#{}/@mode".format(replica2)) == expected_replica2_mode and
-             get("#{}/@mode".format(replica3)) == expected_replica1_mode and
-             get("#{}/@mode".format(replica4)) == expected_replica2_mode)
+        wait(lambda: _check_state_as_expected())
+
+        _change_expected_state()
+        assert not _check_state_as_expected()
+        set("#{}/@replicated_table_options/preferred_sync_replica_clusters".format(collocation_id),
+            [expected_sync_cluster])
+
+        wait(lambda: _check_state_as_expected())
 
         remove("#{}".format(collocation_id))
 

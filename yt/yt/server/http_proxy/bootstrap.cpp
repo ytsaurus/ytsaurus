@@ -216,7 +216,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     ClusterConnectionHandler_ = New<TClusterConnectionHandler>(RootClient_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
-    DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_, Config_->Coordinator);
+    DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(
+        Coordinator_,
+        Connection_,
+        RootClient_,
+        Config_->Coordinator);
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
     ClickHouseHandler_->Start();

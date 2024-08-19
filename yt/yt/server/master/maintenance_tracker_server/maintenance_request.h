@@ -19,7 +19,7 @@ bool IsBuiltinMaintenanceId(TMaintenanceId id);
 
 struct TMaintenanceRequest
 {
-    TString User;
+    std::string User;
     EMaintenanceType Type;
     TString Comment;
     TInstant Timestamp;

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(ytserver-clickhouse)
 
+
 target_compile_options(ytserver-clickhouse PRIVATE
   -Wdeprecated-this-capture
   -fno-inline
@@ -29,6 +30,11 @@ target_link_libraries(ytserver-clickhouse PUBLIC
   yt-library-re2
   yt-chyt-server
   library-cpp-getopt
+)
+
+target_allocator(ytserver-clickhouse
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 
 target_link_options(ytserver-clickhouse PRIVATE
@@ -47,10 +53,5 @@ target_sources(ytserver-clickhouse PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bin/main.cpp
 )
 
-target_allocator(ytserver-clickhouse
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
-)
 
 vcs_info(ytserver-clickhouse)
-

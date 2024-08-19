@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(lib)
 add_subdirectory(unittests)
 
 add_executable(import_table)
+
 
 target_link_libraries(import_table PUBLIC
   linux-headers-generic::linux-headers-generic
@@ -29,6 +31,11 @@ target_link_libraries(import_table PUBLIC
   mapreduce-library-table_schema
   cpp-yson-node
   library-cpp-getopt
+)
+
+target_allocator(import_table
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(import_table PRIVATE
@@ -47,10 +54,5 @@ target_sources(import_table PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/main.cpp
 )
 
-target_allocator(import_table
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(import_table)
-

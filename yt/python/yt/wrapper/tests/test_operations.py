@@ -2313,6 +2313,7 @@ print(op.id)
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        op_id = subprocess.check_output([get_python(), file.name, table, table, " foo AQAD-bar y1_AQAD-baz brrr"],
+        op_id = subprocess.check_output([get_python(), file.name, table, table, " foo AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo y1_AQAD-sOmeToKeNsOmeToKeNs-OmeToKeNsOmeTo brrr"],
                                         env=self.env, stderr=sys.stderr).strip()
-        assert "AQAD" not in str(yt.get_operation(op_id)["spec"])
+        spec = str(yt.get_operation(op_id)["spec"])
+        assert "AQAD" not in spec

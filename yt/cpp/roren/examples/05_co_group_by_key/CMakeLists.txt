@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(05_co_group_by_key)
 
+
 target_link_libraries(05_co_group_by_key PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,6 +24,11 @@ target_link_libraries(05_co_group_by_key PUBLIC
   library-cpp-cpuid_check
   cpp-roren-interface
   cpp-roren-yt
+)
+
+target_allocator(05_co_group_by_key
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(05_co_group_by_key PRIVATE
@@ -41,10 +47,5 @@ target_sources(05_co_group_by_key PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/05_co_group_by_key/main.cpp
 )
 
-target_allocator(05_co_group_by_key
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(05_co_group_by_key)
-

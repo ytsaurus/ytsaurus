@@ -239,11 +239,6 @@ public:
         return stub;
     }
 
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return true;
-    }
-
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
@@ -413,6 +408,9 @@ public:
     {
         return *Controller_.Get();
     }
+
+    void SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/) override
+    { }
 
     bool IsTreeErased(const TString& /*treeId*/) const override
     {
@@ -667,11 +665,9 @@ protected:
             .TreeConfig = TreeConfig_,
         };
 
-        rootElement->InitializeFairShareUpdate(now, context);
+        rootElement->InitializeFairShareUpdate(now);
 
-        if (strategyHost->IsFairSharePreUpdateOffloadingEnabled()) {
-            rootElement->PreUpdate(&preUpdateContext);
-        }
+        rootElement->PreUpdate(&preUpdateContext);
 
         NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
         updateExecutor.Run();

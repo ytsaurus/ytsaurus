@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-protoc)
 
+
 target_compile_options(contrib-libs-protoc PRIVATE
   -DGOOGLE_PROTOBUF_CMAKE_BUILD
   -DHAVE_ZLIB

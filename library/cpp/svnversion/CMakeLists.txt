@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-cpp-svnversion)
 
+
 target_link_libraries(library-cpp-svnversion PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

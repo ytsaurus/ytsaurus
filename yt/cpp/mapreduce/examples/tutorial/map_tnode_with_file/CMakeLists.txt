@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(map_tnode_with_file)
 
+
 target_compile_options(map_tnode_with_file PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(map_tnode_with_file PUBLIC
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
+)
+
+target_allocator(map_tnode_with_file
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(map_tnode_with_file PRIVATE
@@ -44,10 +50,5 @@ target_sources(map_tnode_with_file PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/map_tnode_with_file/main.cpp
 )
 
-target_allocator(map_tnode_with_file
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(map_tnode_with_file)
-

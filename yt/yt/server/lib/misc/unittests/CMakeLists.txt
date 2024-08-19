@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-server-lib-misc)
 
+
 target_compile_options(unittester-server-lib-misc PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-server-lib-misc PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   server-lib-misc
+)
+
+target_allocator(unittester-server-lib-misc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-server-lib-misc PRIVATE
@@ -46,6 +52,7 @@ target_sources(unittester-server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-server-lib-misc
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-server-lib-misc)
 
 set_property(
   TEST
   unittester-server-lib-misc
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-server-lib-misc
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-server-lib-misc)
-

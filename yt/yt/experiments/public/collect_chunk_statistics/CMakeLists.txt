@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(collect_chunk_statistics)
 
+
 target_link_libraries(collect_chunk_statistics PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,6 +26,11 @@ target_link_libraries(collect_chunk_statistics PUBLIC
   yt-yt-core
   server-lib-io
   yt-yt-ytlib
+)
+
+target_allocator(collect_chunk_statistics
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(collect_chunk_statistics PRIVATE
@@ -43,10 +49,5 @@ target_sources(collect_chunk_statistics PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/collect_chunk_statistics/main.cpp
 )
 
-target_allocator(collect_chunk_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(collect_chunk_statistics)
-

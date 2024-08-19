@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-library-lambda)
 
+
 target_compile_options(mapreduce-library-lambda PRIVATE
   -Wdeprecated-this-capture
 )

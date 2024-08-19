@@ -1,6 +1,6 @@
 // Boost.Geometry
 
-// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2023-2024 Adam Wulkiewicz, Lodz, Poland.
 
 // Copyright (c) 2015-2022 Oracle and/or its affiliates.
 // Contributed and/or modified by Vissarion Fysikopoulos, on behalf of Oracle
@@ -17,6 +17,7 @@
 #include <boost/geometry/formulas/flattening.hpp>
 #include <boost/geometry/formulas/mean_radius.hpp>
 #include <boost/geometry/formulas/karney_inverse.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 #include <boost/math/special_functions/hypot.hpp>
 
@@ -381,26 +382,33 @@ public:
             return pi;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(LongSegment) && lat1r != lat2r) // not for segments parallel to equator
+        if BOOST_GEOMETRY_CONSTEXPR (LongSegment)
         {
-            CT const cbet1 = cos(lat1r);
-            CT const sbet1 = sin(lat1r);
-            CT const cbet2 = cos(lat2r);
-            CT const sbet2 = sin(lat2r);
+            if (lat1r != lat2r) // not for segments parallel to equator
+            {
+                CT const cbet1 = cos(lat1r);
+                CT const sbet1 = sin(lat1r);
+                CT const cbet2 = cos(lat2r);
+                CT const sbet2 = sin(lat2r);
 
-            CT const omg12 = lon2r - lon1r;
-            CT const comg12 = cos(omg12);
-            CT const somg12 = sin(omg12);
+                CT const omg12 = lon2r - lon1r;
+                CT const comg12 = cos(omg12);
+                CT const somg12 = sin(omg12);
 
-            CT const cbet1_sbet2 = cbet1 * sbet2;
-            CT const sbet1_cbet2 = sbet1 * cbet2;
-            CT const alp1 = atan2(cbet1_sbet2 - sbet1_cbet2 * comg12, cbet2 * somg12);
-            CT const alp2 = atan2(cbet1_sbet2 * comg12 - sbet1_cbet2, cbet1 * somg12);
+                CT const cbet1_sbet2 = cbet1 * sbet2;
+                CT const sbet1_cbet2 = sbet1 * cbet2;
+                CT const alp1 = atan2(cbet1_sbet2 - sbet1_cbet2 * comg12, cbet2 * somg12);
+                CT const alp2 = atan2(cbet1_sbet2 * comg12 - sbet1_cbet2, cbet1 * somg12);
 
-            excess = alp2 - alp1;
-
-        } else {
-
+                excess = alp2 - alp1;
+            }
+            else
+            {
+                excess = trapezoidal_formula(lat1r, lat2r, lon12r);
+            }
+        }
+        else
+        {
             excess = trapezoidal_formula(lat1r, lat2r, lon12r);
         }
 

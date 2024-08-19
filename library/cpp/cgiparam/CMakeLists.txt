@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-cpp-cgiparam)
 
+
 target_link_libraries(library-cpp-cgiparam PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,7 +27,7 @@ target_link_libraries(library-cpp-cgiparam PUBLIC
 )
 
 target_sources(library-cpp-cgiparam PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/cgiparam/cgiparam.h
   ${PROJECT_SOURCE_DIR}/library/cpp/cgiparam/cgiparam.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/cgiparam/cgiparam.h
 )
 

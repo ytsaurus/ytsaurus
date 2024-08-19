@@ -55,6 +55,23 @@ struct TAstVisitor
 };
 
 template <class TDerived>
+class TAliasVisitingAstVisitor
+    : public TAstVisitor<TDerived>
+{
+public:
+    using TBase = TAstVisitor<TDerived>;
+    using TBase::Visit;
+
+    explicit TAliasVisitingAstVisitor(const NAst::TAliasMap& aliasMap);
+
+    void OnReference(TReferenceExpressionPtr referenceExpr);
+
+private:
+    const NAst::TAliasMap& AliasMap_;
+    THashSet<TString> UsedAliases_;
+};
+
+template <class TDerived>
 struct TRewriter
     : public TBaseAstVisitor<TExpressionPtr, TDerived>
 {

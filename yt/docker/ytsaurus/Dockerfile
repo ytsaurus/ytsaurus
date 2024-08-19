@@ -4,6 +4,8 @@
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
+ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
+
 ##########################################################################################
 
 FROM mirror.gcr.io/ubuntu:focal AS base
@@ -28,6 +30,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3-pip \
   python3.8  \
   python3.8-distutils \
+  python3.11 \
+  python3.11-venv \
   strace \
   telnet \
   tini \
@@ -36,9 +40,42 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 
 ##########################################################################################
 
-FROM base AS base-ytsaurus-python-packages
+FROM base AS build-ytsaurus-python-binaries
+
+ARG PROTOC_VERSION="3.20.1"
+
+RUN curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
+    && unzip protoc.zip -d /usr/local \
+    && rm protoc.zip
+
+ARG SOURCE_ROOT=/ytsaurus
+
+RUN mkdir -p ${SOURCE_ROOT}
+COPY ./yt/python ${SOURCE_ROOT}/yt/python
+COPY ./yt/yt/python ${SOURCE_ROOT}/yt/yt/python
+COPY ./certs/cacert.pem ${SOURCE_ROOT}/certs/cacert.pem
+
+ARG BUILD_ROOT=/tmp
+
+RUN mkdir -p ${BUILD_ROOT}
+COPY ./artifacts/libyson_lib.so ${BUILD_ROOT}/yt/yt/python/yson_shared/libyson_lib.so
+COPY ./artifacts/libdriver_lib.so ${BUILD_ROOT}/yt/yt/python/driver/native_shared/libdriver_lib.so
+COPY ./artifacts/libdriver_rpc_lib.so ${BUILD_ROOT}/yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
+
+RUN python3.11 -m venv package-env
+RUN . package-env/bin/activate; \
+    ${SOURCE_ROOT}/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path ${SOURCE_ROOT} --ytsaurus-build-path ${BUILD_ROOT} --apply-auditwheel
+
+##########################################################################################
+
+FROM base AS copy-ytsaurus-python-binaries
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
+
+##########################################################################################
+
+FROM ${PYTHON_BUILD_BASE} AS base-ytsaurus-python-packages
+
 RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
@@ -108,6 +145,10 @@ COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 # CHYT credits files.
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 
+# Install YT client for setup script.
+RUN python3.8 -m pip install ytsaurus-client
+RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+
 # Setup script.
 COPY ./setup_cluster_for_chyt.sh /setup_cluster_for_chyt.sh
 RUN chmod 755 /setup_cluster_for_chyt.sh
@@ -115,6 +156,9 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 ##########################################################################################
 
 FROM base-ytsaurus-python-packages AS query-tracker-bloated
+
+# Libpython shared objects. TODO(aleksandr.gaev) use stubs instead.
+RUN apt-get install -y libpython3.8 libpython3.9 libpython3.10 libpython3.11 libpython3.12
 
 # Query tracker binaries.
 COPY ./ytserver-all /usr/bin/ytserver-all

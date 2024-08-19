@@ -163,6 +163,14 @@ struct segments_direction
             ;
     }
 
+    template <typename SegmentIntersectionInfo, typename Point>
+    static inline return_type segments_share_common_point(side_info const& sides,
+                                                          SegmentIntersectionInfo const& ,
+                                                          Point const&)
+    {
+        return segments_crosses(sides, sides, sides, sides);
+    }
+
     template <typename Ratio>
     static inline int arrival_value(Ratio const& r_from, Ratio const& r_to)
     {

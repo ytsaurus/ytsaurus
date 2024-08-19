@@ -377,6 +377,22 @@ public:
             .Run(producerPath, queuePath, sessionId, epoch, nameTable, rows, options);
     }
 
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options) override
+    {
+        ValidateTabletTransactionId(GetId());
+
+        return BIND(&TTransaction::DoPushQueueProducerWithSerializedRows, MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run(producerPath, queuePath, sessionId, epoch, nameTable, serializedRows, options);
+    }
+
     void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1503,10 +1519,13 @@ private:
                         continue;
                     }
                     if (!syncReplicaIds.contains(replicaInfo->ReplicaId)) {
-                        futures->push_back(MakeFuture(TError(
+                        auto error = TError(
                             NTabletClient::EErrorCode::SyncReplicaNotInSync,
                             "Cannot write to sync replica %v since it is not in-sync yet",
-                            replicaInfo->ReplicaId)));
+                            replicaInfo->ReplicaId)
+                            << TErrorAttribute("replica_cluster", replicaInfo->ClusterName)
+                            << TErrorAttribute("replica_path", replicaInfo->ReplicaPath);
+                        futures->push_back(MakeFuture(std::move(error)));
                         return;
                     }
                 }
@@ -1792,6 +1811,30 @@ private:
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
     }
 
+    TPushQueueProducerResult DoPushQueueProducerWithSerializedRows(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TQueueProducerSessionId& sessionId,
+        TQueueProducerEpoch epoch,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<TSharedRef>& serializedRows,
+        const TPushQueueProducerOptions& options)
+    {
+        auto rowBuffer = New<TRowBuffer>(TNativeTransactionBufferTag());
+
+        auto data = MergeRefsToRef<TNativeTransactionBufferTag>(serializedRows);
+        auto reader = CreateWireProtocolReader(data, std::move(rowBuffer));
+        auto rows = reader->ReadUnversionedRowset(/*captureValues*/ true);
+        return DoPushQueueProducer(
+            producerPath,
+            queuePath,
+            sessionId,
+            epoch,
+            nameTable,
+            rows,
+            options);
+    }
+
     TPushQueueProducerResult DoPushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
@@ -1881,6 +1924,10 @@ private:
             YT_LOG_DEBUG("After validation all rows should be skipped, do nothing (RowCount: %v, SkipRowCount: %v)",
                 std::ssize(rows),
                 validateResult.SkipRowCount);
+            return TPushQueueProducerResult{
+                .LastSequenceNumber = lastProducerSequenceNumber,
+                .SkippedRowCount = validateResult.SkipRowCount,
+            };
         }
 
         auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
@@ -1995,7 +2042,7 @@ private:
             };
 
             modificationsEnqueuedEvents.push_back(
-                modifier->OnIndexModifications([&, modifyRowsOptions=std::move(modifyRowsOptions)] (
+                modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
                     TSharedRange<TRowModification> modifications)

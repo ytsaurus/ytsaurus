@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(hydra_stress)
 
+
 target_link_libraries(hydra_stress PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -44,6 +45,11 @@ target_link_libraries(hydra_stress PUBLIC
   contrib-libs-protobuf
 )
 
+target_allocator(hydra_stress
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
+)
+
 target_link_options(hydra_stress PRIVATE
   -ldl
   -lrt
@@ -56,12 +62,7 @@ target_link_options(hydra_stress PRIVATE
   -lutil
 )
 
-target_proto_messages(hydra_stress PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
-)
-
 target_sources(hydra_stress PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/checkers.cpp
@@ -70,11 +71,17 @@ target_sources(hydra_stress PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/disruptors.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
 )
 
-target_allocator(hydra_stress
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_messages(hydra_stress PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
+)
+
+
+target_proto_outs(hydra_stress
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(hydra_stress
@@ -90,10 +97,4 @@ target_proto_addincls(hydra_stress
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(hydra_stress
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
 vcs_info(hydra_stress)
-

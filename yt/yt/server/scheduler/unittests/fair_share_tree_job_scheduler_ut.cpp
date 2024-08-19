@@ -245,11 +245,6 @@ public:
         return stub;
     }
 
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return true;
-    }
-
     TFairShareTreeAllocationSchedulerNodeState* GetNodeState(const TExecNodePtr node)
     {
         return &GetOrCrash(NodeToState_, node);
@@ -476,6 +471,9 @@ public:
     {
         return *Controller_.Get();
     }
+
+    void SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/) override
+    { }
 
     bool IsTreeErased(const TString& /*treeId*/) const override
     {
@@ -814,7 +812,7 @@ protected:
             now,
             previousUpdateTime);
 
-        rootElement->InitializeFairShareUpdate(now, context);
+        rootElement->InitializeFairShareUpdate(now);
 
         rootElement->PreUpdate(&preUpdateContext);
 
@@ -1232,7 +1230,10 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
         });
     }
 
+    const auto& schedulingContext = scheduleAllocationsContextWithDependencies.SchedulingContext;
     {
+        schedulingContext->InitializeConditionalDiscounts(treeSnapshot->RootElement()->SchedulableElementCount());
+
         TScheduleAllocationsContext::TPrepareConditionalUsageDiscountsContext prepareConditionalUsageDiscountsContext{
             .TargetOperationPreemptionPriority = targetOperationPreemptionPriority,
         };
@@ -1258,18 +1259,17 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
     expectedDiscount.SetCpu(5);
     expectedDiscount.SetMemory(50_MB);
 
-    const auto& schedulingContext = scheduleAllocationsContextWithDependencies.SchedulingContext;
     EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalDiscount().ToJobResources());
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()).ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).ToJobResources());
     // It's a bit weird that a preemptible allocation's usage is added to the discount of its operation, but this is how we do it.
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()).ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).ToJobResources());
 
     TDiskQuota expectedDiskQuotaDiscount{.DiskSpacePerMedium = {{0, 50_MB}}};
 
-    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()).DiskQuota().DiskSpacePerMedium);
-    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()).DiskQuota().DiskSpacePerMedium);
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
 
-    EXPECT_EQ(TJobResourcesWithQuota(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
+    EXPECT_EQ(TJobResourcesWithQuota(), schedulingContext->GetConditionalDiscountForOperation(blockingOperationElement->GetTreeIndex()));
 }
 
 TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)

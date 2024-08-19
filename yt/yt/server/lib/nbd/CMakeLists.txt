@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-nbd)
 
+
 target_compile_options(server-lib-nbd PRIVATE
   -Wdeprecated-this-capture
 )

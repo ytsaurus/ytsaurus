@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(orm-library-attributes)
 
+
 target_compile_options(orm-library-attributes PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
@@ -37,6 +38,7 @@ target_sources(orm-library-attributes PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/proto_visitor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/unwrapping_consumer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/yson_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
 )
 

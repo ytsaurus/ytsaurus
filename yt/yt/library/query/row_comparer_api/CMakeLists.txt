@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-query-row_comparer_api)
 
+
 target_compile_options(library-query-row_comparer_api PRIVATE
   -Wdeprecated-this-capture
 )

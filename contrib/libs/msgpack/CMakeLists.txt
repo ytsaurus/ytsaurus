@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-msgpack)
 
+
 target_compile_options(contrib-libs-msgpack PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

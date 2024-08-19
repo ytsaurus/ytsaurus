@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(common)
 add_subdirectory(fast_sax)
 add_subdirectory(writer)
 
 add_library(library-cpp-json)
+
 
 target_link_libraries(library-cpp-json PUBLIC
   linux-headers-generic::linux-headers-generic

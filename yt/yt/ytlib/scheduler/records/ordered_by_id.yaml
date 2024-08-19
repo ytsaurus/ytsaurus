@@ -1,0 +1,146 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TOrderedById
+    fields:
+      - cpp_name: IdHi
+        cpp_type: ui64
+        column_name: id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: IdLo
+        cpp_type: ui64
+        column_name: id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: State
+        cpp_type: TString
+        column_name: state
+        column_type: String
+
+      - cpp_name: AuthenticatedUser
+        cpp_type: TString
+        column_name: authenticated_user
+        column_type: String
+
+      - cpp_name: OperationType
+        cpp_type: TString
+        column_name: operation_type
+        column_type: String
+
+      - cpp_name: Progress
+        cpp_type: NYson::TYsonString
+        column_name: progress
+        column_type: Any
+
+      - cpp_name: ProvidedSpec
+        cpp_type: NYson::TYsonString
+        column_name: provided_spec
+        column_type: Any
+
+      - cpp_name: Spec
+        cpp_type: NYson::TYsonString
+        column_name: spec
+        column_type: Any
+
+      - cpp_name: FullSpec
+        cpp_type: NYson::TYsonString
+        column_name: full_spec
+        column_type: Any
+
+      - cpp_name: ExperimentAssignments
+        cpp_type: NYson::TYsonString
+        column_name: experiment_assignments
+        column_type: Any
+
+      - cpp_name: ExperimentAssignmentNames
+        cpp_type: NYson::TYsonString
+        column_name: experiment_assignment_names
+        column_type: Any
+
+      - cpp_name: BriefProgress
+        cpp_type: NYson::TYsonString
+        column_name: brief_progress
+        column_type: Any
+
+      - cpp_name: BriefSpec
+        cpp_type: NYson::TYsonString
+        column_name: brief_spec
+        column_type: Any
+
+      - cpp_name: StartTime
+        cpp_type: i64
+        column_name: start_time
+        column_type: Int64
+
+      - cpp_name: FinishTime
+        cpp_type: i64
+        column_name: finish_time
+        column_type: Int64
+
+      - cpp_name: FilterFactors
+        cpp_type: TString
+        column_name: filter_factors
+        column_type: String
+
+      - cpp_name: Result
+        cpp_type: NYson::TYsonString
+        column_name: result
+        column_type: Any
+
+      - cpp_name: Events
+        cpp_type: NYson::TYsonString
+        column_name: events
+        column_type: Any
+
+      - cpp_name: Alerts
+        cpp_type: NYson::TYsonString
+        column_name: alerts
+        column_type: Any
+
+      - cpp_name: UnrecognizedSpec
+        cpp_type: NYson::TYsonString
+        column_name: unrecognized_spec
+        column_type: Any
+
+      - cpp_name: SlotIndex
+        cpp_type: i64
+        column_name: slot_index
+        column_type: Int64
+
+      - cpp_name: RuntimeParameters
+        cpp_type: NYson::TYsonString
+        column_name: runtime_parameters
+        column_type: Any
+
+      - cpp_name: SlotIndexPerPoolTree
+        cpp_type: NYson::TYsonString
+        column_name: slot_index_per_pool_tree
+        column_type: Any
+
+      - cpp_name: Annotations
+        cpp_type: NYson::TYsonString
+        column_name: annotations
+        column_type: Any
+
+      - cpp_name: TaskNames
+        cpp_type: NYson::TYsonString
+        column_name: task_names
+        column_type: Any
+
+      - cpp_name: ControllerFeatures
+        cpp_type: NYson::TYsonString
+        column_name: controller_features
+        column_type: Any
+
+      - cpp_name: AlertEvents
+        cpp_type: NYson::TYsonString
+        column_name: alert_events
+        column_type: Any
+
+      - cpp_name: SchedulingAttributesPerPoolTree
+        cpp_type: NYson::TYsonString
+        column_name: scheduling_attributes_per_pool_tree
+        column_type: Any

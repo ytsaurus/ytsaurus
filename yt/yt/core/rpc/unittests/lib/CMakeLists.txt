@@ -28,21 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(rpc-unittests-lib)
+
 
 target_compile_options(rpc-unittests-lib PRIVATE
   -Wdeprecated-this-capture
@@ -60,17 +47,23 @@ target_link_libraries(rpc-unittests-lib PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(rpc-unittests-lib PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/test_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.pb.h
+)
+
 target_proto_messages(rpc-unittests-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.proto
 )
 
-target_sources(rpc-unittests-lib PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/test_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
+
+target_proto_outs(rpc-unittests-lib
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(rpc-unittests-lib
@@ -83,9 +76,3 @@ target_proto_addincls(rpc-unittests-lib
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(rpc-unittests-lib
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

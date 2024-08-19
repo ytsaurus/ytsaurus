@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-threading)
 
+
 target_compile_options(cpp-yt-threading PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,7 @@ target_link_libraries(cpp-yt-threading PUBLIC
   yutil
   cpp-yt-assert
   cpp-yt-cpu_clock
+  cpp-yt-exception
   cpp-yt-system
   cpp-yt-memory
 )

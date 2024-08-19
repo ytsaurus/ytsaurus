@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(columnar_merge)
 
+
 target_compile_options(columnar_merge PRIVATE
   -Wdeprecated-this-capture
 )
@@ -39,6 +40,10 @@ target_link_libraries(columnar_merge PUBLIC
   library-cpp-getopt
 )
 
+target_allocator(columnar_merge
+  cpp-ytalloc-impl
+)
+
 target_link_options(columnar_merge PRIVATE
   -ldl
   -lrt
@@ -56,9 +61,5 @@ target_sources(columnar_merge PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
 )
 
-target_allocator(columnar_merge
-  cpp-ytalloc-impl
-)
 
 vcs_info(columnar_merge)
-

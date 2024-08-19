@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-core-phoenix-unittests)
 
+
 target_compile_options(yt-yt-core-phoenix-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(yt-yt-core-phoenix-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
+)
+
+target_allocator(yt-yt-core-phoenix-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-core-phoenix-unittests PRIVATE
@@ -45,6 +51,7 @@ target_link_options(yt-yt-core-phoenix-unittests PRIVATE
 target_sources(yt-yt-core-phoenix-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/unittests/phoenix_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   yt-yt-core-phoenix-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-core-phoenix-unittests)
 
 set_property(
   TEST
   yt-yt-core-phoenix-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-core-phoenix-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-core-phoenix-unittests)
-

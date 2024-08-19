@@ -257,6 +257,9 @@ public:
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
     virtual TResourceVector GetMaxShare() const = 0;
 
+    virtual TJobResources GetSpecifiedResourceFlow() const;
+    virtual TJobResources GetSpecifiedBurstGuaranteeResources() const;
+
     double GetMaxShareRatio() const;
     double GetResourceDominantUsageShareAtUpdate() const;
     double GetAccumulatedResourceRatioVolume() const;
@@ -271,7 +274,7 @@ public:
     //! Fair share update initialization method.
     // At this stage we prepare attributes that need to be computed in the control thread
     // in a thread-unsafe manner.
-    virtual void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context);
+    virtual void InitializeUpdate(TInstant now);
 
     //! PreUpdate method prepares heavy attributes for fair share update in offloaded invoker.
     virtual void PreUpdate(TFairSharePreUpdateContext* context);
@@ -321,7 +324,7 @@ public:
 
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
@@ -484,7 +487,7 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
 
     //! Pre fair share update methods.
-    void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context) override;
+    void InitializeUpdate(TInstant now) override;
     void PreUpdate(TFairSharePreUpdateContext* context) override;
 
     //! Fair share update methods that implements NVectorHdrf::TCompositeElement interface.
@@ -647,6 +650,9 @@ public:
 
     TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 
+    TJobResources GetSpecifiedResourceFlow() const override;
+    TJobResources GetSpecifiedBurstGuaranteeResources() const override;
+
     void SetEphemeralInDefaultParentPool();
     bool IsEphemeralInDefaultParentPool() const;
 
@@ -695,7 +701,7 @@ public:
 
     //! Other methods.
     void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
@@ -730,6 +736,8 @@ private:
     const TSchedulerCompositeElement* GetNearestAncestorWithResourceLimits(const TSchedulerCompositeElement* element) const;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
+
+    void PropagateIsEphemeral();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerPoolElement)
@@ -819,6 +827,8 @@ public:
     void SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters);
     TOperationFairShareTreeRuntimeParametersPtr GetRuntimeParameters() const;
 
+    void SetRunningInEphemeralPool(bool runningInEphemeralPool);
+
     void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;
 
@@ -853,7 +863,7 @@ public:
     void DetachParent();
 
     //! Pre fair share update methods.
-    void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context) override;
+    void InitializeUpdate(TInstant now) override;
     void PreUpdate(TFairSharePreUpdateContext* context) override;
 
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
@@ -1012,7 +1022,7 @@ public:
 
     //! Pre fair share update methods.
     // Computes various lightweight attributes in the tree. Must be called in control thread.
-    void InitializeFairShareUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context);
+    void InitializeFairShareUpdate(TInstant now);
 
     //! Fair share update methods that implements NVectorHdrf::TRootElement interface.
     double GetSpecifiedBurstRatio() const override;
@@ -1045,7 +1055,7 @@ public:
     THashSet<TString> GetAllowedProfilingTags() const override;
 
     void BuildResourceMetering(
-        const std::optional<TMeteringKey>& parentKey,
+        const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 

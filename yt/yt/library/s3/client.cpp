@@ -198,7 +198,7 @@ void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
     }
 
     if (errors) {
-        THROW_ERROR_EXCEPTION(EErrorCode::S3ApiError, errors);
+        THROW_ERROR_EXCEPTION(EErrorCode::S3ApiError, std::move(errors), TError::DisableFormat);
     }
 }
 

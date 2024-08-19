@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-timestamp_server)
 
+
 target_compile_options(server-lib-timestamp_server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -46,14 +47,20 @@ target_link_libraries(server-lib-timestamp_server PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-timestamp_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h
+)
+
 target_proto_messages(server-lib-timestamp_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.proto
 )
 
-target_sources(server-lib-timestamp_server PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
+
+target_proto_outs(server-lib-timestamp_server
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-timestamp_server
@@ -68,9 +75,3 @@ target_proto_addincls(server-lib-timestamp_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-timestamp_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

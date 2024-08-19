@@ -13,289 +13,25 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(unittests)
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt-server-master)
+
 
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
@@ -335,50 +71,7 @@ target_link_libraries(yt-server-master PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(yt-server-master PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/object_server/proto/object_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/proto/security_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.proto
-)
-
 target_sources(yt-server-master PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/object_server/proto/object_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/security_server/proto/security_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/alert_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/bootstrap.cpp
@@ -752,6 +445,55 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/object_server/proto/object_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/security_server/proto/security_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h
+)
+
+target_proto_messages(yt-server-master PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/object_server/proto/object_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/proto/security_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.proto
+)
+
+
+target_proto_outs(yt-server-master
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-server-master
@@ -766,9 +508,3 @@ target_proto_addincls(yt-server-master
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-server-master
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

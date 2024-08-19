@@ -225,7 +225,7 @@ private:
     std::vector<TNumaNodeState> NumaNodeStates_;
 
     IJobEnvironmentPtr JobEnvironment_;
-    EJobEnvironmentType JobEnvironmentType_;
+    std::optional<EJobEnvironmentType> JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
     // Invoker affinity: JobInvoker

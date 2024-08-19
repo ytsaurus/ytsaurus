@@ -29,7 +29,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-from http.client import BadStatusLine, IncompleteRead
+from http.client import BadStatusLine, IncompleteRead, LineTooLong
 
 # Used to distinguish
 try:
@@ -325,7 +325,7 @@ class RequestRetrier(Retrier):
         self.requests_timeout = timeout
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
-        non_retriable_errors = []
+        non_retriable_errors = [LineTooLong]
         retriable_errors = list(get_retriable_errors())
         if is_ping:
             retriable_errors.append(YtHttpResponseError)

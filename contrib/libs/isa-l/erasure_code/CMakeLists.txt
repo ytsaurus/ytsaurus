@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(isa-l_ec)
 
+
 target_compile_options(isa-l_ec PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -33,6 +34,7 @@ target_sources(isa-l_ec PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_base.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_highlevel_func.c
 )
+
 
 target_yasm_source(isa-l_ec
   PRIVATE
@@ -550,4 +552,3 @@ target_yasm_source(isa-l_ec
   -I
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
 )
-

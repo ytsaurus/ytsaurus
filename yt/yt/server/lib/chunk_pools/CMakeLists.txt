@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(mock)
 add_subdirectory(unittests)
 
 add_library(server-lib-chunk_pools)
+
 
 target_compile_options(server-lib-chunk_pools PRIVATE
   -Wdeprecated-this-capture
@@ -57,8 +59,8 @@ target_sources(server-lib-chunk_pools PRIVATE
 
 
 add_global_library_for(server-lib-chunk_pools.global
-  server-lib-chunk_pools
-)
+  server-lib-chunk_pools)
+
 
 target_compile_options(server-lib-chunk_pools.global PRIVATE
   -Wdeprecated-this-capture

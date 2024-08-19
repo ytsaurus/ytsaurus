@@ -287,7 +287,7 @@ public:
     //! before yielding control to other callbacks.
     TDuration MaxCommitBatchDuration;
 
-    //! Interval between consequent lease lease checks.
+    //! Interval between consequent leader lease checks.
     TDuration LeaderLeaseCheckPeriod;
 
     //! Timeout after which leader lease expires.

@@ -157,7 +157,7 @@ private:
                 auto errorNode = result->AsMap()->FindChild("error");
                 auto blackboxError =
                     errorNode && errorNode->GetType() == ENodeType::String
-                    ? TError(errorNode->GetValue<TString>())
+                    ? TError(errorNode->GetValue<TString>(), TError::DisableFormat)
                     : TError("Blackbox did not provide any human-readable error details");
 
                 switch (static_cast<EBlackboxException>(exceptionIdNode->GetValue<i64>())) {

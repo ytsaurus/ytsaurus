@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-library-safe_assert INTERFACE)
 
+
 target_link_libraries(yt-library-safe_assert INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,8 +26,8 @@ target_link_libraries(yt-library-safe_assert INTERFACE
 
 
 add_global_library_for(yt-library-safe_assert.global
-  yt-library-safe_assert
-)
+  yt-library-safe_assert)
+
 
 target_compile_options(yt-library-safe_assert.global PRIVATE
   -Wdeprecated-this-capture

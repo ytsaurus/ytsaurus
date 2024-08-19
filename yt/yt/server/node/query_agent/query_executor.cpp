@@ -1,5 +1,4 @@
 #include "query_executor.h"
-#include "private.h"
 #include "config.h"
 #include "helpers.h"
 
@@ -102,6 +101,28 @@ template <>
 TRange<TRow> GetSampleKeys(const NTabletNode::TPartitionSnapshotPtr& shard)
 {
     return shard->SampleKeys->Keys;
+}
+
+std::pair<std::vector<TKeyRef>, std::vector<int>> GetSampleKeysForPrefix(TRange<TLegacyKey> keys, int prefixSize)
+{
+    std::vector<TKeyRef> samplePrefixes;
+    std::vector<int> weights;
+    weights.push_back(1);
+
+    for (auto key : keys) {
+        auto current = ToKeyRef(key, prefixSize);
+
+        if (samplePrefixes.empty() || CompareValueRanges(samplePrefixes.back(), current) != 0) {
+            samplePrefixes.push_back(current);
+            weights.push_back(1);
+        } else {
+            ++weights.back();
+        }
+    }
+
+    YT_VERIFY(weights.size() == samplePrefixes.size() + 1);
+
+    return {samplePrefixes, weights};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,6 +437,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TabletReadItems
+{
+    TTabletId TabletId;
+
+    std::vector<TPartitionBounds> PartitionBounds;
+    // Ranges for ordered tables.
+    TSharedRange<TRowRange> Ranges;
+    TSharedRange<TRow> Keys;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryExecution
     : public TRefCounted
 {
@@ -500,7 +533,15 @@ public:
             }
         });
 
-        auto statistics = DoExecute();
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
+        auto classifiedDataSources = GetClassifiedDataSources(rowBuffer);
+        auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
+
+        auto groupedDataSplits = QueryOptions_.MergeVersionedRows
+            ? CoordinateDataSourcesOld(std::move(classifiedDataSources), rowBuffer)
+            : CoordinateDataSourcesNew(std::move(classifiedDataSources), rowBuffer);
+
+        auto statistics = DoCoordinateAndExecute(std::move(groupedDataSplits), rowBuffer, minKeyWidth);
 
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
@@ -539,15 +580,119 @@ private:
 
     using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
 
-    void LogSplits(const std::vector<TDataSource>& splits)
+    TDataSource GetPrefixReadItems(TRange<TabletReadItems> dataSplits, size_t keyPrefix)
     {
-        if (QueryOptions_.VerboseLogging) {
-            for (const auto& split : splits) {
-                YT_LOG_DEBUG("Ranges in split %v: %v",
-                    split.ObjectId,
-                    MakeFormattableView(split.Ranges, TRangeFormatter()));
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
+        std::vector<TRowRange> prefixRanges;
+        std::vector<TRow> prefixKeys;
+        bool isRanges = false;
+        bool isKeys = false;
+
+        for (const auto& split : dataSplits) {
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(split.TabletId);
+
+            auto partitions = TRange(tabletSnapshot->PartitionList);
+            YT_VERIFY(!partitions.empty());
+
+            for (const auto& partitionBound : split.PartitionBounds) {
+                isRanges = true;
+                YT_VERIFY(!isKeys);
+                for (const auto& bound : partitionBound.Bounds) {
+                    TRowRange range{
+                        std::max<TRow>(partitions[partitionBound.PartitionIndex]->PivotKey, bound.first),
+                        std::min<TRow>(partitions[partitionBound.PartitionIndex]->NextPivotKey, bound.second)};
+
+                    int lowerBoundWidth = std::min(
+                        GetSignificantWidth(range.first),
+                        keyPrefix);
+
+                    auto lowerBound = rowBuffer->AllocateUnversioned(lowerBoundWidth);
+                    for (int column = 0; column < lowerBoundWidth; ++column) {
+                        lowerBound[column] = rowBuffer->CaptureValue(range.first[column]);
+                    }
+
+                    int upperBoundWidth = std::min(
+                        GetSignificantWidth(range.second),
+                        keyPrefix);
+
+                    auto upperBound = WidenKeySuccessor(
+                        range.second,
+                        upperBoundWidth,
+                        rowBuffer,
+                        true);
+
+                    prefixRanges.emplace_back(lowerBound, upperBound);
+
+                    YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                        range.first,
+                        range.second,
+                        lowerBound,
+                        upperBound);
+                }
+            }
+
+            for (const auto& range : split.Ranges) {
+                isRanges = true;
+                YT_VERIFY(!isKeys);
+                int lowerBoundWidth = std::min(
+                    GetSignificantWidth(range.first),
+                    keyPrefix);
+
+                auto lowerBound = rowBuffer->AllocateUnversioned(lowerBoundWidth);
+                for (int column = 0; column < lowerBoundWidth; ++column) {
+                    lowerBound[column] = rowBuffer->CaptureValue(range.first[column]);
+                }
+
+                int upperBoundWidth = std::min(
+                    GetSignificantWidth(range.second),
+                    keyPrefix);
+
+                auto upperBound = WidenKeySuccessor(
+                    range.second,
+                    upperBoundWidth,
+                    rowBuffer,
+                    true);
+
+                prefixRanges.emplace_back(lowerBound, upperBound);
+
+                YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                    range.first,
+                    range.second,
+                    lowerBound,
+                    upperBound);
+            }
+
+            for (const auto& key : split.Keys) {
+                isKeys = true;
+                YT_VERIFY(!isRanges);
+
+                int keyWidth = std::min(
+                    size_t(key.GetCount()),
+                    keyPrefix);
+
+                auto prefixKey = rowBuffer->AllocateUnversioned(keyWidth);
+                for (int column = 0; column < keyWidth; ++column) {
+                    prefixKey[column] = rowBuffer->CaptureValue(key[column]);
+                }
+                prefixKeys.emplace_back(prefixKey);
             }
         }
+
+        TDataSource dataSource;
+
+        if (isRanges) {
+            prefixRanges.erase(
+                MergeOverlappingRanges(prefixRanges.begin(), prefixRanges.end()),
+                prefixRanges.end());
+            dataSource.Ranges = MakeSharedRange(prefixRanges, rowBuffer);
+        }
+
+        if (isKeys) {
+            prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
+            dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
+        }
+
+        return dataSource;
     }
 
     static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)
@@ -571,7 +716,11 @@ private:
         return minKeyWidth;
     }
 
-    TQueryStatistics DoCoordinateAndExecute(std::vector<std::vector<TDataSource>> groupedDataSplits, size_t minKeyWidth)
+    TQueryStatistics DoCoordinateAndExecute(
+        std::vector<std::vector<TabletReadItems>> groupedDataSplits,
+        const TRowBufferPtr& rowBuffer,
+        size_t minKeyWidth)
+
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -613,6 +762,7 @@ private:
                 &,
                 bottomQueryPattern = bottomQueryPattern,
                 groupedDataSplits = std::move(groupedDataSplits),
+                rowBuffer,
                 subqueryIndex = 0
             ] () mutable -> TEvaluateResult {
                 if (subqueryIndex >= std::ssize(groupedDataSplits)) {
@@ -648,80 +798,12 @@ private:
                         minKeyWidth);
 
                     if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0 && !orderedExecution) {
-                        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
-
-                        std::vector<TRowRange> prefixRanges;
-                        std::vector<TRow> prefixKeys;
-                        bool isRanges = false;
-                        bool isKeys = false;
-
-                        for (const auto& split : dataSplits) {
-                            for (int index = 0; index < std::ssize(split.Ranges); ++index) {
-                                isRanges = true;
-                                YT_VERIFY(!isKeys);
-                                const auto& range = split.Ranges[index];
-                                int lowerBoundWidth = std::min(
-                                    GetSignificantWidth(range.first),
-                                    joinClause->CommonKeyPrefix);
-
-                                auto lowerBound = rowBuffer->AllocateUnversioned(lowerBoundWidth);
-                                for (int column = 0; column < lowerBoundWidth; ++column) {
-                                    lowerBound[column] = rowBuffer->CaptureValue(range.first[column]);
-                                }
-
-                                int upperBoundWidth = std::min(
-                                    GetSignificantWidth(range.second),
-                                    joinClause->CommonKeyPrefix);
-
-                                auto upperBound = WidenKeySuccessor(
-                                    range.second,
-                                    upperBoundWidth,
-                                    rowBuffer,
-                                    true);
-
-                                prefixRanges.emplace_back(lowerBound, upperBound);
-
-                                YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
-                                    range.first,
-                                    range.second,
-                                    lowerBound,
-                                    upperBound);
-                            }
-
-                            for (int index = 0; index < std::ssize(split.Keys); ++index) {
-                                isKeys = true;
-                                YT_VERIFY(!isRanges);
-                                const auto& key = split.Keys[index];
-
-                                int keyWidth = std::min(
-                                    size_t(key.GetCount()),
-                                    joinClause->CommonKeyPrefix);
-
-                                auto prefixKey = rowBuffer->AllocateUnversioned(keyWidth);
-                                for (int column = 0; column < keyWidth; ++column) {
-                                    prefixKey[column] = rowBuffer->CaptureValue(key[column]);
-                                }
-                                prefixKeys.emplace_back(prefixKey);
-                            }
-                        }
-
-                        TDataSource dataSource;
+                        auto dataSource = GetPrefixReadItems(dataSplits, joinClause->CommonKeyPrefix);
                         dataSource.ObjectId = joinClause->ForeignObjectId;
                         dataSource.CellId = joinClause->ForeignCellId;
 
-                        if (isRanges) {
-                            prefixRanges.erase(
-                                MergeOverlappingRanges(prefixRanges.begin(), prefixRanges.end()),
-                                prefixRanges.end());
-                            dataSource.Ranges = MakeSharedRange(prefixRanges, rowBuffer);
-                        }
-
-                        if (isKeys) {
-                            prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
-                            dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
-                        }
-
                         subquery->InferRanges = false;
+
                         // COMPAT(lukyan): Use ordered read without modification of protocol
                         subquery->Limit = std::numeric_limits<i64>::max() - 1;
 
@@ -811,7 +893,7 @@ private:
                     }
                 };
 
-                auto mergingReader = CreateReaderForDataSources(std::move(dataSplits));
+                auto mergingReader = CreateReaderForDataSources(std::move(dataSplits), rowBuffer);
 
                 YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
 
@@ -890,18 +972,78 @@ private:
             });
     }
 
-    TQueryStatistics DoExecute()
+    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesOld(
+        std::vector<TDataSource> dataSourcesByTablet,
+        const TRowBufferPtr& rowBuffer)
     {
+        std::vector<TabletReadItems> splits;
+
+        bool sortedDataSource = false;
+
+        for (const auto& tabletIdRange : dataSourcesByTablet) {
+            auto tabletId = tabletIdRange.ObjectId;
+            const auto& ranges = tabletIdRange.Ranges;
+            const auto& keys = tabletIdRange.Keys;
+
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
+
+            YT_VERIFY(tabletIdRange.Keys.Empty() != ranges.Empty());
+
+            if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
+                splits.push_back(TabletReadItems{
+                    .TabletId = tabletId,
+                    .Ranges = ranges,
+                    .Keys = keys,
+                });
+                continue;
+            }
+
+            sortedDataSource = true;
+
+            for (auto it = ranges.begin(), itEnd = ranges.end(); it + 1 < itEnd; ++it) {
+                YT_QL_CHECK(it->second <= (it + 1)->first);
+            }
+
+            const auto& partitions = tabletSnapshot->PartitionList;
+            YT_VERIFY(!partitions.empty());
+
+            auto tabletSplits = SplitTablet(
+                TRange(partitions),
+                ranges,
+                rowBuffer,
+                Config_->MaxSubsplitsPerTablet,
+                QueryOptions_.VerboseLogging,
+                Logger);
+
+            for (const auto& split : tabletSplits) {
+                splits.push_back(TabletReadItems{
+                    .TabletId = tabletId,
+                    .Ranges = split,
+                });
+            }
+        }
+
+        if (sortedDataSource) {
+            for (const auto& split : splits) {
+                for (auto it = split.Ranges.begin(), itEnd = split.Ranges.end(); it + 1 < itEnd; ++it) {
+                    YT_QL_CHECK(it->second <= (it + 1)->first);
+                }
+            }
+
+            for (auto it = splits.begin(), itEnd = splits.end(); it + 1 < itEnd; ++it) {
+                const auto& lhs = *it;
+                const auto& rhs = *(it + 1);
+
+                const auto& lhsValue = lhs.Ranges ? lhs.Ranges.Back().second : lhs.Keys.Back();
+                const auto& rhsValue = rhs.Ranges ? rhs.Ranges.Front().first : rhs.Keys.Front();
+
+                YT_QL_CHECK(lhsValue <= rhsValue);
+            }
+        }
+
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
-        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
-        auto classifiedDataSources = GetClassifiedDataSources(rowBuffer);
-
-        auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
-
-        auto splits = CoordinateDataSources(classifiedDataSources, rowBuffer);
-
-        std::vector<std::vector<TDataSource>> groupedDataSplits;
+        std::vector<std::vector<TabletReadItems>> groupedDataSplits;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
@@ -919,7 +1061,7 @@ private:
             // Tablets must be read individually because they can be interleaved with tablets at other nodes.
             ssize_t lastOffset = beginIndex;
             for (ssize_t index = beginIndex; index < endIndex; ++index) {
-                if (index > lastOffset && splits[index].ObjectId != splits[lastOffset].ObjectId) {
+                if (index > lastOffset && splits[index].TabletId != splits[lastOffset].TabletId) {
                     processSplitsRanges(lastOffset, index);
                     lastOffset = index;
                 }
@@ -955,7 +1097,7 @@ private:
 
         YT_VERIFY(splitOffset == splitCount);
 
-        return DoCoordinateAndExecute(std::move(groupedDataSplits), minKeyWidth);
+        return groupedDataSplits;
     }
 
     std::vector<TDataSource> GetClassifiedDataSources(const TRowBufferPtr& rowBuffer)
@@ -1063,92 +1205,335 @@ private:
         return classifiedDataSources;
     }
 
-    std::vector<TDataSource> CoordinateDataSources(std::vector<TDataSource> dataSourcesByTablet, TRowBufferPtr rowBuffer)
+    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesNew(
+        std::vector<TDataSource> dataSourcesByTablet,
+        const TRowBufferPtr& rowBuffer)
     {
-        std::vector<TDataSource> groupedSplits;
+        struct TSampleRange
+        {
+            TKeyRef LowerSampleKey;
+            TKeyRef UpperSampleKey;
 
-        bool sortedDataSource = false;
+            TRange<TRowRange> Ranges;
+            int Weight = 0;
+        };
 
-        for (auto& tabletIdRange : dataSourcesByTablet) {
-            auto tabletId = tabletIdRange.ObjectId;
-            auto cellId = tabletIdRange.CellId;
-            auto& ranges = tabletIdRange.Ranges;
+        struct TPartitionRanges
+        {
+            std::vector<TSampleRange> SampleRanges;
 
-            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
+            // PartitionIndex is used to determine which partiton to read if range intersects partition's bound.
+            int PartitionIndex;
+        };
 
-            YT_VERIFY(tabletIdRange.Keys.Empty() != ranges.Empty());
+        struct TTabletRanges
+        {
+            std::vector<TPartitionRanges> PartitionRanges;
+            TTabletId TabletId;
 
-            if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
-                groupedSplits.push_back(tabletIdRange);
-                continue;
-            }
+            TSharedRange<TRowRange> Ranges;
+            TSharedRange<TRow> Keys;
+        };
 
-            sortedDataSource = true;
+        std::vector<TTabletRanges> tabletRanges;
 
+        int totalWeight = 0;
+        int maxWeight = 0;
+
+        for (const auto& dataSource : dataSourcesByTablet) {
+            auto tabletId = dataSource.ObjectId;
+            const auto& ranges = dataSource.Ranges;
+            const auto& keys = dataSource.Keys;
+
+            YT_VERIFY(keys.Empty() != ranges.Empty());
             for (auto it = ranges.begin(), itEnd = ranges.end(); it + 1 < itEnd; ++it) {
                 YT_QL_CHECK(it->second <= (it + 1)->first);
             }
 
-            const auto& partitions = tabletSnapshot->PartitionList;
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
+
+            if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
+                tabletRanges.push_back({.TabletId = tabletId, .Ranges = ranges, .Keys = keys});
+                continue;
+            }
+
+            auto partitions = TRange(tabletSnapshot->PartitionList);
             YT_VERIFY(!partitions.empty());
 
-            auto splits = SplitTablet(
-                TRange(partitions),
-                ranges,
-                rowBuffer,
-                Config_->MaxSubsplitsPerTablet,
-                QueryOptions_.VerboseLogging,
-                Logger);
+            using TPartitionIt = typename TRange<TPartitionSnapshotPtr>::iterator;
+            using TRangesIt = TRange<TRowRange>::iterator;
 
-            for (const auto& split : splits) {
-                groupedSplits.push_back(TDataSource{
-                    .ObjectId = tabletId,
-                    .CellId = cellId,
-                    .Ranges = split,
-                });
-            }
+            struct TPredicate
+            {
+                // itemIt PRECEDES partitionIt
+                bool operator() (TRangeIt itemIt, TPartitionIt partitionIt) const
+                {
+                    return itemIt->second <= (*partitionIt)->NextPivotKey;
+                }
+
+                // itemIt FOLLOWS partitionIt
+                bool operator() (TPartitionIt partitionIt, TRangeIt itemIt) const
+                {
+                    return (*partitionIt)->NextPivotKey <= itemIt->first;
+                }
+            };
+
+            std::vector<TPartitionRanges> partitionRanges;
+
+            GroupItemsByShards(ranges, partitions, TPredicate{}, [&] (TPartitionIt partitionIt, TRangesIt rangesIt, TRangesIt rangesItEnd) {
+                YT_VERIFY(rangesIt != rangesItEnd);
+
+                if (partitionIt == partitions.end()) {
+                    YT_VERIFY(rangesIt + 1 == ranges.end());
+                    return;
+                }
+
+                struct TPredicate
+                {
+                    // itemIt PRECEDES shardIt
+                    bool operator() (const TRowRange* itemIt, const TKeyRef* shardIt) const
+                    {
+                        return CompareValueRanges(ToKeyRef(itemIt->second), *shardIt) <= 0;
+                    }
+
+                    // itemIt FOLLOWS shardIt
+                    bool operator() (const TKeyRef* shardIt, const TRowRange* itemIt) const
+                    {
+                        return CompareValueRanges(*shardIt, ToKeyRef(itemIt->first)) <= 0;
+                    }
+                };
+
+                // Alternatively can group items by original sample ranges with weight 1 and concat them afterwise.
+                // It does not make difference because of original ranges width.
+                std::vector<TKeyRef> sampleKeys;
+                std::vector<int> weights;
+                if (QueryOptions_.MergeVersionedRows) {
+                    weights.push_back(1);
+
+                    for (auto key : (*partitionIt)->SampleKeys->Keys) {
+                        sampleKeys.push_back(ToKeyRef(key));
+                        weights.push_back(1);
+                    }
+                } else {
+                    size_t keyWidth = std::numeric_limits<size_t>::min();
+                    for (const auto& range : ranges) {
+                        keyWidth = std::max({
+                            keyWidth,
+                            GetSignificantWidth(range.first),
+                            GetSignificantWidth(range.second)});
+                    }
+
+                    if (QueryOptions_.VerboseLogging) {
+                        YT_LOG_DEBUG("Preparing sample key prefixes (KeyWidth: %v)", keyWidth);
+                    }
+
+                    std::tie(sampleKeys, weights) = GetSampleKeysForPrefix((*partitionIt)->SampleKeys->Keys, keyWidth);
+                }
+
+                int partitionIndex = static_cast<int>(partitionIt - partitions.begin());
+
+                if (QueryOptions_.VerboseLogging) {
+                    YT_LOG_DEBUG("Processing partition (PartitionIndex: %v, InitialRanges: %v, SamplePrefixes: %v)",
+                        partitionIndex,
+                        MakeFormattableView(TRange(rangesIt, rangesItEnd), TRangeFormatter()),
+                        MakeFormattableView(sampleKeys, TKeyFormatter()));
+                }
+
+                std::vector<TSampleRange> sampleRanges;
+                GroupItemsByShards(
+                    TRange(rangesIt, rangesItEnd),
+                    TRange(sampleKeys),
+                    TPredicate{},
+                    [&] (const TKeyRef* sampleIt, TRangeIt rangesIt, TRangeIt rangesItEnd) {
+                        TKeyRef lowerSampleBound = sampleIt == sampleKeys.begin() ? ToKeyRef(MinKey()) : *(sampleIt - 1);
+                        TKeyRef upperSampleBound = sampleIt == sampleKeys.end() ? ToKeyRef(MaxKey()) : *sampleIt;
+
+                        auto weight = weights[sampleIt - sampleKeys.begin()];
+                        totalWeight += weight;
+                        if (maxWeight < weight) {
+                            maxWeight = weight;
+                        }
+
+                        sampleRanges.push_back(TSampleRange{
+                            lowerSampleBound,
+                            upperSampleBound,
+                            ranges.Slice(rangesIt, rangesItEnd),
+                            weight});
+                    });
+
+                if (QueryOptions_.VerboseLogging) {
+                    YT_LOG_DEBUG("Got grouped by samples ranges (PartitionIndex: %v, SampleRanges: %v)",
+                        partitionIndex,
+                        MakeFormattableView(sampleRanges, [] (TStringBuilderBase* builder, const TSampleRange& item) {
+                            builder->AppendFormat("Sample: %kv - %kv, Ranges: %v",
+                                item.LowerSampleKey,
+                                item.UpperSampleKey,
+                                MakeFormattableView(item.Ranges, TRangeFormatter()));
+                        }));
+                }
+                partitionRanges.push_back({std::move(sampleRanges), partitionIndex});
+            });
+
+            tabletRanges.push_back({.PartitionRanges = std::move(partitionRanges), .TabletId = tabletId});
         }
 
-        if (sortedDataSource) {
-            for (const auto& split : groupedSplits) {
-                for (auto it = split.Ranges.begin(), itEnd = split.Ranges.end(); it + 1 < itEnd; ++it) {
-                    YT_QL_CHECK(it->second <= (it + 1)->first);
+        auto maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
+        YT_VERIFY(maxGroups > 0);
+        int targetGroupCount = std::min(totalWeight == 0 ? 1 : totalWeight / maxWeight, maxGroups);
+        YT_VERIFY(targetGroupCount > 0);
+
+        YT_LOG_DEBUG("Regrouping by weight (TotalWeight: %v, MaxWeight %v, MaxGroups: %v, TargetGroupCount: %v)",
+            totalWeight,
+            maxWeight,
+            maxGroups,
+            targetGroupCount);
+
+        int currentSummaryWeight = 0;
+        int groupId = 0;
+        int nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+
+        std::vector<std::vector<TabletReadItems>> groupedReadRanges;
+        std::vector<TabletReadItems> tabletBoundsGroup;
+
+        bool firstSampleInGroup = true;
+
+        TRow lowerBound;
+        const TRowRange* lastRowRange;
+
+        for (const auto& [partitionRanges, tabletId, ranges, keys] : tabletRanges) {
+            if (!ranges.empty() || !keys.empty()) {
+                YT_VERIFY(tabletBoundsGroup.empty());
+                groupedReadRanges.push_back({{.TabletId = tabletId, .Ranges = ranges, .Keys = keys}});
+                continue;
+            }
+
+            for (const auto& [sampleRanges, partitionIndex] : partitionRanges) {
+                lastRowRange = nullptr;
+
+                for (const auto& sampleRange : sampleRanges) {
+                    currentSummaryWeight += sampleRange.Weight;
+
+                    if (tabletBoundsGroup.empty() || tabletBoundsGroup.back().TabletId != tabletId) {
+                        tabletBoundsGroup.push_back({.TabletId = tabletId});
+                    }
+
+                    if (tabletBoundsGroup.back().PartitionBounds.empty() ||
+                        tabletBoundsGroup.back().PartitionBounds.back().PartitionIndex != partitionIndex)
+                    {
+                        tabletBoundsGroup.back().PartitionBounds.push_back({.PartitionIndex = partitionIndex});
+                    }
+
+                    auto& partitionBounds = tabletBoundsGroup.back().PartitionBounds.back();
+
+                    if (firstSampleInGroup) {
+                        lowerBound = sampleRange.Ranges.Front().first;
+                        if (CompareValueRanges(ToKeyRef(lowerBound), sampleRange.LowerSampleKey) < 0) {
+                            lowerBound = rowBuffer->CaptureRow(sampleRange.LowerSampleKey);
+                        }
+
+                        firstSampleInGroup = false;
+                    }
+
+                    for (auto range : TRange(std::max(lastRowRange, sampleRange.Ranges.Begin()), sampleRange.Ranges.End())) {
+                        YT_VERIFY(partitionBounds.Bounds.empty() || partitionBounds.Bounds.back().second <= range.first);
+                        partitionBounds.Bounds.push_back(range);
+                    }
+
+                    lastRowRange = sampleRange.Ranges.End();
+
+                    if (currentSummaryWeight >= nextWeight) {
+                        // Flush group.
+                        YT_VERIFY(!firstSampleInGroup);
+
+                        auto upperBound = tabletBoundsGroup.back().PartitionBounds.back().Bounds.back().second;
+                        if (CompareValueRanges(sampleRange.UpperSampleKey, ToKeyRef(upperBound)) < 0) {
+                            upperBound = rowBuffer->CaptureRow(sampleRange.UpperSampleKey);
+                        }
+
+                        tabletBoundsGroup.front().PartitionBounds.front().Bounds.front().first = lowerBound;
+                        tabletBoundsGroup.back().PartitionBounds.back().Bounds.back().second = upperBound;
+                        groupedReadRanges.push_back(std::move(tabletBoundsGroup));
+
+                        // Initialize new group.
+                        lastRowRange = nullptr;
+                        firstSampleInGroup = true;
+
+                        ++groupId;
+                        nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+                    }
                 }
             }
-
-            for (auto it = groupedSplits.begin(), itEnd = groupedSplits.end(); it + 1 < itEnd; ++it) {
-                const auto& lhs = *it;
-                const auto& rhs = *(it + 1);
-
-                const auto& lhsValue = lhs.Ranges ? lhs.Ranges.Back().second : lhs.Keys.Back();
-                const auto& rhsValue = rhs.Ranges ? rhs.Ranges.Front().first : rhs.Keys.Front();
-
-                YT_QL_CHECK(lhsValue <= rhsValue);
-            }
         }
 
-        return groupedSplits;
+        // Last group is flushed here.
+        YT_VERIFY(
+            tabletBoundsGroup.empty() ||
+            tabletBoundsGroup.back().PartitionBounds.empty() ||
+            tabletBoundsGroup.back().PartitionBounds.back().Bounds.empty());
+        YT_VERIFY(currentSummaryWeight == totalWeight);
+
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
+
+        if (regroupByTablets) {
+            std::vector<std::vector<TabletReadItems>> regroupedReadRanges;
+            std::vector<TabletReadItems> tabletBoundsGroup;
+
+            for (const auto& group : groupedReadRanges) {
+                for (const auto& tabletReadItems : group) {
+                    if (tabletBoundsGroup.empty() || tabletBoundsGroup.back().TabletId != tabletReadItems.TabletId) {
+                        tabletBoundsGroup.push_back(tabletReadItems);
+                    } else {
+                        regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                    }
+                }
+                regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+            }
+
+            return regroupedReadRanges;
+        }
+
+        return groupedReadRanges;
     }
 
-    ISchemafulUnversionedReaderPtr CreateReaderForDataSources(std::vector<TDataSource> dataSplits)
+    ISchemafulUnversionedReaderPtr CreateReaderForDataSources(
+        std::vector<TabletReadItems> dataSplits,
+        TRowBufferPtr rowBuffer)
     {
-        size_t rangeCount = std::accumulate(
-            dataSplits.begin(),
-            dataSplits.end(),
-            0,
-            [] (size_t sum, const TDataSource& element) {
-                return sum + element.Ranges.Size();
-            });
-        YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
+        size_t partitionBounds = 0;
+        size_t sortedRangeCount = 0;
+        size_t orderedRangeCount = 0;
+        size_t keyCount = 0;
+
+        for (const auto& dataSplit : dataSplits) {
+            partitionBounds += dataSplit.PartitionBounds.size();
+            for (const auto& bounds : dataSplit.PartitionBounds) {
+                sortedRangeCount += bounds.Bounds.size();
+            }
+
+            orderedRangeCount += dataSplit.Ranges.size();
+            keyCount += dataSplit.Keys.size();
+        }
+
+        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v",
             dataSplits.size(),
-            rangeCount);
+            partitionBounds,
+            sortedRangeCount,
+            orderedRangeCount,
+            keyCount);
 
         if (QueryOptions_.VerboseLogging) {
             for (const auto& dataSplit : dataSplits) {
-                YT_LOG_DEBUG("Read items in split (TabletId: %v, Ranges: %v, Keys: %v)",
-                    dataSplit.ObjectId,
+                YT_LOG_DEBUG("Read items in split (TabletId: %v, Partitions: %v, Ranges: %v, Keys: %v)",
+                    dataSplit.TabletId,
+                    MakeFormattableView(
+                        dataSplit.PartitionBounds,
+                        [] (TStringBuilderBase* builder, const TPartitionBounds& source) {
+                            builder->AppendFormat("%v: %v",
+                                source.PartitionIndex,
+                                MakeFormattableView(source.Bounds, TRangeFormatter()));
+                        }),
                     MakeFormattableView(dataSplit.Ranges, TRangeFormatter()),
-                    dataSplit.Keys);
+                    MakeFormattableView(dataSplit.Keys, TKeyFormatter()));
             }
         }
 
@@ -1165,11 +1550,12 @@ private:
 
             const auto& dataSplit = dataSplits[dataSplitIndex++];
 
-            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSplit.ObjectId);
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSplit.TabletId);
             auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
 
             try {
                 ISchemafulUnversionedReaderPtr reader;
+
                 if (dataSplit.Ranges) {
                     if (tabletSnapshot->TableSchema->IsSorted()) {
                         reader = CreateSchemafulSortedTabletReader(
@@ -1208,7 +1594,18 @@ private:
 
                         reader = CreateUnorderedSchemafulReader(std::move(orderedRangeReaderGenerator), 1);
                     }
-                } else if (dataSplit.Keys) {
+                } else if (!dataSplit.PartitionBounds.empty()) {
+                    reader = CreatePartitionScanReader(
+                        tabletSnapshot,
+                        columnFilter,
+                        MakeSharedRange(dataSplit.PartitionBounds, rowBuffer),
+                        QueryOptions_.TimestampRange,
+                        ChunkReadOptions_,
+                        ETabletDistributedThrottlerKind::Select,
+                        ChunkReadOptions_.WorkloadDescriptor.Category,
+                        std::move(timestampReadOptions),
+                        QueryOptions_.MergeVersionedRows);
+                } if (dataSplit.Keys) {
                     reader = CreateSchemafulLookupTabletReader(
                         tabletSnapshot,
                         columnFilter,

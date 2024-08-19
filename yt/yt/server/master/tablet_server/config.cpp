@@ -252,7 +252,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("replicate_table_collocations", &TThis::ReplicateTableCollocations)
-        .Default(true)
+        .Default(false)
         .DontSerializeDefault();
 
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)

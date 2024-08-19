@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(fastops-fastops-plain)
 
+
 target_link_libraries(fastops-fastops-plain PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,7 +24,7 @@ target_link_libraries(fastops-fastops-plain PUBLIC
 )
 
 target_sources(fastops-fastops-plain PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
 )
 

@@ -13,8 +13,8 @@ But this method has its drawbacks:
 
 Therefore, it is preferable to write the binary data in a single table:
 
-1. The data is divided into parts and saved in separate table rows. This table must have a set of key columns that uniquely identify the file: name and path. Besides that, there must be a column responsible for the [BLOB](https://en.wikipedia.org/wiki/BLOB) number with the data and a column responsible for the data itself. The table must be sorted by a set of key columns and by a column with the BLOB number so that point reads by the key that specifies the file name are possible.
-2. For the file, all BLOBs, except for the last one, must have the same size, for example, 4 MB. The columns with data and the BLOB number must be named `data` and `part_index`, respectively.
+1. The data is divided into parts and saved in separate table rows. This table must have a set of key columns that uniquely identify the file: name and path. Besides that, there must be a column responsible for the [BLOB](https://en.wikipedia.org/wiki/Object_storage) number with the data and a column responsible for the data itself. The table must be sorted by a set of key columns and by a column with the BLOB number so that point reads by the key that specifies the file name are possible.
+2. For a file, all BLOBs, except for the last one, must be the same size. The recommended size is 4 MB, and some commands, such as `read_blob_table`, are applied to it by default. The columns with data and the BLOB number must be named `data` and `part_index`, respectively.
 
 Tables that meet the described conditions are BLOB tables.
 
@@ -30,21 +30,25 @@ The command also checks that the indexes of read BLOBs start from zero and go wi
 
 The command has the `part_index_column_name` and `data_column_name` parameters that enable you to set the names of columns with the BLOB number and data, respectively. By default, these names are `part_index` and `data`.
 
-Starting the operation and reading job stderr from the table with BLOB:
+Example of running an operation and reading the stderr of a job from a BLOB table:
 
-{% list tabs %}
+```bash
+# Starting a Map operation
+$ yt --proxy <cluster-name> map --src '//tmp/table_in' --dst '//tmp/table_mapped' --format yson 'cat; echo something >&2' --spec='{stderr_table_path="//tmp/stderr_table";}'
 
-- Python
+2023-12-07 16:25:19,463	INFO	Operation started: http://<cluster-name>/?page=operation&mode=detail&id=11788844-52f37dd2-3ff03e8-ff3bf1e4&tab=details
+2023-12-07 16:25:19,561	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 initializing
+2023-12-07 16:25:22,961	INFO	( 0 min) Unrecognized spec: {'mapper': {'title': 'cat;'}}
+2023-12-07 16:25:24,230	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4: running=0     completed=0     pending=1     failed=0     aborted=0     lost=0     total=1     blocked=0
+2023-12-07 16:25:25,353	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 completing
+2023-12-07 16:25:27,527	INFO	( 0 min) operation 11788844-52f37dd2-3ff03e8-ff3bf1e4 completed
 
-   ```bash
-   yt.run_map("....; echo 'something' >&2;", "//tmp/input", "//tmp/output", stderr_table="//tmp/stderr_table")
-   ```
+# Finding out the job id
+$ yt --proxy <cluster-name> list-jobs 11788844-52f37dd2-3ff03e8-ff3bf1e4 --format json | jq '.jobs[] | select(.type=="map").id'
 
-- CLI
+"4c3fc84d-884fbde5-3ff0384-94b1"
 
-   ```
-   yt read-blob-table '//tmp/stderr_table["cc26aa85-a694bf6b-3fe0384-963"]'
-   ```
-
-{% endlist %}
-
+# Reading the "errors" of this job only
+$ yt --proxy <cluster-name> read-blob-table '//tmp/stderr_table["4c3fc84d-884fbde5-3ff0384-94b1"]'
+something
+```

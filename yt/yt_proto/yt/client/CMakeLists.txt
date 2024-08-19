@@ -13,318 +13,26 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(cache)
 add_subdirectory(hedging)
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt_proto-yt-client)
+
 
 target_include_directories(yt_proto-yt-client PUBLIC
   ${PROJECT_BINARY_DIR}/yt
@@ -388,6 +96,12 @@ target_sources(yt_proto-yt-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/misc/proto/workload.pb.h
 )
 
+
+target_proto_outs(yt_proto-yt-client
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(yt_proto-yt-client
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -399,9 +113,3 @@ target_proto_addincls(yt_proto-yt-client
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt_proto-yt-client
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-master)
 
+
 target_compile_options(unittester-master PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-master PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-master
+)
+
+target_allocator(unittester-master
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-master PRIVATE
@@ -57,6 +63,7 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-master
@@ -76,21 +83,15 @@ set_property(
   TEST
   unittester-master
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-master)
 
 set_property(
   TEST
   unittester-master
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-master
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-master)
-

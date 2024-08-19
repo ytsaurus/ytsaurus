@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-xxhash)
 
+
 target_compile_options(contrib-libs-xxhash PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

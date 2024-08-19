@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(blockcodecs-codecs-lzma INTERFACE)
 
+
 target_link_libraries(blockcodecs-codecs-lzma INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,8 +27,8 @@ target_link_libraries(blockcodecs-codecs-lzma INTERFACE
 
 
 add_global_library_for(blockcodecs-codecs-lzma.global
-  blockcodecs-codecs-lzma
-)
+  blockcodecs-codecs-lzma)
+
 
 target_link_libraries(blockcodecs-codecs-lzma.global PUBLIC
   linux-headers-generic::linux-headers-generic

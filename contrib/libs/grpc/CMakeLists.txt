@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(src)
+
 add_subdirectory(third_party)
+add_subdirectory(src)
 
 add_library(contrib-libs-grpc)
+
 
 target_compile_options(contrib-libs-grpc PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1

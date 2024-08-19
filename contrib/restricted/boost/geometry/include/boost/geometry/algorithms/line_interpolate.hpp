@@ -1,5 +1,7 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
+// Copyright (c) 2023-2024 Adam Wulkiewicz, Lodz, Poland.
+
 // Copyright (c) 2018-2023 Oracle and/or its affiliates.
 // Contributed and/or modified by Vissarion Fysikopoulos, on behalf of Oracle
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
@@ -35,7 +37,7 @@
 #include <boost/geometry/strategies/line_interpolate/geographic.hpp>
 #include <boost/geometry/strategies/line_interpolate/spherical.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/range.hpp>
 #include <boost/geometry/util/type_traits.hpp>
 
@@ -133,13 +135,16 @@ struct interpolate_range
                                p,
                                diff_distance);
                 Policy::apply(p, pointlike);
-                if ( BOOST_GEOMETRY_CONDITION(util::is_point<PointLike>::value) )
+                if BOOST_GEOMETRY_CONSTEXPR (util::is_point<PointLike>::value)
                 {
                     return;
                 }
-                start_p = p;
-                prev_distance = repeated_distance;
-                repeated_distance += max_distance;
+                else // else prevents unreachable code warning
+                {
+                    start_p = p;
+                    prev_distance = repeated_distance;
+                    repeated_distance += max_distance;
+                }
             }
             prev_distance = current_distance;
             prev = it;

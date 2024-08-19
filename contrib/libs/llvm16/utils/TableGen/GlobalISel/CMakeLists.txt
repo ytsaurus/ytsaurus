@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(utils-TableGen-GlobalISel)
 
+
 target_compile_options(utils-TableGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

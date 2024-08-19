@@ -12,12 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS
   Development
 )
-find_package(linux-headers-generic REQUIRED)
 
 add_library(python-yson-arrow INTERFACE)
+
 
 target_include_directories(python-yson-arrow INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
@@ -37,8 +38,8 @@ target_link_libraries(python-yson-arrow INTERFACE
 
 
 add_global_library_for(python-yson-arrow.global
-  python-yson-arrow
-)
+  python-yson-arrow)
+
 
 target_compile_options(python-yson-arrow.global PRIVATE
   -DPYCXX_PYTHON_2TO3

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(ytserver-dummy)
 
+
 target_compile_options(ytserver-dummy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -25,6 +26,10 @@ target_link_libraries(ytserver-dummy PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
+)
+
+target_allocator(ytserver-dummy
+  cpp-ytalloc-impl
 )
 
 target_link_options(ytserver-dummy PRIVATE
@@ -42,9 +47,5 @@ target_sources(ytserver-dummy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/ytserver_dummy/main.cpp
 )
 
-target_allocator(ytserver-dummy
-  cpp-ytalloc-impl
-)
 
 vcs_info(ytserver-dummy)
-

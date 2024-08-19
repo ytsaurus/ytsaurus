@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-ytlib)
 
+
 target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,7 @@ target_link_libraries(unittester-ytlib PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-query-engine
+  query-unittests-helpers
   library-query-row_comparer
   yt-yt-build
   yt-yt-core
@@ -39,6 +41,10 @@ target_link_libraries(unittester-ytlib PUBLIC
   yt-yt-ytlib
   contrib-libs-sparsehash
   cpp-http-server
+)
+
+target_allocator(unittester-ytlib
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-ytlib PRIVATE
@@ -71,6 +77,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/permission_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/row_merger_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/secondary_index_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
@@ -78,6 +85,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/protobuf_helpers_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -98,20 +106,15 @@ set_property(
   TEST
   unittester-ytlib
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-ytlib)
 
 set_property(
   TEST
   unittester-ytlib
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-ytlib
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-ytlib)
-

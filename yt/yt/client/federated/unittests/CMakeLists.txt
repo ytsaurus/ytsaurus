@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-federated-client)
 
+
 target_link_libraries(unittester-federated-client PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -30,6 +31,11 @@ target_link_libraries(unittester-federated-client PUBLIC
   yt-yt-core
   yt-client-federated
   client-unittests-mock
+)
+
+target_allocator(unittester-federated-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-federated-client PRIVATE
@@ -50,6 +56,7 @@ target_sources(unittester-federated-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/cache_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-federated-client
@@ -69,21 +76,15 @@ set_property(
   TEST
   unittester-federated-client
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-federated-client)
 
 set_property(
   TEST
   unittester-federated-client
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-federated-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-federated-client)
-

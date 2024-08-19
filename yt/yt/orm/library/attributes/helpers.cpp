@@ -65,31 +65,6 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonStringWriterHelper::TYsonStringWriterHelper(EYsonFormat format, EYsonType type)
-    : Output_(ValueString_)
-    , Writer_(CreateYsonWriter(&Output_, format, type, /*enableRaw*/ format == EYsonFormat::Binary))
-{ }
-
-IYsonConsumer* TYsonStringWriterHelper::GetConsumer()
-{
-    return Writer_.get();
-}
-
-TYsonString TYsonStringWriterHelper::Flush()
-{
-    Writer_->Flush();
-    auto result = TYsonString(ValueString_);
-    ValueString_.clear();
-    return result;
-}
-
-bool TYsonStringWriterHelper::IsEmpty() const
-{
-    return ValueString_.Empty();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TIndexParseResult::EnsureIndexType(EListIndexType indexType, TStringBuf path)
 {
     THROW_ERROR_EXCEPTION_UNLESS(IndexType == indexType,

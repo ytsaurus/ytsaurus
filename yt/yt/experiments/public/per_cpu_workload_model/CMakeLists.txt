@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(per_cpu_workload_model)
 
+
 target_compile_options(per_cpu_workload_model PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,10 @@ target_link_libraries(per_cpu_workload_model PUBLIC
   library-cpp-getopt
   yt-yt-core
   server-lib-io
+)
+
+target_allocator(per_cpu_workload_model
+  cpp-ytalloc-impl
 )
 
 target_link_options(per_cpu_workload_model PRIVATE
@@ -46,9 +51,5 @@ target_sources(per_cpu_workload_model PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/per_cpu_workload_model/main.cpp
 )
 
-target_allocator(per_cpu_workload_model
-  cpp-ytalloc-impl
-)
 
 vcs_info(per_cpu_workload_model)
-

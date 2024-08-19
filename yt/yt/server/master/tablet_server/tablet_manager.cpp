@@ -810,6 +810,7 @@ public:
             case ETabletActionKind::SmoothMove:
                 if (!cells.empty() && cells.size() != tablets.size()) {
                     THROW_ERROR_EXCEPTION("Number of destination cells and tablets mismatch: %v tablets, %v cells",
+                        tablets.size(),
                         cells.size());
                 }
                 if (!pivotKeys.empty()) {
@@ -837,7 +838,7 @@ public:
                         }
                     } else {
                         if (ssize(cells) != ssize(pivotKeys)) {
-                            THROW_ERROR_EXCEPTION("Number of destination cells and pivot keys mismatch: pivot keys %v, cells %",
+                            THROW_ERROR_EXCEPTION("Number of destination cells and pivot keys mismatch: pivot keys %v, cells %v",
                                 pivotKeys.size(),
                                 cells.size());
 

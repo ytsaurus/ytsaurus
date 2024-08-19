@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(src-compiler-grpc_plugin_support)
 
+
 target_compile_options(src-compiler-grpc_plugin_support PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

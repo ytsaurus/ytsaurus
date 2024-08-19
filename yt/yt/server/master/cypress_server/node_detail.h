@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cypress_manager.h"
+#include "type_handler.h"
 #include "node.h"
 #include "private.h"
 
@@ -351,7 +351,7 @@ public:
             branchedNode->template As<TImpl>());
     }
 
-    std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const override
+    std::optional<std::vector<std::string>> ListColumns(TCypressNode* node) const override
     {
         return DoListColumns(node->template As<TImpl>());
     }
@@ -485,7 +485,7 @@ protected:
         return false;
     }
 
-    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* /*node*/) const
+    virtual std::optional<std::vector<std::string>> DoListColumns(TImpl* /*node*/) const
     {
         return std::nullopt;
     }
@@ -795,7 +795,7 @@ private:
 
 // Traverse all ancestors and collect inheritable attributes.
 void GatherInheritableAttributes(
-    TCypressNode* node,
+    const TCypressNode* node,
     TCompositeNodeBase::TTransientAttributes* attributes,
     ENodeMaterializationReason mode = ENodeMaterializationReason::Create);
 
@@ -850,10 +850,12 @@ protected:
 template <class TNonOwnedChild>
 class TMapNodeChildren
 {
+private:
     using TMaybeOwnedChild = std::conditional_t<
         std::is_pointer_v<TNonOwnedChild>,
         NObjectServer::TStrongObjectPtr<std::remove_pointer_t<TNonOwnedChild>>,
-        TNonOwnedChild>;
+        TNonOwnedChild
+    >;
 
     static TMaybeOwnedChild ToOwnedOnLoad(TNonOwnedChild child);
     static TMaybeOwnedChild Clone(const TMaybeOwnedChild& child);
@@ -861,8 +863,8 @@ class TMapNodeChildren
 
 public:
     static constexpr bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
-    using TKeyToChild = THashMap<TString, TNonOwnedChild>;
-    using TChildToKey = THashMap<TMaybeOwnedChild, TString>;
+    using TKeyToChild = THashMap<std::string, TNonOwnedChild, THash<std::string_view>, TEqualTo<std::string_view>>;
+    using TChildToKey = THashMap<TMaybeOwnedChild, std::string>;
 
     static bool IsNull(TNonOwnedChild child) noexcept;
 
@@ -877,10 +879,10 @@ public:
 
     void RecomputeMasterMemoryUsage();
 
-    void Set(const TString& key, TNonOwnedChild child);
-    void Insert(const TString& key, TNonOwnedChild child);
-    void Remove(const TString& key, TNonOwnedChild child);
-    bool Contains(const TString& key) const;
+    void Set(const std::string& key, TNonOwnedChild child);
+    void Insert(const std::string& key, TNonOwnedChild child);
+    void Remove(const std::string& key, TNonOwnedChild child);
+    bool Contains(const std::string& key) const;
 
     const TKeyToChild& KeyToChild() const;
     const TChildToKey& ChildToKey() const;

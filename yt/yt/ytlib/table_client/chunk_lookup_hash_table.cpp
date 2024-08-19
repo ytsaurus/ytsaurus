@@ -112,23 +112,6 @@ bool ReadRows(const TReader& reader, std::vector<TRow>* rows)
     return true;
 }
 
-void FormatValue(TStringBuilderBase* builder, TRange<TUnversionedValue> row, TStringBuf format)
-{
-    if (row) {
-        builder->AppendChar('[');
-        JoinToString(
-            builder,
-            row.Begin(),
-            row.End(),
-            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
-                FormatValue(builder, value, format);
-            });
-        builder->AppendChar(']');
-    } else {
-        builder->AppendString("<null>");
-    }
-}
-
 TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
     IVersionedReaderPtr reader,
     size_t chunkRowCount)
@@ -161,7 +144,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     IBlockCachePtr blockCache,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto chunkFormat = chunkMeta->GetChunkFormat();
     const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
@@ -180,9 +164,12 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             chunkMeta,
             tableSchema,
             TColumnFilter(tableSchema->GetKeyColumnCount()),
-            nullptr,
+            /*chunkColumnMapping*/ nullptr,
             blockManagerFactory,
-            true);
+            /*produceAll*/ true,
+            /*readerStatistics*/ nullptr,
+            /*keyFilterStatistics*/ nullptr,
+            memoryUsageTracker);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
     }
@@ -299,11 +286,20 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const std::vector<TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer)
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker)
 {
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
-    return CreateChunkLookupHashTable(chunkId, startBlockIndex, startBlockIndex + blocks.size(), blockCache, chunkMeta, tableSchema, keyComparer);
+    return CreateChunkLookupHashTable(
+        chunkId,
+        startBlockIndex,
+        startBlockIndex + std::ssize(blocks),
+        blockCache,
+        chunkMeta,
+        tableSchema,
+        keyComparer,
+        memoryUsageTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

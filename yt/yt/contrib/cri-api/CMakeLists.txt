@@ -36,12 +36,15 @@ get_built_tool_path(
 )
 
 add_library(yt-contrib-cri-api)
+
+
+set_property(TARGET yt-contrib-cri-api PROPERTY PROTO_NAMESPACE
+  yt/yt/contrib/cri-api
+)
+
 set_property(TARGET yt-contrib-cri-api PROPERTY PROTOC_EXTRA_OUTS
   .grpc.pb.cc
   .grpc.pb.h
-)
-set_property(TARGET yt-contrib-cri-api PROPERTY PROTO_NAMESPACE
-  yt/yt/contrib/cri-api
 )
 
 target_include_directories(yt-contrib-cri-api PUBLIC
@@ -66,6 +69,12 @@ target_sources(yt-contrib-cri-api PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.grpc.pb.h
 )
 
+
+target_proto_outs(yt-contrib-cri-api
+  --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
+)
+
 target_proto_addincls(yt-contrib-cri-api
   ./yt/yt/contrib/cri-api
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
@@ -78,13 +87,14 @@ target_proto_addincls(yt-contrib-cri-api
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(yt-contrib-cri-api
-  --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
-)
-
 target_proto_plugin(yt-contrib-cri-api
   grpc_cpp
-  grpc_cpp
+  ${TOOL_grpc_cpp_bin}
 )
 
+
+if(NOT CMAKE_CROSSCOMPILING)
+  add_dependencies(yt-contrib-cri-api
+    grpc_cpp
+  )
+endif()

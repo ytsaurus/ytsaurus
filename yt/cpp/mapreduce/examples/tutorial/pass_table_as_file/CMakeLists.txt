@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(pass_table_as_file)
 
+
 target_compile_options(pass_table_as_file PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,11 @@ target_link_libraries(pass_table_as_file PUBLIC
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
+)
+
+target_allocator(pass_table_as_file
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(pass_table_as_file PRIVATE
@@ -44,10 +50,5 @@ target_sources(pass_table_as_file PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/pass_table_as_file/main.cpp
 )
 
-target_allocator(pass_table_as_file
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(pass_table_as_file)
-

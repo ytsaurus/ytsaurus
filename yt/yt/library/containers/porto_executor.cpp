@@ -111,7 +111,7 @@ THashMap<TString, TErrorOr<TString>> ParsePortoGetResponse(
         if (property.error() == EError::Success) {
             result[property.variable()] = property.value();
         } else {
-            result[property.variable()] = TError(ConvertPortoErrorCode(property.error()), property.errormsg())
+            result[property.variable()] = TError(ConvertPortoErrorCode(property.error()), TRuntimeFormat(property.errormsg()))
                 << TErrorAttribute("porto_error", ConvertPortoErrorCode(property.error()));
         }
     }

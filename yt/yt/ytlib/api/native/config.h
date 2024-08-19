@@ -229,6 +229,7 @@ public:
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+    NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
@@ -285,6 +286,7 @@ public:
     TDuration DefaultPullRowsTimeout;
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;
+    TDuration DefaultChaosWatcherClientRequestTimeout;
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;
 
@@ -346,6 +348,8 @@ public:
     bool UseWebAssembly;
 
     TDuration FlowPipelineControllerRpcTimeout;
+
+    EMasterChannelKind ReadArchiveStateFrom;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

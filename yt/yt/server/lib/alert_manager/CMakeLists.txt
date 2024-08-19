@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-alert_manager)
 
+
 target_compile_options(server-lib-alert_manager PRIVATE
   -Wdeprecated-this-capture
 )

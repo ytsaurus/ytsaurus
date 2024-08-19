@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(concurrent_cache)
 
+
 target_link_libraries(concurrent_cache PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(concurrent_cache
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(concurrent_cache PRIVATE
@@ -40,10 +46,5 @@ target_sources(concurrent_cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/concurrent_cache/main.cpp
 )
 
-target_allocator(concurrent_cache
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(concurrent_cache)
-

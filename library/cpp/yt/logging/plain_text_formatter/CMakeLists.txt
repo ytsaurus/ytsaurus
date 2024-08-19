@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-logging-plain_text_formatter)
 
+
 target_compile_options(yt-logging-plain_text_formatter PRIVATE
   -Wdeprecated-this-capture
 )

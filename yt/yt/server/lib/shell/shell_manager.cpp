@@ -101,8 +101,8 @@ public:
         YT_LOG_INFO("Shell manager is terminating");
 
         Terminated_ = true;
-        for (auto& shell : IdToShell_) {
-            shell.second->Terminate(error);
+        for (const auto& [_, shell] : IdToShell_) {
+            shell->Terminate(error);
         }
         IdToShell_.clear();
         IndexToShell_.clear();
@@ -115,8 +115,8 @@ public:
         YT_LOG_INFO("Shell manager is shutting down");
 
         std::vector<TFuture<void>> futures;
-        for (auto& shell : IdToShell_) {
-            futures.push_back(shell.second->Shutdown(error));
+        for (const auto& [_, shell] : IdToShell_) {
+            futures.push_back(shell->Shutdown(error));
         }
         return AllSet(futures).As<void>();
     }
@@ -142,10 +142,10 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    void Register(IShellPtr shell)
+    void Register(const IShellPtr& shell)
     {
-        YT_VERIFY(IdToShell_.emplace(shell->GetId(), shell).second);
-        YT_VERIFY(IndexToShell_.emplace(shell->GetIndex(), shell).second);
+        EmplaceOrCrash(IdToShell_, shell->GetId(), shell);
+        EmplaceOrCrash(IndexToShell_, shell->GetIndex(), shell);
 
         YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
             shell->GetId(),
@@ -169,20 +169,18 @@ protected:
         std::optional<int> shellIndex)
     {
         if (shellId) {
-            auto shell = Find(*shellId);
-            if (shell) {
+            if (auto shell = Find(*shellId)) {
                 return shell;
             }
         }
 
         if (shellIndex) {
-            auto shell = Find(*shellIndex);
-            if (shell) {
+            if (auto shell = Find(*shellIndex)) {
                 return shell;
             }
         }
 
-        THROW_ERROR_EXCEPTION("No such shell %v", shellId);
+        THROW_ERROR_EXCEPTION("No such shell %Qv", shellId);
     }
 };
 

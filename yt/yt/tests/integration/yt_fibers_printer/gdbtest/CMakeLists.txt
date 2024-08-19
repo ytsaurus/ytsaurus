@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(gdbtest)
 
+
 target_compile_options(gdbtest PRIVATE
   -g
   -Wdeprecated-this-capture
@@ -27,6 +28,11 @@ target_link_libraries(gdbtest PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(gdbtest
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(gdbtest PRIVATE
@@ -47,10 +53,5 @@ target_sources(gdbtest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/bar.cpp
 )
 
-target_allocator(gdbtest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(gdbtest)
-

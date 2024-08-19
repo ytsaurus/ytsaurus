@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(lib-CodeGen-GlobalISel)
 
+
 target_compile_options(lib-CodeGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

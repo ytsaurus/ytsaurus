@@ -114,7 +114,8 @@ private:
         auto address = GetParent()->AsMap()->GetChildKeyOrThrow(this);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeByAddressOrThrow(address);
+        // TODO(babenko): migrate to std::string
+        auto* node = nodeTracker->GetNodeByAddressOrThrow(TString(address));
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(node, nullptr);
     }

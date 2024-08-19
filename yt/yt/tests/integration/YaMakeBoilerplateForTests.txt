@@ -18,7 +18,8 @@ YT_SPEC(yt/yt/tests/integration/spec.yson)
 SIZE(LARGE)
 
 REQUIREMENTS(
-    sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
+    yav:YT_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:yt_token
+    yav:ARC_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:arc_token
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
@@ -90,5 +91,5 @@ IF (CLANG_COVERAGE)
         ram:32
     )
 ELSE()
-    REQUIREMENTS(ram_disk:6)
+    REQUIREMENTS(ram_disk:10)
 ENDIF()

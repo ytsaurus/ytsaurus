@@ -399,18 +399,19 @@ KAFKA_PROXIES_SERVICE = "kafka_proxies"
 
 
 class Restarter(object):
-    def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
+    def __init__(self, yt_instance, components, sync=True, start_bin_path=None, *args, **kwargs):
         self.yt_instance = yt_instance
         self.components = components
         if type(self.components) is str:
             self.components = [self.components]
         self.sync = sync
+        self.start_custom_paths = [start_bin_path] if start_bin_path is not None else None
         self.kill_args = args
         self.kill_kwargs = kwargs
 
         self.start_dict = {
-            SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
-            CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
+            SCHEDULERS_SERVICE: lambda sync: self.yt_instance.start_schedulers(sync=sync, custom_paths=self.start_custom_paths),
+            CONTROLLER_AGENTS_SERVICE: lambda sync: self.yt_instance.start_controller_agents(sync=sync, custom_paths=self.start_custom_paths),
             NODES_SERVICE: self.yt_instance.start_nodes,
             CHAOS_NODES_SERVICE: self.yt_instance.start_chaos_nodes,
             MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(

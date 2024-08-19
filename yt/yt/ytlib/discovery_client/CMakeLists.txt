@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-ytlib-discovery_client)
 
+
 target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
 )

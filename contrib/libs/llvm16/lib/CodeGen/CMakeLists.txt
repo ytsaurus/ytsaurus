@@ -13,12 +13,14 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(AsmPrinter)
 add_subdirectory(GlobalISel)
-add_subdirectory(MIRParser)
 add_subdirectory(SelectionDAG)
+add_subdirectory(MIRParser)
 
 add_library(llvm16-lib-CodeGen)
+
 
 target_compile_options(llvm16-lib-CodeGen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

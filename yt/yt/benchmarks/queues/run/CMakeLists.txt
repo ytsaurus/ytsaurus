@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(benchmark_queues)
 
+
 target_link_libraries(benchmark_queues PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -25,6 +26,10 @@ target_link_libraries(benchmark_queues PUBLIC
   yt-yt-client
   yt-library-program
   cpp-getopt-small
+)
+
+target_allocator(benchmark_queues
+  cpp-ytalloc-impl
 )
 
 target_link_options(benchmark_queues PRIVATE
@@ -43,9 +48,5 @@ target_sources(benchmark_queues PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/queues/run/main.cpp
 )
 
-target_allocator(benchmark_queues
-  cpp-ytalloc-impl
-)
 
 vcs_info(benchmark_queues)
-

@@ -311,8 +311,8 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
-    auto tracker1 = controller->CreateGenericTracker("Mock", "Mock.1");
-    auto tracker2 = controller->CreateGenericTracker("Mock", "Mock.2");
+    auto tracker1 = controller->CreateGenericWaitTimeTracker("Mock", "Mock.1");
+    auto tracker2 = controller->CreateGenericWaitTimeTracker("Mock", "Mock.2");
 
     auto config = CreateConfig({
         {"Mock", {{"MockService", "MockMethod", 0.3}}},

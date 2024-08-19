@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(action_queue)
 add_subdirectory(bus)
 add_subdirectory(context_switch)
@@ -25,9 +26,9 @@ add_subdirectory(joining_reader)
 add_subdirectory(logging)
 add_subdirectory(mpsc_sharded_queue)
 add_subdirectory(proto)
-add_subdirectory(queues)
 add_subdirectory(rng)
 add_subdirectory(rpc)
 add_subdirectory(sendfile)
 add_subdirectory(skiff)
 add_subdirectory(versioned_block_format)
+add_subdirectory(queues)

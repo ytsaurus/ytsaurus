@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(offline_read)
 
+
 target_compile_options(offline_read PRIVATE
   -Wdeprecated-this-capture
 )
@@ -38,6 +39,10 @@ target_link_libraries(offline_read PUBLIC
   cpp-getopt-small
 )
 
+target_allocator(offline_read
+  cpp-ytalloc-impl
+)
+
 target_link_options(offline_read PRIVATE
   -ldl
   -lrt
@@ -54,9 +59,5 @@ target_sources(offline_read PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_read/main.cpp
 )
 
-target_allocator(offline_read
-  cpp-ytalloc-impl
-)
 
 vcs_info(offline_read)
-

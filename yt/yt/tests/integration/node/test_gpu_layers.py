@@ -9,6 +9,8 @@ from yt_commands import (
     run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
+from yt_helpers import profiler_factory
+
 import yt.environment.init_operations_archive as init_operations_archive
 
 import pytest
@@ -33,6 +35,7 @@ class TestGpuJobSetup(YTEnvSetup):
         },
         "exec_node": {
             "gpu_manager": {
+                "driver_version": "117.225.42",
                 # For to GPU manager to initialize properly.
                 "testing": {
                     "test_resource": True,
@@ -170,6 +173,12 @@ class TestGpuJobSetup(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == b"SETUP-GPU-OUTPUT-DYNAMIC\n"
+
+    @authors("eshcherbin")
+    def test_driver_version_profiling(self):
+        node = ls("//sys/cluster_nodes")[0]
+        version_gauge = profiler_factory().at_node(node).gauge("exec_node/gpu_manager/driver_version")
+        wait(lambda: version_gauge.get(tags={"version": "117.225.42"}) == 1.0)
 
 
 @authors("ignat")

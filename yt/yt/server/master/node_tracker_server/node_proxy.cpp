@@ -101,8 +101,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRestart)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->emplace_back(EInternedAttributeKey::MaintenanceRequests)
-            .SetWritable(false);
+        descriptors->push_back(EInternedAttributeKey::MaintenanceRequests);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
             .SetWritable(true)
@@ -166,6 +165,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::ChunkLocations);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::JobProxyVersion)
             .SetPresent(node->JobProxyVersion().has_value()));
+        // COMPAT(kvk1920): remove after 24.2 will be everywhere.
         descriptors->push_back(EInternedAttributeKey::UseImaginaryChunkLocations);
     }
 
@@ -608,7 +608,7 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
                 BuildYsonFluently(consumer)
-                    .DoMapFor(node->RealChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
+                    .DoMapFor(node->ChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
                         fluent
                             .Item(ToString(location->GetUuid()))
                             .BeginMap()
@@ -633,7 +633,7 @@ private:
 
             case EInternedAttributeKey::UseImaginaryChunkLocations: {
                 BuildYsonFluently(consumer)
-                    .Value(GetThisImpl()->UseImaginaryChunkLocations());
+                    .Value(false);
 
                 return true;
             }
@@ -745,7 +745,7 @@ private:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* location : node->RealChunkLocations()) {
+        for (auto* location : node->ChunkLocations()) {
             objectManager->ValidateObjectLifeStage(location);
         }
     }

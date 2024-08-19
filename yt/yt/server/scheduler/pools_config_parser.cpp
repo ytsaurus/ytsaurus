@@ -52,7 +52,10 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
         return false;
     }
 
-    for (const auto& [childName, childNode] : children) {
+    for (const auto& [childName_, childNode] : children) {
+        // TODO(babenko): migrate to std::string
+        auto childName = TString(childName_);
+
         if (ParsedPoolNames_.contains(childName)) {
             Error_ = TError("Duplicate pool %Qv found in new configuration", childName);
             return false;

@@ -20,11 +20,11 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
+const TKeyToCypressNode& GetMapNodeChildMap(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
     TTransaction* transaction,
-    THashMap<TString, TCypressNode*>* storage)
+    TKeyToCypressNode* storage)
 {
     YT_ASSERT(trunkNode->IsTrunk());
 
@@ -69,7 +69,7 @@ std::vector<TCypressNode*> GetMapNodeChildList(
 {
     YT_ASSERT(trunkNode->IsTrunk());
 
-    THashMap<TString, TCypressNode*> keyToChildMapStorage;
+    TKeyToCypressNode keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         trunkNode,
@@ -321,7 +321,7 @@ void DetachChildFromNode(
 
 void AttachChildToSequoiaNodeOrThrow(
     TCypressNode* trunkParent,
-    const TString& childKey,
+    const std::string& childKey,
     TNodeId childId)
 {
     auto type = trunkParent->GetType();
@@ -356,7 +356,7 @@ bool NodeHasKey(const TCypressNode* node)
     }
 }
 
-std::optional<TString> FindNodeKey(
+std::optional<std::string> FindNodeKey(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     TTransaction* transaction)

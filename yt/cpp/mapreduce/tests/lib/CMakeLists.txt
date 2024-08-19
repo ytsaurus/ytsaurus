@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(mapreduce-tests-lib)
 
+
 target_compile_options(mapreduce-tests-lib PRIVATE
   -Wdeprecated-this-capture
 )

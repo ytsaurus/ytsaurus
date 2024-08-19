@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(uring)
 
+
 target_compile_options(uring PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,10 @@ target_link_libraries(uring PUBLIC
   yutil
   library-cpp-cpuid_check
   contrib-libs-liburing
+)
+
+target_allocator(uring
+  cpp-ytalloc-impl
 )
 
 target_link_options(uring PRIVATE
@@ -43,9 +48,5 @@ target_sources(uring PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/uring/main.cpp
 )
 
-target_allocator(uring
-  cpp-ytalloc-impl
-)
 
 vcs_info(uring)
-

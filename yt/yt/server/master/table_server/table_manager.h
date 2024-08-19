@@ -153,8 +153,8 @@ public:
     virtual TSecondaryIndex* CreateSecondaryIndex(
         NObjectClient::TObjectId hintId,
         ESecondaryIndexKind type,
-        TTableNode* table,
-        TTableNode* secondaryIndex,
+        TTableId table,
+        TTableId secondaryIndex,
         std::optional<TString> predicate) = 0;
 
     // Table collocation management.
@@ -183,6 +183,10 @@ public:
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
 
     virtual void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) = 0;
+
+    virtual void UpdateReplicationCollocationOptions(
+        TTableCollocation* collocation,
+        NTabletClient::TReplicationCollocationOptionsPtr options) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);

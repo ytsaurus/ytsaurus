@@ -1,5 +1,6 @@
 #include "rootstock_type_handler.h"
 
+#include "cypress_manager.h"
 #include "rootstock_node.h"
 #include "rootstock_proxy.h"
 #include "grafting_manager.h"

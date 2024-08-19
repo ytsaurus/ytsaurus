@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-library-xor_filter-unittests)
 
+
 target_link_libraries(yt-yt-library-xor_filter-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,6 +25,11 @@ target_link_libraries(yt-yt-library-xor_filter-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-xor_filter
+)
+
+target_allocator(yt-yt-library-xor_filter-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-xor_filter-unittests PRIVATE
@@ -41,6 +47,7 @@ target_link_options(yt-yt-library-xor_filter-unittests PRIVATE
 target_sources(yt-yt-library-xor_filter-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/xor_filter/unittests/xor_filter_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -61,21 +68,15 @@ set_property(
   TEST
   yt-yt-library-xor_filter-unittests
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-library-xor_filter-unittests)
 
 set_property(
   TEST
   yt-yt-library-xor_filter-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-library-xor_filter-unittests
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(yt-yt-library-xor_filter-unittests)
-

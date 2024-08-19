@@ -12,13 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
+add_subdirectory(ObjCARC)
+add_subdirectory(Utils)
+add_subdirectory(Scalar)
 add_subdirectory(AggressiveInstCombine)
+add_subdirectory(InstCombine)
+add_subdirectory(IPO)
+add_subdirectory(Instrumentation)
+add_subdirectory(Vectorize)
 add_subdirectory(CFGuard)
 add_subdirectory(Coroutines)
-add_subdirectory(IPO)
-add_subdirectory(InstCombine)
-add_subdirectory(Instrumentation)
-add_subdirectory(ObjCARC)
-add_subdirectory(Scalar)
-add_subdirectory(Utils)
-add_subdirectory(Vectorize)

@@ -26,6 +26,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/yson/consumer.h>
+
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +49,6 @@ public:
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
-    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const THydraFacadePtr& GetHydraFacade() const;
 
     const IInvokerPtr& GetControlInvoker() const;
@@ -71,7 +72,6 @@ private:
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
-    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     THydraFacadePtr HydraFacade_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;
@@ -80,6 +80,8 @@ private:
     void DoInitialize();
     void DoRun();
     void DoLoadSnapshot(const TString& fileName, bool dump);
+
+    NYTree::IYPathServicePtr CreateCellOrchidService() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

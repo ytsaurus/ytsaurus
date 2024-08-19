@@ -1,10 +1,10 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023-2024 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2013-2022.
 // Modifications copyright (c) 2013-2023, Oracle and/or its affiliates.
-
 // Contributed and/or modified by Vissarion Fysikopoulos, on behalf of Oracle
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
@@ -197,10 +197,12 @@ struct multipoint_multipoint
           || relate::may_update<exterior, interior, '0'>(result) )
         {
             // NlogN + MlogN
-            bool is_disjoint = search<Transpose, Strategy>(first_sorted_mpt, first_iterated_mpt, result);
+            bool const is_disjoint = search<Transpose, Strategy>(first_sorted_mpt, first_iterated_mpt, result);
 
-            if ( BOOST_GEOMETRY_CONDITION(is_disjoint || result.interrupt) )
+            if (is_disjoint || BOOST_GEOMETRY_CONDITION(result.interrupt) )
+            {
                 return;
+            }
         }
 
         if ( relate::may_update<interior, interior, '0'>(result)

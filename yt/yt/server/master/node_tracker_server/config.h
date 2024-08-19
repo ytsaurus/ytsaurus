@@ -123,9 +123,6 @@ public:
     TDuration ProfilingPeriod;
 
     // COMPAT(kvk1920)
-    bool EnableRealChunkLocations;
-
-    // COMPAT(kvk1920)
     bool ForbidMaintenanceAttributeWrites;
 
     // COMPAT(aleksandra-zh)
@@ -138,6 +135,8 @@ public:
     TDuration ResetNodePendingRestartMaintenancePeriod;
 
     int MaxNodesBeingDisposed;
+
+    bool ImmediatelyDisposeNondataNodes;
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 

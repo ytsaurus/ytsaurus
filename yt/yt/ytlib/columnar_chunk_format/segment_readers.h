@@ -132,6 +132,8 @@ public:
     Y_FORCE_INLINE TRange<TTimestamp> GetWriteTimestamps(ui32 rowIndex, TChunkedMemoryPool* memoryPool) const;
     Y_FORCE_INLINE TRange<TTimestamp> GetDeleteTimestamps(ui32 rowIndex, TChunkedMemoryPool* memoryPool) const;
 
+    Y_FORCE_INLINE size_t GetMemoryUsage() const;
+
 private:
     // For each row index value offsets.
     TMemoryHolder<ui32> WriteTimestampOffsets_;
@@ -198,6 +200,8 @@ public:
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
+
 private:
     TMemoryHolder<T> Items_;
     TBitmap NullBits_;
@@ -242,6 +246,8 @@ public:
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
+
 private:
     TMemoryHolder<char> Holder_;
     const double* Items_ = nullptr;
@@ -268,6 +274,8 @@ public:
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
+
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
 
 private:
     TMemoryHolder<char> Holder_;
@@ -296,6 +304,8 @@ public:
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
+
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
 
 private:
     struct TItem
@@ -449,6 +459,8 @@ public:
     Y_FORCE_INLINE ui32 GetSegmentRowLimit() const;
     Y_FORCE_INLINE ui32 SkipTo(ui32 rowIndex, ui32 position) const;
     Y_FORCE_INLINE ui32 GetValueCount() const;
+
+    Y_FORCE_INLINE size_t DoGetMemoryUsage() const;
 
 protected:
     // Keep IndexCount_ + 1 items to eliminate extra branches in read routines.

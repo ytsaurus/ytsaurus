@@ -161,7 +161,7 @@ struct INodeTypeHandler
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) = 0;
 
-    virtual std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const = 0;
+    virtual std::optional<std::vector<std::string>> ListColumns(TCypressNode* node) const = 0;
 
     virtual NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const = 0;
 };

@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/yt/client/api/client.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/client/object_client/public.h>
 

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-hydra)
 
+
 target_compile_options(unittester-hydra PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-hydra PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   server-lib-hydra
+)
+
+target_allocator(unittester-hydra
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-hydra PRIVATE
@@ -51,6 +57,7 @@ target_sources(unittester-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/unbuffered_file_changelog_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-hydra
@@ -70,21 +77,15 @@ set_property(
   TEST
   unittester-hydra
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-hydra)
 
 set_property(
   TEST
   unittester-hydra
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-hydra
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-hydra)
-

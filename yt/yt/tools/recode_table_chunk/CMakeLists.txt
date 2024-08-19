@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(recode-table-chunk)
 
+
 target_compile_options(recode-table-chunk PRIVATE
   -Wdeprecated-this-capture
 )
@@ -30,6 +31,11 @@ target_link_libraries(recode-table-chunk PUBLIC
   server-lib-io
   yt-library-program
   cpp-getopt-small
+)
+
+target_allocator(recode-table-chunk
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(recode-table-chunk PRIVATE
@@ -48,10 +54,5 @@ target_sources(recode-table-chunk PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/recode_table_chunk/main.cpp
 )
 
-target_allocator(recode-table-chunk
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
 
 vcs_info(recode-table-chunk)
-

@@ -406,7 +406,7 @@ private:
         return objectManager->GetProxy(proxyRole);
     }
 
-    const THashMap<TString, TProxyRole*>& GetProxyRoles() const
+    const THashMap<std::string, TProxyRole*>& GetProxyRoles() const
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->GetProxyRolesWithProxyKind(ProxyKind_);

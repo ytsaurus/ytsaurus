@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-actions)
 
+
 target_compile_options(unittester-core-actions PRIVATE
   -Wdeprecated-this-capture
 )
@@ -32,6 +33,10 @@ target_link_libraries(unittester-core-actions PUBLIC
   cpp-testing-common
   yt-library-profiling
   library-profiling-solomon
+)
+
+target_allocator(unittester-core-actions
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-actions PRIVATE
@@ -54,6 +59,7 @@ target_sources(unittester-core-actions PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/unittests/new_with_offloaded_dtor_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-core-actions
@@ -73,20 +79,15 @@ set_property(
   TEST
   unittester-core-actions
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-actions)
 
 set_property(
   TEST
   unittester-core-actions
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-actions
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-actions)
-

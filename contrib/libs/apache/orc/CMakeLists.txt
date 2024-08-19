@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-apache-orc)
 
+
 target_compile_options(libs-apache-orc PRIVATE
   -DENABLE_METRICS=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

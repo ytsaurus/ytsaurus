@@ -16,12 +16,18 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(in_memory_nbd_server)
 
+
 target_link_libraries(in_memory_nbd_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   server-lib-nbd
+)
+
+target_allocator(in_memory_nbd_server
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(in_memory_nbd_server PRIVATE
@@ -40,10 +46,5 @@ target_sources(in_memory_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/in_memory_nbd_server/main.cpp
 )
 
-target_allocator(in_memory_nbd_server
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(in_memory_nbd_server)
-

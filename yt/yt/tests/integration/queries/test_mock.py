@@ -407,7 +407,7 @@ class TestAccessControl(YTEnvSetup):
         with raises_yt_error(AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", annotations={"qwe2": "asd3"})
 
-    @authors("krock21")
+    @authors("krock21", "mpereskokova")
     def test_alter_aco(self, query_tracker):
         create_user("u1")
         create_user("u2")
@@ -432,6 +432,11 @@ class TestAccessControl(YTEnvSetup):
                 ]
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_alter_aco")
+        q_u2 = start_query("mock", "complete_after", settings={"duration": 0}, authenticated_user="u1", access_control_object="everyone")
+        q_u2.track()
+
+        q_u2.alter(authenticated_user="u1", access_control_object="nobody")
+        q_u2.alter(authenticated_user="u1", annotations={"qwe": "asd"}, access_control_object="everyone")
 
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco")
 

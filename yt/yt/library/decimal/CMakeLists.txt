@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(yt-library-decimal)
+
 
 target_compile_options(yt-library-decimal PRIVATE
   -Wdeprecated-this-capture

@@ -283,7 +283,6 @@ private:
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
-    std::atomic<bool> EnableBoomerangsIdentity_ = false;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
     static IInvokerPtr GetRpcInvoker()
@@ -1161,8 +1160,7 @@ private:
                             .RequestId = RequestId_,
                             .SubrequestIndex = subrequestIndex,
                         },
-                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
-                        Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
+                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
                 }
                 if (subrequest.Mutation) {
                     // Pre-phase-two.
@@ -1185,8 +1183,7 @@ private:
                     .Identity = Identity_,
                     .RequestId = RequestId_,
                 },
-                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
-                Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -2304,9 +2301,6 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
-        std::memory_order::release);
-    EnableBoomerangsIdentity_.store(
-        Bootstrap_->GetConfigManager()->GetConfig()->EnableBoomerangsIdentity,
         std::memory_order::release);
 
     LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);

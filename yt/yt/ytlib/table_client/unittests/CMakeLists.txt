@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-ytlib-table-client)
 
+
 target_compile_options(unittester-ytlib-table-client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -31,6 +32,11 @@ target_link_libraries(unittester-ytlib-table-client PUBLIC
   table_client-unittests-helpers
   yt-core-test_framework
   yt-yt-ytlib
+)
+
+target_allocator(unittester-ytlib-table-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-ytlib-table-client PRIVATE
@@ -67,6 +73,7 @@ target_sources(unittester-ytlib-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_meta_extensions_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-ytlib-table-client
@@ -86,21 +93,15 @@ set_property(
   TEST
   unittester-ytlib-table-client
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-ytlib-table-client)
 
 set_property(
   TEST
   unittester-ytlib-table-client
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-ytlib-table-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-ytlib-table-client)
-

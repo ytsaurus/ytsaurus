@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-lsm)
 
+
 target_compile_options(unittester-library-lsm PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-library-lsm PUBLIC
   cpp-testing-gtest_main
   server-lib-lsm
   server-lib-hydra
+)
+
+target_allocator(unittester-library-lsm
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-library-lsm PRIVATE
@@ -46,6 +52,7 @@ target_link_options(unittester-library-lsm PRIVATE
 target_sources(unittester-library-lsm PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/upcoming_compaction_info_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-library-lsm
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-lsm)
 
 set_property(
   TEST
   unittester-library-lsm
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-lsm
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-library-lsm)
-

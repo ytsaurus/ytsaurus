@@ -1686,24 +1686,22 @@ private:
     void CollectSensors(ISensorWriter* writer) override
     {
         try {
-            auto stats = GetDiskStats();
-            auto it = stats.find(DeviceName_);
-            if (it == stats.end()) {
+            auto stat = GetBlockDeviceStat(DeviceName_);
+            if (!stat) {
                 return;
             }
-            const auto& diskStat = it->second;
 
             writer->AddCounter(
                 "/disk/read_bytes",
-                diskStat.SectorsRead * UnixSectorSize);
+                stat->SectorsRead * UnixSectorSize);
 
             writer->AddCounter(
                 "/disk/written_bytes",
-                diskStat.SectorsWritten * UnixSectorSize);
+                stat->SectorsWritten * UnixSectorSize);
 
             writer->AddGauge(
                 "/disk/io_in_progress",
-                diskStat.IOCurrentlyInProgress);
+                stat->IOCurrentlyInProgress);
 
             writer->AddGauge(
                 "/disk/max_write_rate_by_dwpd",

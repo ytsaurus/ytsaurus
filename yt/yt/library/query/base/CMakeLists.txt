@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-query-base)
 
+
 target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
 )
@@ -37,7 +38,6 @@ target_link_libraries(library-query-base PUBLIC
 )
 
 target_sources(library-query-base PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast_visitors.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
@@ -53,12 +53,9 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_common.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
 )
 
-target_bison_parser(library-query-base
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
-)
 
 target_ragel_lexers(library-query-base
   PRIVATE
@@ -66,3 +63,7 @@ target_ragel_lexers(library-query-base
   -CG2
 )
 
+target_bison_parser(library-query-base
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
+)

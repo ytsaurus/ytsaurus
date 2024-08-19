@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-random)
 
+
 target_compile_options(restricted-boost-random PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

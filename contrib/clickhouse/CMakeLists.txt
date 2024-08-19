@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(base)
-add_subdirectory(contrib)
+
 add_subdirectory(src)
+add_subdirectory(contrib)
+add_subdirectory(base)

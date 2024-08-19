@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-cxxsupp-libcxxabi-parts)
 
+
 target_compile_options(libs-cxxsupp-libcxxabi-parts PUBLIC
   -nostdinc++
 )
@@ -41,6 +42,7 @@ target_sources(libs-cxxsupp-libcxxabi-parts PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cxxsupp/libcxxabi/src/cxa_demangle.cpp
 )
 
+
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cxxsupp/libcxxabi/src/cxa_thread_atexit.cpp
@@ -50,4 +52,3 @@ set_property(
   -fPIC
   -fno-lto
 )
-

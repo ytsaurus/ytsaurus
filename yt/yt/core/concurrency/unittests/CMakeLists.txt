@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-concurrency)
 
+
 target_compile_options(unittester-core-concurrency PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,10 @@ target_link_libraries(unittester-core-concurrency PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-concurrency
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-core-concurrency PRIVATE
@@ -78,6 +83,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/two_level_fair_share_thread_pool_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-core-concurrency
@@ -97,20 +103,15 @@ set_property(
   TEST
   unittester-core-concurrency
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-concurrency)
 
 set_property(
   TEST
   unittester-core-concurrency
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-concurrency
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-concurrency)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-cpp-int128)
 
+
 target_link_libraries(library-cpp-int128 PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,7 +24,7 @@ target_link_libraries(library-cpp-int128 PUBLIC
 )
 
 target_sources(library-cpp-int128 PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/int128/int128.h
   ${PROJECT_SOURCE_DIR}/library/cpp/int128/int128.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/int128/int128.h
 )
 

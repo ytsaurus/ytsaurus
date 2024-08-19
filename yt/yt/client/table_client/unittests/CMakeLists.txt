@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(helpers)
 
 add_executable(unittester-client-table-client)
+
 
 target_compile_options(unittester-client-table-client PRIVATE
   -Wdeprecated-this-capture
@@ -33,6 +35,10 @@ target_link_libraries(unittester-client-table-client PUBLIC
   table_client-unittests-helpers
   client-unittests-mock
   yt-core-test_framework
+)
+
+target_allocator(unittester-client-table-client
+  cpp-ytalloc-impl
 )
 
 target_link_options(unittester-client-table-client PRIVATE
@@ -54,6 +60,7 @@ target_sources(unittester-client-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/unversioned_row_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-client-table-client
@@ -73,20 +80,15 @@ set_property(
   TEST
   unittester-client-table-client
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-client-table-client)
 
 set_property(
   TEST
   unittester-client-table-client
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-client-table-client
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-client-table-client)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(discovery_server-unittests-mock)
 
+
 target_compile_options(discovery_server-unittests-mock PRIVATE
   -Wdeprecated-this-capture
 )

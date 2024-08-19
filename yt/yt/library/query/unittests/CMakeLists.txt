@@ -13,9 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+add_subdirectory(helpers)
 add_subdirectory(udf)
 
 add_executable(unittester-query)
+
 
 target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
@@ -37,8 +40,14 @@ target_link_libraries(unittester-query PUBLIC
   library-query-distributed
   library-query-engine
   library-query-engine_api
+  query-unittests-helpers
   query-unittests-udf
   contrib-libs-sparsehash
+)
+
+target_allocator(unittester-query
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-query PRIVATE
@@ -67,6 +76,7 @@ target_sources(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 
+
 add_test(
   NAME
   unittester-query
@@ -86,21 +96,15 @@ set_property(
   TEST
   unittester-query
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-query)
 
 set_property(
   TEST
   unittester-query
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-query
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-query)
-

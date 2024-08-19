@@ -28,21 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(chyt-server-protos)
+
 
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
@@ -71,6 +58,12 @@ target_sources(chyt-server-protos PRIVATE
   ${PROJECT_BINARY_DIR}/yt/chyt/server/protos/subquery_spec.pb.h
 )
 
+
+target_proto_outs(chyt-server-protos
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(chyt-server-protos
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -83,9 +76,3 @@ target_proto_addincls(chyt-server-protos
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(chyt-server-protos
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

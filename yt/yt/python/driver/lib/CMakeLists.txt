@@ -12,12 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS
   Development
 )
-find_package(linux-headers-generic REQUIRED)
 
 add_library(python-driver-lib)
+
 
 target_compile_options(python-driver-lib PRIVATE
   -DPYCXX_PYTHON_2TO3

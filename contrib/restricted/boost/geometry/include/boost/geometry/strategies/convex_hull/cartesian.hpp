@@ -46,7 +46,7 @@ public:
     static auto side()
     {
         using side_strategy_type
-            = strategy::side::side_robust<CalculationType>;
+            = strategy::side::side_robust<CalculationType, strategy::side::fp_equals_policy>;
         return side_strategy_type();
     }
 

@@ -44,6 +44,9 @@ const (
 
 	NodeRack       NodeType = "rack"
 	NodeDataCenter NodeType = "data_center"
+
+	NodeQueueConsumer NodeType = "queue_consumer"
+	NodeQueueProducer NodeType = "queue_producer"
 )
 
 func (n NodeType) String() string {

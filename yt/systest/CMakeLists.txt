@@ -13,11 +13,13 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(bin)
+
 add_subdirectory(proto)
+add_subdirectory(bin)
 add_subdirectory(unittests)
 
 add_library(yt-systest)
+
 
 target_compile_options(yt-systest PRIVATE
   -Wdeprecated-this-capture

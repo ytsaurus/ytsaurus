@@ -8,6 +8,12 @@ from collections.abc import Iterable
 import typing  # noqa
 
 try:
+    from security.ant_secret.snooper import snooper as secret_snooper
+    HAS_SNOOPER = True
+except ImportError:
+    HAS_SNOOPER = False
+
+try:
     from yt.packages.decorator import decorator
 except ImportError:
     from decorator import decorator
@@ -54,49 +60,72 @@ MB = 1024 * KB
 GB = 1024 * MB
 
 
-def hide_fields(object, fields, prefixes, prefix_re=None, hidden_value="hidden"):
+SECRET_PREFIXES = ("AQAD-", "y1_AQAD-")
+SECRET_PREFIXES_RE = (re.compile(r"\b(\w+_)?AQAD-\S+"), )
+
+
+def hide_fields(
+    object,
+    fields: typing.Union[dict, typing.Iterable[str]],
+    prefixes: typing.Union[str, typing.Iterable[str], None] = None,
+    prefix_re: typing.Union[typing.Pattern[str], None] = None,
+    snooper=None,  # type: typing.Union[secret_snooper.Searcher, None]
+    hidden_value: str = "hidden"
+):
+    if not snooper and HAS_SNOOPER:
+        # masking via Snooper has priority
+        snooper = secret_snooper.Snooper().searcher()
+
     if isinstance(object, dict):
         for key in fields:
             if key in object:
                 object[key] = hidden_value
         for key, value in object.items():
-            if prefixes and isinstance(value, str) and any(value.startswith(prefix) for prefix in prefixes):
-                object[key] = hidden_value
-            elif prefix_re and isinstance(value, str) and prefix_re.search(value):
-                object[key] = prefix_re.sub(hidden_value, value)
+            if isinstance(value, str):
+                if snooper:
+                    object[key] = snooper.mask(value.encode(), valid_only=False).decode()
+
+                if prefixes and any(value.startswith(prefix) for prefix in prefixes):
+                    object[key] = hidden_value
+                elif prefix_re and prefix_re.search(value):
+                    object[key] = prefix_re.sub(hidden_value, value)
             else:
-                hide_fields(value, fields, prefixes, prefix_re, hidden_value)
+                hide_fields(value, fields, prefixes, prefix_re, snooper, hidden_value)
     elif isinstance(object, list):
         for index in range(len(object)):
             value = object[index]
-            if prefixes and isinstance(value, str) and any(value.startswith(prefix) for prefix in prefixes):
-                object[index] = hidden_value
-            elif prefix_re and isinstance(value, str) and prefix_re.search(value):
-                object[index] = prefix_re.sub(hidden_value, value)
+            if isinstance(value, str):
+                if snooper:
+                    object[index] = snooper.mask(value.encode()).decode()
+
+                if prefixes and any(value.startswith(prefix) for prefix in prefixes):
+                    object[index] = hidden_value
+                elif prefix_re and prefix_re.search(value):
+                    object[index] = prefix_re.sub(hidden_value, value)
             else:
-                hide_fields(value, fields, prefixes, prefix_re, hidden_value)
+                hide_fields(value, fields, prefixes, prefix_re, snooper, hidden_value)
 
 
-def hide_secure_vault(params):
+def hide_secure_vault(params: typing.Dict[str, str]) -> typing.Dict[str, str]:
     params = deepcopy(params)
-    hide_fields(params, fields=("secure_vault",), prefixes=("AQAD-", "y1_AQAD-"))
+
+    hide_fields(params, fields=("secure_vault",), prefixes=SECRET_PREFIXES)
+
     return params
 
 
-def hide_arguments(args):
+def hide_arguments(args: typing.List[str]) -> typing.List[str]:
     args = deepcopy(args)
-    hide_fields(args, fields=(), prefixes=(), prefix_re=re.compile(r"\b(\w+_)?AQAD-\S+"))
+
+    hide_fields(args, fields=(), prefixes=(), prefix_re=SECRET_PREFIXES_RE[0])
+
     return args
 
 
-def hide_auth_headers(headers):
+def hide_auth_headers(headers: typing.Dict[str, str]) -> typing.Dict[str, str]:
     headers = deepcopy(headers)
-    if "Authorization" in headers:
-        headers["Authorization"] = "x" * 32
-    if "X-Ya-Service-Ticket" in headers:
-        headers["X-Ya-Service-Ticket"] = "x" * 32
-    if "X-Ya-User-Ticket" in headers:
-        headers["X-Ya-User-Ticket"] = "x" * 32
+
+    hide_fields(headers, fields=("Authorization", "X-Ya-Service-Ticket", "X-Ya-User-Ticket"), hidden_value="x" * 32)
 
     return headers
 

@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(yt-library-quantile_digest)
 
+
 target_compile_options(yt-library-quantile_digest PRIVATE
   -Wdeprecated-this-capture
 )
@@ -44,14 +45,20 @@ target_link_libraries(yt-library-quantile_digest PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(yt-library-quantile_digest PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/quantile_digest/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/quantile_digest/quantile_digest.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/quantile_digest/proto/quantile_digest.pb.h
+)
+
 target_proto_messages(yt-library-quantile_digest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/quantile_digest/proto/quantile_digest.proto
 )
 
-target_sources(yt-library-quantile_digest PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/quantile_digest/proto/quantile_digest.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/quantile_digest/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/quantile_digest/quantile_digest.cpp
+
+target_proto_outs(yt-library-quantile_digest
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(yt-library-quantile_digest
@@ -64,9 +71,3 @@ target_proto_addincls(yt-library-quantile_digest
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-library-quantile_digest
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-

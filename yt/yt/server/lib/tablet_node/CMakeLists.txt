@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-tablet_node)
 
+
 target_compile_options(server-lib-tablet_node PRIVATE
   -Wdeprecated-this-capture
 )
@@ -50,15 +51,21 @@ target_link_libraries(server-lib-tablet_node PUBLIC
   contrib-libs-protobuf
 )
 
+target_sources(server-lib-tablet_node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/performance_counters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h
+)
+
 target_proto_messages(server-lib-tablet_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.proto
 )
 
-target_sources(server-lib-tablet_node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/performance_counters.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp
+
+target_proto_outs(server-lib-tablet_node
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-tablet_node
@@ -73,9 +80,3 @@ target_proto_addincls(server-lib-tablet_node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-tablet_node
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

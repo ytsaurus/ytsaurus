@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-job-proxy)
 
+
 target_compile_options(unittester-job-proxy PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-job-proxy PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-server-job_proxy
+)
+
+target_allocator(unittester-job-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-job-proxy PRIVATE
@@ -46,6 +52,7 @@ target_sources(unittester-job-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/stderr_writer_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-job-proxy
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-job-proxy)
 
 set_property(
   TEST
   unittester-job-proxy
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-job-proxy
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-job-proxy)
-

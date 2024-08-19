@@ -13,9 +13,11 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
 
 add_library(isa-l_crc_yt_patch)
+
 
 target_compile_options(isa-l_crc_yt_patch PRIVATE
   -mpclmul
@@ -31,6 +33,7 @@ target_sources(isa-l_crc_yt_patch PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/checksum.cpp
 )
 
+
 target_yasm_source(isa-l_crc_yt_patch
   PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_by8.asm
@@ -41,4 +44,3 @@ target_yasm_source(isa-l_crc_yt_patch
   -I
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/include
 )
-

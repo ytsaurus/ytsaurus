@@ -27,32 +27,35 @@ TTopCollectorBase::TTopCollectorBase(
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
     , RowsContext_(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_))
-    , HeapPool_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
-    , Heap_(TChunkedMemoryPoolAllocator<TRowAndBuffer>(&HeapPool_))
-{
-    Heap_.reserve(limit);
-}
+    , Heap_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
+    , Limit_(limit)
+{ }
 
 const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
 {
-    if (Heap_.size() < Heap_.capacity()) {
+    if (Heap_.Size() < Limit_) {
         auto* destination = std::bit_cast<TPIValue*>(
             RowsContext_.AllocateAligned(
                 sizeof(TPIValue) * RowSize_,
                 EAddressSpace::WebAssembly));
+
         auto capturedRow = Capture(row, destination);
-        Heap_.emplace_back(capturedRow);
-        AdjustHeapBack(Heap_.begin(), Heap_.end(), MaxComparer_);
+        Heap_.PushBack(capturedRow);
         OnInsert(capturedRow.Row);
+
+        if (Heap_.Size() == Limit_) {
+            MakeHeap(Heap_.Begin(), Heap_.End(), MaxComparer_);
+        }
+
         return capturedRow.Row;
     }
 
-    if (!Heap_.empty() && MaxComparer_(Heap_.front().Row, row)) {
-        auto popped = Heap_.front().Row;
+    if (!Heap_.Empty() && MaxComparer_(Heap_[0].Row, row)) {
+        auto popped = Heap_[0].Row;
         AccountGarbage(popped);
         OnEvict(popped);
         auto capturedRow = Capture(row, popped);
-        AdjustHeapFront(Heap_.begin(), Heap_.end(), MaxComparer_);
+        AdjustHeapFront(Heap_.Begin(), Heap_.End(), MaxComparer_);
         OnInsert(capturedRow.Row);
         return capturedRow.Row;
     }
@@ -62,9 +65,9 @@ const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
 
 std::vector<const TPIValue*> TTopCollectorBase::GetRows() const
 {
-    auto result = std::vector<const TPIValue*>(Heap_.size());
+    auto result = std::vector<const TPIValue*>(Heap_.Size());
 
-    for (size_t index = 0; index < Heap_.size(); ++index) {
+    for (i64 index = 0; index < Heap_.Size(); ++index) {
         result[index] = Heap_[index].Row;
     }
 
@@ -99,7 +102,7 @@ void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
 
     // Collect garbage.
     auto contextsToRows = std::vector<std::vector<size_t>>(StringLikeValueContexts_.size());
-    for (size_t rowId = 0; rowId < Heap_.size(); ++rowId) {
+    for (i64 rowId = 0; rowId < Heap_.Size(); ++rowId) {
         contextsToRows[Heap_[rowId].ContextIndex].push_back(rowId);
     }
 

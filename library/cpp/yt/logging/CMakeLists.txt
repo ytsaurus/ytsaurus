@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(backends)
+
 add_subdirectory(plain_text_formatter)
+add_subdirectory(backends)
 
 add_library(cpp-yt-logging)
+
 
 target_compile_options(cpp-yt-logging PRIVATE
   -Wdeprecated-this-capture

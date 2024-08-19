@@ -12,12 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(base)
-add_subdirectory(distributed)
-add_subdirectory(engine)
+
 add_subdirectory(engine_api)
 add_subdirectory(misc)
 add_subdirectory(proto)
-add_subdirectory(row_comparer)
+add_subdirectory(base)
 add_subdirectory(row_comparer_api)
+add_subdirectory(engine)
+add_subdirectory(row_comparer)
 add_subdirectory(unittests)
+add_subdirectory(distributed)

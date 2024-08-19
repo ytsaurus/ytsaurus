@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-mapreduce-common)
 
+
 target_compile_options(cpp-mapreduce-common PRIVATE
   -Wdeprecated-this-capture
 )

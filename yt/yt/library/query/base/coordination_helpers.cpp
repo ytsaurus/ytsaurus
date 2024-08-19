@@ -47,9 +47,19 @@ size_t Step(size_t current, size_t source, size_t target)
 
 void TRangeFormatter::operator()(TStringBuilderBase* builder, TRowRange source) const
 {
-    builder->AppendFormat("[%v .. %v]",
+    builder->AppendFormat("[%kv .. %kv]",
         source.first,
         source.second);
+}
+
+void TKeyFormatter::operator()(TStringBuilderBase* builder, TRow source) const
+{
+    builder->AppendFormat("%kv", source);
+}
+
+void TKeyFormatter::operator()(TStringBuilderBase* builder, NTableClient::TKeyRef source) const
+{
+    builder->AppendFormat("%kv", source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

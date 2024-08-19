@@ -47,6 +47,7 @@ const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<TSamplesExt>::Value,
     TProtoExtensionTag<TColumnarStatisticsExt>::Value,
     TProtoExtensionTag<THeavyColumnStatisticsExt>::Value,
+    TProtoExtensionTag<TLargeColumnarStatisticsExt>::Value,
 };
 
 class TMetaAggregatingWriter
@@ -278,8 +279,16 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
                 "Cannot absorb meta of a chunk %v without columnar statistics",
                 chunkId);
         }
+        auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta->extensions());
+
         i64 chunkRowCount = GetProtoExtension<NProto::TMiscExt>(meta->extensions()).row_count();
-        auto chunkColumnarStatistics = NYT::FromProto<TColumnarStatistics>(*columnarStatisticsExt, chunkRowCount);
+        TColumnarStatistics chunkColumnarStatistics;
+        FromProto(
+            &chunkColumnarStatistics,
+            *columnarStatisticsExt,
+            largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
+            chunkRowCount);
+
         if (!ColumnarStatistics_) {
             // First meta.
             ColumnarStatistics_ = std::move(chunkColumnarStatistics);
@@ -497,6 +506,9 @@ void TMetaAggregatingWriter::FinalizeMeta()
     }
     if (ColumnarStatistics_) {
         SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
+        if (!ColumnarStatistics_->LargeStatistics.Empty()) {
+            SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
+        }
     }
     if (Options_->MaxHeavyColumns > 0 && ColumnarStatistics_) {
         auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(

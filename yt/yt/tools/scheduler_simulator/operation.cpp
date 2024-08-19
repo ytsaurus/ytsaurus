@@ -128,6 +128,9 @@ void TOperation::SetState(NScheduler::EOperationState state)
     State_ = state;
 }
 
+void TOperation::SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/)
+{ }
+
 bool TOperation::IsTreeErased(const TString& /*treeId*/) const
 {
     YT_UNIMPLEMENTED();

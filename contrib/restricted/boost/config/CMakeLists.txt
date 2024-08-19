@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-config INTERFACE)
 
+
 target_compile_options(restricted-boost-config INTERFACE
   -DBOOST_ALL_NO_LIB
 )

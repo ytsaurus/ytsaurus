@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-queue-client)
 
+
 target_compile_options(unittester-queue-client PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-queue-client PUBLIC
   cpp-testing-gtest_main
   yt-yt-ytlib
   yt-core-test_framework
+)
+
+target_allocator(unittester-queue-client
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-queue-client PRIVATE
@@ -46,6 +52,7 @@ target_link_options(unittester-queue-client PRIVATE
 target_sources(unittester-queue-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-queue-client
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-queue-client)
 
 set_property(
   TEST
   unittester-queue-client
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-queue-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-queue-client)
-

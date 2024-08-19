@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(restricted-boost-atomic)
 
+
 target_compile_options(restricted-boost-atomic PRIVATE
   -DBOOST_ATOMIC_SOURCE
   -DBOOST_ATOMIC_USE_SSE41

@@ -36,9 +36,11 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 #include <yt/yt/server/master/security_server/group.h>
-#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
+
+#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -155,7 +157,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         getBasicAttributesContext.Permission = CheckedEnumCast<EPermission>(request->permission());
     }
     if (request->has_columns()) {
-        getBasicAttributesContext.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        getBasicAttributesContext.Columns = FromProto<std::vector<std::string>>(request->columns().items());
     }
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();

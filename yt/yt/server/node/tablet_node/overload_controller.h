@@ -51,7 +51,7 @@ public:
 
         TOverloadControllerConfigPtr Config;
         TMethodsCongestionControllers CongestionControllers;
-        THashMap<TString, TMeanWaitTimeTrackerPtr> Trackers;
+        THashMap<TString, IMeanWaitTimeTrackerPtr> Trackers;
         THashMap<TString, TTrackerSensors> TrackerSensors;
     };
 
@@ -63,7 +63,7 @@ public:
     void TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
 
     using TWaitTimeObserver = std::function<void(TDuration)>;
-    TWaitTimeObserver CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
+    TWaitTimeObserver CreateGenericWaitTimeTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
 
     TCongestionState GetCongestionState(TStringBuf service, TStringBuf method) const;
 
@@ -94,6 +94,9 @@ private:
     void DoReconfigure(TOverloadControllerConfigPtr config);
     THazardPtr<TState> GetStateSnapshot() const;
     void UpdateStateSnapshot(const TState& state, TSpinLockGuard guard);
+
+    template <typename TTracker>
+    TIntrusivePtr<TTracker> CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TOverloadController);

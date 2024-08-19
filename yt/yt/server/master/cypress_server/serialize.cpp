@@ -161,9 +161,9 @@ TMasterTableSchema* TEndCopyContext::GetSchema(TMasterTableSchemaId schemaId) co
     return GetOrCrash(SchemaIdToSchema_, schemaId);
 }
 
-void TEndCopyContext::RegisterChild(TString key, TNodeId childId)
+void TEndCopyContext::RegisterChild(const std::string& key, TNodeId childId)
 {
-    Children_.push_back(std::pair(key, childId));
+    Children_.emplace_back(key, childId);
 }
 
 bool TEndCopyContext::HasChildren() const
@@ -171,7 +171,7 @@ bool TEndCopyContext::HasChildren() const
     return !Children_.empty();
 }
 
-std::vector<std::pair<TString, TNodeId>> TEndCopyContext::GetChildren() const
+std::vector<std::pair<std::string, TNodeId>> TEndCopyContext::GetChildren() const
 {
     return Children_;
 }

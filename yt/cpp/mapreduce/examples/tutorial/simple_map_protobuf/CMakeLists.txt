@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_executable(simple_map_protobuf)
 
+
 target_compile_options(simple_map_protobuf PRIVATE
   -Wdeprecated-this-capture
 )
@@ -41,6 +42,11 @@ target_link_libraries(simple_map_protobuf PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
   contrib-libs-protobuf
+)
+
+target_allocator(simple_map_protobuf
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(simple_map_protobuf PRIVATE
@@ -55,18 +61,19 @@ target_link_options(simple_map_protobuf PRIVATE
   -lutil
 )
 
+target_sources(simple_map_protobuf PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/data.pb.h
+)
+
 target_proto_messages(simple_map_protobuf PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/data.proto
 )
 
-target_sources(simple_map_protobuf PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/data.pb.h
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/main.cpp
-)
 
-target_allocator(simple_map_protobuf
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_proto_outs(simple_map_protobuf
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(simple_map_protobuf
@@ -80,10 +87,4 @@ target_proto_addincls(simple_map_protobuf
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-target_proto_outs(simple_map_protobuf
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
 vcs_info(simple_map_protobuf)
-

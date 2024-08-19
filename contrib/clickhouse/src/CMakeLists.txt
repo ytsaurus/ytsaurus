@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(Common)
 add_subdirectory(Parsers)
 
 add_library(contrib-clickhouse-src)
+
 
 target_compile_options(contrib-clickhouse-src PUBLIC
   -DOS_LINUX
@@ -1700,6 +1702,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/StorageFileLog.cpp
 )
 
+
 target_sources_custom(contrib-clickhouse-src
   .sse2
   SRCS
@@ -1721,10 +1724,9 @@ target_sources_custom(contrib-clickhouse-src
   -DNAMESPACE=AVX2
 )
 
-
 add_global_library_for(contrib-clickhouse-src.global
-  contrib-clickhouse-src
-)
+  contrib-clickhouse-src)
+
 
 target_compile_options(contrib-clickhouse-src.global PUBLIC
   -DOS_LINUX

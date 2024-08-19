@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(protoc)
 
+
 target_compile_options(protoc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
@@ -26,6 +27,11 @@ target_link_libraries(protoc PUBLIC
   yutil
   library-cpp-cpuid_check
   contrib-libs-protoc
+)
+
+target_allocator(protoc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(protoc PRIVATE
@@ -43,10 +49,5 @@ target_sources(protoc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/protoc/src/google/protobuf/compiler/main.cc
 )
 
-target_allocator(protoc
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(protoc)
-

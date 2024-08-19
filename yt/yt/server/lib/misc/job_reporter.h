@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/public.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/core/yson/string.h>
 

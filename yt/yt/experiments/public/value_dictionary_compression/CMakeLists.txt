@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(value_dictionary_compression)
 
+
 target_link_libraries(value_dictionary_compression PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,6 +27,11 @@ target_link_libraries(value_dictionary_compression PUBLIC
   yt-yt-client
   yt-yt-core
   library-cpp-getopt
+)
+
+target_allocator(value_dictionary_compression
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(value_dictionary_compression PRIVATE
@@ -44,10 +50,5 @@ target_sources(value_dictionary_compression PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/value_dictionary_compression/main.cpp
 )
 
-target_allocator(value_dictionary_compression
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(value_dictionary_compression)
-

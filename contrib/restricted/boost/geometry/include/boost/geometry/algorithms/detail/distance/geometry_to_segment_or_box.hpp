@@ -1,7 +1,8 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
-// Copyright (c) 2014-2021, Oracle and/or its affiliates.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
+// Copyright (c) 2014-2021, Oracle and/or its affiliates.
 // Contributed and/or modified by Menelaos Karavelas, on behalf of Oracle
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
@@ -35,7 +36,7 @@
 #include <boost/geometry/strategies/distance.hpp>
 #include <boost/geometry/strategies/tags.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 
 namespace boost { namespace geometry
@@ -247,26 +248,28 @@ public:
             }
         }
 
-        if (BOOST_GEOMETRY_CONDITION(is_comparable<strategy_type>::value))
+        if BOOST_GEOMETRY_CONSTEXPR (is_comparable<strategy_type>::value)
         {
             return (std::min)(cd_min1, cd_min2);
         }
-
-        if (cd_min1 < cd_min2)
+        else // else prevents unreachable code warning
         {
-            return strategy.apply(*pit_min, *it_min1, *it_min2);
-        }
-        else
-        {
-            return dispatch::distance
-                <
-                    segment_or_box_point,
-                    typename std::iterator_traits
-                        <
-                            segment_iterator_type
-                        >::value_type,
-                    Strategies
-                >::apply(*it_min, *sit_min, strategies);
+            if (cd_min1 < cd_min2)
+            {
+                return strategy.apply(*pit_min, *it_min1, *it_min2);
+            }
+            else
+            {
+                return dispatch::distance
+                    <
+                        segment_or_box_point,
+                        typename std::iterator_traits
+                            <
+                                segment_iterator_type
+                            >::value_type,
+                        Strategies
+                    >::apply(*it_min, *sit_min, strategies);
+            }
         }
     }
 

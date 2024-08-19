@@ -299,3 +299,7 @@ jobs:
           do
             ydb-ya-make  ${udfs_prefix}/${udf_name}
           done
+
+          export YDB_SOURCE_ROOT=$(realpath $(pwd)/../ytsaurus/ydb)
+          export YA_BUILD_PATH=$(pwd)
+          ../ytsaurus/ytsaurus/yt/docker/ya-build/build_yql_python_udfs_with_docker.sh

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-library-clickhouse-discovery)
 
+
 target_compile_options(unittester-library-clickhouse-discovery PRIVATE
   -Wdeprecated-this-capture
 )
@@ -34,6 +35,10 @@ target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
   yt-library-clickhouse_discovery
 )
 
+target_allocator(unittester-library-clickhouse-discovery
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -ldl
   -lrt
@@ -50,6 +55,7 @@ target_sources(unittester-library-clickhouse-discovery PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -70,20 +76,15 @@ set_property(
   TEST
   unittester-library-clickhouse-discovery
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-library-clickhouse-discovery)
 
 set_property(
   TEST
   unittester-library-clickhouse-discovery
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-library-clickhouse-discovery
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-library-clickhouse-discovery)
-

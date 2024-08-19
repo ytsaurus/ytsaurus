@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-server-lib-io)
 
+
 target_compile_options(unittester-server-lib-io PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-server-lib-io PUBLIC
   cpp-testing-gtest_main
   yt-yt-build
   server-lib-io
+)
+
+target_allocator(unittester-server-lib-io
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-server-lib-io PRIVATE
@@ -54,6 +60,7 @@ target_sources(unittester-server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_workload_model_ut.cpp
 )
 
+
 add_test(
   NAME
   unittester-server-lib-io
@@ -73,21 +80,15 @@ set_property(
   TEST
   unittester-server-lib-io
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-server-lib-io)
 
 set_property(
   TEST
   unittester-server-lib-io
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-server-lib-io
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-server-lib-io)
-

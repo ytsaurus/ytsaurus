@@ -94,7 +94,6 @@ def get_dynamic_master_config():
         node_statistics_gossip_period = 1000;
         total_node_statistics_update_period = 1000;
         enable_node_cpu_statistics = %true;
-        enable_real_chunk_locations = %true;
         forbid_maintenance_attribute_writes = %false;
         node_disposal_tick_period = 100;
     };
@@ -191,8 +190,6 @@ def get_dynamic_master_config():
     cell_master = {
         alert_update_period = 500;
     };
-
-    enable_boomerangs_identity = %true;
 }
 """)
 
@@ -244,7 +241,6 @@ def get_scheduler_config():
             enable_response_keeper = %true;
         };
         crash_on_allocation_heartbeat_processing_exception = %true;
-        enable_fair_share_preupdate_offloading = %true;
 
         template_pool_tree_config_map = {
             common = {

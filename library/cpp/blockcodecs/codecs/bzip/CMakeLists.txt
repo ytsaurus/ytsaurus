@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(blockcodecs-codecs-bzip INTERFACE)
 
+
 target_link_libraries(blockcodecs-codecs-bzip INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -26,8 +27,8 @@ target_link_libraries(blockcodecs-codecs-bzip INTERFACE
 
 
 add_global_library_for(blockcodecs-codecs-bzip.global
-  blockcodecs-codecs-bzip
-)
+  blockcodecs-codecs-bzip)
+
 
 target_link_libraries(blockcodecs-codecs-bzip.global PUBLIC
   linux-headers-generic::linux-headers-generic

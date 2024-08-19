@@ -57,6 +57,8 @@ const (
 	VerbSelectRows Verb = "select_rows"
 	VerbLockRows   Verb = "lock_rows"
 
+	VerbPushQueueProducer Verb = "push_queue_producer"
+
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
@@ -82,7 +84,7 @@ func (v Verb) hasInput() bool {
 	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable:
 		return true
 
-	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows:
+	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows, VerbPushQueueProducer:
 		return true
 
 	case VerbGetInSyncReplicas:
@@ -100,7 +102,7 @@ func (v Verb) IsHeavy() bool {
 	case VerbLocateSkynetShare:
 		return true
 
-	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows, VerbLockRows:
+	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows, VerbLockRows, VerbPushQueueProducer:
 		return true
 
 	case VerbGetJobStderr:

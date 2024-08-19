@@ -23,6 +23,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTableNode*>, Tables);
     DEFINE_BYVAL_RW_PROPERTY(ETableCollocationType, Type);
 
+    DEFINE_BYREF_RW_PROPERTY(
+        NTabletClient::TReplicationCollocationOptionsPtr,
+        ReplicationCollocationOptions,
+        New<NTabletClient::TReplicationCollocationOptions>());
+
 public:
     using TObject::TObject;
 

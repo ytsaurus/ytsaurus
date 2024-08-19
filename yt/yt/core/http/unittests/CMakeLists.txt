@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-http)
 
+
 target_compile_options(unittester-core-http PRIVATE
   -Wdeprecated-this-capture
 )
@@ -35,6 +36,10 @@ target_link_libraries(unittester-core-http PUBLIC
   yt-core-test_framework
 )
 
+target_allocator(unittester-core-http
+  cpp-ytalloc-impl
+)
+
 target_link_options(unittester-core-http PRIVATE
   -ldl
   -lrt
@@ -50,6 +55,7 @@ target_link_options(unittester-core-http PRIVATE
 target_sources(unittester-core-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/unittests/http_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -70,20 +76,15 @@ set_property(
   TEST
   unittester-core-http
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-http)
 
 set_property(
   TEST
   unittester-core-http
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-http
-  cpp-ytalloc-impl
-)
-
-vcs_info(unittester-core-http)
-

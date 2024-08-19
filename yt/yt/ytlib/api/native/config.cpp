@@ -191,6 +191,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCache)
         .DefaultNew();
+    registrar.Parameter("replication_card_cache", &TThis::ReplicationCardCache)
+        .Optional();
     registrar.Parameter("cluster_directory_synchronizer", &TThis::ClusterDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("medium_directory_synchronizer", &TThis::MediumDirectorySynchronizer)
@@ -312,6 +314,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_chaos_node_service_timeout", &TThis::DefaultChaosNodeServiceTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_chaos_watcher_client_request_timeout",
+        &TThis::DefaultChaosWatcherClientRequestTimeout)
+        .Default(TDuration::Minutes(30));
+
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("default_register_transaction_actions_timeout", &TThis::DefaultRegisterTransactionActionsTimeout)
@@ -395,6 +401,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(100);
     registrar.Parameter("object_life_stage_check_timeout", &TThis::ObjectLifeStageCheckTimeout)
         .Default(TDuration::Seconds(60));
+
+    registrar.Parameter("read_archive_state_from", &TThis::ReadArchiveStateFrom)
+        .Default(EMasterChannelKind::Follower);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;

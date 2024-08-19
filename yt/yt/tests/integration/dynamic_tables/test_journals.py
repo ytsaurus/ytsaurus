@@ -735,7 +735,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", PAYLOAD, journal_writer={"dont_close": True})
+        write_journal("//tmp/j1", PAYLOAD, journal_writer={"dont_close": True}, enable_chunk_preallocation=False)
 
         assert not get("//tmp/j1/@sealed")
         chunk_id = get_singular_chunk_id("//tmp/j1")

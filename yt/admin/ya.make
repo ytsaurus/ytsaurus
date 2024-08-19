@@ -1,4 +1,3 @@
-       
 RECURSE(
     dashboard_generator
     dashboards
@@ -8,6 +7,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         common
         core
+        core3
         cms
         acl_dumper
         ytcfgen
@@ -28,5 +28,7 @@ IF (NOT OPENSOURCE)
         gh_ci_vm_image_builder
         sevenpct
         abc_integration_client
+        timbertruck
+        libs
     )
 ENDIF()

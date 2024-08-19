@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(lsm-sim)
 
+
 target_compile_options(lsm-sim PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,10 @@ target_link_libraries(lsm-sim PUBLIC
   yutil
   library-cpp-cpuid_check
   public-lsm_simulator-lib
+)
+
+target_allocator(lsm-sim
+  cpp-ytalloc-impl
 )
 
 target_link_options(lsm-sim PRIVATE
@@ -44,9 +49,5 @@ target_sources(lsm-sim PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/bin/main.cpp
 )
 
-target_allocator(lsm-sim
-  cpp-ytalloc-impl
-)
 
 vcs_info(lsm-sim)
-

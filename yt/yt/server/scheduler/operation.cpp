@@ -45,6 +45,9 @@ void TOperationPoolTreeAttributes::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex)
         .Default();
+
+    registrar.Parameter("running_in_ephemeral_pool", &TThis::RunningInEphemeralPool)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,6 +333,16 @@ THashMap<TString, int> TOperation::GetSlotIndices() const
 TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
+}
+
+void TOperation::SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool)
+{
+    auto& schedulingAttributes = GetOrCrash(SchedulingAttributesPerPoolTree_, treeId);
+
+    if (schedulingAttributes.RunningInEphemeralPool != runningInEphemeralPool) {
+        SetShouldFlush(true);
+    }
+    schedulingAttributes.RunningInEphemeralPool = runningInEphemeralPool;
 }
 
 bool TOperation::IsRunningInStrategy() const
@@ -656,13 +669,15 @@ void ParseSpec(
     }
 }
 
-IMapNodePtr ConvertSpecStringToNode(const TYsonString& specString)
+IMapNodePtr ConvertSpecStringToNode(
+    const TYsonString& specString,
+    int treeSizeLimit)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     IMapNodePtr specNode;
     try {
-        specNode = ConvertToNode(specString)->AsMap();
+        specNode = ConvertToNode(specString, GetEphemeralNodeFactory(), treeSizeLimit)->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec string")
             << ex;

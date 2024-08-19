@@ -5,13 +5,13 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, raises_yt_error, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    set_node_banned, update_inplace, update_controller_agent_config)
+    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
@@ -23,6 +23,8 @@ from yt.common import YtError
 
 from flaky import flaky
 
+import time
+import io
 import pytest
 import random
 import string
@@ -36,6 +38,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_UNIQUE_COUNT_CHECK = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -143,6 +146,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{v1,v2}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'v1': 1, 'v2': 1}
+
     @authors("ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     @pytest.mark.timeout(150)
@@ -159,6 +166,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted_dicts(new_data) == sorted_dicts([{"index": i} for i in range(count)])
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -185,6 +196,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_output2") == [{"value": 42}]
         assert sorted_dicts(read_table("//tmp/t_output1")) == [{"index": i} for i in range(count)]
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
     def test_write_two_outputs_consistently(self):
@@ -1614,6 +1630,73 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
 
+    @authors("arkady-e1ppa")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_adaptive_buffer_row_count(self, ordered):
+        skip_if_old(self.Env, (24, 1), "Option is not present in older binaries")
+        if self.USE_SEQUOIA:
+            pytest.skip("Log parsing doesn't seem to work with sequoia")
+
+        # NB(arkady-e1ppa): Compat tests seem to fail on import otherwise.
+        import zstandard as zstd
+
+        input_table = "//tmp/in"
+        output_table = "//tmp/out"
+        row_count = 1000
+
+        create("table", input_table)
+        write_table(
+            input_table,
+            [{"value": f"{i}"} for i in range(row_count + 1)]
+        )
+
+        attributes = "<sorted_by=[key]>" if ordered else ""
+        output = f"{attributes}{output_table}"
+        create("table", output)
+
+        update_nodes_dynamic_config(value=row_count * 100, path="exec_node/job_controller/job_proxy/pipe_reader_timeout_threshold")
+
+        map(
+            ordered=ordered,
+            track=True,
+            in_=input_table,
+            out=output,
+            command="""cat""",
+            spec={
+                "job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "use_adaptive_buffer_row_count": True,
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        time.sleep(0.5)
+
+        buffer_row_count = -1
+        # TODO(arkady-e1ppa): Use job_proxy orchid for this once it becomes a thing.
+
+        decompressor = zstd.ZstdDecompressor()
+        for node_idx in range(0, self.NUM_NODES):
+            try:
+                job_proxy_log_file = self.path_to_run + f"/logs/job_proxy-{node_idx}-slot-0.debug.log.zst"
+
+                with open(job_proxy_log_file, "rb") as fin:
+                    binary_reader = decompressor.stream_reader(fin, read_size=8192)
+                    text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+                    for line in text_stream:
+                        if "Updating guess for batch row count" not in line:
+                            continue
+
+                        current_row_count = int(line.split("NextGuess: ")[1].split(")")[0])
+
+                        buffer_row_count = max(buffer_row_count, current_row_count)
+            except FileNotFoundError:
+                pass
+
+        assert buffer_row_count > 1
+
     @authors("galtsev")
     @pytest.mark.parametrize("job_count", list(range(1, 4)))
     @pytest.mark.parametrize("ordered", [False, True])
@@ -2196,6 +2279,91 @@ done
 
         release_breakpoint()
         op.track()
+
+    @authors("coteeq")
+    def test_map_unavailable_chunk_on_job(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+            ],
+            "replication_factor": 1,
+        })
+        data = [
+            {"key": 1, "value": 1},
+            {"key": 2, "value": 1},
+            {"key": 3, "value": 1},
+        ]
+        write_table("//tmp/t_in", data)
+
+        # Filter out nodes which host the input table,
+        # so we do not accidentally ban nodes with jobs.
+        chunk_ids = get("//tmp/t_in/@chunk_ids")
+        assert len(chunk_ids) == 1
+        table_nodes = [str(node) for node in get("#" + str(chunk_ids[0]) + "/@stored_replicas")]
+        assert len(table_nodes) == 1
+        all_nodes = get("//sys/cluster_nodes")
+        non_table_nodes = [node for node in all_nodes if node not in table_nodes]
+        assert len(non_table_nodes) == self.NUM_NODES - 1
+        scheduling_filter = " | ".join(non_table_nodes)
+
+        try:
+            update_controller_agent_config("chunk_location_throttler/limit", 0.0)
+
+            op = map(
+                track=False,
+                command=";".join([
+                    events_on_fs().wait_event_cmd("run_job"),
+                    "cat",
+                ]),
+                in_=["//tmp/t_in"],
+                out=["<create=%true>//tmp/t_out"],
+                spec={
+                    "testing": {
+                        # Need some delay, so we can ban nodes before job started
+                        "build_job_spec_proto_delay": 2000,
+                    },
+                    "scheduling_tag_filter": scheduling_filter,
+                    "job_io": {
+                        "table_reader": {
+                            # Fail fast
+                            "retry_count": 1,
+                        }
+                    },
+                }
+            )
+
+            # Wait until controller fetches tables.
+            wait(lambda: op.get_state() == "running")
+
+            # Lose the chunk. Hopefully we will do this while controller prepares
+            # jobspec (thus build_job_spec_proto_delay in operation spec).
+            set_nodes_banned(table_nodes, True)
+            wait(lambda: get("#{0}/@replication_status/default/lost".format(chunk_ids[0])))
+
+            # Wait for the job to be aborted due to failed chunks.
+            wait(lambda: op.get_job_count("aborted") > 0)
+
+            def get_unavailable_chunks_orchid():
+                path = "/controller_orchid/unavailable_input_chunks"
+                if self.Env.get_component_version("ytserver-controller-agent").abi >= (24, 1):
+                    path += "/<local>"
+                return path
+            assert get(op.get_path() + get_unavailable_chunks_orchid()) == [chunk_ids[0]]
+
+            # Allow to locate chunk
+            remove("//sys/controller_agents/config/chunk_location_throttler")
+
+            # Allow jobs to finish
+            events_on_fs().notify_event("run_job")
+            set_nodes_banned(table_nodes, False)
+            op.track()
+
+        finally:
+            remove("//sys/controller_agents/config/chunk_location_throttler", force=True)
+            set_nodes_banned(table_nodes, False)
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
 
 
 ##################################################################

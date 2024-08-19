@@ -513,6 +513,7 @@ public:
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     i64 BufferRowCount;
+    bool UseAdaptiveRowCount;
     std::optional<int> PipeCapacity;
     bool UseDeliveryFencedPipeWriter;
 
@@ -635,6 +636,8 @@ public:
     std::optional<TDuration> SettleJobDelay;
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
+
+    std::optional<TDuration> FailOperationDelay;
 
     bool FailSettleJobRequests;
 
@@ -1318,6 +1321,8 @@ public:
     bool FailOnJobRestart;
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
+
+    std::optional<TDuration> ArchiveTtl;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(server-lib-shell)
 
+
 target_compile_options(server-lib-shell PRIVATE
   -Wdeprecated-this-capture
 )

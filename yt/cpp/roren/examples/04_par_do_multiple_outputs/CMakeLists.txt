@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(04_par_do_multiple_outputs)
 
+
 target_link_libraries(04_par_do_multiple_outputs PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -23,6 +24,11 @@ target_link_libraries(04_par_do_multiple_outputs PUBLIC
   library-cpp-cpuid_check
   cpp-roren-interface
   cpp-roren-yt
+)
+
+target_allocator(04_par_do_multiple_outputs
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(04_par_do_multiple_outputs PRIVATE
@@ -41,10 +47,5 @@ target_sources(04_par_do_multiple_outputs PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
 )
 
-target_allocator(04_par_do_multiple_outputs
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(04_par_do_multiple_outputs)
-

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-threading-equeue)
 
+
 target_link_libraries(cpp-threading-equeue PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,7 +25,7 @@ target_link_libraries(cpp-threading-equeue PUBLIC
 )
 
 target_sources(cpp-threading-equeue PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/threading/equeue/equeue.h
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/equeue/equeue.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/threading/equeue/equeue.h
 )
 

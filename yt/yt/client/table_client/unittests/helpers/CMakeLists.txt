@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(table_client-unittests-helpers)
 
+
 target_compile_options(table_client-unittests-helpers PRIVATE
   -Wdeprecated-this-capture
 )

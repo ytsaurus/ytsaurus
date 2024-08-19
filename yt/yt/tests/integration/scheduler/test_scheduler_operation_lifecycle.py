@@ -1039,10 +1039,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         op3.abort(wait_until_finished=True)
         op1.abort(wait_until_finished=True)
 
-        tags = {"pool": "other_pool", "user_name": "egor"}
-
-        operation_schedule_job_attempt_count_sensor = profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=tags)
-
         wait(lambda: dominant_fair_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)

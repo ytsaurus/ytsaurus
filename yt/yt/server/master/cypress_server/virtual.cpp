@@ -489,7 +489,8 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
         cellTag,
         /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
-    batchReq->SetUser(user->GetName());
+    // TODO(babenko): switch to std::string
+    batchReq->SetUser(TString(user->GetName()));
 
     if (NeedSuppressUpstreamSync()) {
         batchReq->SetSuppressUpstreamSync(true);

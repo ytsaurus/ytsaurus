@@ -89,13 +89,13 @@ using TBadColumnCallback = void(const TColumnSchema& column);
 
 void ThrowExpectedKeyColumn(const TColumnSchema& tableColumn)
 {
-    THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
+    THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in index table",
         tableColumn.Name());
 }
 
 void ThrowExpectedTypeMatch(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn)
 {
-    THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in the table, %v in the index table",
+    THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in table, %v in index table",
         indexColumn.Name(),
         *tableColumn.LogicalType(),
         *indexColumn.LogicalType());
@@ -128,7 +128,7 @@ void ValidateIndexSchema(
 
         auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
         if (!indexColumn) {
-            THROW_ERROR_EXCEPTION("Key column %Qv missing in the index",
+            THROW_ERROR_EXCEPTION("Key column %Qv missing in the index schema",
                 tableColumn.Name());
         }
 
@@ -146,6 +146,17 @@ void ValidateIndexSchema(
             indexColumn.Aggregate());
 
         if (auto* tableColumn = tableSchema.FindColumn(indexColumn.Name())) {
+            if (indexColumn.Expression()) {
+                if (tableColumn->Expression()) {
+                    continue;
+                }
+                THROW_ERROR_EXCEPTION("Column %Qv is evaluated in index and not evaluated in table",
+                    indexColumn.Name());
+            } else if (tableColumn->Expression()) {
+                THROW_ERROR_EXCEPTION("Column %Qv is evaluated in table and not evaluated in index",
+                    indexColumn.Name());
+            }
+
             const auto& tableType = tableColumn->LogicalType();
             const auto& indexType = indexColumn.LogicalType();
 
@@ -172,6 +183,10 @@ void ValidateIndexSchema(
                 THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,
                     "Non-key non-utility column %Qv of the index is missing in the table schema",
                     indexColumn.Name());
+                THROW_ERROR_EXCEPTION_IF(indexColumn.Required(),
+                    "Utility column %Qv must have a nullable type, found %v",
+                    EmptyValueColumnName,
+                    *indexColumn.LogicalType());
             }
         }
     }
@@ -240,18 +255,18 @@ void ValidateColumnsAreInIndexLockGroup(
         break;
     }
 
-    THROW_ERROR_EXCEPTION_IF(!firstTableValueColumnInIndex,
-        "Expected at least one table value column in index");
-
     for (const auto& column : columns) {
         const auto& tableColumn = tableSchema.GetColumn(column);
-
-        THROW_ERROR_EXCEPTION_IF(tableColumn.Lock() != firstTableValueColumnInIndex->Lock(),
-            "Columns %Qv and %Qv belong to different lock groups: %Qv and %Qv",
-            tableColumn.Name(),
-            firstTableValueColumnInIndex->Name(),
-            tableColumn.Lock(),
-            firstTableValueColumnInIndex->Lock());
+        if (firstTableValueColumnInIndex) {
+            THROW_ERROR_EXCEPTION_IF(tableColumn.Lock() != firstTableValueColumnInIndex->Lock(),
+                "Columns %Qv and %Qv belong to different lock groups: %Qv and %Qv",
+                tableColumn.Name(),
+                firstTableValueColumnInIndex->Name(),
+                tableColumn.Lock(),
+                firstTableValueColumnInIndex->Lock());
+        } else {
+            firstTableValueColumnInIndex = &tableColumn;
+        }
     }
 }
 

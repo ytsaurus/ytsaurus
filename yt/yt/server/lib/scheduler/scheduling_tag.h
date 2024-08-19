@@ -47,6 +47,8 @@ void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consume
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
 void Deserialize(TSchedulingTagFilter& filter, NYson::TYsonPullParserCursor* cursor);
 
+void FormatValue(TStringBuilderBase* builder, const TSchedulingTagFilter& filter, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

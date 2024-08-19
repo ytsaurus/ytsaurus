@@ -50,8 +50,6 @@ struct ITaskHost
      */
     virtual void AccountBuildingJobSpecDelta(int countDelta, i64 totalSliceCountDelta) noexcept = 0;
 
-    virtual ui64 NextJobIndex() = 0;
-
     // TODO(max42): split this function into purely controller part and task part.
     virtual void InitUserJobSpecTemplate(
         NControllerAgent::NProto::TUserJobSpec* proto,
@@ -143,6 +141,14 @@ struct ITaskHost
         const NChunkClient::TInputChunkPtr& chunk) = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
+
+    virtual TJobletPtr CreateJoblet(
+        TTask* task,
+        TJobId jobId,
+        TString treeId,
+        int taskJobIndex,
+        std::optional<TString> poolPath,
+        bool treeIsTentative) = 0;
 
     virtual TSharedRef BuildJobSpecProto(
         const TJobletPtr& joblet,

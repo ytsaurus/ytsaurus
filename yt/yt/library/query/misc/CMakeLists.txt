@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-query-misc)
 
+
 target_compile_options(library-query-misc PRIVATE
   -Wdeprecated-this-capture
 )

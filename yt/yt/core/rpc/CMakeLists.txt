@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+
 add_subdirectory(grpc)
-add_subdirectory(http)
 add_subdirectory(unittests)
+add_subdirectory(http)

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(library-cpp-sighandler)
 
+
 target_link_libraries(library-cpp-sighandler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -24,7 +25,7 @@ target_link_libraries(library-cpp-sighandler PUBLIC
 )
 
 target_sources(library-cpp-sighandler PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.h
   ${PROJECT_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.h
 )
 

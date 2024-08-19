@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <util/random/fast.h>
+
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
 #define _NULL_ "#"

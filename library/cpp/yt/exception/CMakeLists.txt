@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(cpp-yt-exception)
 
+
 target_compile_options(cpp-yt-exception PRIVATE
   -Wdeprecated-this-capture
 )

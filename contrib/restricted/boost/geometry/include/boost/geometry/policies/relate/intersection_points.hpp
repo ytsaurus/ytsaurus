@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <string>
 
+#include <boost/geometry/algorithms/assign.hpp>
 #include <boost/geometry/algorithms/detail/assign_indexed_point.hpp>
 #include <boost/geometry/core/access.hpp>
 #include <boost/geometry/core/assert.hpp>
@@ -54,6 +55,21 @@ struct segments_intersection_points
         return_type result;
         result.count = 1;
         sinfo.calculate(result.intersections[0], s1, s2);
+
+        // Temporary - this should go later
+        result.fractions[0].assign(sinfo);
+
+        return result;
+    }
+
+    template<typename SegmentIntersectionInfo, typename Point>
+    static inline return_type
+    segments_share_common_point(side_info const&, SegmentIntersectionInfo const& sinfo,
+                                Point const& p)
+    {
+        return_type result;
+        result.count = 1;
+        boost::geometry::assign(result.intersections[0], p);
 
         // Temporary - this should go later
         result.fractions[0].assign(sinfo);

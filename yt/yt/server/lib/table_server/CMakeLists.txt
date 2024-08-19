@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(server-lib-table_server)
 
+
 target_compile_options(server-lib-table_server PRIVATE
   -Wdeprecated-this-capture
 )
@@ -55,6 +56,12 @@ target_sources(server-lib-table_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/table_server/proto/table_manager.pb.h
 )
 
+
+target_proto_outs(server-lib-table_server
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+)
+
 target_proto_addincls(server-lib-table_server
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -67,9 +74,3 @@ target_proto_addincls(server-lib-table_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(server-lib-table_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

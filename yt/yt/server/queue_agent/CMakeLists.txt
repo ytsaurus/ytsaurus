@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-queue_agent)
 
+
 target_compile_options(yt-server-queue_agent PRIVATE
   -Wdeprecated-this-capture
 )

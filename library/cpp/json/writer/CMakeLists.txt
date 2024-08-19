@@ -23,6 +23,7 @@ get_built_tool_path(
 
 add_library(cpp-json-writer)
 
+
 target_link_libraries(cpp-json-writer PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
@@ -36,9 +37,9 @@ target_sources(cpp-json-writer PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/json/writer/json.cpp
 )
 
+
 generate_enum_serilization(cpp-json-writer
   ${PROJECT_SOURCE_DIR}/library/cpp/json/writer/json_value.h
   INCLUDE_HEADERS
   library/cpp/json/writer/json_value.h
 )
-

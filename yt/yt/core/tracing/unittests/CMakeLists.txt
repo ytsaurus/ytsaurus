@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-tracing)
 
+
 target_compile_options(unittester-core-tracing PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(unittester-core-tracing PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+)
+
+target_allocator(unittester-core-tracing
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-tracing PRIVATE
@@ -46,6 +52,7 @@ target_link_options(unittester-core-tracing PRIVATE
 target_sources(unittester-core-tracing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -66,21 +73,15 @@ set_property(
   TEST
   unittester-core-tracing
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-tracing)
 
 set_property(
   TEST
   unittester-core-tracing
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-tracing
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(unittester-core-tracing)
-

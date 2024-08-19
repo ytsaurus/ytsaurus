@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(rng)
 
+
 target_compile_options(rng PRIVATE
   -Wdeprecated-this-capture
 )
@@ -26,6 +27,10 @@ target_link_libraries(rng PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-yt-core
+)
+
+target_allocator(rng
+  cpp-ytalloc-impl
 )
 
 target_link_options(rng PRIVATE
@@ -44,9 +49,5 @@ target_sources(rng PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/rng/main.cpp
 )
 
-target_allocator(rng
-  cpp-ytalloc-impl
-)
 
 vcs_info(rng)
-

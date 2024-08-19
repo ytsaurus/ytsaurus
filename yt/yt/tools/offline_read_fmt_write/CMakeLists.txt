@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(offline_read_fmt_write)
 
+
 target_compile_options(offline_read_fmt_write PRIVATE
   -Wdeprecated-this-capture
 )
@@ -37,6 +38,10 @@ target_link_libraries(offline_read_fmt_write PUBLIC
   cpp-getopt-small
 )
 
+target_allocator(offline_read_fmt_write
+  cpp-ytalloc-impl
+)
+
 target_link_options(offline_read_fmt_write PRIVATE
   -ldl
   -lrt
@@ -53,9 +58,5 @@ target_sources(offline_read_fmt_write PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_read_fmt_write/main.cpp
 )
 
-target_allocator(offline_read_fmt_write
-  cpp-ytalloc-impl
-)
 
 vcs_info(offline_read_fmt_write)
-

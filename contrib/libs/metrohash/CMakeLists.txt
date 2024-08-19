@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(contrib-libs-metrohash)
 
+
 target_compile_options(contrib-libs-metrohash PRIVATE
   -msse4.2
 )

@@ -30,6 +30,7 @@ get_built_tool_path(
 
 add_library(yt-ytlib-distributed_throttler)
 
+
 target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
 )
@@ -52,9 +53,15 @@ target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
 )
 
 target_sources(yt-ytlib-distributed_throttler PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
+)
+
+
+target_proto_outs(yt-ytlib-distributed_throttler
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-ytlib-distributed_throttler
@@ -68,9 +75,3 @@ target_proto_addincls(yt-ytlib-distributed_throttler
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt-ytlib-distributed_throttler
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

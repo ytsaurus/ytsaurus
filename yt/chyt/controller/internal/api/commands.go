@@ -63,11 +63,19 @@ var SpecletOptionsParameter = CmdParameter{
 	Validator:   validateSpecletOptions,
 }
 
+var SecretsParameter = CmdParameter{
+	Name:        "secrets",
+	Type:        TypeAny,
+	Description: "map of secrets in yson format",
+	Validator:   validateSecrets,
+}
+
 var CreateCmdDescriptor = CmdDescriptor{
 	Name: "create",
 	Parameters: []CmdParameter{
 		AliasParameter.AsExplicit(),
 		SpecletOptionsParameter,
+		SecretsParameter,
 	},
 	Description: "create a new strawberry operation",
 	Handler:     HTTPAPI.HandleCreate,
@@ -76,11 +84,15 @@ var CreateCmdDescriptor = CmdDescriptor{
 func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	var specletOptions map[string]any
+	var secrets map[string]any
 	if value, ok := params["speclet_options"]; ok {
 		specletOptions = value.(map[string]any)
 	}
+	if value, ok := params["secrets"]; ok {
+		secrets = value.(map[string]any)
+	}
 
-	err := a.API.Create(r.Context(), alias, specletOptions)
+	err := a.API.Create(r.Context(), alias, specletOptions, secrets)
 	if err != nil {
 		a.ReplyWithError(w, err)
 		return
@@ -412,6 +424,45 @@ func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request, p
 	a.ReplyOK(w, options)
 }
 
+var GetSecretsCmdDescriptor = CmdDescriptor{
+	Name:        "get_secrets",
+	Parameters:  []CmdParameter{AliasParameter},
+	Description: "get secrets by alias",
+	Handler:     HTTPAPI.HandleGetSecrets,
+}
+
+func (a HTTPAPI) HandleGetSecrets(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	alias := params["alias"].(string)
+
+	secrets, err := a.API.GetSecrets(r.Context(), alias)
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+
+	a.ReplyOK(w, secrets)
+}
+
+var SetSecretsCmdDescriptor = CmdDescriptor{
+	Name:        "set_secrets",
+	Parameters:  []CmdParameter{AliasParameter, SecretsParameter.AsRequired().AsExplicit()},
+	Description: "set secrets by alias",
+	Handler:     HTTPAPI.HandleSetSecrets,
+}
+
+func (a HTTPAPI) HandleSetSecrets(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	alias := params["alias"].(string)
+	secrets := params["secrets"].(map[string]any)
+
+	err := a.API.SetSecrets(r.Context(), alias, secrets)
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+
+	a.ReplyOK(w, nil)
+}
+
 var AllCommands = []CmdDescriptor{
 	ListCmdDescriptor,
 	CreateCmdDescriptor,
@@ -429,6 +480,8 @@ var AllCommands = []CmdDescriptor{
 	StartCmdDescriptor,
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
+	GetSecretsCmdDescriptor,
+	SetSecretsCmdDescriptor,
 }
 
 func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.ControllerFactory, l log.Logger) chi.Router {

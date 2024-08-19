@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(clickhouse-contrib-cctz-cmake)
 
+
 target_compile_options(clickhouse-contrib-cctz-cmake PUBLIC
   -DOS_LINUX
 )

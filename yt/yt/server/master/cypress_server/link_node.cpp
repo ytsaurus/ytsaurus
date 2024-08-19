@@ -34,36 +34,6 @@ void TLinkNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TargetPath_);
 }
 
-TYPath TLinkNode::ComputeEffectiveTargetPath(const TYPath& targetPath, TCypressShard* shard)
-{
-    if (!shard) {
-        return targetPath;
-    }
-
-    const auto* shardRoot = shard->GetRoot();
-    if (!IsObjectAlive(shardRoot)) {
-        THROW_ERROR_EXCEPTION("Root node of shard is not alive; shard is probably being destroyed");
-    }
-
-    if (shardRoot->GetType() != EObjectType::PortalExit) {
-        return targetPath;
-    }
-
-    const auto* portalExit = shardRoot->As<TPortalExitNode>();
-    auto optionalSuffix = NYPath::TryComputeYPathSuffix(targetPath, portalExit->GetPath());
-    if (!optionalSuffix) {
-        THROW_ERROR_EXCEPTION("Link target path must start with %v",
-            portalExit->GetPath());
-    }
-
-    return FromObjectId(portalExit->GetId()) + *optionalSuffix;
-}
-
-TYPath TLinkNode::ComputeEffectiveTargetPath() const
-{
-    return ComputeEffectiveTargetPath(TargetPath_, GetTrunkNode()->GetShard());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

@@ -15,6 +15,7 @@
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/lock.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>

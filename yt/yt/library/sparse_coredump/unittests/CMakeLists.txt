@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(unittester-core-dump)
 
+
 target_compile_options(unittester-core-dump PRIVATE
   -Wdeprecated-this-capture
 )
@@ -28,6 +29,11 @@ target_link_libraries(unittester-core-dump PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-sparse_coredump
+)
+
+target_allocator(unittester-core-dump
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-core-dump PRIVATE
@@ -45,6 +51,7 @@ target_link_options(unittester-core-dump PRIVATE
 target_sources(unittester-core-dump PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
 )
+
 
 add_test(
   NAME
@@ -65,21 +72,15 @@ set_property(
   TEST
   unittester-core-dump
   PROPERTY
-  PROCESSORS
-  1
+  ENVIRONMENT
 )
+
+vcs_info(unittester-core-dump)
 
 set_property(
   TEST
   unittester-core-dump
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(unittester-core-dump
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-vcs_info(unittester-core-dump)
-

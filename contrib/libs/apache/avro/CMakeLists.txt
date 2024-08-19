@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(libs-apache-avro)
 
+
 target_compile_options(libs-apache-avro PRIVATE
   -DAVRO_SOURCE
   -DAVRO_VERSION="1.11.3"

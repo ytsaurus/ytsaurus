@@ -28,175 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
 add_library(yt_proto-yt-core)
+
 
 target_include_directories(yt_proto-yt-core PUBLIC
   ${PROJECT_BINARY_DIR}/yt
@@ -214,6 +47,7 @@ target_proto_messages(yt_proto-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/bloom_filter.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/error.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/guid.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/hyperloglog.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/misc/proto/protobuf_helpers.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/tracing/proto/span.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.proto
@@ -230,6 +64,7 @@ target_sources(yt_proto-yt-core PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/bloom_filter.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/error.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/guid.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/hyperloglog.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/tracing/proto/span.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h
@@ -239,6 +74,12 @@ target_sources(yt_proto-yt-core PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/ytree/proto/attributes.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/ytree/proto/request_complexity_limits.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/core/ytree/proto/ypath.pb.h
+)
+
+
+target_proto_outs(yt_proto-yt-core
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt_proto-yt-core
@@ -251,9 +92,3 @@ target_proto_addincls(yt_proto-yt-core
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-
-target_proto_outs(yt_proto-yt-core
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-

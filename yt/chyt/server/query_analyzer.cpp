@@ -692,8 +692,13 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
         return canOptimize;
     };
 
+    bool hasAggregates = QueryInfo_.has_aggregates;
+    if (QueryInfo_.syntax_analyzer_result) {
+        hasAggregates = !QueryInfo_.syntax_analyzer_result->aggregates.empty();
+    }
+
     // Simple aggregation without groupBy, e.g. 'select avg(x) from table'.
-    if (!QueryInfo_.syntax_analyzer_result->aggregates.empty() && !select.groupBy()) {
+    if (hasAggregates && !select.groupBy()) {
         return;
     }
     if (select.groupBy() && !processAggregationKeyAst(select.groupBy())) {

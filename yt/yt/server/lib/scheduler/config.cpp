@@ -1191,13 +1191,13 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(52);
+        .Default(54);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
-    registrar.Parameter("enable_fair_share_preupdate_offloading", &TThis::EnableFairSharePreUpdateOffloading)
-        .Default(false);
+    registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
+        .Default(std::numeric_limits<int>::max());
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;

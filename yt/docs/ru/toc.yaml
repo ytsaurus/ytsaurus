@@ -260,6 +260,8 @@ items:
             items:
             - name: Выполнение запросов
               href: user-guide/data-processing/chyt/reference/execute.md
+            - name: Выбор координатора
+              href: user-guide/data-processing/chyt/queries/instance-pick.md
             - name: Настройки запросов
               href: user-guide/data-processing/chyt/reference/settings.md
             - name: Конфигурация клики

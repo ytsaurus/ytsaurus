@@ -13,10 +13,12 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(MCDisassembler)
+
 add_subdirectory(MCParser)
+add_subdirectory(MCDisassembler)
 
 add_library(llvm16-lib-MC)
+
 
 target_compile_options(llvm16-lib-MC PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>

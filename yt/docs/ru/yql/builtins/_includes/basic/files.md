@@ -1,6 +1,6 @@
 ## FileContent и FilePath {#file-content-path}
 
-Как [консольный](../../../interfaces/cli.md), так и [веб](../../../interfaces/web.md)-интерфейсы позволяют «прикладывать» к запросу произвольные именованные файлы. С помощью этих функций можно по имени приложенного файла получить его содержимое или путь в «песочнице» и в дальнейшем использовать в запросе произвольным образом.
+Как {% if audience == "internal" %}[консольный](https://yql.yandex-team.ru/docs/yt/interfaces/cli){% else %}консольный{% endif %}, так и {% if audience == "internal" %}[веб](https://yql.yandex-team.ru/docs/yt/interfaces/web){% else %}веб{% endif %}-интерфейсы позволяют «прикладывать» к запросу произвольные именованные файлы. С помощью этих функций можно по имени приложенного файла получить его содержимое или путь в «песочнице» и в дальнейшем использовать в запросе произвольным образом.
 
 **Сигнатуры**
 ```
@@ -42,7 +42,7 @@ SELECT FolderPath("foo"); -- в директории по возвращённо
 
 ## ParseFile
 
-Получить из приложенного текстового файла список значений. Может использоваться в сочетании с [IN](../../../syntax/expressions.md#in) и прикладыванием файла по URL <span style="color:gray;">(инструкции по прикладыванию файлов для {% if feature_webui %}[веб-интерфейса](../../../interfaces/web.md#attach) и {% endif %} [клиента](../../../interfaces/cli.md#attach))</span>.
+Получить из приложенного текстового файла список значений. Может использоваться в сочетании с [IN](../../../syntax/expressions.md#in) и прикладыванием файла по URL <span style="color:gray;">(инструкции по прикладыванию файлов для {% if feature_webui %}{% if audience == "internal" %}[веб-интерфейса](https://yql.yandex-team.ru/docs/yt/interfaces/web#attach){% else %}веб-интерфейса{% endif %} и {% endif %} {% if audience == "internal" %}[клиента](https://yql.yandex-team.ru/docs/yt/interfaces/cli#attach){% else %}клиента{% endif %})</span>.
 
 Поддерживается только один формат файла — по одному значению на строку.{% if feature_udf_noncpp %} Для чего-то более сложного прямо сейчас придется написать небольшую UDF на [Python](../../../udf/python.md) или [JavaScript](../../../udf/javascript.md). {% endif %}
 

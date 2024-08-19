@@ -1,1 +1,1 @@
-{% include [Сжатие](../../_includes/user-guide/storage/compression.md) %}
+{% include [Compression](../../_includes/user-guide/storage/compression.md) %}

@@ -96,13 +96,14 @@ public:
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const TString&), OnSelfRoleChanged);
 
+    TDuration GetDeathAge() const;
+
 private:
     const TCoordinatorConfigPtr Config_;
     const NTracing::TSamplerPtr Sampler_;
     TBootstrap* const Bootstrap_;
     const NApi::IClientPtr Client_;
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr UpdateDynamicConfigExecutor_;
 
     ICypressRegistrarPtr CypressRegistrar_;
     NProfiling::TGauge BannedGauge_ = HttpProxyProfiler.Gauge("/banned");
@@ -117,6 +118,11 @@ private:
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
     TAtomicObject<TInstant> AvailableAt_;
+
+    // TODO(aleksandra-zh): replace with the time read-only mode was entered.
+    bool MastersInReadOnly_ = false;
+
+    void UpdateReadOnly();
 
     void UpdateState();
     std::vector<TCoordinatorProxyPtr> ListCypressProxies();
@@ -202,16 +208,17 @@ class TDiscoverVersionsHandler
 {
 public:
     TDiscoverVersionsHandler(
+        TCoordinatorPtr coordinator,
         NApi::NNative::IConnectionPtr connection,
         NApi::IClientPtr client,
         TCoordinatorConfigPtr config);
 
 protected:
+    const TCoordinatorPtr Coordinator_;
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::IClientPtr Client_;
     const TCoordinatorConfigPtr Config_;
 
-    std::vector<TString> GetInstances(const NYPath::TYPath& path, bool fromSubdirectories = false);
     std::vector<TInstance> ListComponent(const TString& component, const TString& type);
     std::vector<TInstance> ListProxies(const TString& component, const TString& type);
     std::vector<TInstance> GetAttributes(

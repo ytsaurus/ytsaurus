@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(yt-yt-tools-import_table-unittests)
 
+
 target_compile_options(yt-yt-tools-import_table-unittests PRIVATE
   -Wdeprecated-this-capture
 )
@@ -36,6 +37,10 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
   libs-apache-arrow
 )
 
+target_allocator(yt-yt-tools-import_table-unittests
+  cpp-ytalloc-impl
+)
+
 target_link_options(yt-yt-tools-import_table-unittests PRIVATE
   -ldl
   -lrt
@@ -51,6 +56,7 @@ target_link_options(yt-yt-tools-import_table-unittests PRIVATE
 target_sources(yt-yt-tools-import_table-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/unittests/import_table_ut.cpp
 )
+
 
 set_property(
   TARGET
@@ -85,20 +91,15 @@ set_yunittest_property(
   TEST
   yt-yt-tools-import_table-unittests
   PROPERTY
-  PROCESSORS
-  4
+  ENVIRONMENT
 )
+
+vcs_info(yt-yt-tools-import_table-unittests)
 
 set_yunittest_property(
   TEST
   yt-yt-tools-import_table-unittests
   PROPERTY
-  ENVIRONMENT
+  PROCESSORS
+  1
 )
-
-target_allocator(yt-yt-tools-import_table-unittests
-  cpp-ytalloc-impl
-)
-
-vcs_info(yt-yt-tools-import_table-unittests)
-

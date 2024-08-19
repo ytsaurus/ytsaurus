@@ -27,7 +27,8 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
-    "sphinxarg.ext"  # sphinx-argparse
+    "sphinxarg.ext",  # sphinx-argparse
+    "sphinx_rtd_theme"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -77,31 +78,18 @@ todo_include_todos = True
 
 # -- Options for HTML output ----------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-html_theme = "alabaster"
+html_theme = "sphinx_rtd_theme"
 
-html_sidebars = {
-    "**": [
-        "about.html",
-        "navigation.html",
-        "searchbox.html"
-    ]
-}
+html_logo = "static/logo-dark.svg"
+html_favicon = "static/favicon.ico"
+html_title = "Python and CLI interfaces for the system"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
 html_theme_options = {
-    "description": "Python and CLI interfaces for the system",
-    "extra_nav_links": {
-        "YTsaurus site": "https://ytsaurus.tech",
-        "YTsaurus docs": "https://ytsaurus.tech/docs/en/",
-        "Python docs": "https://ytsaurus.tech/docs/en/api/python/start",
-        "YSON docs": "https://ytsaurus.tech/docs/en/user-guide/storage/yson"
-    }
+    "logo_only": True,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

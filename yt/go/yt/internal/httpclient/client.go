@@ -91,7 +91,10 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	var resolveURL url.URL
 	resolveURL.Scheme = c.schema()
 	resolveURL.Host = c.clusterURL.Address
-	resolveURL.Path = "hosts"
+	resolveURL.Path = c.config.HostsPath
+	if resolveURL.Path == "" {
+		resolveURL.Path = "hosts"
+	}
 	resolveURL.RawQuery = v.Encode()
 
 	req, err := http.NewRequest("GET", resolveURL.String(), nil)
@@ -405,6 +408,10 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			}
 		}
 
+		if call.WriteRspChan != nil {
+			defer close(call.WriteRspChan)
+		}
+
 		rsp, err := c.roundTrip(req.WithContext(ctx))
 		if err != nil {
 			closeErr(err)
@@ -412,24 +419,14 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		}
 
 		c.logResponse(ctx, rsp)
-		defer func() { _ = rsp.Body.Close() }()
-
-		if rsp.StatusCode/100 == 2 {
-			return
-		}
-
-		callErr, err := decodeYTErrorFromHeaders(rsp.Header)
+		res, err := c.readResult(rsp)
 		if err != nil {
 			closeErr(err)
 			return
 		}
-
-		if callErr != nil {
-			closeErr(callErr)
-			return
+		if call.WriteRspChan != nil {
+			call.WriteRspChan <- res
 		}
-
-		closeErr(unexpectedStatusCode(rsp))
 	}()
 
 	select {

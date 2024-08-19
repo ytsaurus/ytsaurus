@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_library(rpc-unittests-mock)
 
+
 target_compile_options(rpc-unittests-mock PRIVATE
   -Wdeprecated-this-capture
 )

@@ -16,6 +16,7 @@ find_package(linux-headers-generic REQUIRED)
 
 add_executable(iotest)
 
+
 target_compile_options(iotest PRIVATE
   -Wdeprecated-this-capture
 )
@@ -29,6 +30,11 @@ target_link_libraries(iotest PUBLIC
   cpp-yt-phdr_cache
   contrib-libs-liburing
   cpp-getopt-small
+)
+
+target_allocator(iotest
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(iotest PRIVATE
@@ -62,10 +68,5 @@ target_sources(iotest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/worker.cpp
 )
 
-target_allocator(iotest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
 
 vcs_info(iotest)
-

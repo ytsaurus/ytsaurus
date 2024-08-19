@@ -28,9 +28,9 @@
 
 #include <boost/geometry/strategies/distance.hpp>
 
-#include <boost/geometry/util/math.hpp>
 #include <boost/geometry/util/calculation_type.hpp>
-
+#include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 
 
 namespace boost { namespace geometry
@@ -50,14 +50,14 @@ struct compute_pythagoras_box_box
     static inline void apply(Box1 const& box1, Box2 const& box2, T& result)
     {
         T const b1_min_coord =
-            boost::numeric_cast<T>(geometry::get<min_corner, I-1>(box1));
+            util::numeric_cast<T>(geometry::get<min_corner, I-1>(box1));
         T const b1_max_coord =
-            boost::numeric_cast<T>(geometry::get<max_corner, I-1>(box1));
+            util::numeric_cast<T>(geometry::get<max_corner, I-1>(box1));
 
         T const b2_min_coord =
-            boost::numeric_cast<T>(geometry::get<min_corner, I-1>(box2));
+            util::numeric_cast<T>(geometry::get<min_corner, I-1>(box2));
         T const b2_max_coord =
-            boost::numeric_cast<T>(geometry::get<max_corner, I-1>(box2));
+            util::numeric_cast<T>(geometry::get<max_corner, I-1>(box2));
 
         if ( b1_max_coord < b2_min_coord )
         {
@@ -187,7 +187,7 @@ public :
         // The cast is necessary for MSVC which considers sqrt __int64 as an ambiguous call
         return math::sqrt
             (
-                 boost::numeric_cast<typename calculation_type
+                 util::numeric_cast<typename calculation_type
                      <
                          Box1, Box2
                      >::type>

@@ -13,73 +13,19 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+
+get_built_tool_path(
+  TOOL_enum_parser_bin
+  TOOL_enum_parser_dependency
+  tools/enum_parser/enum_parser
+  enum_parser
+)
+
 add_subdirectory(logging)
 add_subdirectory(ut)
 
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
 add_library(cpp-mapreduce-interface)
+
 
 target_compile_options(cpp-mapreduce-interface PRIVATE
   -Wdeprecated-this-capture
@@ -119,6 +65,7 @@ target_sources(cpp-mapreduce-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/skiff_row.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/tvm.cpp
 )
+
 
 generate_enum_serilization(cpp-mapreduce-interface
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/client_method_options.h
@@ -173,4 +120,3 @@ generate_enum_serilization(cpp-mapreduce-interface
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/protobuf_format.h
 )
-
