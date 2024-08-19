@@ -1538,8 +1538,16 @@ private:
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        for (const auto& chunkReadContext : InputChunkReadContexts_) {
-            writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
+        try {
+            for (const auto& chunkReadContext : InputChunkReadContexts_) {
+                writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
+            }
+        } catch (const TErrorException& ex) {
+            if (ex.Error().GetCode() == NChunkClient::EErrorCode::IncompatibleChunkMetas) {
+                WaitFor(writer->Cancel()).
+                    ThrowOnError();
+            }
+            throw;
         }
 
         for (const auto& chunkReadContext : InputChunkReadContexts_) {

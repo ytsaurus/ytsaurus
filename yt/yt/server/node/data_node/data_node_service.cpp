@@ -368,6 +368,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
+        const auto& config = GetDynamicConfig()->TestingOptions;
+        if (config->ChunkCancellationDelay) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+        }
+
         auto sessionId = FromProto<TSessionId>(request->session_id());
         SetSessionIdAllocationTag(GetOrCreateTraceContext("CancelChunk"), ToString(sessionId));
 
