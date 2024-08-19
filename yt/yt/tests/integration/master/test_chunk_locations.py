@@ -175,25 +175,48 @@ class TestChunkLocationsMulticell(TestChunkLocations):
 ##################################################################
 
 
-class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
+class TestPerLocationNodeDisposal(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_NODES = 6
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "node_tracker": {
             "enable_real_chunk_locations": True,
             "enable_per_location_node_disposal": True,
             "node_disposal_tick_period": 100,
-            "max_concurrent_node_unregistrations": 100
+            "max_concurrent_node_unregistrations": 100,
         }
     }
+
+    DELTA_NODE_FLAVORS = [
+        ["data"],
+        ["exec"],
+        ["tablet"],
+        ["data", "exec"],
+        ["data", "tablet"],
+        ["exec", "tablet"],
+    ]
 
     def _get_nodes_being_disposed_count(self):
         leader_address = get_active_primary_master_leader_address(self)
         profiler = profiler_factory().at_primary_master(leader_address)
-        return profiler.gauge("node_tracker/nodes_being_disposed").get()
+        return profiler.gauge("node_tracker/data_nodes_being_disposed").get()
 
     def _no_nodes_being_disposed(self):
         return self._get_nodes_being_disposed_count() == 0
+
+    def _get_immediatety_dispose_nondata_nodes(self):
+        config = get("//sys/@config/node_tracker")
+        return config.get("immediatety_dispose_nondata_nodes", False)
+
+    def _check_data_nodes_are_being_disposed(self):
+        dispose_nondata_immediately = self._get_immediatety_dispose_nondata_nodes()
+        for node in ls("//sys/cluster_nodes"):
+            state = get("//sys/cluster_nodes/{}/@state".format(node))
+            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)) or not dispose_nondata_immediately:
+                return state == "being_disposed"
+            else:
+                return state == "offline"
 
     @authors("aleksandra-zh")
     def test_nodes_dispose(self):
@@ -207,8 +230,7 @@ class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
         set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
-            for node in ls("//sys/cluster_nodes"):
-                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+            wait(self._check_data_nodes_are_being_disposed)
 
             set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
 
@@ -220,11 +242,15 @@ class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
     @authors("aleksandra-zh")
     def test_nodes_dispose_after_snapshot(self):
         set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+        dispose_nondata_immediately = self._get_immediatety_dispose_nondata_nodes()
 
-        node_count = len(ls("//sys/cluster_nodes"))
+        node_count = 0
+        for node in ls("//sys/cluster_nodes"):
+            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)) or not dispose_nondata_immediately:
+                node_count += 1
+
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
-            for node in ls("//sys/cluster_nodes"):
-                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+            wait(self._check_data_nodes_are_being_disposed)
 
             wait(lambda: self._get_nodes_being_disposed_count() == node_count)
 
@@ -235,8 +261,7 @@ class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
 
             wait(lambda: self._get_nodes_being_disposed_count() == node_count)
 
-            for node in ls("//sys/cluster_nodes"):
-                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+            wait(self._check_data_nodes_are_being_disposed)
 
             set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
 
@@ -244,6 +269,25 @@ class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
                 wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
 
         wait(self._no_nodes_being_disposed)
+
+    @authors("aleksandra-zh")
+    def test_nondata_nodes_dispose_seperately(self):
+        set("//sys/@config/node_tracker/immediatety_dispose_nondata_nodes", True)
+
+        set("//sys/@config/node_tracker/max_nodes_being_disposed", 0)
+        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            wait(self._check_data_nodes_are_being_disposed)
+
+            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+            set("//sys/@config/node_tracker/max_nodes_being_disposed", 10)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+
+        wait(self._no_nodes_being_disposed)
+
 
 ##################################################################
 
