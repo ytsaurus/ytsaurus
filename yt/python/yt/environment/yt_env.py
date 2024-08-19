@@ -1189,10 +1189,10 @@ class YTInstance(object):
                     pids.append(run_result.pid)
         return pids
 
-    def _run_builtin_yt_component(self, component, name=None, config_option=None):
+    def _run_builtin_yt_component(self, component, name=None, config_option=None, custom_paths=None):
         if name is None:
             name = component
-        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option)
+        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option, custom_paths=custom_paths)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1660,7 +1660,7 @@ class YTInstance(object):
             self.config_paths["controller_agent"].append(config_path)
             self._service_processes["controller_agent"].append(None)
 
-    def start_schedulers(self, sync=True):
+    def start_schedulers(self, sync=True, custom_paths=None):
         self._remove_scheduler_lock()
 
         client = self._create_cluster_client()
@@ -1685,7 +1685,7 @@ class YTInstance(object):
         if not client.exists("//sys/pools"):
             client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 
-        self._run_builtin_yt_component("scheduler")
+        self._run_builtin_yt_component("scheduler", custom_paths=custom_paths)
 
         def schedulers_ready():
             def check_node_state(node):
@@ -1755,8 +1755,8 @@ class YTInstance(object):
 
         self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
 
-    def start_controller_agents(self, sync=True):
-        self._run_builtin_yt_component("controller-agent", name="controller_agent")
+    def start_controller_agents(self, sync=True, custom_paths=None):
+        self._run_builtin_yt_component("controller-agent", name="controller_agent", custom_paths=custom_paths)
 
         def controller_agents_ready():
             self._validate_processes_are_running("controller_agent")

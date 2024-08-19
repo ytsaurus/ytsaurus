@@ -65,7 +65,7 @@ SANDBOX_ROOTDIR = None
 ##################################################################
 
 
-def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False):
+def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False, extra_artifact_components=None):
     yt.logger.LOGGER.setLevel(logging.DEBUG)
     artifact_components = artifact_components or {}
 
@@ -75,29 +75,36 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
     # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
-    destination = os.path.join(get_work_path(), "build", "suid" if need_suid else "nosuid")
+    bin_paths = []
+    for path_suffix, components in (("", artifact_components), ("extra", extra_artifact_components)):
+        if components is None:
+            bin_paths.append(None)
+            continue
+        destination = os.path.join(get_work_path(), "build", "suid" if need_suid else "nosuid", path_suffix)
 
-    if "trunk" in artifact_components:
-        # Explicitly specifying trunk components is not necessary as we already assume
-        # any component to be taken from trunk by default. We still allow doing that for clarity.
-        # So just skip such components.
-        artifact_components.pop("trunk")
+        if "trunk" in artifact_components:
+            # Explicitly specifying trunk components is not necessary as we already assume
+            # any component to be taken from trunk by default. We still allow doing that for clarity.
+            # So just skip such components.
+            artifact_components.pop("trunk")
 
-    bin_path = os.path.join(destination, "bin")
+        bin_path = os.path.join(destination, "bin")
 
-    if (force_create_environment or artifact_components) and os.path.exists(destination):
-        shutil.rmtree(destination)
+        if (force_create_environment or artifact_components) and os.path.exists(destination):
+            shutil.rmtree(destination)
 
-    if not os.path.exists(destination):
-        os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(
-            destination,
-            binary_root=get_build_root(),
-            copy_ytserver_all=not ytrecipe,
-            need_suid=need_suid and not ytrecipe,
-            artifact_components=artifact_components,
-        )
-        assert path == bin_path
+        if not os.path.exists(destination):
+            os.makedirs(destination)
+            path = arcadia_interop.prepare_yt_environment(
+                destination,
+                binary_root=get_build_root(),
+                copy_ytserver_all=not ytrecipe,
+                need_suid=need_suid and not ytrecipe,
+                artifact_components=components,
+            )
+            assert path == bin_path
+
+        bin_paths.append(bin_path)
 
     SANDBOX_ROOTDIR = get_tests_sandbox(arcadia_suffix=None)
     if arcadia_interop.yatest_common is not None:
@@ -105,7 +112,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
     else:
         OUTPUT_PATH = SANDBOX_ROOTDIR
 
-    return bin_path
+    return bin_paths
 
 
 def search_binary_path(binary_name):
@@ -247,6 +254,7 @@ class YTEnvSetup(object):
     NODE_PORT_SET_SIZE = None
     STORE_LOCATION_COUNT = 1
     ARTIFACT_COMPONENTS = {}
+    EXTRA_ARTIFACT_COMPONENTS = None
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
     ENABLE_BUNDLE_CONTROLLER = False
@@ -758,10 +766,12 @@ class YTEnvSetup(object):
         cls.liveness_checkers.append(log_rotator)
 
         # The following line initializes SANDBOX_ROOTDIR.
-        cls.bin_path = prepare_yatest_environment(
+        cls.bin_path, cls.extra_bin_path = prepare_yatest_environment(
             need_suid=need_suid,
             artifact_components=cls.ARTIFACT_COMPONENTS,
-            force_create_environment=cls.FORCE_CREATE_ENVIRONMENT)
+            force_create_environment=cls.FORCE_CREATE_ENVIRONMENT,
+            extra_artifact_components=cls.EXTRA_ARTIFACT_COMPONENTS,
+        )
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         cls.run_id = None
