@@ -13,11 +13,27 @@
         },
     },
     "build": {
+        "build_server_binaries": {
+            "targets": [
+                "yt/yt/server/all",
+            ],
+            "build_type": "profile",
+            "thinlto": true,
+            "target-platforms": [
+                "default-linux-x86_64",
+            ],
+            "flags": [
+                {
+                    "name": "NO_STRIP",
+                    "value": "yes",
+                },
+            ],
+        },
         "build_python_binaries": {
             "targets": [
-	            "yt/yt/python/yson_shared",
-	            "yt/yt/python/driver/native_shared",
-	            "yt/yt/python/driver/rpc_shared",
+                "yt/yt/python/yson_shared",
+                "yt/yt/python/driver/native_shared",
+                "yt/yt/python/driver/rpc_shared",
             ],
             "build_type": "release",
             "thinlto": true,
@@ -43,22 +59,6 @@
                 },
                 {
                     "name": "STRIP",
-                    "value": "yes",
-                },
-            ],
-        },
-        "build_server_binaries": {
-            "targets": [
-                "yt/yt/server/all",
-            ],
-            "build_type": "profile",
-            "thinlto": true,
-            "target-platforms": [
-                "default-linux-x86_64",
-            ],
-            "flags": [
-                {
-                    "name": "NO_STRIP",
                     "value": "yes",
                 },
             ],
@@ -128,7 +128,17 @@
                 "path": "/",
             },
         },
-	    {
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "build_key": "build_server_binaries",
+                "path": "yt/yt/server/all/ytserver-all",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
             "source": {
                 "type": "BUILD_OUTPUT",
                 "build_key": "build_python_binaries",
@@ -138,7 +148,7 @@
                 "path": "/artifacts/libyson_lib.so",
             },
         },
-	    {
+        {
             "source": {
                 "type": "BUILD_OUTPUT",
                 "build_key": "build_python_binaries",
@@ -148,7 +158,7 @@
                 "path": "/artifacts/libdriver_lib.so",
             },
         },
-	    {
+        {
             "source": {
                 "type": "BUILD_OUTPUT",
                 "build_key": "build_python_binaries",
@@ -156,16 +166,6 @@
             },
             "destination": {
                 "path": "/artifacts/libdriver_rpc_lib.so",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "build_key": "build_server_binaries",
-                "path": "yt/yt/server/all/ytserver-all",
-            },
-            "destination": {
-                "path": "/",
             },
         },
     ],
