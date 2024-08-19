@@ -136,6 +136,8 @@ public:
 
     int MaxNodesBeingDisposed;
 
+    bool ImmediatelyDisposeNondataNodes;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);
