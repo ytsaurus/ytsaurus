@@ -17,11 +17,6 @@ constexpr T ComputePower(T base, int exponent)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename U, int P>
-TFixedPointNumber<U, P>::TFixedPointNumber()
-    : Value_()
-{ }
-
-template <typename U, int P>
 TFixedPointNumber<U, P>::TFixedPointNumber(i64 value)
     : Value_(value * ScalingFactor)
 { }
