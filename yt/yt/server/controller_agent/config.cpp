@@ -672,7 +672,13 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("chunk_location_throttler", &TThis::ChunkLocationThrottler)
-        .DefaultNew();
+        .DefaultCtor([] {
+            // NB(coteeq): Controller will flood itself with
+            // OnChunkLocated calls if throttler is unlimited.
+            auto config = New<NConcurrency::TThroughputThrottlerConfig>();
+            config->Limit = 5'000;
+            return config;
+        });
 
     registrar.Parameter("event_log", &TThis::EventLog)
         .DefaultCtor([] {
