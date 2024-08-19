@@ -276,8 +276,7 @@ void TNontemplateCypressNodeProxyBase::TEndCopySubtreeSession::AssembleTree()
         for (const auto& [key, id] : children) {
             auto* childNode = GetOrCrash(OldIdToNode_, id);
             AttachChildToNode(trunkParentNode->GetTrunkNode(), childNode);
-            // TODO(babenko): migrate to std::string
-            attachedChildren.Insert(TString(key), childNode->GetTrunkNode());
+            attachedChildren.Insert(key, childNode->GetTrunkNode());
             ++trunkParentNode->ChildCountDelta();
         }
     }
@@ -3063,14 +3062,12 @@ bool TCypressMapNodeProxy::AddChild(const std::string& key, const NYTree::INodeP
         return false;
     }
 
-    // TODO(babenko): migrate to std::string
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
     auto& children = impl->MutableChildren();
-    // TODO(babenko): migrate to std::string
-    children.Set(TString(key), trunkChildImpl);
+    children.Set(key, trunkChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(TrunkNode_);
@@ -3096,8 +3093,7 @@ bool TCypressMapNodeProxy::RemoveChild(const std::string& key)
     }
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    // TODO(babenko): migrate to std::string
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified(EModificationType::Content);
@@ -3116,8 +3112,7 @@ void TCypressMapNodeProxy::RemoveChild(const INodePtr& child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    // TODO(babenko): migrate to std::string
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified(EModificationType::Content);
@@ -3141,14 +3136,12 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
-    // TODO(babenko): migrate to std::string
-    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(TString(key)));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
 
     auto& children = impl->MutableChildren();
 
     DetachChild(oldChildImpl);
-    // TODO(babenko): migrate to std::string
-    children.Set(TString(key), newTrunkChildImpl);
+    children.Set(key, newTrunkChildImpl);
     AttachChild(newChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -3238,11 +3231,9 @@ void TCypressMapNodeProxy::DoRemoveChild(
     auto* trunkChildImpl = childImpl->GetTrunkNode();
     auto& children = impl->MutableChildren();
     if (Transaction_) {
-        // TODO(babenko): migrate to std::string
-        children.Set(TString(key), nullptr);
+        children.Set(key, nullptr);
     } else {
-        // TODO(babenko): migrate to std::string
-        children.Remove(TString(key), trunkChildImpl);
+        children.Remove(key, trunkChildImpl);
     }
     DetachChild(childImpl);
     --impl->ChildCountDelta();

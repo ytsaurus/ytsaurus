@@ -392,7 +392,7 @@ void TAccount::RecomputeClusterStatistics()
     }
 }
 
-void TAccount::AttachChild(const TString& key, TAccount* child) noexcept
+void TAccount::AttachChild(const std::string& key, TAccount* child) noexcept
 {
     TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
 

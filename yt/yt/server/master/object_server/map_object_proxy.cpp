@@ -190,8 +190,7 @@ std::vector<std::string> TNonversionedMapObjectProxyBase<TObject>::GetKeys() con
 template <class TObject>
 INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const std::string& key) const
 {
-    // TODO(babenko): migrate to std::string
-    auto* child = TBase::GetThisImpl()->FindChild(TString(key));
+    auto* child = TBase::GetThisImpl()->FindChild(key);
     return child
         ? GetProxy(child)
         : nullptr;
@@ -320,7 +319,8 @@ void TNonversionedMapObjectProxyBase<TObject>::DetachChild(
     auto* childImpl = childProxy->GetThisImpl();
     YT_VERIFY(childImpl->GetParent() == impl);
     auto key = impl->GetChildKey(childImpl);
-    GetTypeHandler()->UnregisterName(key, childImpl);
+    // TODO(babenko): switch to std::string
+    GetTypeHandler()->UnregisterName(TString(key), childImpl);
     impl->DetachChild(childImpl);
     TBase::Bootstrap_->GetObjectManager()->UnrefObject(impl);
 }
