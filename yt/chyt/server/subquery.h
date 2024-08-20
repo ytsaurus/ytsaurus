@@ -4,6 +4,7 @@
 #include "query_analyzer.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/input_stream.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -19,18 +20,14 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSubquery
-{
-    NChunkPools::TChunkStripeListPtr StripeList;
-    NChunkPools::IChunkPoolOutput::TCookie Cookie;
-    std::pair<NTableClient::TOwningKeyBound, NTableClient::TOwningKeyBound> Bounds;
-};
-
 struct TQueryInput
 {
+    int OperandCount;
+    std::vector<TTablePtr> InputTables;
     NChunkPools::TChunkStripeListPtr StripeList;
     THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr> MiscExtMap;
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
+    NChunkPools::TInputStreamDirectory InputStreamDirectory;
 };
 
 //! Fetch data slices for given input tables.
@@ -42,11 +39,18 @@ TQueryInput FetchInput(
     const TClickHouseIndexBuilder& indexBuilder,
     NTransactionClient::TTransactionId transactionId);
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubquery
+{
+    NChunkPools::TChunkStripeListPtr StripeList;
+    NChunkPools::IChunkPoolOutput::TCookie Cookie;
+    std::pair<NTableClient::TOwningKeyBound, NTableClient::TOwningKeyBound> Bounds;
+};
+
 std::vector<TSubquery> BuildThreadSubqueries(
-    const NChunkPools::TChunkStripeListPtr& inputStripeList,
-    std::optional<int> keyColumnCount,
-    EPoolKind poolKind,
-    NChunkClient::TDataSourceDirectoryPtr dataSourceDirectory,
+    const TQueryInput& queryInput,
+    const TQueryAnalysisResult& queryAnalysisResult,
     int jobCount,
     std::optional<double> samplingRate,
     const TStorageContext* storageContext,

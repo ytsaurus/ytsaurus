@@ -48,6 +48,7 @@
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/queryToString.h>
+#include <Processors/ConcatProcessor.h>
 #include <Processors/ResizeProcessor.h>
 #include <Processors/Sinks/NullSink.h>
 #include <Processors/Sources/RemoteSource.h>
@@ -447,7 +448,8 @@ public:
         }
 
         for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
-            const auto& cliqueNode = CliqueNodes_[index];
+            // Multiple secondary queries can be executed on the same node.
+            const auto& cliqueNode = CliqueNodes_[index % CliqueNodes_.size()];
             const auto& secondaryQuery = SecondaryQueries_[index];
 
             YT_LOG_DEBUG(
@@ -472,11 +474,21 @@ public:
 
             Pipes_.emplace_back(std::move(pipe));
         }
+
+        if (QueryAnalysisResult_->ReadInOrderMode == EReadInOrderMode::Backward) {
+            std::reverse(Pipes_.begin(), Pipes_.end());
+        }
     }
 
     DB::Pipes ExtractPipes()
     {
         return std::move(Pipes_);
+    }
+
+    bool ReadInOrder() const
+    {
+        YT_VERIFY(QueryAnalyzer_);
+        return QueryAnalyzer_->GetReadInOrderMode() != EReadInOrderMode::None;
     }
 
     DB::QueryPipelineBuilderPtr ExtractPipeline(std::function<void()> commitCallback)
@@ -547,10 +559,10 @@ private:
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
     std::optional<TQueryAnalysisResult> QueryAnalysisResult_;
     // TODO(max42): YT-11778.
-    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
-    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
-    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
-    NChunkPools::TChunkStripeListPtr InputStripeList_;
+    // TMiscExt is used for better memory estimation in readers, but it is dropped when using TInputChunk,
+    // so for now we store it explicitly in a map inside this struct and use when serializing subquery input.
+    // NB: The contents of this class are modified by the preparer.
+    TQueryInput QueryInput_;
     std::optional<double> SamplingRate_;
 
     TClusterNodes CliqueNodes_;
@@ -582,7 +594,10 @@ private:
         QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
 
-        auto input = FetchInput(
+        QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
+        QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
+
+        QueryInput_ = FetchInput(
             StorageContext_,
             *QueryAnalysisResult_,
             RealColumnNames_,
@@ -591,17 +606,14 @@ private:
             QueryContext_->ReadTransactionId);
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
-        SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
-
-        MiscExtMap_ = std::move(input.MiscExtMap);
-        InputStripeList_ = std::move(input.StripeList);
+        SpecTemplate_.DataSourceDirectory = QueryInput_.DataSourceDirectory;
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sampleSize()) {
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= InputStripeList_->TotalRowCount;
+                rate /= QueryInput_.StripeList->TotalRowCount;
             }
             rate = std::clamp(rate, 0.0, 1.0);
             SamplingRate_ = rate;
@@ -623,7 +635,7 @@ private:
         if (canUseBlockSampling && SamplingRate_) {
             YT_LOG_DEBUG("Using block sampling (SamplingRate: %v)",
                 SamplingRate_);
-            for (const auto& stripe : InputStripeList_->Stripes) {
+            for (const auto& stripe : QueryInput_.StripeList->Stripes) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         chunkSlice->ApplySamplingSelectivityFactor(*SamplingRate_);
@@ -653,8 +665,10 @@ private:
 
         // This limit can only be applied after fetching chunk specs.
         // That's why we do it here and not in GetNodesToDistribute.
-        if (settings->MinDataWeightPerSecondaryQuery > 0) {
-            i64 nodeLimit = DivCeil(InputStripeList_->TotalDataWeight, settings->MinDataWeightPerSecondaryQuery);
+        // When reading in order we produce intentionally small thread subqueries which
+        // will not be combined, so there is no point in reducing the number of nodes.
+        if (!ReadInOrder() && settings->MinDataWeightPerSecondaryQuery > 0) {
+            i64 nodeLimit = DivCeil(QueryInput_.StripeList->TotalDataWeight, settings->MinDataWeightPerSecondaryQuery);
             nodeLimit = std::clamp<i64>(nodeLimit, 1, nodes.size());
             nodes.resize(nodeLimit);
         }
@@ -692,10 +706,8 @@ private:
             inputStreamsPerSecondaryQuery);
 
         ThreadSubqueries_ = BuildThreadSubqueries(
-            std::move(InputStripeList_),
-            QueryAnalysisResult_->KeyColumnCount,
-            QueryAnalysisResult_->PoolKind,
-            SpecTemplate_.DataSourceDirectory,
+            QueryInput_,
+            *QueryAnalysisResult_,
             std::max<int>(1, secondaryQueryCount * inputStreamsPerSecondaryQuery),
             SamplingRate_,
             StorageContext_,
@@ -734,7 +746,13 @@ private:
 
     void PrepareSecondaryQueryAsts()
     {
-        int secondaryQueryCount = std::min(ThreadSubqueries_.size(), CliqueNodes_.size());
+        int secondaryQueryCount = ThreadSubqueries_.size();
+
+        // When reading in order we produce intentionally small thread subqueries
+        // which should not be combined at this point.
+        if (!ReadInOrder()) {
+            secondaryQueryCount = std::min<int>(secondaryQueryCount, CliqueNodes_.size());
+        }
 
         if (secondaryQueryCount == 0) {
             // NB: if we make no secondary queries, there will be a tricky issue around schemas.
@@ -767,11 +785,13 @@ private:
             }
 
             YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
+            // Each thread subquery will form its own secondary query when reading in order.
+            YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) == 1);
 
             auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
                 threadSubqueries,
                 SpecTemplate_,
-                MiscExtMap_,
+                QueryInput_.MiscExtMap,
                 index,
                 index + 1 == secondaryQueryCount /*isLastSubquery*/);
 
@@ -922,6 +942,8 @@ public:
                 toString(toStage));
         }
 
+        TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+
         bool isDistributedJoin = DB::hasJoin(select);
 
         if (isDistributedJoin) {
@@ -938,8 +960,6 @@ public:
                     distributeJoin = true;
                     break;
             }
-
-            TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
 
             if (!distributeJoin && analyzer.HasInOperator()) {
                 THROW_ERROR_EXCEPTION(
@@ -973,17 +993,19 @@ public:
             }
         }
 
+        analyzer.Prepare();
+
         auto nodes = GetNodesToDistribute(queryContext, DistributionSeed_, isDistributedJoin);
         // If there is only one node, then its result is final, since
         // we do not need to merge aggregation states from different streams.
-        if (nodes.size() == 1) {
+        // When reading in order we can produce more subqueries than nodes,
+        // so this optimization is not applicable.
+        if (analyzer.GetReadInOrderMode() == EReadInOrderMode::None && nodes.size() == 1) {
             return DB::QueryProcessingStage::Complete;
         }
 
         // Try to process query up to advanced stages.
         if (executionSettings->OptimizeQueryProcessingStage) {
-            TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
-            analyzer.Prepare();
             return analyzer.GetOptimizedQueryProcessingStage();
         }
 
@@ -1011,10 +1033,16 @@ public:
             queryInfo,
             context,
             processingStage);
-
         preparer.Fire();
+
         auto pipes = preparer.ExtractPipes();
-        return DB::Pipe::unitePipes(std::move(pipes));
+        auto pipe = DB::Pipe::unitePipes(std::move(pipes));
+
+        if (preparer.ReadInOrder() && !pipe.empty() && pipe.numOutputPorts() > 1) {
+            pipe.addTransform(std::make_shared<DB::ConcatProcessor>(pipe.getHeader(), pipe.numOutputPorts()));
+        }
+
+        return pipe;
     }
 
     // Same as IStorage::read(QueryPlan &, ...), but does not resize the output pipe.
