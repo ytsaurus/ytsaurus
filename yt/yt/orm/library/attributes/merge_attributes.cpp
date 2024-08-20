@@ -205,6 +205,10 @@ bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
 
 void SortAndRemoveNestedPaths(std::vector<NYPath::TYPath>& paths)
 {
+    if (paths.empty()) {
+        return;
+    }
+
     std::sort(paths.begin(), paths.end());
 
     int lastRemainingPath = 0;
