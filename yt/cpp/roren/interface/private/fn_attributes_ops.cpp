@@ -19,6 +19,16 @@ bool TFnAttributesOps::GetIsPure(const TFnAttributes& attributes)
     return attributes.IsPure_;
 }
 
+void TFnAttributesOps::SetIsMove(TFnAttributes& attributes, bool isMove)
+{
+    attributes.IsMove_ = isMove;
+}
+
+bool TFnAttributesOps::GetIsMove(const TFnAttributes& attributes)
+{
+    return attributes.IsMove_;
+}
+
 const std::vector<TString> TFnAttributesOps::GetResourceFileList(const TFnAttributes& attributes)
 {
     return attributes.ResourceFileList_;

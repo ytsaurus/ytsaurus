@@ -50,19 +50,25 @@ namespace NRoren {
 ///
 /// @param func contains user code and might be passed in one of the following forms
 ///
-/// Function with signature `TOutput (const T&)`.
+/// Function with signature `TOutput (const T&/T&&)`.
 /// Example:
 ///
 ///     auto transform = ParDo([] (const TString& in) {
 ///         return in.size();
 ///     });
 ///
-/// Function with signature `TOutput (const T&, TOutput<TOutput>&)`
+/// Function with signature `TOutput (const T&/T&&, TOutput<TOutput>&)`
 /// Example:
 ///
 ///     auto transform = data.ParDo([] (const TString& in, TOutput<TString>& out) {
 ///         if (!in.empty()) {
 ///             out.Add(in);
+///         }
+///     });
+///
+///     auto transform = data.ParDo([] (TString&& in, TOutput<TString>& out) {
+///         if (!in.empty()) {
+///             out.Add(std::move(in));
 ///         }
 ///     });
 ///
@@ -73,15 +79,24 @@ namespace NRoren {
 ///     ...
 ///     auto transform = ParDo(MakeIntrusive<TMyParDo>());
 ///
-///  @param attributes contains attributes of a function, they will be merged with
+/// @param attributes contains attributes of a function, they will be merged with
 /// attributes provided by `func' (values from `attributes' have higher precedence).
-template <typename F>
-    requires NPrivate::CIntrusivePtr<std::decay_t<F>>
-auto ParDo(F func);
+///
+/// @param Additional binding arguments can be provided for function version:
+/// Example:
+///
+///     TString badId = "42";
+///     auto transform = data.ParDo([] (const TString& in, TOutput<TString>& out, IExecutionContext*, const TString& badId) {
+///         if (in != badId) {
+///             out.Add(in);
+///         }
+///     }, std::move(badId));
+template <typename F, typename... TArgs>
+    requires (!std::is_pointer_v<F>)
+auto ParDo(F&& lambda, TArgs&&... args);
 
-template <typename F>
-    requires (!NPrivate::CIntrusivePtr<std::decay_t<F>>)
-auto ParDo(F func, const TFnAttributes& attributes = {});
+template <NPrivate::CDoFn TFunc>
+auto ParDo(TIntrusivePtr<TFunc> func);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,60 +265,71 @@ private:
     const NPrivate::IRawParDoPtr RawParDo_;
 };
 
-template <typename F>
-    requires NPrivate::CIntrusivePtr<std::decay_t<F>>
-auto ParDo(F func)
+template <NPrivate::CDoFn TFunc>
+auto ParDo(TIntrusivePtr<TFunc> func)
 {
-    using TDecayedF = std::decay_t<F>;
-    using TInputRow = typename TDecayedF::TValueType::TInputRow;
-    using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
-    NPrivate::IRawParDoPtr rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>(), func->GetDefaultAttributes());
-    return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
-
+    using TInputRow = std::decay_t<typename TFunc::TInputRow>;
+    using TOutputRow = typename TFunc::TOutputRow;
+    auto rawParDo = NPrivate::MakeRawParDo(std::move(func));
+    return TParDoTransform<TInputRow, TOutputRow>(std::move(rawParDo));
 }
 
-template <typename F>
-    requires (!NPrivate::CIntrusivePtr<std::decay_t<F>>)
-auto ParDo(F func, const TFnAttributes& attributes)
-{
-    using TDecayedF = std::decay_t<F>;
-    using TFirstArg = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
-    if constexpr (std::invocable<TDecayedF, TFirstArg>) {
-        if constexpr (NPrivate::CParDoArgs<TFirstArg>) {
-            using TInputRow = typename TFirstArg::TInputRow;
-            using TOutputRow = typename TFirstArg::TOutputRow;
-            static_assert(std::is_convertible_v<F, void(*)(TFirstArg)>);
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TFirstArg>(func, attributes);
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
-        } else {
-            using TInputRow = TFirstArg;
-            using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
-            static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
-        }
-    } else {
-        using TInputRow = TFirstArg;
-        using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
-        using TOutputRow = typename TArg2::TRowType;
-
-        if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
-            static_assert(TDependentFalse<F>, "Creating ParDo with multiple outputs is not supported, create class implementing IDoFn<TInputRow, TMultiRow>");
-        } else {
-            static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
-
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
-        }
-    }
-
-}
-
-template <typename F, typename... Args>
+template <NPrivate::CDoFn F, typename... Args>
 auto MakeParDo(Args... args)
 {
     return ParDo(::MakeIntrusive<F>(args...));
 }
+
+template <typename TInputRow, typename TOutputRow, typename... TArgs>
+auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&, IExecutionContext*, TArgs... args), TFnAttributes fnAttributes = {}, std::decay_t<TArgs>... args)
+{
+    using TState = NPrivate::TLambdaState<TInputRow, TOutputRow, TArgs...>;
+    auto rawParDo = NPrivate::MakeRawParDo(TState(callback, std::move(args)...), std::move(fnAttributes));
+    return TParDoTransform<std::decay_t<TInputRow>, TOutputRow>(std::move(rawParDo));
+}
+
+template <typename TInputRow, typename TOutputRow, typename TFirstBind, typename... TArgs>
+    requires (!std::same_as<TFirstBind, TFnAttributes>)
+auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&, IExecutionContext*, TFirstBind bind, TArgs... args), std::decay_t<TFirstBind> firstBind, std::decay_t<TArgs>... args)
+{
+    return ParDo(callback, TFnAttributes{}, std::move(firstBind), std::move(args)...);
+}
+
+template <typename TInputRow, typename TOutputRow>
+auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&), TFnAttributes attributes = {})
+{
+    auto casted = NPrivate::SaveLoadablePointer(callback);
+    return ParDo(
+        +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
+            callback.Value(std::forward<TInputRow>(input), output);
+        },
+        std::move(attributes),
+        casted);
+}
+
+template <typename TInputRow, typename TOutputRow>
+auto ParDo(TOutputRow(*callback)(TInputRow), TFnAttributes attributes = {})
+{
+    auto casted = NPrivate::SaveLoadablePointer(callback);
+    return ParDo(
+        +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
+            if constexpr (std::same_as<TOutputRow, void>) {
+                callback.Value(std::forward<TInputRow>(input));
+            } else {
+                output.Add(callback.Value(std::forward<TInputRow>(input)));
+            }
+        },
+        std::move(attributes),
+        casted);
+}
+
+template <typename F, typename... TArgs>
+    requires (!std::is_pointer_v<F>)
+auto ParDo(F&& lambda, TArgs&&... args)
+{
+    return ParDo(+lambda, std::forward<TArgs>(args)...);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,7 +17,7 @@ template <typename T>
 concept CMultiRow = std::is_same_v<T, TMultiRow>;
 
 template <typename T>
-concept CRow = !CMultiRow<T>;
+concept CRow = !CMultiRow<T> && (std::same_as<std::decay_t<T>, T> || std::same_as<std::decay_t<T>&&, T>);
 
 template <typename TItem>
 concept CRorenGraphItem =

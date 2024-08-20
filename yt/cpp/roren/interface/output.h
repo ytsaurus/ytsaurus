@@ -24,8 +24,13 @@ public:
     Y_FORCE_INLINE void Add(const TRowType& row)
     {
         static_assert(sizeof(*this) == sizeof(NPrivate::IRawOutput));
-
         AddRaw(&row, 1);
+    }
+
+    Y_FORCE_INLINE void Add(TRowType&& row)
+    {
+        static_assert(sizeof(*this) == sizeof(NPrivate::IRawOutput));
+        MoveRaw(&row, 1);
     }
 
     // NB. This class is thin typed wrapper around IRawOutput it allows compiler to type check program.
