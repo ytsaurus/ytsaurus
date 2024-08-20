@@ -8128,7 +8128,7 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    if (auto livePreview = LivePreviews_->find(tableName); livePreview != LivePreviews_->end()) {
+    if (LivePreviews_->contains(tableName)) {
         InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
     }
 }
