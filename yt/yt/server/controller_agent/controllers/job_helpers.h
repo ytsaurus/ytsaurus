@@ -89,6 +89,8 @@ public:
     void SetMovingAverageWindowSize(int movingAverageWindowSize);
 
     void Persist(const TPersistenceContext& context);
+
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleAllocationStatistics)
