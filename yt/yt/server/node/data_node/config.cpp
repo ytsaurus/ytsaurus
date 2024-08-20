@@ -601,6 +601,9 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
 
+    registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         // Disable target allocation from master.
         config->Writer->UploadReplicationFactor = 1;
