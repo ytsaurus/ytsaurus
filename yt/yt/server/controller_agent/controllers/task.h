@@ -22,12 +22,12 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 

@@ -5,10 +5,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    serialize.cpp
     statistics.cpp
     structs.cpp
-    persistence.cpp
     progress_counter.cpp
     read_range_registry.cpp
     job_size_constraints.cpp

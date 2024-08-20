@@ -200,7 +200,9 @@ SRCS(
     chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
+    controller_agent/persistence.cpp
     controller_agent/public.cpp
+    controller_agent/serialize.cpp
 
     controller_agent/proto/controller_agent_descriptor.proto
     controller_agent/proto/controller_agent_service.proto

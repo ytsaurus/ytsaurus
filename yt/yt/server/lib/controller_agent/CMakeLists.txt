@@ -50,10 +50,8 @@ target_link_libraries(server-lib-controller_agent PUBLIC
 )
 
 target_sources(server-lib-controller_agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/persistence.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/progress_counter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/read_range_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_size_constraints.cpp

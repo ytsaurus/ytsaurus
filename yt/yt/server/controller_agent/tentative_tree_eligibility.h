@@ -2,9 +2,9 @@
 
 #include "helpers.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/statistics.h>

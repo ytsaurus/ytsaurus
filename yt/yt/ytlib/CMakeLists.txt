@@ -373,7 +373,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/persistence.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp

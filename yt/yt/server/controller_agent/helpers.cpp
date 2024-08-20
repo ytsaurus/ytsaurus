@@ -1,8 +1,6 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -11,6 +9,8 @@
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 

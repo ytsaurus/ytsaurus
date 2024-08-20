@@ -1,12 +1,11 @@
 #include "helpers.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>

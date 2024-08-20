@@ -4,9 +4,9 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/controller_agent/persistence.h>
-
 #include <yt/yt/server/lib/scheduler/public.h>
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/core/misc/moving_average.h>
 

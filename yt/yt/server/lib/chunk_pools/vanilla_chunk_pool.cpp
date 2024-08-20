@@ -2,8 +2,9 @@
 
 #include "new_job_manager.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 

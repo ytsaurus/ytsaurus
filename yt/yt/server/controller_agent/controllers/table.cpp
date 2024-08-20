@@ -1,8 +1,8 @@
 #include "table.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
