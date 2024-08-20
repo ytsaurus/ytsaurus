@@ -1781,6 +1781,16 @@ class TestCustomSettings(ClickHouseTestBase):
             assert clique.make_query("select b, 2 * b as two_b  from `//tmp/t`") == \
                    [{"b": 0, "two_b": 0}, {"b": 1, "two_b": 2}]
             assert clique.make_query("select toTypeName(b) as tb, toTypeName(2 * b) as t2b from `//tmp/t` limit 1") == \
-                   [{"tb": "YtBoolean", "t2b": "UInt16"}]
+                   [{"tb": "Bool", "t2b": "UInt16"}]
             assert get_schema_from_description(clique.make_query("describe `//tmp/t`")) == \
-                   [{"name": "b", "type": "YtBoolean"}]
+                   [{"name": "b", "type": "Bool"}]
+
+            clique.make_query("create table `//tmp/t2` (b YtBoolean) engine=YtTable()")
+            clique.make_query("insert into `//tmp/t2` select b from `//tmp/t`")
+            assert clique.make_query("select b from `//tmp/t2`") == \
+                   [{"b": 0}, {"b": 1}]
+            clique.make_query("insert into `//tmp/t2`(b) values (false), (true), (42)")
+            assert clique.make_query("select b from `//tmp/t2`") == \
+                   [{"b": 0}, {"b": 1}, {"b": 0}, {"b": 1}, {"b": 1}]
+            assert get_schema_from_description(clique.make_query("describe `//tmp/t2`")) == \
+                   [{"name": "b", "type": "Bool"}]
