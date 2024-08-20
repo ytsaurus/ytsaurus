@@ -43,6 +43,11 @@ type Config struct {
 	// If not set, default role is used.
 	ProxyRole string
 
+	// NetworkName configures network name used by RPC proxy.
+	//
+	// Only relevant for RPC client.
+	NetworkName string
+
 	// HostsPath specifies the path used to discover HTTP proxies.
 	//
 	// If not set, defaults to "hosts".
