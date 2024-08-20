@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -502,6 +504,8 @@ protected:
     {
         return TError();
     }
+
+    PHOENIX_DECLARE_FRIEND();
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
