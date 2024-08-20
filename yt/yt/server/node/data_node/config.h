@@ -643,6 +643,8 @@ class TReplicateChunkJobDynamicConfig
 public:
     NChunkClient::TReplicationWriterConfigPtr Writer;
 
+    bool UseBlockCache;
+
     REGISTER_YSON_STRUCT(TReplicateChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
