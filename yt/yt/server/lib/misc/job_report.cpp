@@ -80,7 +80,8 @@ size_t TJobReport::EstimateSize() const
         SpecVersion_,
         Statistics_,
         Events_,
-        InterruptionInfo_);
+        InterruptionInfo_,
+        Profile_.value_or(NJobAgent::TJobProfile{}).Blob);
 }
 
 TJobReport TJobReport::ExtractSpec() const
