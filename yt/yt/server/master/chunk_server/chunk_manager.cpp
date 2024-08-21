@@ -1897,10 +1897,9 @@ public:
         return ChunkSealer_->IsEnabled();
     }
 
-
-    void ScheduleChunkRefresh(TChunk* chunk) override
+    void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {}) override
     {
-        ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        ChunkReplicator_->ScheduleChunkRefresh(chunk, delay);
     }
 
     void ScheduleConsistentlyPlacedChunkRefresh(std::vector<TChunk*> chunks)
@@ -2727,6 +2726,7 @@ private:
     void OnNodePendingRestartChanged(TNode* node)
     {
         if (node->ReportedDataNodeHeartbeat()) {
+            // This might be heavy.
             ScheduleNodeRefresh(node);
         }
     }
@@ -3161,7 +3161,14 @@ private:
         // This could be under 'else', but it is not.
         refreshSequoiaChunks(request->added_chunks());
 
-        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        ProcessRemovedReplicas(
+            locationDirectory,
+            node,
+            request->removed_chunks(),
+            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
+            request->caused_by_node_disposal()
+                ? ERemoveReplicaReason::NodeDisposed
+                : ERemoveReplicaReason::IncrementalHeartbeat);
     }
 
     static void BuildReplicasListYson(
@@ -3430,14 +3437,15 @@ private:
     void ProcessRemovedReplicas(
         const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         TNode* node,
-        const auto& removedReplicas)
+        const auto& removedReplicas,
+        ERemoveReplicaReason reason)
     {
         for (const auto& chunkInfo : removedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
                 continue;
             }
 
-            if (auto* chunk = ProcessRemovedChunk(node, locationDirectory, chunkInfo)) {
+            if (auto* chunk = ProcessRemovedChunk(node, locationDirectory, chunkInfo, reason)) {
                 if (IsObjectAlive(chunk) && chunk->IsBlob()) {
                     ScheduleEndorsement(chunk);
                 }
@@ -3501,7 +3509,11 @@ private:
         const auto& counters = GetIncrementalHeartbeatCounters(node);
         counters.RemovedChunks.Increment(request->removed_chunks().size());
 
-        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        ProcessRemovedReplicas(
+            locationDirectory,
+            node,
+            request->removed_chunks(),
+            ERemoveReplicaReason::IncrementalHeartbeat);
         UpdateChunkRemovalLockedMap(node, request->sequence_number());
 
         const auto* mutationContext = GetCurrentMutationContext();
@@ -5552,7 +5564,10 @@ private:
                 ChunkReplicator_->OnReplicaRemoved(chunkLocation, replica, reason);
                 break;
             case ERemoveReplicaReason::NodeDisposed:
-                // Do nothing.
+                if (node->IsPendingRestart()) {
+                    // We delay the refresh for chunks with replicas disposed from a pending restart node.
+                    ScheduleChunkRefresh(chunk, GetDynamicConfig()->DisposedPendingRestartNodeChunkRefreshDelay);
+                }
                 break;
             default:
                 YT_ABORT();
@@ -5713,7 +5728,8 @@ private:
     TChunk* ProcessRemovedChunk(
         TNode* node,
         const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
-        const TChunkRemoveInfo& chunkInfo)
+        const TChunkRemoveInfo& chunkInfo,
+        ERemoveReplicaReason reason)
     {
         auto nodeId = node->GetId();
         auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -5743,6 +5759,13 @@ private:
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!chunk) {
             return nullptr;
+        }
+
+        if (reason == ERemoveReplicaReason::NodeDisposed && node->IsPendingRestart()) {
+            // TODO(danilalexeev or aleksandra-zh): Intorduce common location disposal mechanisms for
+            // master replicas and Sequoia replicas stored at master.
+            // We delay the refresh for chunks with replicas disposed from a pending restart node.
+            ScheduleChunkRefresh(chunk, GetDynamicConfig()->DisposedPendingRestartNodeChunkRefreshDelay);
         }
 
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;

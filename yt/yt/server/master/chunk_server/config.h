@@ -674,6 +674,8 @@ public:
     //! will be scheduled within this period.
     TDuration RemovalJobScheduleDelay;
 
+    TDuration DisposedPendingRestartNodeChunkRefreshDelay;
+
     // COMPAT(kvk1920): YT-17756.
     bool EnableFixRequisitionUpdateOnMerge;
 

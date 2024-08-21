@@ -2626,7 +2626,7 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
     return std::min(cap, result);
 }
 
-void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
+void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay)
 {
     // Fast path.
     if (!ShouldProcessChunk(chunk)) {
@@ -2641,7 +2641,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
         return;
     }
 
-    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0});
+    auto adjustedDelay = delay
+        ? std::make_optional(DurationToCpuDuration(*delay))
+        : std::nullopt;
+    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)

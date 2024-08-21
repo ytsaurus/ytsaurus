@@ -444,6 +444,8 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("delay_before_full_heartbeat_report", &TThis::DelayBeforeFullHeartbeatReport)
+        .Default();
 
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default({
