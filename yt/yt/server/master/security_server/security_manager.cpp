@@ -569,8 +569,22 @@ public:
             .TimeGauge("/acl_iteration_cumulative_time");
     }
 
+    void RefreshAccountsForProfiling()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AccountsForProfiling_.clear();
+        for (auto [_, account] : Accounts()) {
+            if (IsObjectAlive(account) && IsShardActive(account->GetShardIndex())) {
+                AccountsForProfiling_.push_back(account);
+            }
+        }
+    }
+
     void OnAccountsProfiling()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (!Bootstrap_->IsPrimaryMaster()) {
             return;
         }
@@ -578,17 +592,7 @@ public:
         std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        for (auto [accountId, account] : Accounts()) {
-            if (!IsObjectAlive(account)) {
-                continue;
-            }
-
-            // TODO(h0pless): Optimize by saving accounts that belong to this shard into a separate vector,
-            // simmilar to chunk manager incumbency maps.
-            if (!IsShardActive(account->GetShardIndex())) {
-                continue;
-            }
-
+        for (auto* account : AccountsForProfiling_) {
             // NB: account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
             // to report outdated values. The worst part is that outdated and current values will get added up.
             // On the other note, the distribution is not quite uniform, but it does not matter here.
@@ -726,6 +730,11 @@ public:
 
     void DestroyAccount(TAccount* account)
     {
+        // Destroying accounts is rare, so O(n) deletion should be OK.
+        if (IsShardActive(account->GetShardIndex())) {
+            std::remove(AccountsForProfiling_.begin(), AccountsForProfiling_.end(), account);
+        }
+
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
         auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
         ChargeAccountAncestry(
@@ -2805,6 +2814,8 @@ private:
 
     std::vector<TBufferedProducerPtr> AccountProfilingProducers_;
 
+    std::vector<TAccount*> AccountsForProfiling_;
+
     TPeriodicExecutorPtr AccountsProfilingExecutor_;
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
@@ -3013,6 +3024,10 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(account->RefObject() == 1);
+
+        if (IsShardActive(account->GetShardIndex())) {
+            AccountsForProfiling_.push_back(account);
+        }
 
         return account;
     }
@@ -3688,6 +3703,8 @@ private:
         AccountMap_.Clear();
         AccountNameMap_.clear();
 
+        AccountsForProfiling_.clear();
+
         AccountResourceUsageLeaseMap_.Clear();
 
         UserMap_.Clear();
@@ -4135,6 +4152,8 @@ private:
         for (const auto& producer : AccountProfilingProducers_) {
             producer->SetEnabled(true);
         }
+
+        RefreshAccountsForProfiling();
     }
 
     void StopAccountsProfiling()
@@ -4147,6 +4166,8 @@ private:
         for (const auto& producer : AccountProfilingProducers_) {
             producer->SetEnabled(false);
         }
+
+        AccountsForProfiling_.clear();
     }
 
     void OnStopLeading() override
