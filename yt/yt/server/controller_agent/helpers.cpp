@@ -310,6 +310,8 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     auto comparator = uploadSchema->ToComparator();
 
+    auto sampleRowBuffer = New<TRowBuffer>();
+
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
 
     YT_VERIFY(partitionCount > 0);
@@ -334,9 +336,9 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
             columnEvaluators.push_back([
                 evaluator = evaluatorCache->Find(*parsedSource, sampleSchema),
-                rowBuffer
+                sampleRowBuffer
             ] (TUnversionedRow sampleRow) {
-                return evaluator->Evaluate(sampleRow, rowBuffer);
+                return evaluator->Evaluate(sampleRow, sampleRowBuffer);
             });
         } else {
             int sampleColumn = sampleSchema->GetColumnIndex(column.Name());
@@ -350,7 +352,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     std::vector<TComparableSample> comparableSamples;
     comparableSamples.reserve(samples.size());
     for (const auto& sample : samples) {
-        auto key = rowBuffer->AllocateUnversioned(uploadSchema->GetKeyColumnCount());
+        auto key = sampleRowBuffer->AllocateUnversioned(uploadSchema->GetKeyColumnCount());
         for (int index = 0; index < uploadSchema->GetKeyColumnCount(); ++index) {
             key[index] = columnEvaluators[index](sample.Key);
         }
