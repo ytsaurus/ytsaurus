@@ -1,4 +1,5 @@
 #include "row_merger.h"
+#include "private.h"
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -6,6 +7,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 
@@ -21,11 +24,13 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     const TColumnFilter& columnFilter,
     TColumnEvaluatorPtr columnEvaluator,
     TTimestamp retentionTimestamp,
-    const TTimestampColumnMapping& timestampColumnMapping)
+    const TTimestampColumnMapping& timestampColumnMapping,
+    TNestedColumnsSchema nestedColumnsSchema)
     : RowBuffer_(rowBuffer)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , RetentionTimestamp_(retentionTimestamp)
+    , NestedColumnsSchema_(std::move(nestedColumnsSchema))
 {
     ColumnIdToTimestampColumnId_.assign(static_cast<size_t>(columnCount), -1);
     for (auto [columnId, timestampColumnId] : timestampColumnMapping) {
@@ -39,12 +44,43 @@ TSchemafulRowMerger::TSchemafulRowMerger(
         ColumnIds_ = columnFilter.GetIndexes();
     }
 
+    bool hasNestedColumns = false;
+
     ColumnIdToIndex_.assign(static_cast<size_t>(columnCount), -1);
     for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
-        ColumnIdToIndex_[ColumnIds_[columnIndex]] = columnIndex;
+        auto columnId = ColumnIds_[columnIndex];
+        ColumnIdToIndex_[columnId] = columnIndex;
+
+        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+            AggregateColumnIds_.push_back(columnId);
+            hasNestedColumns = true;
+            continue;
+        }
+
+        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+            AggregateColumnIds_.push_back(columnId);
+            hasNestedColumns = true;
+            continue;
+        }
+
+        if (ColumnEvaluator_->IsAggregate(columnId)) {
+            AggregateColumnIds_.push_back(columnId);
+        }
     }
 
+    if (hasNestedColumns) {
+        // Enrich with additional columns.
+        for (auto [nestedColumnId, _] : NestedColumnsSchema_.KeyColumns) {
+            if (ColumnIdToIndex_[nestedColumnId] == -1) {
+                AggregateColumnIds_.push_back(nestedColumnId);
+            }
+        }
+    }
+
+    std::sort(AggregateColumnIds_.begin(), AggregateColumnIds_.end());
+
     MergedTimestamps_.resize(std::ssize(ColumnIds_));
+    AggregateValues_.resize(std::ssize(AggregateColumnIds_));
 
     Cleanup();
 }
@@ -113,10 +149,12 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
         }
         if (partialValue.Timestamp > LatestDelete_ && partialValue.Timestamp >= RetentionTimestamp_) {
             int columnId = partialValue.Id;
-            if (int columnIndex = ColumnIdToIndex_[columnId]; columnIndex >= 0) {
-                if (ColumnEvaluator_->IsAggregate(columnId)) {
-                    AggregateValues_.push_back(partialValue);
-                } else if (MergedTimestamps_[columnIndex] < partialValue.Timestamp) {
+
+            auto columnIdIt = LowerBound(AggregateColumnIds_.begin(), AggregateColumnIds_.end(), columnId);
+            if (columnIdIt != AggregateColumnIds_.end() && *columnIdIt == columnId) {
+                AggregateValues_[columnIdIt - AggregateColumnIds_.begin()].push_back(partialValue);
+            } else if (int columnIndex = ColumnIdToIndex_[columnId]; columnIndex >= 0) {
+                if (MergedTimestamps_[columnIndex] < partialValue.Timestamp) {
                     MergedRow_[columnIndex] = partialValue;
                     MergedTimestamps_[columnIndex] = partialValue.Timestamp;
                 }
@@ -145,45 +183,66 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
         return {};
     }
 
-    AggregateValues_.erase(
-        std::remove_if(
-            AggregateValues_.begin(),
-            AggregateValues_.end(),
-            [latestDelete = LatestDelete_] (const TVersionedValue& value) {
-                return value.Timestamp <= latestDelete;
-            }),
-        AggregateValues_.end());
+    for (auto& values : AggregateValues_) {
+        values.erase(
+            std::remove_if(
+                values.begin(),
+                values.end(),
+                [latestDelete = LatestDelete_] (const TVersionedValue& value) {
+                    return value.Timestamp <= latestDelete;
+                }),
+            values.end());
 
-    std::sort(
-        AggregateValues_.begin(),
-        AggregateValues_.end(),
-        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
-            return std::tie(lhs.Id, lhs.Timestamp) < std::tie(rhs.Id, rhs.Timestamp);
-        });
-
-    AggregateValues_.erase(
-        std::unique(
-            AggregateValues_.begin(),
-            AggregateValues_.end(),
+        std::sort(
+            values.begin(),
+            values.end(),
             [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
-                return std::tie(lhs.Id, lhs.Timestamp) == std::tie(rhs.Id, rhs.Timestamp);
-            }),
-        AggregateValues_.end());
+                return lhs.Timestamp < rhs.Timestamp;
+            });
 
-    for (auto it = AggregateValues_.begin(), end = AggregateValues_.end(); it != end;) {
-        int columnId = it->Id;
+        values.erase(
+            std::unique(
+                values.begin(),
+                values.end(),
+                [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                    return lhs.Timestamp == rhs.Timestamp;
+                }),
+            values.end());
+    }
 
-        // Find first element with different id.
-        auto next = it;
-        while (++next != end && columnId == next->Id) {
+    NestedKeyColumns_.assign(std::ssize(NestedColumnsSchema_.KeyColumns), {});
+    NestedValueColumns_.assign(std::ssize(NestedColumnsSchema_.ValueColumns), {});
+
+    for (int aggregateIndex = 0; aggregateIndex < std::ssize(AggregateValues_); ++aggregateIndex) {
+        auto& values = AggregateValues_[aggregateIndex];
+        auto columnId = AggregateColumnIds_[aggregateIndex];
+
+        if (values.empty()) {
+            continue;
+        }
+
+        auto it = values.begin();
+        auto itEnd = values.end();
+
+        for (auto next = it; next != itEnd; ++next) {
             if (None(next->Flags & EValueFlags::Aggregate)) {
                 // Skip older aggregate values.
                 it = next;
             }
         }
 
+        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+            NestedKeyColumns_[ptr - NestedColumnsSchema_.KeyColumns.data()] = {it, itEnd};
+            continue;
+        }
+
+        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+            NestedValueColumns_[ptr - NestedColumnsSchema_.ValueColumns.data()] = {it, itEnd};
+            continue;
+        }
+
         auto state = *it++;
-        while (it != next) {
+        while (it != itEnd) {
             ColumnEvaluator_->MergeAggregate(columnId, &state, *it, RowBuffer_);
             ++it;
         }
@@ -194,6 +253,48 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
         auto columnIndex = ColumnIdToIndex_[columnId];
         MergedTimestamps_[columnIndex] = (it - 1)->Timestamp;
         MergedRow_[columnIndex] = finalizedState;
+    }
+
+    NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
+    NestedMerger_.BuildMergeScript();
+
+    for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
+        if (NestedKeyColumns_[index].Empty()) {
+            continue;
+        }
+
+        auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
+
+        auto state = NestedMerger_.BuildMergedKeyColumns(index, RowBuffer_.Get());
+
+        auto columnIndex = ColumnIdToIndex_[columnId];
+        // Nested key columns are added to enriched column filter.
+        if (columnIndex != -1) {
+            MergedTimestamps_[columnIndex] = NestedKeyColumns_[index].Back().Timestamp;
+            MergedRow_[columnIndex] = state;
+        }
+    }
+
+    for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+        auto valueIt = NestedValueColumns_[index].Begin();
+        auto endCompactValueIt = NestedValueColumns_[index].End();
+
+        if (NestedValueColumns_[index].Empty()) {
+            continue;
+        }
+
+        auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
+
+        auto state = NestedMerger_.ApplyMergeScript(
+            {valueIt, endCompactValueIt},
+            NestedColumnsSchema_.ValueColumns[index].Type,
+            NestedColumnsSchema_.ValueColumns[index].AggregateFunction,
+            RowBuffer_.Get());
+
+        auto columnIndex = ColumnIdToIndex_[columnId];
+        // For nested value columns requested and enriched column filters are matched.
+        MergedTimestamps_[columnIndex] = (endCompactValueIt - 1)->Timestamp;
+        MergedRow_[columnIndex] = state;
     }
 
     for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
@@ -220,6 +321,8 @@ void TSchemafulRowMerger::Cleanup()
 {
     MergedRow_ = {};
     AggregateValues_.clear();
+    AggregateValues_.resize(std::ssize(AggregateColumnIds_));
+
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
     Started_ = false;
@@ -231,11 +334,13 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     TRowBufferPtr rowBuffer,
     int columnCount,
     int keyColumnCount,
-    TColumnEvaluatorPtr columnEvaluator)
+    TColumnEvaluatorPtr columnEvaluator,
+    TNestedColumnsSchema nestedColumnsSchema)
     : RowBuffer_(std::move(rowBuffer))
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
+    , NestedColumnsSchema_(std::move(nestedColumnsSchema))
     , ValidValues_(size_t(ColumnCount_) - KeyColumnCount_, false)
 {
     YT_VERIFY(KeyColumnCount_ <= ColumnCount_);
@@ -266,18 +371,25 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         const auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
         YT_VERIFY(id >= KeyColumnCount_);
-        ValidValues_[id - KeyColumnCount_] = true;
+
         auto& mergedValue = MergedRow_[id];
         if (Any(partialValue.Flags & EValueFlags::Aggregate)) {
-            YT_VERIFY(ColumnEvaluator_->IsAggregate(id));
-            bool isAggregate = Any(mergedValue.Flags & EValueFlags::Aggregate);
-            ColumnEvaluator_->MergeAggregate(id, &mergedValue, partialValue, RowBuffer_);
-            if (isAggregate) {
-                mergedValue.Flags |= EValueFlags::Aggregate;
+            if (ColumnEvaluator_->IsAggregate(id)) {
+                bool isAggregate = Any(mergedValue.Flags & EValueFlags::Aggregate);
+                ColumnEvaluator_->MergeAggregate(id, &mergedValue, partialValue, RowBuffer_);
+                if (isAggregate) {
+                    mergedValue.Flags |= EValueFlags::Aggregate;
+                }
+            } else {
+                if (ValidValues_[id - KeyColumnCount_]) {
+                    THROW_ERROR_EXCEPTION("Cannot apply aggregate function in unversioned row merger");
+                }
+                mergedValue = partialValue;
             }
         } else {
             mergedValue = partialValue;
         }
+        ValidValues_[id - KeyColumnCount_] = true;
     }
 }
 
@@ -306,6 +418,91 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         if (!validValue) {
             fullRow = false;
             break;
+        }
+    }
+
+    // Validate nested columns.
+    {
+        int itemCount;
+        bool aggregateFlag;
+
+        bool isFirstColumn = true;
+
+        for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
+            auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
+
+            if (!ValidValues_[columnId - KeyColumnCount_]) {
+                continue;
+            }
+
+            if (MergedRow_[columnId].Type == EValueType::Null) {
+                continue;
+            }
+
+            auto currentItemCount = UnpackNestedValuesList(
+                nullptr,
+                MergedRow_[columnId].AsStringBuf(),
+                NestedColumnsSchema_.KeyColumns[index].Type);
+
+            auto currentAggregateFlag = Any(MergedRow_[columnId].Flags & EValueFlags::Aggregate);
+
+            if (isFirstColumn) {
+                isFirstColumn = false;
+                itemCount = currentItemCount;
+                aggregateFlag = currentAggregateFlag;
+            } else {
+                if (itemCount != currentItemCount) {
+                    THROW_ERROR_EXCEPTION("Item count mismatch in nested key column")
+                        << TErrorAttribute("expected", itemCount)
+                        << TErrorAttribute("actual", currentItemCount)
+                        << TErrorAttribute("column_id", static_cast<int>(columnId));
+                }
+
+                if (aggregateFlag != currentAggregateFlag) {
+                    THROW_ERROR_EXCEPTION("Aggregate flag mismatch in nested key column")
+                        << TErrorAttribute("expected", aggregateFlag)
+                        << TErrorAttribute("actual", currentAggregateFlag)
+                        << TErrorAttribute("column_id", static_cast<int>(columnId));
+                }
+            }
+        }
+
+        for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+            auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
+
+            if (!ValidValues_[columnId - KeyColumnCount_]) {
+                continue;
+            }
+
+            if (MergedRow_[columnId].Type == EValueType::Null) {
+                continue;
+            }
+
+            auto currentItemCount = UnpackNestedValuesList(
+                nullptr,
+                MergedRow_[columnId].AsStringBuf(),
+                NestedColumnsSchema_.ValueColumns[index].Type);
+
+            auto currentAggregateFlag = Any(MergedRow_[columnId].Flags & EValueFlags::Aggregate);
+
+            if (isFirstColumn) {
+                THROW_ERROR_EXCEPTION("Nested value column occured without nested key column")
+                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+            }
+
+            if (itemCount != currentItemCount) {
+                THROW_ERROR_EXCEPTION("Item count mismatch in nested value column")
+                    << TErrorAttribute("expected", itemCount)
+                    << TErrorAttribute("actual", currentItemCount)
+                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+            }
+
+            if (aggregateFlag != Any(MergedRow_[columnId].Flags & EValueFlags::Aggregate)) {
+                THROW_ERROR_EXCEPTION("Aggregate flag mismatch in nested value column")
+                    << TErrorAttribute("expected", aggregateFlag)
+                    << TErrorAttribute("actual", currentAggregateFlag)
+                    << TErrorAttribute("column_id", static_cast<int>(columnId));
+            }
         }
     }
 

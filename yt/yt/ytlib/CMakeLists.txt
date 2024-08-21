@@ -524,6 +524,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/nested_row_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp

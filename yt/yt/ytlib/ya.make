@@ -434,6 +434,7 @@ SRCS(
     table_client/indexed_versioned_chunk_reader.cpp
     table_client/key_filter.cpp
     table_client/key_set.cpp
+    table_client/nested_row_merger.cpp
     table_client/overlapping_reader.cpp
     table_client/partition_chunk_reader.cpp
     table_client/partition_sort_reader.cpp

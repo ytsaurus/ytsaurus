@@ -1,6 +1,7 @@
 #pragma once
 
 #include "timestamped_schema_helpers.h"
+#include "nested_row_merger.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -27,7 +28,8 @@ public:
         const TColumnFilter& columnFilter,
         NQueryClient::TColumnEvaluatorPtr columnEvaluator,
         TTimestamp retentionTimestamp = NullTimestamp,
-        const TTimestampColumnMapping& timestampColumnMapping = {});
+        const TTimestampColumnMapping& timestampColumnMapping = {},
+        TNestedColumnsSchema nestedColumnsSchema = {});
 
     void AddPartialRow(TVersionedRow row);
     void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
@@ -39,6 +41,7 @@ private:
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
     const TTimestamp RetentionTimestamp_;
+    const TNestedColumnsSchema NestedColumnsSchema_;
 
     TMutableUnversionedRow MergedRow_;
     TCompactVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
@@ -47,7 +50,12 @@ private:
     TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
     TCompactVector<int, TypicalColumnCount> ColumnIdToTimestampColumnId_;
 
-    TCompactVector<TVersionedValue, TypicalColumnCount> AggregateValues_;
+    std::vector<int> AggregateColumnIds_;
+    std::vector<std::vector<TVersionedValue>> AggregateValues_;
+
+    TNestedTableMerger NestedMerger_;
+    std::vector<TMutableRange<TVersionedValue>> NestedKeyColumns_;
+    std::vector<TMutableRange<TVersionedValue>> NestedValueColumns_;
 
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;
@@ -68,7 +76,8 @@ public:
         TRowBufferPtr rowBuffer,
         int columnCount,
         int keyColumnCount,
-        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+        TNestedColumnsSchema nestedColumnsSchema = {});
 
     void AddPartialRow(TUnversionedRow row);
     void DeletePartialRow(TUnversionedRow row);
@@ -81,6 +90,7 @@ private:
     const int ColumnCount_;
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TNestedColumnsSchema NestedColumnsSchema_;
 
     TMutableUnversionedRow MergedRow_;
     TCompactVector<bool, TypicalColumnCount> ValidValues_;

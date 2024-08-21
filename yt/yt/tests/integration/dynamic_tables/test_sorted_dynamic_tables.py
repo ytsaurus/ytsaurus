@@ -3067,3 +3067,127 @@ class TestDynamicTablesTtl(DynamicTablesBase):
         time.sleep(3)
         self._sync_wait_chunk_ids_to_change("//tmp/t")
         assert lookup_rows("//tmp/t", keys) == rows
+
+
+class TestDynamicNestedColumns(DynamicTablesBase):
+    def _create_table(self, path, schema):
+        create(
+            "table",
+            path,
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "mount_config": {
+                    "row_merger_type": "new"
+                },
+            },
+        )
+
+    @authors("lukyan")
+    def test_nested_columns(self):
+        sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "int64", "aggregate": "sum"},
+                {"name": "v2", "type": "int64", "aggregate": "sum"},
+                {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+                {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            ]
+        )
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200]},
+            ]
+        )
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 0, "v2": 0, "nk1": [1, 2], "nk2": [10, 20], "nv2": [1000, 2000]},
+            ],
+            aggregate=True
+        )
+
+        def _check():
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nk2": [10, 20, 30], "nv1": [100, 400, 300], "nv2": [1000, 4000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nv1": [100, 400, 300]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nv1": [100, 200]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nk1, nv1 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nv1": [100, 400, 300]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nv1": [100, 200]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nv1 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+        _check()
+
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+        _check()
+
+        with pytest.raises(YtError):
+            insert_rows(
+                "//tmp/t",
+                [
+                    {"k1": 3, "k2": 10, "v1": 0, "v2": 0, "nk1": [1], "nk2": [10, 20]},
+                ],
+                aggregate=True
+            )
+
+        with pytest.raises(YtError):
+            insert_rows(
+                "//tmp/t",
+                [
+                    {"k1": 3, "k2": 10, "v1": 0, "v2": 0, "nk1": [1], "nk2": [10], "nv1": [100, 200]},
+                ],
+                aggregate=True
+            )
+
+        with pytest.raises(YtError):
+            self._create_table(
+                "//tmp/t1",
+                [
+                    {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v1", "type": "int64", "aggregate": "sum"},
+                    {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+                ]
+            )
+
+        with pytest.raises(YtError):
+            self._create_table(
+                "//tmp/t2",
+                [
+                    {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v1", "type": "int64", "aggregate": "sum"},
+                    {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                    {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(m, sum)"},
+                ]
+            )

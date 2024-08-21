@@ -230,42 +230,52 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             if (index < schema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION("Key column %v cannot be aggregated", columnSchema.GetDiagnosticNameString());
             }
-            if (!columnSchema.IsOfV1Type() || !IsPhysicalType(columnSchema.CastToV1Type())) {
+
+            auto aggregateName = *columnSchema.Aggregate();
+            auto elementType = columnSchema.GetWireType();
+
+            if (auto nested = TryParseNestedAggregate(aggregateName)) {
+                if (nested->Aggregate.empty()) {
+                    continue;
+                }
+
+                aggregateName = nested->Aggregate;
+                elementType = GetNestedColumnElementType(columnSchema.LogicalType().Get());
+            } else if (!columnSchema.IsOfV1Type() || !IsPhysicalType(columnSchema.CastToV1Type())) {
                 THROW_ERROR_EXCEPTION("Aggregated column %v is forbidden to have logical type %Qlv",
                     columnSchema.GetDiagnosticNameString(),
                     *columnSchema.LogicalType());
             }
 
-            const auto& name = *columnSchema.Aggregate();
-            auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(name);
+            auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
             if (auto descriptor = typeInferrer->As<TAggregateTypeInferrer>()) {
                 TTypeSet constraint;
                 std::optional<EValueType> stateType;
                 std::optional<EValueType> resultType;
 
-                descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
-                if (!constraint.Get(columnSchema.GetWireType())) {
+                descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, aggregateName);
+                if (!constraint.Get(elementType)) {
                     THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %v: expected %Qlv, got %Qlv",
                         *columnSchema.Aggregate(),
                         columnSchema.GetDiagnosticNameString(),
                         constraint,
-                        columnSchema.GetWireType());
+                        elementType);
                 }
 
-                if (stateType && *stateType != columnSchema.GetWireType()) {
+                if (stateType && *stateType != elementType) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         stateType,
                         columnSchema.GetDiagnosticNameString(),
-                        columnSchema.GetWireType());
+                        elementType);
                 }
 
-                if (resultType && *resultType != columnSchema.GetWireType()) {
+                if (resultType && *resultType != elementType) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         resultType,
                         columnSchema.GetDiagnosticNameString(),
-                        columnSchema.GetWireType());
+                        elementType);
                 }
             } else if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
                 std::vector<TTypeSet> typeConstraints;
@@ -276,12 +286,12 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
                     &argumentIndexes);
                 auto& resultConstraint = typeConstraints[resultIndex];
 
-                if (!resultConstraint.Get(columnSchema.GetWireType())) {
+                if (!resultConstraint.Get(elementType)) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type set %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         resultConstraint,
                         columnSchema.GetDiagnosticNameString(),
-                        columnSchema.GetWireType());
+                        elementType);
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %v",
