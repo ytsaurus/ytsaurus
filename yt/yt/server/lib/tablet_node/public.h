@@ -254,10 +254,6 @@ DEFINE_ENUM(EHunkStoreState,
     ((Passive)                (3)) // rotated and cannot receive data
 );
 
-DEFINE_ENUM(ETabletRowMergerType,
-    (Legacy)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)

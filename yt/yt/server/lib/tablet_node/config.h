@@ -216,7 +216,7 @@ public:
     bool EnableStoreFlush;
     bool EnableLsmVerboseLogging;
 
-    ETabletRowMergerType RowMergerType;
+    NTabletClient::ERowMergerType RowMergerType;
     bool MergeRowsOnFlush;
     bool MergeDeletionsOnFlush;
 

@@ -226,6 +226,10 @@ DEFINE_ENUM(ESecondaryIndexKind,
     ((Unique)                   (2))
 );
 
+DEFINE_ENUM(ERowMergerType,
+    (Legacy)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
