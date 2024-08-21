@@ -341,19 +341,14 @@ IRawParDoPtr MakeRawParDo(TLambdaState lambdaState, TFnAttributes fnAttributes =
 }
 
 // For test purposes only
-template <typename TInputRow, typename TOutputRow, typename F>
-IRawParDoPtr MakeRawParDo(F&& doFn, TFnAttributes fnAttributes = {})
-    requires(std::convertible_to<F, TOutputRow(*)(const TInputRow&)>)
+template <typename TInputRow, typename TOutputRow>
+IRawParDoPtr MakeRawParDo(void(*doFn)(TInputRow, NRoren::TOutput<TOutputRow>&), TFnAttributes fnAttributes = {})
 {
-    auto casted = SaveLoadablePointer(+doFn);
+    auto casted = SaveLoadablePointer(doFn);
     return NPrivate::MakeRawParDo(
         TLambdaState(
             +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
-                if constexpr (std::same_as<TOutputRow, void>) {
-                    callback.Value(std::forward<TInputRow>(input));
-                } else {
-                    output.Add(callback.Value(std::forward<TInputRow>(input)));
-                }
+                callback.Value(std::forward<TInputRow>(input), output);
             },
             casted),
         std::move(fnAttributes));
