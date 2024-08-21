@@ -9,6 +9,8 @@ SRCS(
 
 GO_TEST_SRCS(credentials_test.go)
 
+GO_XTEST_SRCS(tls_ext_test.go)
+
 END()
 
 RECURSE(

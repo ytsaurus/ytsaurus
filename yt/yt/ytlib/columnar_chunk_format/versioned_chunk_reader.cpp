@@ -653,7 +653,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
-    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics)
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
@@ -711,10 +712,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
     readerStatistics->GetTypesFromSchemaTime = getDurationAndReset();
 
-    TCompactVector<TColumnBase, 32> columnBases;
-    columnBases.resize(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
+    TCompactVector<TColumnBase, 32> columnInfos;
+    columnInfos.resize(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
     // Use raw data pointer because TCompactVector has branch in index operator.
-    auto* columnBasesData = columnBases.data();
+    auto* columnInfosData = columnInfos.data();
 
     auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
         auto groupId = columnInfo.GroupId;
@@ -722,14 +723,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
 
-        *columnBasesData++ = {blockRef, columnInfo.IndexInGroup, columnId};
+        *columnInfosData++ = {blockRef, columnInfo.IndexInGroup, columnId};
     };
 
     auto makeKeyColumnBase = [&] (int keyColumnIndex) {
         if (keyColumnIndex < chunkKeyColumnCount) {
             makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
         } else {
-            *columnBasesData++ = {nullptr, 0, ui16(keyColumnIndex)};
+            *columnInfosData++ = {nullptr, 0, ui16(keyColumnIndex)};
         }
     };
 
@@ -754,7 +755,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         makeColumnBase(preparedChunkMeta->ColumnInfos.back(), 0);
     }
 
-    columnBases.resize(columnBasesData - columnBases.data());
+    columnInfos.resize(columnInfosData - columnInfos.data());
 
     readerStatistics->BuildColumnInfosTime = getDurationAndReset();
 
@@ -771,20 +772,21 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         keyTypes,
         readItemWidth,
         keyColumnIndexes,
-        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, TValueSchema valueSchema) {
+        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
             builder->AppendFormat("%v", valueSchema.Type);
         }),
         preparedChunkMeta->FullNewMeta);
 
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
-        keyTypes,
-        static_cast<ui16>(readItemWidth),
-        std::move(keyColumnIndexes),
-        valueSchema,
-        columnBases,
-        timestamp,
-        produceAll,
-        preparedChunkMeta->FullNewMeta
+        .KeyTypes = keyTypes,
+        .ReadItemWidth = static_cast<ui16>(readItemWidth),
+        .ProduceAll = produceAll,
+        .NewMeta = preparedChunkMeta->FullNewMeta,
+        .KeyColumnIndexes = std::move(keyColumnIndexes),
+        .ValueSchema = valueSchema,
+        .ColumnInfos = columnInfos,
+        .Timestamp = timestamp,
+        .MemoryUsageTracker = std::move(memoryUsageTracker),
     });
 
     readerStatistics->CreateRowsetBuilderTime = getDurationAndReset();
@@ -821,7 +823,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
-    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
@@ -834,7 +837,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
-    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
@@ -847,7 +851,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
     TBlockManagerFactory blockManagerFactory,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
-    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics);
+    NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

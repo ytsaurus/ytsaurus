@@ -131,7 +131,7 @@ private:
             futures.push_back(CreateAndCloseChangelog(id));
         }
 
-        futures.push_back(changelogStore->CreateChangelog(changelogId, /*meta*/ {}).Apply(
+        futures.push_back(changelogStore->CreateChangelog(changelogId, /*meta*/ {}, {.CreateWriterEagerly = true}).Apply(
             BIND([&, this, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
                 NewChangelog_ = changelog;
             })));

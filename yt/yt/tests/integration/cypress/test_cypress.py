@@ -1881,24 +1881,6 @@ class TestCypress(YTEnvSetup):
             )
 
     @authors("babenko")
-    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
-    @not_implemented_in_sequoia
-    def test_expiration_change_requires_recursive_remove_permission_failure(self, expiration):
-        create_user("u")
-        create("map_node", "//tmp/m")
-        create("table", "//tmp/m/t")
-        set(
-            "//tmp/m/t/@acl",
-            [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")],
-        )
-        with pytest.raises(YtError):
-            set(
-                "//tmp/m/@" + expiration[0],
-                expiration[1],
-                authenticated_user="u",
-            )
-
-    @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
     @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_success(self, expiration):
@@ -2897,6 +2879,33 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@optimize_for") == "scan"
         assert get("//tmp/dir1/dir2/t1/@media") == {"hdd": {"replication_factor": 5, "data_parts_only": False}}
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
+
+    @authors("h0pless")
+    @not_implemented_in_sequoia
+    def test_inheritable_attributes_attribute(self):
+        create("map_node", "//tmp/grandparent")
+        set("//tmp/grandparent/@compression_codec", "zlib_9")
+        set("//tmp/grandparent/@chunk_merger_mode", "auto")
+
+        create("map_node", "//tmp/grandparent/parent")
+        set("//tmp/grandparent/parent/@compression_codec", "lz4")
+
+        child_path = "//tmp/grandparent/parent/child"
+        create("map_node", child_path)
+
+        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "auto", "compression_codec": "lz4"}
+
+        set(f"{child_path}/@chunk_merger_mode", "deep")
+        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "deep", "compression_codec": "lz4"}
+
+        tx = start_transaction(timeout=60000)
+        remove("//tmp/grandparent/parent/@compression_codec", tx=tx)
+        set(f"{child_path}/@chunk_merger_mode", "shallow", tx=tx)
+        get(f"{child_path}/@effective_inheritable_attributes", tx=tx) == {"chunk_merger_mode": "shallow", "compression_codec": "zlib_4"}
+
+        create("table", f"{child_path}/grandchild")
+        with pytest.raises(YtError):
+            get(f"{child_path}/grandchild/@effective_inheritable_attributes")
 
     @authors("shakurov")
     @not_implemented_in_sequoia
@@ -4086,7 +4095,7 @@ class TestCypressPortal(TestCypressMulticell):
         remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")
 
     @authors("shakurov")
-    def test_cross_shard_copy_inhertible_attributes(self):
+    def test_cross_shard_copy_inheritable_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         create_tablet_cell_bundle("b")

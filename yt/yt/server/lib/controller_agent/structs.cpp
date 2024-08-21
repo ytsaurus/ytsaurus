@@ -2,11 +2,11 @@
 #include "structs.h"
 #include "statistics.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 

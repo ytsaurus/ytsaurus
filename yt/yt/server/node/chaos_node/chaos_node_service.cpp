@@ -10,6 +10,7 @@
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
@@ -58,6 +59,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
@@ -298,6 +300,19 @@ private:
             cardIds);
         ToProto(response->mutable_collocation_replication_card_ids(), cardIds);
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto cacheTimestamp = FromProto<TTimestamp>(request->replication_card_cache_timestamp());
+
+        context->SetRequestInfo("ReplicationCardId %v, Timestamp: %v",
+            replicationCardId,
+            cacheTimestamp);
+
+        const auto& replicationCardWatcher = Slot_->GetReplicationCardsWatcher();
+        replicationCardWatcher->WatchReplicationCard(replicationCardId, cacheTimestamp, std::move(context));
     }
 };
 

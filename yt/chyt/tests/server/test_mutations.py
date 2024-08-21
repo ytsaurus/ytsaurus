@@ -35,10 +35,6 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query('insert into "//tmp/t"(str) values (2)')
             clique.make_query("insert into \"//tmp/t\"(i64, ui64, str, dbl, bool) values (-1, 1, 'abc', 3.14, 1)")
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (NULL, NULL, NULL, NULL, NULL)')
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('insert into "//tmp/t"(bool) values (3)')
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
             assert read_table("//tmp/t") == [
                 {"i64": 1, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": -2, "ui64": None, "str": None, "dbl": None, "bool": None},

@@ -1,1 +1,1 @@
-{% include [Бинарные данные в таблицах](../../_includes/user-guide/storage/blobtables.md) %}
+{% include [Binary data in tables](../../_includes/user-guide/storage/blobtables.md) %}

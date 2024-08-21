@@ -1,11 +1,11 @@
 #include "input_chunk_mapping.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -267,13 +267,6 @@ void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripe
 
 void TInputChunkMapping::Persist(const TPersistenceContext& context)
 {
-    auto readerGuard = [&, this] {
-        return context.IsSave() ? std::make_optional(ReaderGuard(SpinLock_)) : std::nullopt;
-    }();
-    auto writerGuard = [&, this] {
-        return context.IsLoad() ? std::make_optional(WriterGuard(SpinLock_)) : std::nullopt;
-    }();
-
     using NYT::Persist;
 
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, Substitutes_);

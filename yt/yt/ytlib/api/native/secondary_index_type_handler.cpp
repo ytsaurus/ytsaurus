@@ -45,21 +45,17 @@ public:
         auto kind = attributes->Get<ESecondaryIndexKind>("kind");
         auto predicate = attributes->Find<TString>("predicate");
 
-        TTableId tableId;
-        TTableId indexTableId;
-        TCellTag tableCellTag;
-        TCellTag indexTableCellTag;
-
         auto mountInfos = WaitFor(AllSucceeded(std::vector{
                 Client_->Connection_->GetTableMountCache()->GetTableInfo(tablePath),
                 Client_->Connection_->GetTableMountCache()->GetTableInfo(indexTablePath),
             }))
             .ValueOrThrow();
+
         auto tableSchema = mountInfos[0]->Schemas[ETableSchemaKind::Primary];
         auto indexTableSchema = mountInfos[1]->Schemas[ETableSchemaKind::Primary];
 
-        ResolveExternalTable(Client_, tablePath, &tableId, &tableCellTag);
-        ResolveExternalTable(Client_, indexTablePath, &indexTableId, &indexTableCellTag);
+        auto tableId = mountInfos[0]->TableId;
+        auto indexTableId = mountInfos[1]->TableId;
 
         if (TypeFromId(tableId) != TypeFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table type mismatch")
@@ -77,15 +73,9 @@ public:
                 << TErrorAttribute("table_cell_tag", CellTagFromId(tableId))
                 << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
         }
-        if (tableCellTag != indexTableCellTag) {
-            THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
-                << TErrorAttribute("table_external_cell_tag", tableCellTag)
-                << TErrorAttribute("index_table_external_cell_tag", indexTableCellTag);
-        }
 
         switch(kind) {
             case ESecondaryIndexKind::FullSync:
-
                 ValidateFullSyncIndexSchema(
                     *tableSchema,
                     *indexTableSchema);

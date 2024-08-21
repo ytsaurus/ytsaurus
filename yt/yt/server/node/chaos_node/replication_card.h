@@ -85,6 +85,7 @@ public:
     bool IsMigrated() const;
     bool IsCollocationMigrating() const;
     void ValidateCollocationNotMigrating() const;
+    NChaosClient::TReplicationCardPtr ConvertToClientCard(const NChaosClient::TReplicationCardFetchOptions& options);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/);

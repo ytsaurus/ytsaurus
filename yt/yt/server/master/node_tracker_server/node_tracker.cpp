@@ -700,6 +700,13 @@ public:
         return rack;
     }
 
+    TRack* GetRackByName(const TString& name) override
+    {
+        auto* rack = FindRackByName(name);
+        YT_VERIFY(rack);
+        return rack;
+    }
+
     void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter) override
     {
         if (rack->GetDataCenter() != dataCenter) {
@@ -821,6 +828,12 @@ public:
         return dc;
     }
 
+    TDataCenter* GetDataCenterByName(const TString& name) override
+    {
+        auto* dc = FindDataCenterByName(name);
+        YT_VERIFY(dc);
+        return dc;
+    }
 
     TAggregatedNodeStatistics GetAggregatedNodeStatistics() override
     {
@@ -955,7 +968,6 @@ private:
     THashMap<TString, TRack*> NameToRackMap_;
     THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
-    TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
     TPeriodicExecutorPtr ResetNodePendingRestartMaintenanceExecutor_;
 
@@ -999,6 +1011,8 @@ private:
         TString HostName;
         std::optional<TYsonString> CypressAnnotations;
         std::optional<TString> BuildVersion;
+        std::optional<TString> Rack;
+        std::optional<TString> DataCenter;
     };
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1052,6 +1066,10 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
+        if (options.DataCenter && !options.Rack) {
+          THROW_ERROR_EXCEPTION("Data center %Qv defined without rack", options.DataCenter);
+        }
+
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (options.LeaseTransactionId) {
@@ -1065,18 +1083,46 @@ private:
             }
         }
 
-        TRack* oldNodeRack = nullptr;
+        TRack* rack = nullptr;
 
         auto* node = FindNodeByAddress(options.DefaultAddress);
         auto isNodeNew = !IsObjectAlive(node);
         if (!isNodeNew) {
             KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
-            oldNodeRack = node->GetRack();
+            rack = node->GetRack();
+        }
+
+        if (options.Rack) {
+            rack = FindRackByName(*options.Rack);
+
+            if (options.DataCenter) {
+                auto* dataCenter = FindDataCenterByName(*options.DataCenter);
+
+                if (IsObjectAlive(rack)) {
+                    const auto rackDataCenter = rack->GetDataCenter();
+                    if (rackDataCenter && dataCenter != rackDataCenter) {
+                        THROW_ERROR_EXCEPTION("Data center %Qv for rack %Qv differs from current data center %Qv",
+                            rack->GetDataCenter()->GetName(),
+                            rack->GetName(),
+                            *options.DataCenter);
+                    }
+                }
+
+                if (!IsObjectAlive(dataCenter)) {
+                    CreateDataCenterObject(*options.DataCenter);
+                    dataCenter = GetDataCenterByName(*options.DataCenter);
+                }
+            }
+
+            if (!IsObjectAlive(rack)) {
+                CreateRackObject(*options.Rack, options.DataCenter);
+                rack = GetRackByName(*options.Rack);
+            }
         }
 
         auto* host = FindHostByName(options.HostName);
         if (!IsObjectAlive(host)) {
-            CreateHostObject(node, options.HostName, oldNodeRack);
+            CreateHostObject(node, options.HostName, rack);
             host = GetHostByName(options.HostName);
         }
 
@@ -1159,7 +1205,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::Host));
+        req->set_type(ToProto<int>(EObjectType::Host));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", hostName);
@@ -1178,6 +1224,51 @@ private:
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 objectManager->UnrefObject(node);
             }
+            throw;
+        }
+    }
+
+    void CreateDataCenterObject(const TString& name)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(ToProto<int>(EObjectType::DataCenter));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", name);
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        try {
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to create data center for a node (DataCenterName: %v)", name);
+            throw;
+        }
+    }
+
+    void CreateRackObject(const TString& name, const std::optional<TString>& dataCenter)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(ToProto<int>(EObjectType::Rack));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", name);
+        if (dataCenter) {
+            attributes->Set("data_center", *dataCenter);
+        }
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        try {
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to create rack for a node (RackName: %v)", name);
             throw;
         }
     }
@@ -1221,6 +1312,8 @@ private:
                 ? std::make_optional(TYsonString(request->cypress_annotations(), EYsonType::Node))
                 : std::nullopt,
             .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
+            .Rack = YT_PROTO_OPTIONAL((*request), rack),
+            .DataCenter = YT_PROTO_OPTIONAL((*request), data_center),
         };
 
         EnsureNodeObjectCreated(options);
@@ -1308,6 +1401,8 @@ private:
             .HostName = request->host_name(),
             .CypressAnnotations = TYsonString(request->cypress_annotations(), EYsonType::Node),
             .BuildVersion = request->build_version(),
+            .Rack = std::nullopt,
+            .DataCenter = std::nullopt,
         };
 
         EnsureNodeObjectCreated(options);
@@ -1945,12 +2040,6 @@ private:
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
             NodeStatisticsGossipExecutor_->Start();
-
-            // COMPAT(aleksandra-zh).
-            FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
-                BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this)));
-            FullNodeStatesGossipExecutor_->Start();
         }
 
         for (auto& group : NodeGroups_) {
@@ -1970,11 +2059,6 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
-
-        if (FullNodeStatesGossipExecutor_) {
-            YT_UNUSED_FUTURE(FullNodeStatesGossipExecutor_->Stop());
-            FullNodeStatesGossipExecutor_.Reset();
-        }
 
         if (NodeStatisticsGossipExecutor_) {
             YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
@@ -2205,18 +2289,6 @@ private:
         multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
     }
 
-    void OnNodeStatesGossip()
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsLocalMasterCellRegistered()) {
-            return;
-        }
-
-        TReqSendNodeStates request;
-        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger()));
-    }
-
     void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -2427,7 +2499,7 @@ private:
                 TReqReplicateMaintenanceRequestCreation addMaintenance;
                 addMaintenance.set_component(ToProto<i32>(EMaintenanceComponent::ClusterNode));
                 addMaintenance.set_comment(request.Comment);
-                addMaintenance.set_user(request.User);
+                addMaintenance.set_user(ToProto<TProtobufString>(request.User));
                 addMaintenance.set_type(ToProto<i32>(request.Type));
                 addMaintenance.set_address(node->GetDefaultAddress());
                 ToProto(addMaintenance.mutable_id(), id);
@@ -2666,9 +2738,6 @@ private:
 
     void ReconfigureGossipPeriods()
     {
-        if (FullNodeStatesGossipExecutor_) {
-            FullNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->FullNodeStatesGossipPeriod);
-        }
         if (NodeStatisticsGossipExecutor_) {
             NodeStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsGossipPeriod);
         }

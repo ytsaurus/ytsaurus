@@ -1,7 +1,7 @@
 // Boost.Geometry
 
 // Copyright (c) 2007-2023 Barend Gehrels, Amsterdam, the Netherlands.
-// Copyright (c) 2017 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2017-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2015-2022.
 // Modifications copyright (c) 2015-2022 Oracle and/or its affiliates.
@@ -27,7 +27,7 @@
 #include <boost/geometry/algorithms/detail/overlay/turn_info.hpp>
 #include <boost/geometry/algorithms/detail/overlay/get_turn_info_helpers.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 
 namespace boost { namespace geometry
@@ -286,7 +286,7 @@ struct turn_info_verification_functions
             std::size_t index_p, std::size_t index_q,
             TurnInfo& ti)
     {
-        if (BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_side_verification))
+        if BOOST_GEOMETRY_CONSTEXPR (VerifyPolicy::use_side_verification)
         {
             set_both_verified<IndexP, IndexQ>(range_p, range_q, umbrella_strategy,
                                               index_p, index_q, ti);
@@ -309,29 +309,29 @@ struct turn_info_verification_functions
                                     UmbrellaStrategy const& umbrella_strategy,
                                     int index_p, int index_q)
     {
-        if (side == 0
-            && BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_side_verification))
+        if BOOST_GEOMETRY_CONSTEXPR (VerifyPolicy::use_side_verification)
         {
-            if (index_p >= 1 && range_p.is_last_segment())
+            if (side == 0)
             {
-                return 0;
-            }
-            if (index_q >= 2 && range_q.is_last_segment())
-            {
-                return 0;
-            }
+                if (index_p >= 1 && range_p.is_last_segment())
+                {
+                    return 0;
+                }
+                if (index_q >= 2 && range_q.is_last_segment())
+                {
+                    return 0;
+                }
 
-            auto const dm = get_distance_measure(range_p.at(index_p),
-                                                 range_p.at(index_p + 1),
-                                                 range_q.at(index_q),
-                                                 umbrella_strategy);
-            static decltype(dm.measure) const zero = 0;
-            return dm.measure == zero ? 0 : dm.measure > zero ? 1 : -1;
+                auto const dm = get_distance_measure(range_p.at(index_p),
+                                                     range_p.at(index_p + 1),
+                                                     range_q.at(index_q),
+                                                     umbrella_strategy);
+                static decltype(dm.measure) const zero = 0;
+                return dm.measure == zero ? 0 : dm.measure > zero ? 1 : -1;
+            }
         }
-        else
-        {
-            return side;
-        }
+
+        return side;
     }
 
 };
@@ -354,45 +354,47 @@ struct touch_interior : public base_turn_handler
     static bool handle_as_touch(IntersectionInfo const& info,
                                 UniqueSubRange const& non_touching_range)
     {
-        if (! BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_handle_as_touch))
+        if BOOST_GEOMETRY_CONSTEXPR (! VerifyPolicy::use_handle_as_touch)
         {
             return false;
         }
+        else // else prevents unreachable code warning
+        {
+            //
+            //
+            //                         ^  Q(i)                ^ P(i)
+            //                          \                    /
+            //                           \                  /
+            //                            \                /
+            //                             \              /
+            //                              \            /
+            //                               \          /
+            //                                \        /
+            //                                 \      /
+            //                                  \    /
+            //                                   \  / it is about buffer_rt_r
+            //                  P(k)              v/  they touch here "in the middle", but at the intersection...
+            //                  <---------------->v   there is no follow up IP
+            //                                   /
+            //                                  /
+            //                                 /
+            //                                /
+            //                               /
+            //                              /
+            //                             v Q(k)
+            //
 
-        //
-        //
-        //                         ^  Q(i)                ^ P(i)
-        //                          \                    /
-        //                           \                  /
-        //                            \                /
-        //                             \              /
-        //                              \            /
-        //                               \          /
-        //                                \        /
-        //                                 \      /
-        //                                  \    /
-        //                                   \  / it is about buffer_rt_r
-        //                  P(k)              v/  they touch here "in the middle", but at the intersection...
-        //                  <---------------->v   there is no follow up IP
-        //                                   /
-        //                                  /
-        //                                 /
-        //                                /
-        //                               /
-        //                              /
-        //                             v Q(k)
-        //
-
-        // Measure where the IP is located. If it is really close to the end,
-        // then there is no space for the next IP (on P(1)/Q(2). A "from"
-        // intersection will be generated, but those are never handled.
-        // Therefore handle it as a normal touch (two segments arrive at the
-        // intersection point). It currently checks for zero, but even a
-        // distance a little bit larger would do.
-        auto const dm = fun::distance_measure(info.intersections[0], non_touching_range.at(1));
-        decltype(dm) const zero = 0;
-        bool const result = math::equals(dm, zero);
-        return result;
+            // Measure where the IP is located. If it is really close to the end,
+            // then there is no space for the next IP (on P(1)/Q(2). A "from"
+            // intersection will be generated, but those are never handled.
+            // Therefore handle it as a normal touch (two segments arrive at the
+            // intersection point). It currently checks for zero, but even a
+            // distance a little bit larger would do.
+            auto const dm = fun::distance_measure(info.intersections[0], non_touching_range.at(1));
+            decltype(dm) const zero = 0;
+            bool const result = math::equals(dm, zero);
+            return result;
+        }
     }
 
     // Index: 0, P is the interior, Q is touching and vice versa
@@ -561,65 +563,67 @@ struct touch : public base_turn_handler
                                               UmbrellaStrategy const& umbrella_strategy,
                                               TurnInfo& ti)
     {
-        if (! BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_handle_imperfect_touch))
+        if BOOST_GEOMETRY_CONSTEXPR (! VerifyPolicy::use_handle_imperfect_touch)
         {
             return false;
         }
-
-        //  Q
-        //  ^
-        // ||
-        // ||
-        // |^----
-        // >----->P
-        // *            * they touch here (P/Q are (nearly) on top)
-        //
-        // Q continues from where P comes.
-        // P continues from where Q comes
-        // This is often a blocking situation,
-        // unless there are FP issues: there might be a distance
-        // between Pj and Qj, in that case handle it as a union.
-        //
-        // Exaggerated:
-        //  Q
-        //  ^           Q is nearly vertical
-        //   \          but not completely - and still ends above P
-        // |  \qj       In this case it should block P and
-        // |  ^------   set Q to Union
-        // >----->P     qj is LEFT of P1 and pi is LEFT of Q2
-        //              (the other way round is also possible)
-
-        auto has_distance = [&](auto const& r1, auto const& r2) -> bool
+        else // else prevents unreachable code warning
         {
-            auto const d1 = get_distance_measure(r1.at(0), r1.at(1), r2.at(1), umbrella_strategy);
-            auto const d2 = get_distance_measure(r2.at(1), r2.at(2), r1.at(0), umbrella_strategy);
-            return d1.measure > 0 && d2.measure > 0;
-        };
+            //  Q
+            //  ^
+            // ||
+            // ||
+            // |^----
+            // >----->P
+            // *            * they touch here (P/Q are (nearly) on top)
+            //
+            // Q continues from where P comes.
+            // P continues from where Q comes
+            // This is often a blocking situation,
+            // unless there are FP issues: there might be a distance
+            // between Pj and Qj, in that case handle it as a union.
+            //
+            // Exaggerated:
+            //  Q
+            //  ^           Q is nearly vertical
+            //   \          but not completely - and still ends above P
+            // |  \qj       In this case it should block P and
+            // |  ^------   set Q to Union
+            // >----->P     qj is LEFT of P1 and pi is LEFT of Q2
+            //              (the other way round is also possible)
 
-        if (side_pk_q2 == -1 && has_distance(range_p, range_q))
-        {
-            // Even though there is a touch, Q(j) is left of P1
-            // and P(i) is still left from Q2.
-            // Q continues to the right.
-            // It can continue.
-            ti.operations[0].operation = operation_blocked;
-            // Q turns right -> union (both independent),
-            // Q turns left -> intersection
-            ti.operations[1].operation = operation_union;
-            ti.touch_only = true;
-            return true;
+            auto has_distance = [&](auto const& r1, auto const& r2) -> bool
+            {
+                auto const d1 = get_distance_measure(r1.at(0), r1.at(1), r2.at(1), umbrella_strategy);
+                auto const d2 = get_distance_measure(r2.at(1), r2.at(2), r1.at(0), umbrella_strategy);
+                return d1.measure > 0 && d2.measure > 0;
+            };
+
+            if (side_pk_q2 == -1 && has_distance(range_p, range_q))
+            {
+                // Even though there is a touch, Q(j) is left of P1
+                // and P(i) is still left from Q2.
+                // Q continues to the right.
+                // It can continue.
+                ti.operations[0].operation = operation_blocked;
+                // Q turns right -> union (both independent),
+                // Q turns left -> intersection
+                ti.operations[1].operation = operation_union;
+                ti.touch_only = true;
+                return true;
+            }
+
+            if (side_pk_q2 == 1 && has_distance(range_q, range_p))
+            {
+                // Similarly, but the other way round.
+                // Q continues to the left.
+                ti.operations[0].operation = operation_union;
+                ti.operations[1].operation = operation_blocked;
+                ti.touch_only = true;
+                return true;
+            }
+            return false;
         }
-
-        if (side_pk_q2 == 1 && has_distance(range_q, range_p))
-        {
-            // Similarly, but the other way round.
-            // Q continues to the left.
-            ti.operations[0].operation = operation_union;
-            ti.operations[1].operation = operation_blocked;
-            ti.touch_only = true;
-            return true;
-        }
-        return false;
     }
 
     template
@@ -915,39 +919,40 @@ struct start : public base_turn_handler
                 SideCalculator const& side,
                 UmbrellaStrategy const& )
     {
-        if (! BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_start_turn))
+        if BOOST_GEOMETRY_CONSTEXPR (! VerifyPolicy::use_start_turn)
         {
             return false;
         }
-
-        // Start turns have either how_a = -1, or how_b = -1 (either p leaves or q leaves)
-        BOOST_GEOMETRY_ASSERT(dir_info.how_a != dir_info.how_b);
-        BOOST_GEOMETRY_ASSERT(dir_info.how_a == -1 || dir_info.how_b == -1);
-        BOOST_GEOMETRY_ASSERT(dir_info.how_a == 0 || dir_info.how_b == 0);
-
-        if (dir_info.how_b == -1)
+        else // else prevents unreachable code warning
         {
-            // p --------------->
-            //             |
-            //             | q         q leaves
-            //             v
-            //
+            // Start turns have either how_a = -1, or how_b = -1 (either p leaves or q leaves)
+            BOOST_GEOMETRY_ASSERT(dir_info.how_a != dir_info.how_b);
+            BOOST_GEOMETRY_ASSERT(dir_info.how_a == -1 || dir_info.how_b == -1);
+            BOOST_GEOMETRY_ASSERT(dir_info.how_a == 0 || dir_info.how_b == 0);
 
-            int const side_qj_p1 = side.qj_wrt_p1();
-            ui_else_iu(side_qj_p1 == -1, ti);
-        }
-        else if (dir_info.how_a == -1)
-        {
-            // p leaves
-            int const side_pj_q1 = side.pj_wrt_q1();
-            ui_else_iu(side_pj_q1 == 1, ti);
-        }
+            if (dir_info.how_b == -1)
+            {
+                // p --------------->
+                //             |
+                //             | q         q leaves
+                //             v
+                //
 
-        // Copy intersection point
-        assign_point_and_correct(ti, method_start, info, dir_info);
-        return true;
+                int const side_qj_p1 = side.qj_wrt_p1();
+                ui_else_iu(side_qj_p1 == -1, ti);
+            }
+            else if (dir_info.how_a == -1)
+            {
+                // p leaves
+                int const side_pj_q1 = side.pj_wrt_q1();
+                ui_else_iu(side_pj_q1 == 1, ti);
+            }
+
+            // Copy intersection point
+            assign_point_and_correct(ti, method_start, info, dir_info);
+            return true;
+        }
     }
-
 };
 
 
@@ -973,7 +978,7 @@ struct equal_opposite : public base_turn_handler
                 IntersectionInfo const& intersection_info)
     {
         // For equal-opposite segments, normally don't do anything.
-        if (BOOST_GEOMETRY_CONDITION(AssignPolicy::include_opposite))
+        if BOOST_GEOMETRY_CONSTEXPR (AssignPolicy::include_opposite)
         {
             tp.method = method_equal;
             for (unsigned int i = 0; i < 2; i++)
@@ -1010,24 +1015,26 @@ struct collinear : public base_turn_handler
                                 UniqueSubRange2 const& range_q,
                                 DirInfo const& dir_info)
     {
-        if (! BOOST_GEOMETRY_CONDITION(VerifyPolicy::use_handle_as_equal))
+        if BOOST_GEOMETRY_CONSTEXPR (! VerifyPolicy::use_handle_as_equal)
         {
             return false;
         }
-
-        int const arrival_p = dir_info.arrival[0];
-        int const arrival_q = dir_info.arrival[1];
-        if (arrival_p * arrival_q != -1 || info.count != 2)
+        else // else prevents unreachable code warning
         {
-            // Code below assumes that either p or q arrives in the other segment
-            return false;
-        }
+            int const arrival_p = dir_info.arrival[0];
+            int const arrival_q = dir_info.arrival[1];
+            if (arrival_p * arrival_q != -1 || info.count != 2)
+            {
+                // Code below assumes that either p or q arrives in the other segment
+                return false;
+            }
 
-       auto const dm = arrival_p == 1
-              ? fun::distance_measure(info.intersections[1], range_q.at(1))
-              : fun::distance_measure(info.intersections[1], range_p.at(1));
-        decltype(dm) const zero = 0;
-        return math::equals(dm, zero);
+            auto const dm = arrival_p == 1
+                          ? fun::distance_measure(info.intersections[1], range_q.at(1))
+                          : fun::distance_measure(info.intersections[1], range_p.at(1));
+            decltype(dm) const zero = 0;
+            return math::equals(dm, zero);
+        }
     }
 
     /*
@@ -1191,7 +1198,7 @@ private :
                 // two operations blocked, so the whole point does not need
                 // to be generated.
                 // So return false to indicate nothing is to be done.
-                if (BOOST_GEOMETRY_CONDITION(AssignPolicy::include_opposite))
+                if BOOST_GEOMETRY_CONSTEXPR (AssignPolicy::include_opposite)
                 {
                     tp.operations[Index].operation = operation_opposite;
                     blocked = operation_opposite;
@@ -1285,7 +1292,7 @@ public:
             *out++ = tp;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(AssignPolicy::include_opposite))
+        if BOOST_GEOMETRY_CONSTEXPR (AssignPolicy::include_opposite)
         {
             // Handle cases not yet handled above
             if ((arrival_q == -1 && arrival_p == 0)

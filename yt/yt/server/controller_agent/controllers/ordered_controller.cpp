@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -502,6 +504,8 @@ protected:
     {
         return TError();
     }
+
+    PHOENIX_DECLARE_FRIEND();
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
@@ -1301,11 +1305,14 @@ private:
         if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
         {
-            TString message = "Remote copy operation does not support non-trivial table limits";
-            if (InputManager->GetInputTables()[0]->Dynamic) {
-                message += " and chunks crossing tablet boundaries";
-            }
-            THROW_ERROR_EXCEPTION(errorCode, message);
+            THROW_ERROR_EXCEPTION(
+                errorCode,
+                "Remote copy operation does not support non-trivial table limits%v",
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (InputManager->GetInputTables()[0]->Dynamic) {
+                        FormatValue(builder, " and chunks crossing tablet boundaries", "v");
+                    }
+                }));
         }
     }
 

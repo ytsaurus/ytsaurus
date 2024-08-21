@@ -91,7 +91,7 @@ using IConverterPtr = std::unique_ptr<IConverter>;
 
 //////////////////////////////////////////////////////////////////////////////////
 
-//! Value TypeId == Nothing is a special value that corresponds to YtBoolean.
+//! Value TypeId == Nothing is a special value that corresponds to Bool.
 template <DB::TypeIndex TypeId>
 class TSimpleValueConverter
     : public IConverter
@@ -886,8 +886,8 @@ private:
             XX(Interval, Interval)
 
             case DB::TypeIndex::UInt8:
-                if (dataType->getCustomName() && dataType->getCustomName()->getName() == "YtBoolean") {
-                    // Nothing is a special value standing for YT boolean for simplicity.
+                if (DB::isBool(dataType)) {
+                    // Nothing is a special value standing for boolean for simplicity.
                     return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing>>(
                         dataType,
                         ESimpleLogicalValueType::Boolean);

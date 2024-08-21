@@ -308,7 +308,7 @@ TUser::TUser(TUserId id)
     , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
-void TUser::SetName(const TString& name)
+void TUser::SetName(const std::string& name)
 {
     TSubject::SetName(name);
     InitializeCounters();
@@ -324,7 +324,7 @@ TString TUser::GetCapitalizedObjectName() const
     return Format("User %Qv", Name_);
 }
 
-TString TUser::GetObjectPath() const
+TYPath TUser::GetObjectPath() const
 {
     return Format("//sys/users/%v", GetName());
 }
@@ -391,7 +391,7 @@ void TUser::Load(TLoadContext& context)
 
 void TUser::InitializeCounters()
 {
-    auto profiler = SecurityProfiler
+    auto profiler = SecurityProfiler()
         .WithSparse()
         .WithTag("user", Name_);
 

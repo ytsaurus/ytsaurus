@@ -149,6 +149,59 @@ void TReplicationCard::ValidateCollocationNotMigrating() const
     }
 }
 
+NChaosClient::TReplicationCardPtr TReplicationCard::ConvertToClientCard(const TReplicationCardFetchOptions& options)
+{
+    auto clientCard = New<NChaosClient::TReplicationCard>();
+    clientCard->Era = GetEra();
+    clientCard->TableId = GetTableId();
+    clientCard->TablePath = GetTablePath();
+    clientCard->TableClusterName = GetTableClusterName();
+    clientCard->CurrentTimestamp = GetCurrentTimestamp();
+
+    if (const auto* collocation = GetCollocation()) {
+        clientCard->ReplicationCardCollocationId = collocation->GetId();
+    }
+
+    if (options.IncludeCoordinators) {
+        const auto& nodeCoordinators = Coordinators();
+        auto& clientCardCoordinators = clientCard->CoordinatorCellIds;
+        clientCardCoordinators.reserve(nodeCoordinators.size());
+        for (const auto& [cellId, info] : Coordinators()) {
+            if (info.State == EShortcutState::Granted) {
+                clientCardCoordinators.push_back(cellId);
+            }
+        }
+    }
+
+    if (options.IncludeReplicatedTableOptions) {
+        clientCard->ReplicatedTableOptions = GetReplicatedTableOptions();
+    }
+
+    const auto& nodeReplicas = Replicas();
+    auto& clientCardReplicas = clientCard->Replicas;
+    clientCardReplicas.reserve(nodeReplicas.size());
+    for (const auto& [replicaId, replicaInfo] : nodeReplicas) {
+        auto& replicaInfoCopy = clientCardReplicas[replicaId];
+
+        replicaInfoCopy.ClusterName = replicaInfo.ClusterName;
+        replicaInfoCopy.ReplicaPath = replicaInfo.ReplicaPath;
+        replicaInfoCopy.ContentType = replicaInfo.ContentType;
+        replicaInfoCopy.Mode = replicaInfo.Mode;
+        replicaInfoCopy.State = replicaInfo.State;
+        replicaInfoCopy.EnableReplicatedTableTracker = replicaInfo.EnableReplicatedTableTracker;
+
+        if (options.IncludeHistory) {
+            replicaInfoCopy.History = replicaInfo.History;
+        }
+
+        if (options.IncludeProgress) {
+            replicaInfoCopy.ReplicationProgress = replicaInfo.ReplicationProgress;
+        }
+    }
+
+    return clientCard;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosNode

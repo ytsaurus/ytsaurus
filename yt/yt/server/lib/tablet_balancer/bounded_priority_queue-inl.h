@@ -10,8 +10,8 @@ namespace NYT::NTabletBalancer {
 
 template <class TPayload>
 TBoundedPriorityQueue<TPayload>::TBoundedPriorityQueue(int maxSize)
-    : Capacity_(maxSize)
-    , BestDiscardedCost_(std::numeric_limits<double>::min())
+    : BestDiscardedCost_(0.0)
+    , Capacity_(maxSize)
 {
     Elements_.reserve(2 * Capacity_);
 }
@@ -75,7 +75,7 @@ template <class TPayload>
 void TBoundedPriorityQueue<TPayload>::Reset()
 {
     Elements_.clear();
-    BestDiscardedCost_ = std::numeric_limits<double>::min();
+    BestDiscardedCost_ = 0.0;
 }
 
 template <class TPayload>

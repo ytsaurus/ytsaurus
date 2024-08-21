@@ -10,6 +10,8 @@
 #include "tmpfs_manager.h"
 #include "environment.h"
 #include "core_watcher.h"
+#include "trace_event_processor.h"
+#include "trace_consumer.h"
 
 #ifdef __linux__
 #include <yt/yt/library/containers/instance.h>
@@ -207,6 +209,17 @@ public:
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
         , TmpfsManager_(New<TTmpfsManager>(Config_->TmpfsManager))
         , MemoryTracker_(New<TMemoryTracker>(Config_->MemoryTracker, UserJobEnvironment_, TmpfsManager_))
+        , TraceEventProcessor_(New<TJobTraceEventProcessor>(
+            Config_->JobTraceEventProcessor,
+            Host_->GetClient()->GetNativeConnection(),
+            Host_->GetOperationId(),
+            jobId,
+            Config_->OperationsArchiveVersion))
+        , TraceConsumer_(TraceEventProcessor_)
+        , TraceEventOutput_(std::make_unique<NTableClient::TTableOutput>(CreateParserForFormat(
+            TFormat(EFormatType::Json),
+            EDataType::Tabular,
+            &TraceConsumer_)))
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
@@ -277,7 +290,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             GetSandboxRelPath(ESandboxKind::Udf),
             ChunkReadOptions_,
-            Host_->GetLocalHostName());
+            Host_->GetLocalHostName(),
+            Config_->PipeReaderTimeoutThreshold);
     }
 
     TJobResult Run() override
@@ -395,6 +409,19 @@ public:
                 .AsyncVia(Host_->GetControlInvoker())
                 .Run())
                 .ThrowOnError();
+        }
+
+        if (Config_->CheckUserJobOOMKill) {
+            // Detect OOM kills in job environment regardless of exit status of the main process.
+            if (auto oomKillCount = UserJobEnvironment_->GetJobOOMKillCount(); oomKillCount.value_or(0)) {
+                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                auto error = TError(
+                    EErrorCode::MemoryLimitExceeded,
+                    "User job process killed by OOM")
+                    << TErrorAttribute("oom_kill_count", *oomKillCount)
+                    << TErrorAttribute("abort_reason", EAbortReason::ResourceOverdraft);
+                innerErrors.push_back(std::move(error));
+            }
         }
 
         auto jobError = innerErrors.empty()
@@ -598,6 +625,10 @@ private:
     IConnectionReaderPtr StderrPipeReader_;
     IConnectionReaderPtr ProfilePipeReader_;
 
+    TJobTraceEventProcessorPtr TraceEventProcessor_;
+    TTraceConsumer TraceConsumer_;
+    std::unique_ptr<TTableOutput> TraceEventOutput_;
+
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
     // Actually InputActions_ has only one element,
@@ -624,6 +655,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
     NYT::TStatistics CustomStatistics_;
+
+    std::atomic<int> JobProfilerFailureCount_ = 0;
 
     TCoreWatcherPtr CoreWatcher_;
 
@@ -1033,7 +1066,8 @@ private:
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
-        const TError& wrappingError)
+        const TError& wrappingError,
+        const std::function<void()>& onError = {})
     {
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
@@ -1061,7 +1095,11 @@ private:
                     YT_UNUSED_FUTURE(asyncInput->Abort());
                 }
 
-                THROW_ERROR error;
+                if (onError) {
+                    onError();
+                } else {
+                    THROW_ERROR error;
+                }
             }
         }));
 
@@ -1092,8 +1130,7 @@ private:
         //! NB: Context saving effectively forces writer to ignore pipe capacity limit
         //! as it only ever flushes once the socket is closed.
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
-            asyncOutput,
-            /*enableContextSaving*/ !(JobIOConfig_->PipeCapacity.has_value() || JobIOConfig_->UseDeliveryFencedPipeWriter));
+            asyncOutput);
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
@@ -1182,7 +1219,20 @@ private:
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
 
-            if (auto* profileOutput = JobProfiler_->GetUserJobProfileOutput()) {
+            auto* profileOutput = [&] () -> IOutputStream* {
+                if (!JobProfiler_ || !JobProfiler_->GetUserJobProfilerSpec()) {
+                    return nullptr;
+                }
+
+                if (Config_->EnableCudaProfileEventStreaming &&
+                    JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda)
+                {
+                    return TraceEventOutput_.get();
+                }
+                return JobProfiler_->GetUserJobProfileOutput();
+            }();
+
+            if (profileOutput) {
                 auto pipe = CreateNamedPipe();
 
                 auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
@@ -1193,7 +1243,10 @@ private:
                     {JobProfileFD},
                     profileOutput,
                     &StderrActions_,
-                    TError("Error writing job profile"));
+                    TError("Error writing job profile"),
+                    /*onError*/ [&] {
+                        ++JobProfilerFailureCount_;
+                    });
             }
         }
 
@@ -1422,6 +1475,9 @@ private:
 
             result.PipeStatistics = pipeStatistics;
         }
+
+        statistics.AddSample("/user_job/profiler_failure_count", JobProfilerFailureCount_);
+
         return result;
     }
 
@@ -1436,7 +1492,7 @@ private:
             return;
         }
 
-        YT_LOG_ERROR(TError(message) << error);
+        YT_LOG_ERROR(TError(TRuntimeFormat(message)) << error);
 
         CleanupUserProcesses();
 
@@ -1671,6 +1727,13 @@ private:
         }
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
+
+        if (Config_->CheckUserJobOOMKill) {
+            if (auto oomKillCount = UserJobEnvironment_->GetJobOOMKillCount(); oomKillCount.value_or(0)) {
+                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                CleanupUserProcesses();
+            }
+        }
     }
 
     void CheckThrashing()

@@ -381,7 +381,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
     // we must only unref it once - on the native cell.
     if (table->IsNative()) {
         if (auto* secondaryIndex = table->GetIndexTo()) {
-            secondaryIndex->SetIndexTable(nullptr);
+            secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
             YT_LOG_ALERT_IF(refCounter > 0,
@@ -394,7 +394,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
         }
 
         for (auto* secondaryIndex : table->SecondaryIndices()) {
-            secondaryIndex->SetTable(nullptr);
+            secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
             YT_LOG_ALERT_IF(refCounter > 0,
@@ -603,11 +603,11 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
 }
 
 template <class TImpl>
-std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
+std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
     const auto& schema = *node->GetSchema()->AsTableSchema();
 
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
         result.push_back(column.Name());

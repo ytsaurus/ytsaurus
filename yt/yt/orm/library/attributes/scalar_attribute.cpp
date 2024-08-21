@@ -641,7 +641,7 @@ protected:
             children.begin(),
             children.end(),
             [] (const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
-        return children;
+        return {children.begin(), children.end()};
     }
 
     // Put the new entry at |index| and slide everything forward. Makes a noop if index was pointing

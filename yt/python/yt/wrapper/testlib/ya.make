@@ -22,6 +22,7 @@ ELSE()
         NAMESPACE yt.wrapper.testlib
 
         __init__.py
+        helpers_cli.py
         conftest_helpers.py
         helpers.py
     )

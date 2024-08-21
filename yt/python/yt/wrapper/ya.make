@@ -38,6 +38,7 @@ ELSE()
         )
     ELSE()
         PEERDIR(
+            security/ant-secret/snooper/py
             yt/python/contrib/python-chardet
             library/python/svn_version
             library/python/oauth

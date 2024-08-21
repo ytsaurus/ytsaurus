@@ -35,6 +35,7 @@ public:
             MasterCacheProfiler.WithPrefix("/chaos_cache"));
 
         ChaosCacheService_ = CreateChaosCacheService(
+            GetConfig()->ChaosCache,
             ChaosCacheQueue_->GetInvoker(),
             client,
             ChaosCache_,

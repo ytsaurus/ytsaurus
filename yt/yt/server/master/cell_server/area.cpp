@@ -8,6 +8,7 @@
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ TString TArea::GetCapitalizedObjectName() const
     return Format("Area %Qv of Bundle %Qv", GetName(), CellBundle_->GetName());
 }
 
-TString TArea::GetObjectPath() const
+TYPath TArea::GetObjectPath() const
 {
     return Format("//sys/areas/%v", GetName());
 }

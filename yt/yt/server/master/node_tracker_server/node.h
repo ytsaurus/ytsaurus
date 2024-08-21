@@ -348,7 +348,7 @@ public:
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -371,7 +371,6 @@ public:
     void ClearSessionHints();
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
 
-    int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     int GetCellarSize(NCellarClient::ECellarType) const;

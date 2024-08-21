@@ -167,6 +167,10 @@ const (
 
 	// Object manager stuff
 	ObjectTypeEstimatedCreationTimeMap ObjectType = 1100
+
+	// Queue stuff
+	ObjectTypeQueueConsumer ObjectType = 1700
+	ObjectTypeQueueProducer ObjectType = 1701
 )
 
 func convertObjectType(typ yt.NodeType) (ObjectType, error) {

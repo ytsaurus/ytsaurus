@@ -26,6 +26,8 @@ SRCS(
     user_job.cpp
     user_job_synchronizer_service.cpp
     user_job_write_controller.cpp
+    trace_event_processor.cpp
+    trace_consumer.cpp
 )
 
 PEERDIR(

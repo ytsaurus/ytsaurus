@@ -45,14 +45,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename... Args>
-[[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
+template <typename... TArgs>
+[[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, TFormatString<TArgs...> format, TArgs&&... args)
 {
     THROW_ERROR_EXCEPTION(
         "Error converting %Qv of type %Qv to ClickHouse",
         descriptor.GetDescription(),
         *descriptor.GetType())
-            << TError(args...);
+            << TError(format, std::forward<TArgs>(args)...);
 }
 
 //! Perform assignment column = newColumn also checking that new column is similar
@@ -283,7 +283,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <ESimpleLogicalValueType LogicalType, class TCppType, class TColumn>
+template <ESimpleLogicalValueType LogicalType, class TCppType>
 class TSimpleValueConverter
     : public IConverter
 {
@@ -1104,14 +1104,14 @@ private:
     {
         IConverterPtr converter;
         switch (valueType) {
-            #define CASE(caseValueType, TCppType, TColumn, dataType)                                       \
+            #define CASE(caseValueType, TCppType, dataType)                                       \
                 case caseValueType:                                                                        \
-                    converter = std::make_unique<TSimpleValueConverter<caseValueType, TCppType, TColumn>>( \
+                    converter = std::make_unique<TSimpleValueConverter<caseValueType, TCppType>>( \
                         descriptor,                                                                        \
                         dataType);                                                                         \
                     break;
 
-            #define CASE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, TCppType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
+            #define CASE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, TCppType, std::make_shared<DB::DataTypeNumber<TCppType>>())
 
             CASE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
@@ -1125,13 +1125,13 @@ private:
             CASE_NUMERIC(ESimpleLogicalValueType::Double, double)
             CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64)
             CASE_NUMERIC(ESimpleLogicalValueType::Timestamp, ui64)
-            CASE(ESimpleLogicalValueType::Boolean, DB::UInt8, DB::ColumnVector<DB::UInt8>, GetDataTypeBoolean())
+            CASE(ESimpleLogicalValueType::Boolean, DB::UInt8, GetDataTypeBoolean())
             // TODO(max42): specify timezone explicitly here.
-            CASE(ESimpleLogicalValueType::Date, ui16, DB::ColumnVector<ui16>, std::make_shared<DB::DataTypeDate>())
-            CASE(ESimpleLogicalValueType::Datetime, ui32, DB::ColumnVector<ui32>, std::make_shared<DB::DataTypeDateTime>())
-            CASE(ESimpleLogicalValueType::String, DB::UInt8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Utf8, DB::UInt8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Void, DB::UInt8 /* actually unused */, DB::ColumnNothing, std::make_shared<DB::DataTypeNothing>())
+            CASE(ESimpleLogicalValueType::Date, ui16, std::make_shared<DB::DataTypeDate>())
+            CASE(ESimpleLogicalValueType::Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
+            CASE(ESimpleLogicalValueType::String, DB::UInt8 /* actually unused */, std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Utf8, DB::UInt8 /* actually unused */,  std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Void, DB::UInt8 /* actually unused */,  std::make_shared<DB::DataTypeNothing>())
             default:
                 ThrowConversionError(descriptor, "Converting YT simple logical value type %v to ClickHouse is not supported", valueType);
         }

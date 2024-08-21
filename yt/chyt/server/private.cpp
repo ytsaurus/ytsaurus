@@ -20,6 +20,7 @@ const std::vector<TString> TableAttributesToFetch{
     "boundary_keys",
     "enable_dynamic_store_read",
     "chyt_banned",
+    "row_count",
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -525,7 +525,10 @@ private:
         auto messageNode = node->FindChild("message");
         return TError(
             code,
-            messageNode ? messageNode->GetValue<TString>() : "Vault error")
+            messageNode
+                ? messageNode->GetValue<TString>()
+                : "Vault error",
+            TError::DisableFormat)
             << TErrorAttribute("status", statusString)
             << TErrorAttribute("code", codeString);
     }

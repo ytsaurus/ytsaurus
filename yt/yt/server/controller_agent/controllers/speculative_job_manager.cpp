@@ -3,7 +3,8 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/yt/server/lib/controller_agent/serialize.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <util/generic/algorithm.h>
 

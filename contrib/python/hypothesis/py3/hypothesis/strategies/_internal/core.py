@@ -59,6 +59,7 @@ from hypothesis.control import (
     current_build_context,
     deprecate_random_in_strategy,
     note,
+    should_note,
 )
 from hypothesis.errors import (
     HypothesisSideeffectWarning,
@@ -82,7 +83,11 @@ from hypothesis.internal.compat import (
     get_type_hints,
     is_typed_named_tuple,
 )
-from hypothesis.internal.conjecture.utils import calc_label_from_cls, check_sample
+from hypothesis.internal.conjecture.utils import (
+    calc_label_from_cls,
+    check_sample,
+    identity,
+)
 from hypothesis.internal.entropy import get_seeder_and_restorer
 from hypothesis.internal.floats import float_of
 from hypothesis.internal.observability import TESTCASE_CALLBACKS
@@ -268,10 +273,6 @@ def sampled_from(
     if len(values) == 1:
         return just(values[0])
     return SampledFromStrategy(values, repr_)
-
-
-def identity(x):
-    return x
 
 
 @cacheable
@@ -2115,9 +2116,11 @@ class DataObject:
         if TESTCASE_CALLBACKS:
             self.conjecture_data._observability_args[desc] = to_jsonable(result)
 
-        printer.text(desc)
-        printer.pretty(result)
-        note(printer.getvalue())
+        # optimization to avoid needless printer.pretty
+        if should_note():
+            printer.text(desc)
+            printer.pretty(result)
+            note(printer.getvalue())
         return result
 
 

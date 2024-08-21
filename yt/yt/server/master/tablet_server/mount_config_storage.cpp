@@ -110,7 +110,8 @@ void Deserialize(TMountConfigStorage& storage, NYTree::INodePtr node)
 
     auto mapNode = node->AsMap();
     for (const auto& [key, child] : mapNode->GetChildren()) {
-        storage.Set(key, ConvertToYsonString(child));
+        // TODO(babenko): migrate to std::string
+        storage.Set(TString(key), ConvertToYsonString(child));
     }
 }
 

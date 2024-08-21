@@ -181,12 +181,11 @@ private:
         static inline void apply(std::ostringstream& oss,
                                  Point const& point)
         {
-            if BOOST_GEOMETRY_CONSTEXPR (AllowDuplicates)
+            if BOOST_GEOMETRY_CONSTEXPR (! AllowDuplicates)
             {
-                return;
+                oss << ". Duplicate points were found near point "
+                    << geometry::dsv(point);
             }
-            oss << ". Duplicate points were found near point "
-                << geometry::dsv(point);
         }
     };
 

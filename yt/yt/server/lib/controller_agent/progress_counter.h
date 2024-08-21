@@ -1,6 +1,8 @@
 #pragma once
 
-#include "persistence.h"
+#include "public.h"
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/core/actions/signal.h>
 

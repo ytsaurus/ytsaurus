@@ -118,6 +118,10 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_nodes_being_disposed", &TThis::MaxNodesBeingDisposed)
         .Default(10);
+
+    registrar.Parameter("immediatety_dispose_nondata_nodes", &TThis::ImmediatelyDisposeNondataNodes)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

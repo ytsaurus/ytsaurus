@@ -143,9 +143,15 @@ public:
         return ERawTransformType::ParDo;
     }
 
-    // It's assumed that par do saves outputs received in Start i
+    // It's assumed that par do saves outputs received in Start
     virtual void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) = 0;
+
     virtual void Do(const void* rows, int count) = 0;
+    virtual void MoveDo(void* rows, int count)
+    {
+        Do(rows, count);
+    }
+
     virtual void Finish() = 0;
     virtual const TFnAttributes& GetFnAttributes() const = 0;
 };

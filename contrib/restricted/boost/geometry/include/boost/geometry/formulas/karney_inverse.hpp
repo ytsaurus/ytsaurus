@@ -36,7 +36,7 @@
 #include <boost/math/constants/constants.hpp>
 #include <boost/math/special_functions/hypot.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 #include <boost/geometry/util/precise_math.hpp>
 #include <boost/geometry/util/series_expansion.hpp>
@@ -309,7 +309,7 @@ public:
             sigma12 = omega12 = lam12 / one_minus_f;
             m12x = b * sin(sigma12);
 
-            if (BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableGeodesicScale)
             {
                 result.geodesic_scale = cos(sigma12);
             }
@@ -335,7 +335,7 @@ public:
                 // Short lines case (newton_start sets sin_alpha2, cos_alpha2, dnm).
                 s12x = sigma12 * b * dnm;
                 m12x = math::sqr(dnm) * b * sin(sigma12 / dnm);
-                if (BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+                if BOOST_GEOMETRY_CONSTEXPR (EnableGeodesicScale)
                 {
                     result.geodesic_scale = cos(sigma12 / dnm);
                 }
@@ -460,25 +460,25 @@ public:
         sin_alpha2 *= swap_point * lon12_sign;
         cos_alpha2 *= swap_point * lat_sign;
 
-        if (BOOST_GEOMETRY_CONDITION(EnableReducedLength))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength)
         {
             result.reduced_length = m12x;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(CalcAzimuths))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcAzimuths)
         {
-            if (BOOST_GEOMETRY_CONDITION(CalcFwdAzimuth))
+            if BOOST_GEOMETRY_CONSTEXPR (CalcFwdAzimuth)
             {
                 result.azimuth = atan2(sin_alpha1, cos_alpha1);
             }
 
-            if (BOOST_GEOMETRY_CONDITION(CalcRevAzimuth))
+            if BOOST_GEOMETRY_CONSTEXPR (CalcRevAzimuth)
             {
                 result.reverse_azimuth = atan2(sin_alpha2, cos_alpha2);
             }
         }
 
-        if (BOOST_GEOMETRY_CONDITION(EnableDistance))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableDistance)
         {
             result.distance = s12x;
         }
@@ -503,16 +503,13 @@ public:
         // Evaluate the coefficients for C2.
         se::coeffs_C2<SeriesOrder, CT> coeffs_C2(epsilon);
 
-        if (BOOST_GEOMETRY_CONDITION(EnableDistance) ||
-            BOOST_GEOMETRY_CONDITION(EnableReducedLength) ||
-            BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableDistance || EnableReducedLength || EnableGeodesicScale)
         {
             // Find the coefficients for A1 by computing the
             // series expansion using Horner scehme.
             expansion_A1 = se::evaluate_A1<SeriesOrder>(epsilon);
 
-            if (BOOST_GEOMETRY_CONDITION(EnableReducedLength) ||
-                BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength || EnableGeodesicScale)
             {
                 // Find the coefficients for A2 by computing the
                 // series expansion using Horner scehme.
@@ -524,15 +521,14 @@ public:
             expansion_A1 += c1;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(EnableDistance))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableDistance)
         {
             CT B1 = se::sin_cos_series(sin_sigma2, cos_sigma2, coeffs_C1)
                   - se::sin_cos_series(sin_sigma1, cos_sigma1, coeffs_C1);
 
             s12x = expansion_A1 * (sigma12 + B1);
 
-            if (BOOST_GEOMETRY_CONDITION(EnableReducedLength) ||
-                BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength || EnableGeodesicScale)
             {
                 CT B2 = se::sin_cos_series(sin_sigma2, cos_sigma2, coeffs_C2)
                       - se::sin_cos_series(sin_sigma1, cos_sigma1, coeffs_C2);
@@ -540,8 +536,7 @@ public:
                 J12 = A12x * sigma12 + (expansion_A1 * B1 - expansion_A2 * B2);
             }
         }
-        else if (BOOST_GEOMETRY_CONDITION(EnableReducedLength) ||
-                 BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+        else if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength || EnableGeodesicScale)
         {
             for (size_t i = 1; i <= SeriesOrder; ++i)
             {
@@ -554,7 +549,7 @@ public:
                   - se::sin_cos_series(sin_sigma1, cos_sigma1, coeffs_C2));
         }
 
-        if (BOOST_GEOMETRY_CONDITION(EnableReducedLength))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength)
         {
             m0 = A12x;
 
@@ -563,7 +558,7 @@ public:
                    cos_sigma1 * cos_sigma2 * J12;
         }
 
-        if (BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+        if BOOST_GEOMETRY_CONSTEXPR (EnableGeodesicScale)
         {
             CT cos_sigma12 = cos_sigma1 * cos_sigma2 + sin_sigma1 * sin_sigma2;
             CT t = ep2 * (cos_beta1 - cos_beta2) *

@@ -6,12 +6,14 @@ SRCS(
     callback_serializer.go
     event.go
     oncefunc.go
+    pubsub.go
 )
 
 GO_TEST_SRCS(
     callback_serializer_test.go
     event_test.go
     oncefunc_test.go
+    pubsub_test.go
 )
 
 END()

@@ -1093,7 +1093,7 @@ private:
         } else {
             YT_VERIFY(!Instances_.empty());
             // Get parameter from any instance, they all have the same value.
-            result = Instances_.cbegin()->second->template Get<int>("query_sticky_group_size");
+            result = Instances_.cbegin()->second->template Find<int>("query_sticky_group_size").value_or(0);
         }
 
         return result;

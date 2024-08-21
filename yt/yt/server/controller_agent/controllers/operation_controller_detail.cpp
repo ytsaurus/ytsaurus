@@ -4434,7 +4434,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
         }
         auto errorMessage = errorMessageBuilder.Flush();
-        DoFailOperation(TError(errorMessage));
+        DoFailOperation(TError(std::move(errorMessage), TError::DisableFormat));
         return;
     }
 
@@ -4972,6 +4972,11 @@ IInvokerPtr TOperationControllerBase::GetInvoker(EOperationControllerQueue queue
     return SuspendableInvokerPool->GetInvoker(queue);
 }
 
+IInvokerPoolPtr TOperationControllerBase::GetCancelableInvokerPool() const
+{
+    return CancelableInvokerPool;
+}
+
 IInvokerPtr TOperationControllerBase::GetChunkScraperInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -5251,6 +5256,10 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, bool abortAllJoblets)
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    if (auto delay = Spec_->TestingOperationOptions->FailOperationDelay; delay) {
+        Sleep(*delay);
+    }
 
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
@@ -5691,6 +5700,23 @@ TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocat
     return TJobId(jobIdGuid);
 }
 
+TJobletPtr TOperationControllerBase::CreateJoblet(
+    TTask* task,
+    TJobId jobId,
+    TString treeId,
+    int taskJobIndex,
+    std::optional<TString> poolPath,
+    bool treeIsTentative)
+{
+    auto joblet = New<TJoblet>(task, NextJobIndex(), taskJobIndex, std::move(treeId), treeIsTentative);
+
+    joblet->StartTime = TInstant::Now();
+    joblet->JobId = jobId;
+    joblet->PoolPath = std::move(poolPath);
+
+    return joblet;
+}
+
 bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept
 {
     YT_VERIFY(AllocationIdFromJobId(lhs) == AllocationIdFromJobId(rhs));
@@ -5751,7 +5777,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            suppressionErrors.emplace_back("Output table %v is dynamic", table->Path);
+            suppressionErrors.push_back(TError("Output table %v is dynamic", table->Path));
             break;
         }
     }
@@ -5760,9 +5786,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         if (table->ExternalCellTag == connection->GetPrimaryMasterCellTag() &&
             !connection->GetSecondaryMasterCellTags().empty())
         {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Output table %v is non-external and cluster is multicell",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5770,9 +5796,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     // TODO(ifsmirnov): YT-11498. This is not the suppression you are looking for.
     for (const auto& table : InputManager->GetInputTables()) {
         if (table->Schema->HasNontrivialSchemaModification()) {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Input table %v has non-trivial schema modification",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5787,7 +5813,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
             NRe2::StringPiece(AuthenticatedUser.data()),
             *Config->LegacyLivePreviewUserBlacklist))
         {
-            suppressionErrors.emplace_back(TError(
+            suppressionErrors.push_back(TError(
                 "User %Qv belongs to legacy live preview suppression blacklist; in order "
                 "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
@@ -5798,7 +5824,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     }
 
     if (IntermediateOutputCellTagList.size() != 1 && IsLegacyIntermediateLivePreviewSupported() && suppressionErrors.empty()) {
-        suppressionErrors.emplace_back(TError(
+        suppressionErrors.push_back(TError(
             "Legacy live preview appears to have been disabled in the controller agents config when the operation started"));
     }
 
@@ -7094,7 +7120,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 {
                     const auto& rspOrError = getAttributesRspsOrError[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file ", path);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %v", path);
                     const auto& rsp = rspOrError.Value();
                     const auto& linkRsp = getLinkAttributesRspsOrError[index];
                     index++;
@@ -8064,6 +8090,10 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
         return;
     }
 
+    if (table->Dynamic) {
+        return;
+    }
+
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
@@ -8098,7 +8128,9 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    if (LivePreviews_->contains(tableName)) {
+        InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+    }
 }
 
 void TOperationControllerBase::AttachToLivePreview(
@@ -9661,6 +9693,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
     }
 
+    if (Config->EnableJobArchiveTtl && jobSpecConfig->ArchiveTtl) {
+        jobSpec->set_archive_ttl(ToProto<i64>(*jobSpecConfig->ArchiveTtl));
+    }
+
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
@@ -10656,7 +10692,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
         jobReport
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .Address(joblet->NodeDescriptor.Address));
+            .Address(joblet->NodeDescriptor.Address)
+            .Ttl(joblet->ArchiveTtl));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

@@ -1,7 +1,7 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
-// Copyright (c) 2017 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2017-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2013-2020.
 // Modifications copyright (c) 2013-2020 Oracle and/or its affiliates.
@@ -19,7 +19,7 @@
 
 #include <boost/geometry/core/assert.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 #include <boost/geometry/algorithms/detail/overlay/get_turn_info.hpp>
 #include <boost/geometry/algorithms/detail/overlay/get_turn_info_for_endpoint.hpp>
@@ -216,15 +216,17 @@ struct get_turn_info_linear_areal
                                                      tp.operations[0].operation,
                                                      tp.operations[1].operation);
 
-                    bool ignore_spike
-                        = calculate_spike_operation(tp.operations[0].operation,
-                                                    inters,
-                                                    umbrella_strategy);
+                    bool const ignore_spike = calculate_spike_operation(tp.operations[0].operation,
+                                                                        inters,
+                                                                        umbrella_strategy);
 
-                    if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                      || ignore_spike
-                      || ! append_opposite_spikes<append_touches>( // for 'i' or 'c' i???
-                                tp, inters, out) )
+                    if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                    {
+                        *out++ = tp;
+                    }
+                    else if (ignore_spike
+                             // for 'i' or 'c' i???
+                          || ! append_opposite_spikes<append_touches>(tp, inters, out))
                     {
                         *out++ = tp;
                     }
@@ -256,9 +258,12 @@ struct get_turn_info_linear_areal
                         transformer(tp);
 
                         // conditionally handle spikes
-                        if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                          || ! append_collinear_spikes(tp, inters,
-                                                       method_touch, append_equal, out) )
+                        if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                        {
+                            *out++ = tp;
+                        }
+                        else if (! append_collinear_spikes(tp, inters, method_touch,
+                                                           append_equal, out))
                         {
                             *out++ = tp; // no spikes
                         }
@@ -319,9 +324,12 @@ struct get_turn_info_linear_areal
                         transformer(tp);
 
                         // conditionally handle spikes
-                        if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                          || ! append_collinear_spikes(tp, inters,
-                                                       method_replace, version, out) )
+                        if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                        {
+                            *out++ = tp;
+                        }
+                        else if (! append_collinear_spikes(tp, inters, method_replace,
+                                                           version, out))
                         {
                             // no spikes
                             *out++ = tp;
@@ -333,10 +341,9 @@ struct get_turn_info_linear_areal
                         turn_transformer_ec<false> transformer(method_touch_interior);
 
                         // conditionally handle spikes
-                        if ( BOOST_GEOMETRY_CONDITION(handle_spikes) )
+                        if BOOST_GEOMETRY_CONSTEXPR (handle_spikes)
                         {
-                            append_opposite_spikes<append_collinear_opposite>(
-                                    tp, inters, out);
+                            append_opposite_spikes<append_collinear_opposite>(tp, inters, out);
                         }
 
                         // TODO: ignore for spikes?
@@ -357,7 +364,7 @@ struct get_turn_info_linear_areal
             case '0' :
             {
                 // degenerate points
-                if ( BOOST_GEOMETRY_CONDITION(AssignPolicy::include_degenerate) )
+                if BOOST_GEOMETRY_CONSTEXPR (AssignPolicy::include_degenerate)
                 {
                     only_convert::apply(tp, inters.i_info());
 
@@ -542,26 +549,30 @@ struct get_turn_info_linear_areal
             return false;
         }
         else*/
-        if ( is_p_spike )
+        if (is_p_spike)
         {
-            if ( BOOST_GEOMETRY_CONDITION(is_version_touches)
-              || inters.d_info().arrival[0] == 1 )
+            bool output_spike = false;
+            if BOOST_GEOMETRY_CONSTEXPR (is_version_touches)
             {
-                if ( BOOST_GEOMETRY_CONDITION(is_version_touches) )
-                {
-                    tp.operations[0].is_collinear = true;
-                    //tp.operations[1].is_collinear = false;
-                    tp.method = method_touch;
-                }
-                else
-                {
-                    tp.operations[0].is_collinear = true;
-                    //tp.operations[1].is_collinear = false;
+                tp.operations[0].is_collinear = true;
+                //tp.operations[1].is_collinear = false;
+                tp.method = method_touch;
 
-                    BOOST_GEOMETRY_ASSERT(inters.i_info().count > 1);
-                    base_turn_handler::assign_point(tp, method_touch_interior, inters.i_info(), 1);
-                }
+                output_spike = true;
+            }
+            else if (inters.d_info().arrival[0] == 1)
+            {
+                tp.operations[0].is_collinear = true;
+                //tp.operations[1].is_collinear = false;
 
+                BOOST_GEOMETRY_ASSERT(inters.i_info().count > 1);
+                base_turn_handler::assign_point(tp, method_touch_interior, inters.i_info(), 1);
+
+                output_spike = true;
+            }
+
+            if (output_spike)
+            {
                 tp.operations[0].operation = operation_blocked;
                 tp.operations[1].operation = operation_continue; // boundary
                 *out++ = tp;
@@ -636,9 +647,12 @@ struct get_turn_info_linear_areal
             operation_type & op1 = turn.operations[1].operation;
 
             // NOTE: probably only if methods are WRT IPs, not segments!
-            if ( BOOST_GEOMETRY_CONDITION(IsFront)
-              || op0 == operation_intersection || op0 == operation_union
-              || op1 == operation_intersection || op1 == operation_union )
+            if BOOST_GEOMETRY_CONSTEXPR (IsFront)
+            {
+                turn.method = m_method;
+            }
+            else if (op0 == operation_intersection || op0 == operation_union
+                  || op1 == operation_intersection || op1 == operation_union)
             {
                 turn.method = m_method;
             }
@@ -724,145 +738,151 @@ struct get_turn_info_linear_areal
 
         // IP on the first point of Linear Geometry
         bool was_first_point_handled = false;
-        if ( BOOST_GEOMETRY_CONDITION(EnableFirst)
-          && range_p.is_first_segment() && ip0.is_pi && !ip0.is_qi ) // !q0i prevents duplication
+        if BOOST_GEOMETRY_CONSTEXPR (EnableFirst)
         {
-            TurnInfo tp = tp_model;
-            tp.operations[0].position = position_front;
-            tp.operations[1].position = position_middle;
-
-            if ( opposite ) // opposite -> collinear
+            if (range_p.is_first_segment() && ip0.is_pi && ! ip0.is_qi ) // !q0i prevents duplication
             {
-                tp.operations[0].operation = operation_continue;
-                tp.operations[1].operation = operation_union;
-                tp.method = ip0.is_qj ? method_touch : method_touch_interior;
-            }
-            else
-            {
-                auto const sides = strategy.side();
+                TurnInfo tp = tp_model;
+                tp.operations[0].position = position_front;
+                tp.operations[1].position = position_middle;
 
-                // pi is the intersection point at qj or in the middle of q1
-                // so consider segments
-                // 1. pi at qj: qi-qj-pj and qi-qj-qk
-                //    x: qi-qj, y: qj-qk, qz: qk
-                // 2. pi in the middle of q1: qi-pi-pj and qi-pi-qj
-                //    x: qi-pi, y: pi-qj, qz: qj
-                //    qi-pi, side the same as WRT q1
-                //    pi-qj, side the same as WRT q1
-                //    qj WRT q1 is 0
-                method_type replaced_method = method_none;
-                int side_pj_y = 0, side_pj_x = 0, side_qz_x = 0;
-                // 1. ip0 or pi at qj
-                if ( ip0.is_qj )
+                if ( opposite ) // opposite -> collinear
                 {
-                    replaced_method = method_touch;
-                    side_pj_y = sides.apply(range_q.at(1), range_q.at(2), range_p.at(1)); // pj wrt q2
-                    side_pj_x = sides.apply(range_q.at(0), range_q.at(1), range_p.at(1)); // pj wrt q1
-                    side_qz_x = sides.apply(range_q.at(0), range_q.at(1), range_q.at(2)); // qk wrt q1
+                    tp.operations[0].operation = operation_continue;
+                    tp.operations[1].operation = operation_union;
+                    tp.method = ip0.is_qj ? method_touch : method_touch_interior;
                 }
-                // 2. ip0 or pi in the middle of q1
                 else
                 {
-                    replaced_method = method_touch_interior;
-                    side_pj_y = sides.apply(range_q.at(0), range_q.at(1), range_p.at(1)); // pj wrt q1
-                    side_pj_x = side_pj_y; // pj wrt q1
-                    side_qz_x = 0; // qj wrt q1
+                    auto const sides = strategy.side();
+
+                    // pi is the intersection point at qj or in the middle of q1
+                    // so consider segments
+                    // 1. pi at qj: qi-qj-pj and qi-qj-qk
+                    //    x: qi-qj, y: qj-qk, qz: qk
+                    // 2. pi in the middle of q1: qi-pi-pj and qi-pi-qj
+                    //    x: qi-pi, y: pi-qj, qz: qj
+                    //    qi-pi, side the same as WRT q1
+                    //    pi-qj, side the same as WRT q1
+                    //    qj WRT q1 is 0
+                    method_type replaced_method = method_none;
+                    int side_pj_y = 0, side_pj_x = 0, side_qz_x = 0;
+                    // 1. ip0 or pi at qj
+                    if ( ip0.is_qj )
+                    {
+                        replaced_method = method_touch;
+                        side_pj_y = sides.apply(range_q.at(1), range_q.at(2), range_p.at(1)); // pj wrt q2
+                        side_pj_x = sides.apply(range_q.at(0), range_q.at(1), range_p.at(1)); // pj wrt q1
+                        side_qz_x = sides.apply(range_q.at(0), range_q.at(1), range_q.at(2)); // qk wrt q1
+                    }
+                    // 2. ip0 or pi in the middle of q1
+                    else
+                    {
+                        replaced_method = method_touch_interior;
+                        side_pj_y = sides.apply(range_q.at(0), range_q.at(1), range_p.at(1)); // pj wrt q1
+                        side_pj_x = side_pj_y; // pj wrt q1
+                        side_qz_x = 0; // qj wrt q1
+                    }
+
+                    std::pair<operation_type, operation_type> operations
+                        = get_info_e::operations_of_equal(side_pj_y, side_pj_x, side_qz_x);
+
+                    tp.operations[0].operation = operations.first;
+                    tp.operations[1].operation = operations.second;
+
+                    turn_transformer_ec<true> transformer(replaced_method);
+                    transformer(tp);
                 }
 
-                std::pair<operation_type, operation_type> operations
-                    = get_info_e::operations_of_equal(side_pj_y, side_pj_x, side_qz_x);
+                // equals<> or collinear<> will assign the second point,
+                // we'd like to assign the first one
+                base_turn_handler::assign_point(tp, tp.method, inters.i_info(), 0);
 
-                tp.operations[0].operation = operations.first;
-                tp.operations[1].operation = operations.second;
+                // NOTE: is_collinear is not set for the first endpoint of L
+                // for which there is no preceding segment
+                // here is_p_first_ip == true
+                tp.operations[0].is_collinear = false;
 
-                turn_transformer_ec<true> transformer(replaced_method);
-                transformer(tp);
+                *out++ = tp;
+
+                was_first_point_handled = true;
             }
-
-            // equals<> or collinear<> will assign the second point,
-            // we'd like to assign the first one
-            base_turn_handler::assign_point(tp, tp.method, inters.i_info(), 0);
-
-            // NOTE: is_collinear is not set for the first endpoint of L
-            // for which there is no preceding segment
-            // here is_p_first_ip == true
-            tp.operations[0].is_collinear = false;
-
-            *out++ = tp;
-
-            was_first_point_handled = true;
         }
 
         // ANALYSE AND ASSIGN LAST
 
         // IP on the last point of Linear Geometry
-        if ( BOOST_GEOMETRY_CONDITION(EnableLast)
-          && range_p.is_last_segment()
-          && ( ip_count > 1 ? (ip1.is_pj && !ip1.is_qi) : (ip0.is_pj && !ip0.is_qi) ) ) // prevents duplication
+        if BOOST_GEOMETRY_CONSTEXPR (EnableLast)
         {
-            TurnInfo tp = tp_model;
-
-            if ( inters.i_info().count > 1 )
+            if (range_p.is_last_segment()
+                && (ip_count > 1
+                    ? (ip1.is_pj && ! ip1.is_qi)
+                    : (ip0.is_pj && ! ip0.is_qi))) // prevents duplication
             {
-                //BOOST_GEOMETRY_ASSERT( result.template get<1>().dir_a == 0 && result.template get<1>().dir_b == 0 );
-                tp.operations[0].is_collinear = true;
-                tp.operations[1].operation = opposite ? operation_continue : operation_union;
-            }
-            else //if ( result.template get<0>().count == 1 )
-            {
-                auto const sides = strategy.side();
+                TurnInfo tp = tp_model;
 
-                // pj is the intersection point at qj or in the middle of q1
-                // so consider segments
-                // 1. pj at qj: qi-qj-pi and qi-qj-qk
-                //    x: qi-qj, y: qj-qk, qz: qk
-                // 2. pj in the middle of q1: qi-pj-pi and qi-pj-qj
-                //    x: qi-pj, y: pj-qj, qz: qj
-                //    qi-pj, the side is the same as WRT q1
-                //    pj-qj, the side is the same as WRT q1
-                //    side of qj WRT q1 is 0
-                int side_pi_y = 0, side_pi_x = 0, side_qz_x = 0;
-                // 1. ip0 or pj at qj
-                if ( ip0.is_qj )
+                if ( inters.i_info().count > 1 )
                 {
-                    side_pi_y = sides.apply(range_q.at(1), range_q.at(2), range_p.at(0)); // pi wrt q2
-                    side_pi_x = sides.apply(range_q.at(0), range_q.at(1), range_p.at(0)); // pi wrt q1
-                    side_qz_x = sides.apply(range_q.at(0), range_q.at(1), range_q.at(2)); // qk wrt q1
+                    //BOOST_GEOMETRY_ASSERT( result.template get<1>().dir_a == 0 && result.template get<1>().dir_b == 0 );
+                    tp.operations[0].is_collinear = true;
+                    tp.operations[1].operation = opposite ? operation_continue : operation_union;
                 }
-                // 2. ip0 or pj in the middle of q1
-                else
+                else //if ( result.template get<0>().count == 1 )
                 {
-                    side_pi_y = sides.apply(range_q.at(0), range_q.at(1), range_p.at(0)); // pi wrt q1
-                    side_pi_x = side_pi_y; // pi wrt q1
-                    side_qz_x = 0; // qj wrt q1
+                    auto const sides = strategy.side();
+
+                    // pj is the intersection point at qj or in the middle of q1
+                    // so consider segments
+                    // 1. pj at qj: qi-qj-pi and qi-qj-qk
+                    //    x: qi-qj, y: qj-qk, qz: qk
+                    // 2. pj in the middle of q1: qi-pj-pi and qi-pj-qj
+                    //    x: qi-pj, y: pj-qj, qz: qj
+                    //    qi-pj, the side is the same as WRT q1
+                    //    pj-qj, the side is the same as WRT q1
+                    //    side of qj WRT q1 is 0
+                    int side_pi_y = 0, side_pi_x = 0, side_qz_x = 0;
+                    // 1. ip0 or pj at qj
+                    if ( ip0.is_qj )
+                    {
+                        side_pi_y = sides.apply(range_q.at(1), range_q.at(2), range_p.at(0)); // pi wrt q2
+                        side_pi_x = sides.apply(range_q.at(0), range_q.at(1), range_p.at(0)); // pi wrt q1
+                        side_qz_x = sides.apply(range_q.at(0), range_q.at(1), range_q.at(2)); // qk wrt q1
+                    }
+                    // 2. ip0 or pj in the middle of q1
+                    else
+                    {
+                        side_pi_y = sides.apply(range_q.at(0), range_q.at(1), range_p.at(0)); // pi wrt q1
+                        side_pi_x = side_pi_y; // pi wrt q1
+                        side_qz_x = 0; // qj wrt q1
+                    }
+
+                    std::pair<operation_type, operation_type> operations
+                        = get_info_e::operations_of_equal(side_pi_y, side_pi_x, side_qz_x);
+
+                    tp.operations[0].operation = operations.first;
+                    tp.operations[1].operation = operations.second;
+
+                    turn_transformer_ec<false> transformer(method_none);
+                    transformer(tp);
+
+                    tp.operations[0].is_collinear = tp.both(operation_continue);
                 }
 
-                std::pair<operation_type, operation_type> operations
-                    = get_info_e::operations_of_equal(side_pi_y, side_pi_x, side_qz_x);
+                tp.method = ( ip_count > 1 ? ip1.is_qj : ip0.is_qj ) ? method_touch : method_touch_interior;
+                tp.operations[0].operation = operation_blocked;
+                tp.operations[0].position = position_back;
+                tp.operations[1].position = position_middle;
 
-                tp.operations[0].operation = operations.first;
-                tp.operations[1].operation = operations.second;
+                // equals<> or collinear<> will assign the second point,
+                // we'd like to assign the first one
+                unsigned int ip_index = ip_count > 1 ? 1 : 0;
+                base_turn_handler::assign_point(tp, tp.method, inters.i_info(), ip_index);
 
-                turn_transformer_ec<false> transformer(method_none);
-                transformer(tp);
+                *out++ = tp;
 
-                tp.operations[0].is_collinear = tp.both(operation_continue);
+                // don't ignore the first IP if the segment is opposite
+                return !( opposite && ip_count > 1 ) || was_first_point_handled;
             }
-
-            tp.method = ( ip_count > 1 ? ip1.is_qj : ip0.is_qj ) ? method_touch : method_touch_interior;
-            tp.operations[0].operation = operation_blocked;
-            tp.operations[0].position = position_back;
-            tp.operations[1].position = position_middle;
-
-            // equals<> or collinear<> will assign the second point,
-            // we'd like to assign the first one
-            unsigned int ip_index = ip_count > 1 ? 1 : 0;
-            base_turn_handler::assign_point(tp, tp.method, inters.i_info(), ip_index);
-
-            *out++ = tp;
-
-            // don't ignore the first IP if the segment is opposite
-            return !( opposite && ip_count > 1 ) || was_first_point_handled;
         }
 
         // don't ignore anything for now

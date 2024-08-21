@@ -5,12 +5,12 @@
 #include "config.h"
 #include "operation.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 

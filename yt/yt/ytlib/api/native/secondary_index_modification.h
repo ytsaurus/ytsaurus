@@ -4,6 +4,7 @@
 
 #include <yt/yt/library/query/base/query_preparer.h>
 
+#include <yt/yt/client/api/dynamic_table_client.h>
 #include <yt/yt/client/api/dynamic_table_transaction.h>
 
 #include <library/cpp/yt/logging/logger.h>
@@ -36,6 +37,22 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     TRange<TUnversionedSubmittedRow> mergedModifications,
     NQueryClient::IExpressionEvaluatorCachePtr expressionEvaluatorCache,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// For testing purposes.
+
+using TLookupSignature = TFuture<TSharedRange<NTableClient::TUnversionedRow>>(
+    NYPath::TYPath path,
+    NTableClient::TNameTablePtr nameTable,
+    TSharedRange<NTableClient::TLegacyKey> keys,
+    TLookupRowsOptions options);
+
+ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
+    std::function<TLookupSignature> lookuper,
+    NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
+    TRange<TUnversionedSubmittedRow> mergedModifications);
 
 ////////////////////////////////////////////////////////////////////////////////
 

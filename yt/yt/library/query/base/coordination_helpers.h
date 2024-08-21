@@ -29,6 +29,12 @@ struct TRangeFormatter
     void operator()(TStringBuilderBase* builder, TRowRange source) const;
 };
 
+struct TKeyFormatter
+{
+    void operator()(TStringBuilderBase* builder, TRow source) const;
+    void operator()(TStringBuilderBase* builder, NTableClient::TKeyRef source) const;
+};
+
 using TRangeIt = TRange<TRowRange>::iterator;
 using TSampleIt = TRange<TRow>::iterator;
 

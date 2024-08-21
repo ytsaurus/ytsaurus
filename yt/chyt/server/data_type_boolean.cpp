@@ -11,21 +11,14 @@ namespace NYT::NClickHouseServer {
 void RegisterDataTypeBoolean()
 {
     auto& factory = DB::DataTypeFactory::instance();
-    // Boolean type is represented as UInt8.
-    factory.registerSimpleDataTypeCustom(
-        "YtBoolean",
-        [] {
-            return std::pair(
-                std::make_shared<DB::DataTypeUInt8>(),
-                std::make_unique<DB::DataTypeCustomDesc>(
-                    std::make_unique<DB::DataTypeCustomFixedName>("YtBoolean")));
-        });
+    // Register YtBoolean as alias for backward compatibility
+    factory.registerAlias("YtBoolean", "Bool");
 }
 
 DB::DataTypePtr GetDataTypeBoolean()
 {
     auto& factory = DB::DataTypeFactory::instance();
-    return factory.get("YtBoolean");
+    return factory.get("Bool");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

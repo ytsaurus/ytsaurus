@@ -135,7 +135,7 @@ TString TTransaction::GetCapitalizedObjectName() const
     return Format("Transaction %v", GetId());
 }
 
-TString TTransaction::GetObjectPath() const
+TYPath TTransaction::GetObjectPath() const
 {
     return Format("//sys/transactions/%v", GetId());
 }

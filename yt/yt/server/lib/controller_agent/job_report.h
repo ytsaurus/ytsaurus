@@ -16,6 +16,7 @@ public:
     TControllerJobReport JobCookie(ui64 jobCookie);
     TControllerJobReport Address(std::optional<TString> address);
     TControllerJobReport ControllerState(EJobState controllerState);
+    TControllerJobReport Ttl(std::optional<TDuration> ttl);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

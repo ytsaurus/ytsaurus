@@ -42,13 +42,18 @@ PEERDIR(
     yt/yt/library/query/distributed
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api
+    yt/yt/library/query/unittests/helpers
     yt/yt/library/query/unittests/udf
     contrib/libs/sparsehash
 )
 
 FORK_SUBTESTS(MODULO)
 
-SPLIT_FACTOR(3)
+IF (SANITIZER_TYPE)
+    SPLIT_FACTOR(10)
+ELSE()
+    SPLIT_FACTOR(3)
+ENDIF()
 
 SIZE(MEDIUM)
 

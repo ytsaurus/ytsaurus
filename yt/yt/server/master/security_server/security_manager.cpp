@@ -143,8 +143,9 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     SecurityManager_ = std::move(securityManager);
 
     AuthenticationIdentity_ = NRpc::TAuthenticationIdentity(
-        user->GetName(),
-        userTag ? userTag : user->GetName());
+        // TODO(babenko): switch to std::string
+        TString(user->GetName()),
+        userTag ? userTag : TString(user->GetName()));
     AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
     CpuProfilerTagGuard_ = TCpuProfilerTagGuard(SecurityManager_->GetUserCpuProfilerTag(User_));
 }
@@ -553,19 +554,19 @@ public:
         for (auto i = 0; i < AccountProfilingProducerCount; ++i) {
             auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
             producer->SetEnabled(false);
-            AccountProfiler
+            AccountProfiler()
                 .WithGlobal()
                 .WithDefaultDisabled()
                 .AddProducer("", producer);
         }
 
-        auto perCellPermissionValidationProfiler = PermissionValidationProfiler
+        auto perCellPermissionValidationProfiler = SecurityProfiler()
             .WithSparse()
             .WithDefaultDisabled();
-        CheckPermissionTimer_ = perCellPermissionValidationProfiler
-            .Timer("/check_permission_wall_time");
-        AclIterationTimer_ = perCellPermissionValidationProfiler
-            .Timer("/acl_iteration_wall_time");
+        CheckPermissionGauge_ = perCellPermissionValidationProfiler
+            .TimeGauge("/check_permission_cumulative_time");
+        AclIterationGauge_ = perCellPermissionValidationProfiler
+            .TimeGauge("/acl_iteration_cumulative_time");
     }
 
     void OnAccountsProfiling()
@@ -749,10 +750,10 @@ public:
         return account;
     }
 
-    TAccount* DoFindAccountByName(const TString& name)
+    TAccount* DoFindAccountByName(const std::string& name)
     {
         // Access buggy parentless accounts by id.
-        if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
+        if (name.starts_with(NObjectClient::ObjectIdPathPrefix)) {
             TStringBuf idString(name, NObjectClient::ObjectIdPathPrefix.size());
             auto id = TObjectId::FromString(idString);
             auto* account = AccountMap_.Find(id);
@@ -767,7 +768,7 @@ public:
         return IsObjectAlive(account) ? account : nullptr;
     }
 
-    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly) override
+    TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* account = DoFindAccountByName(name);
         if (!account) {
@@ -784,7 +785,7 @@ public:
         }
     }
 
-    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly) override
+    TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* account = DoFindAccountByName(name);
         if (!account) {
@@ -840,7 +841,7 @@ public:
 
     template <class... TArgs>
     void ThrowWithDetailedViolatedResources(
-        const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TArgs&&... args)
+        const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TFormatString<TArgs...> format, TArgs&&... args)
     {
         auto violatedResources = limits.GetViolatedBy(usage);
 
@@ -849,8 +850,8 @@ public:
         SerializeViolatedClusterResourceLimitsInCompactFormat(violatedResources, &writer, Bootstrap_);
         writer.Flush();
 
-        THROW_ERROR(TError(std::forward<TArgs>(args)...)
-            << TErrorAttribute("violated_resources", TYsonString(output.Str())));
+        THROW_ERROR_EXCEPTION(format, std::forward<TArgs>(args)...)
+            << TErrorAttribute("violated_resources", TYsonString(output.Str()));
     }
 
     void ThrowInvalidResourceLimitsChange(
@@ -886,11 +887,12 @@ public:
     }
 
     template <class... TArgs>
-    void ThrowAccountOvercommitted(TAccount* account, TArgs&&... args)
+    void ThrowAccountOvercommitted(TAccount* account, TFormatString<TArgs...> format, TArgs&&... args)
     {
         ThrowWithDetailedViolatedResources(
             account->ClusterResourceLimits(),
             ComputeAccountTotalChildrenLimitsForValidation(account),
+            format,
             std::forward<TArgs>(args)...);
     }
 
@@ -1613,13 +1615,13 @@ public:
             .Item("name").Value(user->GetName());
     }
 
-    TUser* DoFindUserByName(const TString& name)
+    TUser* DoFindUserByName(const std::string& name)
     {
         auto it = UserNameMap_.find(name);
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
-    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly) override
+    TUser* FindUserByName(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
         if (!user) {
@@ -1636,7 +1638,7 @@ public:
         }
     }
 
-    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly) override
+    TUser* FindUserByNameOrAlias(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* subjectByAlias = FindSubjectByAlias(name, activeLifeStageOnly);
         if (subjectByAlias && subjectByAlias->IsUser()) {
@@ -1645,7 +1647,7 @@ public:
         return FindUserByName(name, activeLifeStageOnly);
     }
 
-    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly) override
+    TUser* GetUserByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
 
@@ -1733,7 +1735,7 @@ public:
             .Item("name").Value(group->GetName());
     }
 
-    TGroup* DoFindGroupByName(const TString& name)
+    TGroup* DoFindGroupByName(const std::string& name)
     {
         if (!GroupNameMapInitialized_) {
             for (auto [_, group] : GroupMap_) {
@@ -1748,12 +1750,12 @@ public:
         return it == GroupNameMap_.end() ? nullptr : it->second;
     }
 
-    TGroup* FindGroupByName(const TString& name)
+    TGroup* FindGroupByName(const std::string& name)
     {
         return DoFindGroupByName(name);
     }
 
-    TGroup* FindGroupByNameOrAlias(const TString& name) override
+    TGroup* FindGroupByNameOrAlias(const std::string& name) override
     {
         auto* subjectByAlias = DoFindSubjectByAlias(name);
         if (subjectByAlias && subjectByAlias->IsGroup()) {
@@ -1838,13 +1840,13 @@ public:
             .Item("name").Value(networkProject->GetName());
     }
 
-    TSubject* DoFindSubjectByAlias(const TString& alias)
+    TSubject* DoFindSubjectByAlias(const std::string& alias)
     {
         auto it = SubjectAliasMap_.find(alias);
         return it == SubjectAliasMap_.end() ? nullptr : it->second;
     }
 
-    TSubject* FindSubjectByAlias(const TString& alias, bool activeLifeStageOnly)
+    TSubject* FindSubjectByAlias(const std::string& alias, bool activeLifeStageOnly)
     {
         auto* subject = DoFindSubjectByAlias(alias);
         if (!subject) {
@@ -1861,7 +1863,7 @@ public:
         }
     }
 
-    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly) override
+    TSubject* FindSubjectByNameOrAlias(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = FindUserByName(name, activeLifeStageOnly);
         if (user) {
@@ -1881,7 +1883,7 @@ public:
         return nullptr;
     }
 
-    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly) override
+    TSubject* GetSubjectByNameOrAliasOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto validateLifeStage = [&] (TSubject* subject) {
             if (activeLifeStageOnly) {
@@ -1913,13 +1915,13 @@ public:
             name);
     }
 
-    TNetworkProject* FindNetworkProjectByName(const TString& name) override
+    TNetworkProject* FindNetworkProjectByName(const std::string& name) override
     {
         auto it = NetworkProjectNameMap_.find(name);
         return it == NetworkProjectNameMap_.end() ? nullptr : it->second;
     }
 
-    void RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName) override
+    void RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const std::string& newName) override
     {
         if (FindNetworkProjectByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -1984,7 +1986,7 @@ public:
             .Item("proxy_kind").Value(proxyKind);
     }
 
-    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const override
+    const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const override
     {
         return ProxyRoleNameMaps_[proxyKind];
     }
@@ -2054,7 +2056,7 @@ public:
             .Item("member_name").Value(member->GetName());
     }
 
-    void RenameSubject(TSubject* subject, const TString& newName) override
+    void RenameSubject(TSubject* subject, const std::string& newName) override
     {
         ValidateSubjectName(newName);
 
@@ -2223,7 +2225,7 @@ public:
                 break;
             }
         }
-        AclIterationTimer_.Record(aclIterationTimer.GetElapsedTime());
+        AclIterationGauge_.Update(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2242,7 +2244,7 @@ public:
                 currentDepth);
         }
 
-        CheckPermissionTimer_.Record(checkPermissionTimer.GetElapsedTime());
+        CheckPermissionGauge_.Update(checkPermissionTimer.GetElapsedTime());
         return checker.GetResponse();
     }
 
@@ -2478,7 +2480,7 @@ public:
                     : TString());
 
             THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded, errorMessage)
+                NSecurityClient::EErrorCode::AccountLimitExceeded, std::move(errorMessage), TError::DisableFormat)
                 << TErrorAttribute("usage", usage)
                 << TErrorAttribute("increase", increase)
                 << TErrorAttribute("limit", limit.ToUnderlying());
@@ -2730,19 +2732,20 @@ public:
         return SecurityTagsRegistry_;
     }
 
-    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& newAliases) override
+    void SetSubjectAliases(TSubject* subject, const std::vector<std::string>& newAliases) override
     {
-        THashSet<TString> uniqAliases;
+        THashSet<std::string> uniqueAliases;
         for (const auto& newAlias : newAliases) {
             if (!subject->Aliases().contains(newAlias)) {
                 // Check only if newAlias is not already used as subject alias
                 ValidateSubjectName(newAlias);
             }
-            if (uniqAliases.contains(newAlias)) {
+            if (uniqueAliases.contains(newAlias)) {
                 THROW_ERROR_EXCEPTION("Alias %Qv listed more than once for subject %Qv",
-                    newAlias, subject->GetName());
+                    newAlias,
+                    subject->GetName());
             }
-            uniqAliases.insert(newAlias);
+            uniqueAliases.insert(newAlias);
         }
         auto& aliases = subject->Aliases();
         for (const auto& alias : aliases) {
@@ -2763,7 +2766,8 @@ public:
         return *CpuProfilerTags_
             .FindOrInsert(
                 user->GetName(),
-                [&] { return New<TProfilerTag>("user", user->GetName()); })
+                // TODO(babenko): switch to std::string
+                [&] { return New<TProfilerTag>("user", TString(user->GetName())); })
             .first;
     }
 
@@ -2880,7 +2884,7 @@ private:
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
-    THashMap<TString, TSubject*> SubjectAliasMap_;
+    THashMap<std::string, TSubject*> SubjectAliasMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;
@@ -2895,10 +2899,10 @@ private:
     TGroup* AdminsGroup_ = nullptr;
 
     NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
-    THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
+    THashMap<std::string, TNetworkProject*> NetworkProjectNameMap_;
 
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
-    TEnumIndexedArray<EProxyKind, THashMap<TString, TProxyRole*>> ProxyRoleNameMaps_;
+    TEnumIndexedArray<EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
 
     TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 
@@ -2911,8 +2915,8 @@ private:
 
     bool GroupNameMapInitialized_ = false;
 
-    TEventTimer CheckPermissionTimer_;
-    TEventTimer AclIterationTimer_;
+    TTimeGauge CheckPermissionGauge_;
+    TTimeGauge AclIterationGauge_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4499,7 +4503,7 @@ private:
         auto replicateMembership = [&] (TSubject* subject) {
             for (auto* group : subject->MemberOf()) {
                 auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
-                req->set_name(subject->GetName());
+                req->set_name(ToProto<TProtobufString>(subject->GetName()));
                 req->set_ignore_existing(true);
                 multicellManager->PostToMaster(req, cellTag);
             }
@@ -4524,7 +4528,7 @@ private:
         }
     }
 
-    void ValidateSubjectName(const TString& name)
+    void ValidateSubjectName(const std::string& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");

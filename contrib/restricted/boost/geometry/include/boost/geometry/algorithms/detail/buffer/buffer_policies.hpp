@@ -281,16 +281,6 @@ struct turn_overlaps_box
     Strategy const& m_strategy;
 };
 
-struct enriched_map_buffer_include_policy
-{
-    template <typename Operation>
-    static inline bool include(Operation const& op)
-    {
-        return op != detail::overlay::operation_intersection
-            && op != detail::overlay::operation_blocked;
-    }
-};
-
 }} // namespace detail::buffer
 #endif // DOXYGEN_NO_DETAIL
 

@@ -6,14 +6,14 @@
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 

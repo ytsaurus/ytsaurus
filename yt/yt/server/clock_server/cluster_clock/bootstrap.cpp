@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
@@ -42,6 +44,7 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -75,6 +78,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,11 +133,6 @@ const IChangelogStoreFactoryPtr& TBootstrap::GetChangelogStoreFactory() const
 const ISnapshotStorePtr& TBootstrap::GetSnapshotStore() const
 {
     return SnapshotStore_;
-}
-
-const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
-{
-    return TimestampProvider_;
 }
 
 const THydraFacadePtr& TBootstrap::GetHydraFacade() const
@@ -284,9 +283,15 @@ void TBootstrap::DoRun()
             "/config",
             CreateVirtualNode(ConfigNode_));
     }
+
     SetBuildAttributes(
         orchidRoot,
         "clock");
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/clock_cell",
+        CreateVirtualNode(CreateCellOrchidService()));
 
     HttpServer_->Start();
 
@@ -305,6 +310,19 @@ void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
         InvalidSegmentId,
         GetSnapshotIOInvoker());
     HydraFacade_->LoadSnapshot(reader, dump);
+}
+
+IYPathServicePtr TBootstrap::CreateCellOrchidService() const
+{
+    return New<TCompositeMapService>()
+        ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .Value(true);
+            }))
+        ->AddChild("hydra", IYPathService::FromProducer(
+            HydraFacade_->GetHydraManager()->GetMonitoringProducer()))
+        ->AddChild("election", IYPathService::FromProducer(
+            HydraFacade_->GetElectionManager()->GetMonitoringProducer()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

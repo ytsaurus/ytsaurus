@@ -7,6 +7,18 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobSizeTrackerOptions
+{
+    //! The options below control a special size overflow mode in which limits increase in a geometric progression.
+    //! This mode is used in CHYT for early exit-like optimizations.
+    //! If ratio is set, resources specified in the geometric resource vector are multiplied by the ratio during
+    //! each flush at most `LimitProgressionLength` times, skipping the first `LimitProgressionOffset` flushes.
+    std::optional<double> LimitProgressionRatio;
+    std::vector<EResourceKind> GeometricResources;
+    int LimitProgressionLength = 1;
+    int LimitProgressionOffset = 0;
+};
+
 struct IJobSizeTracker
     : public TRefCounted
 {
@@ -30,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, const NLogging::TLogger& logger);
+IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -61,7 +61,6 @@ SRCS(
     api/native/sync_replica_cache.cpp
     api/native/table_collocation_type_handler.cpp
     api/native/table_reader.cpp
-    api/native/table_writer.cpp
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
@@ -107,6 +106,8 @@ SRCS(
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_residency_cache.cpp
+    chaos_client/replication_cards_watcher.cpp
+    chaos_client/replication_cards_watcher_client.cpp
 
     chaos_client/proto/alien_cell.proto
     chaos_client/proto/chaos_master_service.proto
@@ -199,7 +200,9 @@ SRCS(
     chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
+    controller_agent/persistence.cpp
     controller_agent/public.cpp
+    controller_agent/serialize.cpp
 
     controller_agent/proto/controller_agent_descriptor.proto
     controller_agent/proto/controller_agent_service.proto
@@ -590,9 +593,25 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    scheduler/records/ordered_by_start_time.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/job.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h
+)
+
+GENERATE_YT_RECORD(
+    scheduler/records/ordered_by_id.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+)
+
+GENERATE_YT_RECORD(
+    scheduler/records/job_trace_event.yaml
 )
 
 GENERATE_YT_RECORD(

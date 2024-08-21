@@ -1081,6 +1081,11 @@ def add_select_rows_parser(add_parser):
     parser.add_argument("--print-statistics", default=None, action="store_true")
     parser.add_argument("--syntax-version", type=int)
     parser.add_argument("--udf-registry-path", type=str)
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--merge-versioned-rows", dest="merge_versioned_rows",
+                       default=None, action="store_true")
+    group.add_argument("--do-not-merge-versioned-rows", dest="merge_versioned_rows",
+                       default=None, action="store_false")
 
     error_message = "Use 'select-rows' instead of 'select'"
 
@@ -1353,6 +1358,7 @@ def add_list_queries_parser(add_parser):
 
 def add_alter_query_parser(add_parser):
     parser = add_parser("alter-query", yt.alter_query)
+    parser.add_argument("query_id", type=str, help="query id")
     add_structured_argument(parser, "--annotations", help='a YSON map of annotations')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
@@ -2238,6 +2244,8 @@ if HAS_IDM_CLI_HELPERS:
             action="store_true", default=False)
         parser.add_argument("--erase", "-e", action="store_true",
                             help="Erase all existing permissions from destination object")
+        parser.add_argument("--dst-cluster", default="",
+                            help="Destination cluster override; by default copying is done within a single cluster")
         parser.add_argument(
             "--dry-run", action="store_true", dest="dry_run",
             help="Do not make real changes", default=False)

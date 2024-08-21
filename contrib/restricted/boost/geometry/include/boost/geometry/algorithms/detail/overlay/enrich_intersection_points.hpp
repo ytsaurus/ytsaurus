@@ -41,6 +41,7 @@
 #include <boost/geometry/algorithms/detail/overlay/less_by_segment_ratio.hpp>
 #include <boost/geometry/algorithms/detail/overlay/overlay_type.hpp>
 #include <boost/geometry/policies/robustness/robust_type.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/for_each_with_index.hpp>
 
 #ifdef BOOST_GEOMETRY_DEBUG_ENRICH
@@ -106,69 +107,86 @@ inline void enrich_sort(Operations& operations,
 }
 
 
+// Assign travel-to-vertex/ip index for each turn.
 template <typename Operations, typename Turns>
 inline void enrich_assign(Operations& operations, Turns& turns,
-                          bool check_turns)
+                          bool check_consecutive_turns)
 {
-    if (operations.empty())
-    {
-        return;
-    }
-
-    // Assign travel-to-vertex/ip index for each turning point.
-    // Iterator "next" is circular
-
-    geometry::ever_circling_range_iterator<Operations const> next(operations);
-    ++next;
-
-    for (auto const& indexed : operations)
+    for_each_with_index(operations, [&](std::size_t index, auto const& indexed)
     {
         auto& turn = turns[indexed.turn_index];
         auto& op = turn.operations[indexed.operation_index];
 
-        if (check_turns && indexed.turn_index == next->turn_index)
+        std::size_t next_index = index + 1 < operations.size() ? index + 1 : 0;
+        auto advance = [&operations](auto index)
         {
-            // Normal behaviour: next points at next turn, increase next.
-            // For dissolve this should not be done, turn_index is often
-            // the same for two consecutive operations
-            ++next;
+            std::size_t const result = index + 1;
+            return result >= operations.size() ? 0 : result;
+        };
+
+        auto next_turn = [&operations, &turns, &next_index]()
+        {
+            return turns[operations[next_index].turn_index];
+        };
+        auto next_operation = [&operations, &turns, &next_index]()
+        {
+            auto const& next_turn = turns[operations[next_index].turn_index];
+            return next_turn.operations[operations[next_index].operation_index];
+        };
+
+        if (check_consecutive_turns
+            && indexed.turn_index == operations[next_index].turn_index
+            && op.seg_id == next_operation().seg_id)
+        {
+            // If the two operations on the same turn are ordered consecutively,
+            // and they are on the same segment, then the turn where to travel to should
+            // be considered one further. Therefore next is increased.
+            //
+            // It often happens in buffer, in these configurations:
+            // +---->--+
+            // |       |
+            // |   +->-*---->
+            // |   |   |
+            // ^   +-<-+
+            // If the next index is not corrected, the small rectangle
+            // will be kept in the output.
+
+            // This is a normal situation and occurs, for example, in every concave bend.
+            // In general it should always travel from turn to next turn.
+            // Only in some circumstances traveling to the same turn is necessary, for example
+            // if there is only one turn in the outer ring.
+            //
+            // (For dissolve this is not done, turn_index is often
+            // the same for two consecutive operations - but the conditions are changed
+            // and this should be verified again)
+            next_index = advance(next_index);
         }
 
         // Cluster behaviour: next should point after cluster, unless
         // their seg_ids are not the same
         // (For dissolve, this is still to be examined - TODO)
         while (turn.is_clustered()
-                && indexed.turn_index != next->turn_index
-                && turn.cluster_id == turns[next->turn_index].cluster_id
-                && op.seg_id == turns[next->turn_index].operations[next->operation_index].seg_id)
+                && turn.cluster_id == next_turn().cluster_id
+                && op.seg_id == next_operation().seg_id
+                && indexed.turn_index != operations[next_index].turn_index)
         {
-            ++next;
+            next_index = advance(next_index);
         }
-
-        auto const& next_turn = turns[next->turn_index];
-        auto const& next_op = next_turn.operations[next->operation_index];
 
         op.enriched.travels_to_ip_index
-                = static_cast<signed_size_type>(next->turn_index);
+                = static_cast<signed_size_type>(operations[next_index].turn_index);
         op.enriched.travels_to_vertex_index
-                = next->subject->seg_id.segment_index;
+                = operations[next_index].subject->seg_id.segment_index;
 
+        auto const& next_op = next_operation();
         if (op.seg_id.segment_index == next_op.seg_id.segment_index
-                && op.fraction < next_op.fraction)
+            && op.fraction < next_op.fraction)
         {
-            // Next turn is located further on same segment
-            // assign next_ip_index
-            // (this is one not circular therefore fraction is considered)
-            op.enriched.next_ip_index = static_cast<signed_size_type>(next->turn_index);
+            // Next turn is located further on same segment: assign next_ip_index
+            op.enriched.next_ip_index = static_cast<signed_size_type>(operations[next_index].turn_index);
         }
+    });
 
-        if (! check_turns)
-        {
-            ++next;
-        }
-    }
-
-    // DEBUG
 #ifdef BOOST_GEOMETRY_DEBUG_ENRICH
     for (auto const& indexed_op : operations)
     {
@@ -190,8 +208,6 @@ inline void enrich_assign(Operations& operations, Turns& turns,
             << std::endl;
     }
 #endif
-    // END DEBUG
-
 }
 
 template <typename Operations, typename Turns>
@@ -383,6 +399,7 @@ inline void enrich_intersection_points(Turns& turns,
             ? detail::overlay::operation_intersection
             : detail::overlay::operation_union;
     constexpr bool is_dissolve = OverlayType == overlay_dissolve;
+    constexpr bool is_buffer = OverlayType == overlay_buffer;
 
     using turn_type = typename boost::range_value<Turns>::type;
     using indexed_turn_operation = detail::overlay::indexed_turn_operation
@@ -396,16 +413,36 @@ inline void enrich_intersection_points(Turns& turns,
             std::vector<indexed_turn_operation>
         >;
 
-    // From here on, turn indexes are used (in clusters, next_index, etc)
-    // and turns may not be DELETED - they may only be flagged as discarded
-    discard_duplicate_start_turns(turns, geometry1, geometry2);
+    // Turns are often used by index (in clusters, next_index, etc)
+    // and turns may therefore NOT be DELETED - they may only be flagged as discarded
 
     bool has_cc = false;
-    bool const has_colocations
-        = detail::overlay::handle_colocations
+    bool has_colocations = false;
+
+    if BOOST_GEOMETRY_CONSTEXPR (! is_buffer)
+    {
+        // Handle colocations, gathering clusters and (below) their properties.
+        has_colocations = detail::overlay::handle_colocations
+                    <
+                        Reverse1, Reverse2, OverlayType, Geometry1, Geometry2
+                    >(turns, clusters, robust_policy);
+        // Gather cluster properties (using even clusters with
+        // discarded turns - for open turns)
+        detail::overlay::gather_cluster_properties
             <
-                Reverse1, Reverse2, OverlayType, Geometry1, Geometry2
-            >(turns, clusters, robust_policy);
+                Reverse1,
+                Reverse2,
+                OverlayType
+            >(clusters, turns, target_operation,
+            geometry1, geometry2, strategy);
+    }
+    else
+    {
+        // For buffer, this was already done before calling enrich_intersection_points.
+        has_colocations = ! clusters.empty();
+    }
+
+    discard_duplicate_start_turns(turns, geometry1, geometry2);
 
     // Discard turns not part of target overlay
     for (auto& turn : turns)
@@ -468,28 +505,12 @@ inline void enrich_intersection_points(Turns& turns,
                     pair.second, turns,
                     geometry1, geometry2,
                     robust_policy, strategy);
-#ifdef BOOST_GEOMETRY_DEBUG_ENRICH
-        std::cout << "ENRICH-sort Ring " << pair.first << std::endl;
-        for (auto const& op : pair.second)
-        {
-            std::cout << op.turn_index << " " << op.operation_index << std::endl;
-        }
-#endif
     }
 
     if (has_colocations)
     {
-        // First gather cluster properties (using even clusters with
-        // discarded turns - for open turns), then clean up clusters
-        detail::overlay::gather_cluster_properties
-            <
-                Reverse1,
-                Reverse2,
-                OverlayType
-            >(clusters, turns, target_operation,
-              geometry1, geometry2, strategy.side()); // TODO: pass strategy
-
         detail::overlay::cleanup_clusters(turns, clusters);
+        detail::overlay::colocate_clusters(clusters, turns);
     }
 
     // After cleaning up clusters assign the next turns

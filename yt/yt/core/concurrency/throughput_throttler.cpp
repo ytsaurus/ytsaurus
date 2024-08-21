@@ -106,11 +106,12 @@ public:
             return true;
         }
 
-        if (Limit_.load() >= 0) {
+        auto limit = Limit_.load();
+        if (limit >= 0) {
             while (true) {
                 TryUpdateAvailable();
                 auto available = Available_.load();
-                if (available < 0) {
+                if ((limit > 0 && available < 0) || (limit == 0 && available <= 0)) {
                     return false;
                 }
                 if (Available_.compare_exchange_weak(available, available - amount)) {
@@ -315,7 +316,7 @@ private:
             amount,
             request->TraceContext->GetTraceId());
 
-        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), amount, this, this_ = MakeStrong(this)] (const TError& error) {
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), amount, this, weakThis = MakeWeak(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
                 NTracing::TTraceContextFinishGuard guard(std::move(request->TraceContext));
@@ -324,8 +325,12 @@ private:
                     amount);
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
-                QueueTotalAmount_ -= amount;
-                QueueSizeGauge_.Update(QueueTotalAmount_);
+
+                // NB(coteeq): Weak ref will break cycle "promise -> this -> request -> promise"
+                if (auto this_ = weakThis.Lock()) {
+                    QueueTotalAmount_ -= amount;
+                    QueueSizeGauge_.Update(QueueTotalAmount_);
+                }
             }
         }));
         request->Promise = std::move(promise);
@@ -472,7 +477,16 @@ private:
         std::vector<TThrottlerRequestPtr> readyList;
 
         auto limit = Limit_.load();
-        while (!Requests_.empty() && (limit < 0 || Available_ >= 0)) {
+        auto canSpend = [&] {
+            auto available = Available_.load();
+            return
+                limit < 0 ||
+                // NB(coteeq): Do not spend tokens if limit is zero.
+                (limit == 0 && available > 0) ||
+                (limit > 0 && available >= 0);
+        };
+
+        while (!Requests_.empty() && canSpend()) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
                 NTracing::TTraceContextGuard traceGuard(std::move(request->TraceContext));

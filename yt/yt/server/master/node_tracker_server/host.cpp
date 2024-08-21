@@ -8,6 +8,7 @@
 namespace NYT::NNodeTrackerServer {
 
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ TString THost::GetCapitalizedObjectName() const
     return Format("Host %Qv", GetName());
 }
 
-TString THost::GetObjectPath() const
+TYPath THost::GetObjectPath() const
 {
     return Format("//sys/hosts/%v", GetName());
 }

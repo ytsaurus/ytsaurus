@@ -1,4 +1,4 @@
-# Auto-merging chunks at operation output
+# Chunk auto-merge at operation output
 
 This section describes the process of merging chunks automatically at the operation output. We'll discuss the scope of this feature, its settings, and examples.
 

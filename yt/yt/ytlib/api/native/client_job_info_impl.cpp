@@ -5,7 +5,6 @@
 #include "helpers.h"
 
 #include <yt/yt/client/api/file_reader.h>
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -890,7 +889,7 @@ auto RetryJobIsNotRunning(
     auto rspOrError = invokeRequest();
     for (int retry = 0; needRetry(rspOrError) && retry < RetryCount; ++retry) {
         YT_LOG_DEBUG("Job state is \"running\" but job phase is not, retrying "
-            "(OperationId: %v, JobId: %v, Retry: %d, RetryCount: %d, RetryBackoff: %v, Error: %v)",
+            "(OperationId: %v, JobId: %v, Retry: %v, RetryCount: %v, RetryBackoff: %v, Error: %v)",
             operationId,
             jobId,
             retry,
@@ -1538,7 +1537,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
 static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
-    const std::vector<std::pair<TString, INodePtr>>& jobNodes,
+    const std::vector<std::pair<std::string, INodePtr>>& jobNodes,
     const std::function<bool(const INodePtr&)>& filter,
     const THashSet<TString>& attributes,
     std::vector<TJob>* jobs)
@@ -1957,16 +1956,16 @@ static TError TryFillJobPools(
 
     for (auto& job : jobs) {
         if (!job.PoolTree) {
-            return TError(Format("Pool tree is missing in job %v", job.Id));
+            return TError("Pool tree is missing in job %v", job.Id);
         }
         auto optionsIt = schedulingOptionPerPoolTree.find(*job.PoolTree);
         if (optionsIt == schedulingOptionPerPoolTree.end()) {
-            return TError(Format("Pool tree %Qv is not found in scheduling_options_per_pool_tree", *job.PoolTree));
+            return TError("Pool tree %Qv is not found in scheduling_options_per_pool_tree", *job.PoolTree);
         }
         const auto& optionsNode = optionsIt->second;
         auto poolNode = optionsNode->AsMap()->FindChild("pool");
         if (!poolNode) {
-            return TError(Format("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree));
+            return TError("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree);
         }
         job.Pool = ConvertTo<TString>(poolNode);
     }

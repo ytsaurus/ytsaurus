@@ -724,7 +724,7 @@ private:
 
         auto serializedFileDescriptor = ConvertStringObjectToString(GetAttr(fileDescriptor, "serialized_pb"));
         ::google::protobuf::FileDescriptorProto fileDescriptorProto;
-        Y_PROTOBUF_SUPPRESS_NODISCARD fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size());
+        Y_UNUSED(fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size()));
 
         auto result = GetDescriptorPool()->BuildFile(fileDescriptorProto);
         YT_VERIFY(result);

@@ -10,8 +10,6 @@
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/misc/update_executor.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -23,6 +21,7 @@
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -36,14 +35,16 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -338,7 +339,7 @@ private:
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist(/*useOperationsArchiveClient*/ false);
         }
         return *ArchiveExists_;
     }
@@ -784,22 +785,22 @@ private:
             transaction->GetId(),
             operationId);
 
-        auto featureYsonString = featureYson.ToString();
-
-        TOrderedByIdTableDescriptor tableDescriptor;
-        TUnversionedRowBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableDescriptor.Index.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(featureYsonString, tableDescriptor.Index.ControllerFeatures));
+        NRecords::TOrderedByIdPartial record{
+            .Key{
+                .IdHi = operationIdAsGuid.Parts64[0],
+                .IdLo = operationIdAsGuid.Parts64[1],
+            },
+            .ControllerFeatures = featureYson,
+        };
 
         auto rowBuffer = New<TRowBuffer>();
-        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
+            NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
             MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
 
         auto error = WaitFor(transaction->Commit()
@@ -919,24 +920,23 @@ private:
             transaction->GetId(),
             operationId);
 
-        auto progressString = progress.ToString();
-        auto briefProgressString = briefProgress.ToString();
-
-        TOrderedByIdTableDescriptor tableDescriptor;
-        TUnversionedRowBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], tableDescriptor.Index.IdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(progressString, tableDescriptor.Index.Progress));
-        builder.AddValue(MakeUnversionedAnyValue(briefProgressString, tableDescriptor.Index.BriefProgress));
+        NRecords::TOrderedByIdPartial record{
+            .Key{
+                .IdHi = operationIdAsGuid.Parts64[0],
+                .IdLo = operationIdAsGuid.Parts64[1],
+            },
+            .Progress = progress,
+            .BriefProgress = briefProgress,
+        };
 
         auto rowBuffer = New<TRowBuffer>();
-        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
+            NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
             MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
 
         auto error = WaitFor(transaction->Commit()

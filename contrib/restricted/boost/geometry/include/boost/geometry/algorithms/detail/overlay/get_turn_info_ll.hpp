@@ -1,11 +1,10 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
-// Copyright (c) 2017 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2017-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2013, 2014, 2015, 2017, 2018.
 // Modifications copyright (c) 2013-2018 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Use, modification and distribution is subject to the Boost Software License,
@@ -22,7 +21,7 @@
 #include <boost/geometry/algorithms/detail/overlay/get_turn_info.hpp>
 #include <boost/geometry/algorithms/detail/overlay/get_turn_info_for_endpoint.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 
 namespace boost { namespace geometry {
 
@@ -264,8 +263,11 @@ struct get_turn_info_linear_linear
                                                      tp.operations[0].operation,
                                                      tp.operations[1].operation);
 
-                    if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                      || ! append_opposite_spikes<append_touches>(tp, inters, out) )
+                    if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                    {
+                        *out++ = tp;
+                    }
+                    else if (! append_opposite_spikes<append_touches>(tp, inters, out))
                     {
                         *out++ = tp;
                     }
@@ -307,10 +309,12 @@ struct get_turn_info_linear_linear
                         transformer(tp);
 
                         // conditionally handle spikes
-                        if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                          || ! append_collinear_spikes(tp, inters,
-                                                       method_touch, spike_op,
-                                                       out) )
+                        if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                        {
+                            *out++ = tp;
+                        }
+                        else if (! append_collinear_spikes(tp, inters, method_touch,
+                                                           spike_op, out))
                         {
                             *out++ = tp; // no spikes
                         }
@@ -381,10 +385,12 @@ struct get_turn_info_linear_linear
                         transformer(tp);
 
                         // conditionally handle spikes
-                        if ( ! BOOST_GEOMETRY_CONDITION(handle_spikes)
-                          || ! append_collinear_spikes(tp, inters,
-                                                       method_replace, spike_op,
-                                                       out) )
+                        if BOOST_GEOMETRY_CONSTEXPR (! handle_spikes)
+                        {
+                            *out++ = tp;
+                        }
+                        else if (! append_collinear_spikes(tp, inters, method_replace,
+                                                           spike_op, out))
                         {
                             // no spikes
                             *out++ = tp;
@@ -396,7 +402,7 @@ struct get_turn_info_linear_linear
                         turn_transformer_ec transformer(method_touch_interior);
 
                         // conditionally handle spikes
-                        if ( BOOST_GEOMETRY_CONDITION(handle_spikes) )
+                        if BOOST_GEOMETRY_CONSTEXPR (handle_spikes)
                         {
                             append_opposite_spikes<append_collinear_opposite>(tp, inters, out);
                         }
@@ -419,7 +425,7 @@ struct get_turn_info_linear_linear
             case '0' :
             {
                 // degenerate points
-                if ( BOOST_GEOMETRY_CONDITION(AssignPolicy::include_degenerate) )
+                if BOOST_GEOMETRY_CONSTEXPR (AssignPolicy::include_degenerate)
                 {
                     only_convert::apply(tp, inters.i_info());
 
@@ -553,65 +559,75 @@ struct get_turn_info_linear_linear
 
         bool res = false;
 
-        if ( is_p_spike
-          && ( BOOST_GEOMETRY_CONDITION(is_version_touches)
-            || inters.d_info().arrival[0] == 1 ) )
+        if (is_p_spike)
         {
-            if ( BOOST_GEOMETRY_CONDITION(is_version_touches) )
+            bool output_spike = false;
+            if BOOST_GEOMETRY_CONSTEXPR (is_version_touches)
             {
                 tp.operations[0].is_collinear = true;
                 tp.operations[1].is_collinear = false;
                 tp.method = method_touch;
+
+                output_spike = true;
             }
-            else // Version == append_collinear_opposite
+            else if (inters.d_info().arrival[0] == 1) // Version == append_collinear_opposite
             {
                 tp.operations[0].is_collinear = true;
                 tp.operations[1].is_collinear = false;
 
                 BOOST_GEOMETRY_ASSERT(inters.i_info().count > 1);
-
                 base_turn_handler::assign_point(tp, method_touch_interior,
                                                 inters.i_info(), 1);
+
+                output_spike = true;
             }
 
-            tp.operations[0].operation = operation_blocked;
-            tp.operations[1].operation = operation_intersection;
-            *out++ = tp;
-            tp.operations[0].operation = operation_intersection;
-            //tp.operations[1].operation = operation_intersection;
-            *out++ = tp;
+            if (output_spike)
+            {
+                tp.operations[0].operation = operation_blocked;
+                tp.operations[1].operation = operation_intersection;
+                *out++ = tp;
+                tp.operations[0].operation = operation_intersection;
+                //tp.operations[1].operation = operation_intersection;
+                *out++ = tp;
 
-            res = true;
+                res = true;
+            }
         }
 
-        if ( is_q_spike
-          && ( BOOST_GEOMETRY_CONDITION(is_version_touches)
-            || inters.d_info().arrival[1] == 1 ) )
+        if (is_q_spike)
         {
-            if ( BOOST_GEOMETRY_CONDITION(is_version_touches) )
+            bool output_spike = false;
+            if BOOST_GEOMETRY_CONSTEXPR (is_version_touches)
             {
                 tp.operations[0].is_collinear = false;
                 tp.operations[1].is_collinear = true;
                 tp.method = method_touch;
+
+                output_spike = true;
             }
-            else // Version == append_collinear_opposite
+            else if (inters.d_info().arrival[1] == 1) // Version == append_collinear_opposite
             {
                 tp.operations[0].is_collinear = false;
                 tp.operations[1].is_collinear = true;
 
                 BOOST_GEOMETRY_ASSERT(inters.i_info().count > 0);
-
                 base_turn_handler::assign_point(tp, method_touch_interior, inters.i_info(), 0);
+
+                output_spike = true;
             }
 
-            tp.operations[0].operation = operation_intersection;
-            tp.operations[1].operation = operation_blocked;
-            *out++ = tp;
-            //tp.operations[0].operation = operation_intersection;
-            tp.operations[1].operation = operation_intersection;
-            *out++ = tp;
+            if (output_spike)
+            {
+                tp.operations[0].operation = operation_intersection;
+                tp.operations[1].operation = operation_blocked;
+                *out++ = tp;
+                //tp.operations[0].operation = operation_intersection;
+                tp.operations[1].operation = operation_intersection;
+                *out++ = tp;
 
-            res = true;
+                res = true;
+            }
         }
 
         return res;

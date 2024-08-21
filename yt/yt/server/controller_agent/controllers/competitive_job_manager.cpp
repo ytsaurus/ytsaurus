@@ -2,7 +2,8 @@
 #include "job_info.h"
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/yt/server/lib/controller_agent/serialize.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <util/generic/algorithm.h>
 
@@ -135,7 +136,7 @@ void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie)
 {
     auto it = CookieToCompetition_.find(cookie);
     if (it != CookieToCompetition_.end()) {
-        YT_LOG_DEBUG("Aborting competititve job from controller since job result is lost (OutputCookie: %v, AbortReason: %v)",
+        YT_LOG_DEBUG("Aborting competitive job from controller since job result is lost (OutputCookie: %v, AbortReason: %v)",
             cookie,
             ResultLost_);
         YT_VERIFY(it->second->Competitors.size() == 1);
@@ -164,7 +165,7 @@ void TCompetitiveJobManagerBase::OnJobFinished(const TJobletPtr& joblet)
     }
 
     if (CompetitionCandidates_.erase(joblet->OutputCookie)) {
-        YT_LOG_DEBUG("Canceling competititve job request early since original job finished (JobId: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Canceling competitive job request early since original job finished (JobId: %v, Cookie: %v)",
             joblet->JobId,
             joblet->OutputCookie);
         PendingDataWeight_ -= pendingDataWeight;

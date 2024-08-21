@@ -10,6 +10,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +75,7 @@ TString TChunkList::GetCapitalizedObjectName() const
     return Format("Chunk list %v", GetId());
 }
 
-TString TChunkList::GetObjectPath() const
+TYPath TChunkList::GetObjectPath() const
 {
     return Format("//sys/chunk_lists/%v", GetId());
 }

@@ -38,10 +38,7 @@ using ::testing::Mock;
 
 static constexpr TDuration CheckPeriod = TDuration::MilliSeconds(10);
 
-// NB: We need few check iterations (over 'WarmUpPeriod') to warm RTT up, invoking all checks for the first time.
-// 'SleepPeriod' should be enough to apply all new mocks and state updates.
-static const TDuration WarmUpPeriod = CheckPeriod * 10;
-static const TDuration SleepPeriod = CheckPeriod * 3;
+static const int WarmUpIterationCount = 10;
 
 static const TString Cluster1 = "ReplicaCluster1";
 static const TString Cluster2 = "ReplicaCluster2";
@@ -71,6 +68,7 @@ public:
     TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
     {
         EXPECT_TRUE(LoadingFromSnapshotRequested_.load());
+        SnapshotFutureRequested_.store(true);
         return SnapshotPromise_.ToFuture().Apply(BIND(
             [
                 =,
@@ -79,6 +77,7 @@ public:
             ] (const TReplicatedTableTrackerSnapshot& snapshot)
         {
             YT_VERIFY(LoadingFromSnapshotRequested_.exchange(false));
+            YT_VERIFY(SnapshotFutureRequested_.exchange(false));
             return snapshot;
         }));
     }
@@ -102,6 +101,11 @@ public:
     void RequestLoadingFromSnapshot() override
     {
         LoadingFromSnapshotRequested_.store(true);
+    }
+
+    bool SnapshotFutureRequested() const
+    {
+        return SnapshotFutureRequested_.load();
     }
 
     void ResetSnapshotPromise()
@@ -347,6 +351,22 @@ public:
         return collocationId;
     }
 
+    void UpdateReplicationCollocationOptions(
+        TTableCollocationId collocationId,
+        std::optional<std::vector<TString>> preferredSyncReplicaClusters)
+    {
+        const auto& collocationInfo = GetOrCrash(CollocationIdToInfo_, collocationId);
+
+        auto options = New<TReplicationCollocationOptions>();
+        options->PreferredSyncReplicaClusters = std::move(preferredSyncReplicaClusters);
+
+        ReplicationCollocationCreated_(TTableCollocationData{
+            .Id = collocationId,
+            .TableIds = collocationInfo.TableIds,
+            .Options = std::move(options),
+        });
+    }
+
     void DestroyTable(TTableId tableId)
     {
         ReplicatedTableDestroyed_(tableId);
@@ -367,6 +387,7 @@ private:
 
     TPromise<TReplicatedTableTrackerSnapshot> SnapshotPromise_ = NewPromise<TReplicatedTableTrackerSnapshot>();
     std::atomic<bool> LoadingFromSnapshotRequested_ = false;
+    std::atomic<bool> SnapshotFutureRequested_ = false;
 
     const THashMap<TString, TStrictMockClientPtr> Clusters_ = {
         {Cluster1, New<TStrictMockClient>()},
@@ -427,7 +448,7 @@ public:
 
         EXPECT_TRUE(Host_->LoadingFromSnapshotRequested());
         Host_->SetSnapshot(TReplicatedTableTrackerSnapshot());
-        Sleep(SleepPeriod);
+        WaitForUpdatesFromTracker();
         EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
         Host_->ResetSnapshotPromise();
     }
@@ -436,10 +457,14 @@ public:
     {
         auto weakTracker = MakeWeak(Tracker_);
         Tracker_.Reset();
-        Sleep(SleepPeriod);
-        EXPECT_FALSE(weakTracker.Lock());
         // NB: With that we ensure that mock clients will be destructed properly,
         // so all test expectations will be verified.
+        while (true) {
+            Sleep(CheckPeriod);
+            if (!weakTracker.Lock()) {
+                break;
+            }
+        }
     }
 
     void MockGoodReplicaCluster(const TStrictMockClientPtr& client)
@@ -523,14 +548,14 @@ public:
             Cluster2,
             TablePath2);
 
-        Sleep(WarmUpPeriod);
+        WaitForTrackerWarmUp();
         Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
         Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Sync);
 
         Host_->UpdateReplicaEnablement(replica12, /*enabled*/ true);
         Host_->UpdateReplicaEnablement(replica21, /*enabled*/ true);
 
-        Sleep(WarmUpPeriod);
+        WaitForTrackerWarmUp();
         Host_->ValidateReplicaModeRemained(replica12);
         Host_->ValidateReplicaModeRemained(replica21);
 
@@ -542,18 +567,41 @@ public:
         };
     }
 
+    void WaitForTrackerWarmUp()
+    {
+        // NB: We need a few check iterations to warm Rtt up, invoking all checks for the first time.
+        DoWaitForTracker(WarmUpIterationCount);
+    }
+
+    void WaitForUpdatesFromTracker()
+    {
+        // NB: This should be enough to apply all new mocks and state updates.
+        DoWaitForTracker(3);
+    }
+
+    void DoWaitForTracker(int iterationCount)
+    {
+        auto startIteration = Tracker_->GetIterationCount();
+        while (true) {
+            Sleep(CheckPeriod);
+            auto currentIteration = Tracker_->GetIterationCount();
+            if (currentIteration - startIteration >= iterationCount) {
+                break;
+            }
+            if (Host_->SnapshotFutureRequested()) {
+                break;
+            }
+        }
+    }
+
 protected:
     const TIntrusivePtr<TMockReplicatedTableTrackerHost> Host_ = New<TMockReplicatedTableTrackerHost>();
 
     IReplicatedTableTrackerPtr Tracker_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// FIXME(akozhikhov): These tests should not rely on timings to work appropriately under sanitizers.
-// #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
-
-#if 0
 
 TEST_F(TReplicatedTableTrackerTest, Simple)
 {
@@ -565,7 +613,7 @@ TEST_F(TReplicatedTableTrackerTest, Simple)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -579,17 +627,17 @@ TEST_F(TReplicatedTableTrackerTest, BannedReplicaCluster)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     Host_->GetConfig()->ReplicatorHint->BannedReplicaClusters = {Cluster1};
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     Host_->GetConfig()->ReplicatorHint->BannedReplicaClusters.clear();
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -621,7 +669,7 @@ TEST_F(TReplicatedTableTrackerTest, PreloadCheck)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     auto mockPreloadState = [&] (EStorePreloadState preloadState) {
@@ -637,25 +685,23 @@ TEST_F(TReplicatedTableTrackerTest, PreloadCheck)
 
     mockPreloadState(EStorePreloadState::Complete);
 
-    auto gracePeriod = SleepPeriod * 2;
     auto options = Host_->GetTableOptions(tableId);
     options->EnablePreloadStateCheck = true;
-    options->IncompletePreloadGracePeriod = gracePeriod * 2;
+    options->IncompletePreloadGracePeriod = WarmUpIterationCount * CheckPeriod;
     Host_->SetTableOptions(tableId, std::move(options));
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     mockPreloadState(EStorePreloadState::Running);
 
-    Sleep(gracePeriod);
     Host_->ValidateReplicaModeRemained(replicaId);
-    Sleep(gracePeriod * 2);
+    DoWaitForTracker(WarmUpIterationCount);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     mockPreloadState(EStorePreloadState::Complete);
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -665,9 +711,8 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     MockGoodReplicaCluster(client);
     MockGoodTable(client);
 
-    int maxIterationsWithoutAcceptableBundleHealth = 4;
-    auto sleepPeriod = CheckPeriod * maxIterationsWithoutAcceptableBundleHealth;
-    Host_->GetConfig()->MaxIterationsWithoutAcceptableBundleHealth = maxIterationsWithoutAcceptableBundleHealth;
+    constexpr int MaxIterationsWithoutAcceptableBundleHealth = 4;
+    Host_->GetConfig()->MaxIterationsWithoutAcceptableBundleHealth = MaxIterationsWithoutAcceptableBundleHealth;
     Host_->GetConfig()->BundleHealthCache->RefreshTime = CheckPeriod / 2;
     Host_->GetConfig()->BundleHealthCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
 
@@ -681,7 +726,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
 
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
@@ -692,7 +737,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     EXPECT_CALL(*client, GetNode(TablePath1 + "/@tablet_cell_bundle", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(BundleName))));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
@@ -700,9 +745,8 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     }))
         .WillRepeatedly(Return(MakeFuture(TError("Err"))));
 
-    Sleep(sleepPeriod / 2);
     Host_->ValidateReplicaModeRemained(replicaId);
-    Sleep(sleepPeriod * 2);
+    DoWaitForTracker(MaxIterationsWithoutAcceptableBundleHealth * 2);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
@@ -710,7 +754,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     }))
         .WillRepeatedly(Return(VoidFuture));
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -734,19 +778,19 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
         /*enabled*/ false,
         Cluster2);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
 
     Host_->UpdateReplicaEnablement(replica2, /*enabled*/ true);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replica2);
 
     auto options = Host_->GetTableOptions(tableId);
     options->PreferredSyncReplicaClusters = {Cluster2};
     Host_->SetTableOptions(tableId, std::move(options));
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
 
@@ -754,13 +798,13 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
     options->PreferredSyncReplicaClusters = {Cluster1};
     Host_->SetTableOptions(tableId, std::move(options));
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
 
     Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {Cluster2};
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
 
@@ -768,13 +812,13 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
     options->PreferredSyncReplicaClusters = {};
     Host_->SetTableOptions(tableId, std::move(options));
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replica1);
     Host_->ValidateReplicaModeRemained(replica2);
 
     Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {};
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replica1);
     Host_->ValidateReplicaModeRemained(replica2);
 }
@@ -785,7 +829,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationSimple)
 
     Host_->CreateReplicationCollocation({table1, table2});
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(replica21);
@@ -798,7 +842,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithBadReplicaTable)
 
     Host_->CreateReplicationCollocation({table1, table2});
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(replica21);
@@ -807,7 +851,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithBadReplicaTable)
     auto client2 = Host_->GetMockClient(Cluster2);
     MockBadTable(client2);
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
@@ -818,9 +862,9 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
 {
     auto [table1, replica11, replica12, table2, replica21, replica22] = CreateTablesForCollocation();
 
-    Host_->CreateReplicationCollocation({table1, table2});
+    auto collocationId = Host_->CreateReplicationCollocation({table1, table2});
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(replica21);
@@ -834,20 +878,44 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
     options->PreferredSyncReplicaClusters = {Cluster1};
     Host_->SetTableOptions(table2, std::move(options));
 
-    Sleep(SleepPeriod);
-    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
+    auto validateSyncOnCluster1 = [&] {
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
+    };
+
+    auto validateSyncOnCluster2 = [&] {
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Async);
+    };
+
+    validateSyncOnCluster1();
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster1, Cluster2});
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeRemained(replica12);
+    Host_->ValidateReplicaModeRemained(replica11);
+    Host_->ValidateReplicaModeRemained(replica21);
+    Host_->ValidateReplicaModeRemained(replica22);
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster2});
+
+    validateSyncOnCluster2();
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::nullopt);
+
+    validateSyncOnCluster1();
 
     auto client1 = Host_->GetMockClient(Cluster1);
     MockBadTable(client1);
 
-    Sleep(SleepPeriod);
-    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Sync);
+    validateSyncOnCluster2();
 }
 
 TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)
@@ -859,7 +927,7 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)
 
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
     Tracker_->RequestLoadingFromSnapshot();
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     EXPECT_TRUE(Host_->LoadingFromSnapshotRequested());
 
     TReplicatedTableTrackerSnapshot snapshot;
@@ -869,7 +937,7 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)
     snapshot.Replicas.push_back(replicaData);
     Host_->SetSnapshot(std::move(snapshot));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaData.Id, ETableReplicaMode::Sync);
 }
 
@@ -877,7 +945,7 @@ TEST_F(TReplicatedTableTrackerTest, IgnoreNewActionsIfLoadingFromSnapshotRequest
 {
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
     Tracker_->RequestLoadingFromSnapshot();
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     EXPECT_TRUE(Host_->LoadingFromSnapshotRequested());
 
     TReplicatedTableTrackerSnapshot snapshot;
@@ -894,14 +962,14 @@ TEST_F(TReplicatedTableTrackerTest, IgnoreNewActionsIfLoadingFromSnapshotRequest
 
     Host_->SetSnapshot(std::move(snapshot));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaData.Id);
 }
 
 TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshotUponActionQueueOverflow)
 {
     Host_->GetConfig()->MaxActionQueueSize = 1;
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
 
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
     while (!Host_->LoadingFromSnapshotRequested()) {
@@ -922,7 +990,7 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshotUponActionQueueOverflow)
     snapshot.Replicas.push_back(replicaData);
     Host_->SetSnapshot(std::move(snapshot));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
     Host_->ValidateReplicaModeChanged(replicaData.Id, ETableReplicaMode::Sync);
 }
@@ -943,7 +1011,7 @@ TEST_F(TReplicatedTableTrackerTest, BadSyncReplicaPresence)
         tableId,
         ETableReplicaMode::Sync);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 }
 
@@ -960,12 +1028,12 @@ TEST_F(TReplicatedTableTrackerTest, DisabledReplica)
         ETableReplicaMode::Async,
         /*enabled*/ false);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     Host_->UpdateReplicaEnablement(replicaId, /*enabled*/ true);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -979,13 +1047,13 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaWithDisabledTracking)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     Host_->UpdateReplicaTrackingPolicy(replicaId, /*enableTracking*/ false);
     Host_->UpdateReplicaMode(replicaId, ETableReplicaMode::Sync);
 
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replicaId);
 }
 
@@ -1000,19 +1068,19 @@ TEST_F(TReplicatedTableTrackerTest, TableWithDisabledTracking)
 
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 }
 
 TEST_F(TReplicatedTableTrackerTest, DisabledTracker1)
 {
     Host_->GetConfig()->EnableReplicatedTableTracker = false;
-    Sleep(SleepPeriod);
+    WaitForUpdatesFromTracker();
 
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 }
 
@@ -1028,40 +1096,12 @@ TEST_F(TReplicatedTableTrackerTest, DisabledTracker2)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     Tracker_->EnableTracking();
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
-}
-
-TEST_F(TReplicatedTableTrackerTest, ReplicaLagThreshold)
-{
-    auto client = Host_->GetMockClient(Cluster1);
-    MockGoodReplicaCluster(client);
-    MockGoodBundle(client);
-    MockGoodTable(client);
-
-    auto tableId = Host_->CreateReplicatedTable();
-    auto replicaId = Host_->CreateTableReplica(
-        tableId,
-        ETableReplicaMode::Async,
-        /*enabled*/ true,
-        Cluster1,
-        TablePath1,
-        /*replicaLagTime*/ std::nullopt);
-
-    Sleep(WarmUpPeriod);
-    Host_->ValidateReplicaModeRemained(replicaId);
-
-    Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(1));
-    Sleep(WarmUpPeriod);
-    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
-
-    Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(15));
-    Sleep(WarmUpPeriod);
-    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 }
 
 TEST_F(TReplicatedTableTrackerTest, ReplicaLagPreference)
@@ -1092,12 +1132,12 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaLagPreference)
         TablePath1,
         /*replicaLagTime*/ TDuration::Minutes(2));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replica1);
     Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
 
     Host_->SetReplicaLagTime(replica1, TDuration::Minutes(1));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replica1);
     Host_->ValidateReplicaModeRemained(replica2);
 }
@@ -1111,7 +1151,7 @@ TEST_F(TReplicatedTableTrackerTest, DestroyObjects)
         auto replicaId = Host_->CreateTableReplica(tableId);
         Host_->DestroyTableReplica(replicaId);
         Host_->DestroyTable(tableId);
-        Sleep(SleepPeriod);
+        WaitForUpdatesFromTracker();
     }
 
     {
@@ -1119,7 +1159,7 @@ TEST_F(TReplicatedTableTrackerTest, DestroyObjects)
         auto collocationId = Host_->CreateReplicationCollocation({tableId});
         Host_->DestroyTable(tableId);
         Host_->DestroyReplicationCollocation(collocationId);
-        Sleep(SleepPeriod);
+        WaitForUpdatesFromTracker();
     }
 
     {
@@ -1127,27 +1167,8 @@ TEST_F(TReplicatedTableTrackerTest, DestroyObjects)
         auto collocationId = Host_->CreateReplicationCollocation({tableId});
         Host_->DestroyReplicationCollocation(collocationId);
         Host_->DestroyTable(tableId);
-        Sleep(SleepPeriod);
+        WaitForUpdatesFromTracker();
     }
-}
-
-TEST_F(TReplicatedTableTrackerTest, ReplicaModeSwitchCounter)
-{
-    TProfiler profiler{"/replicated_table_tracker"};
-    auto counter = profiler.Counter("/replica_mode_switch_counter");
-
-    auto client = Host_->GetMockClient(Cluster1);
-    MockGoodReplicaCluster(client);
-    MockGoodBundle(client);
-    MockGoodTable(client);
-
-    auto tableId = Host_->CreateReplicatedTable(counter);
-    auto replicaId = Host_->CreateTableReplica(tableId);
-
-    Sleep(WarmUpPeriod);
-    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
-
-    EXPECT_EQ(TTesting::ReadCounter(counter), 1);
 }
 
 TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
@@ -1183,14 +1204,14 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
         EObjectType::ChaosTableReplica,
         ETableReplicaContentType::Queue);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(queueReplica, ETableReplicaMode::Sync);
 
     MockBadTable(client);
     MockBadTable(client, TablePath2);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(queueReplica);
 }
@@ -1208,37 +1229,37 @@ TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
     auto tableId = Host_->CreateReplicatedTable();
     auto replicaId = Host_->CreateTableReplica(tableId);
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     EXPECT_CALL(*client, GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", _))
         .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", _))
         .WillRepeatedly(Return(MakeFuture<TYsonString>(TError(NYTree::EErrorCode::ResolveError, "Failure"))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
         .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
         .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
         .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
         .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     NApi::TCheckClusterLivenessOptions options{
@@ -1247,12 +1268,12 @@ TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
     };
     EXPECT_CALL(*client, CheckClusterLiveness(options))
         .WillRepeatedly(Return(MakeFuture(TError("Failure"))));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, CheckClusterLiveness(options))
         .WillRepeatedly(Return(VoidFuture));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
@@ -1276,22 +1297,76 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaLagTimeCapping)
     options->SyncReplicaLagThreshold = TDuration::Seconds(5);
     Host_->SetTableOptions(tableId, std::move(options));
 
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     Host_->SetReplicaLagTime(replicaId, TDuration::Seconds(1));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
     Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(10));
-    Sleep(WarmUpPeriod);
+    WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     Sleep(TDuration::Seconds(10));
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 }
 
-#endif
+TEST_F(TReplicatedTableTrackerTest, ChangePreferredClustersOption)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodTable(client2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+
+    auto options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    WaitForUpdatesFromTracker();
+
+    auto replica1 = Host_->CreateTableReplica(tableId);
+    auto replica2 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster2);
+
+    WaitForTrackerWarmUp();
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1, Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    WaitForUpdatesFromTracker();
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeRemained(replica2);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1};
+    Host_->SetTableOptions(tableId, std::move(options));
+    WaitForUpdatesFromTracker();
+
+    Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1, Cluster2};
+    Host_->SetTableOptions(tableId, std::move(options));
+    WaitForUpdatesFromTracker();
+
+    Host_->ValidateReplicaModeRemained(replica1);
+    Host_->ValidateReplicaModeRemained(replica2);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

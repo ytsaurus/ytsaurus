@@ -4,9 +4,9 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/controller_agent/persistence.h>
-
 #include <yt/yt/server/lib/scheduler/public.h>
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/core/misc/moving_average.h>
 
@@ -89,6 +89,8 @@ public:
     void SetMovingAverageWindowSize(int movingAverageWindowSize);
 
     void Persist(const TPersistenceContext& context);
+
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleAllocationStatistics)

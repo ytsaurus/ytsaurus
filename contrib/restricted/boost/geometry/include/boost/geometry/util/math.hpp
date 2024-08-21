@@ -31,10 +31,10 @@
 #include <boost/math/constants/constants.hpp>
 #include <boost/math/special_functions/fpclassify.hpp>
 //#include <boost/math/special_functions/round.hpp>
-#include <boost/numeric/conversion/cast.hpp>
 
 #include <boost/geometry/core/cs.hpp>
 
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/select_most_precise.hpp>
 
 namespace boost { namespace geometry
@@ -351,7 +351,7 @@ struct square_root<T, true>
         return square_root_for_fundamental_fp
             <
                 double
-            >::apply(boost::numeric_cast<double>(value));
+            >::apply(util::numeric_cast<double>(value));
     }
 };
 
@@ -499,7 +499,7 @@ struct rounding_cast
 {
     static inline Result apply(Source const& v)
     {
-        return boost::numeric_cast<Result>(v);
+        return util::numeric_cast<Result>(v);
     }
 };
 
@@ -519,7 +519,7 @@ struct rounding_cast<Result, Source, true, false>
 {
     static inline Result apply(Source const& v)
     {
-        return boost::numeric_cast<Result>(v < Source(0) ?
+        return util::numeric_cast<Result>(v < Source(0) ?
                                             v - Source(0.5) :
                                             v + Source(0.5));
     }

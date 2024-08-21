@@ -6,7 +6,7 @@ SRCS(
     encoding.go
 )
 
-GO_TEST_SRCS(encoding_test.go)
+GO_XTEST_SRCS(encoding_test.go)
 
 END()
 

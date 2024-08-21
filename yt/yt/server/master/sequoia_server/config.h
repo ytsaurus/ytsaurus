@@ -50,6 +50,7 @@ class TDynamicSequoiaManagerConfig
 public:
     bool Enable;
     bool EnableCypressTransactionsInSequoia;
+    bool EnableGroundUpdateQueues;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 

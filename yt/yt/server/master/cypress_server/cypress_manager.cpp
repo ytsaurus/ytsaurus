@@ -10,6 +10,7 @@
 #include "expiration_tracker.h"
 #include "grafting_manager.h"
 #include "helpers.h"
+#include "link_node.h"
 #include "link_node_type_handler.h"
 #include "lock_proxy.h"
 #include "node_detail.h"
@@ -102,7 +103,9 @@
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
+#include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <library/cpp/yt/small_containers/compact_set.h>
 #include <library/cpp/yt/small_containers/compact_queue.h>
@@ -915,7 +918,7 @@ private:
         return UnderlyingHandler_->ListAcds(node);
     }
 
-    std::optional<std::vector<TString>> DoListColumns(TCypressNode* node) override
+    std::optional<std::vector<std::string>> DoListColumns(TCypressNode* node) override
     {
         return UnderlyingHandler_->ListColumns(node);
     }
@@ -2579,6 +2582,108 @@ public:
         namespaceObject.Reset();
     }
 
+    TYPath ComputeEffectiveLinkNodeTargetPath(const TLinkNode* linkNode) const override
+    {
+        // COMPAT(shakurov)
+        if (!GetDynamicConfig()->EnableIntraCellCrossShardLinks) {
+            return ComputeEffectiveLinkNodeTargetPathCompat(linkNode);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto targetPath = linkNode->GetTargetPath();
+
+        if (multicellManager->IsPrimaryMaster()) {
+            return targetPath;
+        }
+
+        auto* linkNodeShard = linkNode->GetTrunkNode()->GetShard();
+        if (!linkNodeShard) {
+            return targetPath;
+        }
+
+        const auto* linkNodeShardRoot = linkNodeShard->GetRoot();
+        if (!IsObjectAlive(linkNodeShardRoot)) {
+            THROW_ERROR_EXCEPTION("Root node of shard is not alive; shard is probably being destroyed");
+        }
+
+        if (linkNodeShardRoot->GetType() != EObjectType::PortalExit) {
+            YT_VERIFY(linkNodeShardRoot == GetRootNode());
+            // The link belongs to the root shard. At secondary master, simply
+            // allow it to point wherever it wants (e.g. to support links in //sys).
+            return targetPath;
+        }
+
+        for (auto [shardId, shard] : ShardMap_) {
+            if (!IsObjectAlive(shard)) {
+                continue;
+            }
+
+            const auto* shardRoot = shard->GetRoot();
+            if (!IsObjectAlive(shardRoot)) {
+                continue;
+            }
+
+            if (shardRoot->GetType() != EObjectType::PortalExit) {
+                // The case of a the root node has been handled at the top.
+                continue;
+            }
+
+            const auto* portalExit = shardRoot->As<TPortalExitNode>();
+            auto optionalSuffix = NYPath::TryComputeYPathSuffix(targetPath, portalExit->GetPath());
+            if (!optionalSuffix) {
+                continue;
+            }
+
+            return FromObjectId(portalExit->GetId()) + *optionalSuffix;
+        }
+
+        NYPath::TTokenizer tokenizer(targetPath);
+        tokenizer.Advance();
+        auto token = tokenizer.GetToken();
+        if (token.StartsWith(ObjectIdPathPrefix)) {
+            TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
+            TObjectId objectId;
+            if (TObjectId::FromString(objectIdString, &objectId) &&
+                CellTagFromId(objectId) == multicellManager->GetCellTag())
+            {
+                return targetPath;
+
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Cross-cell links are not supported")
+            << TErrorAttribute("link_node_id", linkNode->GetId())
+            << TErrorAttribute("link_target_path", targetPath);
+    }
+
+    TYPath ComputeEffectiveLinkNodeTargetPathCompat(const TLinkNode* linkNode) const
+    {
+        auto targetPath = linkNode->GetTargetPath();
+        auto* shard = linkNode->GetTrunkNode()->GetShard();
+
+        if (!shard) {
+            return targetPath;
+        }
+
+        const auto* shardRoot = shard->GetRoot();
+        if (!IsObjectAlive(shardRoot)) {
+            THROW_ERROR_EXCEPTION("Root node of shard is not alive; shard is probably being destroyed");
+        }
+
+        if (shardRoot->GetType() != EObjectType::PortalExit) {
+            return targetPath;
+        }
+
+        const auto* portalExit = shardRoot->As<TPortalExitNode>();
+        auto optionalSuffix = NYPath::TryComputeYPathSuffix(targetPath, portalExit->GetPath());
+        if (!optionalSuffix) {
+            THROW_ERROR_EXCEPTION("Link target path must start with %v",
+                portalExit->GetPath());
+        }
+
+        return FromObjectId(portalExit->GetId()) + *optionalSuffix;
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(TCypressNode*), NodeCreated);
 
     TFuture<TYsonString> ComputeRecursiveResourceUsage(
@@ -3805,15 +3910,15 @@ private:
         NProto::TReqLockForeignNode request;
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);
         ToProto(request.mutable_node_id(), trunkNode->GetId());
-        request.set_mode(static_cast<int>(lock->Request().Mode));
+        request.set_mode(ToProto<int>(lock->Request().Mode));
         switch (lock->Request().Key.Kind) {
             case ELockKeyKind::None:
                 break;
             case ELockKeyKind::Child:
-                request.set_child_key(lock->Request().Key.Name);
+                request.set_child_key(ToProto<TProtobufString>(lock->Request().Key.Name));
                 break;
             case ELockKeyKind::Attribute:
-                request.set_attribute_key(lock->Request().Key.Name);
+                request.set_attribute_key(ToProto<TProtobufString>(lock->Request().Key.Name));
                 break;
             default:
                 break;
@@ -3857,7 +3962,7 @@ private:
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-                THashMap<TString, TCypressNode*> children;
+                TKeyToCypressNode children;
                 for (const auto* node : originators) {
                     const auto* mapNode = node->As<TCypressMapNode>();
                     for (const auto& [key, child] : mapNode->KeyToChild()) {
@@ -4569,7 +4674,7 @@ private:
         }
     }
 
-    const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->CypressManager;

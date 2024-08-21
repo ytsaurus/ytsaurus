@@ -27,16 +27,49 @@ class TPipePCollectionNode
 public:
     TPipePCollectionNode(std::vector<IRawOutputPtr> outputs, std::vector<IRawParDoPtr> parDos)
         : Outputs_(std::move(outputs))
-        , ParDos_(std::move(parDos))
-    { }
+    {
+        for (auto& parDo : parDos) {
+            if (TFnAttributesOps::GetIsMove(parDo->GetFnAttributes())) {
+                MoveParDos_.push_back(std::move(parDo));
+            } else {
+                CRefParDos_.push_back(std::move(parDo));
+            }
+        }
+    }
 
     void AddRaw(const void* rows, ssize_t count) override
     {
+        for (const auto& parDo : CRefParDos_) {
+            parDo->Do(rows, count);
+        }
+        for (const auto& parDo : MoveParDos_) {
+            parDo->Do(rows, count);
+        }
         for (const auto& output : Outputs_) {
             output->AddRaw(rows, count);
         }
-        for (const auto& parDo : ParDos_) {
+    }
+
+    void MoveRaw(void* rows, ssize_t count) override
+    {
+        for (const auto& parDo : CRefParDos_) {
             parDo->Do(rows, count);
+        }
+        auto lastIdx = std::ssize(MoveParDos_) + std::ssize(Outputs_) - 1;
+        for (ssize_t idx = 0; idx < std::ssize(Outputs_); ++idx) {
+            if (Y_UNLIKELY(idx != lastIdx)) {
+                Outputs_[idx]->AddRaw(rows, count);
+            } else {
+                Outputs_[idx]->MoveRaw(rows, count);
+            }
+        }
+        lastIdx -= std::ssize(Outputs_);
+        for (ssize_t idx = 0; idx < std::ssize(MoveParDos_); ++idx) {
+            if (Y_UNLIKELY(idx != lastIdx)) {
+                MoveParDos_[idx]->Do(rows, count);
+            } else {
+                MoveParDos_[idx]->MoveDo(rows, count);
+            }
         }
     }
 
@@ -45,7 +78,8 @@ public:
 
 private:
     std::vector<IRawOutputPtr> Outputs_;
-    std::vector<IRawParDoPtr> ParDos_;
+    std::vector<IRawParDoPtr> CRefParDos_;
+    std::vector<IRawParDoPtr> MoveParDos_;
 };
 
 using TPipePCollectionNodePtr = ::TIntrusivePtr<TPipePCollectionNode>;
@@ -102,6 +136,11 @@ public:
     void Do(const void* rows, int count) override
     {
         PipePCollectionNodes_[RootNodeId]->AddRaw(rows, count);
+    }
+
+    void MoveDo(void* rows, int count) override
+    {
+        PipePCollectionNodes_[RootNodeId]->MoveRaw(rows, count);
     }
 
     void Finish() override
@@ -241,6 +280,7 @@ private:
             const auto& currentAttributes = node.ParDo->GetFnAttributes();
             TFnAttributesOps::Merge(result, currentAttributes);
         }
+        TFnAttributesOps::SetIsMove(result, TFnAttributesOps::GetIsMove(parDoNodeList[RootNodeId].ParDo->GetFnAttributes()));
         return result;
     }
 

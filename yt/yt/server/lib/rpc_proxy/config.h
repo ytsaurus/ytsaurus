@@ -98,6 +98,8 @@ public:
 
     TApiTestingOptionsPtr TestingOptions;
 
+    bool EnableLargeColumnarStatistics = true;
+
     REGISTER_YSON_STRUCT(TApiServiceConfig);
 
     static void Register(TRegistrar registrar);

@@ -148,7 +148,7 @@ private:
         static const TString ErrorPath("/error");
         auto errorNode = FindNodeByYPath(data, ErrorPath);
         if (errorNode) {
-            return TError(errorNode->GetValue<TString>());
+            return TError(errorNode->GetValue<TString>(), TError::DisableFormat);
         }
 
         static const TString UserPath("/users/0");

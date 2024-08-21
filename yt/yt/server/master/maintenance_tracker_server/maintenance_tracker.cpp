@@ -211,7 +211,7 @@ private:
         EMaintenanceComponent component,
         const TString& address,
         TMaintenanceId id,
-        const TString& user,
+        const std::string& user,
         EMaintenanceType type,
         const TString& comment,
         std::optional<NCypressServer::TNodeId> componentMapNodeId)
@@ -248,11 +248,11 @@ private:
         }
 
         TReqReplicateMaintenanceRequestCreation mutationRequest;
-        mutationRequest.set_component(ToProto<i32>(component));
+        mutationRequest.set_component(ToProto<int>(component));
         mutationRequest.set_address(address);
         ToProto(mutationRequest.mutable_id(), id);
-        mutationRequest.set_user(user);
-        mutationRequest.set_type(ToProto<i32>(type));
+        mutationRequest.set_user(ToProto<TProtobufString>(user));
+        mutationRequest.set_type(ToProto<int>(type));
         mutationRequest.set_comment(comment);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

@@ -37,7 +37,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     NChunkClient::IBlockCachePtr blockCache,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer);
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker = nullptr);
 
 TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     NChunkClient::TChunkId chunkId,
@@ -45,7 +46,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const std::vector<NChunkClient::TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
-    const TKeyComparer& keyComparer);
+    const TKeyComparer& keyComparer,
+    const IMemoryUsageTrackerPtr& memoryUsageTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

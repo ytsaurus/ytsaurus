@@ -101,8 +101,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRestart)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->emplace_back(EInternedAttributeKey::MaintenanceRequests)
-            .SetWritable(false);
+        descriptors->push_back(EInternedAttributeKey::MaintenanceRequests);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
             .SetWritable(true)

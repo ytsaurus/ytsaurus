@@ -63,19 +63,16 @@ public:
         auto kind = attributes->GetAndRemove<ESecondaryIndexKind>(
             EInternedAttributeKey::Kind.Unintern(),
             ESecondaryIndexKind::FullSync);
-        auto tableId = attributes->GetAndRemove<TTableId>(
-            EInternedAttributeKey::TableId.Unintern());
-        auto indexTableId = attributes->GetAndRemove<TTableId>(
-            EInternedAttributeKey::IndexTableId.Unintern());
-        auto predicate = attributes->FindAndRemove<TString>(
-            EInternedAttributeKey::Predicate.Unintern());
+        auto tableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::TableId.Unintern());
+        auto indexTableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::IndexTableId.Unintern());
+        auto predicate = attributes->FindAndRemove<TString>(EInternedAttributeKey::Predicate.Unintern());
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-
-        auto* table = tableManager->GetTableNodeOrThrow(tableId);
-        auto* indexTable = tableManager->GetTableNodeOrThrow(indexTableId);
-
-        return tableManager->CreateSecondaryIndex(hintId, kind, table, indexTable, std::move(predicate));
+        return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
+            hintId,
+            kind,
+            tableId,
+            indexTableId,
+            std::move(predicate));
     }
 
     void ValidateUserAllowedToCreateSecondaryIndex()
@@ -99,21 +96,22 @@ private:
 
     void DoZombifyObject(TSecondaryIndex* secondaryIndex) override
     {
-        auto* table = secondaryIndex->GetTable();
-        auto* indexTable = secondaryIndex->GetIndexTable();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
+        auto* indexTable = tableManager->FindTableNode(secondaryIndex->GetIndexTableId());
         if (table) {
             YT_LOG_DEBUG("Drop index links from table due to index removal (IndexId: %v, TableId: %v)",
                 secondaryIndex->GetId(),
-                table->GetId());
+                secondaryIndex->GetTableId());
             EraseOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
-            secondaryIndex->SetTable(nullptr);
+            secondaryIndex->SetTableId({});
         }
         if (indexTable) {
             YT_LOG_DEBUG("Drop index links from index table due to index removal (IndexId: %v, TableId: %v)",
                 secondaryIndex->GetId(),
-                indexTable->GetId());
+                secondaryIndex->GetIndexTableId());
             indexTable->SetIndexTo(nullptr);
-            secondaryIndex->SetIndexTable(nullptr);
+            secondaryIndex->SetIndexTableId({});
         }
 
         TObjectTypeHandlerWithMapBase::DoZombifyObject(secondaryIndex);

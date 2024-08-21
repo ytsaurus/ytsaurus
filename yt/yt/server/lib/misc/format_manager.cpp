@@ -66,7 +66,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
             if (!formatNode) {
                 continue;
             }
-            auto origin = Format("%v/file_paths/%d/@format in %Qlv operation spec", taskPath, i, operationType);
+            auto origin = Format("%v/file_paths/%v/@format in %Qlv operation spec", taskPath, i, operationType);
             ValidateAndPatchFormatNode(formatNode, origin);
             filePathNode->MutableAttributes()->Set("format", std::move(formatNode));
         }
@@ -129,13 +129,15 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
         } else {
             errorMessage = Format("Format %Qlv is disabled", formatType);
         }
-        THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, errorMessage)
+        THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, std::move(errorMessage), TError::DisableFormat)
             << TErrorAttribute("origin", origin);
     }
 
     const auto& defaultAttributes = formatConfig->DefaultAttributes;
     auto* attributes = formatNode->MutableAttributes();
-    for (const auto& [key, defaultValue] : defaultAttributes->GetChildren()) {
+    for (const auto& [key_, defaultValue] : defaultAttributes->GetChildren()) {
+        // TODO(babenko): migrate to std::string
+        auto key = TString(key_);
         auto value = attributes->FindYson(key);
         if (!value) {
             attributes->SetYson(key, ConvertToYsonString(defaultValue));

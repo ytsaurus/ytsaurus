@@ -618,6 +618,7 @@ public:
             std::move(logger),
             NullRealmId,
             std::move(authenticator))
+        , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
         , Connection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
@@ -838,6 +839,7 @@ public:
     }
 
 private:
+    TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
     const NApi::NNative::IConnectionPtr Connection_;
@@ -955,7 +957,7 @@ private:
     }
 
     template <class TRequestMessage, class TResponseMessage>
-    void InitContext(const TIntrusivePtr<TApiServiceContext<TRequestMessage, TResponseMessage>>& context)
+    void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context)
     {
         using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
@@ -1235,18 +1237,19 @@ private:
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
-                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch)))
+                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
+                                providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }
 
-                        YT_LOG_DEBUG(
+                        YT_LOG_WARNING(
                             providerResult,
                             "Wrong clock cluster tag %v, trying to generate timestamps via direct call",
                             clockClusterTag);
 
                         auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
-                        return alienClient->GenerateTimestamps(count, clockClusterTag);
+                        return alienClient->GenerateTimestamps(count);
                     }));
             },
             [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {
@@ -3536,6 +3539,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3605,6 +3609,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3715,6 +3720,7 @@ private:
                     auto* subresponse = response->add_subresponses();
                     auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
                     subresponse->set_attachment_count(attachments.size());
+                    ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                     response->Attachments().insert(
                         response->Attachments().end(),
                         attachments.begin(),
@@ -5693,6 +5699,12 @@ private:
         NApi::TTableWriterOptions options;
         if (request->has_config()) {
             options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        } else {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
+        }
+
+        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
+            options.Config->EnableLargeColumnarStatistics = true;
         }
         // NB: Input comes directly from user and thus requires additional validation.
         options.ValidateAnyIsValidYson = true;
@@ -5801,7 +5813,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                NYT::ToProto(response->mutable_statistics(), result);
+                ToProto(response->mutable_statistics(), result);
 
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
             });

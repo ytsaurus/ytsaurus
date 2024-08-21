@@ -99,6 +99,11 @@ void Deserialize(TSchedulingTagFilter& filter, NYson::TYsonPullParserCursor* cur
     filter.Reload(formula);
 }
 
+void FormatValue(TStringBuilderBase* builder, const TSchedulingTagFilter& filter, TStringBuf spec)
+{
+    FormatValue(builder, filter.GetBooleanFormula().GetFormula(), spec);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

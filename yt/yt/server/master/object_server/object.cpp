@@ -22,6 +22,7 @@ using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NSequoiaServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,7 +199,7 @@ TString TObject::GetCapitalizedObjectName() const
     return Format("Object %v", Id_);
 }
 
-TString TObject::GetObjectPath() const
+TYPath TObject::GetObjectPath() const
 {
     return "";
 }

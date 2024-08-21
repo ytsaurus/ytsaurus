@@ -141,7 +141,7 @@ TString TTablet::GetCapitalizedObjectName() const
     return Format("Tablet %v", GetId());
 }
 
-TString TTablet::GetObjectPath() const
+TYPath TTablet::GetObjectPath() const
 {
     return Format("//sys/tablets/%v", GetId());
 }

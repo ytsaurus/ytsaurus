@@ -126,6 +126,7 @@ public:
         , EnqueuedCounter_(profiler.Counter("/enqueued"))
         , DequeuedCounter_(profiler.Counter("/dequeued"))
         , DroppedCounter_(profiler.Counter("/dropped"))
+        , WeightViolatedDroppedCounter_(profiler.Counter("/weight_violated_dropped"))
         , WriteFailuresCounter_(profiler.Counter("/write_failures"))
         , PendingCounter_(profiler.Gauge("/pending"))
         , QueueIsTooLargeCounter_(profiler.Gauge("/queue_is_too_large"))
@@ -202,6 +203,7 @@ private:
     TCounter EnqueuedCounter_;
     TCounter DequeuedCounter_;
     TCounter DroppedCounter_;
+    TCounter WeightViolatedDroppedCounter_;
     TCounter WriteFailuresCounter_;
     TGauge PendingCounter_;
     TGauge QueueIsTooLargeCounter_;
@@ -306,10 +308,15 @@ private:
 
         i64 dataWeight = 0;
         for (const auto& rowlet : batch) {
-            if (auto row = rowlet->ToRow(archiveVersion); row && !IsValueWeightViolated(row)) {
+            auto row = rowlet->ToRow(archiveVersion);
+            bool isValueWeightViolated = IsValueWeightViolated(row);
+            if (row && !isValueWeightViolated) {
                 dataWeight += GetDataWeight(row.Get());
                 rows.push_back(row.Get());
                 owningRows.push_back(std::move(row));
+            }
+            if (isValueWeightViolated) {
+                WeightViolatedDroppedCounter_.Increment();
             }
         }
 

@@ -1096,8 +1096,11 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
         }
     }
 
+    SchedulingContext_->InitializeConditionalDiscounts(TreeSnapshot_->RootElement()->SchedulableElementCount());
+
     TPrepareConditionalUsageDiscountsContext context{.TargetOperationPreemptionPriority = targetOperationPreemptionPriority};
-    PrepareConditionalUsageDiscountsAtCompositeElement(TreeSnapshot_->RootElement().Get(), &context);
+    PrepareConditionalUsageDiscounts(TreeSnapshot_->RootElement().Get(), &context);
+
     for (const auto& [_, allocationSet] : ConditionallyPreemptibleAllocationSetMap_) {
         maxConditionallyPreemptibleAllocationCountInPool = std::max(
             maxConditionallyPreemptibleAllocationCountInPool,
@@ -1107,7 +1110,7 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     StageState_->AnalyzeAllocationsDuration += timer.GetElapsedTime();
 
     SchedulingStatistics_.UnconditionallyPreemptibleAllocationCount = unconditionallyPreemptibleAllocations->size();
-    SchedulingStatistics_.UnconditionalResourceUsageDiscount = SchedulingContext_->UnconditionalDiscount().ToJobResources();
+    SchedulingStatistics_.UnconditionalResourceUsageDiscount = SchedulingContext_->GetUnconditionalDiscount().ToJobResources();
     SchedulingStatistics_.MaxConditionalResourceUsageDiscount = SchedulingContext_->GetMaxConditionalDiscount().ToJobResources();
     SchedulingStatistics_.TotalConditionallyPreemptibleAllocationCount = totalConditionallyPreemptibleAllocationCount;
     SchedulingStatistics_.MaxConditionallyPreemptibleAllocationCountInPool = maxConditionallyPreemptibleAllocationCountInPool;
@@ -1680,10 +1683,10 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         DynamicAttributesOf(element).SatisfactionRatio,
         SchedulingContext_->GetNodeDescriptor()->Id,
         FormatResourceUsage(SchedulingContext_->ResourceUsage(), SchedulingContext_->ResourceLimits()),
-        FormatResources(SchedulingContext_->UnconditionalDiscount() +
-            SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
-        FormatResources(SchedulingContext_->UnconditionalDiscount()),
-        FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
+        FormatResources(SchedulingContext_->GetUnconditionalDiscount() +
+            SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
+        FormatResources(SchedulingContext_->GetUnconditionalDiscount()),
+        FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
         GetStageType());
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
@@ -1735,9 +1738,9 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             "Address: %v)",
             FormatResources(SchedulingContext_->GetNodeFreeResourcesWithoutDiscount()),
             SchedulingContext_->DiskResources(),
-            FormatResources(SchedulingContext_->UnconditionalDiscount() + SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
-            FormatResources(SchedulingContext_->UnconditionalDiscount()),
-            FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetOperationId())),
+            FormatResources(SchedulingContext_->GetUnconditionalDiscount() + SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
+            FormatResources(SchedulingContext_->GetUnconditionalDiscount()),
+            FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
             MakeFormattableView(
                 element->DetailedMinNeededAllocationResources(),
@@ -1895,7 +1898,7 @@ void TScheduleAllocationsContext::PrepareConditionalUsageDiscountsAtOperation(
     if (GetOperationPreemptionPriority(element) != context->TargetOperationPreemptionPriority) {
         return;
     }
-    SchedulingContext_->SetConditionalDiscountForOperation(element->GetOperationId(), context->CurrentConditionalDiscount);
+    SchedulingContext_->SetConditionalDiscountForOperation(element->GetTreeIndex(), context->CurrentConditionalDiscount);
 }
 
 std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartScheduleAllocation(
@@ -1931,8 +1934,8 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(
         availableResourceLimits,
-        SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetOperationId()));
-    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetOperationId());
+        SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetTreeIndex()));
+    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex());
     return {};
 }
 
@@ -2210,7 +2213,7 @@ bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
     for (const auto& allocationResources : element->DetailedMinNeededAllocationResources()) {
-        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetOperationId(), unsatisfiedResources)) {
+        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetTreeIndex(), unsatisfiedResources)) {
             return true;
         }
     }
@@ -3505,7 +3508,7 @@ void TFairShareTreeAllocationScheduler::RunPreemptiveSchedulingStage(
             "Scheduling new allocations with preemption "
             "(UnconditionallyPreemptibleAllocations: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
             unconditionallyPreemptibleAllocations,
-            FormatResources(context->SchedulingContext()->UnconditionalDiscount()),
+            FormatResources(context->SchedulingContext()->GetUnconditionalDiscount()),
             parameters.TargetOperationPreemptionPriority);
 
         while (context->ShouldContinueScheduling()) {

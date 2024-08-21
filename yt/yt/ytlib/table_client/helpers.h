@@ -47,6 +47,13 @@ void PipeReaderToWriterByBatches(
     const TRowBatchReadOptions& options,
     TDuration pipeDelay);
 
+void PipeReaderToAdaptiveWriterByBatches(
+    const ISchemalessChunkReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& startingOptions,
+    TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> optionsUpdater,
+    TDuration pipeDelay);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Checks whether chunk with `chunkSortColumns' sort columns
@@ -223,7 +230,18 @@ void ToProto(
 void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    const NProto::TLargeColumnarStatisticsExt* protoLargeStatisticsExt,
     i64 chunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TLargeColumnarStatistics* statistics,
+    const NProto::TLargeColumnarStatisticsExt& protoLargeStatisticsExt);
+
+void ToProto(
+    NProto::TLargeColumnarStatisticsExt* protoStatisticsExt,
+    const TLargeColumnarStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

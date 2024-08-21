@@ -1,0 +1,3 @@
+sphinx
+sphinx-argparse
+sphinx-rtd-theme>=2.0.0

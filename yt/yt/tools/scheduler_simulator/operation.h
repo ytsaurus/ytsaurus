@@ -43,6 +43,8 @@ public:
 
     NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
+    void SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/) override;
+
     bool IsTreeErased(const TString& treeId) const override;
 
     void EraseTrees(const std::vector<TString>& treeIds) override;

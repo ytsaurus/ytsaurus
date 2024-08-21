@@ -449,3 +449,50 @@ class TestReregisterNode(YTEnvSetup):
         wait(lambda: get_online_node_count() == 1)
         sleep(5)
         assert get_online_node_count() == 1
+
+
+################################################################################
+
+
+class TestRackDataCenter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    RACK_SET = "rack"
+    DATA_CENTER_SET = "data_center"
+    DELTA_NODE_CONFIG = {
+        "rack": RACK_SET,
+        "data_center": DATA_CENTER_SET,
+    }
+
+    @authors("proller")
+    def test_node_rack(self):
+        for node in ls("//sys/cluster_nodes"):
+            rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
+            assert self.RACK_SET == rack_get
+            data_center_get = get("//sys/racks/{0}/@data_center".format(rack_get))
+            assert self.DATA_CENTER_SET == data_center_get
+
+
+class TestRack(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    RACK_SET = "rack"
+    DELTA_NODE_CONFIG = {
+        "rack": RACK_SET,
+    }
+
+    @authors("proller")
+    def test_node_rack(self):
+        for node in ls("//sys/cluster_nodes"):
+            rack_get = get("//sys/cluster_nodes/{0}/@rack".format(node))
+            assert self.RACK_SET == rack_get
+
+
+class TestRackCells(TestRack):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestRackDataCenterCells(TestRackDataCenter):
+    NUM_SECONDARY_MASTER_CELLS = 2

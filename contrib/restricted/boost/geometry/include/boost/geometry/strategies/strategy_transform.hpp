@@ -23,8 +23,6 @@
 #include <cmath>
 #include <functional>
 
-#include <boost/numeric/conversion/cast.hpp>
-
 #include <boost/geometry/algorithms/convert.hpp>
 #include <boost/geometry/arithmetic/arithmetic.hpp>
 #include <boost/geometry/core/access.hpp>
@@ -34,6 +32,7 @@
 #include <boost/geometry/strategies/transform.hpp>
 
 #include <boost/geometry/util/math.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 #include <boost/geometry/util/select_coordinate_type.hpp>
 
 namespace boost { namespace geometry
@@ -60,7 +59,7 @@ struct transform_coordinates
         typedef typename select_coordinate_type<Src, Dst>::type coordinate_type;
 
         F<coordinate_type> function;
-        set<D>(dest, boost::numeric_cast<coordinate_type>(function(get<D>(source), value)));
+        set<D>(dest, util::numeric_cast<coordinate_type>(function(get<D>(source), value)));
         transform_coordinates<Src, Dst, D + 1, N, F>::transform(source, dest, value);
     }
 };

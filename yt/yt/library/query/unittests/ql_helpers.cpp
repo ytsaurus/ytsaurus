@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/yson/string.h>
 

@@ -4236,6 +4236,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "refresh_time": 10000,
                 "soft_backoff_time": 10000,
                 "hard_backoff_time":  10000,
+                "enable_watching": True,
             },
         },
     }
@@ -4248,6 +4249,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "refresh_time": 10000,
                 "soft_backoff_time": 10000,
                 "hard_backoff_time":  10000,
+                "enable_watching": True,
             },
         },
     }

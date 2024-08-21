@@ -16,17 +16,11 @@
 #include <boost/geometry/core/coordinate_type.hpp>
 #include <boost/geometry/core/point_type.hpp>
 
+#include <boost/geometry/util/bounds.hpp>
 #include <boost/geometry/util/math.hpp>
 
 namespace boost { namespace geometry
 {
-
-template<class CT>
-struct bounds
-{
-  static CT lowest  () { return boost::numeric::bounds<CT>::lowest(); }
-  static CT highest () { return boost::numeric::bounds<CT>::highest(); }
-};
 
 template <typename Box>
 bool is_inverse_spheroidal_coordinates(Box const& box)
@@ -34,8 +28,8 @@ bool is_inverse_spheroidal_coordinates(Box const& box)
     typedef typename point_type<Box>::type point_type;
     typedef typename coordinate_type<point_type>::type bound_type;
 
-    bound_type high = bounds<bound_type>::highest();
-    bound_type low = bounds<bound_type>::lowest();
+    bound_type const high = util::bounds<bound_type>::highest();
+    bound_type const low = util::bounds<bound_type>::lowest();
 
     return (geometry::get<0, 0>(box) == high) &&
            (geometry::get<0, 1>(box) == high) &&

@@ -80,6 +80,7 @@ protected:
 
         ChunkWriterConfig_ = New<TChunkWriterConfig>();
         ChunkWriterConfig_->BlockSize = 256;
+        ChunkWriterConfig_->EnableLargeColumnarStatistics = true;
 
         PrepareChunks();
     }
@@ -187,8 +188,13 @@ protected:
         TColumnarStatistics expectedStatistics;
         expectedStatistics.Update(Rows_);
 
-        auto writtenStatistics = NYT::FromProto<TColumnarStatistics>(
+        auto largeStatisticsExt = FindProtoExtension<NProto::TLargeColumnarStatisticsExt>(MemoryWriter_->GetChunkMeta()->Getextensions());
+
+        TColumnarStatistics writtenStatistics;
+        FromProto(
+            &writtenStatistics,
             GetProtoExtension<NProto::TColumnarStatisticsExt>(MemoryWriter_->GetChunkMeta()->Getextensions()),
+            largeStatisticsExt ? &*largeStatisticsExt : nullptr,
             GetProtoExtension<NYT::NChunkClient::NProto::TMiscExt>(MemoryWriter_->GetChunkMeta()->Getextensions()).row_count());
 
         EXPECT_EQ(writtenStatistics, expectedStatistics);

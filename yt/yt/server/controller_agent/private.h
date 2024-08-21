@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/controller_agent/persistence.h>
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

@@ -1283,6 +1283,8 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TFinishedQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
+                .Annotations = query.Annotations ? query.Annotations : TYsonString(TString("{}")),
             };
             if (options.Annotations) {
                 record.Annotations = ConvertToYsonString(options.Annotations);
@@ -1291,6 +1293,8 @@ void TQueryTrackerProxy::AlterQuery(
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
+
+            filterFactors = GetFilterFactors(record);
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
@@ -1303,10 +1307,8 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TFinishedQueryByStartTimePartial record{
                 .Key = {.MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                .FilterFactors = filterFactors,
             };
-            if (options.Annotations) {
-                record.FilterFactors = filterFactors;
-            }
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
@@ -1329,8 +1331,8 @@ void TQueryTrackerProxy::AlterQuery(
 
                 TFinishedQueryByUserAndStartTimePartial record{
                     .Key = {.User = *query.User, .MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                    .FilterFactors = filterFactors,
                 };
-                record.FilterFactors = filterFactors;
 
                 std::vector rows{
                     record.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
@@ -1375,10 +1377,11 @@ void TQueryTrackerProxy::AlterQuery(
                 for (const auto& aco : acoToInsert) {
                     TFinishedQueryByAcoAndStartTimePartial record{
                         .Key = {.AccessControlObject = aco, .MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                        .Engine = query.Engine,
+                        .User = query.User,
+                        .State = query.State,
+                        .FilterFactors = filterFactors,
                     };
-                    if (options.Annotations) {
-                        record.FilterFactors = filterFactors;
-                    }
                     rows.push_back(record.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
                 }
                 transaction->WriteRows(
@@ -1392,14 +1395,16 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TActiveQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
+                .Annotations = query.Annotations ? query.Annotations : TYsonString(TString("{}")),
             };
             if (options.Annotations) {
                 record.Annotations = ConvertToYsonString(options.Annotations);
-                record.FilterFactors = GetFilterFactors(record);
             }
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
+            record.FilterFactors = GetFilterFactors(record);
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),

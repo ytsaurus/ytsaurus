@@ -2033,7 +2033,8 @@ private:
 
         if (!tablet->IsActiveServant() && !transaction->IsExternalizedToThisCell()) {
             THROW_ERROR_EXCEPTION("Cannot prepare tablet stores update of a non-active servant "
-                "with non-externalized transaction %v, transaction may be stale")
+                "with non-externalized transaction %v, transaction may be stale",
+                transaction->GetId())
                 << TErrorAttribute("tablet_id", tabletId);
         }
 

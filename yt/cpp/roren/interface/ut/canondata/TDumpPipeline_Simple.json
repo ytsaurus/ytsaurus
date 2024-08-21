@@ -1,0 +1,44 @@
+{
+    "transforms": [
+        {
+            "transform_id": 0,
+            "name": "MeaningfulRead",
+            "type": "Read",
+            "sink_list": [
+                {
+                    "pcollection_id": 0,
+                    "pretty_type_name": "long",
+                    "source_for": [
+                        {
+                            "transform_id": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "transform_id": 1,
+            "name": "MeaningfulParDo",
+            "type": "ParDo",
+            "sink_list": [
+                {
+                    "pcollection_id": 1,
+                    "pretty_type_name": "unsigned long",
+                    "source_for": [
+                        {
+                            "transform_id": 2
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "transform_id": 2,
+            "name": "MeaningfulWrite",
+            "type": "Write",
+            "sink_list": [
+
+            ]
+        }
+    ]
+}

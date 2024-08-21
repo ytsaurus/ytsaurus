@@ -164,7 +164,7 @@ public:
         if (dynamicOptions->BanMessage) {
             THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleIsBanned,
                 "Bundle %Qv is banned", bundleName)
-                << TError(dynamicOptions->BanMessage.value())
+                << TError(TRuntimeFormat(dynamicOptions->BanMessage.value()))
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("table_path", tabletSnapshot->TablePath);
         }

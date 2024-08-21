@@ -17,6 +17,7 @@ SRCS(
 GO_TEST_SRCS(
     transport_example_test.go
     transport_test.go
+    wrap_test.go
 )
 
 GO_XTEST_SRCS(

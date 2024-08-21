@@ -355,6 +355,61 @@ func buildBatch(rows []any) (yt.RowBatch, error) {
 	return &b, err
 }
 
+// PushQueueProducer wraps encoder's implementation with transaction.
+func (c *client) PushQueueProducer(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	rows []any,
+	opts *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	batch, err := buildBatch(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, batch, opts)
+}
+
+func (c *client) PushQueueProducerBatch(
+	ctx context.Context,
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	rowBatch yt.RowBatch,
+	opts *yt.PushQueueProducerOptions,
+) (result *yt.PushQueueProducerResult, err error) {
+	if opts == nil {
+		opts = &yt.PushQueueProducerOptions{}
+	}
+	if opts.TransactionOptions == nil {
+		opts.TransactionOptions = &yt.TransactionOptions{}
+	}
+
+	var zero yt.TxID
+	if opts.TransactionID != zero {
+		return c.Encoder.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, rowBatch, opts)
+	}
+
+	tx, err := c.BeginTabletTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Abort()
+
+	opts.TransactionID = tx.ID()
+
+	result, err = tx.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, rowBatch, opts)
+	if err != nil {
+		return result, err
+	}
+
+	return result, tx.Commit()
+}
+
 // InsertRows wraps encoder's implementation with transaction.
 func (c *client) InsertRows(
 	ctx context.Context,

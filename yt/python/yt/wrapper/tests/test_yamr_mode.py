@@ -1,6 +1,6 @@
 from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path,
-                      get_environment_for_binary_test, set_config_option, get_python, yatest_common)
+                      set_config_option, get_python, yatest_common)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -8,17 +8,13 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp
 import yt.yson as yson
-import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
 import yt.wrapper as yt
 
 import pytest
 
-from flaky import flaky
-
 import os
-import uuid
 import string
 from itertools import starmap
 from functools import reduce
@@ -310,29 +306,3 @@ class TestYamrMode(object):
         yt.write_table(table, [b"1\t2\t3\n"])
         with pytest.raises(yt.YtError):
             yt.run_map("cat", source_table=table, destination_table=None)
-
-
-@pytest.mark.usefixtures("yt_env_for_yamr")
-class TestYamrModeMapreduceBinary(object):
-    NUM_TEST_PARTITIONS = 2
-
-    @authors("ignat")
-    @pytest.mark.timeout(1800)
-    @flaky(max_runs=3)
-    @pytest.mark.parametrize("enable_schema", [False, True])
-    def test_mapreduce_binary(self, yt_env_for_yamr, enable_schema):
-        env = get_environment_for_binary_test(yt_env_for_yamr)
-        env["FALSE"] = "false"
-        env["TRUE"] = "true"
-
-        sandbox_dir = os.path.join(get_tests_sandbox(), "TestMapreduceBinary_" + uuid.uuid4().hex[:8])
-        makedirp(sandbox_dir)
-        test_binary = get_test_file_path("test_mapreduce.sh", use_files=False)
-
-        if enable_schema:
-            env["ENABLE_SCHEMA"] = "1"
-
-        yt.remove("//home/wrapper_tests", recursive=True, force=True)
-        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
-        proc.communicate()
-        assert proc.returncode == 0

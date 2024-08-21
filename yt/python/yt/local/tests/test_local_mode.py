@@ -44,7 +44,7 @@ def _get_local_mode_tests_sandbox():
 
 def _get_yt_local_binary():
     if yatest_common is not None:
-        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_native_make/yt_local")
     else:
         return os.path.join(TESTS_LOCATION, "../bin/yt_local")
 

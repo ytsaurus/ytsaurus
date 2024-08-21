@@ -1,6 +1,6 @@
+#include "config.h"
 #include "client_impl.h"
 #include "table_reader.h"
-#include "table_writer.h"
 #include "partition_tables.h"
 #include "skynet.h"
 
@@ -8,8 +8,10 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -59,7 +61,32 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     const NYPath::TRichYPath& path,
     const TTableWriterOptions& options)
 {
-    return NNative::CreateTableWriter(this, path, options);
+    auto nameTable = New<TNameTable>();
+    nameTable->SetEnableColumnNameValidation();
+
+    auto writerOptions = New<NTableClient::TTableWriterOptions>();
+    writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
+
+    NApi::ITransactionPtr transaction;
+    if (options.TransactionId) {
+        TTransactionAttachOptions transactionOptions;
+        transactionOptions.Ping = options.Ping;
+        transactionOptions.PingAncestors = options.PingAncestors;
+        transaction = AttachTransaction(options.TransactionId, transactionOptions);
+    }
+
+    auto asyncSchemalessWriter = CreateSchemalessTableWriter(
+        options.Config ? options.Config : New<TTableWriterConfig>(),
+        writerOptions,
+        path,
+        nameTable,
+        this,
+        /*localHostName*/ TString(), // Locality is not important during table upload.
+        transaction);
+
+    return asyncSchemalessWriter.Apply(BIND([] (const IUnversionedWriterPtr& schemalessWriter) {
+        return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
+    }));
 }
 
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(

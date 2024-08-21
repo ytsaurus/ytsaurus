@@ -1,11 +1,10 @@
 // Boost.Geometry
 
 // Copyright (c) 2007-2012 Barend Gehrels, Amsterdam, the Netherlands.
-// Copyright (c) 2018 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2018-2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2014, 2016, 2017.
 // Modifications copyright (c) 2014-2017 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Use, modification and distribution is subject to the Boost Software License,
@@ -20,7 +19,7 @@
 
 #include <boost/geometry/core/radius.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 
 #include <boost/geometry/formulas/differential_quantities.hpp>
@@ -160,7 +159,7 @@ public:
                && geometry::math::abs(lambda) < pi
                && counter < BOOST_GEOMETRY_DETAIL_VINCENTY_MAX_STEPS ); // robustness
 
-        if ( BOOST_GEOMETRY_CONDITION(EnableDistance) )
+        if BOOST_GEOMETRY_CONSTEXPR (EnableDistance)
         {
             // Some types cannot divide by doubles
             CT const c6 = 6;
@@ -188,20 +187,20 @@ public:
             result.distance = radius_b * A * (sigma - delta_sigma); // (19)
         }
 
-        if ( BOOST_GEOMETRY_CONDITION(CalcAzimuths) )
+        if BOOST_GEOMETRY_CONSTEXPR (CalcAzimuths)
         {
-            if (BOOST_GEOMETRY_CONDITION(CalcFwdAzimuth))
+            if BOOST_GEOMETRY_CONSTEXPR (CalcFwdAzimuth)
             {
                 result.azimuth = atan2(cos_U2 * sin_lambda, cos_U1 * sin_U2 - sin_U1 * cos_U2 * cos_lambda); // (20)
             }
 
-            if (BOOST_GEOMETRY_CONDITION(CalcRevAzimuth))
+            if BOOST_GEOMETRY_CONSTEXPR (CalcRevAzimuth)
             {
                 result.reverse_azimuth = atan2(cos_U1 * sin_lambda, -sin_U1 * cos_U2 + cos_U1 * sin_U2 * cos_lambda); // (21)
             }
         }
 
-        if (BOOST_GEOMETRY_CONDITION(CalcQuantities))
+        if BOOST_GEOMETRY_CONSTEXPR (CalcQuantities)
         {
             typedef differential_quantities<CT, EnableReducedLength, EnableGeodesicScale, 2> quantities;
             quantities::apply(lon1, lat1, lon2, lat2,

@@ -428,13 +428,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp = std::min(timestamp, MaxClipTimestamp_);
     }
 
+    auto tabletBounds = MakeSingletonRowRange(tabletSnapshot->PivotKey, tabletSnapshot->NextPivotKey);
+
     // Chunk view support.
-    TUnversionedRow lowerClipBound = tabletSnapshot->PivotKey;
+    TUnversionedRow lowerClipBound = tabletBounds.Front().first;
     if (ReadRange_.Front().first) {
         lowerClipBound = ReadRange_.Front().first;
     }
 
-    TUnversionedRow upperClipBound = tabletSnapshot->NextPivotKey;
+    TUnversionedRow upperClipBound = tabletBounds.Front().second;
     if (ReadRange_.Front().second) {
         upperClipBound = ReadRange_.Front().second;
     }
@@ -443,7 +445,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         ranges,
         lowerClipBound,
         upperClipBound,
-        ReadRange_.GetHolder());
+        MakeSharedRangeHolder(ReadRange_.GetHolder(), tabletBounds.GetHolder()));
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
@@ -548,7 +550,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     blockManagerFactory,
                     produceAllVersions,
                     /*readerStatistics*/ nullptr,
-                    std::move(keyFilterStatistics))));
+                    std::move(keyFilterStatistics),
+                    chunkReadOptions.MemoryUsageTracker)));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
@@ -598,7 +601,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             blockManagerFactory,
             produceAllVersions,
             /*readerStatistics*/ nullptr,
-            chunkReadOptions.KeyFilterStatistics);
+            chunkReadOptions.KeyFilterStatistics,
+            chunkReadOptions.MemoryUsageTracker);
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -962,7 +966,8 @@ private:
                     std::move(blockManagerFactory),
                     produceAllVersions,
                     /*readerStatistics*/ nullptr,
-                    MissingKeyMask_.empty() ? nullptr : chunkReadOptions.KeyFilterStatistics),
+                    MissingKeyMask_.empty() ? nullptr : chunkReadOptions.KeyFilterStatistics,
+                    chunkReadOptions.MemoryUsageTracker),
                 chunkReadOptions);
             return;
         }
@@ -1133,7 +1138,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     std::move(blockManagerFactory),
-                    produceAllVersions);
+                    produceAllVersions,
+                    /*readerStatistics*/ nullptr,
+                    /*keyFilterStatistics*/ nullptr,
+                    chunkReadOptions.MemoryUsageTracker);
             }
         }
 
@@ -1145,7 +1153,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             std::move(blockManagerFactory),
-            produceAllVersions);
+            produceAllVersions,
+            /*readerStatistics*/ nullptr,
+            /*keyFilterStatistics*/ nullptr,
+            chunkReadOptions.MemoryUsageTracker);
     }
 
     return CreateCacheBasedVersionedChunkReader(

@@ -18,6 +18,8 @@
 #include <cstddef>
 
 #include <boost/geometry/strategies/transform/matrix_transformers.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
+
 
 namespace boost { namespace geometry
 {
@@ -117,8 +119,8 @@ private :
         // Scale is in PIXELS/MAPUNITS (meters)
         W wdx = wx2 - wx1;
         W wdy = wy2 - wy1;
-        type sx = (px2 - px1) / boost::numeric_cast<type>(wdx);
-        type sy = (py2 - py1) / boost::numeric_cast<type>(wdy);
+        type sx = (px2 - px1) / util::numeric_cast<type>(wdx);
+        type sy = (py2 - py1) / util::numeric_cast<type>(wdy);
 
         if (SameScale)
         {

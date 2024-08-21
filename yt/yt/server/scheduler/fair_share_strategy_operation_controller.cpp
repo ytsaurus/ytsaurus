@@ -142,6 +142,7 @@ void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationTh
     for (int nodeShardId = 0; nodeShardId < std::ssize(NodeShardInvokers_); ++nodeShardId)
     {
         NodeShardInvokers_[nodeShardId]->Invoke(BIND([
+                this_ = MakeStrong(this),
                 scheduleAllocationCallsNodeShardValue,
                 scheduleAllocationExecDurationNodeShardValue,
                 &shard = StateShards_[nodeShardId]]

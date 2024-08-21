@@ -4,6 +4,8 @@
 
 namespace NYT::NSecurityServer {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkProject::TNetworkProject(TNetworkProjectId id)
@@ -21,7 +23,7 @@ TString TNetworkProject::GetCapitalizedObjectName() const
     return Format("Network project %Qv", Name_);
 }
 
-TString TNetworkProject::GetObjectPath() const
+TYPath TNetworkProject::GetObjectPath() const
 {
     return Format("//sys/network_projects/%v", GetName());
 }

@@ -40,6 +40,14 @@ public:
     {
         Underlying_.Store(nativeConnection->GetTimestampProvider());
 
+        if (ClockClusterTag_ != InvalidCellTag) {
+            if (auto connection = FindRemoteConnection(nativeConnection, clockClusterTag)) {
+                UnderlyingRemoteCluster_.Store(connection->GetTimestampProvider());
+            }
+        } else {
+            UnderlyingRemoteCluster_.Store(nativeConnection->GetTimestampProvider());
+        }
+
         nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Subscribe(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)));
     }
@@ -49,8 +57,15 @@ public:
         if (clockClusterTag == InvalidCellTag) {
             clockClusterTag = ClockClusterTag_;
         }
-        if (auto underlying = Underlying_.Acquire()) {
-            return underlying->GenerateTimestamps(count, clockClusterTag);
+
+        auto underlying = Underlying_.Acquire();
+        auto remoteUnderlying = UnderlyingRemoteCluster_.Acquire();
+        if (underlying && remoteUnderlying) {
+            return GenerateTimestampsWithFallback(
+                count,
+                std::move(underlying),
+                std::move(remoteUnderlying),
+                clockClusterTag);
         }
 
         auto nativeConnection = NativeConnection_.Lock();
@@ -62,9 +77,17 @@ public:
         return nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Apply(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)))
             .Apply(BIND([this, this_ = MakeStrong(this), count, clockClusterTag] {
-                if (auto underlying = Underlying_.Acquire()) {
-                    return underlying->GenerateTimestamps(count, clockClusterTag);
+                auto underlying = Underlying_.Acquire();
+                auto remoteUnderlying = UnderlyingRemoteCluster_.Acquire();
+
+                if (underlying) {
+                    return GenerateTimestampsWithFallback(
+                    count,
+                    std::move(underlying),
+                    std::move(remoteUnderlying),
+                    clockClusterTag);
                 }
+
                 return MakeFuture<TTimestamp>(TError(
                     "Timestamp provider for clock cluster tag %v is unavailable at the moment",
                     clockClusterTag));
@@ -89,6 +112,7 @@ private:
     const NLogging::TLogger Logger;
 
     TAtomicIntrusivePtr<ITimestampProvider> Underlying_;
+    TAtomicIntrusivePtr<ITimestampProvider> UnderlyingRemoteCluster_;
 
     void OnClusterDirectorySync(const TError& /*error*/)
     {
@@ -99,6 +123,55 @@ private:
         }
 
         Underlying_.Store(nativeConnection->GetTimestampProvider());
+
+        if (ClockClusterTag_ != InvalidCellTag) {
+            if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
+                UnderlyingRemoteCluster_.Store(connection->GetTimestampProvider());
+            } else {
+                YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known (ClockClusterTag: %v)",
+                    ClockClusterTag_);
+            }
+        } else {
+            UnderlyingRemoteCluster_.Store(nativeConnection->GetTimestampProvider());
+        }
+    }
+
+    TFuture<TTimestamp> GenerateTimestampsWithFallback(
+        int count,
+        TIntrusivePtr<ITimestampProvider> uniderlying,
+        TIntrusivePtr<ITimestampProvider> remoteUnderlying,
+        TCellTag clockClusterTag)
+    {
+            return uniderlying->GenerateTimestamps(count, clockClusterTag)
+                .ApplyUnique(
+                    BIND([
+                        count,
+                        Logger= Logger,
+                        clockClusterTag,
+                        remoteUnderlying] (TErrorOr<TTimestamp>&& providerResult) {
+                    if (providerResult.IsOK() ||
+                        !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
+                            providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
+                            providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
+                    {
+                        return MakeFuture(std::move(providerResult));
+                    }
+
+                    if (remoteUnderlying) {
+                        YT_LOG_WARNING(
+                            providerResult,
+                            "Wrong clock cluster, trying to generate timestamps via direct call (ClockClusterTag: %v)",
+                            clockClusterTag);
+                            return remoteUnderlying->GenerateTimestamps(count);
+                    } else {
+                        YT_LOG_WARNING(
+                            "Cannot generate timestamps via direct call (CloclClusterTag: %v)",
+                            clockClusterTag);
+                        return MakeFuture<TTimestamp>(TError(
+                            "Timestamp provider for clock cluster tag %v is unavailable at the moment",
+                            clockClusterTag));
+                    }
+                }));
     }
 };
 

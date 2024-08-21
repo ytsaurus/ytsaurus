@@ -2135,9 +2135,10 @@ public:
         }
 
         if (!IsEnabled()) {
-            alerts->emplace_back(
-                NExecNode::EErrorCode::NoLayerLocationAvailable,
-                "Layer cache is disabled");
+            alerts->push_back(
+                TError(
+                    NExecNode::EErrorCode::NoLayerLocationAvailable,
+                    "Layer cache is disabled"));
         }
     }
 

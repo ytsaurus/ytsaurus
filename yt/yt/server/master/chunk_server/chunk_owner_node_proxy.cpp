@@ -17,6 +17,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -1897,17 +1898,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             auto externalizedTransactionId =
                 transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag});
 
-            NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
-            ToProto(startRequest.mutable_id(), uploadTransactionId);
-            if (externalizedTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
-            }
-            if (uploadTransactionTitle) {
-                startRequest.set_title(*uploadTransactionTitle);
-            }
-            startRequest.set_upload(true);
-
-            multicellManager->PostToMaster(startRequest, dstCellTag);
+            transactionManager->PostForeignTransactionStart(
+                uploadTransaction,
+                uploadTransactionId,
+                externalizedTransactionId,
+                {dstCellTag});
         }
     }
 

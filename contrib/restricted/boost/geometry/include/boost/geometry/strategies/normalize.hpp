@@ -14,8 +14,6 @@
 #include <cstddef>
 #include <type_traits>
 
-#include <boost/numeric/conversion/cast.hpp>
-
 #include <boost/geometry/core/access.hpp>
 #include <boost/geometry/core/coordinate_system.hpp>
 #include <boost/geometry/core/coordinate_type.hpp>
@@ -25,6 +23,7 @@
 
 #include <boost/geometry/util/normalize_spheroidal_coordinates.hpp>
 #include <boost/geometry/util/normalize_spheroidal_box_coordinates.hpp>
+#include <boost/geometry/util/numeric_cast.hpp>
 
 #include <boost/geometry/views/detail/indexed_point_view.hpp>
 
@@ -57,7 +56,7 @@ struct assign_loop
                              PointIn const& point_in,
                              PointOut& point_out)
     {
-        geometry::set<Dimension>(point_out, boost::numeric_cast
+        geometry::set<Dimension>(point_out, util::numeric_cast
             <
                 typename coordinate_type<PointOut>::type
             >(geometry::get<Dimension>(point_in)));
@@ -90,7 +89,7 @@ struct assign_loop<0, DimensionCount>
                              PointIn const& point_in,
                              PointOut& point_out)
     {
-        geometry::set<0>(point_out, boost::numeric_cast
+        geometry::set<0>(point_out, util::numeric_cast
             <
                 typename coordinate_type<PointOut>::type
             >(longitude));
@@ -111,7 +110,7 @@ struct assign_loop<1, DimensionCount>
                              PointIn const& point_in,
                              PointOut& point_out)
     {
-        geometry::set<1>(point_out, boost::numeric_cast
+        geometry::set<1>(point_out, util::numeric_cast
             <
                 typename coordinate_type<PointOut>::type
             >(latitude));

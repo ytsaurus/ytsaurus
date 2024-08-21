@@ -347,7 +347,7 @@ private:
 
         while (std::ssize(Occupants_) > cellarSize) {
             if (const auto& occupant = Occupants_.back()) {
-                THROW_ERROR_EXCEPTION("Slot %v with cell %d did not finalize properly, total slot count update failed",
+                THROW_ERROR_EXCEPTION("Slot %v with cell %v did not finalize properly, total slot count update failed",
                     occupant->GetIndex(),
                     occupant->GetCellId());
             }

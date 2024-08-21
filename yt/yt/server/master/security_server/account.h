@@ -123,7 +123,7 @@ public:
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -174,7 +174,7 @@ public:
     void RecomputeClusterStatistics();
 
     //! Attaches a child account and adds its resource usage to its new ancestry.
-    void AttachChild(const TString& key, TAccount* child) noexcept override;
+    void AttachChild(const std::string& key, TAccount* child) noexcept override;
     //! Unlinks a child account and subtracts its resource usage from its former ancestry.
     void DetachChild(TAccount* child) noexcept override;
 

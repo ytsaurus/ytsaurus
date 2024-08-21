@@ -275,9 +275,6 @@ const THashMap<TString, TString>& TSchedulerStrategyHost::GetUserDefaultParentPo
     return stub;
 }
 
-bool TSchedulerStrategyHost::IsFairSharePreUpdateOffloadingEnabled() const
-{
-    return true;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerSimulator

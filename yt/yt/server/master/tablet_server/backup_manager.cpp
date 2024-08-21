@@ -14,8 +14,12 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
@@ -1037,7 +1041,7 @@ private:
         for (const auto& descriptor : replicaBackupDescriptors) {
             const auto* replica = tabletManager->FindTableReplica(descriptor.ReplicaId);
             if (!replica || replica->GetTable() != table) {
-                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table")
+                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table", descriptor.ReplicaId)
                     << TErrorAttribute("table_id", table->GetId());
             }
             if (!validateModes) {

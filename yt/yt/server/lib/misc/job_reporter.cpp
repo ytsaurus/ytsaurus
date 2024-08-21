@@ -153,6 +153,10 @@ public:
         if (archiveVersion >= 51 && Report_.ArchiveFeatures()) {
             record.ArchiveFeatures = TYsonString(*Report_.ArchiveFeatures());
         }
+        // COMPAT(omgronny)
+        if (archiveVersion >= 53 && Report_.Ttl()) {
+            record.Ttl = Report_.Ttl()->MilliSeconds();
+        }
 
         return FromRecord(record);
     }

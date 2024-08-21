@@ -859,7 +859,7 @@ private:
 
                 // TODO(don-dron): Come up with a more accurate solution.
                 auto address = innerError->Attributes().Find<TString>("address");
-                auto needRetry = address->Empty() || std::count_if(
+                auto needRetry = !address || std::count_if(
                     this_->Nodes_.begin(),
                     this_->Nodes_.end(),
                     [&] (const auto& node) {

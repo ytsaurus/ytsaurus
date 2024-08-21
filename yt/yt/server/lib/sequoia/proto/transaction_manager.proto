@@ -28,6 +28,8 @@ message TReqStartForeignTransaction
     optional string operation_type = 5;
     optional string operation_id = 6;
     optional string operation_title = 7;
+
+    optional string user = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

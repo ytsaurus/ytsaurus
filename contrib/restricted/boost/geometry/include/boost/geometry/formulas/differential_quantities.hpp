@@ -14,7 +14,7 @@
 
 #include <boost/geometry/core/assert.hpp>
 
-#include <boost/geometry/util/condition.hpp>
+#include <boost/geometry/util/constexpr.hpp>
 #include <boost/geometry/util/math.hpp>
 
 
@@ -73,7 +73,7 @@ public:
         if (math::equals(sin_bet1, c0) && math::equals(sin_bet2, c0))
         {
             CT const sig_12 = dlon / one_minus_f;
-            if (BOOST_GEOMETRY_CONDITION(EnableReducedLength))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength)
             {
                 BOOST_GEOMETRY_ASSERT((-math::pi<CT>() <= azimuth && azimuth <= math::pi<CT>()));
 
@@ -82,7 +82,7 @@ public:
                 reduced_length = m12;
             }
 
-            if (BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableGeodesicScale)
             {
                 CT M12 = cos(sig_12);
                 geodesic_scale = M12;
@@ -123,7 +123,7 @@ public:
             CT const dn1 = math::sqrt(c1 + ep2 * math::sqr(sin_bet1));
             CT const dn2 = math::sqrt(c1 + ep2 * math::sqr(sin_bet2));
 
-            if (BOOST_GEOMETRY_CONDITION(EnableReducedLength))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableReducedLength)
             {
                 CT const m12_b = dn2 * (cos_sig1 * sin_sig2)
                                - dn1 * (sin_sig1 * cos_sig2)
@@ -133,7 +133,7 @@ public:
                 reduced_length = m12;
             }
 
-            if (BOOST_GEOMETRY_CONDITION(EnableGeodesicScale))
+            if BOOST_GEOMETRY_CONSTEXPR (EnableGeodesicScale)
             {
                 CT const cos_sig12 = cos_sig1 * cos_sig2 + sin_sig1 * sin_sig2;
                 CT const t = ep2 * (cos_bet1 - cos_bet2) * (cos_bet1 + cos_bet2) / (dn1 + dn2);

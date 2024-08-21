@@ -19,7 +19,7 @@ public:
     //! Returns |true| if maintenance flag is changed.
     [[nodiscard]] bool ClearMaintenanceFlag(EMaintenanceType type);
     //! Returns |true| if maintenance flag is changed.
-    [[nodiscard]] bool SetMaintenanceFlag(EMaintenanceType type, TString userName, TInstant timestamp);
+    [[nodiscard]] bool SetMaintenanceFlag(EMaintenanceType type, const std::string& user, TInstant timestamp);
 
     //! Returns |true| if maintenance flag is changed.
     // Precondition: this target has not maintenance request with such id.

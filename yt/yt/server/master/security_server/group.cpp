@@ -5,6 +5,7 @@
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +19,7 @@ TString TGroup::GetCapitalizedObjectName() const
     return Format("Group %Qv", Name_);
 }
 
-TString TGroup::GetObjectPath() const
+TYPath TGroup::GetObjectPath() const
 {
     return Format("//sys/groups/%v", Name_);
 }

@@ -75,13 +75,20 @@ public:
 
 private:
     bool IsPure_ = false; // Random function can not be implicitly pure. So default is false.
+    bool IsMove_ = false;
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;
 
 public:
-    Y_SAVELOAD_DEFINE(IsPure_, ResourceFileList_);
+    Y_SAVELOAD_DEFINE(IsPure_, IsMove_, ResourceFileList_);
 };
+
+template <typename T>
+concept CMoveRow = CRow<T> && std::same_as<T, std::decay_t<T>&&>;
+
+template <CRow T>
+using TDoFnInput = std::conditional_t<CMoveRow<T>, std::decay_t<T>&&, const std::decay_t<T>&>;
 
 template <CRow TInput_, typename TOutput_>
 class IDoFn
@@ -104,7 +111,7 @@ public:
     virtual void Start(TOutput<TOutputRow>&)
     { }
 
-    virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output) = 0;
+    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output) = 0;
 
     virtual void Finish(TOutput<TOutputRow>&)
     { }
@@ -128,7 +135,7 @@ public:
 
     virtual void Start(TOutput<TOutputRow>&)
     { }
-    virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output) = 0;
+    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output) = 0;
     virtual void Finish(TOutput<TOutputRow>&)
     { }
 
@@ -136,12 +143,6 @@ public:
     {
         return {};
     }
-};
-
-template <typename F>
-concept CParDoMultiOutputFunction = requires (F f, TMultiOutput& multiOutput)
-{
-    f({}, multiOutput);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,31 +305,6 @@ class IStatefulTimerDoFn
         virtual void OnTimer(const TKey& key, TOutput<TOutputRow>& output, TState& state, const TTimerContext& timerContext) = 0;
 
         TString FnId_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename TInputRow_, typename TOutputRow_>
-struct TParDoArgs
-{
-    using TInputRow = TInputRow_;
-    using TOutputRow = TOutputRow_;
-
-    TParDoArgs(const TInputRow& inputRow, TOutput<TOutputRow>& output, IExecutionContext& context)
-        : InputRow(inputRow)
-        , Output(output)
-        , ExecutionContext(context)
-    { }
-
-    TParDoArgs(const TParDoArgs&) = default;
-    TParDoArgs(TParDoArgs&&) = default;
-
-    TParDoArgs& operator=(const TParDoArgs&) = delete;
-    TParDoArgs& operator=(TParDoArgs&&) = delete;
-
-    const TInputRow& InputRow;
-    TOutput<TOutputRow>& Output;
-    IExecutionContext& ExecutionContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,3 +1,0 @@
-RECURSE(
-    grpc_gcp
-)

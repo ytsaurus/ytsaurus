@@ -959,6 +959,21 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func writePushQueueProducerOptions(w *yson.Writer, o *yt.PushQueueProducerOptions) {
+	if o == nil {
+		return
+	}
+	if o.UserMeta != nil {
+		w.MapKeyString("user_meta")
+		w.Any(o.UserMeta)
+	}
+	if o.SequenceNumber != nil {
+		w.MapKeyString("sequence_number")
+		w.Any(o.SequenceNumber)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
 func writeLockRowsOptions(w *yson.Writer, o *yt.LockRowsOptions) {
 	if o == nil {
 		return
@@ -1025,6 +1040,24 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	w.Any(o.Type)
 	w.MapKeyString("sticky")
 	w.Any(o.Sticky)
+}
+
+func writeCreateQueueProducerSessionOptions(w *yson.Writer, o *yt.CreateQueueProducerSessionOptions) {
+	if o == nil {
+		return
+	}
+	if o.UserMeta != nil {
+		w.MapKeyString("user_meta")
+		w.Any(o.UserMeta)
+	}
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func writeRemoveQueueProducerSessionOptions(w *yson.Writer, o *yt.RemoveQueueProducerSessionOptions) {
+	if o == nil {
+		return
+	}
+	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
 func writeCreateTableBackupOptions(w *yson.Writer, o *yt.CreateTableBackupOptions) {
@@ -3846,6 +3879,177 @@ func (p *DeleteRowsParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *DeleteRowsParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
+}
+
+type PushQueueProducerParams struct {
+	verb         Verb
+	producerPath ypath.Path
+	queuePath ypath.Path
+	sessionID string
+	epoch     int64
+	options      *yt.PushQueueProducerOptions
+}
+
+func NewPushQueueProducerParams(
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	epoch int64,
+	options *yt.PushQueueProducerOptions,
+) *PushQueueProducerParams {
+	if options == nil {
+		options = &yt.PushQueueProducerOptions{}
+	}
+	optionsCopy := *options
+	return &PushQueueProducerParams{
+		Verb("push_queue_producer"),
+		producerPath,
+		queuePath,
+		sessionID,
+		epoch,
+		&optionsCopy,
+	}
+}
+
+func (p *PushQueueProducerParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *PushQueueProducerParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *PushQueueProducerParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("producerPath", p.producerPath),
+		log.Any("queuePath", p.queuePath),
+		log.Any("sessionID", p.sessionID),
+		log.Any("epoch", p.epoch),
+	}
+}
+
+func (p *PushQueueProducerParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("producer_path")
+	w.Any(p.producerPath)
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	w.MapKeyString("session_id")
+	w.Any(p.sessionID)
+	w.MapKeyString("epoch")
+	w.Any(p.epoch)
+	writePushQueueProducerOptions(w, p.options)
+}
+
+func (p *PushQueueProducerParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type CreateQueueProducerSessionParams struct {
+	verb         Verb
+	producerPath ypath.Path
+	queuePath ypath.Path
+	sessionID string
+	options   *yt.CreateQueueProducerSessionOptions
+}
+
+func NewCreateQueueProducerSessionParams(
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	options *yt.CreateQueueProducerSessionOptions,
+) *CreateQueueProducerSessionParams {
+	if options == nil {
+		options = &yt.CreateQueueProducerSessionOptions{}
+	}
+	optionsCopy := *options
+	return &CreateQueueProducerSessionParams{
+		Verb("create_queue_producer_session"),
+		producerPath,
+		queuePath,
+		sessionID,
+		&optionsCopy,
+	}
+}
+
+func (p *CreateQueueProducerSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CreateQueueProducerSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *CreateQueueProducerSessionParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("producerPath", p.producerPath),
+		log.Any("queuePath", p.queuePath),
+		log.Any("sessionID", p.sessionID),
+	}
+}
+
+func (p *CreateQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("producer_path")
+	w.Any(p.producerPath)
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	w.MapKeyString("session_id")
+	w.Any(p.sessionID)
+	writeCreateQueueProducerSessionOptions(w, p.options)
+}
+
+func (p *CreateQueueProducerSessionParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
+}
+
+type RemoveQueueProducerSessionParams struct {
+	verb         Verb
+	producerPath ypath.Path
+	queuePath ypath.Path
+	sessionID string
+	options   *yt.RemoveQueueProducerSessionOptions
+}
+
+func NewRemoveQueueProducerSessionParams(
+	producerPath ypath.Path,
+	queuePath ypath.Path,
+	sessionID string,
+	options *yt.RemoveQueueProducerSessionOptions,
+) *RemoveQueueProducerSessionParams {
+	if options == nil {
+		options = &yt.RemoveQueueProducerSessionOptions{}
+	}
+	optionsCopy := *options
+	return &RemoveQueueProducerSessionParams{
+		Verb("remove_queue_producer_session"),
+		producerPath,
+		queuePath,
+		sessionID,
+		&optionsCopy,
+	}
+}
+
+func (p *RemoveQueueProducerSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *RemoveQueueProducerSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *RemoveQueueProducerSessionParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("producerPath", p.producerPath),
+		log.Any("queuePath", p.queuePath),
+		log.Any("sessionID", p.sessionID),
+	}
+}
+
+func (p *RemoveQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("producer_path")
+	w.Any(p.producerPath)
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	w.MapKeyString("session_id")
+	w.Any(p.sessionID)
+	writeRemoveQueueProducerSessionOptions(w, p.options)
+}
+
+func (p *RemoveQueueProducerSessionParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
 }
 
 type MountTableParams struct {

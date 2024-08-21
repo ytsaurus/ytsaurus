@@ -8,6 +8,7 @@ package unix_test
 
 import (
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -42,5 +43,35 @@ func TestMremap(t *testing.T) {
 	_, err = unix.Mremap(b, unix.Getpagesize(), unix.MremapFixed)
 	if err != unix.EINVAL {
 		t.Fatalf("remapping to a fixed address; got %v, want %v", err, unix.EINVAL)
+	}
+}
+
+func TestMremapPtr(t *testing.T) {
+	p1, err := unix.MmapPtr(-1, 0, nil, uintptr(2*unix.Getpagesize()),
+		unix.PROT_READ|unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		t.Fatalf("MmapPtr: %v", err)
+	}
+
+	p2 := unsafe.Add(p1, unix.Getpagesize())
+	if err := unix.MunmapPtr(p2, uintptr(unix.Getpagesize())); err != nil {
+		t.Fatalf("MunmapPtr: %v", err)
+	}
+
+	*(*byte)(p1) = 42
+
+	if _, err := unix.MremapPtr(
+		p1, uintptr(unix.Getpagesize()),
+		p2, uintptr(unix.Getpagesize()),
+		unix.MremapFixed|unix.MremapMaymove); err != nil {
+		t.Fatalf("MremapPtr: %v", err)
+	}
+
+	if got := *(*byte)(p2); got != 42 {
+		t.Errorf("got %d, want 42", got)
+	}
+
+	if err := unix.MunmapPtr(p2, uintptr(unix.Getpagesize())); err != nil {
+		t.Fatalf("MunmapPtr: %v", err)
 	}
 }

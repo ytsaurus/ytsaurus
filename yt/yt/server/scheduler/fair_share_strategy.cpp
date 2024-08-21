@@ -356,10 +356,9 @@ public:
             YT_LOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
-                error = TError(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
                     << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                     << TErrorAttribute("actual_type", poolTreesNode->GetType());
-                THROW_ERROR(error);
             }
 
             auto poolsMap = poolTreesNode->AsMap();
@@ -391,10 +390,9 @@ public:
             auto defaultTreeId = poolsMap->Attributes().Find<TString>(DefaultTreeAttributeName);
 
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
-                errors.emplace_back("Default tree is missing");
-                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                errors.push_back(TError("Default tree is missing"));
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                THROW_ERROR(error);
             }
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
@@ -402,9 +400,8 @@ public:
             bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treeIdsWithChangedFilter.empty();
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
-                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                THROW_ERROR(error);
             }
 
             // Update configs and pools structure of all trees.
@@ -1186,7 +1183,7 @@ public:
 
             Host_->SetSchedulerAlert(
                 alertType,
-                TError(alertMessage)
+                TError(TRuntimeFormat(alertMessage))
                     << std::move(alerts));
         }
     }
@@ -1321,7 +1318,7 @@ public:
             }
 
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
-                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration")
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
                     << std::move(error));
             }
         }
@@ -1777,7 +1774,9 @@ private:
         THashSet<TString>* treeIdsWithChangedFilter,
         THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key : poolsMap->GetKeys()) {
+        for (const auto& key_ : poolsMap->GetKeys()) {
+            // TODO(babenko): migrate to std::string
+            auto key = TString(key_);
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {

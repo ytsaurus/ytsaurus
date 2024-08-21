@@ -10,11 +10,11 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
@@ -49,8 +49,6 @@ struct ITaskHost
      * \note Invoker affinity: any
      */
     virtual void AccountBuildingJobSpecDelta(int countDelta, i64 totalSliceCountDelta) noexcept = 0;
-
-    virtual ui64 NextJobIndex() = 0;
 
     // TODO(max42): split this function into purely controller part and task part.
     virtual void InitUserJobSpecTemplate(
@@ -143,6 +141,14 @@ struct ITaskHost
         const NChunkClient::TInputChunkPtr& chunk) = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
+
+    virtual TJobletPtr CreateJoblet(
+        TTask* task,
+        TJobId jobId,
+        TString treeId,
+        int taskJobIndex,
+        std::optional<TString> poolPath,
+        bool treeIsTentative) = 0;
 
     virtual TSharedRef BuildJobSpecProto(
         const TJobletPtr& joblet,

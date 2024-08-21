@@ -294,7 +294,7 @@ void TScheduleAllocationStatistics::Persist(const TPersistenceContext& context)
     Persist(context, Count_);
 }
 
-DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -97,7 +97,7 @@ for package in ${packages[@]}; do
     package_undescored=$(echo -e $package | sed -e s/-/_/g)
     dist_dir="${package_undescored}_dist"
 
-    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
+    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-rpc-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
         if [[ ${apply_auditwheel} == "true" ]]; then
             for wheel in ${dist_dir}/${package_undescored}*.whl; do

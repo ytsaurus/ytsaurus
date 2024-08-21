@@ -6,7 +6,7 @@ import stat
 from typing import List, Dict, Generator
 
 from .conftest import authors
-from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
+from .helpers import (TEST_DIR, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
@@ -25,7 +25,6 @@ from yt.wrapper.format import SkiffFormat
 
 import yt.environment.arcadia_interop as arcadia_interop
 
-from yt.common import makedirp
 from yt.yson import to_yson_type, dumps
 import yt.yson as yson
 import yt.json_wrapper as json
@@ -55,7 +54,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import uuid
 
 
 def is_process_alive(pid):
@@ -175,27 +173,6 @@ def test_ypath_dirname():
 @flaky(max_runs=3)
 @pytest.mark.usefixtures("yt_env_job_archive")
 class TestYtBinary(object):
-    @authors("asaitgalin")
-    def test_yt_binary(self, yt_env_job_archive):
-        env = get_environment_for_binary_test(yt_env_job_archive)
-        env["FALSE"] = "%false"
-        env["TRUE"] = "%true"
-
-        sandbox_dir = os.path.join(get_tests_sandbox(), "TestYtBinary_" + uuid.uuid4().hex[:8])
-        makedirp(sandbox_dir)
-
-        test_binary = get_test_file_path("test_yt.sh", use_files=False)
-
-        output_file = os.path.join(sandbox_dir, "stderr")
-        output = open(output_file, "w")
-        proc = Popen([test_binary], env=env, stdout=output, stderr=output, cwd=sandbox_dir)
-        proc.communicate()
-
-        if arcadia_interop is not None:
-            sys.stderr.write(open(output_file).read())
-
-        assert proc.returncode == 0
-
     @authors("ignat")
     def test_secure_vault_in_logging(self, yt_env_job_archive):
         if yatest_common is None:

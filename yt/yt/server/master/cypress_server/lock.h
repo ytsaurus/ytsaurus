@@ -23,7 +23,7 @@ namespace NYT::NCypressServer {
 struct TLockKey
 {
     ELockKeyKind Kind = ELockKeyKind::None;
-    TString Name;
+    std::string Name;
 
     std::strong_ordering operator<=>(const TLockKey& rhs) const = default;
 
@@ -39,8 +39,8 @@ struct TLockRequest
     TLockRequest() = default;
     TLockRequest(ELockMode mode);
 
-    static TLockRequest MakeSharedChild(const TString& key);
-    static TLockRequest MakeSharedAttribute(const TString& key);
+    static TLockRequest MakeSharedChild(const std::string& key);
+    static TLockRequest MakeSharedAttribute(const std::string& key);
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 
@@ -189,7 +189,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -175,6 +175,46 @@ public:
 
     bool EnableMinMaxFiltering;
 
+    //! The intent of this optimization is similar to the `optimize_read_in_order` setting in native CH.
+    //! When enabled, some SELECT queries over sorted tables are processed in the order they are stored
+    //! in YT, allowing to avoid reading all data in case of specified LIMIT.
+    //! More specifically, it is enabled for SELECT queries that specify ORDER BY <prefix of storage primary key>
+    //! and LIMIT <limit> when reading from one or multiple concatenated sorted tables.
+    //! The optimization is not applied for queries with JOINs or aggregations.
+    //! Consider disabling this option manually when running queries that specify ORDER BY, a large LIMIT and a
+    //! WHERE condition that requires reading a huge amount of records before queried data is found.
+    bool EnableOptimizeReadInOrder;
+
+    //! NB: Using OptimizeReadInOrder with key columns that can have NULLs (non-required) or NANs (floating point columns) is complicated
+    //! by the fact that NULLs and NANs are on the opposite ends of the sort order in YT, while in CH they are always grouped together
+    //! in the beginning or end of the result.
+    //! In YT, NULL values compare less than any other values, while NAN values are larger than all other floats.
+    //! In ClickHouse their common placement is controlled by specifying NULLS FIRST or NULLS LAST for each element of the ORDER BY expression,
+    //! with NULLS LAST being used by default.
+    //!
+    //! You have multiple options to make this optimization work in such cases, they are explained below in order of preference.
+    //!
+    //! First, you should prefer to use required key columns with CHYT. This should alleviate the problem with NULLs, leaving only NAN-related
+    //! issues for floating-point key columns.
+    //!
+    //! Second, you can use the two options declared below to tell the CHYT optimizer that none of the key columns contain NULLs or NANs.
+    //!
+    //! Third, you can manually configure NULLS direction correctly in your query. The "correct" direction is the one that aligns with the sort
+    //! order of the underlying storage. I.e. it NULLS FIRST for ASC sort with NULLs, NULLS LAST (default) for DESC sort with NULLS, NULLS LAST
+    //! (default) for ASC sort with NANs and NULLS FIRST for DESC sort with NANs.
+    //!
+    //! Note that it is impossible to use optimize read in order with a floating point key column that can have both NULLs and NANs, you have
+    //! to make sure that CHYT knows that at least one of those values will not occur either by marking the column as required, or using the
+    //! options below.
+
+    //! Allows CHYT to assume that none of the key columns contain any NULL values.
+    //! Used for optimizing read in order if the corresponding option is enabled, see NB clause above.
+    bool AssumeNoNullKeys;
+    //! Allows CHYT to assume that none of the floating-point key columns contain any NAN values.
+    //! Applicable to both required and non-required columns.
+    //! Used for optimizing read in order if the corresponding option is enabled, see NB clause above.
+    bool AssumeNoNanKeys;
+
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
     static void Register(TRegistrar registrar);
@@ -333,9 +373,10 @@ class TSubqueryConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
+    NChunkClient::TFetcherConfigPtr ColumnarStatisticsFetcher;
+    NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
     int MaxJobCountForPool;
-    int MinDataWeightPerThread;
+    i64 MinDataWeightPerThread;
 
     // Two fields below are for the chunk spec fetcher.
     int MaxChunksPerFetch;

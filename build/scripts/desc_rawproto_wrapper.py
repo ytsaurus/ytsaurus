@@ -20,7 +20,7 @@ def main(args):
     cmd.append(args.proto_file)
 
     try:
-        subprocess.run(cmd, stdin=None, stderr=subprocess.STDOUT, text=True, check=True)
+        subprocess.check_output(cmd, stdin=None, stderr=subprocess.STDOUT, text=True)
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f'{e.cmd} returned non-zero exit code {e.returncode}.\n{e.output}\n')
         return e.returncode

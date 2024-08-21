@@ -8,6 +8,7 @@ PEERDIR(
     yt/python/yt/environment/arcadia_interop
     yt/python/yt/sequoia_tools
     yt/python/yt/wrapper
+    yt/yt/library/tracing/py
     yt/yt/python/yt_driver_bindings
     yt/yt/python/yt_yson_bindings
     yt/yt_proto/yt/core
