@@ -129,7 +129,7 @@ protected:
         auto processChangelogs = [&] (const TYPath& path, bool isPrimaryPath) {
             auto rspOrError = WaitFor(Client_->ListNode(path, options));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING("Missing storage at path (IsPrimary: %v)", isPrimaryPath);
+                YT_LOG_DEBUG("Missing storage at path (IsPrimary: %v)", isPrimaryPath);
                 return;
             }
             YT_LOG_DEBUG("Changelog list received");
