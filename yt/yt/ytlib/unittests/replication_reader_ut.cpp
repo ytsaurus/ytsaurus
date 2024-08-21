@@ -2,12 +2,13 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chunk_client/public.h>
-#include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -119,11 +120,11 @@ public:
         }
 
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
+        auto blocks = GetBlocksByIndexes(chunkId, blockIndexes);
 
-        auto hasCompleteChunk = ChunkBlocks_.contains(chunkId);
-        response->set_has_complete_chunk(hasCompleteChunk);
+        ToProto(response->mutable_chunk_reader_statistics(), GetChunkReaderStatistics(blocks));
 
-        SetRpcAttachedBlocks(response, GetBlocksByIndexes(chunkId, blockIndexes));
+        SetRpcAttachedBlocks(response, blocks);
         context->Reply();
     }
 
@@ -139,9 +140,6 @@ public:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
 
-        auto hasCompleteChunk = ChunkBlocks_.contains(chunkId);
-        response->set_has_complete_chunk(hasCompleteChunk);
-
         std::vector<int> blockIndexes;
         blockIndexes.resize(blockCount);
 
@@ -149,7 +147,11 @@ public:
             blockIndexes[index] = firstBlockIndex + index;
         }
 
-        SetRpcAttachedBlocks(response, GetBlocksByIndexes(chunkId, blockIndexes));
+        auto blocks = GetBlocksByIndexes(chunkId, blockIndexes);
+
+        ToProto(response->mutable_chunk_reader_statistics(), GetChunkReaderStatistics(blocks));
+
+        SetRpcAttachedBlocks(response, blocks);
         context->Reply();
     }
 
@@ -172,7 +174,7 @@ public:
 
     void SetChunkBlocks(
         TChunkId chunkId,
-        std::vector<TSharedRef> blocks)
+        const std::vector<TSharedRef>& blocks)
     {
         THashMap<int, TSharedRef> blockMap;
         for (int index = 0; index < std::ssize(blocks); index++) {
@@ -228,7 +230,7 @@ private:
             blocks.reserve(blockIndexes.size());
 
             for (int index = 0; index < std::ssize(blockIndexes); index++) {
-                if (auto it = blockMap.find(index)) {
+                if (auto it = blockMap.find(blockIndexes[index])) {
                     blocks.push_back(TBlock(it->second));
                 } else {
                     blocks.push_back(TBlock());
@@ -237,11 +239,11 @@ private:
         }
 
         if (EnablePartiallyResponse_.load()) {
-            if (Generator_.Generate<bool>()) {
+            if (Generator_.Generate<ui64>() % 2 == 0) {
                 return {blocks[0]};
             } else {
                 for (auto& block : blocks) {
-                    if (Generator_.Generate<bool>()) {
+                    if (Generator_.Generate<ui64>() % 2 == 0) {
                         block = TBlock();
                     }
                 }
@@ -252,30 +254,39 @@ private:
             return blocks;
         }
     }
+
+    TChunkReaderStatisticsPtr GetChunkReaderStatistics(const std::vector<TBlock>& blocks)
+    {
+        auto statistics = New<TChunkReaderStatistics>();
+        for (const auto& block : blocks) {
+            statistics->DataBytesReadFromDisk += block.Size();
+        }
+        return statistics;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomString(size_t size)
+TString GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
-    TRandomGenerator generator(42);
     TString result;
     result.reserve(size + sizeof(ui64));
     while (result.size() < size) {
-        ui64 value = generator.Generate<ui64>();
+        ui64 value = generator->Generate<ui64>();
         result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
     }
     result.resize(size);
     return result;
 }
 
-std::vector<TSharedRef> CreateBlocks(int count)
+std::vector<TSharedRef> CreateBlocks(int count, TRandomGenerator* generator)
 {
     std::vector<TSharedRef> blocks;
     blocks.reserve(count);
 
     for (int index = 0; index < count; index++) {
-        blocks.push_back(TSharedRef::FromString(GenerateRandomString(16)));
+        int size = 10 + generator->Generate<ui32>() % 11;
+        blocks.push_back(TSharedRef::FromString(GenerateRandomString(size, generator)));
     }
 
     return blocks;
@@ -343,7 +354,9 @@ TEST_P(TReplicationReaderTest, ReadTest)
     THashMap<TString, IServicePtr> addressToService;
 
     auto chunkId = TGuid::Create();
-    auto blocks = CreateBlocks(blockCount);
+
+    TRandomGenerator generator(42);
+    auto blocks = CreateBlocks(blockCount, &generator);
 
     TChunkReplicaWithMediumList replicaList;
     int nodeToBans = testCase.PartiallyBanns ? nodeCount / 3 : 0;
@@ -394,7 +407,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
         chunkId,
         std::move(replicaList));
 
-    TRandomGenerator generator(42);
+    i64 minBytesToRead = 0;
+    i64 maxBytesToRead = 0;
+    std::vector<bool> requestedBlockMask(blockCount);
+
+    IChunkReader::TReadBlocksOptions readBlockOptions;
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
         std::vector<TFuture<std::vector<TBlock>>> futures;
 
@@ -402,19 +419,30 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
         for (int requestIndex = 0; requestIndex < requestInBatch; requestIndex++) {
             std::vector<int> blockIndexes;
-            int blockInRequestCount = std::max<int>(static_cast<ui64>(generator.Generate<int>()) % requestSize, 1);
+            int blockInRequestCount = std::max<int>(generator.Generate<ui64>() % requestSize, 1);
             for (int blockIndex = 0; blockIndex < blockInRequestCount; blockIndex++) {
                 if (sequentially) {
                     blockIndexes.push_back((requestIndex + blockIndex) % blockCount);
                 } else {
-                    blockIndexes.push_back(static_cast<ui64>(generator.Generate<int>()) % blockCount);
+                    blockIndexes.push_back(generator.Generate<ui64>() % blockCount);
                 }
             }
 
-            std::sort(blockIndexes.begin(), blockIndexes.end());
+            // Blocks may be requested in any order. Shuffle block indexes.
+            for (int index = 0; index < std::ssize(blockIndexes); ++index) {
+                std::swap(blockIndexes[index], blockIndexes[generator.Generate<ui64>() % (index + 1)]);
+            }
 
-            auto future = reader->ReadBlocks({}, blockIndexes)
-                .Apply(BIND([=] (std::vector<int> blockIndexes, const std::vector<TBlock>& returnedBlocks) {
+            for (int blockIndex : blockIndexes) {
+                maxBytesToRead += blocks[blockIndex].Size();
+                if (!requestedBlockMask[blockIndex]) {
+                    requestedBlockMask[blockIndex] = true;
+                    minBytesToRead += blocks[blockIndex].Size();
+                }
+            }
+
+            auto future = reader->ReadBlocks(readBlockOptions, blockIndexes)
+                .Apply(BIND([=] (const std::vector<TBlock>& returnedBlocks) {
                     EXPECT_EQ(blockIndexes.size(), returnedBlocks.size());
                     int index = 0;
                     for (const auto& block : returnedBlocks) {
@@ -422,13 +450,18 @@ TEST_P(TReplicationReaderTest, ReadTest)
                         index++;
                     }
                     return returnedBlocks;
-                }, Passed(std::move(blockIndexes))).AsyncVia(invoker));
+                }).AsyncVia(invoker));
             futures.push_back(std::move(future));
         }
 
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
     }
+
+    auto statistics = readBlockOptions.ClientOptions.ChunkReaderStatistics;
+
+    EXPECT_GE(statistics->DataBytesReadFromDisk, minBytesToRead);
+    EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
 
     pool->Shutdown();
     memoryTracker->ClearTrackers();
