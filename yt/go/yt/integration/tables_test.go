@@ -310,6 +310,32 @@ func TestHighLevelTableWriter(t *testing.T) {
 		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
 	})
 
+	t.Run("UnderTransaction", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		txClient, err := env.YT.BeginTx(env.Ctx, nil)
+		require.NoError(t, err)
+
+		w, err := yt.WriteTable(env.Ctx, txClient, tmpTableName)
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		tableExists, err := env.YT.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, err)
+		require.False(t, tableExists)
+
+		require.NoError(t, txClient.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+	})
+
 	t.Run("ExistingTable", func(t *testing.T) {
 		tmpTableName := tmpPath()
 
@@ -323,13 +349,45 @@ func TestHighLevelTableWriter(t *testing.T) {
 		checkTable(t, tmpTableName, 0, schema.Schema{Strict: ptr.Bool(false)})
 
 		const testSize = 1024
-		for i := 0; i < testSize; i++ {
+		const partSize = 512
+		for i := 0; i < partSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, partSize, schema.Schema{Strict: ptr.Bool(false)})
+
+		w, err = yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithExistingTable(), yt.WithAppend())
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		checkTable(t, tmpTableName, partSize, schema.Schema{Strict: ptr.Bool(false)})
+
+		for i := 0; i < partSize; i++ {
 			require.NoError(t, w.Write(exampleRow{"foo", 1}))
 		}
 
 		require.NoError(t, w.Commit())
 
 		checkTable(t, tmpTableName, testSize, schema.Schema{Strict: ptr.Bool(false)})
+	})
+
+	t.Run("AppendToNonExistingTable", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithAppend())
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
 	})
 
 	t.Run("RetryableWrite", func(t *testing.T) {

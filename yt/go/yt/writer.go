@@ -48,6 +48,13 @@ func WithExistingTable() WriteTableOption {
 	}
 }
 
+// WithAppend adds append attribute to write rows to the end of an existing table.
+func WithAppend() WriteTableOption {
+	return func(w *tableWriter) {
+		w.path.SetAppend()
+	}
+}
+
 // WithRetries allows to retry flushing several times in case of an error.
 func WithRetries(count uint64) WriteTableOption {
 	return func(w *tableWriter) {
@@ -69,7 +76,7 @@ type (
 
 	tableWriter struct {
 		ctx       context.Context
-		yc        Client
+		yc        CypressClient
 		rawWriter rawTableWriter
 		path      *ypath.Rich
 
@@ -178,13 +185,19 @@ var _ TableWriter = (*tableWriter)(nil)
 //
 // By default, WriteTable overrides existing table, automatically creating table with schema inferred
 // from the first row.
-func WriteTable(ctx context.Context, yc Client, path ypath.Path, opts ...WriteTableOption) (TableWriter, error) {
+func WriteTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...WriteTableOption) (TableWriter, error) {
 	w := &tableWriter{
 		ctx:        ctx,
 		yc:         yc,
 		batchSize:  defaultBatchSize,
 		retryCount: 0,
 		lazyCreate: true,
+	}
+
+	var err error
+	w.path, err = ypath.Parse(string(path))
+	if err != nil {
+		return nil, err
 	}
 
 	for _, opt := range opts {
@@ -200,12 +213,6 @@ func WriteTable(ctx context.Context, yc Client, path ypath.Path, opts ...WriteTa
 	var ok bool
 	if w.rawWriter, ok = yc.(rawTableWriter); !ok {
 		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteTable", yc)
-	}
-
-	var err error
-	w.path, err = ypath.Parse(string(path))
-	if err != nil {
-		return nil, err
 	}
 
 	w.initBuffer(false)
