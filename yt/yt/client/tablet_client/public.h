@@ -227,7 +227,8 @@ DEFINE_ENUM(ESecondaryIndexKind,
 );
 
 DEFINE_ENUM(ERowMergerType,
-    (Legacy)
+    ((Legacy)               (0))
+    ((New)                  (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
