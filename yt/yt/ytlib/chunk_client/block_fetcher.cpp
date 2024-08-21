@@ -355,19 +355,19 @@ void TBlockFetcher::DecompressBlocks(
                 Codec_->GetId());
         }
 
-        if (Config_->UseUncompressedBlockCache) {
-            BlockCache_->PutBlock(
-                blockId,
-                blockInfo.BlockType,
-                TBlock(uncompressedBlock));
-        }
-
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
         uncompressedBlock = TrackMemory(
             ChunkReadOptions_.MemoryUsageTracker,
             std::move(uncompressedBlock));
+
+        if (Config_->UseUncompressedBlockCache) {
+            BlockCache_->PutBlock(
+                blockId,
+                blockInfo.BlockType,
+                TBlock(uncompressedBlock));
+        }
 
         auto& windowSlot = Window_[windowIndex];
 
