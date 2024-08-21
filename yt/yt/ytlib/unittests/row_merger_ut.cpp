@@ -545,7 +545,6 @@ public:
             currentTimestamp,
             majorTimestamp,
             evaluator,
-            false,
             mergeRowsOnFlush,
             true,
             mergeDeletionsOnFlush);

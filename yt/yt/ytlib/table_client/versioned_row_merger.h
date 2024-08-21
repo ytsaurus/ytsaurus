@@ -19,7 +19,7 @@ struct IVersionedRowMerger
 
     virtual void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit = MaxTimestamp) = 0;
 
-    virtual TMutableVersionedRow BuildMergedRow() = 0;
+    virtual TMutableVersionedRow BuildMergedRow(bool produceEmptyRow = false) = 0;
 
     virtual void Reset() = 0;
 };
@@ -35,7 +35,6 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-    bool lookup,
     bool mergeRowsOnFlush,
     std::optional<int> ttlColumnIndex = std::nullopt,
     bool mergeDeletionsOnFlush = false);
@@ -51,7 +50,6 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-    bool lookup,
     bool mergeRowsOnFlush,
     bool useTtlColumn = false,
     bool mergeDeletionsOnFlush = false);

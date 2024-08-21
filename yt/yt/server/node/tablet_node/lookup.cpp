@@ -156,7 +156,6 @@ protected:
             timestampRange.Timestamp,
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
-            /*lookup*/ true,
             /*mergeRowsOnFlush*/ false))
     { }
 
@@ -273,7 +272,6 @@ protected:
             GetCompactionTimestamp(tabletSnapshot->Settings.MountConfig, RetainedTimestamp_, Logger),
             MaxTimestamp, // Do not consider major timestamp.
             tabletSnapshot->ColumnEvaluator,
-            /*lookup*/ true, // Do not produce sentinel rows.
             /*mergeRowsOnFlush*/ true)) // Always merge rows on flush.
     { }
 
@@ -435,7 +433,7 @@ protected:
         // For cached rows use simple CacheMerger_ which merges rows into one without compaction.
 
         auto mergedRow = IsLookupInChunkNeeded(CurrentRowIndex_)
-            ? CacheRowMerger_->BuildMergedRow()
+            ? CacheRowMerger_->BuildMergedRow(true)
             : SimpleRowMerger_.BuildMergedRow(RowBuffer_);
 
         ++CurrentRowIndex_;

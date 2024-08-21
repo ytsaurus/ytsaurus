@@ -1211,7 +1211,6 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
-        /*lookup*/ false,
         /*mergeRowsOnFlush*/ false,
         /*useTtlColumn*/ true);
 
