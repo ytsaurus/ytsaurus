@@ -423,7 +423,7 @@ private:
             YT_LOG_DEBUG("Requesting snapshot list from remote store (Path: %v)", path);
             auto rspOrError = WaitFor(Client_->ListNode(path));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING("Couldn`t resolve list request (Path: %v)", path);
+                YT_LOG_DEBUG("Could not resolve list request (Path: %v)", path);
                 return;
             }
             YT_LOG_DEBUG("Snapshot list received");
