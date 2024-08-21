@@ -117,8 +117,6 @@ RESOURCE(
     ${CURDIR}/files/stderr_download.py /yt_python_test/files/stderr_download.py
     ${CURDIR}/files/main_interrupted_by_ping_failed.py /yt_python_test/files/main_interrupted_by_ping_failed.py
     ${CURDIR}/files/yt_test_lib.cpp /yt_python_test/files/yt_test_lib.cpp
-    ${CURDIR}/test_mapreduce.sh /yt_python_test/test_mapreduce.sh
-    ${CURDIR}/test_yt.sh /yt_python_test/test_yt.sh
 
     yt/python/yt/wrapper/bin/yt /binaries/yt
     yt/python/yt/wrapper/bin/mapreduce-yt /binaries/mapreduce-yt
@@ -140,6 +138,7 @@ ENDIF()
 
 TEST_SRCS(
     __init__.py
+    helpers_cli.py
     conftest.py
     helpers.py
     test_acl_commands.py
@@ -162,6 +161,7 @@ TEST_SRCS(
     test_job_commands.py
     test_job_tool.py
     test_jupyter.py
+    test_mapreduce.py
     test_misc.py
     test_module.py
     test_operations.py
@@ -176,6 +176,7 @@ TEST_SRCS(
     test_table_commands.py
     test_user_statistics.py
     test_yamr_mode.py
+    test_yt_cli.py
 )
 
 END()
