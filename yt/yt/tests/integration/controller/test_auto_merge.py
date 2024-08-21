@@ -9,7 +9,7 @@ from yt_commands import (
 
 from yt_type_helpers import normalize_schema, make_schema
 
-from yt.common import YtError, update_inplace
+from yt.common import YtError, update
 
 import yt.yson as yson
 
@@ -65,14 +65,12 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
         for op_type in ["map", "reduce"]:
-            update_inplace(config, {
-                "controller_agent": {
-                    op_type + "_operation_options": {
-                        "spec_template": {
-                            "auto_merge": {
-                                "shallow_merge_min_data_weight_per_chunk": 0,
-                                "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
-                            },
+            config["controller_agent"] = update(config.get('controller_agent'), {
+                op_type + "_operation_options": {
+                    "spec_template": {
+                        "auto_merge": {
+                            "shallow_merge_min_data_weight_per_chunk": 0,
+                            "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
                         },
                     },
                 },
