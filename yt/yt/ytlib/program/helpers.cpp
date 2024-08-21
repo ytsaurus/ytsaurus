@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 namespace NYT {
@@ -14,6 +16,8 @@ namespace NYT {
 
 void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config)
 {
+    NLogging::RegisterDynamicTableLogWriterFactory();
+
     ConfigureSingletons(static_cast<TSingletonsConfigPtr>(config));
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);

@@ -642,6 +642,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api

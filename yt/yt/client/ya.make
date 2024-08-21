@@ -211,6 +211,7 @@ RECURSE(
     driver
     federated
     hedging
+    logging
 )
 
 RECURSE_FOR_TESTS(
