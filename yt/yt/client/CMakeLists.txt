@@ -15,6 +15,7 @@
 find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(query_tracker_client)
+add_subdirectory(logging)
 add_subdirectory(formats)
 add_subdirectory(arrow)
 add_subdirectory(table_client)

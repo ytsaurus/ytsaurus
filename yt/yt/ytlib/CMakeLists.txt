@@ -129,6 +129,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-logging
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api
@@ -1418,6 +1419,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-logging
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api

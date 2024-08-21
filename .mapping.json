@@ -833,6 +833,7 @@
   "yt/yt/client/formats/CMakeLists.txt":"",
   "yt/yt/client/hedging/CMakeLists.txt":"",
   "yt/yt/client/hedging/unittests/CMakeLists.txt":"",
+  "yt/yt/client/logging/CMakeLists.txt":"",
   "yt/yt/client/query_tracker_client/CMakeLists.txt":"",
   "yt/yt/client/table_client/CMakeLists.txt":"",
   "yt/yt/client/table_client/unittests/CMakeLists.txt":"",
