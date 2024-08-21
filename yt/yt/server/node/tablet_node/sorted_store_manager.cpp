@@ -755,8 +755,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto onFlushRowMerger = CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
-            tabletSnapshot->QuerySchema->GetColumnCount(),
-            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            tabletSnapshot->QuerySchema,
             TColumnFilter(),
             mountConfig,
             currentTimestamp,
@@ -764,7 +763,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
-            tabletSnapshot->QuerySchema->GetTtlColumnIndex(),
+            /*useTtlColumn*/ true,
             /*mergeDeletionsOnFlush*/ mountConfig->MergeDeletionsOnFlush);
 
         auto unflushedTimestamp = MaxTimestamp;
@@ -780,8 +779,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto compactionRowMerger = CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
-            tabletSnapshot->QuerySchema->GetColumnCount(),
-            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            tabletSnapshot->QuerySchema,
             TColumnFilter(),
             mountConfig,
             currentTimestamp,

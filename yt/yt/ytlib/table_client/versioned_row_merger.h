@@ -45,8 +45,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NTabletClient::ERowMergerType rowMergerType,
     TRowBufferPtr rowBuffer,
-    int columnCount,
-    int keyColumnCount,
+    TTableSchemaPtr tableSchema,
     const TColumnFilter& columnFilter,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
@@ -54,7 +53,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
-    std::optional<int> ttlColumnIndex = std::nullopt,
+    bool useTtlColumn = false,
     bool mergeDeletionsOnFlush = false);
 
 ////////////////////////////////////////////////////////////////////////////////

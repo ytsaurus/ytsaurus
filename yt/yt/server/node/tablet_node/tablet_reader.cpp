@@ -1205,8 +1205,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     auto rowMerger = CreateVersionedRowMerger(
         mountConfig->RowMergerType,
         New<TRowBuffer>(TTabletReaderPoolTag()),
-        tabletSnapshot->QuerySchema->GetColumnCount(),
-        tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema,
         TColumnFilter(),
         mountConfig,
         currentTimestamp,
@@ -1214,7 +1213,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         tabletSnapshot->ColumnEvaluator,
         /*lookup*/ false,
         /*mergeRowsOnFlush*/ false,
-        tabletSnapshot->QuerySchema->GetTtlColumnIndex());
+        /*useTtlColumn*/ true);
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());

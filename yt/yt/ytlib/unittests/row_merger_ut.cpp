@@ -533,11 +533,13 @@ public:
         bool mergeRowsOnFlush = false,
         bool mergeDeletionsOnFlush  = false)
     {
-        auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return CreateLegacyVersionedRowMerger(
+        auto schemaPtr = GetKeyedSchema(schema, 1);
+        auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+        return CreateVersionedRowMerger(
+            ERowMergerType::Legacy,
             MergedRowBuffer_,
-            schema.GetColumnCount(),
-            1,
+            std::move(schemaPtr),
             columnFilter,
             config,
             currentTimestamp,
@@ -545,7 +547,7 @@ public:
             evaluator,
             false,
             mergeRowsOnFlush,
-            schema.GetTtlColumnIndex(),
+            true,
             mergeDeletionsOnFlush);
     }
 

@@ -150,8 +150,7 @@ protected:
         : Merger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             New<TRowBuffer>(TLookupSessionBufferTag()),
-            tabletSnapshot->PhysicalSchema->GetColumnCount(),
-            tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
+            tabletSnapshot->PhysicalSchema,
             columnFilter,
             retentionConfig,
             timestampRange.Timestamp,
@@ -268,8 +267,7 @@ protected:
         , CacheRowMerger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             RowBuffer_,
-            tabletSnapshot->PhysicalSchema->GetColumnCount(),
-            tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
+            tabletSnapshot->PhysicalSchema,
             TColumnFilter::MakeUniversal(),
             tabletSnapshot->Settings.MountConfig,
             GetCompactionTimestamp(tabletSnapshot->Settings.MountConfig, RetainedTimestamp_, Logger),

@@ -477,8 +477,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     ERowMergerType rowMergerType,
     TRowBufferPtr rowBuffer,
-    int columnCount,
-    int keyColumnCount,
+    TTableSchemaPtr tableSchema,
     const TColumnFilter& columnFilter,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
@@ -486,23 +485,23 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
-    std::optional<int> ttlColumnIndex,
+    bool useTtlColumn,
     bool mergeDeletionsOnFlush)
 {
     switch (rowMergerType) {
         case ERowMergerType::Legacy:
             return CreateLegacyVersionedRowMerger(
-                rowBuffer,
-                columnCount,
-                keyColumnCount,
+                std::move(rowBuffer),
+                tableSchema->GetColumnCount(),
+                tableSchema->GetKeyColumnCount(),
                 columnFilter,
-                config,
+                std::move(config),
                 currentTimestamp,
                 majorTimestamp,
-                columnEvaluator,
+                std::move(columnEvaluator),
                 lookup,
                 mergeRowsOnFlush,
-                ttlColumnIndex,
+                useTtlColumn ? tableSchema->GetTtlColumnIndex() : std::nullopt,
                 mergeDeletionsOnFlush);
         default:
             YT_ABORT();
