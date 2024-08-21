@@ -100,7 +100,8 @@ private:
             rowBuffer,
             columnCount,
             keyColumnCount,
-            ColumnEvaluator_);
+            ColumnEvaluator_,
+            GetNestedColumnsSchema(TableSchema_));
 
         bool hasSharedWriteLocks = false;
 

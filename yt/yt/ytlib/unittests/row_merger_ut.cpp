@@ -20,6 +20,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/client/tablet_client/watermark_runtime_data.h>
 
@@ -2174,6 +2175,138 @@ TEST_P(TVersionedRowMergerTest, MergeWithLimit)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0", "<id=1;ts=10>1;<id=1;ts=15>3", {12, 17})},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, MergeNestedColumns1)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataTtl = TDuration::Minutes(5);
+    config->MinDataVersions = 1;
+
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+        TColumnSchema("nk", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
+            .SetAggregate("nested_value(n)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto merger = CreateVersionedRowMerger(
+        ERowMergerType::New,
+        MergedRowBuffer_,
+        std::move(schemaPtr),
+        TColumnFilter(),
+        config,
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        evaluator,
+        {},
+        /*mergeRowsOnFlush*/ false,
+        /*useTtlColumn*/ false,
+        /*mergeDeletionsOnFlush*/ false);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10>1; <id=2;ts=10;aggregate=true>[1; 2]; <id=3;ts=10;aggregate=true>[10; 20]; <id=4;ts=10;aggregate=true>[a; b]"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20>2; <id=2;ts=20;aggregate=true>[2; 3]; <id=3;ts=20;aggregate=true>[20; 30]; <id=4;ts=20;aggregate=true>[c; d]"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "<id=1;ts=20>2;<id=2;ts=20;aggregate=true>[1; 2; 3]; <id=3;ts=20;aggregate=true>[10; 40; 30]; <id=4;ts=20;aggregate=true>[a; c; d]")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, MergeNestedColumns2)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataTtl = TDuration::Minutes(5);
+    config->MinDataVersions = 1;
+
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+        TColumnSchema("nk1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nk2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
+            .SetAggregate("nested_value(n)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto merger = CreateVersionedRowMerger(
+        ERowMergerType::New,
+        MergedRowBuffer_,
+        std::move(schemaPtr),
+        TColumnFilter(),
+        config,
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        evaluator,
+        {},
+        /*mergeRowsOnFlush*/ false,
+        /*useTtlColumn*/ false,
+        /*mergeDeletionsOnFlush*/ false);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10>1; <id=2;ts=10;aggregate=true>[1; 1; 2; 2]; <id=3;ts=10;aggregate=true>[1; 2; 1; 2]; <id=4;ts=10;aggregate=true>[10; 20; 30; 40]; <id=5;ts=10;aggregate=true>[a; b; c; d]"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20>2; <id=2;ts=20;aggregate=true>[1; 2; 2; 3]; <id=3;ts=20;aggregate=true>[2; 2; 3; 1];<id=4;ts=20;aggregate=true>[1; 2; 3; 4]; <id=5;ts=20;aggregate=true>[e; f; g; h]"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "<id=1;ts=20>2;<id=2;ts=20;aggregate=true>[1; 1; 2; 2; 2; 3]; <id=3;ts=20;aggregate=true>[1; 2; 1; 2; 3; 1]; <id=4;ts=20;aggregate=true>[10; 21; 30; 42; 3; 4]; <id=5;ts=20;aggregate=true>[a; e; c; f; g; h]")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, MergeNestedColumns3)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataTtl = TDuration::Minutes(5);
+    config->MinDataVersions = 1;
+
+
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64).SetAggregate("sum"),
+        TColumnSchema("nk", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv2", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))))
+            .SetAggregate("nested_value(n, sum)")
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto merger = CreateVersionedRowMerger(
+        ERowMergerType::New,
+        MergedRowBuffer_,
+        std::move(schemaPtr),
+        TColumnFilter(),
+        config,
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        evaluator,
+        {},
+        /*mergeRowsOnFlush*/ false,
+        /*useTtlColumn*/ false,
+        /*mergeDeletionsOnFlush*/ false);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10;aggregate=true>1; <id=2;ts=10;aggregate=true>[1]; <id=3;ts=10;aggregate=true>[10]"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20;aggregate=true>2; <id=2;ts=20;aggregate=true>[2]; <id=4;ts=20;aggregate=true>[20]"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "<id=1;ts=20;aggregate=true>3;<id=2;ts=20;aggregate=true>[1;2]; <id=3;ts=20;aggregate=true>[10;#]; <id=4;ts=20;aggregate=true>[#;20]")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 

@@ -13,7 +13,7 @@ from yt_commands import (
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
     get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id,
-    set_node_banned)
+    set_node_banned, sorted_dicts)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 import yt_error_codes
@@ -3168,6 +3168,48 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
         wait(lambda: get("#{0}/@mode".format(replica_id)) == "sync")
+
+    @authors("lukyan")
+    def test_nested_columns(self):
+        self._create_cells()
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64", "aggregate": "sum"},
+            {"name": "v2", "type": "int64", "aggregate": "sum"},
+            {"name": "nk1", "type_v3": {"type_name": "list", "item": "int64"}, "aggregate": "nested_key(n)"},
+            {"name": "nk2", "type_v3": {"type_name": "list", "item": "int64"}, "aggregate": "nested_key(n)"},
+            {"name": "nv1", "type_v3": {"type_name": "list", "item": "int64"}, "aggregate": "nested_value(n, sum)"},
+            {"name": "nv2", "type_v3": {"type_name": "list", "item": "int64"}, "aggregate": "nested_value(n, sum)"},
+        ]
+
+        self._create_replicated_table("//tmp/t", schema)
+
+        replica_id1 = create_table_replica(
+            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=schema)
+        sync_enable_table_replica(replica_id1)
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+            ]
+        )
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+            ],
+            aggregate=True
+        )
+
+        expected = [
+            {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nk2": [10, 20, 30], "nv1": [100, 400, 300], "nv2": [1000, 4000, 3000]},
+        ]
+        actual = select_rows("k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [//tmp/t]")
+        assert sorted_dicts(actual) == sorted_dicts(expected)
 
 
 ##################################################################
