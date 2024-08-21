@@ -31,7 +31,7 @@ void TChunkScannerWithPayload<TPayload>::Stop(int shardIndex)
 }
 
 template <class TPayload>
-bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk)
+bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
 {
     if (!IsRelevant(GetChunk(chunk))) {
         return false;
@@ -42,16 +42,30 @@ bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk)
     }
     SetScanFlag(GetChunk(chunk));
 
+    auto instant = GetCpuInstant();
+    RequeueDelayedChunks(instant);
+
+    TQueueEntry queueEntry;
     if constexpr (WithPayload) {
-        Queue_.push({
+        queueEntry = {
             .Chunk = NObjectServer::TEphemeralObjectPtr<TChunk>(chunk.Chunk),
             .Payload = std::move(chunk.Payload),
-            .Instant = GetCpuInstant(),
-        });
+            .Instant = instant,
+        };
     } else {
-        Queue_.push({
+        queueEntry = {
             .Chunk = NObjectServer::TEphemeralObjectPtr<TChunk>(chunk),
-            .Instant = GetCpuInstant(),
+            .Instant = instant,
+        };
+    }
+
+    if (!delay) {
+        Queue_.push(std::move(queueEntry));
+    } else {
+        delay = std::min(*delay, MaxEnqueueChunkDelay_);
+        DelayedQueue_.push({
+            .QueueEntry = std::move(queueEntry),
+            .Deadline = instant + *delay,
         });
     }
 
@@ -64,6 +78,8 @@ auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
     if (TBase::HasUnscannedChunk()) {
         return WithoutPayload(TGlobalChunkScanner::DequeueChunk());
     }
+
+    RequeueDelayedChunks(GetCpuInstant());
 
     if (Queue_.empty()) {
         return None();
@@ -101,14 +117,29 @@ auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
 }
 
 template <class TPayload>
+void TChunkScannerWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpuInstant deadline)
+{
+    while (!DelayedQueue_.empty() && DelayedQueue_.front().Deadline < deadline) {
+        auto queueEntry = std::move(DelayedQueue_.front().QueueEntry);
+        queueEntry.Instant = DelayedQueue_.front().Deadline;
+        DelayedQueue_.pop();
+        Queue_.push(std::move(queueEntry));
+    }
+}
+
+template <class TPayload>
 bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
     if (TBase::HasUnscannedChunk(deadline)) {
         return true;
     }
 
-    if (!Queue_.empty() && Queue_.front().Instant < deadline) {
-        return true;
+    if (!Queue_.empty()) {
+        return Queue_.front().Instant < deadline;
+    }
+
+    if (!DelayedQueue_.empty()) {
+        return DelayedQueue_.front().Deadline < deadline;
     }
 
     return false;
@@ -117,7 +148,7 @@ bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInsta
 template <class TPayload>
 int TChunkScannerWithPayload<TPayload>::GetQueueSize() const
 {
-    return std::ssize(Queue_) + TBase::GetQueueSize();
+    return std::ssize(Queue_) + std::ssize(DelayedQueue_) + TBase::GetQueueSize();
 }
 
 template <class TPayload>

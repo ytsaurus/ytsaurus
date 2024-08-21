@@ -1114,6 +1114,10 @@ private:
                 .Run())
             .ValueOrThrow();
 
+        if (auto delay = Config_->DelayBeforeFullHeartbeatReport) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
+
         YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
             req->statistics());
@@ -1392,11 +1396,18 @@ private:
         mediumUpdater->UpdateLocationMedia(response.medium_overrides());
     }
 
+    TDataNodeDynamicConfigPtr GetNodeDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode;
+    }
+
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector;
+        return GetNodeDynamicConfig()->MasterConnector;
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

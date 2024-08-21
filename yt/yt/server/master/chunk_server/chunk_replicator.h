@@ -88,7 +88,7 @@ public:
         TChunkPtrWithReplicaIndex chunkWithIndexes,
         ERemoveReplicaReason reason);
 
-    void ScheduleChunkRefresh(TChunk* chunk);
+    void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {});
     void ScheduleNodeRefresh(TNode* node);
     void ScheduleNodeRefreshSequoia(TNodeId nodeId);
     void ScheduleGlobalChunkRefresh();

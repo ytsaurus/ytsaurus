@@ -160,8 +160,12 @@ public:
      *  If the chunk belongs to a shard which is not scanned, does nothing and returns |false|.
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
+     *
+     *  If #delay is specified, the chunk appears in the queue after this delay.
+     *  The resulting timepoints of delay expiration are expected to be chronologically ordered.
+     *  In case of timepoint collision, the FIFO order is preserved.
      */
-    bool EnqueueChunk(TQueuedChunk chunk);
+    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
 
     //! Tries to dequeue the next chunk.
     /*!
@@ -198,8 +202,18 @@ private:
     };
 
     using TQueueEntry = std::conditional_t<WithPayload, TQueueEntryWithPayload, TQueueEntryWithoutPayload>;
-
     std::queue<TQueueEntry> Queue_;
+
+    struct TDelayedQueueEntry
+    {
+        TQueueEntry QueueEntry;
+        NProfiling::TCpuInstant Deadline;
+    };
+    std::queue<TDelayedQueueEntry> DelayedQueue_;
+
+    TCpuDuration MaxEnqueueChunkDelay_ = DurationToCpuDuration(TDuration::Minutes(60));
+
+    void RequeueDelayedChunks(NProfiling::TCpuInstant deadline);
 
     static constexpr TQueuedChunk None() noexcept;
     static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
