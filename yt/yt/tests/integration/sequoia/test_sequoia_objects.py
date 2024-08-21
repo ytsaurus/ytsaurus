@@ -60,6 +60,7 @@ class TestSequoiaReplicas(YTEnvSetup):
             "enable": False
         },
         "chunk_manager": {
+            "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True
@@ -315,6 +316,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//sys/@config/chunk_manager/replica_approve_timeout", 0)
         assert len(get("#{}/@unapproved_sequoia_replicas".format(chunk_id))) == 0
 
+        set("//sys/@config/chunk_manager/replica_approve_timeout", 5000)
+
         set("{}/@mount_config/min_data_versions".format(unapproved_replicas_path), 0, driver=ground_driver)
 
         remove("//tmp/t")
@@ -327,6 +330,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             "enable": False
         },
         "chunk_manager": {
+            "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
