@@ -6,13 +6,15 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TEmaCounter::TWindowDurations WindowDurations;
+constexpr int WindowCount = 3;
+
+extern const TEmaCounterWindowDurations<WindowCount> WindowDurations;
 
 //! A couple of EMA counters either for reading or writing.
 struct TPerformanceCounters
 {
-    TEmaCounter RowCount = TEmaCounter(WindowDurations);
-    TEmaCounter DataWeight = TEmaCounter(WindowDurations);
+    TEmaCounter<i64, WindowCount> RowCount{WindowDurations};
+    TEmaCounter<i64, WindowCount> DataWeight{WindowDurations};
 };
 
 TPerformanceCounters& operator +=(TPerformanceCounters& lhs, const TPerformanceCounters& rhs);

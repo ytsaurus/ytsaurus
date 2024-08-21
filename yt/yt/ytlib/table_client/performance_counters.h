@@ -11,7 +11,7 @@ namespace NYT::NTableClient {
 struct TPerformanceCountersEma
 {
     std::atomic<i64> Counter;
-    TEmaCounter Ema{TEmaCounter::TWindowDurations{
+    TEmaCounter<i64> Ema{TEmaCounterWindowDurations<>{
         TDuration::Minutes(10),
         TDuration::Hours(1),
     }};
@@ -19,7 +19,7 @@ struct TPerformanceCountersEma
     void UpdateEma();
 };
 
-static_assert(sizeof(TEmaCounter) >= 64 - 8, "Consider adding alignment in TPerformanceCountersEma to avoid false sharing.");
+static_assert(sizeof(TEmaCounter<i64>) >= 64 - 8, "Consider adding alignment in TPerformanceCountersEma to avoid false sharing.");
 
 ////////////////////////////////////////////////////////////////////////////////
 

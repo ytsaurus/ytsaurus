@@ -193,7 +193,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error_code.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ema_counter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hazard_ptr.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hedging_manager.cpp

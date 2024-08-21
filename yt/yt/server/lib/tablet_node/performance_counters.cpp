@@ -6,7 +6,7 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEmaCounter::TWindowDurations TTabletPerformanceCounters::TabletPerformanceWindowDurations = {
+const TEmaCounterWindowDurations<> TTabletPerformanceCounters::TabletPerformanceWindowDurations = {
     TDuration::Minutes(10),
     TDuration::Hours(1),
 };
