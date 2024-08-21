@@ -87,14 +87,14 @@ private:
             "overlapping_store_count"
         };
 
-        static const THashMap<TString, TEmaCounter TTabletPerformanceCounters::*> performanceCounterFields = {
+        static const THashMap<TString, TEmaCounter<i64> TTabletPerformanceCounters::*> performanceCounterFields = {
             #define XX(name, Name) \
                 {#name, &TTabletPerformanceCounters::Name},
                 ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
         };
 
-        std::vector<TEmaCounter TTabletPerformanceCounters::*> requestedFields;
+        std::vector<TEmaCounter<i64> TTabletPerformanceCounters::*> requestedFields;
         for (const auto& counter : requestedPerformanceCounters) {
             if (auto it = performanceCounterFields.find(counter); it != performanceCounterFields.end()) {
                 requestedFields.push_back(it->second);
@@ -137,7 +137,7 @@ private:
         };
 
         auto fillPerformanceCounters = [] (
-            const std::vector<TEmaCounter TTabletPerformanceCounters::*>& requestedFields,
+            const std::vector<TEmaCounter<i64> TTabletPerformanceCounters::*>& requestedFields,
             const TTabletPerformanceCounters& performanceCounters,
             auto* protoPerformanceCounters)
         {
