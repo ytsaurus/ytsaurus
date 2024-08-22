@@ -2544,6 +2544,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        YT_LOG_DEBUG("Calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+
         auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
         TMemoryDistribution result;
@@ -2552,6 +2554,9 @@ private:
                 ++result[RoundUp<i64>(descriptor->ResourceLimits.GetMemory(), 1_GB)];
             }
         }
+
+        YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+
         return result;
     }
 
