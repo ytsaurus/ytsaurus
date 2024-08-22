@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-core INTERFACE)
 
 
+target_compile_options(restricted-boost-core INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
 target_include_directories(restricted-boost-core INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/core/include
 )

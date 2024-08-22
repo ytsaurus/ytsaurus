@@ -24,6 +24,14 @@ get_built_tool_path(
 add_library(query-unittests-udf INTERFACE)
 
 
+target_compile_options(query-unittests-udf INTERFACE
+  -Wdeprecated-this-capture
+)
+
+target_include_directories(query-unittests-udf INTERFACE
+  ${PROJECT_SOURCE_DIR}/yt
+)
+
 target_link_libraries(query-unittests-udf INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

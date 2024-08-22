@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(library-query-row_comparer INTERFACE)
 
 
+target_compile_options(library-query-row_comparer INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(library-query-row_comparer INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

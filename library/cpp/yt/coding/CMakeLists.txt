@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(cpp-yt-coding INTERFACE)
 
 
+target_compile_options(cpp-yt-coding INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(cpp-yt-coding INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

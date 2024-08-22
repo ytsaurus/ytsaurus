@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-smart_ptr INTERFACE)
 
 
+target_compile_options(restricted-boost-smart_ptr INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
 target_include_directories(restricted-boost-smart_ptr INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/smart_ptr/include
 )

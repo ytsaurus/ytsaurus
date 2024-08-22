@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(contrib-restricted-fast_float INTERFACE)
 
 
+target_compile_options(contrib-restricted-fast_float INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
 target_link_libraries(contrib-restricted-fast_float INTERFACE
   linux-headers-generic::linux-headers-generic
 )

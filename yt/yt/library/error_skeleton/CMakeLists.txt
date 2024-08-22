@@ -19,6 +19,10 @@ add_subdirectory(unittests)
 add_library(yt-library-error_skeleton INTERFACE)
 
 
+target_compile_options(yt-library-error_skeleton INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(yt-library-error_skeleton INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(yt-library-safe_assert INTERFACE)
 
 
+target_compile_options(yt-library-safe_assert INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(yt-library-safe_assert INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

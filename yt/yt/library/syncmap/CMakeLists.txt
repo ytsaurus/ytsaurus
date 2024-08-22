@@ -19,6 +19,10 @@ add_subdirectory(unittests)
 add_library(yt-library-syncmap INTERFACE)
 
 
+target_compile_options(yt-library-syncmap INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(yt-library-syncmap INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

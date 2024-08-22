@@ -60,6 +60,10 @@ add_subdirectory(alert_manager)
 add_library(ytserver INTERFACE)
 
 
+target_compile_options(ytserver INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(ytserver INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

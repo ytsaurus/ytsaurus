@@ -19,6 +19,10 @@ add_subdirectory(unittests)
 add_library(library-numeric-serialize INTERFACE)
 
 
+target_compile_options(library-numeric-serialize INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(library-numeric-serialize INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

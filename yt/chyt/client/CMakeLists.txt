@@ -19,6 +19,10 @@ add_subdirectory(protos)
 add_library(yt-chyt-client INTERFACE)
 
 
+target_compile_options(yt-chyt-client INTERFACE
+  -Wdeprecated-this-capture
+)
+
 target_link_libraries(yt-chyt-client INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

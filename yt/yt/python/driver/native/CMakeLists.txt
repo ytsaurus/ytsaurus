@@ -21,6 +21,13 @@ find_package(Python3 REQUIRED COMPONENTS
 add_library(python-driver-native INTERFACE)
 
 
+target_compile_options(python-driver-native INTERFACE
+  -DPYCXX_PYTHON_2TO3
+  -DPYCXX_6_2_COMPATIBILITY
+  -DPy_LIMITED_API=0x03040000
+  -Wno-register
+)
+
 target_link_libraries(python-driver-native INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp

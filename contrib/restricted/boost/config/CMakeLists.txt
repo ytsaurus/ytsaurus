@@ -21,6 +21,10 @@ target_compile_options(restricted-boost-config INTERFACE
   -DBOOST_ALL_NO_LIB
 )
 
+target_compile_options(restricted-boost-config INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
 target_include_directories(restricted-boost-config INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/config/include
 )

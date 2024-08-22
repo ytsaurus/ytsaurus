@@ -21,6 +21,13 @@ find_package(Python3 REQUIRED COMPONENTS
 add_library(python-yson-arrow INTERFACE)
 
 
+target_compile_options(python-yson-arrow INTERFACE
+  -DPYCXX_PYTHON_2TO3
+  -DPYCXX_6_2_COMPATIBILITY
+  -DPy_LIMITED_API=0x03040000
+  -Wno-register
+)
+
 target_include_directories(python-yson-arrow INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
