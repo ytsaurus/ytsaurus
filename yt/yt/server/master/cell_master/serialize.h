@@ -262,6 +262,8 @@ DEFINE_ENUM(EMasterReign,
     ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
     ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
     ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
+    ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
+    // 24.2 starts here.
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

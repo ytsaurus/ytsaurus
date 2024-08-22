@@ -12,6 +12,8 @@
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -76,7 +78,7 @@ public:
 
                 snapshot.Collocations.push_back(TTableCollocationData{
                     .Id = collocation->GetId(),
-                    .TableIds = collocation->GetReplicationCardIds()
+                    .TableIds = collocation->GetReplicationCardIds(),
                 });
             }
 

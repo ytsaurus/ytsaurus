@@ -2307,6 +2307,14 @@ private:
         Save(context, QueueProducers_);
     }
 
+    void UpdateReplicationCollocationOptions(
+        TTableCollocation* collocation,
+        NTabletClient::TReplicationCollocationOptionsPtr options) override
+    {
+        collocation->ReplicationCollocationOptions() = std::move(options);
+        OnReplicationCollocationCreated(collocation);
+    }
+
     void OnReplicationCollocationCreated(TTableCollocation* collocation)
     {
         std::vector<TTableId> tableIds;
@@ -2320,6 +2328,7 @@ private:
             ReplicationCollocationCreated_.Fire(TTableCollocationData{
                 .Id = collocation->GetId(),
                 .TableIds = std::move(tableIds),
+                .Options = collocation->ReplicationCollocationOptions(),
             });
         }
     }
