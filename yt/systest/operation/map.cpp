@@ -42,7 +42,7 @@ void TSetSeedRowMapper::ToProto(NProto::TRowMapper* proto) const
     operationProto->set_this_seed(ThisSeed_);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TIdentityRowMapper::TIdentityRowMapper(const TTable& input, std::vector<int> indices)
     : IRowMapper(input)
@@ -91,7 +91,7 @@ std::vector<TNode> TIdentityRowMapper::Run(TCallState* /*state*/, TRange<TNode> 
     return std::vector<TNode>(input.begin(), input.end());
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, TDataColumn output)
     : IRowMapper(input)
@@ -175,7 +175,7 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TConcatenateColumnsRowMapper::TConcatenateColumnsRowMapper(const TTable& input, std::vector<std::unique_ptr<IRowMapper>> operations)
     : IRowMapper(input)
@@ -263,7 +263,7 @@ bool TConcatenateColumnsRowMapper::Alterable() const
     return true;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TDecorateWithDeletedColumnRowMapper::TDecorateWithDeletedColumnRowMapper(
     const TTable& input,
