@@ -2285,7 +2285,7 @@ private:
     {
         ReplicatedTableCreated_.Fire(TReplicatedTableData{
             .Id = replicationCard->GetId(),
-            .Options = replicationCard->GetReplicatedTableOptions()
+            .Options = replicationCard->GetReplicatedTableOptions(),
         });
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {

@@ -1910,7 +1910,7 @@ private:
             EmplaceOrCrash(*table->GetReplicaIds(), replicaId);
         }
 
-        for (const auto& collocationData : snapshot.Collocations) {
+        for (auto& collocationData : snapshot.Collocations) {
             auto collocationId = collocationData.Id;
             YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
@@ -1921,6 +1921,8 @@ private:
                     table->SetCollocationId(collocationId);
                 }
             }
+            YT_VERIFY(collocationData.Options);
+            it->second.Options = std::move(collocationData.Options);
         }
     }
 
