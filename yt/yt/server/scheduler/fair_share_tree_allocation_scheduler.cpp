@@ -3774,6 +3774,8 @@ void TFairShareTreeAllocationScheduler::UpdateCachedAllocationPreemptionStatuses
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
     TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
+    YT_LOG_DEBUG("Updating cached allocation preemption statuses");
+
     auto allocationPreemptionStatuses = New<TRefCountedAllocationPreemptionStatusMapPerOperation>();
     auto collectAllocationPreemptionStatuses = [&] (const auto& operationMap) {
         for (const auto& [operationId, operationElement] : operationMap) {
@@ -3792,6 +3794,8 @@ void TFairShareTreeAllocationScheduler::UpdateCachedAllocationPreemptionStatuses
         .Value = std::move(allocationPreemptionStatuses),
         .UpdateTime = fairSharePostUpdateContext->Now,
     };
+
+    YT_LOG_DEBUG("Finished updating cached allocation preemption statuses");
 }
 
 void TFairShareTreeAllocationScheduler::ComputeOperationSchedulingIndexes(
