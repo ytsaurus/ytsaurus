@@ -8,6 +8,7 @@ SRCS(
     dynamic_table_block_device.cpp
     memory_block_device.cpp
     profiler.cpp
+    random_access_file_reader.cpp
     server.cpp
 )
 
