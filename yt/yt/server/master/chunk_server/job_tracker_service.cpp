@@ -64,14 +64,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         ValidateClusterInitialized();
-
         ValidatePeer(EPeerKind::LeaderOrFollower);
-
-        if (!request->reports_heartbeats_to_all_peers()) {
-            YT_LOG_ALERT("Node does not report heartbeats to all peers "
-                "(NodeId: %v)",
-                request->node_id());
-        }
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
