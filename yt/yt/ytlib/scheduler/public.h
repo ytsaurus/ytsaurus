@@ -162,7 +162,7 @@ using TJobShellOptionsMap = THashMap<
     TString,
     TOperationJobShellRuntimeParametersPtr>;
 
-using TJobShellOptionsUpdeteMap = THashMap<
+using TJobShellOptionsUpdateMap = THashMap<
     TString,
     std::optional<TOperationJobShellRuntimeParametersPtr>>;
 

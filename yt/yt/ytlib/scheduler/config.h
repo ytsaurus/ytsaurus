@@ -2027,7 +2027,7 @@ public:
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
-    TJobShellOptionsUpdeteMap OptionsPerJobShell;
+    TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<TString> ControllerAgentTag;
 

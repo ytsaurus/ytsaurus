@@ -48,7 +48,7 @@ public:
 
     const IOperationControllerPtr& GetControllerOrThrow() const;
 
-    void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdeteMap& update);
+    void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdateMap& update);
 
     std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const TString& jobShellName);
 };
