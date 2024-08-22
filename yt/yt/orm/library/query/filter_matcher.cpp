@@ -13,7 +13,6 @@
 
 #include <util/string/cast.h>
 
-
 namespace NYT::NOrm::NQuery {
 
 using namespace NTableClient;
