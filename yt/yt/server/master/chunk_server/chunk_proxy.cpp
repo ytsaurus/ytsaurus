@@ -102,15 +102,19 @@ private:
         const auto& chunkSchema = chunk->Schema();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnapprovedSequoiaReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Movable)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
