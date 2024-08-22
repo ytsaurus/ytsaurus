@@ -518,7 +518,6 @@ private:
     int ThrottledAutomatonSubrequestIndex_ = -1;
     int ThrottledLocalReadSubrequestIndex_ = -1;
 
-    IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
 
     TEphemeralObjectPtr<TUser> User_;
@@ -1498,10 +1497,6 @@ private:
         const auto& hydraManager = hydraFacade->GetHydraManager();
 
         hydraManager->ValidatePeer(EPeerKind::LeaderOrFollower);
-
-        if (!EpochAutomatonInvoker_) {
-            EpochAutomatonInvoker_ = hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
-        }
 
         if (!EpochCancelableContext_) {
             EpochCancelableContext_ = hydraManager->GetAutomatonCancelableContext();
