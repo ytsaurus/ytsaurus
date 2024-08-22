@@ -1468,7 +1468,7 @@ private:
         auto totalLimit = NodeMemoryUsageTracker_->GetTotalLimit();
 
         if (DynamicConfigManager_->GetConfig()->TotalMemoryLimitExceededThreshold * totalUsed > totalLimit) {
-            alerts->push_back(TError("Total memory limit exceeded")
+            alerts->push_back(TError(NChunkClient::EErrorCode::TotalMemoryLimitExceeded, "Total memory limit exceeded")
                 << TErrorAttribute("used", totalUsed)
                 << TErrorAttribute("limit", totalLimit));
         } else if (DynamicConfigManager_->GetConfig()->MemoryUsageIsCloseToLimitThreshold * totalUsed > totalLimit) {
