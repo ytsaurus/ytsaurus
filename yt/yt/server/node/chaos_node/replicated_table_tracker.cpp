@@ -54,7 +54,7 @@ public:
 
                 snapshot.ReplicatedTables.push_back(TReplicatedTableData{
                     .Id = replicationCard->GetId(),
-                    .Options = replicationCard->GetReplicatedTableOptions()
+                    .Options = replicationCard->GetReplicatedTableOptions(),
                 });
 
                 for (const auto& [replicaId, replica] : replicationCard->Replicas()) {
