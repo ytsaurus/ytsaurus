@@ -37,8 +37,9 @@ public:
     {
         auto propagate = [&] {
             const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto* linkNode = GetThisImpl();
-            auto combinedPath = linkNode->ComputeEffectiveTargetPath() + path;
+            auto combinedPath = cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode) + path;
             return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
         };
 
@@ -115,9 +116,10 @@ private:
     TFuture<bool> IsBroken() const
     {
         try {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto* linkNode = GetThisImpl();
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto req = TYPathProxy::Exists(linkNode->ComputeEffectiveTargetPath());
+            auto req = TYPathProxy::Exists(cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode));
             auto rsp = ExecuteVerb(objectManager->GetRootService(), req);
             return rsp.Apply(BIND([] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {

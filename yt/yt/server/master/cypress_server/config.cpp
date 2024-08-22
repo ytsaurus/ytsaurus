@@ -116,6 +116,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(1)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_intra_cell_cross_shard_links", &TThis::EnableIntraCellCrossShardLinks)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

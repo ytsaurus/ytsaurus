@@ -90,6 +90,9 @@ public:
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
 
+    // COMPAT(shakurov)
+    bool EnableIntraCellCrossShardLinks;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
