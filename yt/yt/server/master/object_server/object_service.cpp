@@ -908,7 +908,9 @@ private:
         if (future.IsSet()) {
             OnSyncPhaseOneCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
