@@ -32,7 +32,6 @@ target_link_libraries(restricted-boost-container PUBLIC
   restricted-boost-config
   restricted-boost-intrusive
   restricted-boost-move
-  restricted-boost-static_assert
 )
 
 target_sources(restricted-boost-container PRIVATE
