@@ -1241,7 +1241,9 @@ private:
         if (future.IsSet()) {
             OnSyncPhaseTwoCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
@@ -1270,7 +1272,9 @@ private:
             // NB: sync-phase-three is usually no-op, so this is the common case.
             OnSyncPhaseThreeCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
