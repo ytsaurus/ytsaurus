@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/client/formats/config.h>
 
@@ -99,6 +100,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
         dataSource.SetAccount(inputTable->Account);
         dataSource.SetForeign(inputTable->IsForeign());
         dataSource.SetClusterName(inputTable->ClusterName);
+        dataSource.SetVersionedReadOptions(inputTable->Path.GetVersionedReadOptions());
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 
@@ -479,7 +481,9 @@ void FetchTableSchemas(
             auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rsp->value()));
             auto schemaId = std::any_cast<TGuid>(rsp->Tag());
             for (const auto& table : schemaIdToTables[schemaId]) {
-                table->Schema = schema;
+                table->Schema = table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp
+                    ? ToLatestTimestampSchema(schema)
+                    : schema;
             }
         }
     }

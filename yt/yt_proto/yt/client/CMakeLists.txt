@@ -65,6 +65,7 @@ target_proto_messages(yt_proto-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/table_client/proto/versioned_io_options.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/tablet_client/proto/lock_mask.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.proto
@@ -90,6 +91,7 @@ target_sources(yt_proto-yt-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/table_client/proto/versioned_io_options.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/tablet_client/proto/lock_mask.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.pb.h
