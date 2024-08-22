@@ -1952,6 +1952,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_DEBUG("Making custom watcher request (WatcherType: %v)", watcher.WatcherType);
+
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
         ITransactionPtr watcherLockTransaction;
@@ -1995,7 +1997,11 @@ private:
             YT_UNUSED_FUTURE(watcherLockTransaction->Abort());
         }
 
+        YT_LOG_DEBUG("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
+
         RunWatcherHandler(watcher, batchRspOrError.Value(), strictMode);
+
+        YT_LOG_DEBUG("Finished updating custom watcher (WatcherType: %v)", watcher.WatcherType);
     }
 
     void UpdateWatchers()
@@ -2003,7 +2009,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
-        YT_LOG_DEBUG("Updating watchers");
+        YT_LOG_DEBUG("Making common watcher requests");
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
         for (const auto& watcher : CommonWatcherRecords_) {
@@ -2018,6 +2024,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
+
+        YT_LOG_DEBUG("Updating common watchers");
 
         if (!batchRspOrError.IsOK()) {
             YT_LOG_WARNING(batchRspOrError, "Error updating common watchers");
