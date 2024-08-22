@@ -6,6 +6,8 @@
 
 namespace NYT::NQueryClient {
 
+constexpr int MaxExpressionDepth = 50;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger QueryClientLogger("QueryClient");

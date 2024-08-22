@@ -1206,6 +1206,22 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
     }, HasSubstr("OFFSET used without LIMIT"));
 }
 
+TEST_F(TQueryPrepareTest, FormatQueryDepthLimit)
+{
+    TString expr;
+    expr.reserve(1000);
+    for (int depth = 0; depth < 100; ++depth) {
+        expr += "true and ";
+    }
+    expr += "true";
+
+    auto parsedSource = ParseSource(expr, EParseMode::Expression);
+
+    EXPECT_THROW_THAT(
+        NAst::FormatExpression(*std::get<NAst::TExpressionPtr>(parsedSource->AstHead.Ast)),
+        HasSubstr("Maximum expression depth exceeded"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
