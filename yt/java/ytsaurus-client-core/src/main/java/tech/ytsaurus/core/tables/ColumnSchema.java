@@ -296,6 +296,10 @@ public class ColumnSchema implements YTreeConvertible {
             case Int32:
             case Int64:
             case Interval:
+            case Date32:
+            case Datetime64:
+            case Timestamp64:
+            case Interval64:
                 return new OldType(ColumnValueType.INT64, true);
             case Uint8:
             case Uint16:
