@@ -22,12 +22,6 @@ struct IExecNodeTracker
         NExecNodeTrackerClient::NProto::TRspHeartbeat>;
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
     virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) = 0;
-
-    // COMPAT(gritukan)
-    virtual void ProcessHeartbeat(
-        TNode* node,
-        NExecNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NExecNodeTrackerClient::NProto::TRspHeartbeat* response) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecNodeTracker)
