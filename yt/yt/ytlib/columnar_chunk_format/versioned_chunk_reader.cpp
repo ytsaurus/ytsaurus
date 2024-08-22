@@ -40,7 +40,7 @@ using NTableClient::TChunkColumnMappingPtr;
 
 static constexpr auto& Logger = NTableClient::TableClientLogger;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TCompactVector<EValueType, 16> GetKeyTypes(const TTableSchemaPtr& tableSchema)
 {
@@ -80,7 +80,7 @@ TCompactVector<TValueSchema, 32> GetValuesSchema(
     return valueSchema;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 // Rows (and theirs indexes) in chunk are partitioned by block borders.
 // Block borders are block last keys and corresponding block last indexes (block.chunk_row_count).

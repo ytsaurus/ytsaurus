@@ -72,7 +72,7 @@ TSharedRef WrapWithDelayedReferenceHolder(
     TDuration delayBeforeFree,
     IInvokerPtr dtorInvoker);
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IMemoryUsageTrackerPtr WithCategory(
     const INodeMemoryTrackerPtr& memoryTracker,
@@ -85,7 +85,7 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     const NLogging::TLogger& logger = {},
     const NProfiling::TProfiler& profiler = {});
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TErrorOr<TSharedRef> TryTrackMemory(
     const INodeMemoryTrackerPtr& tracker,

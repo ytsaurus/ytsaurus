@@ -18,12 +18,12 @@ struct IResourceLimitsManager
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) = 0;
-    
+
     virtual void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IResourceLimitsManager)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
