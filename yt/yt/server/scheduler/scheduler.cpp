@@ -295,7 +295,7 @@ public:
         CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::CommonPeriodicActivity));
+            GetBackgroundInvoker());
 
         StrategyHungOperationsChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
