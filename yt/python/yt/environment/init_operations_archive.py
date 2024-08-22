@@ -537,7 +537,7 @@ TRANSFORMS[52] = [
                 ("alert_events", "any"),
                 ("scheduling_attributes_per_pool_tree", "any"),
             ],
-            in_memory=True,
+            in_memory=False,
             get_pivot_keys=get_default_pivots,
             default_lock="operations_cleaner",
             attributes={
