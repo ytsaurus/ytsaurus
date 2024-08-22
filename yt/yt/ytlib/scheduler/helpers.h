@@ -31,7 +31,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update);
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update);
 
 class TJobShellInfo
 {

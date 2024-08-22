@@ -46,7 +46,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update)
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update)
 {
     for (const auto& [jobShellName, options] : update) {
         if (!options) {
