@@ -69,6 +69,15 @@ struct ITransactionManager
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag) = 0;
 
+    // COMPAT(shakurov): transactionAttributeHolderOverride is here to support
+    // reproducing the old (and buggy) behavior.
+    virtual void PostForeignTransactionStart(
+        TTransaction* transaction,
+        TTransactionId transactionId,
+        TTransactionId parentTransactionId,
+        NObjectClient::TCellTagList dstCellTags,
+        TTransaction* transactionAttributeHolderOverride = nullptr) = 0;
+
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
     virtual NHydra::TEntityMap<TTransaction>* MutableTransactionMap() = 0;

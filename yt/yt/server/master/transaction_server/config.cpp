@@ -71,6 +71,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     // COMPAT(h0pless): This is a panic button.
     registrar.Parameter("enable_dedicated_types_for_system_transactions", &TThis::EnableDedicatedTypesForSystemTransactions)
         .Default(true);
+
+    registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
