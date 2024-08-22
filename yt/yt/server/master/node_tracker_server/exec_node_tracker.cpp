@@ -62,25 +62,6 @@ public:
             }));
     }
 
-    void ProcessHeartbeat(
-        TNode* node,
-        TReqHeartbeat* request,
-        TRspHeartbeat* response) override
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-
-        YT_VERIFY(node->IsExecNode());
-
-        auto& statistics = *request->mutable_statistics();
-        node->SetExecNodeStatistics(std::move(statistics));
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Exec);
-
-        response->set_disable_scheduler_jobs(node->AreSchedulerJobsDisabled());
-    }
-
 private:
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
@@ -108,7 +89,18 @@ private:
             nodeTracker->UpdateLastSeenTime(node);
             node->JobProxyVersion() = jobProxyVersion;
 
-            ProcessHeartbeat(node, request, response);
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+            YT_VERIFY(node->IsExecNode());
+
+            auto& statistics = *request->mutable_statistics();
+            node->SetExecNodeStatistics(std::move(statistics));
+
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Exec);
+
+            response->set_disable_scheduler_jobs(node->AreSchedulerJobsDisabled());
         }
     }
 
