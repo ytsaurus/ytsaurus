@@ -3,6 +3,7 @@
 #include "fwd.h"
 #include "raw_coder.h"
 #include "hash.h"
+#include "save_loadable_pointer_wrapper.h"
 
 #include "../coder.h"
 
@@ -32,6 +33,7 @@ public:
     using TRawCoderFactoryFunction = IRawCoderPtr (*)();
     using TRowVtableFactoryFunction = TRowVtable (*)();
     using TCopyToUniquePtrFunction = TUniquePtr (*)(const void*);
+    using TMoveToUniquePtrFunction = TUniquePtr (*)(void*);
     using THashFunction = size_t (*)(const void*);
 
 public:
@@ -45,12 +47,30 @@ public:
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
     TCopyToUniquePtrFunction CopyToUniquePtr = nullptr;
+    TMoveToUniquePtrFunction MoveToUniquePtr = nullptr;
     THashFunction Hash = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
     TRowVtableFactoryFunction KeyVtableFactory = &CrashingGetVtableFactory;
     TRowVtableFactoryFunction ValueVtableFactory = &CrashingGetVtableFactory;
+
+    Y_SAVELOAD_DEFINE(
+        TypeName,
+        TypeHash,
+        DataSize,
+        SaveLoadablePointer(DefaultConstructor),
+        SaveLoadablePointer(Destructor),
+        SaveLoadablePointer(CopyConstructor),
+        SaveLoadablePointer(CopyToUniquePtr),
+        SaveLoadablePointer(MoveToUniquePtr),
+        SaveLoadablePointer(Hash),
+        SaveLoadablePointer(RawCoderFactory),
+        KeyOffset,
+        ValueOffset,
+        SaveLoadablePointer(KeyVtableFactory),
+        SaveLoadablePointer(ValueVtableFactory)
+    );
 
 public:
     TRowVtable() = default;
@@ -92,6 +112,12 @@ TRowVtable MakeRowVtable()
         vtable.CopyToUniquePtr = [] (const void* p) {
             return TRowVtable::TUniquePtr(
                 new T(*reinterpret_cast<const T*>(p)),
+                [] (void* p) { delete static_cast<T*>(p); }
+            );
+        };
+        vtable.MoveToUniquePtr = [] (void* p) {
+            return TRowVtable::TUniquePtr(
+                new T(std::move(*reinterpret_cast<T*>(p))),
                 [] (void* p) { delete static_cast<T*>(p); }
             );
         };
@@ -326,15 +352,3 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <>
-class TSerializer<NRoren::NPrivate::TRowVtable>
-{
-public:
-    using TRowVtable = NRoren::NPrivate::TRowVtable;
-
-public:
-    static void Save(IOutputStream* output, const NRoren::NPrivate::TRowVtable& rowVtable);
-    static void Load(IInputStream* input, NRoren::NPrivate::TRowVtable& rowVtable);
-};
-
-////////////////////////////////////////////////////////////////////////////////
