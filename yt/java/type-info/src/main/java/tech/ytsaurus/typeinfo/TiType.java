@@ -104,6 +104,23 @@ public abstract class TiType {
         return NonParametrizedType.INTERVAL_INSTANCE;
     }
 
+    public static TiType date32() {
+        return NonParametrizedType.DATE32_INSTANCE;
+    }
+
+    public static TiType datetime64() {
+        return  NonParametrizedType.DATETIME64_INSTANCE;
+    }
+
+    public static TiType timestamp64() {
+        return NonParametrizedType.TIMESTAMP64_INSTANCE;
+    }
+
+    public static TiType interval64() {
+        return NonParametrizedType.INTERVAL64_INSTANCE;
+    }
+
+
     public static TiType json() {
         return NonParametrizedType.JSON_INSTANCE;
     }
@@ -271,6 +288,22 @@ public abstract class TiType {
         return typeName == TypeName.Interval;
     }
 
+    public boolean isDate32() {
+        return typeName == TypeName.Date32;
+    }
+
+    public boolean isDatetime64() {
+        return typeName == TypeName.Datetime64;
+    }
+
+    public boolean isTimestamp64() {
+        return typeName == TypeName.Timestamp64;
+    }
+
+    public boolean isInterval64() {
+        return typeName == TypeName.Interval64;
+    }
+
     public boolean isDecimal() {
         return typeName == TypeName.Decimal;
     }
@@ -408,6 +441,11 @@ class NonParametrizedType extends TiType {
     static final NonParametrizedType TZ_DATE_INSTANCE = new NonParametrizedType(TypeName.TzDate);
     static final NonParametrizedType TZ_DATETIME_INSTANCE = new NonParametrizedType(TypeName.TzDatetime);
     static final NonParametrizedType TZ_TIMESTAMP_INSTANCE = new NonParametrizedType(TypeName.TzTimestamp);
+
+    static final NonParametrizedType DATE32_INSTANCE = new NonParametrizedType(TypeName.Date32);
+    static final NonParametrizedType DATETIME64_INSTANCE = new NonParametrizedType(TypeName.Datetime64);
+    static final NonParametrizedType TIMESTAMP64_INSTANCE = new NonParametrizedType(TypeName.Timestamp64);
+    static final NonParametrizedType INTERVAL64_INSTANCE = new NonParametrizedType(TypeName.Interval64);
 
     static final NonParametrizedType UUID_INSTANCE = new NonParametrizedType(TypeName.Uuid);
     static final NonParametrizedType JSON_INSTANCE = new NonParametrizedType(TypeName.Json);
