@@ -199,7 +199,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 {
     ValidateEnabled();
 
-    YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
+    YT_LOG_DEBUG("Preparing sandbox directories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
         slotIndex,
         sandboxInsideTmpfs);
 
