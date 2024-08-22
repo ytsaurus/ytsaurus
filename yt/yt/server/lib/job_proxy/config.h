@@ -356,6 +356,10 @@ public:
 
     TDuration PipeReaderTimeoutThreshold;
 
+    bool EnableCudaProfileEventStreaming;
+
+    NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
+
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

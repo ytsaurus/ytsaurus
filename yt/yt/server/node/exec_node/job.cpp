@@ -2820,6 +2820,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
         proxyConfig->RetryingChannelConfig = proxyDynamicConfig->RetryingChannelConfig;
         proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
+
+        proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
+        proxyConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
