@@ -37,9 +37,6 @@ class TRandomAccessFileReader
     : public IRandomAccessFileReader
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(i64, Size);
-
-public:
     TRandomAccessFileReader(
         TString path,
         NNative::IClientPtr client,
@@ -66,6 +63,8 @@ public:
     TFuture<TSharedRef> Read(
         i64 offset,
         i64 length) override;
+
+    i64 GetSize() const override;
 
     void Open();
 
@@ -97,6 +96,7 @@ private:
     TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
     TUserObject UserObject_;
+    i64 Size_ = 0;
 
     std::atomic<i64> ReadBytes_;
     std::atomic<i64> ReadBlockBytesFromCache_;
@@ -208,6 +208,11 @@ TFuture<TSharedRef> TRandomAccessFileReader::Read(
             mergedRefs.Size());
         return mergedRefs;
     }));
+}
+
+i64 TRandomAccessFileReader::GetSize() const
+{
+    return Size_;
 }
 
 void TRandomAccessFileReader::Open()
