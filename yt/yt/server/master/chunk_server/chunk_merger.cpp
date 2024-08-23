@@ -2076,10 +2076,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     // update beforehand.
     chunkOwner->SetChunkList(newRootChunkList);
 
-    if (GetDynamicConfig()->EnableNodeStatisticsFix) {
-        chunkOwner->FixStatisticsAndAlert();
-    }
-
     auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
     ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
     chunkOwner->SnapshotStatistics() = std::move(newStatistics);
@@ -2182,10 +2178,6 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         chunkOwner->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(chunkOwner);
         oldRootChunkList->RemoveOwningNode(chunkOwner);
-
-        if (GetDynamicConfig()->EnableNodeStatisticsFix) {
-            chunkOwner->FixStatisticsAndAlert();
-        }
 
         auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
         ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
