@@ -62,7 +62,7 @@ public:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        const std::optional<TString>& preferredHostName,
+        const std::optional<std::string>& preferredHostName,
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
@@ -200,7 +200,7 @@ private:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,
-        const std::optional<TString>& preferredHostName = std::nullopt,
+        const std::optional<std::string>& preferredHostName = {},
         TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
@@ -215,7 +215,7 @@ private:
         TNode* preferredNode);
 
     TNode* FindPreferredNode(
-        const std::optional<TString>& preferredHostName,
+        const std::optional<std::string>& preferredHostName,
         TDomesticMedium* medium);
 
     bool IsValidWriteTargetToInsert(TDomesticMedium* medium, TNode* node);

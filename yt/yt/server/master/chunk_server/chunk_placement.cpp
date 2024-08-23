@@ -416,7 +416,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
-    const std::optional<TString>& preferredHostName,
+    const std::optional<std::string>& preferredHostName,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -525,7 +525,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
-    const std::optional<TString>& preferredHostName,
+    const std::optional<std::string>& preferredHostName,
     TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
@@ -663,7 +663,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 }
 
 TNode* TChunkPlacement::FindPreferredNode(
-    const std::optional<TString>& preferredHostName,
+    const std::optional<std::string>& preferredHostName,
     TDomesticMedium* medium)
 {
     if (!preferredHostName) {
