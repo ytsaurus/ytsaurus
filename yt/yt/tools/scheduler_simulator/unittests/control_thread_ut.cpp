@@ -215,7 +215,8 @@ protected:
     {
         auto node = New<TExecNode>(
             /*nodeId*/ NextNodeId_,
-            TNodeDescriptor(Format("node%02d", NextNodeId_)),
+            // TODO(babenko): switch to std::string
+            TNodeDescriptor(std::string(Format("node%02d", NextNodeId_))),
             NScheduler::ENodeState::Online);
         NextNodeId_ = TNodeId(NextNodeId_.Underlying() + 1);
         node->SetTags(TBooleanFormulaTags(THashSet<TString>{"internal"}));

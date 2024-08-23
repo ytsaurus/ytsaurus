@@ -29,13 +29,15 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetAddresses(ENodeRole nodeRole, const TMasterYPathProxy::TRspGetClusterMetaPtr& rsp)
+namespace {
+
+std::vector<std::string> GetAddresses(ENodeRole nodeRole, const TMasterYPathProxy::TRspGetClusterMetaPtr& rsp)
 {
     switch (nodeRole) {
         case ENodeRole::MasterCache:
-            return FromProto<std::vector<TString>>(rsp->master_cache_node_addresses());
+            return FromProto<std::vector<std::string>>(rsp->master_cache_node_addresses());
         case ENodeRole::TimestampProvider:
-            return FromProto<std::vector<TString>>(rsp->timestamp_provider_node_addresses());
+            return FromProto<std::vector<std::string>>(rsp->timestamp_provider_node_addresses());
         default:
             YT_ABORT();
     }
@@ -53,6 +55,8 @@ EMasterChannelKind GetChannelKind(ENodeRole nodeRole)
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeAddressesProvider
@@ -64,7 +68,7 @@ public:
         TDuration syncPeriodSplay,
         TWeakPtr<ICellDirectory> cellDirectory,
         ENodeRole nodeRole,
-        TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
+        TCallback<IChannelPtr(const std::vector<std::string>&)> channelBuilder)
         : CellDirectory_(std::move(cellDirectory))
         , NodeRole_(nodeRole)
         , ChannelBuilder_(std::move(channelBuilder))
@@ -74,7 +78,7 @@ public:
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
             TPeriodicExecutorOptions{
                 .Period = syncPeriod,
-                .Splay = syncPeriodSplay
+                .Splay = syncPeriodSplay,
             }))
         , Logger(NodeTrackerClientLogger().WithTag("NodeRole: %v", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
@@ -135,7 +139,7 @@ public:
 private:
     const TWeakPtr<ICellDirectory> CellDirectory_;
     const ENodeRole NodeRole_;
-    const TCallback<IChannelPtr(const std::vector<TString>&)> ChannelBuilder_;
+    const TCallback<IChannelPtr(const std::vector<std::string>&)> ChannelBuilder_;
     const TDuration SyncPeriod_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NYT::NLogging::TLogger Logger;
@@ -147,7 +151,7 @@ private:
     TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
     TError TerminationError_;
 
-    std::optional<std::vector<TString>> Addresses_;
+    std::optional<std::vector<std::string>> Addresses_;
 
     void EnsureStarted() const
     {
@@ -272,7 +276,7 @@ IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriodSplay,
     TWeakPtr<ICellDirectory> cellDirectory,
     ENodeRole nodeRole,
-    TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
+    TCallback<IChannelPtr(const std::vector<std::string>&)> channelBuilder)
 {
     return CreateRoamingChannel(New<TNodeAddressesProvider>(
         syncPeriod,

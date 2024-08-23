@@ -14,7 +14,7 @@ class TNodeListForRole
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, Addresses);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<std::string>, Addresses);
 
 public:
     void UpdateAddresses();

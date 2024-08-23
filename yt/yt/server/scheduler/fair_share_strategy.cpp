@@ -214,7 +214,7 @@ public:
 
     INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         TNodeId nodeId,
-        const TString& address,
+        const std::string& address,
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const override
     {
@@ -1089,7 +1089,7 @@ public:
 
     TFuture<void> RegisterOrUpdateNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1099,7 +1099,7 @@ public:
             .Run(nodeId, nodeAddress, tags);
     }
 
-    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
+    void UnregisterNode(TNodeId nodeId, const std::string& nodeAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1369,7 +1369,7 @@ public:
 
     void BuildSchedulingAttributesForNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         TFluentMap fluent) const override
     {
@@ -1435,12 +1435,12 @@ private:
     struct TStrategyExecNodeDescriptor
     {
         TBooleanFormulaTags Tags;
-        TString Address;
+        std::string Address;
         std::optional<TString> TreeId;
     };
 
     THashMap<TNodeId, TStrategyExecNodeDescriptor> NodeIdToDescriptor_;
-    THashSet<TString> NodeAddresses_;
+    THashSet<std::string> NodeAddresses_;
     THashMap<TString, TNodeIdSet> NodeIdsPerTree_;
     TNodeIdSet NodeIdsWithoutTree_;
 
@@ -1553,7 +1553,7 @@ private:
 
     int FindTreeIndexForNode(
         const std::vector<IFairShareTreePtr>& trees,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const
     {
         bool hasMultipleMatchingTrees = false;
@@ -1585,7 +1585,7 @@ private:
     }
 
     std::pair<IFairShareTreePtr, TMatchingTreeCookie> FindTreeForNodeWithCookie(
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         TMatchingTreeCookie cookie) const
     {
@@ -1609,7 +1609,7 @@ private:
         }
     }
 
-    IFairShareTreePtr FindTreeForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    IFairShareTreePtr FindTreeForNode(const std::string& nodeAddress, const TBooleanFormulaTags& nodeTags) const
     {
         auto snapshot = TreeSetSnapshot_.Acquire();
         if (!snapshot) {
@@ -1989,7 +1989,7 @@ private:
 
     void DoRegisterOrUpdateNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -2142,7 +2142,7 @@ private:
             return;
         }
 
-        std::vector<TString> nodeAddresses;
+        std::vector<std::string> nodeAddresses;
         int nodeCount = 0;
         bool truncated = false;
         for (auto nodeId : NodeIdsWithoutTree_) {
@@ -2294,6 +2294,8 @@ private:
         { }
 
     private:
+        const TIntrusivePtr<TFairShareStrategy> Strategy_;
+
         i64 GetSize() const final
         {
             VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
@@ -2333,9 +2335,7 @@ private:
 
             return tree->GetOrchidService();
         }
-
-        const TIntrusivePtr<TFairShareStrategy> Strategy_;
-    };
+  };
 
     class TNodeHeartbeatStrategyProxy
         : public INodeHeartbeatStrategyProxy
@@ -2391,9 +2391,9 @@ private:
         }
 
     private:
-        TNodeId NodeId_;
-        IFairShareTreePtr Tree_;
-        TMatchingTreeCookie Cookie_;
+        const TNodeId NodeId_;
+        const IFairShareTreePtr Tree_;
+        const TMatchingTreeCookie Cookie_;
     };
 };
 

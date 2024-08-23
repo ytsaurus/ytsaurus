@@ -138,7 +138,7 @@ struct IConnection
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
-    virtual std::vector<TString> GetDiscoveryServerAddresses() const = 0;
+    virtual std::vector<std::string> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
         NDiscoveryClient::TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory) = 0;
@@ -237,17 +237,17 @@ IConnectionPtr CreateConnection(
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const TString& clusterName);
+    const std::string& clusterName);
 
 //! Returns native connection to cluster `clusterName`.
 //! Falls back to the provided connection if `clusterName` is null or the cluster is not present in the connection's cluster directory.
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const std::optional<TString>& clusterName);
+    const std::optional<std::string>& clusterName);
 
 IConnectionPtr GetRemoteConnectionOrThrow(
     const NApi::NNative::IConnectionPtr& connection,
-    const TString& clusterName,
+    const std::string& clusterName,
     bool syncOnFailure = false);
 
 IConnectionPtr FindRemoteConnection(

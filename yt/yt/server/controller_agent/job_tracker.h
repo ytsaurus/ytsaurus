@@ -229,7 +229,7 @@ private:
 
         TGuid RegistrationId;
 
-        TString NodeAddress;
+        std::string NodeAddress;
 
         ui64 LastHeartbeatSequenceNumber = 0;
 
@@ -289,7 +289,7 @@ private:
     {
         TCtxHeartbeatPtr RpcContext;
         NLogging::TLogger Logger;
-        TString NodeAddress;
+        std::string NodeAddress;
         TNodeId NodeId;
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
@@ -445,14 +445,14 @@ private:
     void ReportUnknownJobInArchive(
         TJobId jobId,
         TOperationId operationId,
-        const TString& nodeAddress);
+        const std::string& nodeAddress);
 
-    TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
-    TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);
-    TNodeInfo& UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
+    TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress);
+    TNodeInfo& RegisterNode(TNodeId nodeId, const std::string& nodeAddress);
+    TNodeInfo& UpdateOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress);
     void UnregisterNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         TGuid maybeRegistrationId = {});
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
@@ -460,7 +460,7 @@ private:
     void OnNodeHeartbeatLeaseExpired(
         TGuid registrationId,
         TNodeId nodeId,
-        const TString& nodeAddress);
+        const std::string& nodeAddress);
 
     void ProcessAllocationEvents(
         TOperationId operationId,
@@ -487,7 +487,7 @@ private:
         std::vector<TAbortedAllocationSummary> abortedAllocations,
         TOperationUpdatesProcessingContext& operationUpdatesProcessingContext);
 
-    const TString& GetNodeAddressForLogging(TNodeId nodeId);
+    const std::string& GetNodeAddressForLogging(TNodeId nodeId);
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 

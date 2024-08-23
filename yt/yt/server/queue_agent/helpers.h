@@ -59,7 +59,7 @@ public:
     TNativeClientContext GetNativeSyncClient(const TObjectSnapshotPtr& snapshot, bool onlyDataReplicas = false);
 
     //! Proxy-method for internal client directory.
-    NApi::NNative::IClientPtr GetClientOrThrow(const TString& cluster) const;
+    NApi::NNative::IClientPtr GetClientOrThrow(const std::string& cluster) const;
 
     //! Returns a federated client wrapped over the provided replica-clusters.
     //! NB: Each path must contain a cluster.
@@ -71,9 +71,9 @@ private:
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const NClient::NFederated::TFederationConfigPtr FederationConfig_;
 
-    THashMap<TString, NApi::IClientPtr> FederatedClients_;
+    THashMap<std::string, NApi::IClientPtr> FederatedClients_;
 
-    NApi::NNative::IConnectionPtr GetNativeConnection(const TString& cluster) const;
+    NApi::NNative::IConnectionPtr GetNativeConnection(const std::string& cluster) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentClientDirectory)

@@ -785,13 +785,14 @@ TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<TStri
     return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)
+TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
 {
     if (Disabled_) {
         return {};
     }
 
-    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
+    // TODO(babenko): switch to std::string
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", TString(cluster))};
 }
 
 template <class TCounter>

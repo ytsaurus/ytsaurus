@@ -96,8 +96,8 @@ void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, T
 ////////////////////////////////////////////////////////////////////////////////
 
 const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(
-    const std::optional<TString>& nodeDataCenter,
-    const std::optional<TString>& nodeInfinibandCluster,
+    const std::optional<std::string>& nodeDataCenter,
+    const std::optional<std::string>& nodeInfinibandCluster,
     ESchedulingSegmentModuleType moduleType)
 {
     switch (moduleType) {
@@ -117,11 +117,14 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(
     return GetNodeModule(nodeDescriptor->DataCenter, nodeDescriptor->InfinibandCluster, moduleType);
 }
 
-TString TSchedulingSegmentManager::GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType)
+TString TSchedulingSegmentManager::GetNodeTagFromModuleName(
+    const std::string& moduleName,
+    ESchedulingSegmentModuleType moduleType)
 {
     switch (moduleType) {
         case ESchedulingSegmentModuleType::DataCenter:
-            return moduleName;
+            // TODO(babenko): switch to std::string
+            return TString(moduleName);
         case ESchedulingSegmentModuleType::InfinibandCluster:
             return Format("%v:%v", InfinibandClusterNameKey, moduleName);
         default:

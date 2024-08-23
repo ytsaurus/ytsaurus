@@ -89,7 +89,8 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
         for (int i = 0; i < nodeGroupConfig->Count; ++i) {
             // NB: 0 is InvalidNodeId therefore we need +1.
             auto nodeId = TNodeId(execNodes.size() + 1);
-            TNodeDescriptor descriptor("node" + ToString(nodeId));
+            // TODO(babenko): switch to std::string
+            TNodeDescriptor descriptor(std::string(Format("node%v", nodeId)));
 
             auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);
             node->SetTags(TBooleanFormulaTags(nodeGroupConfig->Tags));

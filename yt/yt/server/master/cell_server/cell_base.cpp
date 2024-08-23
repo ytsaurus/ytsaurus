@@ -160,7 +160,7 @@ void TCellBase::Load(TLoadContext& context)
     }
 }
 
-int TCellBase::FindPeerId(const TString& address) const
+int TCellBase::FindPeerId(const std::string& address) const
 {
     for (auto peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         const auto& peer = Peers_[peerId];
@@ -171,7 +171,7 @@ int TCellBase::FindPeerId(const TString& address) const
     return InvalidPeerId;
 }
 
-int TCellBase::GetPeerId(const TString& address) const
+int TCellBase::GetPeerId(const std::string& address) const
 {
     auto peerId = FindPeerId(address);
     YT_VERIFY(peerId != InvalidPeerId);

@@ -164,7 +164,7 @@ private:
         const std::vector<TReadRange>& ranges);
 
     void DoFetch();
-    void DoFetchFromNode(const TString& address);
+    void DoFetchFromNode(const std::string& address);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletChunkSpecFetcher)

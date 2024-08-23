@@ -107,13 +107,13 @@ struct IBootstrapBase
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
-    virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
+    virtual std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
     virtual void ResetAndRegisterAtMaster() = 0;
 
     virtual bool IsConnected() const = 0;
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
-    virtual TString GetLocalHostName() const = 0;
+    virtual std::string GetLocalHostName() const = 0;
     virtual TMasterEpoch GetMasterEpoch() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
@@ -264,13 +264,13 @@ public:
 
     NObjectClient::TCellId GetCellId() const override;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
-    std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
+    std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
     void ResetAndRegisterAtMaster() override;
 
     bool IsConnected() const override;
     NNodeTrackerClient::TNodeId GetNodeId() const override;
-    TString GetLocalHostName() const override;
+    std::string GetLocalHostName() const override;
     TMasterEpoch GetMasterEpoch() const override;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;

@@ -12,7 +12,7 @@ namespace NYT::NIncumbentServer {
 
 struct TPeerDescriptor
 {
-    TString Address;
+    std::string Address;
     NHydra::EPeerState State;
 };
 

@@ -81,7 +81,7 @@ void ToProto(
     ToProto(protoReplicaData->mutable_replica_id(), replicaData.Id);
     protoReplicaData->set_mode(ToProto<int>(replicaData.Mode));
     protoReplicaData->set_enabled(replicaData.Enabled);
-    protoReplicaData->set_cluster_name(replicaData.ClusterName);
+    protoReplicaData->set_cluster_name(ToProto<TProtobufString>(replicaData.ClusterName));
     protoReplicaData->set_table_path(replicaData.TablePath);
     protoReplicaData->set_tracking_enabled(replicaData.TrackingEnabled);
     protoReplicaData->set_content_type(ToProto<int>(replicaData.ContentType));

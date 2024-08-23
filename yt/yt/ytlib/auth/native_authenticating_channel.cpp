@@ -81,7 +81,7 @@ public:
         YT_VERIFY(TicketAuth_);
     }
 
-    IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const std::string& address) override
     {
         auto channel = UnderlyingFactory_->CreateChannel(address);
         return New<TNativeAuthenticationInjectingChannel>(

@@ -519,9 +519,9 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     std::optional<int> replicationFactorOverride,
-    std::optional<TString> preferredHostName,
-    const std::vector<TString>& forbiddenAddresses,
-    const std::vector<TString>& allocatedAddresses,
+    const std::optional<std::string>& preferredHostName,
+    const std::vector<std::string>& forbiddenAddresses,
+    const std::vector<std::string>& allocatedAddresses,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -553,7 +553,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferredHostName) {
-        req->set_preferred_host_name(*preferredHostName);
+        req->set_preferred_host_name(ToProto<TProtobufString>(*preferredHostName));
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_allocated_addresses(), allocatedAddresses);
@@ -914,7 +914,7 @@ void DumpCodecStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAddressLocal(const TString& address)
+bool IsAddressLocal(const std::string& address)
 {
     return GetServiceHostName(address) == GetLocalHostName();
 }

@@ -50,7 +50,7 @@ public:
 
     TMaintenanceIdPerTarget AddMaintenance(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         EMaintenanceType type,
         const TString& comment,
         std::optional<NCypressServer::TNodeId> componentRegistryId) override
@@ -105,7 +105,7 @@ public:
 
     TMaintenanceCountsPerTarget RemoveMaintenance(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
         std::optional<TStringBuf> user,
         std::optional<EMaintenanceType> type,
@@ -209,7 +209,7 @@ private:
 
     void DoAddMaintenance(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         TMaintenanceId id,
         const std::string& user,
         EMaintenanceType type,
@@ -249,7 +249,7 @@ private:
 
         TReqReplicateMaintenanceRequestCreation mutationRequest;
         mutationRequest.set_component(ToProto<int>(component));
-        mutationRequest.set_address(address);
+        mutationRequest.set_address(ToProto<TProtobufString>(address));
         ToProto(mutationRequest.mutable_id(), id);
         mutationRequest.set_user(ToProto<TProtobufString>(user));
         mutationRequest.set_type(ToProto<int>(type));
@@ -261,7 +261,7 @@ private:
 
     void DoRemoveMaintenances(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         const TMaintenanceIdList& ids,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
@@ -296,8 +296,8 @@ private:
         }
 
         TReqReplicateMaintenanceRequestRemoval mutationRequest;
-        mutationRequest.set_component(ToProto<i32>(component));
-        mutationRequest.set_address(address);
+        mutationRequest.set_component(ToProto<int>(component));
+        mutationRequest.set_address(ToProto<TProtobufString>(address));
 
         ToProto(mutationRequest.mutable_ids(), ids);
 
@@ -325,7 +325,7 @@ private:
 
     TErrorOr<TNontemplateMaintenanceTargetBase*> DoFindComponent(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         switch (component) {
@@ -380,7 +380,7 @@ private:
 
     TNontemplateMaintenanceTargetBase* GetComponentOrThrow(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         YT_VERIFY(component != EMaintenanceComponent::Host);
@@ -405,7 +405,7 @@ private:
 
     TNontemplateMaintenanceTargetBase* FindComponentOrAlert(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         YT_ASSERT(component != EMaintenanceComponent::Host);

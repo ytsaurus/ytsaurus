@@ -52,7 +52,7 @@ struct IDataNodeTracker
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
 
     virtual void ValidateRegisterNode(
-        const TString& address,
+        const std::string& address,
         NNodeTrackerClient::NProto::TReqRegisterNode* request) = 0;
     virtual void ProcessRegisterNode(
         NNodeTrackerServer::TNode* node,

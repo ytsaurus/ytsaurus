@@ -26,29 +26,29 @@ struct TExecNodeDescriptor
 
     TExecNodeDescriptor(
         NNodeTrackerClient::TNodeId id,
-        TString address,
-        std::optional<TString> dataCenter,
+        const std::string& address,
+        const std::optional<std::string>& dataCenter,
         double ioWeight,
         bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
         const TDiskResources& diskResources,
         const TBooleanFormulaTags& tags,
-        std::optional<TString> infinibandCluster,
+        const std::optional<std::string>& infinibandCluster,
         NYTree::IAttributeDictionaryPtr schedulingOptions);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    TString Address;
-    std::optional<TString> DataCenter;
+    std::string Address;
+    std::optional<std::string> DataCenter;
     double IOWeight = 0.0;
     bool Online = false;
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
     TDiskResources DiskResources;
     TBooleanFormulaTags Tags;
-    std::optional<TString> InfinibandCluster;
+    std::optional<std::string> InfinibandCluster;
     NYTree::IAttributeDictionaryPtr SchedulingOptions;
 
     void Persist(const TStreamPersistenceContext& context);

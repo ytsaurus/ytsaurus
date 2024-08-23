@@ -48,7 +48,6 @@ target_link_libraries(rpc-unittests-lib PUBLIC
 )
 
 target_sources(rpc-unittests-lib PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/test_service.pb.h

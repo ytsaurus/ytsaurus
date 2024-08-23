@@ -204,7 +204,7 @@ public:
 
     NScheduler::INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& address,
+        const std::string& address,
         const TBooleanFormulaTags& tags,
         NScheduler::TMatchingTreeCookie cookie) const;
 
@@ -219,7 +219,7 @@ public:
 
     void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         NYTree::TFluentMap fluent) const;
 

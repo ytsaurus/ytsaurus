@@ -397,7 +397,8 @@ private:
         auto& subConsumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef];
         auto consumerPartitionProfiler = ConsumerPartitionProfiler_
             .WithRequiredTag("queue_path", queueRef.Path)
-            .WithRequiredTag("queue_cluster", queueRef.Cluster);
+            // TODO(babenko): migrate to std::string
+            .WithRequiredTag("queue_cluster", TString(queueRef.Cluster));
         ResizePartitionCounters(
             subConsumerPartitionProfilingCounters,
             consumerPartitionProfiler,

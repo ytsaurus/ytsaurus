@@ -377,7 +377,7 @@ public:
     }
 
     void ValidateRegisterNode(
-        const TString& address,
+        const std::string& address,
         TReqRegisterNode* request) override
     {
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());

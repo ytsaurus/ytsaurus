@@ -42,19 +42,19 @@ int TServerAddressPool::GetAddressCount() const
     return AddressCount_.load();
 }
 
-std::vector<TString> TServerAddressPool::GetUpAddresses()
+std::vector<std::string> TServerAddressPool::GetUpAddresses()
 {
     auto guard = Guard(Lock_);
     return {UpAddresses_.begin(), UpAddresses_.end()};
 }
 
-std::vector<TString> TServerAddressPool::GetProbationAddresses()
+std::vector<std::string> TServerAddressPool::GetProbationAddresses()
 {
     auto guard = Guard(Lock_);
     return {ProbationAddresses_.begin(), ProbationAddresses_.end()};
 }
 
-void TServerAddressPool::BanAddress(const TString& address)
+void TServerAddressPool::BanAddress(const std::string& address)
 {
     {
         auto guard = Guard(Lock_);
@@ -74,7 +74,7 @@ void TServerAddressPool::BanAddress(const TString& address)
     YT_LOG_DEBUG("Server banned (Address: %v)", address);
 }
 
-void TServerAddressPool::UnbanAddress(const TString& address)
+void TServerAddressPool::UnbanAddress(const std::string& address)
 {
     auto guard = Guard(Lock_);
 
@@ -138,13 +138,13 @@ void TServerAddressPool::UpdateEndpoints()
 }
 
 void TServerAddressPool::OnEndpointsResolved(
-    const TString& endpointSetId,
+    const std::string& endpointSetId,
     const TErrorOr<std::vector<TErrorOr<TEndpointSet>>>& endpointSetsOrError)
 {
     YT_VERIFY(endpointSetsOrError.IsOK());
     const auto& endpointSets = endpointSetsOrError.Value();
 
-    std::vector<TString> allAddresses;
+    std::vector<std::string> allAddresses;
     std::vector<TError> errors;
     for (const auto& endpointSetOrError : endpointSets) {
         if (!endpointSetOrError.IsOK()) {
@@ -173,7 +173,7 @@ void TServerAddressPool::OnEndpointsResolved(
     resolvedAddressesPromise.TrySet();
 }
 
-void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
+void TServerAddressPool::SetAddresses(const std::vector<std::string>& addresses)
 {
     VERIFY_SPINLOCK_AFFINITY(Lock_);
 
@@ -183,7 +183,7 @@ void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
     AddressCount_ = std::ssize(addresses);
 }
 
-void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
+void TServerAddressPool::OnBanTimeoutExpired(const std::string& address)
 {
     auto guard = Guard(Lock_);
 
@@ -209,7 +209,7 @@ TDiscoveryClientServiceProxy CreateProxy(
     const TDiscoveryClientConfigPtr& clientConfig,
     const TDiscoveryConnectionConfigPtr& connectionConfig,
     const IChannelFactoryPtr& channelFactory,
-    const TString& address)
+    const std::string& address)
 {
     auto channel = channelFactory->CreateChannel(address);
     TDiscoveryClientServiceProxy proxy(CreateRetryingChannel(clientConfig, std::move(channel)));
@@ -238,7 +238,7 @@ TListMembersRequestSession::TListMembersRequestSession(
     , Options_(std::move(options))
 { }
 
-TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
+TFuture<void> TListMembersRequestSession::MakeRequest(const std::string& address)
 {
     auto proxy = CreateProxy(
         ClientConfig_,
@@ -310,7 +310,7 @@ TListGroupsRequestSession::TListGroupsRequestSession(
     , Options_(std::move(options))
 { }
 
-TFuture<void> TListGroupsRequestSession::MakeRequest(const TString& address)
+TFuture<void> TListGroupsRequestSession::MakeRequest(const std::string& address)
 {
     auto proxy = CreateProxy(
         ClientConfig_,
@@ -339,7 +339,7 @@ TFuture<void> TListGroupsRequestSession::MakeRequest(const TString& address)
 
         if (++SuccessCount_ == GetRequiredSuccessCount()) {
             if (!FoundGroupIds_.empty()) {
-                Promise_.TrySet({.GroupIds = std::vector<TString>{FoundGroupIds_.begin(), FoundGroupIds_.end()}, .Incomplete = Incomplete_});
+                Promise_.TrySet({.GroupIds = {FoundGroupIds_.begin(), FoundGroupIds_.end()}, .Incomplete = Incomplete_});
             } else {
                 Promise_.TrySet(TError(NDiscoveryClient::EErrorCode::NoSuchGroup, "Group %Qv does not exist", GroupPrefix_));
             }
@@ -368,7 +368,7 @@ TGetGroupMetaRequestSession::TGetGroupMetaRequestSession(
     , GroupId_(std::move(groupId))
 { }
 
-TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
+TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const std::string& address)
 {
     auto proxy = CreateProxy(
         ClientConfig_,
@@ -430,7 +430,7 @@ THeartbeatSession::THeartbeatSession(
     , Attributes_(std::move(attributes))
 { }
 
-TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
+TFuture<void> THeartbeatSession::MakeRequest(const std::string& address)
 {
     auto channel = ChannelFactory_->CreateChannel(address);
     TDiscoveryClientServiceProxy proxy(std::move(channel));

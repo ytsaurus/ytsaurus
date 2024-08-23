@@ -204,14 +204,14 @@ THashMap<TString, THashSet<TString>> GetAliveProxies(
     EGracePeriodBehaviour gracePeriodBehaviour);
 
 TString GetInstancePodIdTemplate(
-    const TString& cluster,
+    const std::string& cluster,
     const TString& bundleName,
     const TString& instanceType,
     int index);
 
 int FindNextInstanceId(
     const std::vector<TString>& instanceNames,
-    const TString& cluster,
+    const std::string& cluster,
     const TString& instanceType);
 
 TIndexedEntries<TBundleControllerState> MergeBundleStates(

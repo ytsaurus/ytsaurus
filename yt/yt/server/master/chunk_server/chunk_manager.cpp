@@ -6106,7 +6106,7 @@ private:
     {
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
 
-        THashSet<TString> replicatorAddresses;
+        THashSet<std::string> replicatorAddresses;
         replicatorAddresses.reserve(ChunkShardCount);
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
             auto address = incumbentManager->GetIncumbentAddress(

@@ -931,7 +931,7 @@ private:
 
             std::vector<TYPath> orchidAddresses;
 
-            auto createOrchidNode = [&] (const TYPath& addressPath, const TString& address) {
+            auto createOrchidNode = [&] (const TYPath& addressPath, const std::string& address) {
                 orchidAddresses.push_back(addressPath);
 
                 ScheduleCreateNode(

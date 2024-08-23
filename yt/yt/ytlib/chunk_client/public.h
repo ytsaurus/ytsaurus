@@ -256,7 +256,7 @@ class TCodecStatistics;
 
 struct TClientChunkReadOptions;
 
-using TDataCenterName = std::optional<TString>;
+using TDataCenterName = std::optional<std::string>;
 
 DECLARE_REFCOUNTED_CLASS(TMemoryUsageGuard)
 

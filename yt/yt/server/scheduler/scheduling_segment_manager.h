@@ -77,14 +77,16 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, InitializationDeadline);
 
     static const TSchedulingSegmentModule& GetNodeModule(
-        const std::optional<TString>& nodeDataCenter,
-        const std::optional<TString>& nodeInfinibandCluster,
+        const std::optional<std::string>& nodeDataCenter,
+        const std::optional<std::string>& nodeInfinibandCluster,
         ESchedulingSegmentModuleType moduleType);
     static const TSchedulingSegmentModule& GetNodeModule(
         const TExecNodeDescriptorPtr& nodeDescriptor,
         ESchedulingSegmentModuleType moduleType);
 
-    static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);
+    static TString GetNodeTagFromModuleName(
+        const std::string& moduleName,
+        ESchedulingSegmentModuleType moduleType);
 
     TSchedulingSegmentManager(
         TString treeId,

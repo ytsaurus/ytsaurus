@@ -180,7 +180,7 @@ public:
         return Error_.Load().IsOK();
     }
 
-    TString GetDefaultAddress() const
+    const std::string& GetDefaultAddress() const
     {
         return Descriptor_.GetDefaultAddress();
     }
@@ -249,7 +249,7 @@ private:
 
     void PutGroup(const TReplicationWriterPtr& writer);
     void SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes);
-    bool ShouldThrottle(const TString& address, const TReplicationWriterPtr& writer) const;
+    bool ShouldThrottle(const std::string& address, const TReplicationWriterPtr& writer) const;
 
     void Process();
 };
@@ -268,7 +268,7 @@ public:
         TSessionId sessionId,
         TChunkReplicaWithMediumList initialTargets,
         NNative::IClientPtr client,
-        TString localHostName,
+        const std::string& localHostName,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
@@ -434,7 +434,7 @@ private:
     const TSessionId SessionId_;
     const TChunkReplicaWithMediumList InitialTargets_;
     const NNative::IClientPtr Client_;
-    const TString LocalHostName_;
+    const std::string LocalHostName_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -479,7 +479,7 @@ private:
     TInstant AllocateWriteTargetsTimestamp_;
     int AllocateWriteTargetsRetryIndex_ = 0;
 
-    std::vector<TString> BannedNodeAddresses_;
+    std::vector<std::string> BannedNodeAddresses_;
 
     bool CloseDemanded_ = false;
 
@@ -588,7 +588,7 @@ private:
 
         int activeTargets = static_cast<int>(Nodes_.size());
 
-        std::vector<TString> forbiddenAddresses;
+        std::vector<std::string> forbiddenAddresses;
         forbiddenAddresses.reserve(Nodes_.size() + BannedNodeAddresses_.size());
         // TODO(gritukan): Do not pass allocated nodes as forbidden when masters will be new.
         for (const auto& node : Nodes_) {
@@ -596,7 +596,7 @@ private:
         }
         forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodeAddresses_.begin(), BannedNodeAddresses_.end());
 
-        std::vector<TString> allocatedAddresses;
+        std::vector<std::string> allocatedAddresses;
         allocatedAddresses.reserve(Nodes_.size());
         for (const auto& node : Nodes_) {
             allocatedAddresses.push_back(node->GetDefaultAddress());
@@ -858,7 +858,7 @@ private:
                 }
 
                 // TODO(don-dron): Come up with a more accurate solution.
-                auto address = innerError->Attributes().Find<TString>("address");
+                auto address = innerError->Attributes().Find<std::string>("address");
                 auto needRetry = !address || std::count_if(
                     this_->Nodes_.begin(),
                     this_->Nodes_.end(),
@@ -1179,7 +1179,7 @@ bool TGroup::IsWritten() const
     return true;
 }
 
-bool TGroup::ShouldThrottle(const TString& address, const TReplicationWriterPtr& writer) const
+bool TGroup::ShouldThrottle(const std::string& address, const TReplicationWriterPtr& writer) const
 {
     return !IsAddressLocal(address) || writer->Config_->EnableLocalThrottling;
 }
@@ -1425,7 +1425,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
     NNative::IClientPtr client,
-    TString localHostName,
+    const std::string& localHostName,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -1436,7 +1436,7 @@ IChunkWriterPtr CreateReplicationWriter(
         sessionId,
         std::move(targets),
         std::move(client),
-        std::move(localHostName),
+        localHostName,
         std::move(throttler),
         std::move(blockCache),
         std::move(trafficMeter));

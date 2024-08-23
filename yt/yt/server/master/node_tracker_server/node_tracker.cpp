@@ -218,7 +218,7 @@ public:
         NodeDisposalManager_->Initialize();
     }
 
-    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
+    void ProcessRegisterNode(const std::string& address, TCtxRegisterNodePtr context) override
     {
         if (!context->Request().chunk_locations_supported()) {
             YT_LOG_ALERT("Node does not support real chunk locations (Address: %v)",
@@ -377,20 +377,20 @@ public:
         return node;
     }
 
-    TNode* FindNodeByAddress(const TString& address) override
+    TNode* FindNodeByAddress(const std::string& address) override
     {
         auto it = AddressToNodeMap_.find(address);
         return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
-    TNode* GetNodeByAddress(const TString& address) override
+    TNode* GetNodeByAddress(const std::string& address) override
     {
         auto* node = FindNodeByAddress(address);
         YT_VERIFY(node);
         return node;
     }
 
-    TNode* GetNodeByAddressOrThrow(const TString& address) override
+    TNode* GetNodeByAddressOrThrow(const std::string& address) override
     {
         auto* node = FindNodeByAddress(address);
         if (!node) {
@@ -399,30 +399,30 @@ public:
         return node;
     }
 
-    TNode* FindNodeByHostName(const TString& hostName) override
+    TNode* FindNodeByHostName(const std::string& hostName) override
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
-    THost* GetHostByNameOrThrow(const TString& name) override
+    THost* GetHostByNameOrThrow(const std::string& hostName) override
     {
-        auto* host = FindHostByName(name);
+        auto* host = FindHostByName(hostName);
         if (!host) {
-            THROW_ERROR_EXCEPTION("No such host %Qv", name);
+            THROW_ERROR_EXCEPTION("No such host %Qv", hostName);
         }
         return host;
     }
 
-    THost* FindHostByName(const TString& name) override
+    THost* FindHostByName(const std::string& hostName) override
     {
-        auto it = NameToHostMap_.find(name);
+        auto it = NameToHostMap_.find(hostName);
         return it == NameToHostMap_.end() ? nullptr : it->second;
     }
 
-    THost* GetHostByName(const TString& name) override
+    THost* GetHostByName(const std::string& hostName) override
     {
-        auto* host = FindHostByName(name);
+        auto* host = FindHostByName(hostName);
         YT_VERIFY(host);
         return host;
     }
@@ -568,7 +568,7 @@ public:
             this);
     }
 
-    THost* CreateHost(const TString& name, TObjectId hintId) override
+    THost* CreateHost(const std::string& name, TObjectId hintId) override
     {
         ValidateHostName(name);
 
@@ -611,7 +611,7 @@ public:
         HostDestroyed_.Fire(host);
     }
 
-    TRack* CreateRack(const TString& name, TObjectId hintId) override
+    TRack* CreateRack(const std::string& name, TObjectId hintId) override
     {
         ValidateRackName(name);
 
@@ -659,7 +659,7 @@ public:
         RackDestroyed_.Fire(rack);
     }
 
-    void RenameRack(TRack* rack, const TString& newName) override
+    void RenameRack(TRack* rack, const std::string& newName) override
     {
         if (rack->GetName() == newName)
             return;
@@ -686,13 +686,13 @@ public:
         RackRenamed_.Fire(rack);
     }
 
-    TRack* FindRackByName(const TString& name) override
+    TRack* FindRackByName(const std::string& name) override
     {
         auto it = NameToRackMap_.find(name);
         return it == NameToRackMap_.end() ? nullptr : it->second;
     }
 
-    TRack* GetRackByNameOrThrow(const TString& name) override
+    TRack* GetRackByNameOrThrow(const std::string& name) override
     {
         auto* rack = FindRackByName(name);
         if (!rack) {
@@ -704,7 +704,7 @@ public:
         return rack;
     }
 
-    TRack* GetRackByName(const TString& name) override
+    TRack* GetRackByName(const std::string& name) override
     {
         auto* rack = FindRackByName(name);
         YT_VERIFY(rack);
@@ -739,7 +739,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId) override
+    TDataCenter* CreateDataCenter(const std::string& name, TObjectId hintId) override
     {
         ValidateDataCenterName(name);
 
@@ -785,10 +785,11 @@ public:
         DataCenterDestroyed_.Fire(dc);
     }
 
-    void RenameDataCenter(TDataCenter* dc, const TString& newName) override
+    void RenameDataCenter(TDataCenter* dc, const std::string& newName) override
     {
-        if (dc->GetName() == newName)
+        if (dc->GetName() == newName) {
             return;
+        }
 
         if (FindDataCenterByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -814,13 +815,13 @@ public:
         DataCenterRenamed_.Fire(dc);
     }
 
-    TDataCenter* FindDataCenterByName(const TString& name) override
+    TDataCenter* FindDataCenterByName(const std::string& name) override
     {
         auto it = NameToDataCenterMap_.find(name);
         return it == NameToDataCenterMap_.end() ? nullptr : it->second;
     }
 
-    TDataCenter* GetDataCenterByNameOrThrow(const TString& name) override
+    TDataCenter* GetDataCenterByNameOrThrow(const std::string& name) override
     {
         auto* dc = FindDataCenterByName(name);
         if (!dc) {
@@ -832,7 +833,7 @@ public:
         return dc;
     }
 
-    TDataCenter* GetDataCenterByName(const TString& name) override
+    TDataCenter* GetDataCenterByName(const std::string& name) override
     {
         auto* dc = FindDataCenterByName(name);
         YT_VERIFY(dc);
@@ -865,7 +866,7 @@ public:
         return NodeListPerRole_[nodeRole].Nodes();
     }
 
-    const std::vector<TString>& GetNodeAddressesForRole(ENodeRole nodeRole) override
+    const std::vector<std::string>& GetNodeAddressesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Addresses();
     }
@@ -965,12 +966,12 @@ private:
     int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
-    THashMap<TString, TNode*> AddressToNodeMap_;
-    THashMultiMap<TString, TNode*> HostNameToNodeMap_;
+    THashMap<std::string, TNode*> AddressToNodeMap_;
+    THashMultiMap<std::string, TNode*> HostNameToNodeMap_;
     THashMap<TTransaction*, TNode*> TransactionToNodeMap_;
-    THashMap<TString, THost*> NameToHostMap_;
-    THashMap<TString, TRack*> NameToRackMap_;
-    THashMap<TString, TDataCenter*> NameToDataCenterMap_;
+    THashMap<std::string, THost*> NameToHostMap_;
+    THashMap<std::string, TRack*> NameToRackMap_;
+    THashMap<std::string, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
     TPeriodicExecutorPtr ResetNodePendingRestartMaintenanceExecutor_;
@@ -987,7 +988,7 @@ private:
 
     struct TNodeGroup
     {
-        TString Id;
+        std::string Id;
         TNodeGroupConfigPtr Config;
         int LocalRegisteredNodeCount = 0;
         int PendingRegisterNodeMutationCount = 0;
@@ -995,7 +996,7 @@ private:
 
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
-    THashSet<TString> PendingRegisterNodeAddresses_;
+    THashSet<std::string> PendingRegisterNodeAddresses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -1007,16 +1008,16 @@ private:
         std::optional<TNodeId> NodeId;
         TNodeAddressMap NodeAddresses;
         TAddressMap Addresses;
-        TString DefaultAddress;
+        std::string DefaultAddress;
         TTransactionId LeaseTransactionId;
         std::vector<TString> Tags;
         THashSet<ENodeFlavor> Flavors;
         bool ExecNodeIsNotDataNode;
-        TString HostName;
+        std::string HostName;
         std::optional<TYsonString> CypressAnnotations;
         std::optional<TString> BuildVersion;
-        std::optional<TString> Rack;
-        std::optional<TString> DataCenter;
+        std::optional<std::string> Rack;
+        std::optional<std::string> DataCenter;
     };
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1044,7 +1045,7 @@ private:
     }
 
 
-    static TYPath GetNodePath(const TString& address)
+    static TYPath GetNodePath(const std::string& address)
     {
         return GetClusterNodesPath() + "/" + ToYPathLiteral(address);
     }
@@ -1168,7 +1169,7 @@ private:
         }
     }
 
-    void KickOutPreviousNodeIncarnation(TNode* node, const TString& address)
+    void KickOutPreviousNodeIncarnation(TNode* node, const std::string& address)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1203,7 +1204,7 @@ private:
         ResetCellAggregatedStateReliabilities(node);
     }
 
-    void CreateHostObject(TNode* node, const TString& hostName, TRack* rack)
+    void CreateHostObject(TNode* node, const std::string& hostName, TRack* rack)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1232,7 +1233,7 @@ private:
         }
     }
 
-    void CreateDataCenterObject(const TString& name)
+    void CreateDataCenterObject(const std::string& name)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1253,7 +1254,7 @@ private:
         }
     }
 
-    void CreateRackObject(const TString& name, const std::optional<TString>& dataCenter)
+    void CreateRackObject(const std::string& name, const std::optional<std::string>& dataCenter)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -2540,7 +2541,7 @@ private:
     {
         YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            HostNameToNodeMap_.emplace(TString(GetServiceHostName(address)), node);
+            HostNameToNodeMap_.emplace(std::string(GetServiceHostName(address)), node);
         }
     }
 
@@ -2548,7 +2549,7 @@ private:
     {
         YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(address)));
+            auto hostNameRange = HostNameToNodeMap_.equal_range(std::string(GetServiceHostName(address)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {
                     HostNameToNodeMap_.erase(it);
@@ -2674,7 +2675,7 @@ private:
         return result;
     }
 
-    TNodeGroupList GetGroupsForNode(const TString& address)
+    TNodeGroupList GetGroupsForNode(const std::string& address)
     {
         auto* node = FindNodeByAddress(address);
         if (!IsObjectAlive(node)) {

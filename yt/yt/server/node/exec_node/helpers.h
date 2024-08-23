@@ -39,7 +39,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
 struct TControllerAgentDescriptor
 {
-    TString Address;
+    std::string Address;
     NScheduler::TIncarnationId IncarnationId;
 
     bool operator==(const TControllerAgentDescriptor& other) const = default;

@@ -102,7 +102,8 @@ TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
 NRecords::TQueueObjectKey RecordKeyFromRow(const TQueueTableRow& row)
 {
     return NRecords::TQueueObjectKey{
-        .Cluster = row.Ref.Cluster,
+        // TODO(babenko): switch to std::string
+        .Cluster = TString(row.Ref.Cluster),
         .Path = row.Ref.Path,
     };
 }
@@ -149,7 +150,8 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
 NRecords::TConsumerObjectKey RecordKeyFromRow(const TConsumerTableRow& row)
 {
     return NRecords::TConsumerObjectKey{
-        .Cluster = row.Ref.Cluster,
+        // TODO(babenko): switch to std::string
+        .Cluster = TString(row.Ref.Cluster),
         .Path = row.Ref.Path,
     };
 }
@@ -187,9 +189,11 @@ TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistratio
 NRecords::TConsumerRegistrationKey RecordKeyFromRow(const TConsumerRegistrationTableRow& row)
 {
     return NRecords::TConsumerRegistrationKey{
-        .QueueCluster = row.Queue.Cluster,
+        // TODO(babenko): switch to std::string
+        .QueueCluster = TString(row.Queue.Cluster),
         .QueuePath = row.Queue.Path,
-        .ConsumerCluster = row.Consumer.Cluster,
+        // TODO(babenko): switch to std::string
+        .ConsumerCluster = TString(row.Consumer.Cluster),
         .ConsumerPath = row.Consumer.Path,
     };
 }
@@ -240,7 +244,8 @@ TReplicatedTableMappingTableRow RowFromRecord(const NRecords::TReplicatedTableMa
 NRecords::TReplicatedTableMappingKey RecordKeyFromRow(const TReplicatedTableMappingTableRow& row)
 {
     return NRecords::TReplicatedTableMappingKey{
-        .Cluster = row.Ref.Cluster,
+        // TODO(babenko): switch to std::string
+        .Cluster = TString(row.Ref.Cluster),
         .Path = row.Ref.Path,
     };
 }

@@ -195,7 +195,8 @@ protected:
         if (!NodeDirectory_) {
             NodeDirectory_ = New<TNodeDirectory>();
             for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
-                NodeDirectory_->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
+                // TODO(babenko): switch to std::string
+                NodeDirectory_->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{std::string(Format("node-%v", nodeId))});
             }
         }
 
@@ -292,7 +293,8 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectory)
             continue;
         }
 
-        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
+        // TODO(babenko): switch to std::string
+        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{std::string(Format("node-%v", nodeId))});
     }
     NodeDirectory_ = nodeDirectory;
 
@@ -319,7 +321,8 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectory)
     TDelayedExecutor::Submit(BIND([this] {
         auto completeNodeDirectory = New<TNodeDirectory>();
         for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
-            completeNodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
+            // TODO(babenko): switch to std::string
+            completeNodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{std::string(Format("node-%v", nodeId))});
         }
         NodeDirectory_->MergeFrom(completeNodeDirectory);
     }), TDuration::Seconds(5));
@@ -338,7 +341,8 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectoryFails)
             continue;
         }
 
-        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
+        // TODO(babenko): switch to std::string
+        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{std::string(Format("node-%v", nodeId))});
     }
     NodeDirectory_ = nodeDirectory;
 

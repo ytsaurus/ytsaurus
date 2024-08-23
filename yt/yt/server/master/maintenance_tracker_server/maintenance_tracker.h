@@ -15,14 +15,14 @@ struct IMaintenanceTracker
 {
     virtual TMaintenanceIdPerTarget AddMaintenance(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         EMaintenanceType type,
         const TString& comment,
         std::optional<NCypressServer::TNodeId> targetMapNodeId) = 0;
 
     virtual TMaintenanceCountsPerTarget RemoveMaintenance(
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
         std::optional<TStringBuf> user,
         std::optional<EMaintenanceType> type,

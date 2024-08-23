@@ -106,7 +106,7 @@ void FromProto(
     if (protoCellDirectoryItem.has_endpoints()) {
         FromProto(&config->Endpoints, protoCellDirectoryItem.endpoints());
     } else {
-        config->Addresses = FromProto<std::vector<TString>>(protoCellDirectoryItem.addresses());
+        config->Addresses = FromProto<std::vector<std::string>>(protoCellDirectoryItem.addresses());
     }
     if (protoCellDirectoryItem.has_hedging_delay()) {
         config->HedgingDelay = FromProto<TDuration>(protoCellDirectoryItem.hedging_delay());

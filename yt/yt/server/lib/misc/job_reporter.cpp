@@ -92,7 +92,8 @@ public:
             .StartTime = Report_.StartTime(),
             .FinishTime = Report_.FinishTime(),
             .UpdateTime = TInstant::Now().MicroSeconds(),
-            .Address = Report_.Address(),
+            // TODO(babenko): switch to std::string
+            .Address = Report_.Address() ? TString(*Report_.Address()) : std::optional<std::string>(),
             .StderrSize = Report_.StderrSize(),
             .HasCompetitors = Report_.HasCompetitors(),
             .HasProbingCompetitors = Report_.HasProbingCompetitors(),

@@ -178,7 +178,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
 namespace {
 
-TErrorOr<TString> TryParseControllerAgentAddress(
+TErrorOr<std::string> TryParseControllerAgentAddress(
     const NNodeTrackerClient::NProto::TAddressMap& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
 {

@@ -22,11 +22,11 @@ public:
 
     int GetAddressCount() const;
 
-    std::vector<TString> GetUpAddresses();
-    std::vector<TString> GetProbationAddresses();
+    std::vector<std::string> GetUpAddresses();
+    std::vector<std::string> GetProbationAddresses();
 
-    void BanAddress(const TString& address);
-    void UnbanAddress(const TString& address);
+    void BanAddress(const std::string& address);
+    void UnbanAddress(const std::string& address);
 
     void SetBanTimeout(TDuration banTimeout);
     //! After each reconfiguration with SetConfig GetReadyEvent's future
@@ -40,9 +40,9 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TDiscoveryConnectionConfigPtr Config_;
-    THashSet<TString> UpAddresses_;
-    THashSet<TString> ProbationAddresses_;
-    THashSet<TString> DownAddresses_;
+    THashSet<std::string> UpAddresses_;
+    THashSet<std::string> ProbationAddresses_;
+    THashSet<std::string> DownAddresses_;
 
     std::atomic<int> AddressCount_ = 0;
 
@@ -50,14 +50,14 @@ private:
     NConcurrency::TPeriodicExecutorPtr EndpointsUpdateExecutor_;
     TPromise<void> ResolvedAddressesPromise_;
 
-    void OnBanTimeoutExpired(const TString& address);
+    void OnBanTimeoutExpired(const std::string& address);
 
     void UpdateEndpoints();
     void OnEndpointsResolved(
-        const TString& endpointSetId,
+        const std::string& endpointSetId,
         const TErrorOr<std::vector<TErrorOr<NServiceDiscovery::TEndpointSet>>>& endpointSetsOrError);
 
-    void SetAddresses(const std::vector<TString>& addresses);
+    void SetAddresses(const std::vector<std::string>& addresses);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerAddressPool)
@@ -80,7 +80,7 @@ protected:
     const std::optional<int> OptionalRequiredSuccessCount_;
     const TPromise<TResponse> Promise_;
 
-    virtual TFuture<void> MakeRequest(const TString& address) = 0;
+    virtual TFuture<void> MakeRequest(const std::string& address) = 0;
 
     int GetRequiredSuccessCount() const;
 
@@ -90,11 +90,11 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AddressesLock_);
 
-    std::vector<TString> UpAddresses_;
+    std::vector<std::string> UpAddresses_;
     int CurrentUpAddressIndex_ = 0;
 
     bool HasExtraProbationRequest_ = false;
-    std::vector<TString> ProbationAddresses_;
+    std::vector<std::string> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ErrorsLock_);
@@ -110,7 +110,7 @@ private:
 TDiscoveryClientServiceProxy CreateProxy(
     const TDiscoveryClientConfigPtr& config,
     const NRpc::IChannelFactoryPtr& channelFactory,
-    const TString& address);
+    const std::string& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +138,7 @@ private:
     THashMap<TMemberId, TMemberInfo> IdToMember_;
     int SuccessCount_ = 0;
 
-    TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const std::string& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TListMembersRequestSession)
@@ -170,7 +170,7 @@ private:
     bool Incomplete_ = false;
     int SuccessCount_ = 0;
 
-    TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const std::string& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TListGroupsRequestSession)
@@ -199,7 +199,7 @@ private:
     TGroupMeta GroupMeta_;
     int SuccessCount_ = 0;
 
-    TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const std::string& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGetGroupMetaRequestSession)
@@ -234,7 +234,7 @@ private:
 
     std::atomic<int> SuccessCount_ = 0;
 
-    TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const std::string& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(THeartbeatSession)

@@ -28,7 +28,7 @@ static constexpr auto& Logger = HydraStressTestLogger;
 TLeaderSwitcher::TLeaderSwitcher(
     TConfigPtr config,
     TLivenessCheckerPtr livenessChecker,
-    std::vector<TString> addresses,
+    std::vector<std::string> addresses,
     std::vector<IChannelPtr> peerChannels,
     IChannelPtr leaderChannel)
     : Config_(config)

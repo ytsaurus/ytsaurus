@@ -37,7 +37,7 @@ private:
         NChunkServer::TJobId jobId,
         NJobAgent::EJobState jobState,
         NJobAgent::EJobType jobType,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         TInstant jobStartTime,
         TDuration jobDuration,
         const NClusterNode::TJobResources& baseResourceUsage,

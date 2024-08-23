@@ -798,7 +798,7 @@ void TNodeShard::RemoveOperationScheduleAllocationEntries(const TOperationId ope
     OperationIdToAllocationIterators_.erase(operationId);
 }
 
-void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
+void TNodeShard::RemoveMissingNodes(const std::vector<std::string>& nodeAddresses)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -806,7 +806,7 @@ void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
         return;
     }
 
-    auto nodeAddressesSet = THashSet<TString>(nodeAddresses.begin(), nodeAddresses.end());
+    auto nodeAddressesSet = THashSet<std::string>(nodeAddresses.begin(), nodeAddresses.end());
 
     std::vector<TExecNodePtr> nodesToUnregister;
     for (const auto& [id, node] : IdToNode_) {
@@ -828,7 +828,7 @@ void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
     }
 }
 
-std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
+std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<std::string, INodePtr>>& nodeMaps)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -2400,7 +2400,8 @@ void TNodeShard::UnregisterAllocation(const TAllocationPtr& allocation, bool cau
                 allocation->GetTreeId(),
                 TJobResources(),
                 allocation->GetNode()->NodeDescriptor().GetDataCenter(),
-                allocation->GetNode()->GetInfinibandCluster()};
+                allocation->GetNode()->GetInfinibandCluster(),
+            };
         operationState->AllocationsToSubmitToStrategy.insert(allocationId);
 
         YT_LOG_DEBUG_IF(

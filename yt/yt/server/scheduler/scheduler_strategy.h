@@ -118,8 +118,8 @@ struct TAllocationUpdate
     // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
     TJobResources AllocationResources;
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
-    std::optional<TString> AllocationDataCenter;
-    std::optional<TString> AllocationInfinibandCluster;
+    std::optional<std::string> AllocationDataCenter;
+    std::optional<std::string> AllocationInfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +172,7 @@ struct ISchedulerStrategy
     //! Create proxy for handling node heartbeat.
     virtual INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& address,
+        const std::string& address,
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const = 0;
 
@@ -194,13 +194,13 @@ struct ISchedulerStrategy
     //! Registers or updates a node.
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags) = 0;
 
     //! Unregisters node.
     virtual void UnregisterNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress) = 0;
+        const std::string& nodeAddress) = 0;
 
     //! Validates that operation can be started.
     /*!
@@ -330,7 +330,7 @@ struct ISchedulerStrategy
     //! These methods are used for diagnostics.
     virtual void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         NYTree::TFluentMap fluent) const = 0;
 

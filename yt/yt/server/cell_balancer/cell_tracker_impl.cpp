@@ -415,9 +415,7 @@ TError TCellTrackerImpl::IsFailed(
     const TCellBase* cell,
     TDuration timeout)
 {
-    const auto* node = ClusterStateProvider_->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
-
-    if (node) {
+    if (const auto* node = ClusterStateProvider_->FindNodeByAddress(peer.Descriptor.GetDefaultAddress())) {
         if (!peer.Node && peer.LastSeenTime + timeout < TInstant::Now()) {
             return TError(
                 NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,

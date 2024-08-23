@@ -126,8 +126,8 @@ public:
     //! Computes the health from a point of view of a single master.
     virtual ECellHealth GetHealth() const;
 
-    int FindPeerId(const TString& address) const;
-    int GetPeerId(const TString& address) const;
+    int FindPeerId(const std::string& address) const;
+    int GetPeerId(const std::string& address) const;
 
     int FindPeerId(NNodeTrackerServer::TNode* node) const;
     int GetPeerId(NNodeTrackerServer::TNode* node) const;

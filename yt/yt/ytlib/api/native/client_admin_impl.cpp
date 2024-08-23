@@ -378,7 +378,7 @@ void TClient::DoDiscombobulateNonvotingPeers(
 
 void TClient::DoSwitchLeader(
     TCellId cellId,
-    const TString& newLeaderAddress,
+    const std::string& newLeaderAddress,
     const TSwitchLeaderOptions& options)
 {
     ValidatePermissionsWithAcn(
@@ -396,7 +396,7 @@ void TClient::DoSwitchLeader(
     std::vector<IChannelPtr> peerChannels;
     peerChannels.reserve(addresses.size());
 
-    auto createChannel = [&] (const TString& address) {
+    auto createChannel = [&] (const std::string& address) {
         return CreateRealmChannel(
             Connection_->GetChannelFactory()->CreateChannel(address),
             cellId);
@@ -450,7 +450,7 @@ void TClient::DoGCCollect(const TGCCollectOptions& options)
         .ThrowOnError();
 }
 
-void TClient::DoKillProcess(const TString& address, const TKillProcessOptions& options)
+void TClient::DoKillProcess(const std::string& address, const TKillProcessOptions& options)
 {
     ValidateSuperuserPermissions();
 
@@ -467,7 +467,7 @@ void TClient::DoKillProcess(const TString& address, const TKillProcessOptions& o
         .ThrowOnError();
 }
 
-TString TClient::DoWriteCoreDump(const TString& address, const TWriteCoreDumpOptions& /*options*/)
+TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)
 {
     ValidateSuperuserPermissions();
 
@@ -480,7 +480,7 @@ TString TClient::DoWriteCoreDump(const TString& address, const TWriteCoreDumpOpt
     return rsp->path();
 }
 
-TGuid TClient::DoWriteLogBarrier(const TString& address, const TWriteLogBarrierOptions& options)
+TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarrierOptions& options)
 {
     ValidateSuperuserPermissions();
 
@@ -523,7 +523,7 @@ TString TClient::DoWriteOperationControllerCoreDump(
 }
 
 void TClient::DoHealExecNode(
-    const TString& address,
+    const std::string& address,
     const THealExecNodeOptions& options)
 {
     ValidateSuperuserPermissions();
@@ -776,7 +776,7 @@ TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
 
 TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     EMaintenanceComponent component,
-    const TString& address,
+    const std::string& address,
     EMaintenanceType type,
     const TString& comment,
     const TAddMaintenanceOptions& options)
@@ -789,9 +789,9 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
     auto request = TMasterYPathProxy::AddMaintenance();
-    request->set_component(static_cast<int>(component));
-    request->set_address(address);
-    request->set_type(static_cast<int>(type));
+    request->set_component(ToProto<int>(component));
+    request->set_address(ToProto<TProtobufString>(address));
+    request->set_type(ToProto<int>(type));
     request->set_comment(comment);
     if (componentRegistryId != NullObjectId) {
         ToProto(request->mutable_component_registry_id(), componentRegistryId);
@@ -822,7 +822,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
 
 TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     EMaintenanceComponent component,
-    const TString& address,
+    const std::string& address,
     const TMaintenanceFilter& filter,
     const TRemoveMaintenanceOptions& options)
 {
@@ -832,8 +832,8 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
     auto request = TMasterYPathProxy::RemoveMaintenance();
-    request->set_component(static_cast<int>(component));
-    request->set_address(address);
+    request->set_component(ToProto<int>(component));
+    request->set_address(ToProto<TProtobufString>(address));
 
     ToProto(request->mutable_ids(), filter.Ids);
 
@@ -889,7 +889,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
 }
 
 TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
-    const TString& nodeAddress,
+    const std::string& nodeAddress,
     const std::vector<TGuid>& locationUuids,
     const TDisableChunkLocationsOptions& options)
 {
@@ -911,7 +911,7 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
 }
 
 TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
-    const TString& nodeAddress,
+    const std::string& nodeAddress,
     bool recoverUnlinkedDisks,
     const std::vector<TGuid>& locationUuids,
     const TDestroyChunkLocationsOptions& options)
@@ -935,7 +935,7 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
 }
 
 TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
-    const TString& nodeAddress,
+    const std::string& nodeAddress,
     const std::vector<TGuid>& locationUuids,
     const TResurrectChunkLocationsOptions& options)
 {
@@ -957,7 +957,7 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
 }
 
 TRequestRestartResult TClient::DoRequestRestart(
-    const TString& nodeAddress,
+    const std::string& nodeAddress,
     const TRequestRestartOptions& options)
 {
     ValidatePermissionsWithAcn(

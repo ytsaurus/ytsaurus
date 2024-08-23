@@ -426,7 +426,7 @@ public:
             : ReplaceCellTagInId(GetCellId(), cellTag);
     }
 
-    std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
+    std::vector<std::string> GetMasterAddressesOrThrow(TCellTag cellTag) const override
     {
         // TODO(babenko): handle service discovery.
         auto unwrapAddresses = [&] (const auto& optionalAddresses) {
@@ -466,7 +466,7 @@ public:
         return MasterConnector_->GetNodeId();
     }
 
-    TString GetLocalHostName() const override
+    std::string GetLocalHostName() const override
     {
         return MasterConnector_->GetLocalHostName();
     }
@@ -1767,7 +1767,7 @@ TCellId TBootstrapBase::GetCellId(TCellTag cellTag) const
     return Bootstrap_->GetCellId(cellTag);
 }
 
-std::vector<TString> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
+std::vector<std::string> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
 {
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
@@ -1787,7 +1787,7 @@ TNodeId TBootstrapBase::GetNodeId() const
     return Bootstrap_->GetNodeId();
 }
 
-TString TBootstrapBase::GetLocalHostName() const
+std::string TBootstrapBase::GetLocalHostName() const
 {
     return Bootstrap_->GetLocalHostName();
 }

@@ -81,14 +81,14 @@ public:
         }
     }
 
-    std::vector<TString> GetPropagationAddresses() const override
+    std::vector<std::string> GetPropagationAddresses() const override
     {
         auto guard = Guard(SessionLock_);
 
-        return std::vector(PropagationAddressQueue_.begin(), PropagationAddressQueue_.end());
+        return {PropagationAddressQueue_.begin(), PropagationAddressQueue_.end()};
     }
 
-    void ErasePropagationAddresses(const std::vector<TString>& addresses) override
+    void ErasePropagationAddresses(const std::vector<std::string>& addresses) override
     {
         auto guard = Guard(SessionLock_);
 
@@ -103,12 +103,12 @@ public:
     }
 
     TFuture<void> PushRowset(
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         TRowsetId rowsetId,
         TTableSchemaPtr schema,
         const std::vector<TRange<TUnversionedRow>>& subranges,
         INodeChannelFactoryPtr channelFactory,
-        size_t desiredUncompressedBlockSize) override
+        i64 desiredUncompressedBlockSize) override
     {
         auto proxy = TQueryServiceProxy(channelFactory->CreateChannel(nodeAddress));
 
@@ -170,14 +170,14 @@ private:
     const TDuration RetentionTime_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SessionLock_);
-    THashSet<TString> PropagationAddressQueue_;
+    THashSet<std::string> PropagationAddressQueue_;
     THashMap<TRowsetId, ISchemafulUnversionedReaderPtr> RowsetMap_;
 
-    void PropagateToNode(TString address)
+    void PropagateToNode(const std::string& address)
     {
         auto guard = Guard(SessionLock_);
 
-        PropagationAddressQueue_.insert(std::move(address));
+        PropagationAddressQueue_.insert(address);
     }
 };
 

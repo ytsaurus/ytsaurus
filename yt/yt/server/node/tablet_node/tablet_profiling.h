@@ -451,7 +451,7 @@ public:
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
     TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
 
-    TReplicaCounters GetReplicaCounters(const TString& cluster);
+    TReplicaCounters GetReplicaCounters(const std::string& cluster);
 
     TTablePullerCounters* GetTablePullerCounters();
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);

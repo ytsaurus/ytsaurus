@@ -46,7 +46,8 @@ public:
         }
 
         auto serverConfig = New<TDiscoveryServerConfig>();
-        serverConfig->ServerAddresses = Addresses_;
+        // TODO(babenko): switch to std::string
+        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
         serverConfig->AttributesUpdatePeriod = TDuration::Seconds(2);
 
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
@@ -63,7 +64,8 @@ public:
     void RecreateDiscoveryServer(int index)
     {
         auto serverConfig = New<TDiscoveryServerConfig>();
-        serverConfig->ServerAddresses = Addresses_;
+        // TODO(babenko): switch to std::string
+        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
 
         DiscoveryServers_[index] = CreateDiscoveryServer(serverConfig, index);
         DiscoveryServers_[index]->Initialize();
@@ -79,7 +81,8 @@ public:
 
         auto server = NDiscoveryServer::CreateDiscoveryServer(
             RpcServers_[index],
-            Addresses_[index],
+            // TODO(babenko): switch to std::string
+            TString(Addresses_[index]),
             serverConfig,
             ChannelFactory_,
             serverActionQueue->GetInvoker(),
@@ -137,7 +140,7 @@ public:
             groupId);
     }
 
-    const std::vector<TString>& GetDiscoveryServersAddresses()
+    const std::vector<std::string>& GetDiscoveryServersAddresses()
     {
         return Addresses_;
     }
@@ -148,7 +151,7 @@ public:
     }
 
 private:
-    std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
+    std::vector<std::string> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
     std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 

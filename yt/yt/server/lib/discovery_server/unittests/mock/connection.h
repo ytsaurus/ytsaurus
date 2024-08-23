@@ -253,7 +253,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::vector<TString> GetDiscoveryServerAddresses() const override
+    std::vector<std::string> GetDiscoveryServerAddresses() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -273,7 +273,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const std::optional<TString>& GetClusterName() const override
+    const std::optional<std::string>& GetClusterName() const override
     {
         YT_UNIMPLEMENTED();
     }

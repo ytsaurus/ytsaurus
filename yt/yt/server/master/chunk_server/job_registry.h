@@ -44,7 +44,7 @@ struct IJobRegistry
 
     virtual TJobPtr FindLastFinishedJob(TChunkId chunkId) const = 0;
 
-    virtual const THashSet<TJobPtr>& GetNodeJobs(const TString& nodeAddress) const = 0;
+    virtual const THashSet<TJobPtr>& GetNodeJobs(const std::string& nodeAddress) const = 0;
 
     virtual int GetJobCount(EJobType jobType) const = 0;
 

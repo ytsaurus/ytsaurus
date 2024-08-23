@@ -17,8 +17,8 @@ void SwitchLeader(
     const std::vector<IChannelPtr>& peerChannels,
     const IChannelPtr& currentLeaderChannel,
     const IChannelPtr& newLeaderChannel,
-    const std::vector<TString>& addresses,
-    const TString& newLeaderAddress,
+    const std::vector<std::string>& addresses,
+    const std::string& newLeaderAddress,
     const std::optional<TDuration>& timeout,
     const std::optional<TString>& user)
 {

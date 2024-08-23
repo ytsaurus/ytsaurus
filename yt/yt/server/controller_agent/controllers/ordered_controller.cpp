@@ -1488,7 +1488,7 @@ private:
         return GetRemoteConnection()->GetCompoundConfig();
     }
 
-    std::vector<TString> GetRemoteMasterCacheAddresses() const
+    std::vector<std::string> GetRemoteMasterCacheAddresses() const
     {
         try {
             return GuardedGetRemoteMasterCacheAddresses();
@@ -1498,7 +1498,7 @@ private:
         }
     }
 
-    std::vector<TString> GuardedGetRemoteMasterCacheAddresses() const
+    std::vector<std::string> GuardedGetRemoteMasterCacheAddresses() const
     {
         if (!Spec_->UseRemoteMasterCaches) {
             return {};
