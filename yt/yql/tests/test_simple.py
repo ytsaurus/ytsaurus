@@ -283,6 +283,7 @@ class TestYqlPlugin(TestQueriesYqlBase):
 
 class TestAllYqlAgentsOverload(TestQueriesYqlBase):
     YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
+    NUM_YQL_AGENTS = 1
 
     @authors("mpereskokova")
     def test_yql_agent_overload(self, query_tracker, yql_agent):

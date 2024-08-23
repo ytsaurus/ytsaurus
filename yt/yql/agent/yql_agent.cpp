@@ -33,6 +33,32 @@ const auto& Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class ActiveQueriesGuard
+{
+public:
+    explicit ActiveQueriesGuard()
+    {
+        ActiveQueries_.fetch_add(1);
+    }
+
+    ~ActiveQueriesGuard()
+    {
+        ActiveQueries_.fetch_add(-1);
+    }
+
+    static int Get()
+    {
+        return ActiveQueries_.load();
+    }
+
+private:
+    static std::atomic<int> ActiveQueries_;
+};
+
+std::atomic<int> ActiveQueriesGuard::ActiveQueries_ = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
 static std::optional<TString> TryIssueToken(const TQueryId queryId, const TString& user, const std::vector<TString>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout)
 {
     TString token;
@@ -118,9 +144,9 @@ public:
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
         , DynamicConfig_(std::move(dynamicConfig))
-        , ActiveQueries_(0)
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
+
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
@@ -243,7 +269,7 @@ public:
     {
         TRspGetYqlAgentState response;
         response.set_ready_to_get_queries(
-            ActiveQueries_.load() < DynamicConfig_->MaxSimultaneousQueries);
+            ActiveQueriesGuard::Get() < DynamicConfig_->MaxSimultaneousQueries);
 
         return response;
     }
@@ -258,15 +284,13 @@ private:
 
     TYqlAgentDynamicConfigPtr DynamicConfig_;
 
-    std::atomic<int> ActiveQueries_;
-
     std::unique_ptr<NYqlPlugin::IYqlPlugin> YqlPlugin_;
 
     IThreadPoolPtr ThreadPool_;
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
-        ActiveQueries_.fetch_add(1);
+        ActiveQueriesGuard guard = ActiveQueriesGuard();
 
         static const auto EmptyMap = TYsonString(TString("{}"));
 
@@ -342,10 +366,8 @@ private:
                 }
             }
             response.mutable_yql_response()->Swap(&yqlResponse);
-            ActiveQueries_.fetch_add(-1);
             return {response, wireRowsets};
         } catch (const std::exception& ex) {
-            ActiveQueries_.fetch_add(-1);
             auto error = TError("YQL plugin call failed") << TError(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
