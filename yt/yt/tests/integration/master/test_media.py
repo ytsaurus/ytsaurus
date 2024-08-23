@@ -5,7 +5,7 @@ from yt_commands import (
     create_domestic_medium, create_s3_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
-    get_media, set_node_banned)
+    get_media, set_node_banned, create_rack)
 
 from yt.common import YtError
 
@@ -639,6 +639,56 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/s3/@config/bucket") == "yt"
         set("//sys/media/s3/@config/bucket", "ytsaurus")
         assert get("//sys/media/s3/@config/bucket") == "ytsaurus"
+
+    @authors("danilalexeev")
+    def test_zero_replicas_needed(self):
+        create("table", "//tmp/t2", attributes={"erasure_codec": "isa_reed_solomon_6_3"})
+        write_table("//tmp/t2", {"a": "b"})
+
+        tbl_media = get("//tmp/t2/@media")
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {
+            "replication_factor": 1,
+            "data_parts_only": True,
+        }
+
+        set("//tmp/t2/@media", tbl_media)
+        wait(
+            lambda:
+                self._count_chunks_on_medium("t2", "default") == 9
+                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 3
+                and self._check_account_and_table_usage_equal("t2"))
+
+        # Replica count:
+        # 1 1 1 1 1 1 1 1 1 default <- primary
+        # 1 1 1 0 0 0 0 0 0 hdd1
+
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
+
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["data_parts_only"] = False
+        set("//tmp/t2/@media", tbl_media)
+
+        set("//tmp/t2/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
+        tbl_media["default"] = {"replication_factor": 0, "data_parts_only": False}
+        set("//tmp/t2/@media", tbl_media)
+
+        set(f"//sys/media/{TestMedia.NON_DEFAULT_MEDIUM}/@config/max_replicas_per_rack", 1)
+
+        create_rack("r0")
+        chunk_id = get_singular_chunk_id("//tmp/t2")
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+        for node in nodes:
+            if node.attributes["medium"] == TestMedia.NON_DEFAULT_MEDIUM:
+                set("//sys/cluster_nodes/" + node + "/@rack", "r0")
+
+        # Replica count:
+        # 1 1 1 1 1 1 1 1 1 test-medium <- primary
+
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
+
+        wait(
+            lambda:
+                self._check_all_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM)
+                and self._check_account_and_table_usage_equal("t2"))
 
 
 ################################################################################

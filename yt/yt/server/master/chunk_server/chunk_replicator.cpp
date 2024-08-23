@@ -1491,7 +1491,15 @@ bool TChunkReplicator::TryScheduleReplicationJob(
             replicationFactor - temporarilyUnavailableReplicaCount,
             replicationFactor - MaxTemporarilyUnavailableReplicaCount,
             minRackAwareReplicaCount}) - replicaCount;
-        YT_VERIFY(replicasNeeded > 0);
+
+        if (replicasNeeded < 0) {
+            YT_LOG_ALERT(
+                "Chunk replicas needed count is negative (ChunkId: %v, MediumIndex: %v, MediumStatus: %v)",
+                chunkId,
+                targetMediumIndex,
+                mediumStatistics.Status);
+            return true;
+        }
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
     } else {
