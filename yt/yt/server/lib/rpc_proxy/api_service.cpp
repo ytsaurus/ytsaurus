@@ -23,6 +23,7 @@
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/distributed_table_sessions.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/helpers.h>
@@ -807,6 +808,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ParticipantWriteTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
@@ -5580,18 +5588,27 @@ private:
         formatManager.ValidateAndPatchFormatNode(formatNode, "format");
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
+    std::optional<NFormats::TFormat> GetFormat(
+        const auto& context,
+        const auto& request)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto path = FromProto<NYPath::TRichYPath>(request->path());
-
         std::optional<NFormats::TFormat> format;
         if (request->has_format()) {
             auto stringFormat = TYsonStringBuf(request->format());
             ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
             format = ConvertTo<NFormats::TFormat>(stringFormat);
         }
+
+        return format;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto path = FromProto<NYPath::TRichYPath>(request->path());
+
+        auto format = GetFormat(context, request);
 
         NApi::TTableReaderOptions options;
         options.Unordered = request->unordered();
@@ -5683,44 +5700,13 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
+    void WriteTableImpl(
+        const auto& context,
+        const auto& request,
+        ITableWriterPtr tableWriter,
+        const auto& finalizer)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto path = FromProto<NYPath::TRichYPath>(request->path());
-
-        std::optional<NFormats::TFormat> format;
-        if (request->has_format()) {
-            auto stringFormat = TYsonStringBuf(request->format());
-            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
-            format = ConvertTo<NFormats::TFormat>(stringFormat);
-        }
-
-        NApi::TTableWriterOptions options;
-        if (request->has_config()) {
-            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
-        } else {
-            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
-        }
-
-        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
-            options.Config->EnableLargeColumnarStatistics = true;
-        }
-        // NB: Input comes directly from user and thus requires additional validation.
-        options.ValidateAnyIsValidYson = true;
-
-        if (request->has_transactional_options()) {
-            FromProto(&options, request->transactional_options());
-        }
-
-        context->SetRequestInfo(
-            "Path: %v",
-            path);
-
-        PutMethodInfoInTraceContext("write_table");
-
-        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
-            .ValueOrThrow();
+        auto format = GetFormat(context, request);
 
         THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamDecoderPtr> parserMap;
         auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat) {
@@ -5770,8 +5756,48 @@ private:
             [&] {
                 WaitFor(tableWriter->Close())
                     .ThrowOnError();
+                finalizer();
             },
             false /*feedbackEnabled*/);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("write_table");
+
+        auto path = FromProto<TRichYPath>(request->path());
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        NApi::TTableWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        } else {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
+        }
+
+        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
+            options.Config->EnableLargeColumnarStatistics = true;
+        }
+
+        // NB: Input comes directly from user and thus requires additional validation.
+        options.ValidateAnyIsValidYson = true;
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
+            .ValueOrThrow();
+
+        WriteTableImpl(
+            context,
+            request,
+            std::move(tableWriter),
+            [] {});
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
@@ -5879,6 +5905,80 @@ private:
                 ToProto(response->mutable_partitions(), result.Partitions);
 
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // DISTRIBUTED TABLE CLIENT
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto path = FromProto<TRichYPath>(request->path());
+
+        TDistributedWriteSessionStartOptions options;
+        FromProto(&options, *request);
+
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StartDistributedWriteSession(path, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response, result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto session = New<TDistributedWriteSession>();
+        FromProto(session.Get(), *request);
+
+        TDistributedWriteSessionFinishOptions options;
+        FromProto(&options, *request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->FinishDistributedWriteSession(session, options);
+            },
+            [] (const auto& /*context*/) {
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ParticipantWriteTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("participant_write_table");
+
+        auto cookie = New<TDistributedWriteCookie>();
+        FromProto(cookie.Get(), *request);
+
+        TParticipantTableWriterOptions options;
+        FromProto(&options, *request);
+
+        // NB: Input comes directly from user and thus requires additional validation.
+        options.ValidateAnyIsValidYson = true;
+
+        auto tableWriter = WaitFor(client->CreateParticipantTableWriter(cookie, options))
+            .ValueOrThrow();
+
+        WriteTableImpl(
+            context,
+            request,
+            std::move(tableWriter),
+            [&] {
+                ToProto(response, cookie);
             });
     }
 

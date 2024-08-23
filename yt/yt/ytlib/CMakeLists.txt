@@ -233,6 +233,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_authentication_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_distributed_table_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_dynamic_tables_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_file_cache_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_files_impl.cpp

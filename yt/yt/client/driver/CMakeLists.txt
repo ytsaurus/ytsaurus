@@ -37,6 +37,7 @@ target_sources(yt-client-driver PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/command.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/distributed_table_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
