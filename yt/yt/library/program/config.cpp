@@ -18,6 +18,8 @@ void THeapSizeLimit::Register(TRegistrar registrar)
 {
     registrar.Parameter("container_memory_ratio", &TThis::ContainerMemoryRatio)
         .Optional();
+    registrar.Parameter("container_memory_margin", &TThis::ContainerMemoryMargin)
+        .Optional();
     registrar.Parameter("hard", &TThis::Hard)
         .Default(false);
     registrar.Parameter("dump_memory_profile_on_violation", &TThis::DumpMemoryProfileOnViolation)
