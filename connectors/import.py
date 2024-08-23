@@ -29,31 +29,29 @@ def find_hive_jars():
                    "--jars /path/to/hive/jars/.*.jar".format(path))
     return jars
 
-def start_spyt_cluster(yt_client, args):
-    spyt.standalone.start_spark_cluster(worker_cores = args.cores_per_executor,
-                                        worker_memory = args.ram_per_core * args.cores_per_executor,
-                                        worker_num = args.num_executors,
-                                        worker_timeout = args.executor_timeout,
-                                        discovery_path = args.discovery_path,
-                                        tmpfs_limit = args.executor_tmpfs_limit,
-                                        pool = args.pool or get_user_name(client=yt_client),
-                                        enablers = spyt.enabler.SpytEnablers(enable_byop=False),
-                                        spark_cluster_version=args.spark_cluster_version,
-                                        params=spyt.standalone.SparkDefaultArguments.get_params(),
-                                        client=yt_client)
 
-def open_spark_session(yt_client, args):
-    conf = spyt.client._build_spark_conf(discovery_path=args.discovery_path,
-                                         num_executors=args.num_executors,
-                                         cores_per_executor=args.cores_per_executor,
-                                         driver_memory="1G",
-                                         executor_memory_per_core=args.ram_per_core,
-                                         client=yt_client)
+def _create_spark_conf(args):
+    conf = pyspark.SparkConf()
+    conf.set("spark.app.name", "Data import")
+    conf.set("spark.executor.instances", args.num_executors)
+    conf.set("spark.executor.cores", args.cores_per_executor)
+    conf.set("spark.executor.memory", args.executor_memory)
+
+    if args.executor_memory_overhead:
+        conf.set("spark.executor.memoryOverhead", args.executor_memory_overhead)
 
     if args.metastore:
         conf.set('hive.metastore.uris', 'thrift://%s' % args.metastore)
         conf.set('spark.sql.warehouse.dir', args.warehouse_dir)
 
+    if args.s3_access_key:
+        conf.set("spark.hadoop.fs.s3a.access.key", args.s3_access_key)
+
+    if args.s3_secret_key:
+        conf.set("spark.hadoop.fs.s3a.secret.key", args.s3_secret_key)
+
+    if args.s3_endpoint:
+        conf.set("spark.hadoop.fs.s3a.endpoint", args.s3_endpoint)
 
     if args.extra_conf:
         for keyvalue in args.extra_conf.split(','):
@@ -65,21 +63,11 @@ def open_spark_session(yt_client, args):
         jar_list = find_hive_jars()
 
     for pattern in args.jars:
-        jar_list += list(glob.glob(pattern))
+        jar_list += [pattern] if pattern.startswith('yt:/') else list(glob.glob(pattern))
 
     conf.set('spark.jars', ','.join(jar_list))
 
-    classpath = ':'.join(jar_list)
-    spark_current_cp = os.environ.get('SPARK_DIST_CLASSPATH', '')
-    if spark_current_cp:
-        classpath = spark_current_cp + ':' + classpath
-
-    os.environ['SPARK_DIST_CLASSPATH'] = classpath
-
-    builder = pyspark.sql.SparkSession.builder
-    if args.metastore:
-        builder = builder.enableHiveSupport()
-    return builder.config(conf=conf).getOrCreate()
+    return conf
 
 def use_hive_db(spark, db):
     spark.sql("USE {}".format(db)).collect()
@@ -171,9 +159,6 @@ def write_output(data, output_path):
 def main():
     parser = spyt.utils.get_default_arg_parser(prog="import.py")
 
-    parser.add_argument("--start-spyt", required=False, default=False,
-                        help="If true, start the SPYT cluster")
-
     parser.add_argument("--metastore", required=False,
                         help="host:port for Hive Metastore thrift service")
     parser.add_argument("--warehouse-dir", required=False,
@@ -185,7 +170,8 @@ def main():
     parser.add_argument("--pool", help="If starting SPYT cluster, YT pool to run in")
     parser.add_argument("--num-executors", required=False, type=int, default=1)
     parser.add_argument("--cores-per-executor", required=False, type=int, default=1)
-    parser.add_argument("--ram-per-core", required=False, default="2GB")
+    parser.add_argument("--executor-memory", required=False, default="2GB")
+    parser.add_argument("--executor-memory-overhead", required=False)
 
     parser.add_argument("--spark-cluster-version", required=False,
                         help="Spark cluster version, when starting SPYT cluster")
@@ -207,16 +193,16 @@ def main():
     parser.add_argument("--jdbc-password", required=False)
     parser.add_argument("--extra-conf", required=False)
 
+    parser.add_argument("--s3-access-key", required=False, help="S3 access key")
+    parser.add_argument("--s3-secret-key", required=False, help="S3 secret key")
+    parser.add_argument("--s3-endpoint", required=False, help="S3 endpoint")
+
     parser.add_argument('--jars',
                         nargs='*',
                         default=[os.path.join(os.path.dirname(__file__), 'target/dependency/*.jar')],
                         help="Additional jar files to provide to the SPYT operation")
 
     args = parser.parse_args()
-
-    if not args.discovery_path:
-        error_exit("--discovery-path is required to identify SPYT cluster. " \
-                   "It it is not running, provide --start-spyt true to start the cluster")
 
     if not args.input:
         logging.warning('--input argument is not provided, exiting.')
@@ -228,18 +214,11 @@ def main():
     for (in_table, out_table) in zip(args.input, args.output):
         validate_args(args, in_table, out_table)
 
-    yt_client = YtClient(proxy=args.proxy, token=spyt.utils.default_token())
-    if args.start_spyt:
-        start_spyt_cluster(yt_client, args)
-
-    spark = open_spark_session(yt_client, args)
-
-    try:
+    spark_conf = _create_spark_conf(args)
+    with spyt.direct_spark_session(args.proxy, spark_conf) as spark:
         for (in_table, out_table) in zip(args.input, args.output):
             input_data = read_input(args, spark, in_table)
             write_output(input_data, out_table)
-    finally:
-        spark.stop()
 
 
 if __name__ == '__main__':
