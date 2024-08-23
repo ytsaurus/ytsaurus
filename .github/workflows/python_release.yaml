@@ -77,32 +77,14 @@ jobs:
           mkdir -p ../build
           cd ../build
           rm -rf *
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DREQUIRED_LLVM_TOOLING_VERSION=16 \
-            ../ytsaurus/ytsaurus
 
-      - name: Build C++
-        run: |
-          cd ../build
-          export CCACHE_BASEDIR="$(realpath ..)"
-          export CCACHE_REMOTE_ONLY=true
-          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
-          ninja yson_lib driver_lib driver_rpc_lib
-
-      - name: Build ya make
+      - name: Build bindings libraries
+        if: ${{ (steps.tag.outputs.PACKAGE_NAME == 'ytsaurus-yson') || (steps.tag.outputs.PACKAGE_NAME == 'ytsaurus-rpc-driver') }}
         run: |
           export SOURCE_ROOT="$(pwd)/ytsaurus"
-          export YA_BUILD_PATH=$(realpath $(pwd)/../ya_build)
-          mkdir -p "$YA_BUILD_PATH"
+          export BUILD_PATH=$(realpath $(pwd)/../build)
 
           ytsaurus/yt/python/packages/build_python_libraries_with_docker.sh
-          cp "$YA_BUILD_PATH/yt/yt/python/yson_shared/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
-          cp "$YA_BUILD_PATH/yt/yt/python/driver/rpc_shared/driver_rpc_lib.so" ../build/yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
 
       - name: Build package
         id: build

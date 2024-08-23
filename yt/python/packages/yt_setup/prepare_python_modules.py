@@ -6,6 +6,7 @@ import logging
 import glob
 import os
 import re
+import sys
 
 from .os_helpers import (
     apply_multiple,
@@ -105,6 +106,7 @@ def prepare_python_modules(
         prepare_binary_symlinks=False,
         prepare_bindings=True,
         prepare_bindings_libraries=True,
+        bindings_libraries=None,
         should_fix_type_info_package=True,
         should_patch_os_files=False):
     """Prepares python libraries"""
@@ -115,18 +117,22 @@ def prepare_python_modules(
         return os.path.join(python_root, "contrib", path)
 
     def prepare_bindings_library(module_path, library_path, name):
+        pattern = "*{name}.so"
+        if sys.platform == "darwin":
+            pattern = "*{name}.dylib"
         replace(os.path.join(source_root, module_path), output_path)
-        if prepare_bindings_libraries:
-            dir = os.path.join(build_root, library_path)
-            lib_so_paths = glob.glob(os.path.join(dir, "*{name}.so".format(name=name)))
-            if not lib_so_paths:
-                raise RuntimeError("Bindings library {name} was not found in {dir}".format(name=name, dir=dir))
-            if len(lib_so_paths) > 1:
-                raise RuntimeError("Several bindings libraries {name} were found in {dir}".format(name=name, dir=dir))
-            lib_so_path = lib_so_paths[0]
-            cp(
-                lib_so_path,
-                os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
+
+        dir = os.path.join(build_root, library_path)
+        lib_paths = glob.glob(os.path.join(dir, pattern.format(name=name)))
+        if not lib_paths:
+            raise RuntimeError("Bindings library {name} was not found in {dir}".format(name=name, dir=dir))
+        if len(lib_paths) > 1:
+            raise RuntimeError("Several bindings libraries {name} were found in {dir}: {lib_paths}"
+                               .format(name=name, dir=dir, lib_paths=", ".join(lib_paths)))
+        lib_path = lib_paths[0]
+        cp(
+            lib_path,
+            os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
 
     cp_r_755(os.path.join(python_root, "yt"), output_path)
 
@@ -200,18 +206,21 @@ def prepare_python_modules(
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
     if prepare_bindings:
-        prepare_bindings_library(
-            module_path="yt/yt/python/yt_yson_bindings",
-            library_path="yt/yt/python/yson_shared/",
-            name="yson_lib")
-        prepare_bindings_library(
-            module_path="yt/yt/python/yt_driver_bindings",
-            library_path="yt/yt/python/driver/native_shared/",
-            name="driver_lib")
-        prepare_bindings_library(
-            module_path="yt/yt/python/yt_driver_rpc_bindings",
-            library_path="yt/yt/python/driver/rpc_shared/",
-            name="driver_rpc_lib")
+        if bindings_libraries is None or "yson_lib" in bindings_libraries:
+            prepare_bindings_library(
+                module_path="yt/yt/python/yt_yson_bindings",
+                library_path="yt/yt/python/yson_shared/",
+                name="yson_lib")
+        if bindings_libraries is None or "driver_lib" in bindings_libraries:
+            prepare_bindings_library(
+                module_path="yt/yt/python/yt_driver_bindings",
+                library_path="yt/yt/python/driver/native_shared/",
+                name="driver_lib")
+        if bindings_libraries is None or "driver_rpc_lib" in bindings_libraries:
+            prepare_bindings_library(
+                module_path="yt/yt/python/yt_driver_rpc_bindings",
+                library_path="yt/yt/python/driver/rpc_shared/",
+                name="driver_rpc_lib")
 
     if prepare_binary_symlinks:
         for binary in YT_PREFIX_BINARIES:
@@ -234,6 +243,8 @@ def main():
     parser.add_argument("--patch-os-files", action="store_true", default=False)
     parser.add_argument("--use-modules-from-contrib", action="store_true", default=False)
     parser.add_argument("--prepare-bindings-libraries", action="store_true", default=False)
+    parser.add_argument("--bindings-library", action="append",
+                        choices=["yson_lib", "driver_lib", "driver_rpc_lib"], default=None)
     args = parser.parse_args()
 
     logger.addHandler(logging.StreamHandler())
@@ -246,7 +257,9 @@ def main():
         use_modules_from_contrib=args.use_modules_from_contrib,
         should_fix_type_info_package=args.fix_type_info_package,
         should_patch_os_files=args.patch_os_files,
-        prepare_bindings_libraries=args.prepare_bindings_libraries)
+        prepare_bindings_libraries=args.prepare_bindings_libraries,
+        bindings_libraries=args.bindings_library,
+    )
 
 
 if __name__ == "__main__":
