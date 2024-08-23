@@ -166,7 +166,7 @@ struct IChunkManager
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        const std::optional<TString>& preferredHostName) = 0;
+        const std::optional<std::string>& preferredHostName) = 0;
 
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,

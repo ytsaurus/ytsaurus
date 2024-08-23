@@ -738,7 +738,7 @@ public:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        const std::optional<TString>& preferredHostName) override
+        const std::optional<std::string>& preferredHostName) override
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
