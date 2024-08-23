@@ -23,7 +23,7 @@ class TestDynamicTableLogger(YTEnvSetup):
                 {
                     "family": "plain_text",
                     "min_level": "debug",
-                    "exclude_categories": ["Bus"],
+                    "include_categories": ["ObjectServer", "Bootstrap", "Concurrency"],
                     "writers": ["debug_dynamic_table"],
                 },
                 {
