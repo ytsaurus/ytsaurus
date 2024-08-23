@@ -2,6 +2,8 @@
 
 LIBRARY()
 
+VERSION(2022-05-14)
+
 LICENSE(
     Apache-2.0 AND
     BSD-3-Clause AND
