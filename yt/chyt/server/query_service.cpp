@@ -256,24 +256,21 @@ private:
             : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
-        context->SetRequestInfo("RPC request received (QueryId: %v, User: %v, Query: %v, RowCountLimit: %v)",
+        context->SetRequestInfo("QueryId: %v, Query: %v, RowCountLimit: %v",
             queryId,
-            user,
             request->chyt_request().query(),
             request->row_count_limit());
-
-        context->SetRequestInfo("Starting to execute query (QueryId: %v)", queryId);
 
         TExecuteQueryCall call(request, user, queryId, Host_);
         auto rowsetOrError = call.Execute();
 
         if (rowsetOrError.IsOK()) {
-            context->SetRequestInfo("Query execution finished successfully (QueryId: %v, RowCount: %v)",
+            context->SetResponseInfo("QueryId: %v, ResultRowCount: %v",
                 queryId,
                 rowsetOrError.Value().TotalRowCount);
             response->Attachments() = {std::move(rowsetOrError.Value().Rowset)};
         } else {
-            context->SetRequestInfo("Query execution finished with error (QueryId: %v, Error: %v)",
+            context->SetResponseInfo("QueryId: %v, Error: %v",
                 queryId,
                 rowsetOrError);
             ToProto(response->mutable_error(), rowsetOrError);
