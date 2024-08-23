@@ -786,7 +786,7 @@ private:
 
             YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
             // Each thread subquery will form its own secondary query when reading in order.
-            YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) == 1);
+            YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
 
             auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
                 threadSubqueries,

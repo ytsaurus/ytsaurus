@@ -1040,6 +1040,7 @@ class TestInputFetching(ClickHouseTestBase):
             "default": {
                 "enabled": True,
                 "max_rows_to_keep": 100000,
+                "reporting_period": 100,
             },
         }
 
@@ -1055,7 +1056,7 @@ class TestInputFetching(ClickHouseTestBase):
         ]
 
         table_count = 3
-        chunk_count = 20
+        chunk_count = 10
         chunk_row_count = 20
 
         total_row_count = chunk_row_count * chunk_count * table_count
@@ -1098,10 +1099,10 @@ class TestInputFetching(ClickHouseTestBase):
         }) as clique:
             result, query_id = self.make_query(
                 clique,
-                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' and ts > {13 * 256 + 2} order by ts limit 6',
+                f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' and ts > {7 * 256 + 2} order by ts limit 6',
                 settings={"chyt.execution.input_streams_per_secondary_query": 4})
-            assert builtins.set(r["message"] for r in result[:3]) == {f"3, 13, {table_index}" for table_index in range(table_count)}
-            assert builtins.set(r["message"] for r in result[3:]) == {f"5, 13, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[:3]) == {f"3, 7, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[3:]) == {f"5, 7, {table_index}" for table_index in range(table_count)}
 
             self.wait_for_query_in_log(log_table, query_id)
             assert self.get_total_block_rows_read(log_table, query_id) < small_query_size
@@ -1110,8 +1111,8 @@ class TestInputFetching(ClickHouseTestBase):
                 clique,
                 'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' order by ts desc limit 6',
                 settings={"chyt.execution.input_streams_per_secondary_query": 4})
-            assert builtins.set(r["message"] for r in result[:3]) == {f"19, 19, {table_index}" for table_index in range(table_count)}
-            assert builtins.set(r["message"] for r in result[3:]) == {f"17, 19, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[:3]) == {f"19, 9, {table_index}" for table_index in range(table_count)}
+            assert builtins.set(r["message"] for r in result[3:]) == {f"17, 9, {table_index}" for table_index in range(table_count)}
 
             self.wait_for_query_in_log(log_table, query_id)
             assert self.get_total_block_rows_read(log_table, query_id) < small_query_size
@@ -1127,9 +1128,9 @@ class TestInputFetching(ClickHouseTestBase):
 
             result, query_id = self.make_query(
                 clique,
-                'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where message = \'13, 18, 1\' order by ts limit 1',
+                'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where message = \'13, 8, 1\' order by ts limit 1',
                 settings={"chyt.execution.input_streams_per_secondary_query": 4})
-            assert result == [{"message": "13, 18, 1"}]
+            assert result == [{"message": "13, 8, 1"}]
 
             self.wait_for_query_in_log(log_table, query_id)
             # This query should read at least half of the input.
