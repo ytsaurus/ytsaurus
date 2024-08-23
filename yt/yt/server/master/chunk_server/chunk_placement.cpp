@@ -1127,7 +1127,8 @@ int TChunkPlacement::GetMaxReplicasPerRack(
         replicationFactorOverride,
         Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
     const auto& config = medium->AsDomestic()->Config();
-    result = std::min(result, config->MaxReplicasPerRack);
+    // TODO(danilalexeev): introduce bounds to the chunk server config options.
+    result = std::min({result, config->MaxReplicasPerRack, NChunkServer::MaxReplicationFactor});
 
     switch (chunk->GetType()) {
         case EObjectType::Chunk:

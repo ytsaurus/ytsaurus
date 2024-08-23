@@ -694,10 +694,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         activeMedia.set(mediumIndex);
 
+        auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+
         ComputeErasureChunkStatisticsForMedium(
             result.PerMediumStatistics[mediumIndex],
             codec,
             replicationPolicy,
+            maxReplicasPerRack,
             decommissionedReplicas[mediumIndex],
             unsafelyPlacedSealedReplicas[mediumIndex],
             mediumToErasedIndexes[mediumIndex],
@@ -767,6 +770,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     TPerMediumChunkStatistics& result,
     NErasure::ICodec* codec,
     TReplicationPolicy replicationPolicy,
+    int maxReplicasPerRack,
     const std::array<TChunkLocationList, ChunkReplicaIndexBound>& decommissionedReplicas,
     TChunkLocationPtrWithReplicaInfo unsafelyPlacedSealedReplica,
     NErasure::TPartIndexSet& erasedIndexes,
@@ -851,8 +855,8 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     }
 
     auto isTemporaryUnavailabilitySafe =
-        temporarilyUnavailablePartCount + MinSafeAvailableReplicaCount <=
-        codec->GetGuaranteedRepairablePartCount() + 1;
+        temporarilyUnavailablePartCount + maxReplicasPerRack <=
+        codec->GetGuaranteedRepairablePartCount();
     if (erasedIndexes.any() || !isTemporaryUnavailabilitySafe)
     {
         result.Status |= statisticsReplicaMissingStatus;
@@ -1147,10 +1151,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             continue;
         }
 
+        auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+
         ComputeRegularChunkStatisticsForMedium(
             mediumStatistics,
             chunk,
             mediumReplicationPolicy,
+            maxReplicasPerRack,
             mediumReplicaCount,
             mediumDecommissionedReplicaCount,
             mediumTemporarilyUnavailableReplicaCount,
@@ -1199,6 +1206,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     TPerMediumChunkStatistics& result,
     const TChunk* chunk,
     TReplicationPolicy replicationPolicy,
+    int maxReplicasPerRack,
     int replicaCount,
     int decommissionedReplicaCount,
     int temporarilyUnavailableReplicaCount,
@@ -1210,10 +1218,8 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     const TNodePtrWithReplicaAndMediumIndexList& missingReplicas)
 {
     auto replicationFactor = replicationPolicy.GetReplicationFactor();
-    auto maxSafeTemporarilyUnavailableReplicaCount = static_cast<int>(replicationFactor * MaxSafeTemporarilyUnavailableReplicaFraction);
-    auto minSafeUnavailableReplicas = std::max(
-        replicationFactor - maxSafeTemporarilyUnavailableReplicaCount,
-        std::min(replicationFactor, MinSafeAvailableReplicaCount));
+    auto minRackAwareReplicaCount = std::min(replicationFactor, MinAvailableReplicaCount + maxReplicasPerRack);
+    auto minSafeAvailableReplicaCount = std::max(replicationFactor - MaxTemporarilyUnavailableReplicaCount, minRackAwareReplicaCount);
     auto totalReplicaCount = replicaCount + decommissionedReplicaCount + temporarilyUnavailableReplicaCount;
 
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
@@ -1231,7 +1237,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         }
 
         if ((replicaCount + temporarilyUnavailableReplicaCount < replicationFactor ||
-             replicaCount < minSafeUnavailableReplicas) &&
+             replicaCount < minSafeAvailableReplicaCount) &&
              hasSealedReplica)
         {
             result.Status |= EChunkStatus::Underreplicated;
@@ -1462,6 +1468,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     int targetMediumIndex = targetMedium->GetIndex();
     auto replicationFactor = GetChunkAggregatedReplicationFactor(chunk, targetMediumIndex);
+    auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
     auto statistics = ComputeChunkStatistics(chunk, replicas);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -1478,11 +1485,13 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     int replicasNeeded;
     if (Any(mediumStatistics.Status & EChunkStatus::Underreplicated)) {
-        replicasNeeded = std::min(
-            replicationFactor,
-            std::max(
-                replicationFactor - temporarilyUnavailableReplicaCount,
-                MinSafeAvailableReplicaCount)) - replicaCount;
+        auto minRackAwareReplicaCount = std::min(replicationFactor, MinAvailableReplicaCount + maxReplicasPerRack);
+
+        replicasNeeded = std::max({
+            replicationFactor - temporarilyUnavailableReplicaCount,
+            replicationFactor - MaxTemporarilyUnavailableReplicaCount,
+            minRackAwareReplicaCount}) - replicaCount;
+        YT_VERIFY(replicasNeeded > 0);
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
     } else {

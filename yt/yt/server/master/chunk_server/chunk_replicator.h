@@ -294,6 +294,7 @@ private:
         TPerMediumChunkStatistics& result,
         const TChunk* chunk,
         TReplicationPolicy replicationPolicy,
+        int maxReplicasPerRack,
         int replicaCount,
         int decommissionedReplicaCount,
         int temporarilyUnavailableReplicaCount,
@@ -324,6 +325,7 @@ private:
         TPerMediumChunkStatistics& result,
         NErasure::ICodec* codec,
         TReplicationPolicy replicationPolicy,
+        int maxReplicasPerRack,
         const std::array<TChunkLocationList, ChunkReplicaIndexBound>& decommissionedReplicas,
         TChunkLocationPtrWithReplicaInfo unsafelyPlacedSealedReplica,
         NErasure::TPartIndexSet& erasedIndexes,
@@ -342,8 +344,8 @@ private:
     bool IsReplicaDecommissioned(TChunkLocation* replica);
     bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
 
-    static constexpr double MaxSafeTemporarilyUnavailableReplicaFraction = 0.5;
-    static constexpr int MinSafeAvailableReplicaCount = 2;
+    static constexpr int MinAvailableReplicaCount = 1;
+    static constexpr int MaxTemporarilyUnavailableReplicaCount = 1;
 
     //! Same as corresponding #TChunk method but
     //!   - replication factors are capped by medium-specific bounds;
