@@ -1062,14 +1062,14 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     userSubjects.insert(user);
 
     std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
-    YT_LOG_DEBUG("Fetched user %Qv subjects: %v", user, userSubjectsVector);
+    YT_LOG_DEBUG("Fetched user subjects (User: %v, Subjects: %v)", user, userSubjectsVector);
 
     bool isSuperuser = userSubjects.contains(SuperusersGroupName);
     std::vector<TString> acosForUser;
 
     if (!isSuperuser) {
         acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
-        YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", user, acosForUser);
+        YT_LOG_DEBUG("Fetched suitable access control objects for user (User: %v, Acos: %v)", user, acosForUser);
     }
 
     auto addSelectExpressionsFromAttributes = [&] (NQueryClient::TQueryBuilder& builder, const TNameTablePtr& nameTable) {
