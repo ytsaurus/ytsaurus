@@ -30,6 +30,8 @@ const (
 	NodeDomesticMedium    NodeType = "domestic_medium"
 	NodeTabletCellBundle  NodeType = "tablet_cell_bundle"
 	NodeTabletCell        NodeType = "tablet_cell"
+	NodeChaosCellBundle   NodeType = "chaos_cell_bundle"
+	NodeChaosCell         NodeType = "chaos_cell"
 	NodeSys               NodeType = "sys_node"
 	NodePortalEntrance    NodeType = "portal_entrance"
 	NodePortalExit        NodeType = "portal_exit"
