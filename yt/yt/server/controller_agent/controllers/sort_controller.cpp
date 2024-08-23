@@ -3353,6 +3353,8 @@ private:
                         Logger);
                 }
             }
+            // After partition keys are built, row buffer used by samples fetcher can be disposed.
+            SamplesRowBuffer_.Reset();
         } else {
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
