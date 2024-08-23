@@ -2610,6 +2610,9 @@ private:
         if (request->has_replication_card_collocation_id()) {
             options.ReplicationCardCollocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
         }
+        if (request->has_collocation_options()) {
+            options.CollocationOptions = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options()));
+        }
 
         context->SetRequestInfo("ReplicationCardId: %v",
             replicationCardId);

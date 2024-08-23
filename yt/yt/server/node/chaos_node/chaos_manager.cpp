@@ -700,6 +700,9 @@ private:
         auto collocationId = request->has_replication_card_collocation_id()
             ? std::make_optional(FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id()))
             : std::nullopt;
+        auto collocationOptions = request->has_collocation_options()
+            ? std::make_optional(ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options())))
+            : std::nullopt;
 
         if (options && enableTracker) {
             THROW_ERROR_EXCEPTION(
@@ -714,6 +717,9 @@ private:
         if (collocationId && *collocationId) {
             auto* collocation = GetReplicationCardCollocationOrThrow(*collocationId);
             collocation->ValidateNotMigrating();
+        } else if (collocationOptions && !replicationCard->GetCollocation()) {
+            THROW_ERROR_EXCEPTION("Replication card %v is not a member of any collocation",
+                replicationCardId);
         }
 
         YT_LOG_DEBUG(
@@ -744,6 +750,13 @@ private:
             UpdateReplicationCardCollocation(
                 replicationCard,
                 collocation);
+        }
+        if (collocationOptions) {
+            auto* collocation = replicationCard->GetCollocation();
+            collocation->ValidateNotMigrating();
+
+            collocation->Options() = std::move(*collocationOptions);
+            FireReplicationCardCollocationUpdated(collocation);
         }
     }
 
@@ -1424,7 +1437,8 @@ private:
         for (const auto& protoMigrationCard : request->migration_cards()) {
             const auto& protoReplicationCard = protoMigrationCard.replication_card();
 
-            auto collocationId = FromProto<TReplicationCardCollocationId>(protoReplicationCard.replication_card_collocation_id());
+            auto collocationId = FromProto<TReplicationCardCollocationId>(
+                protoReplicationCard.replication_card_collocation_id());
             auto collocationSize = protoMigrationCard.replication_card_collocation_size();
             auto* collocation = FindReplicationCardCollocation(collocationId);
 
@@ -1461,7 +1475,9 @@ private:
             }
 
             auto options = protoReplicationCard.has_replicated_table_options()
-                ? SafeDeserializeReplicatedTableOptions(replicationCardId, TYsonString(protoReplicationCard.replicated_table_options()))
+                ? SafeDeserializeReplicatedTableOptions(
+                    replicationCardId,
+                    TYsonString(protoReplicationCard.replicated_table_options()))
                 : New<TReplicatedTableOptions>();
 
             replicationCard->SetTableId(FromProto<TTableId>(protoReplicationCard.table_id()));
@@ -1855,13 +1871,15 @@ private:
         }
 
         if (IsReplicationCardMigrated(replicationCard)) {
-            YT_LOG_DEBUG("Will not commence new replication card era since replication card has been migrated (ReplicationCardId: %v)",
+            YT_LOG_DEBUG("Will not commence new replication card era since replication card has been migrated "
+                "(ReplicationCardId: %v)",
                 replicationCardId);
             return;
         }
 
         if (replicationCard->GetEra() != era) {
-            YT_LOG_DEBUG("Will not commence new replication card era because of era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
+            YT_LOG_DEBUG("Will not commence new replication card era because of era mismatch "
+                "(ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
                 era,
                 replicationCard->GetEra(),
                 replicationCardId);
@@ -1908,7 +1926,8 @@ private:
         }();
 
         if (!hasSyncQueue) {
-            YT_LOG_DEBUG("Will not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
+            YT_LOG_DEBUG("Will not commence new replication era since there would be no sync queue replicas "
+                "(ReplicationCard: %v)",
                 *replicationCard);
             return;
         }
@@ -2024,7 +2043,9 @@ private:
                 if (it) {
                     it->second.State = EShortcutState::Granting;
                 } else {
-                    replicationCard->Coordinators().insert(std::pair(coordinatorCellId, TCoordinatorInfo{EShortcutState::Granting}));
+                    replicationCard->Coordinators().insert(std::pair(
+                        coordinatorCellId,
+                        TCoordinatorInfo{EShortcutState::Granting}));
                 }
             }
         }
@@ -2036,7 +2057,9 @@ private:
 
     void SuspendCoordinator(TCellId coordinatorCellId)
     {
-        auto [_, inserted] = SuspendedCoordinators_.emplace(coordinatorCellId, GetCurrentMutationContext()->GetTimestamp());
+        auto [_, inserted] = SuspendedCoordinators_.emplace(
+            coordinatorCellId,
+            GetCurrentMutationContext()->GetTimestamp());
         if (inserted) {
             YT_LOG_DEBUG("Coordinator suspended (CoordinatorCellId: %v)",
                 coordinatorCellId);
@@ -2115,7 +2138,8 @@ private:
                 << TErrorAttribute("replica_id", replicaId);
         }
 
-        YT_LOG_DEBUG("Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, Force: %v, OldProgress: %v, NewProgress: %v)",
+        YT_LOG_DEBUG("Updating replication progress "
+            "(ReplicationCardId: %v, ReplicaId: %v, Force: %v, OldProgress: %v, NewProgress: %v)",
             replicationCardId,
             replicaId,
             force,
@@ -2156,7 +2180,8 @@ private:
                     replica->History.begin(),
                     replica->History.begin() + historyIndex);
 
-                YT_LOG_DEBUG("Forsaken old replica history items (ReplicationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
+                YT_LOG_DEBUG("Forsaken old replica history items "
+                    "(ReplicationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
                     replicationCardId,
                     replicaId,
                     retainTimestamp,
@@ -2171,6 +2196,9 @@ private:
         NChaosClient::NProto::TRspCreateReplicationCardCollocation* response)
     {
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+        auto collocationOptions = request->has_options()
+            ? ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->options()))
+            : New<TReplicationCollocationOptions>();
 
         std::vector<TReplicationCard*> replicationCards;
         for (auto replicationCardId : replicationCardIds) {
@@ -2190,8 +2218,11 @@ private:
             EReplicationCardCollocationState::Normal,
             /*size*/ 0);
 
-        collocation->ReplicationCards() = TReplicationCardCollocation::TReplicationCards(replicationCards.begin(), replicationCards.end());
+        collocation->ReplicationCards() = TReplicationCardCollocation::TReplicationCards(
+            replicationCards.begin(),
+            replicationCards.end());
         collocation->SetSize(collocation->ReplicationCards().size());
+        collocation->Options() = std::move(collocationOptions);
 
         for (auto replicationCard : replicationCards) {
             replicationCard->SetCollocation(collocation);
@@ -2311,6 +2342,7 @@ private:
         ReplicationCollocationCreated_.Fire(TTableCollocationData{
             .Id = collocation->GetId(),
             .TableIds = collocation->GetReplicationCardIds(),
+            .Options = collocation->Options(),
         });
     }
 
@@ -2377,7 +2409,9 @@ private:
                 &TChaosManager::BuildReplicationCardCollocationsOrchid,
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
-            ->AddChild("replication_cards", TReplicationCardOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+            ->AddChild("replication_cards", TReplicationCardOrchidService::Create(
+                MakeWeak(this),
+                Slot_->GetGuardedAutomatonInvoker()));
     }
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
@@ -2473,7 +2507,10 @@ private:
                             .Item("state").Value(collocation->GetState())
                             .Item("size").Value(collocation->GetSize())
                             .Item("replication_card_ids")
-                                .DoListFor(collocation->ReplicationCards(), [] (TFluentList fluent, const auto* replicationCard) {
+                                .DoListFor(collocation->ReplicationCards(), [] (
+                                    TFluentList fluent,
+                                    const auto* replicationCard)
+                                {
                                     fluent
                                         .Item().Value(ToString(replicationCard->GetId()));
                                 })
@@ -2481,7 +2518,9 @@ private:
                 });
     }
 
-    TReplicatedTableOptionsPtr SafeDeserializeReplicatedTableOptions(TReplicationCardId replicationCardId, const TYsonString& serializedOptions)
+    TReplicatedTableOptionsPtr SafeDeserializeReplicatedTableOptions(
+        TReplicationCardId replicationCardId,
+        const TYsonString& serializedOptions)
     {
         try {
             return ConvertTo<TReplicatedTableOptionsPtr>(serializedOptions);

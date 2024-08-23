@@ -137,6 +137,10 @@ class TestChaosCommands(object):
         crt1, card1 = _create("//tmp/a")
         crt2, card2 = _create("//tmp/b")
 
+        if get_api_version() != "v3":
+            with pytest.raises(yt.YtError, match="is not a member of any collocation"):
+                yt.alter_replication_card(card1, collocation_options={"preferred_sync_replica_clusters": ["primary"]})
+
         collocation_id = yt.create("replication_card_collocation", None, attributes={
             "type": "replication",
             "table_paths": [crt1, crt2]

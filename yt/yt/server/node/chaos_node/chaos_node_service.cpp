@@ -278,7 +278,9 @@ private:
     {
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
 
-        context->SetRequestInfo("ReplicationCardIds: %v", replicationCardIds);
+        context->SetRequestInfo("ReplicationCardIds: %v, Options: %v",
+            replicationCardIds,
+            request->options());
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateReplicationCardCollocation(std::move(context));
