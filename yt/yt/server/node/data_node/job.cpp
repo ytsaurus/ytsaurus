@@ -1530,7 +1530,7 @@ private:
         }
         options->MaxHeavyColumns = MaxHeavyColumns_;
         options->MaxBlockCount = MaxBlockCount_;
-        options->MemoryUsageTracker = MemoryUsageTracker_;
+        options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
 
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
@@ -1625,7 +1625,7 @@ private:
         if (EnableSkynetSharing_) {
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
-        chunkWriterOptions->MemoryUsageTracker = MemoryUsageTracker_;
+        chunkWriterOptions->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
         chunkWriterOptions->Postprocess();
 
         auto minTs = NullTimestamp;
@@ -1693,7 +1693,7 @@ private:
         options->TableSchema = Schema_;
         options->CompressionCodec = CompressionCodec_;
         options->ErasureCodec = ErasureCodec_;
-        options->MemoryUsageTracker = MemoryUsageTracker_;
+        options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
 
         return CreateConfirmingWriter(
             DynamicConfig_->Writer,

@@ -1,5 +1,6 @@
 #include "timestamp_writer.h"
 #include "data_block_writer.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/columnar_chunk_format/prepared_meta.h>
 
@@ -22,8 +23,11 @@ class TTimestampWriter
     : public ITimestampWriter
 {
 public:
-    explicit TTimestampWriter(TDataBlockWriter* blockWriter)
+    explicit TTimestampWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : BlockWriter_(blockWriter)
+        , MemoryGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryUsageTracker)))
     {
         Reset();
         BlockWriter_->RegisterColumnWriter(this);
@@ -51,6 +55,8 @@ public:
 
         RowCount_ += rows.Size();
         TryDumpSegment();
+
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     TSharedRef FinishBlock(int blockIndex) override
@@ -90,6 +96,16 @@ public:
             MaxTimestamp_ = std::max(MaxTimestamp_, MaxSegmentTimestamp_);
             Reset();
         }
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return sizeof(TTimestamp) * UniqueTimestamps_.size() +
+            GetVectorMemoryUsage(Dictionary_) +
+            GetVectorMemoryUsage(WriteTimestampIds_) +
+            GetVectorMemoryUsage(DeleteTimestampIds_) +
+            GetVectorMemoryUsage(WriteTimestampCounts_) +
+            GetVectorMemoryUsage(DeleteTimestampCounts_);
     }
 
     // Size currently occupied.
@@ -136,6 +152,9 @@ public:
     }
 
 private:
+    TDataBlockWriter* BlockWriter_;
+    TMemoryUsageTrackerGuard MemoryGuard_;
+
     TTimestamp MinTimestamp_ = MaxTimestamp;
     TTimestamp MaxTimestamp_ = MinTimestamp;
 
@@ -152,8 +171,6 @@ private:
 
     TColumnMeta ColumnMeta_;
     std::vector<TSegmentMeta> CurrentBlockSegments_;
-
-    TDataBlockWriter* BlockWriter_;
 
     i64 RowCount_ = 0;
     i64 MetaSize_ = 0;
@@ -196,6 +213,8 @@ private:
 
         UniqueTimestamps_.clear();
         Dictionary_.clear();
+
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -278,9 +297,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ITimestampWriter> CreateTimestampWriter(TDataBlockWriter* blockWriter)
+std::unique_ptr<ITimestampWriter> CreateTimestampWriter(
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return std::make_unique<TTimestampWriter>(blockWriter);
+    return std::make_unique<TTimestampWriter>(
+        blockWriter,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

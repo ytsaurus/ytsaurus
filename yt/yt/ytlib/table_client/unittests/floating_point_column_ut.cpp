@@ -131,13 +131,16 @@ protected:
         }
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         auto doCreate = [&] (auto factory) {
             return factory(
                 ColumnId,
                 ColumnSchema_,
                 blockWriter,
+                std::move(memoryTracker),
                 DefaultMaxSegmentValueCount);
         };
         switch (GetParam()) {
@@ -232,12 +235,15 @@ protected:
         }
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         auto doCreate = [&] (auto factory) {
             return factory(
                 ColumnIndex,
                 blockWriter,
+                std::move(memoryTracker),
                 DefaultMaxSegmentValueCount);
         };
         switch (GetParam()) {

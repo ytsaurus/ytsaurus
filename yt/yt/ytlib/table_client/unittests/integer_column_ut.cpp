@@ -209,12 +209,21 @@ public:
 
     std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
+        return CreateVersionedInt64ColumnReader(
+            ColumnMeta_,
+            ColumnId,
+            ColumnSchema_);
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
-        return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
+        return CreateVersionedInt64ColumnWriter(
+            ColumnId,
+            ColumnSchema_,
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
@@ -235,9 +244,15 @@ public:
         return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
-        return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
+        return CreateVersionedInt64ColumnWriter(
+            ColumnId,
+            ColumnSchema_,
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
@@ -258,9 +273,15 @@ public:
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
-        return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
+        return CreateVersionedUint64ColumnWriter(
+            ColumnId,
+            ColumnSchema_,
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
@@ -281,9 +302,15 @@ public:
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
-        return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
+        return CreateVersionedUint64ColumnWriter(
+            ColumnId,
+            ColumnSchema_,
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
@@ -446,11 +473,14 @@ protected:
             TColumnSchema());
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         return CreateUnversionedInt64ColumnWriter(
             ColumnIndex,
-            blockWriter);
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
@@ -485,11 +515,14 @@ protected:
             TColumnSchema());
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         return CreateUnversionedUint64ColumnWriter(
             ColumnIndex,
-            blockWriter);
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 

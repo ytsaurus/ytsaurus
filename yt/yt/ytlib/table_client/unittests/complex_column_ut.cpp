@@ -38,7 +38,7 @@ TEST(TComplexColumnTest, Simple)
     }
 
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter);
+    auto columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter, GetNullMemoryUsageTracker());
     columnWriter->WriteUnversionedValues(TRange(rows));
     columnWriter->FinishCurrentSegment();
 
@@ -84,10 +84,10 @@ void TestCompatibility()
     TDataBlockWriter blockWriter;
     std::unique_ptr<IValueColumnWriter> columnWriter;
     if constexpr (WriterType == EValueType::Composite) {
-        columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter);
+        columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter, GetNullMemoryUsageTracker());
     } else {
         static_assert(WriterType == EValueType::Any);
-        columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
+        columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter, GetNullMemoryUsageTracker());
     }
     columnWriter->WriteUnversionedValues(TRange(rows));
     columnWriter->FinishCurrentSegment();

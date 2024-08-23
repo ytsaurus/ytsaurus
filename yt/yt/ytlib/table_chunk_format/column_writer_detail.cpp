@@ -17,8 +17,11 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnWriterBase::TColumnWriterBase(TDataBlockWriter* blockWriter)
+TColumnWriterBase::TColumnWriterBase(
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
     : BlockWriter_(blockWriter)
+    , MemoryGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryUsageTracker)))
 {
     BlockWriter_->RegisterColumnWriter(this);
 }
@@ -99,12 +102,21 @@ i64 TColumnWriterBase::GetMetaSize() const
 TVersionedColumnWriterBase::TVersionedColumnWriterBase(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter)
-    : TColumnWriterBase(blockWriter)
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
+    : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
     , ColumnId_(columnId)
     , Aggregate_(columnSchema.Aggregate().has_value())
     , Hunk_(columnSchema.MaxInlineHunkSize().has_value())
 { }
+
+i64 TVersionedColumnWriterBase::GetMemoryUsage() const
+{
+    return GetVectorMemoryUsage(ValuesPerRow_) +
+        AggregateBitmap_.GetByteSize() +
+        NullBitmap_.GetByteSize() +
+        GetVectorMemoryUsage(TimestampIndexes_);
+}
 
 i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
 {

@@ -636,6 +636,8 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
 
+    registrar.Parameter("track_writer_memory", &TThis::TrackWriterMemory)
+        .Default(false);
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
 

@@ -70,11 +70,14 @@ protected:
             TColumnSchema());
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         return CreateUnversionedBooleanColumnWriter(
             ColumnIndex,
-            blockWriter);
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 

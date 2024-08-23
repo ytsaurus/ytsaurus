@@ -272,6 +272,8 @@ public:
         if (chunkReadOptions.ReadSessionId) {
             Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
         }
+
+        MemoryGuard_ = TMemoryUsageTrackerGuard::Build(chunkReadOptions.MemoryUsageTracker);
     }
 
     const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
@@ -307,6 +309,8 @@ protected:
     // For filtered out columns maps id to -1.
     const std::vector<int> ChunkToReaderIdMapping_;
     const int RowIndexId_ = -1;
+
+    TMemoryUsageTrackerGuard MemoryGuard_;
 
     i64 RowIndex_ = 0;
     i64 RowCount_ = 0;
@@ -1649,6 +1653,7 @@ public:
         YT_VERIFY(PendingUnmaterializedRowCount_ == 0);
 
         Pool_.Clear();
+        MemoryGuard_.SetSize(Pool_.GetCapacity());
 
         if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -1963,6 +1968,8 @@ private:
             rootColumn->Type =  MakeLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false);
             rootBatchColumns->push_back(rootColumn);
             currentBatchColumnIndex += 1;
+
+            MemoryGuard_.SetSize(Pool_.GetCapacity());
         }
 
         AdvanceRowIndex(rowCount);
@@ -2032,6 +2039,9 @@ private:
         for (const auto& key : mutableKeys) {
             keys.push_back(key);
         }
+
+        MemoryGuard_.SetSize(Pool_.GetCapacity());
+
         return keys;
     }
 
@@ -2074,6 +2084,8 @@ private:
             auto row = rowRange[index];
             AddExtraValues(row, GetTableRowIndex() + index);
         }
+
+        MemoryGuard_.SetSize(Pool_.GetCapacity());
 
         AdvanceRowIndex(rowCount);
     }
@@ -2157,6 +2169,7 @@ public:
         auto readGuard = AcquireReadGuard();
 
         Pool_.Clear();
+        MemoryGuard_.SetSize(Pool_.GetCapacity());
 
         if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -2254,6 +2267,8 @@ private:
         if (SchemalessReader_) {
             SchemalessReader_->ReadValues(rowRange);
         }
+
+        MemoryGuard_.SetSize(Pool_.GetCapacity());
 
         return row;
     }

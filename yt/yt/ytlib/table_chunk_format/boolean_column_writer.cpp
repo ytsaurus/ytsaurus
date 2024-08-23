@@ -36,11 +36,13 @@ public:
     TVersionedBooleanColumnWriter(
         int columnId,
         const TColumnSchema& columnSchema,
-        TDataBlockWriter* blockWriter)
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
-            blockWriter)
+            blockWriter,
+            std::move(memoryUsageTracker))
     {
         Reset();
     }
@@ -55,6 +57,13 @@ public:
                 Values_.Append(data);
                 return false;
             });
+        MemoryGuard_.SetSize(GetMemoryUsage());
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return Values_.GetByteSize() +
+            TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -83,6 +92,7 @@ private:
     {
         TVersionedColumnWriterBase::Reset();
         Values_ = TBitmapOutput();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -111,12 +121,14 @@ private:
 std::unique_ptr<IValueColumnWriter> CreateVersionedBooleanColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     return std::make_unique<TVersionedBooleanColumnWriter>(
         columnId,
         columnSchema,
-        blockWriter);
+        blockWriter,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +137,11 @@ class TUnversionedBooleanColumnWriter
     : public TColumnWriterBase
 {
 public:
-    TUnversionedBooleanColumnWriter(int columnIndex, TDataBlockWriter* blockWriter)
-        : TColumnWriterBase(blockWriter)
+    TUnversionedBooleanColumnWriter(
+        int columnIndex,
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , ColumnIndex_(columnIndex)
     {
         Reset();
@@ -140,6 +155,11 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddValues(rows);
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return Values_.GetByteSize() + NullBitmap_.GetByteSize();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -169,6 +189,7 @@ private:
     {
         Values_ = TBitmapOutput();
         NullBitmap_ = TBitmapOutput();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -206,6 +227,8 @@ private:
             NullBitmap_.Append(isNull);
             Values_.Append(data);
         }
+
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 };
 
@@ -213,9 +236,13 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedBooleanColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return std::make_unique<TUnversionedBooleanColumnWriter>(columnIndex, blockWriter);
+    return std::make_unique<TUnversionedBooleanColumnWriter>(
+        columnIndex,
+        blockWriter,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,7 +8,8 @@ namespace NYT::NTableChunkFormat {
 
 std::unique_ptr<IValueColumnWriter> CreateSchemalessColumnWriter(
     int schemaColumnCount,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -78,7 +78,7 @@ class TestChunkMerger(YTEnvSetup):
             "memory_limits": {
                 "system_jobs": {
                     "type": "static",
-                    "value": 1000000
+                    "value": 1024**3,
                 }
             }
         }

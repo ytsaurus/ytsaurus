@@ -103,7 +103,11 @@ protected:
 
         // Write-only, regression test.
         columnWriter->WriteVersionedValues(TRange(CreateRows({Empty, Empty, Empty, Empty})));
+        EXPECT_NE(0, MemoryTracker_->GetUsed());
+
         columnWriter->WriteVersionedValues(TRange(CreateRows({FewSymbol, FewSymbol, FewSymbol, FewSymbol})));
+        EXPECT_NE(0, MemoryTracker_->GetUsed());
+
         columnWriter->FinishCurrentSegment();
     }
 
@@ -117,12 +121,15 @@ protected:
             TColumnSchema());
     }
 
-    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) override
     {
         return CreateUnversionedStringColumnWriter(
             ColumnIndex,
             TColumnSchema(),
-            blockWriter);
+            blockWriter,
+            std::move(memoryTracker));
     }
 };
 
