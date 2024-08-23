@@ -221,7 +221,6 @@ protected:
         rawBlobMeta->ExpectedLength = expectedLength;
     }
 
-
     static bool IsValueNull(TStringBuf lhs)
     {
         return !lhs.data();
@@ -254,11 +253,13 @@ public:
         int columnId,
         const TColumnSchema& columnSchema,
         TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         int maxValueCount)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
-            blockWriter)
+            blockWriter,
+            std::move(memoryUsageTracker))
         , TStringColumnWriterBase<ValueType>(columnSchema)
         , MaxValueCount_(maxValueCount)
     {
@@ -273,6 +274,15 @@ public:
                 Values_.push_back(this->CaptureValue(value));
                 return std::ssize(Values_) >= MaxValueCount_ || DirectBuffer_->GetSize() > MaxBufferSize;
             });
+        MemoryGuard_.SetSize(GetMemoryUsage());
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return TStringColumnWriterBase<ValueType>::DirectBuffer_->GetCapacity() +
+            GetVectorMemoryUsage(Values_) +
+            TStringColumnWriterBase<ValueType>::DictionaryByteSize_ +
+            TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -305,6 +315,7 @@ private:
     {
         TVersionedColumnWriterBase::Reset();
         TStringColumnWriterBase<ValueType>::Reset();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -350,12 +361,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::String>>(
         columnId,
         columnSchema,
         dataBlockWriter,
+        std::move(memoryUsageTracker),
         maxValueCount);
 }
 
@@ -363,12 +376,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::Any>>(
         columnId,
         columnSchema,
         dataBlockWriter,
+        std::move(memoryUsageTracker),
         maxValueCount);
 }
 
@@ -376,12 +391,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::Composite>>(
         columnId,
         columnSchema,
         dataBlockWriter,
+        std::move(memoryUsageTracker),
         maxValueCount);
 }
 
@@ -397,8 +414,9 @@ public:
         int columnIndex,
         const TColumnSchema& columnSchema,
         TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         int maxValueCount)
-        : TColumnWriterBase(blockWriter)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , TStringColumnWriterBase<ValueType>(columnSchema)
         , ColumnIndex_(columnIndex)
         , MaxValueCount_(maxValueCount)
@@ -414,6 +432,13 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         DoWriteValues(rows);
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return TStringColumnWriterBase<ValueType>::DirectBuffer_->GetCapacity() +
+            GetVectorMemoryUsage(Values_) +
+            TStringColumnWriterBase<ValueType>::DictionaryByteSize_;
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -453,6 +478,7 @@ private:
         DirectRleSize_ = 0;
         RleRowIndexes_.clear();
         TStringColumnWriterBase<ValueType>::Reset();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     TSharedRef GetDirectDenseNullBitmap() const
@@ -657,6 +683,7 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     template <class TRow>
@@ -685,27 +712,45 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(columnIndex, columnSchema, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(
+        columnIndex,
+        columnSchema,
+        blockWriter,
+        std::move(memoryUsageTracker),
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, columnSchema, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(
+        columnIndex,
+        columnSchema,
+        blockWriter,
+        std::move(memoryUsageTracker),
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, columnSchema, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(
+        columnIndex,
+        columnSchema,
+        blockWriter,
+        std::move(memoryUsageTracker),
+        maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

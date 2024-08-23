@@ -25,8 +25,11 @@ class TSchemalessColumnWriter
     : public TColumnWriterBase
 {
 public:
-    TSchemalessColumnWriter(int schemaColumnCount, TDataBlockWriter* blockWriter)
-        : TColumnWriterBase(blockWriter)
+    TSchemalessColumnWriter(
+        int schemaColumnCount,
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , SchemaColumnCount_(schemaColumnCount)
     {
         Reset();
@@ -40,9 +43,17 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddValues(rows);
+        MemoryGuard_.SetSize(GetMemoryUsage());
         if (Offsets_.size() > MaxRowCount || DataBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return DataBuffer_->GetSize() +
+            GetVectorMemoryUsage(Offsets_) +
+            GetVectorMemoryUsage(ValueCounts_);
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -80,6 +91,7 @@ private:
 
         DataBuffer_ = std::make_unique<TChunkedOutputStream>();
         MaxValueCount_ = 0;
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -142,9 +154,13 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateSchemalessColumnWriter(
     int schemaColumnCount,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return std::make_unique<TSchemalessColumnWriter>(schemaColumnCount, blockWriter);
+    return std::make_unique<TSchemalessColumnWriter>(
+        schemaColumnCount,
+        blockWriter,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "column_writer.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/public.h>
 
@@ -19,7 +20,9 @@ class TColumnWriterBase
     : public IValueColumnWriter
 {
 public:
-    explicit TColumnWriterBase(TDataBlockWriter* blockWriter);
+    TColumnWriterBase(
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker);
 
     TSharedRef FinishBlock(int blockIndex) override;
 
@@ -28,6 +31,7 @@ public:
 
 protected:
     TDataBlockWriter* const BlockWriter_;
+    TMemoryUsageTrackerGuard MemoryGuard_;
 
     i64 RowCount_ = 0;
 
@@ -51,7 +55,10 @@ public:
     TVersionedColumnWriterBase(
         int columnId,
         const NTableClient::TColumnSchema& columnSchema,
-        TDataBlockWriter* blockWriter);
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker);
+
+    i64 GetMemoryUsage() const;
 
     i32 GetCurrentSegmentSize() const override;
 

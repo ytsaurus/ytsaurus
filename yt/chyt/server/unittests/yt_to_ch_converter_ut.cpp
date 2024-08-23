@@ -194,7 +194,8 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     auto writer = CreateUnversionedColumnWriter(
         /*columnIndex*/ 0,
         columnSchema,
-        &blockWriter);
+        &blockWriter,
+        GetNullMemoryUsageTracker());
 
     for (const auto& value : values) {
         TUnversionedRowBuilder builder;

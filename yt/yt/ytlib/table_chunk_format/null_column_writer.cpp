@@ -15,7 +15,7 @@ class TUnversionedNullColumnWriter
 {
 public:
     explicit TUnversionedNullColumnWriter(TDataBlockWriter* blockWriter)
-        : TColumnWriterBase(blockWriter)
+        : TColumnWriterBase(blockWriter, GetNullMemoryUsageTracker())
     { }
 
     void WriteVersionedValues(TRange<TVersionedRow> rows) override
@@ -26,6 +26,11 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         RowCount_ += rows.size();
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return sizeof(i64);
     }
 
     i32 GetCurrentSegmentSize() const override

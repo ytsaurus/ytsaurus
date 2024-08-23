@@ -719,6 +719,7 @@ public:
                 keyColumnIndex,
                 columnSchema,
                 BlockWriters_[blockWriterIndex].get(),
+                Options_->MemoryUsageTracker,
                 Config_->MaxSegmentValueCount));
         }
 
@@ -737,12 +738,15 @@ public:
                 valueColumnIndex,
                 columnSchema,
                 BlockWriters_[blockWriterIndex].get(),
+                Options_->MemoryUsageTracker,
                 Config_->MaxSegmentValueCount));
         }
 
         // Timestamp column.
         ColumnToGroupIndex_.push_back(mainBlockWriter);
-        TimestampWriter_ = CreateTimestampWriter(BlockWriters_[mainBlockWriter].get());
+        TimestampWriter_ = CreateTimestampWriter(
+            BlockWriters_[mainBlockWriter].get(),
+            Options_->MemoryUsageTracker);
 
         YT_VERIFY(BlockWriters_.size() > 0);
     }

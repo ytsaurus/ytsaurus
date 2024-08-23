@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_memory_tracker.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
@@ -70,6 +71,7 @@ protected:
     NTableChunkFormat::NProto::TColumnMeta ColumnMeta_;
 
     TChunkedMemoryPool Pool_;
+    IMemoryUsageTrackerPtr MemoryTracker_;
 
     TColumnSchema ColumnSchema_;
 
@@ -111,7 +113,8 @@ protected:
     virtual void Write(NTableChunkFormat::IValueColumnWriter* columnWriter) = 0;
     virtual std::unique_ptr<NTableChunkFormat::IVersionedColumnReader> DoCreateColumnReader() = 0;
     virtual std::unique_ptr<NTableChunkFormat::IValueColumnWriter> CreateColumnWriter(
-        NTableChunkFormat::TDataBlockWriter* blockWriter) = 0;
+        NTableChunkFormat::TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +129,7 @@ protected:
     NTableChunkFormat::NProto::TColumnMeta ColumnMeta_;
 
     TChunkedMemoryPool Pool_;
+    IMemoryUsageTrackerPtr MemoryTracker_;
 
     static constexpr int ColumnId = 0;
     static constexpr int ColumnIndex = 0;
@@ -133,7 +137,9 @@ protected:
     void SetUp() override
     {
         NTableChunkFormat::TDataBlockWriter blockWriter;
-        auto columnWriter = CreateColumnWriter(&blockWriter);
+        MemoryTracker_ = New<TTestNodeMemoryTracker>(std::numeric_limits<i64>::max());
+
+        auto columnWriter = CreateColumnWriter(&blockWriter, MemoryTracker_);
 
         Write(columnWriter.get());
 
@@ -142,6 +148,11 @@ protected:
         Data_ = codec->Compress(block.Data);
 
         ColumnMeta_ = columnWriter->ColumnMeta();
+    }
+
+    IMemoryUsageTrackerPtr GetMemoryTracker()
+    {
+        return MemoryTracker_;
     }
 
     std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader> CreateColumnReader()
@@ -180,7 +191,10 @@ protected:
     void WriteSegment(NTableChunkFormat::IValueColumnWriter* columnWriter, std::vector<std::optional<TValue>> values)
     {
         auto rows = CreateRows(values);
+
         columnWriter->WriteVersionedValues(TRange(rows));
+        EXPECT_NE(0, MemoryTracker_->GetUsed());
+
         columnWriter->FinishCurrentSegment();
     }
 
@@ -257,7 +271,8 @@ protected:
     virtual void Write(NTableChunkFormat::IValueColumnWriter* columnWriter) = 0;
     virtual std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader> DoCreateColumnReader() = 0;
     virtual std::unique_ptr<NTableChunkFormat::IValueColumnWriter> CreateColumnWriter(
-        NTableChunkFormat::TDataBlockWriter* blockWriter) = 0;
+        NTableChunkFormat::TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryTracker) = 0;
     virtual std::optional<TValue> DecodeValueFromColumn(
         const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) = 0;

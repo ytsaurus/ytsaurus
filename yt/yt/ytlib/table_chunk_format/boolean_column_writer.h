@@ -11,13 +11,15 @@ namespace NYT::NTableChunkFormat {
 std::unique_ptr<IValueColumnWriter> CreateVersionedBooleanColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedBooleanColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

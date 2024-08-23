@@ -671,7 +671,8 @@ public:
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 columnIndex,
                 columnSchema,
-                getBlockWriter(columnSchema)));
+                getBlockWriter(columnSchema),
+                Options_->MemoryUsageTracker));
         }
 
         if (!Schema_->GetStrict() || BlockWriters_.empty()) {
@@ -680,7 +681,8 @@ public:
             auto blockWriter = std::make_unique<TDataBlockWriter>();
             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
                 Schema_->GetColumnCount(),
-                blockWriter.get()));
+                blockWriter.get(),
+                Options_->MemoryUsageTracker));
             BlockWriters_.emplace_back(std::move(blockWriter));
         }
 

@@ -19,7 +19,9 @@ struct ITimestampWriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ITimestampWriter> CreateTimestampWriter(TDataBlockWriter* blockWriter);
+std::unique_ptr<ITimestampWriter> CreateTimestampWriter(
+    TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

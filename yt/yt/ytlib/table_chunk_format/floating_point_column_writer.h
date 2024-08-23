@@ -12,6 +12,7 @@ template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +22,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////

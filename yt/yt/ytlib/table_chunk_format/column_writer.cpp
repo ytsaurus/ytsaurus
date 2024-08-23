@@ -19,34 +19,69 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
-            return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter, maxValueCount);
+            return CreateUnversionedInt64ColumnWriter(
+                columnIndex,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Uint64:
-            return CreateUnversionedUint64ColumnWriter(columnIndex, blockWriter, maxValueCount);
+            return CreateUnversionedUint64ColumnWriter(
+                columnIndex,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Double:
             switch (columnSchema.CastToV1Type()) {
                 case NTableClient::ESimpleLogicalValueType::Float:
-                    return CreateUnversionedFloatingPointColumnWriter<float>(columnIndex, blockWriter, maxValueCount);
+                    return CreateUnversionedFloatingPointColumnWriter<float>(
+                        columnIndex,
+                        blockWriter,
+                        std::move(memoryUsageTracker),
+                        maxValueCount);
                 default:
-                    return CreateUnversionedFloatingPointColumnWriter<double>(columnIndex, blockWriter, maxValueCount);
+                    return CreateUnversionedFloatingPointColumnWriter<double>(
+                        columnIndex,
+                        blockWriter,
+                        std::move(memoryUsageTracker),
+                        maxValueCount);
             }
 
         case EValueType::String:
-            return CreateUnversionedStringColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
+            return CreateUnversionedStringColumnWriter(
+                columnIndex,
+                columnSchema,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Boolean:
-            return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedBooleanColumnWriter(
+                columnIndex,
+                blockWriter,
+                std::move(memoryUsageTracker));
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
+            return CreateUnversionedAnyColumnWriter(
+                columnIndex,
+                columnSchema,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Composite:
-            return CreateUnversionedCompositeColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
+            return CreateUnversionedCompositeColumnWriter(
+                columnIndex,
+                columnSchema,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
@@ -65,6 +100,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     switch (columnSchema.GetWireType()) {
@@ -73,6 +109,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 columnId,
                 columnSchema,
                 blockWriter,
+                std::move(memoryUsageTracker),
                 maxValueCount);
 
         case EValueType::Uint64:
@@ -80,6 +117,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 columnId,
                 columnSchema,
                 blockWriter,
+                std::move(memoryUsageTracker),
                 maxValueCount);
 
         case EValueType::Double:
@@ -89,12 +127,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                         columnId,
                         columnSchema,
                         blockWriter,
+                        std::move(memoryUsageTracker),
                         maxValueCount);
                 default:
                     return CreateVersionedFloatingPointColumnWriter<double>(
                         columnId,
                         columnSchema,
                         blockWriter,
+                        std::move(memoryUsageTracker),
                         maxValueCount);
             }
 
@@ -102,13 +142,15 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
             return CreateVersionedBooleanColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                std::move(memoryUsageTracker));
 
         case EValueType::Any:
             return CreateVersionedAnyColumnWriter(
                 columnId,
                 columnSchema,
                 blockWriter,
+                std::move(memoryUsageTracker),
                 maxValueCount);
 
         case EValueType::String:
@@ -116,6 +158,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 columnId,
                 columnSchema,
                 blockWriter,
+                std::move(memoryUsageTracker),
                 maxValueCount);
 
         case EValueType::Composite:
@@ -123,6 +166,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 columnId,
                 columnSchema,
                 blockWriter,
+                std::move(memoryUsageTracker),
                 maxValueCount);
 
         default:

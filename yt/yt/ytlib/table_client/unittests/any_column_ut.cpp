@@ -1,6 +1,7 @@
 #include "column_format_ut.h"
 
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_memory_tracker.h>
 
 #include <yt/yt/ytlib/table_chunk_format/public.h>
 #include <yt/yt/ytlib/table_chunk_format/string_column_writer.h>
@@ -62,10 +63,15 @@ TEST(TAnyColumnTest, Simple)
         });
 
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
+    auto memoryTracker = New<TTestNodeMemoryTracker>(std::numeric_limits<i64>::max());
+    auto columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter, memoryTracker);
 
     columnWriter->WriteUnversionedValues(TRange(expected));
+    memoryTracker->GetUsed();
+    EXPECT_EQ(524585, memoryTracker->GetUsed());
+
     columnWriter->FinishCurrentSegment();
+    EXPECT_EQ(256, memoryTracker->GetUsed());
 
     auto block = blockWriter.DumpBlock(0, 8);
     auto* codec = NCompression::GetCodec(NCompression::ECodec::None);
