@@ -1302,6 +1302,20 @@ TError SanitizeError(TError error)
     return error;
 }
 
+void ValidateMediumName(const std::string& name)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Medium name cannot be empty");
+    }
+}
+
+void ValidateMediumPriority(int priority)
+{
+    if (priority < 0 || priority > MaxMediumPriority) {
+        THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

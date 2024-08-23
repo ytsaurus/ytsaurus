@@ -17,6 +17,7 @@ class TDomesticMedium
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
+
     // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
     DEFINE_BYREF_RW_PROPERTY(TDomesticMediumConfigPtr, Config, New<TDomesticMediumConfig>());
 
