@@ -1,6 +1,6 @@
 # Java interface with examples (ytsaurus-client)
 
-We have Java SDK for YTsaurus which is published in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.0.1).
+We have Java SDK for YTsaurus which is published in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
 
 A detailed description of the Java SDK is located [here](https://java.ytsaurus.tech).
 
