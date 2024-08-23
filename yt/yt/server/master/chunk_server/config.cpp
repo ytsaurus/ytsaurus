@@ -142,10 +142,6 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_node_statistics_fix", &TThis::EnableNodeStatisticsFix)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
         .Default(false)
         .DontSerializeDefault();

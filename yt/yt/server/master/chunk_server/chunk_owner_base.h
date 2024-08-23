@@ -130,27 +130,16 @@ public:
 
     bool HasDataWeight() const;
 
-    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
-
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
-    // COMPAT(shakurov)
-    void FixStatisticsAndAlert();
-    bool IsStatisticsFixNeeded() const;
-
 private:
     TChunkOwnerDataStatisticsPtr DeltaStatistics_;
-
-private:
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const TChunkOwnerDataStatistics& statistics) const;
-
-    // COMPAT(shakurov)
-    void DoFixStatistics();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)

@@ -186,9 +186,6 @@ public:
     bool RescheduleMergeOnSuccess;
     bool AllowSettingChunkMergerMode;
 
-    // COMPAT(shakurov)
-    bool EnableNodeStatisticsFix;
-
     // COMPAT(aleksandra-zh)
     bool EnableQueueSizeLimitChanges;
 
