@@ -33,8 +33,9 @@ target_link_libraries(server-lib-nbd PUBLIC
 
 target_sources(server-lib-nbd PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/cypress_file_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/file_system_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/image_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/memory_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/random_access_file_reader.cpp

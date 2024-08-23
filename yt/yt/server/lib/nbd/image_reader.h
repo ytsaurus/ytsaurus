@@ -1,28 +1,12 @@
 #pragma once
 
-#include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/ytlib/chunk_client/dispatcher.h>
-
-#include <yt/yt/client/api/private.h>
-
-#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadersStatistics
-{
-    i64 ReadBytes;
-    i64 ReadBlockBytesFromCache;
-    i64 ReadBlockBytesFromDisk;
-    i64 ReadBlockMetaBytesFromDisk;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IRandomAccessFileReader
+struct IImageReader
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
@@ -36,12 +20,12 @@ struct IRandomAccessFileReader
     virtual TReadersStatistics GetStatistics() const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IRandomAccessFileReader);
-DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
+DECLARE_REFCOUNTED_STRUCT(IImageReader)
+DEFINE_REFCOUNTED_TYPE(IImageReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
+IImageReaderPtr CreateCypressFileImageReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     TString path,
     NApi::NNative::IClientPtr client,

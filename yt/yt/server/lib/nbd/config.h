@@ -8,7 +8,7 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressFileBlockDeviceConfig
+class TFileSystemBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -16,12 +16,12 @@ public:
     // For testing purposes: how long to sleep before read request
     TDuration TestSleepBeforeRead;
 
-    REGISTER_YSON_STRUCT(TCypressFileBlockDeviceConfig);
+    REGISTER_YSON_STRUCT(TFileSystemBlockDeviceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
+DEFINE_REFCOUNTED_TYPE(TFileSystemBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
