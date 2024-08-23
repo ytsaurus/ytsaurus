@@ -3,6 +3,8 @@
 #include "serialize.h"
 #include "replication_card.h"
 
+#include <yt/yt/client/tablet_client/config.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NChaosClient;
@@ -19,6 +21,7 @@ void TReplicationCardCollocation::Save(TSaveContext& context) const
     Save(context, ReplicationCards_);
     Save(context, State_);
     Save(context, Size_);
+    Save(context, *Options_);
 }
 
 void TReplicationCardCollocation::Load(TLoadContext& context)
@@ -28,6 +31,9 @@ void TReplicationCardCollocation::Load(TLoadContext& context)
     Load(context, ReplicationCards_);
     Load(context, State_);
     Load(context, Size_);
+    if (context.GetVersion() >= EChaosReign::CollocationOptions) {
+        Load(context, *Options_);
+    }
 }
 
 bool TReplicationCardCollocation::IsMigrating() const

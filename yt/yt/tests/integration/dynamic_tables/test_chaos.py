@@ -3328,7 +3328,7 @@ class TestChaos(ChaosTestBase):
         for replica in replicas:
             wait(lambda: select_rows("key, value from [{0}]".format(replica["replica_path"]), driver=get_driver(cluster=replica["cluster_name"])) == data_values)
 
-    @authors("savrus")
+    @authors("savrus", "akozhikhov")
     @pytest.mark.parametrize("snapshotting", ["none", "snapshot"])
     @pytest.mark.parametrize("migration", ["none", "migrate"])
     @pytest.mark.parametrize("max_sync", [1, 2])
@@ -3448,6 +3448,19 @@ class TestChaos(ChaosTestBase):
             return sync1 == sync2 and len(sync1) == [2, max_sync][content_type == "data"]
         wait(lambda: _check("data"))
         wait(lambda: _check("queue"))
+
+        sync_clusters = _get_sync_replica_clusters(crt1, "data")
+        async_cluster = [c for c in clusters if c not in sync_clusters][0]
+        alter_replication_card(card1, collocation_options={"preferred_sync_replica_clusters": [async_cluster]})
+
+        def _check2(crt, content_type):
+            sync_clusters = _get_sync_replica_clusters(crt, content_type)
+            return async_cluster in sync_clusters
+
+        wait(lambda: _check2(crt1, "data"))
+        wait(lambda: _check2(crt2, "data"))
+        wait(lambda: _check2(crt1, "queue"))
+        wait(lambda: _check2(crt2, "queue"))
 
         for content_type in ["data", "queue"]:
             sync_clusters = _get_sync_replica_clusters(crt1, content_type)
