@@ -599,6 +599,16 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionPtr>, StartDistributedWriteSession, (
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteSessionStartOptions& options),
+        (path, options))
+
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, FinishDistributedWriteSession, (
+        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionFinishOptions& options),
+        (std::move(session), options))
+
 #undef DELEGATE_METHOD
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD

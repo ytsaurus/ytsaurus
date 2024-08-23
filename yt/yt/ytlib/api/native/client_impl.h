@@ -1441,6 +1441,22 @@ private:
     TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
+
+    //
+    // Distributed table client
+    //
+
+    TFuture<TDistributedWriteSessionPtr> StartDistributedWriteSession(
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteSessionStartOptions& options) override;
+
+    TFuture<void> FinishDistributedWriteSession(
+        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionFinishOptions& options) override;
+
+    TFuture<ITableWriterPtr> CreateParticipantTableWriter(
+        const TDistributedWriteCookiePtr& cookie,
+        const TParticipantTableWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

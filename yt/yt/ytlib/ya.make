@@ -21,6 +21,7 @@ SRCS(
     api/native/client_authentication_impl.cpp
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
+    api/native/client_distributed_table_impl.cpp
     api/native/client_dynamic_tables_impl.cpp
     api/native/client_file_cache_impl.cpp
     api/native/client_files_impl.cpp
