@@ -616,7 +616,11 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 }
 
 func (c *httpClient) BeginTx(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
-	return internal.NewTx(ctx, c.Encoder, c.log, c.stop, c.config, options)
+	return internal.BeginTx(ctx, c.Encoder, c.log, c.stop, c.config, options)
+}
+
+func (c *httpClient) AttachTx(ctx context.Context, txID yt.TxID, options *yt.AttachTxOptions) (yt.Tx, error) {
+	return internal.AttachTx(ctx, c.Encoder, c.log, c.stop, c.config, txID, options)
 }
 
 func (c *httpClient) Stop() {

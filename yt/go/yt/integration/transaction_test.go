@@ -28,6 +28,9 @@ func TestTransactions(t *testing.T) {
 	suite.RunClientTests(t, []ClientTest{
 		{Name: "CommitTransaction", Test: suite.TestCommitTransaction},
 		{Name: "RollbackTransaction", Test: suite.TestRollbackTransaction},
+		{Name: "AttachTransaction", Test: suite.TestAttachTransaction},
+		{Name: "AttachTransactionAutoPing", Test: suite.TestAttachTransactionAutoPing},
+		{Name: "AttachTransactionWithoutAutoPing", Test: suite.TestAttachTransactionWithoutAutoPing},
 		{Name: "TransactionBackgroundPing", Test: suite.TestTransactionBackgroundPing},
 		{Name: "TransactionAbortByContextCancel", Test: suite.TestTransactionAbortByContextCancel},
 		{Name: "TransactionAbortCancel", Test: suite.TestTransactionAbortCancel},
@@ -60,6 +63,75 @@ func (s *Suite) TestRollbackTransaction(ctx context.Context, t *testing.T, yc yt
 	require.NoError(t, err)
 
 	require.NoError(t, tx.Abort())
+}
+
+func (s *Suite) TestAttachTransaction(ctx context.Context, t *testing.T, yc yt.Client) {
+	txTimeout := yson.Duration(10 * time.Second)
+	txID, err := yc.StartTx(ctx, &yt.StartTxOptions{Timeout: &txTimeout})
+	require.NoError(t, err)
+
+	tx, err := yc.AttachTx(ctx, txID, nil)
+	require.NoError(t, err)
+
+	path := tmpPath()
+	_, err = tx.CreateNode(ctx, path, yt.NodeMap, nil)
+	require.NoError(t, err)
+
+	ok, err := yc.NodeExists(ctx, path, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, tx.Commit())
+
+	ok, err = yc.NodeExists(ctx, path, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func (s *Suite) TestAttachTransactionAutoPing(ctx context.Context, t *testing.T, yc yt.Client) {
+	txTimeout := yson.Duration(5 * time.Second)
+	txID, err := yc.StartTx(ctx, &yt.StartTxOptions{Timeout: &txTimeout})
+	require.NoError(t, err)
+
+	canceledCtx, cancel := context.WithCancel(ctx)
+
+	tx, err := yc.AttachTx(canceledCtx, txID, &yt.AttachTxOptions{AutoPingable: true})
+	require.NoError(t, err)
+
+	time.Sleep(6 * time.Second)
+
+	err = yc.PingTx(ctx, tx.ID(), nil)
+	require.NoError(t, err)
+
+	cancel()
+	time.Sleep(time.Second)
+
+	err = yc.PingTx(ctx, tx.ID(), nil)
+	require.Error(t, err)
+	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
+}
+
+func (s *Suite) TestAttachTransactionWithoutAutoPing(ctx context.Context, t *testing.T, yc yt.Client) {
+	txTimeout := yson.Duration(5 * time.Second)
+	txID, err := yc.StartTx(ctx, &yt.StartTxOptions{Timeout: &txTimeout})
+	require.NoError(t, err)
+
+	canceledCtx, cancel := context.WithCancel(ctx)
+
+	tx, err := yc.AttachTx(canceledCtx, txID, nil)
+	require.NoError(t, err)
+
+	cancel()
+	time.Sleep(time.Second)
+
+	err = yc.PingTx(ctx, tx.ID(), nil)
+	require.NoError(t, err)
+
+	time.Sleep(6 * time.Second)
+
+	err = yc.PingTx(ctx, tx.ID(), nil)
+	require.Error(t, err)
+	require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
 }
 
 func (s *Suite) TestTransactionBackgroundPing(ctx context.Context, t *testing.T, yc yt.Client) {
