@@ -24,7 +24,7 @@ type TransactionParams interface {
 	TransactionOptions() **yt.TransactionOptions
 }
 
-func NewTx(
+func BeginTx(
 	ctx context.Context,
 	e Encoder,
 	log log.Structured,
@@ -50,18 +50,10 @@ func NewTx(
 		pingerOpts.TransactionID = yt.TxID{}
 	}
 
-	tx := &TxInterceptor{
-		Encoder: e,
-		Client:  e,
-		log:     log,
-		pinger:  NewPinger(ctx, &e, txID, config, stop, pingerOpts),
+	tx, err := newTx(ctx, e, log, stop, config, txID, pingerOpts)
+	if err != nil {
+		return nil, err
 	}
-
-	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
-	tx.Encoder.InvokeRead = tx.Encoder.InvokeRead.Wrap(tx.Read)
-	tx.Encoder.InvokeWrite = tx.Encoder.InvokeWrite.Wrap(tx.Write)
-	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
-	tx.Encoder.InvokeWriteRow = tx.Encoder.InvokeWriteRow.Wrap(tx.WriteRow)
 
 	if !stop.TryAdd() {
 		// In this rare event, leave tx running on the master.
@@ -69,6 +61,60 @@ func NewTx(
 	}
 
 	go tx.pinger.Run()
+
+	return tx, nil
+}
+
+func AttachTx(
+	ctx context.Context,
+	e Encoder,
+	log log.Structured,
+	stop *StopGroup,
+	config *yt.Config,
+	txID yt.TxID,
+	options *yt.AttachTxOptions,
+) (yt.Tx, error) {
+	if options == nil {
+		options = &yt.AttachTxOptions{}
+	}
+
+	tx, err := newTx(ctx, e, log, stop, config, txID, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if options.AutoPingable {
+		if !stop.TryAdd() {
+			// In this rare event, leave tx running on the master.
+			return nil, xerrors.New("client is stopped")
+		}
+		go tx.pinger.Run()
+	}
+
+	return tx, nil
+}
+
+func newTx(
+	ctx context.Context,
+	e Encoder,
+	log log.Structured,
+	stop *StopGroup,
+	config *yt.Config,
+	txID yt.TxID,
+	pingerOptions *yt.PingTxOptions,
+) (*TxInterceptor, error) {
+	tx := &TxInterceptor{
+		Encoder: e,
+		Client:  e,
+		log:     log,
+		pinger:  NewPinger(ctx, &e, txID, config, stop, pingerOptions),
+	}
+
+	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
+	tx.Encoder.InvokeRead = tx.Encoder.InvokeRead.Wrap(tx.Read)
+	tx.Encoder.InvokeWrite = tx.Encoder.InvokeWrite.Wrap(tx.Write)
+	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
+	tx.Encoder.InvokeWriteRow = tx.Encoder.InvokeWriteRow.Wrap(tx.WriteRow)
 
 	return tx, nil
 }
@@ -95,7 +141,7 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 
 	options.TransactionID = t.ID()
 
-	return NewTx(ctx, t.Client, t.log, t.pinger.stop, t.pinger.config, options)
+	return BeginTx(ctx, t.Client, t.log, t.pinger.stop, t.pinger.config, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
