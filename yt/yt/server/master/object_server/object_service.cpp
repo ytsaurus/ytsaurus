@@ -268,7 +268,7 @@ private:
         virtual TCallback<void()> ExtractCallback() override;
 
     private:
-        TSessionSchedulerPtr SessionScheduler_;
+        const TSessionSchedulerPtr SessionScheduler_;
     };
 
     TIntrusivePtr<TLocalReadCallbackProvider> LocalReadCallbackProvider_;
@@ -2271,13 +2271,13 @@ TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(TSessionS
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 {
-    if (SessionScheduler_->IsEmpty()) {
+    auto optionalSession = SessionScheduler_->TryDequeue();
+    if (!optionalSession) {
         return {};
     }
 
-    auto session = SessionScheduler_->Dequeue();
+    const auto& session = *optionalSession;
     TCurrentTraceContextGuard guard(session->GetTraceContext());
-
     return BIND(&TObjectService::TExecuteSession::RunRead, session);
 }
 
@@ -2352,10 +2352,14 @@ void TObjectService::ProcessSessions()
         }
     });
 
-    while (!AutomatonSessionScheduler_->IsEmpty() && GetCpuInstant() < deadlineTime) {
-        auto session = AutomatonSessionScheduler_->Dequeue();
-        TCurrentTraceContextGuard guard(session->GetTraceContext());
+    while (GetCpuInstant() < deadlineTime) {
+        auto optionalSession = AutomatonSessionScheduler_->TryDequeue();
+        if (!optionalSession) {
+            break;
+        }
 
+        const auto& session = *optionalSession;
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
         session->RunAutomatonSlow();
     }
 
