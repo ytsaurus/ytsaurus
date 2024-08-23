@@ -1,6 +1,31 @@
 #include <yt/yt/server/lib/nbd/config.h>
-#include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
+#include <yt/yt/server/lib/nbd/file_system_block_device.h>
 #include <yt/yt/server/lib/nbd/server.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/ytlib/program/config.h>
+
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -10,23 +35,19 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/program/config.h>
-
-#include <yt/yt/library/program/program.h>
-#include <yt/yt/library/program/helpers.h>
-
 
 namespace NYT::NNbd {
+
+using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NFileClient;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +60,7 @@ public:
     TString ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TCypressFileBlockDeviceConfigPtr> CypressFileBlockDevices;
+    THashMap<TString, TFileSystemBlockDeviceConfigPtr> FileSystemBlockDevices;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -52,7 +73,7 @@ public:
             .DefaultNew();
         registrar.Parameter("nbd_server", &TThis::NbdServer)
             .DefaultNew();
-        registrar.Parameter("file_exports", &TThis::CypressFileBlockDevices)
+        registrar.Parameter("file_exports", &TThis::FileSystemBlockDevices)
             .Default();
         registrar.Parameter("thread_count", &TThis::ThreadCount)
             .Default(2);
@@ -73,6 +94,128 @@ public:
     }
 
 protected:
+    //! Fetch basic object attributes from Cypress.
+    TUserObject GetUserObject(
+        const TRichYPath& richPath,
+        NNative::IClientPtr client,
+        const TLogger& Logger)
+    {
+        YT_LOG_INFO("Fetching file basic attributes (File: %v)", richPath);
+
+        TUserObject userObject(richPath);
+
+        GetUserObjectBasicAttributes(
+            client,
+            {&userObject},
+            NullTransactionId,
+            Logger,
+            NYTree::EPermission::Read);
+
+        YT_LOG_INFO("Fetched file basic attributes (File: %v)", richPath);
+
+        return userObject;
+    }
+
+    //! Fetch object's filesystem attribute from Cypress.
+    TString GetFilesystem(
+        const TUserObject& userObject,
+        const NNative::IClientPtr& client,
+        const TLogger& Logger)
+    {
+        YT_LOG_INFO("Fetching file filesystem attribute (File: %v)", userObject.GetPath());
+
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
+            NApi::EMasterChannelKind::Follower,
+            userObject.ExternalCellTag);
+
+        auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            "filesystem",
+        });
+
+        AddCellTagToSyncWith(
+            req,
+            userObject.ObjectId);
+        SetTransactionId(
+            req,
+            NullTransactionId);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting extended attributes for file %Qlv",
+            userObject.GetPath());
+
+        const auto& rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        auto filesystem = attributes->Get<TString>(
+            /*key*/ "filesystem",
+            /*defaultValue*/ "");
+
+        YT_LOG_INFO(
+            "Fetched file filesystem attribute (File: %v, Filesystem: %v)",
+            userObject.GetPath(),
+            filesystem);
+
+        return filesystem;
+    }
+
+    //! Fetch object's chunk specs from Cypress.
+    std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
+        const TUserObject& userObject,
+        const NApi::NNative::IClientPtr& client,
+        const NLogging::TLogger& Logger)
+    {
+        YT_LOG_INFO("Fetching file chunk specs (File: %v)", userObject.GetPath());
+
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
+            NApi::EMasterChannelKind::Follower,
+            userObject.ExternalCellTag);
+
+        auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+
+        auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
+        AddCellTagToSyncWith(req, userObject.ObjectId);
+
+        TLegacyReadLimit lowerLimit, upperLimit;
+        ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange(lowerLimit, upperLimit)}));
+
+        SetTransactionId(
+            req,
+            NullTransactionId);
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+
+        batchReq->AddRequest(req);
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error fetching chunks for file %Qlv",
+            userObject.GetPath());
+
+        const auto& batchRsp = batchRspOrError.Value();
+        const auto& rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0);
+        const auto& rsp = rspOrError.Value();
+
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+        ProcessFetchResponse(
+            client,
+            rsp,
+            userObject.ExternalCellTag,
+            client->GetNativeConnection()->GetNodeDirectory(),
+            /*maxChunksPerLocateRequest*/ 10,
+            /*rangeIndex*/ std::nullopt,
+            Logger,
+            &chunkSpecs);
+
+        YT_LOG_INFO("Fetched file chunk specs (File: %v, ChunkSpecs: %v)",
+            userObject.GetPath(),
+            chunkSpecs.size());
+
+        return chunkSpecs;
+    }
+
     virtual void DoRun(const NLastGetopt::TOptsParseResult&) override
     {
         auto singletonsConfig = New<TSingletonsConfig>();
@@ -104,8 +247,53 @@ protected:
         auto clientOptions = NYT::NApi::TClientOptions::FromUser(config->ClusterUser);
         auto client = connection->CreateNativeClient(clientOptions);
 
-        for (const auto& [exportId, exportConfig] : config->CypressFileBlockDevices) {
-            auto device = CreateCypressFileBlockDevice(exportId, exportConfig, client, threadPool->GetInvoker(), nbdServer->GetLogger());
+        for (const auto& [exportId, exportConfig] : config->FileSystemBlockDevices) {
+            auto logger = nbdServer->GetLogger();
+
+            TRichYPath richPath{exportConfig->Path};
+            auto userObject = GetUserObject(
+                richPath,
+                client,
+                logger);
+            if (userObject.Type != NCypressClient::EObjectType::File) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid type of file %Qlv, expected %Qlv, but got %Qlv",
+                    userObject.GetPath(),
+                    NCypressClient::EObjectType::File,
+                    userObject.Type);
+            }
+
+            auto filesystem = GetFilesystem(
+                userObject,
+                client,
+                logger);
+            if (filesystem != "ext4" && filesystem != "squashfs") {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid filesystem attribute %Qv of file %v",
+                    filesystem,
+                    userObject.GetPath());
+            }
+
+            auto chunkSpecs = GetChunkSpecs(
+                userObject,
+                client,
+                logger);
+
+            auto reader = CreateCypressFileImageReader(
+                std::move(chunkSpecs),
+                exportConfig->Path,
+                client,
+                GetUnlimitedThrottler(),
+                GetUnlimitedThrottler(),
+                logger);
+
+            auto device = CreateFileSystemBlockDevice(
+                exportId,
+                exportConfig,
+                std::move(reader),
+                threadPool->GetInvoker(),
+                logger);
+
             NConcurrency::WaitFor(device->Initialize()).ThrowOnError();
             nbdServer->RegisterDevice(exportId, std::move(device));
         }

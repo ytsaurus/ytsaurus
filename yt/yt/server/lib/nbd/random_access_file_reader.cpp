@@ -38,35 +38,20 @@ class TRandomAccessFileReader
 {
 public:
     TRandomAccessFileReader(
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
         TString path,
         NNative::IClientPtr client,
         IThroughputThrottlerPtr inThrottler,
         IThroughputThrottlerPtr outRpsThrottler,
-        const TLogger& logger);
+        TLogger logger);
 
-    TRandomAccessFileReader(
-        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-        TString path,
-        NNative::IClientPtr client,
-        IThroughputThrottlerPtr inThrottler,
-        IThroughputThrottlerPtr outRpsThrottler,
-        const TLogger& logger);
-
-    TRandomAccessFileReader(
-        TUserObject userObject,
-        TString path,
-        NNative::IClientPtr client,
-        IThroughputThrottlerPtr inThrottler,
-        IThroughputThrottlerPtr outRpsThrottler,
-        const TLogger& logger);
+    void Initialize() override;
 
     TFuture<TSharedRef> Read(
         i64 offset,
         i64 length) override;
 
     i64 GetSize() const override;
-
-    void Open();
 
 private:
     struct TBlock
@@ -87,7 +72,7 @@ private:
         TRefCountedChunkMetaPtr Meta;
     };
 
-    const std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
     const TString Path_;
     const IThroughputThrottlerPtr InThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
@@ -95,7 +80,6 @@ private:
     const TLogger Logger;
     TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
-    TUserObject UserObject_;
     i64 Size_ = 0;
 
     std::atomic<i64> ReadBytes_;
@@ -113,64 +97,26 @@ private:
         i64 offset,
         i64 length);
 
-    template <typename T>
-    void InitializeChunkStructs(
-        const TUserObject& userObject,
-        const T& chunkSpecs);
+    void InitializeChunkStructs();
 
-    std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
-        const TUserObject& userObject,
-        const NApi::NNative::IClientPtr& client,
-        const NLogging::TLogger& logger);
-
-    TRandomAccessFileReaderStatistics GetStatistics() const override;
+    TReadersStatistics GetStatistics() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRandomAccessFileReader::TRandomAccessFileReader(
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     TString path,
     NNative::IClientPtr client,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
-    const TLogger& logger)
-    : Path_(std::move(path))
-    , InThrottler_(std::move(inThrottler))
-    , OutRpsThrottler_(std::move(outRpsThrottler))
-    , Client_(std::move(client))
-    , Logger(logger)
-    , UserObject_(path)
-{ }
-
-TRandomAccessFileReader::TRandomAccessFileReader(
-    const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-    TString path,
-    NNative::IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    const TLogger& logger)
-    : ChunkSpecs_(chunkSpecs)
+    TLogger logger)
+    : ChunkSpecs_(std::move(chunkSpecs))
     , Path_(std::move(path))
     , InThrottler_(std::move(inThrottler))
     , OutRpsThrottler_(std::move(outRpsThrottler))
     , Client_(std::move(client))
-    , Logger(logger)
-    , UserObject_(path)
-{ }
-
-TRandomAccessFileReader::TRandomAccessFileReader(
-    TUserObject userObject,
-    TString path,
-    NNative::IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    const TLogger& logger)
-    : Path_(std::move(path))
-    , InThrottler_(std::move(inThrottler))
-    , OutRpsThrottler_(std::move(outRpsThrottler))
-    , Client_(std::move(client))
-    , Logger(logger)
-    , UserObject_(std::move(userObject))
+    , Logger(std::move(logger))
 { }
 
 TFuture<TSharedRef> TRandomAccessFileReader::Read(
@@ -215,50 +161,15 @@ i64 TRandomAccessFileReader::GetSize() const
     return Size_;
 }
 
-void TRandomAccessFileReader::Open()
+void TRandomAccessFileReader::Initialize()
 {
     YT_LOG_INFO("Initializing random access file reader (Path: %v)", Path_);
 
-    TRichYPath richPath{Path_};
+    YT_LOG_INFO("Creating chunk reader host (File: %v)", Path_);
+    ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
+    YT_LOG_INFO("Created chunk reader host (File: %v)", Path_);
 
-    if (ChunkSpecs_) {
-        UserObject_ = TUserObject(richPath);
-
-        YT_LOG_INFO("Creating chunk reader host (File: %v)", UserObject_.GetPath());
-        ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
-        YT_LOG_INFO("Created chunk reader host (File: %v)", UserObject_.GetPath());
-
-        InitializeChunkStructs(
-            UserObject_,
-            *ChunkSpecs_);
-    } else {
-        if (!UserObject_.IsPrepared()) {
-            UserObject_ = GetUserObject(
-                richPath,
-                Client_,
-                Logger);
-        }
-
-        if (UserObject_.Type != NCypressClient::EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of file %Qlv, expected %Qlv, but got %Qlv",
-                UserObject_.GetPath(),
-                NCypressClient::EObjectType::File,
-                UserObject_.Type);
-        }
-
-        auto chunkSpecs = GetChunkSpecs(
-            UserObject_,
-            Client_,
-            Logger);
-
-        YT_LOG_INFO("Creating chunk reader host (File: %v)", UserObject_.GetPath());
-        ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
-        YT_LOG_INFO("Created chunk reader host (File: %v)", UserObject_.GetPath());
-
-        InitializeChunkStructs(
-            UserObject_,
-            chunkSpecs);
-    }
+    InitializeChunkStructs();
 
     YT_LOG_INFO("Initialized random access file reader (Path: %v)", Path_);
 }
@@ -398,17 +309,14 @@ TFuture<std::vector<TSharedRef>> TRandomAccessFileReader::ReadFromChunk(
     }));
 }
 
-template <typename T>
-void TRandomAccessFileReader::InitializeChunkStructs(
-    const TUserObject& userObject,
-    const T& chunkSpecs)
+void TRandomAccessFileReader::InitializeChunkStructs()
 {
     YT_LOG_INFO("Initializing chunk structs (File: %v, ChunkSpecs: %v)",
-        userObject.GetPath(),
-        chunkSpecs.size());
+        Path_,
+        ChunkSpecs_.size());
 
     i64 offset = 0;
-    for (auto& chunkSpec : chunkSpecs) {
+    for (auto& chunkSpec : ChunkSpecs_) {
         Chunks_.push_back({});
         auto& chunk = Chunks_.back();
 
@@ -421,13 +329,13 @@ void TRandomAccessFileReader::InitializeChunkStructs(
         if (CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()) != NCompression::ECodec::None) {
             THROW_ERROR_EXCEPTION("Compression codec %Qlv for filesystem image %v is not supported",
                 CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
-                userObject.GetPath());
+                Path_);
         }
 
         chunk.Size = miscExt.uncompressed_data_size();
 
         YT_LOG_INFO("Start creating chunk reader (File: %v, Chunk: %v)",
-            userObject.GetPath(),
+            Path_,
             chunk.Index);
 
         auto readerConfig = New<TReplicationReaderConfig>();
@@ -449,11 +357,11 @@ void TRandomAccessFileReader::InitializeChunkStructs(
         chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = NYT::EWorkloadCategory::UserInteractive;
 
         YT_LOG_INFO("Finish creating chunk reader (File: %v, Chunk: %v)",
-            userObject.GetPath(),
+            Path_,
             chunk.Index);
 
         YT_LOG_INFO("Start fetching chunk meta blocks extension (File: %v, Chunk: %v)",
-            userObject.GetPath(),
+            Path_,
             chunk.Index);
 
         std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
@@ -466,7 +374,7 @@ void TRandomAccessFileReader::InitializeChunkStructs(
         auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
 
         YT_LOG_INFO("Finish fetching chunk meta blocks extension (File: %v, Chunk: %v, BlockInfos: %v)",
-            userObject.GetPath(),
+            Path_,
             chunk.Index,
             blocksExt.blocks_size());
 
@@ -479,68 +387,13 @@ void TRandomAccessFileReader::InitializeChunkStructs(
     }
 
     YT_LOG_INFO("Initialized chunk structs (File: %v, ChunkSpecs: %v)",
-        userObject.GetPath(),
-        chunkSpecs.size());
+        Path_,
+        ChunkSpecs_.size());
 }
 
-//! Fetch object's chunk specs from Cypress.
-std::vector<NChunkClient::NProto::TChunkSpec> TRandomAccessFileReader::GetChunkSpecs(
-    const TUserObject& userObject,
-    const NApi::NNative::IClientPtr& client,
-    const NLogging::TLogger& Logger)
+TReadersStatistics TRandomAccessFileReader::GetStatistics() const
 {
-    YT_LOG_INFO("Fetching file chunk specs (File: %v)", userObject.GetPath());
-
-    auto proxy = CreateObjectServiceReadProxy(
-        client,
-        NApi::EMasterChannelKind::Follower,
-        userObject.ExternalCellTag);
-
-    auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
-
-    auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
-    AddCellTagToSyncWith(req, userObject.ObjectId);
-
-    TLegacyReadLimit lowerLimit, upperLimit;
-    ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange(lowerLimit, upperLimit)}));
-
-    SetTransactionId(
-        req,
-        NullTransactionId);
-    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-
-    batchReq->AddRequest(req);
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        GetCumulativeError(batchRspOrError),
-        "Error fetching chunks for file %Qlv",
-        userObject.GetPath());
-
-    const auto& batchRsp = batchRspOrError.Value();
-    const auto& rspOrError = batchRsp->GetResponse<NFileClient::TFileYPathProxy::TRspFetch>(0);
-    const auto& rsp = rspOrError.Value();
-
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-    ProcessFetchResponse(
-        client,
-        rsp,
-        userObject.ExternalCellTag,
-        client->GetNativeConnection()->GetNodeDirectory(),
-        /*maxChunksPerLocateRequest*/ 10,
-        /*rangeIndex*/ std::nullopt,
-        Logger,
-        &chunkSpecs);
-
-    YT_LOG_INFO("Fetched file chunk specs (File: %v, ChunkSpecs: %v)",
-        userObject.GetPath(),
-        chunkSpecs.size());
-
-    return chunkSpecs;
-}
-
-TRandomAccessFileReaderStatistics TRandomAccessFileReader::GetStatistics() const
-{
-    return TRandomAccessFileReaderStatistics{
+    return TReadersStatistics{
         .ReadBytes = ReadBytes_.load(),
         .ReadBlockBytesFromCache = ReadBlockBytesFromCache_.load(),
         .ReadBlockBytesFromDisk = ReadBlockBytesFromDisk_.load(),
@@ -551,85 +404,20 @@ TRandomAccessFileReaderStatistics TRandomAccessFileReader::GetStatistics() const
 ////////////////////////////////////////////////////////////////////////////////
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     TString path,
     NNative::IClientPtr client,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
     TLogger logger)
 {
-    auto fileReader = New<TRandomAccessFileReader>(
-        std::move(path),
-        std::move(client),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
-        std::move(logger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v", path)));
-
-    fileReader->Open();
-    return fileReader;
-}
-
-IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
-    const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-    TString path,
-    NNative::IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    TLogger logger)
-{
-    auto fileReader = New<TRandomAccessFileReader>(
-        chunkSpecs,
+    return New<TRandomAccessFileReader>(
+        std::move(chunkSpecs),
         std::move(path),
         std::move(client),
         std::move(inThrottler),
         std::move(outRpsThrottler),
         std::move(logger));
-
-    fileReader->Open();
-    return fileReader;
-}
-
-IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
-    NChunkClient::TUserObject userObject,
-    TString path,
-    NNative::IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    TLogger logger)
-{
-    auto fileReader = New<TRandomAccessFileReader>(
-        std::move(userObject),
-        std::move(path),
-        std::move(client),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
-        std::move(logger));
-
-    fileReader->Open();
-    return fileReader;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Fetch basic object attributes from Cypress.
-TUserObject GetUserObject(
-    const TRichYPath& richPath,
-    NNative::IClientPtr client,
-    const TLogger& Logger)
-{
-    YT_LOG_INFO("Fetching file basic attributes (File: %v)", richPath);
-
-    TUserObject userObject(richPath);
-
-    GetUserObjectBasicAttributes(
-        client,
-        {&userObject},
-        NullTransactionId,
-        Logger,
-        NYTree::EPermission::Read);
-
-    YT_LOG_INFO("Fetched file basic attributes (File: %v)", richPath);
-
-    return userObject;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
