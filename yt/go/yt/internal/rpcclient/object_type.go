@@ -145,6 +145,7 @@ const (
 	ObjectTypeTableReplica              ObjectType = 709
 	ObjectTypeTabletAction              ObjectType = 711
 	ObjectTypeTabletActionMap           ObjectType = 712
+	ObjectTypeChaosCellBundle           ObjectType = 713
 
 	// Node Tracker stuff
 	ObjectTypeRack            ObjectType = 800
@@ -205,6 +206,8 @@ func convertObjectType(typ yt.NodeType) (ObjectType, error) {
 		ret = ObjectTypeDomesticMedium
 	case yt.NodeTabletCellBundle:
 		ret = ObjectTypeTabletCellBundle
+	case yt.NodeChaosCellBundle:
+		ret = ObjectTypeChaosCellBundle
 	case yt.NodeSys:
 		ret = ObjectTypeSysNode
 	case yt.NodePortalEntrance:
