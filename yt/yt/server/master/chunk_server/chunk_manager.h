@@ -253,7 +253,7 @@ struct IChunkManager
     virtual bool IsChunkRequisitionUpdateEnabled() = 0;
     virtual bool IsChunkSealerEnabled() = 0;
 
-    virtual void ScheduleChunkRefresh(TChunk* chunk) = 0;
+    virtual void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {}) = 0;
     virtual void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) = 0;
     virtual void ScheduleChunkSeal(TChunk* chunk) = 0;
     virtual void ScheduleChunkMerge(TChunkOwnerBase* node) = 0;

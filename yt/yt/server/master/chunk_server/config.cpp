@@ -685,6 +685,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(3))
         .DontSerializeDefault();
 
+    registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
+        .Default(TDuration::Minutes(1))
+        .DontSerializeDefault();
+
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
         .Default(false)
         .DontSerializeDefault();

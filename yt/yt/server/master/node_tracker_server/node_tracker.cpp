@@ -321,6 +321,10 @@ public:
         // and must obey it regardless of the node's state.
         EnsureNodeDisposed(node);
 
+        // Reset pending restart maintenace flag before node removal to ensure
+        // that `NodePendingRestartChanged` signal is fired.
+        ResetNodePendingRestart(node);
+
         RemoveFromAddressMaps(node);
 
         RecomputePendingRegisterNodeMutationCounters();
@@ -1230,14 +1234,6 @@ private:
             node->UseImaginaryChunkLocations() = true;
         }
 
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                address);
-        }
-
         if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
@@ -1312,14 +1308,6 @@ private:
         auto* node = GetNodeByAddress(address);
 
         node->UseImaginaryChunkLocations() = request->use_imaginary_chunk_locations();
-
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                address);
-        }
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
         bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
@@ -1657,10 +1645,18 @@ private:
             if (!IsObjectAlive(node)) {
                 continue;
             }
+            ResetNodePendingRestart(node);
+        }
+    }
 
-            if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-                OnNodePendingRestartUpdated(node);
-            }
+    void ResetNodePendingRestart(TNode* node)
+    {
+        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+            OnNodePendingRestartUpdated(node);
+
+            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
         }
     }
 

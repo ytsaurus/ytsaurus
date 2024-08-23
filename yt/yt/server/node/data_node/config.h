@@ -440,6 +440,10 @@ public:
     //! Splay for job heartbeats.
     TDuration JobHeartbeatPeriodSplay;
 
+    //! Delay before a node sends its first data heartbeat
+    //! to master-server after successful registration.
+    std::optional<TDuration> DelayBeforeFullHeartbeatReport;
+
     REGISTER_YSON_STRUCT(TMasterConnectorConfig);
 
     static void Register(TRegistrar registrar);

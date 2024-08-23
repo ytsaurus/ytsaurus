@@ -304,6 +304,7 @@ private:
         auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
         TChunkLocationDirectory locationDirectory;
         sequoiaRequest->set_node_id(ToProto<ui32>(node->GetId()));
+        sequoiaRequest->set_caused_by_node_disposal(true);
         for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
 

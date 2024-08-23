@@ -462,7 +462,7 @@ class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWri
 ##################################################################
 
 
-class TestNodePendingRestart(YTEnvSetup):
+class TestNodePendingRestartBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -474,15 +474,9 @@ class TestNodePendingRestart(YTEnvSetup):
         },
     }
 
-    DELTA_MASTER_CONFIG = {
-        "logging": {
-            "abort_on_alert": False,
-        },
-    }
-
     @classmethod
     def setup_class(cls):
-        super(TestNodePendingRestart, cls).setup_class()
+        super(TestNodePendingRestartBase, cls).setup_class()
 
         for i, node in enumerate(get_nodes()):
             rack = f"r{i}"
@@ -490,6 +484,14 @@ class TestNodePendingRestart(YTEnvSetup):
             set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
         set("//sys/media/default/@config/max_replicas_per_rack", 1)
+
+
+class TestNodePendingRestart(TestNodePendingRestartBase):
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
 
     @authors("danilalexeev")
     def test_pending_restart_request(self):
@@ -560,6 +562,11 @@ class TestNodePendingRestart(YTEnvSetup):
         sleep(0.5)
         assert len(get(f"#{chunk_id}/@stored_replicas")) == 6
 
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert status["temporarily_unavailable"]
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+
         add_maintenance("cluster_node", nodes[3], "pending_restart", "")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 9)
 
@@ -581,7 +588,7 @@ class TestNodePendingRestart(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_pending_restart_lease_expired(self):
-        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 6000)
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 3000)
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
@@ -596,11 +603,11 @@ class TestNodePendingRestart(YTEnvSetup):
 
         self.Env.kill_service("node", indexes=[node_index])
 
-        sleep(4.0)
+        sleep(1.5)
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
 
-        sleep(4.0)
-        assert get("//sys/cluster_nodes/{}/@state".format(node)) == "offline"
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+        wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"))
 
         self.Env.start_nodes()
 
@@ -637,6 +644,78 @@ class TestNodePendingRestart(YTEnvSetup):
 
         for node in nodes:
             wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
+
+
+##################################################################
+
+
+class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "delay_before_full_heartbeat_report": 2000,
+            },
+            "lease_transaction_timeout": 2000,
+            "lease_transaction_ping_period": 1000,
+        },
+    }
+
+    @authors("danilalexeev")
+    def test_no_missing_replicas_erasure(self):
+        set("//sys/@config/chunk_manager/disposed_pending_restart_node_chunk_refresh_delay", 10000)
+
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")[:2]
+        node_indexes = [get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node)) for node in nodes]
+
+        for node in nodes:
+            add_maintenance("cluster_node", node, "pending_restart", "")
+
+        sleep(0.5)
+
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert status["temporarily_unavailable"]
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+
+        self.Env.kill_service("node", indexes=node_indexes)
+        self.Env.start_nodes()
+
+        # explicit statistics
+        def check1():
+            status = get("#" + chunk_id + "/@replication_status/default")
+            return (
+                not status["temporarily_unavailable"] and
+                (status["data_missing"] or status["parity_missing"])
+            )
+        wait(check1)
+
+        # general statistics
+        assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
+        assert len(ls("//sys/data_missing_chunks")) == 0
+        assert len(ls("//sys/parity_missing_chunks")) == 0
+
+        for node in nodes:
+            wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"))
+
+        # explicit statistics
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert not status["temporarily_unavailable"]
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+        assert not status["overreplicated"]
+
+        # general statistics
+        assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
+        assert len(ls("//sys/data_missing_chunks")) == 0
+        assert len(ls("//sys/parity_missing_chunks")) == 0
+
+        wait(lambda: chunk_id not in ls("//sys/replica_temporarily_unavailable_chunks"))
 
 
 ##################################################################
