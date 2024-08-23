@@ -287,7 +287,7 @@ public:
         return NodeId_.load();
     }
 
-    TString GetLocalHostName() const override
+    std::string GetLocalHostName() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -337,7 +337,7 @@ private:
     std::atomic<bool> RegisteredAtPrimary_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
-    TAtomicObject<TString> LocalHostName_;
+    TAtomicObject<std::string> LocalHostName_;
 
     std::atomic<TMasterEpoch> Epoch_ = 0;
 
@@ -566,8 +566,8 @@ private:
 
         ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
         ToProto(req->mutable_tags(), NodeTags_);
-        if (auto hostName = Bootstrap_->GetConfig()->HostName) {
-            req->set_host_name(hostName);
+        if (const auto& hostName = Bootstrap_->GetConfig()->HostName) {
+            req->set_host_name(ToProto<TProtobufString>(*hostName));
         }
 
         for (auto flavor : Bootstrap_->GetFlavors()) {
@@ -667,15 +667,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        std::optional<std::string> hostName;
         if (useHostObjects) {
-            auto hostName = GetLocalDescriptor().GetHost().value_or(Bootstrap_->GetConfig()->HostName);
-            if (hostName.empty()) {
-                hostName = NNet::GetLocalHostName();
+            hostName = GetLocalDescriptor().GetHost();
+            if (!hostName) {
+                hostName = Bootstrap_->GetConfig()->HostName;
             }
-            LocalHostName_.Store(hostName);
-        } else {
-            LocalHostName_.Store(NNet::GetLocalHostName());
         }
+        LocalHostName_.Store(hostName.value_or(NNet::GetLocalHostName()));
     }
 
     void OnDynamicConfigChanged(

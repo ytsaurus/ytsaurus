@@ -188,7 +188,7 @@ public:
 
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.
-    void OverrideMasterAddresses(const std::vector<TString>& addresses);
+    void OverrideMasterAddresses(const std::vector<std::string>& addresses);
 
     REGISTER_YSON_STRUCT(TConnectionStaticConfig);
 

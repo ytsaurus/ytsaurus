@@ -33,7 +33,7 @@ struct IMasterConnector
      *  \note
      *  Thread affinity: any
      */
-    virtual void ScheduleJobHeartbeat(const TString& jobTrackerAddress) = 0;
+    virtual void ScheduleJobHeartbeat(const std::string& jobTrackerAddress) = 0;
 
     //! Returns |true| if this node has received full heartbeat responses from all cells.
     /*!

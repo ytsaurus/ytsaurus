@@ -113,7 +113,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastPreemptiveHeartbeatStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastNonPreemptiveHeartbeatStatistics);
 
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, InfinibandCluster);
 
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IAttributeDictionaryPtr, SchedulingOptions);
 
@@ -128,7 +128,7 @@ public:
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         ENodeState state);
 
-    const TString& GetDefaultAddress() const;
+    const std::string& GetDefaultAddress() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TSchedulingTagFilter& filter) const;

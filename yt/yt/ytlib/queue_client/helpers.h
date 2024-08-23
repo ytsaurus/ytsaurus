@@ -16,13 +16,13 @@ namespace NYT::NQueueClient {
 //! Object kind can be either "queue" or "consumer".
 NYTree::IYPathServicePtr CreateQueueAgentYPathService(
     NRpc::IChannelPtr queueAgentChannel,
-    const TString& cluster,
+    const std::string& cluster,
     const TString& objectKind,
     const NYPath::TYPath& objectPath);
 
 struct TValidatePushQueueProducerRowsResult
 {
-    TQueueProducerSequenceNumber LastSequenceNumber{-1};
+    TQueueProducerSequenceNumber LastSequenceNumber = TQueueProducerSequenceNumber(-1);
     i64 SkipRowCount = 0;
 };
 

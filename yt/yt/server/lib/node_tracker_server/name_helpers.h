@@ -6,11 +6,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateHostName(const TString& address);
-
-void ValidateDataCenterName(const TString& name);
-
-void ValidateRackName(const TString& name);
+void ValidateHostName(const std::string& address);
+void ValidateDataCenterName(const std::string& name);
+void ValidateRackName(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 

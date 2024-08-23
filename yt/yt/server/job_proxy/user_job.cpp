@@ -1564,7 +1564,8 @@ private:
         {
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
             auto processWorkingDirectory = CombinePaths(Host_->GetPreparationPath(), GetSandboxRelPath(ESandboxKind::User));
-            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Config_->BusServer->UnixDomainSocketPath);
+            // TODO(babenko): switch to std::string
+            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, TString(*Config_->BusServer->UnixDomainSocketPath));
             executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
         }
 

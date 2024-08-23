@@ -56,14 +56,14 @@ NNative::IConnectionPtr TClusterDirectory::GetConnection(TClusterTag clusterTag)
     return connection;
 }
 
-NNative::IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
+NNative::IConnectionPtr TClusterDirectory::FindConnection(const std::string& clusterName) const
 {
     auto guard = Guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
+NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const std::string& clusterName) const
 {
     auto connection = FindConnection(clusterName);
     if (!connection) {
@@ -72,20 +72,20 @@ NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& c
     return connection;
 }
 
-NNative::IConnectionPtr TClusterDirectory::GetConnection(const TString& clusterName) const
+NNative::IConnectionPtr TClusterDirectory::GetConnection(const std::string& clusterName) const
 {
     auto connection = FindConnection(clusterName);
     YT_VERIFY(connection);
     return connection;
 }
 
-std::vector<TString> TClusterDirectory::GetClusterNames() const
+std::vector<std::string> TClusterDirectory::GetClusterNames() const
 {
     auto guard = Guard(Lock_);
     return GetKeys(NameToCluster_);
 }
 
-void TClusterDirectory::RemoveCluster(const TString& name)
+void TClusterDirectory::RemoveCluster(const std::string& name)
 {
     auto guard = Guard(Lock_);
     auto nameIt = NameToCluster_.find(name);
@@ -115,7 +115,7 @@ void TClusterDirectory::Clear()
     ClusterTvmIds_.clear();
 }
 
-void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnectionConfig)
+void TClusterDirectory::UpdateCluster(const std::string& name, INodePtr nativeConnectionConfig)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto clusterTag = GetClusterTag(cluster);
@@ -164,7 +164,7 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
 {
-    THashMap<TString, INodePtr> nameToConfig;
+    THashMap<std::string, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
         YT_VERIFY(nameToConfig.emplace(
             item.name(),
@@ -188,7 +188,7 @@ bool TClusterDirectory::HasTvmId(NAuth::TTvmId tvmId) const
     return ClusterTvmIds_.find(tvmId) != ClusterTvmIds_.end();
 }
 
-TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config)
+TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const std::string& name, INodePtr config)
 {
     TCluster cluster{
         .Name = name,
@@ -223,13 +223,13 @@ TClientDirectory::TClientDirectory(
     , ClientOptions_(std::move(clientOptions))
 { }
 
-NNative::IClientPtr TClientDirectory::FindClient(const TString& clusterName) const
+NNative::IClientPtr TClientDirectory::FindClient(const std::string& clusterName) const
 {
     const auto& connection = ClusterDirectory_->FindConnection(clusterName);
     return NNative::CreateClient(connection, ClientOptions_);
 }
 
-NNative::IClientPtr TClientDirectory::GetClientOrThrow(const TString& clusterName) const
+NNative::IClientPtr TClientDirectory::GetClientOrThrow(const std::string& clusterName) const
 {
     const auto& connection = ClusterDirectory_->GetConnectionOrThrow(clusterName);
     return NNative::CreateClient(connection, ClientOptions_);

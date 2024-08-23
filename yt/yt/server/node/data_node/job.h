@@ -40,14 +40,14 @@ public:
     TMasterJobBase(
         NChunkServer::TJobId jobId,
         const NChunkServer::NProto::TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
         IBootstrap* bootstrap);
 
     NChunkServer::TJobId GetId() const noexcept;
     NJobAgent::EJobType GetType() const;
     bool IsUrgent() const;
-    const TString& GetJobTrackerAddress() const;
+    const std::string& GetJobTrackerAddress() const;
 
     bool IsStarted() const noexcept;
     NJobAgent::EJobState GetState() const;
@@ -68,7 +68,7 @@ protected:
 
     const NChunkServer::TJobId JobId_;
     const NChunkServer::NProto::TJobSpec JobSpec_;
-    const TString JobTrackerAddress_;
+    const std::string JobTrackerAddress_;
 
     NLogging::TLogger Logger;
 
@@ -107,7 +107,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterJobBase)
 TMasterJobBasePtr CreateJob(
     NChunkServer::TJobId jobId,
     NChunkServer::NProto::TJobSpec&& jobSpec,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);

@@ -2782,8 +2782,8 @@ bool TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
     TSchedulerOperationElement* element,
     TAllocationId allocationId,
     const TJobResources& allocationResources,
-    const std::optional<TString>& allocationDataCenter,
-    const std::optional<TString>& allocationInfinibandCluster,
+    const std::optional<std::string>& allocationDataCenter,
+    const std::optional<std::string>& allocationInfinibandCluster,
     std::optional<EAbortReason>* maybeAbortReason) const
 {
     const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element);

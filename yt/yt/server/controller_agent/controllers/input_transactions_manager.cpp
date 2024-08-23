@@ -27,7 +27,7 @@ using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterResolver::TClusterResolver(IClientPtr client)
+TClusterResolver::TClusterResolver(const IClientPtr& client)
     : LocalClusterName_(client->GetClusterName().value_or(""))
 { }
 
@@ -40,12 +40,12 @@ TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
     return LocalClusterName;
 }
 
-const TString& TClusterResolver::GetLocalClusterName() const
+const std::string& TClusterResolver::GetLocalClusterName() const
 {
     return LocalClusterName_;
 }
 
-bool TClusterResolver::IsLocalClusterName(const TString& clusterName) const
+bool TClusterResolver::IsLocalClusterName(const std::string& clusterName) const
 {
     return IsLocal(TClusterName(clusterName)) || clusterName == LocalClusterName_;
 }

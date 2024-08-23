@@ -417,7 +417,7 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
-        THashMap<TString, TInstant> BannedNodeToDeadline_;
+        THashMap<std::string, TInstant> BannedNodeToDeadline_;
 
         bool SealInProgress_ = false;
         int FirstUnsealedSessionIndex_ = 0;
@@ -437,16 +437,16 @@ private:
         }
 
 
-        void BanNode(const TString& address)
+        void BanNode(const std::string& address)
         {
             if (BannedNodeToDeadline_.emplace(address, TInstant::Now() + Config_->NodeBanTimeout).second) {
                 YT_LOG_DEBUG("Node banned (Address: %v)", address);
             }
         }
 
-        std::vector<TString> GetBannedNodes()
+        std::vector<std::string> GetBannedNodes()
         {
-            std::vector<TString> result;
+            std::vector<std::string> result;
             auto now = TInstant::Now();
             auto it = BannedNodeToDeadline_.begin();
             while (it != BannedNodeToDeadline_.end()) {

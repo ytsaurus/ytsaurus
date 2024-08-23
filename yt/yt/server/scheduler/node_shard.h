@@ -91,8 +91,8 @@ public:
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
 
-    void RemoveMissingNodes(const std::vector<TString>& nodeAddresses);
-    std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
+    void RemoveMissingNodes(const std::vector<std::string>& nodeAddresses);
+    std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<std::string, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationAllocations(
         TOperationId operationId,

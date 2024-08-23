@@ -461,26 +461,26 @@ public: \
         (paths, options))
 
     IMPLEMENT_METHOD(TDisableChunkLocationsResult, DisableChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TDestroyChunkLocationsResult, DestroyChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         bool recoverUnlinkedDisks,
         const std::vector<TGuid>& locationUuids,
         const TDestroyChunkLocationsOptions& options),
         (nodeAddress, recoverUnlinkedDisks, locationUuids, options))
 
     IMPLEMENT_METHOD(TResurrectChunkLocationsResult, ResurrectChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TRequestRestartResult, RequestRestart, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TRequestRestartOptions& options),
         (nodeAddress, options))
 
@@ -666,7 +666,7 @@ public: \
         (cellId, options))
     IMPLEMENT_METHOD(void, SwitchLeader, (
         NObjectClient::TCellId cellId,
-        const TString& newLeaderAddress,
+        const std::string& newLeaderAddress,
         const TSwitchLeaderOptions& options),
         (cellId, newLeaderAddress, options))
     IMPLEMENT_METHOD(void, ResetStateHash, (
@@ -677,15 +677,15 @@ public: \
         const TGCCollectOptions& options),
         (options))
     IMPLEMENT_METHOD(void, KillProcess, (
-        const TString& address,
+        const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteCoreDump, (
-        const TString& address,
+        const std::string& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TGuid, WriteLogBarrier, (
-        const TString& address,
+        const std::string& address,
         const TWriteLogBarrierOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
@@ -693,7 +693,7 @@ public: \
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
     IMPLEMENT_METHOD(void, HealExecNode, (
-        const TString& address,
+        const std::string& address,
         const THealExecNodeOptions& options),
         (address, options))
     IMPLEMENT_METHOD(void, SuspendCoordinator, (
@@ -726,14 +726,14 @@ public: \
         (cellIds, options))
     IMPLEMENT_METHOD(TMaintenanceIdPerTarget, AddMaintenance, (
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
     IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         const TMaintenanceFilter& target,
         const TRemoveMaintenanceOptions& options),
         (component, address, target, options))
@@ -999,7 +999,7 @@ private:
     NRpc::IChannelPtr GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor);
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptorPtr GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
-    std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
+    std::vector<std::string> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
 
     NApi::IClientPtr CreateRootClient();
 

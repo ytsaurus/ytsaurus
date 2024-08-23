@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "client_block_cache.h"
+#include "block_cache.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -21,7 +21,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
     NApi::NNative::IClientPtr client,
-    TString localHostName,
+    const std::string& localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

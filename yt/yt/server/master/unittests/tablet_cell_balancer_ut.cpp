@@ -38,7 +38,7 @@ using TCompleteSettingParam = std::tuple<
     THashMap<TString, std::vector<int>>,
     THashMap<TString, std::vector<TString>>,
     int,
-    THashMap<TString, std::vector<int>>>;
+    THashMap<std::string, std::vector<int>>>;
 
 class TSetting
     : public ICellBalancerProvider
@@ -49,7 +49,7 @@ public:
         const THashMap<TString, std::vector<int>>& cellLists,
         const THashMap<TString, std::vector<TString>>& nodeFeasibility,
         int tabletSlotCount,
-        const THashMap<TString, std::vector<int>>& cellDistribution)
+        const THashMap<std::string, std::vector<int>>& cellDistribution)
     {
         Initialize(peersPerCell, cellLists, nodeFeasibility, tabletSlotCount, cellDistribution);
     }
@@ -63,7 +63,7 @@ public:
         auto nodeFeasibility = ConvertTo<THashMap<TString, std::vector<TString>>>(
             TYsonString(TString(std::get<2>(param)), EYsonType::Node));
         auto tabletSlotCount = std::get<3>(param);
-        auto cellDistribution = ConvertTo<THashMap<TString, std::vector<int>>>(
+        auto cellDistribution = ConvertTo<THashMap<std::string, std::vector<int>>>(
             TYsonString(TString(std::get<4>(param)), EYsonType::Node));
 
         Initialize(peersPerCell, cellLists, nodeFeasibility, tabletSlotCount, cellDistribution);
@@ -74,7 +74,7 @@ public:
         const THashMap<TString, std::vector<int>>& cellLists,
         const THashMap<TString, std::vector<TString>>& nodeFeasibility,
         int tabletSlotCount,
-        const THashMap<TString, std::vector<int>>& cellDistribution)
+        const THashMap<std::string, std::vector<int>>& cellDistribution)
     {
         for (const auto& [bundleName, peerCount] : peersPerCell) {
             auto* bundle = GetBundle(bundleName);
@@ -171,7 +171,7 @@ public:
         }
     }
 
-    TString GetDistribution()
+    std::string GetDistribution()
     {
         return BuildYsonStringFluently(EYsonFormat::Text)
             .DoMapFor(NodeHolders_, [&] (TFluentMap fluent, const TNodeHolder& holder) {
@@ -225,17 +225,17 @@ private:
 
     THashMap<const TNode*, THashSet<const TArea*>> FeasibilityMap_;
 
-    THashMap<TString, TCellBundle*> NameToBundle_;
-    THashMap<TString, const TNode*> NameToNode_;
-    THashMap<const TNode*, TString> NodeToName_;
+    THashMap<std::string, TCellBundle*> NameToBundle_;
+    THashMap<std::string, const TNode*> NameToNode_;
+    THashMap<const TNode*, std::string> NodeToName_;
     THashMap<int, TCellBase*> IndexToCell_;
     THashMap<const TCellBase*, int> CellToIndex_;
 
     TCellSet UnassignedPeers_;
 
-    TString PeersPerCell_;
-    TString CellLists_;
-    TString InitialDistribution_;
+    std::string PeersPerCell_;
+    std::string CellLists_;
+    std::string InitialDistribution_;
 
     TCellBundle* GetBundle(const TString& name, bool create = true)
     {
@@ -286,7 +286,7 @@ private:
         return GetOrCrash(IndexToCell_, index);
     }
 
-    const TNode* GetNode(const TString& name, bool create = true)
+    const TNode* GetNode(const std::string& name, bool create = true)
     {
         if (auto it = NameToNode_.find(name)) {
             return it->second;
@@ -520,7 +520,7 @@ protected:
     int BundlesNum_;
     int CellsNum_;
 
-    std::vector<TString> Nodes_;
+    std::vector<std::string> Nodes_;
     std::vector<std::vector<int>> Cells_;
     std::vector<int> CellsFlattened_;
 
@@ -528,7 +528,7 @@ protected:
     THashMap<TString, std::vector<int>> CellLists_;
     THashMap<TString, std::vector<TString>> NodeFeasibility_;
     int TabletSlotCount_;
-    THashMap<TString, std::vector<int>> CellDistribution_;
+    THashMap<std::string, std::vector<int>> CellDistribution_;
 };
 
 TEST_P(TCellBaseBalancerStressTest, TestBalancerEmptyDistribution)

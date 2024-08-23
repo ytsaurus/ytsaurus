@@ -327,12 +327,12 @@ private:
             // Result have to be sorted here because of Persistent Response
             // Keeper. TCompactFlatMap is sorted so just check that nobody
             // changed the TMaintenanceIdPerTarget type alias.
-            static_assert(std::is_same_v<TMaintenanceIdPerTarget, TCompactFlatMap<TString, TMaintenanceId, 1>>);
+            static_assert(std::is_same_v<TMaintenanceIdPerTarget, TCompactFlatMap<std::string, TMaintenanceId, 1>>);
             YT_ASSERT(std::is_sorted(ids.begin(), ids.end()));
 
             for (const auto& [target, id] : ids) {
                 auto* proto = response->add_ids();
-                proto->set_target(target);
+                proto->set_target(ToProto<TProtobufString>(target));
                 ToProto(proto->mutable_id(), id);
             }
         }
@@ -422,7 +422,7 @@ private:
             response->set_supports_per_target_response(true);
             for (const auto& [target, counts] : removedMaintenanceCounts) {
                 auto* perTargetResponse = response->add_removed_maintenance_counts_per_target();
-                perTargetResponse->set_target(target);
+                perTargetResponse->set_target(ToProto<TProtobufString>(target));
                 for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
                     fillMaintenanceCount(perTargetResponse->add_counts(), type, counts);
                 }

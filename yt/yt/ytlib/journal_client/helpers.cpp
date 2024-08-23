@@ -571,7 +571,7 @@ private:
 
     struct TChunkMetaResult
     {
-        TString Address;
+        std::string Address;
         TMiscExt MiscExt;
         TChunkLocationUuid LocationUuid;
     };

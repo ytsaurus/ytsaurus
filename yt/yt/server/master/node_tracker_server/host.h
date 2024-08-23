@@ -19,7 +19,7 @@ class THost
     , public TRefTracked<THost>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack, nullptr);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
 

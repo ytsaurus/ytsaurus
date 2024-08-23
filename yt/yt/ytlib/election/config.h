@@ -12,8 +12,8 @@ class TCellPeerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TString> Address;
-    std::optional<TString> AlienCluster;
+    std::optional<std::string> Address;
+    std::optional<std::string> AlienCluster;
     bool Voting;
 
     REGISTER_YSON_STRUCT(TCellPeerConfig);
@@ -41,8 +41,8 @@ public:
 
     int CountVotingPeers() const;
 
-    int FindPeerId(const TString& address) const;
-    int GetPeerIdOrThrow(const TString& address) const;
+    int FindPeerId(const std::string& address) const;
+    int GetPeerIdOrThrow(const std::string& address) const;
 
     REGISTER_YSON_STRUCT(TCellConfig);
 

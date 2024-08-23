@@ -136,14 +136,14 @@ using NYT::FromProto;
 TMasterJobBase::TMasterJobBase(
     NChunkServer::TJobId jobId,
     const NChunkServer::NProto::TJobSpec& jobSpec,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     const TJobResources& resourceLimits,
     IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->DataNode)
     , JobId_(jobId)
     , JobSpec_(jobSpec)
-    , JobTrackerAddress_(std::move(jobTrackerAddress))
+    , JobTrackerAddress_(jobTrackerAddress)
     , Logger(DataNodeLogger().WithTag(
         "JobId: %v, JobType: %v",
         jobId,
@@ -239,7 +239,7 @@ bool TMasterJobBase::IsUrgent() const
     return JobSpec_.urgent();
 }
 
-const TString& TMasterJobBase::GetJobTrackerAddress() const
+const std::string& TMasterJobBase::GetJobTrackerAddress() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -390,13 +390,13 @@ public:
     TChunkRemovalJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext))
@@ -484,13 +484,13 @@ public:
     TChunkReplicationJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext))
@@ -689,14 +689,14 @@ public:
     TChunkRepairJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap,
         TMasterJobSensors sensors)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
@@ -995,13 +995,13 @@ public:
     TSealChunkJob(
         NChunkServer::TJobId jobId,
         TJobSpec&& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext))
@@ -1198,14 +1198,14 @@ public:
     TChunkMergeJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap,
         i64 readMemoryLimit)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
@@ -1922,13 +1922,13 @@ public:
     TChunkReincarnationJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(
@@ -2282,13 +2282,13 @@ public:
     TAutotomizeChunkJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TAutotomizeChunkJobSpecExt::autotomize_chunk_job_spec_ext))
@@ -2898,7 +2898,7 @@ private:
 TMasterJobBasePtr CreateJob(
     NChunkServer::TJobId jobId,
     TJobSpec&& jobSpec,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     const TJobResources& resourceLimits,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors)
@@ -2910,7 +2910,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2919,7 +2919,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2928,7 +2928,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap,
                 sensors);
@@ -2938,7 +2938,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2959,7 +2959,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap,
                 readMemoryLimit);
@@ -2970,7 +2970,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2979,7 +2979,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 

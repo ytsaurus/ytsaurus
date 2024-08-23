@@ -351,7 +351,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto memoryTracker = CreateNodeMemoryTracker(32_MB, {});
 
-    THashMap<TString, IServicePtr> addressToService;
+    THashMap<std::string, IServicePtr> addressToService;
 
     auto chunkId = TGuid::Create();
 
@@ -362,7 +362,8 @@ TEST_P(TReplicationReaderTest, ReadTest)
     int nodeToBans = testCase.PartiallyBanns ? nodeCount / 3 : 0;
 
     for (int index = 0; index < nodeCount; ++index) {
-        auto address = Format("local:%v", index);
+        // TODO(babenko): switch to std::string
+        auto address = std::string(Format("local:%v", index));
         nodeDirectory->AddDescriptor(
             NNodeTrackerClient::TNodeId(index),
             NNodeTrackerClient::TNodeDescriptor(address));
@@ -383,10 +384,10 @@ TEST_P(TReplicationReaderTest, ReadTest)
     auto options = New<TRemoteReaderOptions>();
     options->AllowFetchingSeedsFromMaster = false;
 
-    auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<TString, IServicePtr>());
+    auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<std::string, IServicePtr>());
     auto connection = NApi::NNative::CreateConnection(
         std::move(channelFactory),
-        { "default" },
+        {"default"},
         std::move(nodeDirectory),
         invoker,
         memoryTracker);

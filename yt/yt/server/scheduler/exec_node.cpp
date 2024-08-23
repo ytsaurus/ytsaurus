@@ -24,7 +24,7 @@ TExecNode::TExecNode(
     , HasPendingUnregistration_(false)
 { }
 
-const TString& TExecNode::GetDefaultAddress() const
+const std::string& TExecNode::GetDefaultAddress() const
 {
     return NodeDescriptor_.GetDefaultAddress();
 }

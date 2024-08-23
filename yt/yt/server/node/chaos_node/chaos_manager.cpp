@@ -2505,7 +2505,7 @@ private:
             .ClusterName = replicaInfo.ClusterName,
             .TablePath = replicaInfo.ReplicaPath,
             .TrackingEnabled = replicaInfo.EnableReplicatedTableTracker,
-            .ContentType = replicaInfo.ContentType
+            .ContentType = replicaInfo.ContentType,
         });
     }
 

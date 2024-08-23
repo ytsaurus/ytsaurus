@@ -31,7 +31,7 @@ struct IIncumbentManager
 
     virtual bool HasIncumbency(EIncumbentType type, int shardIndex) const = 0;
 
-    virtual std::optional<TString> GetIncumbentAddress(EIncumbentType type, int shardIndex) const = 0;
+    virtual std::optional<std::string> GetIncumbentAddress(EIncumbentType type, int shardIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIncumbentManager)

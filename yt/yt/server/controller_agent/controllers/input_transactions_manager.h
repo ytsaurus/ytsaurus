@@ -47,17 +47,19 @@ class TClusterResolver
 {
 public:
     TClusterResolver() = default;
-    explicit TClusterResolver(NApi::NNative::IClientPtr client);
+    explicit TClusterResolver(const NApi::NNative::IClientPtr& client);
+
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
-    const TString& GetLocalClusterName() const;
+    const std::string& GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
 private:
-    TString LocalClusterName_;
+    std::string LocalClusterName_;
 
-    bool IsLocalClusterName(const TString& name) const;
+    bool IsLocalClusterName(const std::string& name) const;
 };
+
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
 
 ////////////////////////////////////////////////////////////////////////////////

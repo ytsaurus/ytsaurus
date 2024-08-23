@@ -1686,7 +1686,7 @@ private:
 
         session->RenewLease();
 
-        auto propagated = FromProto<std::vector<TString>>(request->nodes_with_propagated_session());
+        auto propagated = FromProto<std::vector<std::string>>(request->nodes_with_propagated_session());
         session->ErasePropagationAddresses(propagated);
         ToProto(response->mutable_nodes_to_propagate_session_onto(), session->GetPropagationAddresses());
 

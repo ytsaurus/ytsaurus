@@ -138,7 +138,7 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
-void TConnectionStaticConfig::OverrideMasterAddresses(const std::vector<TString>& addresses)
+void TConnectionStaticConfig::OverrideMasterAddresses(const std::vector<std::string>& addresses)
 {
     auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
         config->Addresses = addresses;

@@ -39,9 +39,9 @@ TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::Address(std::optional<TString> address)
+TControllerJobReport TControllerJobReport::Address(std::optional<std::string> address)
 {
-    Address_ = std::move(address);
+    Address_ = address;
     return std::move(*this);
 }
 

@@ -207,7 +207,8 @@ TString TJobProxy::GetSlotPath() const
 
 TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
-    return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
+    // TODO(babenko): migrate to std::string
+    return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)

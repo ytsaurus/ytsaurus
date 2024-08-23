@@ -84,7 +84,7 @@ NApi::IClientPtr TQueueAgentClientDirectory::GetFederatedClient(const std::vecto
         THROW_ERROR_EXCEPTION("Cannot get federated client for an empty list of replicas");
     }
 
-    std::vector<TString> clusters;
+    std::vector<std::string> clusters;
     std::vector<NApi::IClientPtr> replicaClients;
     for (const auto& replica : replicas) {
         const auto& cluster = replica.GetCluster();
@@ -122,7 +122,7 @@ std::vector<TRichYPath> GetRelevantReplicas(
     auto replicas = row.GetReplicas(modeFilter, contentTypeFilter);
 
     if (validatePaths) {
-        THashSet<TString> clusters;
+        THashSet<std::string> clusters;
         for (const auto& replica : replicas) {
             if (!clusters.insert(*replica.GetCluster()).second) {
                 THROW_ERROR_EXCEPTION(
@@ -142,13 +142,13 @@ std::vector<TRichYPath> GetRelevantReplicas(
     return replicas;
 }
 
-NApi::NNative::IConnectionPtr TQueueAgentClientDirectory::GetNativeConnection(const TString& cluster) const
+NApi::NNative::IConnectionPtr TQueueAgentClientDirectory::GetNativeConnection(const std::string& cluster) const
 {
     // TODO(achulkov2): Make this more efficient by exposing the inner cluster directory from client directory.
     return ClientDirectory_->GetClientOrThrow(cluster)->GetNativeConnection();
 }
 
-NApi::NNative::IClientPtr TQueueAgentClientDirectory::GetClientOrThrow(const TString& cluster) const
+NApi::NNative::IClientPtr TQueueAgentClientDirectory::GetClientOrThrow(const std::string& cluster) const
 {
     return ClientDirectory_->GetClientOrThrow(cluster);
 }

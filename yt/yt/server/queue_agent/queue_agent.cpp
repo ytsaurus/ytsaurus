@@ -643,7 +643,8 @@ TTaggedProfilingCounters& TQueueAgent::GetOrCreateTaggedProfilingCounters(const 
     if (it == TaggedProfilingCounters_.end()) {
         auto profilingCounters =
             TTaggedProfilingCounters(QueueAgentProfiler
-                .WithTag("yt_cluster", profilingTags.Cluster)
+                // TODO(babenko): switch to std::string
+                .WithTag("yt_cluster", TString(profilingTags.Cluster))
                 .WithTag("leading_status", profilingTags.LeadingStatus)
                 .WithTag("queue_agent_stage", profilingTags.QueueAgentStage)
                 .WithTag("object_type", profilingTags.ObjectType));

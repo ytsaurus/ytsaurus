@@ -20,6 +20,7 @@ using namespace NNet;
 using namespace NRpc;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,13 +40,13 @@ public:
     { }
 
     TFuture<TNetworkAddress> Resolve(
-        const TString& hostName,
+        const std::string& hostName,
         const TDnsResolveOptions& options)
     {
         auto guard = Guard(Lock_);
 
         auto* subrequest = Subrequests_.Add();
-        subrequest->set_host_name(hostName);
+        subrequest->set_host_name(ToProto<TProtobufString>(hostName));
         ToProto(subrequest->mutable_options(), options);
 
         auto promise = NewPromise<TNetworkAddress>();

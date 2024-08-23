@@ -6,21 +6,21 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateHostName(const TString& name)
+void ValidateHostName(const std::string& name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Host name cannot be empty");
     }
 }
 
-void ValidateDataCenterName(const TString& name)
+void ValidateDataCenterName(const std::string& name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Data center name cannot be empty");
     }
 }
 
-void ValidateRackName(const TString& name)
+void ValidateRackName(const std::string& name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Rack name cannot be empty");

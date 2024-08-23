@@ -40,7 +40,7 @@ class TAlienCellPeerChannelProvider
 {
 public:
     TAlienCellPeerChannelProvider(
-        const TString& cluster,
+        const std::string& cluster,
         TCellId cellId,
         int peerId,
         ICellDirectoryPtr cellDirectory,
@@ -146,7 +146,7 @@ public:
     { }
 
     NRpc::IChannelPtr CreateChannel(
-        const TString& cluster,
+        const std::string& cluster,
         TCellId cellId,
         int peerId) override
     {

@@ -19,7 +19,7 @@ class TDataCenter
     , public TRefTracked<TDataCenter>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
 
 public:
     using TObject::TObject;

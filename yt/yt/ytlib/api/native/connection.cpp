@@ -394,7 +394,7 @@ public:
         return ClusterId_;
     }
 
-    const std::optional<TString>& GetClusterName() const override
+    const std::optional<std::string>& GetClusterName() const override
     {
         return StaticConfig_->ClusterName;
     }
@@ -728,7 +728,7 @@ public:
             options);
     }
 
-    std::vector<TString> GetDiscoveryServerAddresses() const override
+    std::vector<std::string> GetDiscoveryServerAddresses() const override
     {
         if (!DiscoveryServerAddressPool_) {
             THROW_ERROR_EXCEPTION("Missing discovery server address pool");
@@ -1114,7 +1114,7 @@ private:
             tvmService->AddDestinationServiceIds({*config->TvmId});
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
+            BIND_NO_PROPAGATE([tvmService] (const std::string& name, INodePtr nativeConnectionConfig) {
                 static constexpr auto& Logger = TvmSynchronizerLogger;
 
                 NNative::TConnectionDynamicConfigPtr config;
@@ -1134,7 +1134,7 @@ private:
 
     std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
     {
-        auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
+        auto findStage = [&stage, this] (const std::string& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
             YT_VERIFY(clusterConnection);
 
@@ -1286,14 +1286,14 @@ std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& 
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const TString& clusterName)
+    const std::string& clusterName)
 {
     return connection->GetClusterDirectory()->FindConnection(clusterName);
 }
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const std::optional<TString>& clusterName)
+    const std::optional<std::string>& clusterName)
 {
     if (clusterName) {
         if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(*clusterName)) {
@@ -1305,7 +1305,7 @@ IConnectionPtr FindRemoteConnection(
 
 IConnectionPtr GetRemoteConnectionOrThrow(
     const IConnectionPtr& connection,
-    const TString& clusterName,
+    const std::string& clusterName,
     bool syncOnFailure)
 {
     for (int retry = 0; retry < 2; ++retry) {

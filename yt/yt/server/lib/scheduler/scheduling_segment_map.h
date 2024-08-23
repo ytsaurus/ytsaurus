@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
+#include <library/cpp/yt/yson/public.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +52,7 @@ void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSchedulingSegmentModule = std::optional<TString>;
+using TSchedulingSegmentModule = std::optional<std::string>;
 using TSchedulingSegmentModuleList = std::vector<TSchedulingSegmentModule>;
 
 ////////////////////////////////////////////////////////////////////////////////

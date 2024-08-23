@@ -48,7 +48,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, RevivalNodeId, NNodeTrackerClient::InvalidNodeId);
 
     //! Node address obtained from corresponding allocation during the revival process.
-    DEFINE_BYVAL_RO_PROPERTY(TString, RevivalNodeAddress);
+    DEFINE_BYVAL_RO_PROPERTY(std::string, RevivalNodeAddress);
 
     //! The time when the allocation was created.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
