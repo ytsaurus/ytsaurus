@@ -72,3 +72,14 @@ There are a few problems with the first option. The problem is that queries are 
 
 **A:** There are quite strict limits on the size of values in dynamic tables. A single value (table cell) should now be no larger than 16 megabytes and the length of an entire row should be no more than 128 megabytes and 512 megabytes, taking all versions into account. There can be a maximum of 1024 values in a row, taking all versions into account. There is also a limit on the number of rows per query, which defaults to 100,000 rows per transaction when inserting, one million rows in case of select, and 5 million in case of lookup. Note that you must not get close to the thresholds. Some of them are hardcoded and we won't be able to help you easily if you go beyond the limits.
 
+------
+#### **Q: How can I clear replicated table using CLI?**
+
+**A:** Replicated table itself cannot be cleared atomically. You can clear individual replicas with [Erase](../../../user-guide/data-processing/operations/erase.md) operation. In order to do it, you should enable so called "bulk insert" cluster-wide by setting:
+
+- `//sys/@config/tablet_manager/enable_bulk_insert` to `%true`
+- `//sys/controller_agents/config/enable_bulk_insert_for_everyone` to `%true` (note the absence of @)
+
+{% if audience == "public" %}
+If the latter node does not exist, create it with `$ yt create document //sys/controller_agents/config --attributes '{value={}}'` command.
+{% endif %}
