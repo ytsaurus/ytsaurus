@@ -148,6 +148,7 @@ void TMultiReaderManagerBase::OpenNextReaders()
         return;
     }
 
+    CreatingReader_ = true;
     ++ActiveReaderCount_;
 
     YT_LOG_DEBUG("Scheduling next reader creation (Index: %v, ActiveReaderCount: %v)",
