@@ -35,7 +35,8 @@ void Serialize(
     auto mediumIndex = statistics.medium_index();
     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
     fluent
-        .Item("medium_name").Value(IsObjectAlive(medium) ? medium->GetName() : Format("<unknown medium %v>", mediumIndex))
+        // TODO(babenko): switch to std::string
+        .Item("medium_name").Value(IsObjectAlive(medium) ? medium->GetName() : std::string(Format("<unknown medium %v>", mediumIndex)))
         .Item("available_space").Value(statistics.available_space())
         .Item("used_space").Value(statistics.used_space())
         .Item("low_watermark_space").Value(statistics.low_watermark_space())
@@ -58,7 +59,8 @@ void Serialize(
     auto mediumIndex = statistics.medium_index();
     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
     fluent
-        .Item("medium_name").Value(IsObjectAlive(medium) ? medium->GetName() : Format("<unknown medium %v>", mediumIndex))
+        // TODO(babenko): switch to std::string
+        .Item("medium_name").Value(IsObjectAlive(medium) ? medium->GetName() : std::string(Format("<unknown medium %v>", mediumIndex)))
         .Item("available_space").Value(statistics.available_space())
         .Item("used_space").Value(statistics.used_space())
         .Item("slot_space_usages")

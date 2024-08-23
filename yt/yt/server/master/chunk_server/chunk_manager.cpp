@@ -2047,7 +2047,7 @@ public:
         return chunkList;
     }
 
-    void CreateMediumPrologue(const TString& name)
+    void CreateMediumPrologue(const std::string& name)
     {
         ValidateMediumName(name);
 
@@ -2065,7 +2065,7 @@ public:
     }
 
     TDomesticMedium* CreateDomesticMedium(
-        const TString& name,
+        const std::string& name,
         std::optional<bool> transient,
         std::optional<int> priority,
         std::optional<int> hintIndex,
@@ -2085,7 +2085,7 @@ public:
     }
 
     TS3Medium* CreateS3Medium(
-        const TString& name,
+        const std::string& name,
         TS3MediumConfigPtr config,
         std::optional<int> priority,
         std::optional<int> hintIndex,
@@ -2111,7 +2111,7 @@ public:
         MediumMap_.Release(medium->GetId());
     }
 
-    void RenameMedium(TMedium* medium, const TString& newName) override
+    void RenameMedium(TMedium* medium, const std::string& newName) override
     {
         if (medium->GetName() == newName) {
             return;
@@ -2162,27 +2162,22 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMedium* FindMediumByName(const TString& name) const override
+    TMedium* FindMediumByName(const std::string& name) const override
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TErrorOr<TMedium*> GetMediumByName(const TString& name) const
+    TMedium* GetMediumByNameOrThrow(const std::string& name) const override
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
-            return TError(
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
                 "No such medium %Qv",
                 name);
         }
         return medium;
-    }
-
-    TMedium* GetMediumByNameOrThrow(const TString& name) const override
-    {
-        return GetMediumByName(name).ValueOrThrow();
     }
 
     TMedium* GetMediumOrThrow(TMediumId id) const override
@@ -2485,7 +2480,7 @@ private:
     THashSet<TChunk*> ForeignChunks_;
 
     NHydra::TEntityMap<TMedium, TEntityMapTypeTraits<TMedium>> MediumMap_;
-    THashMap<TString, TMedium*> NameToMediumMap_;
+    THashMap<std::string, TMedium*> NameToMediumMap_;
     std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
@@ -4965,7 +4960,7 @@ private:
         TMedium*& medium,
         TMediumId id,
         int mediumIndex,
-        const TString& name)
+        const std::string& name)
     {
         if (medium) {
             return false;
@@ -5971,7 +5966,7 @@ private:
     TDomesticMedium* DoCreateDomesticMedium(
         TMediumId id,
         int mediumIndex,
-        const TString& name,
+        const std::string& name,
         std::optional<bool> transient,
         std::optional<int> priority)
     {
@@ -6000,7 +5995,7 @@ private:
     TS3Medium* DoCreateS3Medium(
         TMediumId id,
         int mediumIndex,
-        const TString& name,
+        const std::string& name,
         TS3MediumConfigPtr config,
         std::optional<int> priority)
     {
@@ -6211,20 +6206,6 @@ private:
 
         if (SequoiaReplicaRemovalExecutor_) {
             SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
-        }
-    }
-
-    static void ValidateMediumName(const TString& name)
-    {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Medium name cannot be empty");
-        }
-    }
-
-    static void ValidateMediumPriority(int priority)
-    {
-        if (priority < 0 || priority > MaxMediumPriority) {
-            THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
 };

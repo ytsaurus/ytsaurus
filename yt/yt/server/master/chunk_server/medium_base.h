@@ -21,7 +21,7 @@ class TMedium
     , public TRefTracked<TMedium>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(int, Index, -1);
     DEFINE_BYVAL_RW_PROPERTY(int, Priority, MediumDefaultPriority);
 
