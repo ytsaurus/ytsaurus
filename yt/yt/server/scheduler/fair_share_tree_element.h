@@ -913,6 +913,7 @@ public:
         EAbortReason abortReason,
         TControllerEpoch allocationEpoch);
 
+    TJobResourcesWithQuotaList GetDetailedInitialMinNeededResources() const;
     TJobResources GetAggregatedInitialMinNeededResources() const;
 
     //! Resource tree methods.

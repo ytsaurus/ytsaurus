@@ -567,11 +567,14 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
-    registrar.Parameter("necessary_resources_for_operation", &TThis::NecessaryResourcesForOperation)
-        .Default();
-
     registrar.Parameter("enable_fast_child_function_summation_in_fifo_pools", &TThis::EnableFastChildFunctionSummationInFifoPools)
         .Default(false);
+
+    registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
+        .DefaultNew();
+
+    registrar.Parameter("max_job_resource_limits", &TThis::MaxJobResourceLimits)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

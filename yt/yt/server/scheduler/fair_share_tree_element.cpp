@@ -2208,6 +2208,11 @@ void TSchedulerOperationElement::AbortAllocation(
     Controller_->AbortAllocation(allocationId, abortReason, allocationEpoch);
 }
 
+TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedInitialMinNeededResources() const
+{
+    return Controller_->GetDetailedInitialMinNeededAllocationResources();
+}
+
 TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const
 {
     // COMPAT(eshcherbin)
