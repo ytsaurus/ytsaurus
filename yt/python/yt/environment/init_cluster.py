@@ -457,7 +457,8 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
     else:
         tablet_cell_id = tablet_cell_ids.keys()[0]
 
-    if yt_config.wait_tablet_cell_initialization or yt_config.init_operations_archive or yt_config.queue_agent_count > 0:
+    if (yt_config.wait_tablet_cell_initialization or yt_config.init_operations_archive
+            or yt_config.queue_agent_count > 0 or yt_config.query_tracker_count > 0):
         logger.info("Waiting for tablet cells to become ready...")
         wait(lambda: client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) == "good")
         logger.info("Tablet cells are ready")
@@ -465,6 +466,10 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
     if yt_config.init_operations_archive:
         import yt.environment.init_operations_archive as yt_env_init_operations_archive
         yt_env_init_operations_archive.create_tables_latest_version(client)
+
+    if yt_config.query_tracker_count > 0:
+        import yt.environment.init_query_tracker_state as yt_env_init_query_tracker_state
+        yt_env_init_query_tracker_state.create_tables_latest_version(client)
 
     if yt_config.wait_tablet_cell_initialization or yt_config.queue_agent_count > 0:
         create_queue_agent_state_tables(client, override_tablet_cell_bundle="default")

@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .configs_provider import _init_logging, build_configs
-from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_config
+from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_config, get_dynamic_query_tracker_config
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
@@ -210,7 +210,8 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "query-tracker",
+                            "kafka-proxy"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -324,6 +325,7 @@ class YTInstance(object):
                 "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
                 "queue_agent": self._make_service_dirs("queue_agent", self.yt_config.queue_agent_count),
+                "query_tracker": self._make_service_dirs("query_tracker", self.yt_config.query_tracker_count),
                 "kafka_proxy": self._make_service_dirs("kafka_proxy", self.yt_config.kafka_proxy_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count),
                 "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count),
@@ -412,6 +414,7 @@ class YTInstance(object):
             ("ytserver-cell-balancer", "cell balancers", self.yt_config.cell_balancer_count),
             (None, "secondary cells", self.yt_config.secondary_cell_count),
             ("ytserver-queue-agent", "queue agents", self.yt_config.queue_agent_count),
+            ("ytserver-query-tracker", "query trackers", self.yt_config.query_tracker_count),
             ("ytserver-kafka-proxy", "kafka proxies", self.yt_config.kafka_proxy_count),
             ("ytserver-tablet-balancer", "tablet balancers", self.yt_config.tablet_balancer_count),
             ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
@@ -474,6 +477,8 @@ class YTInstance(object):
             self._prepare_cell_balancers(cluster_configuration["cell_balancer"])
         if self.yt_config.queue_agent_count > 0:
             self._prepare_queue_agents(cluster_configuration["queue_agent"])
+        if self.yt_config.query_tracker_count > 0:
+            self._prepare_query_trackers(cluster_configuration["query_tracker"])
         if self.yt_config.kafka_proxy_count > 0:
             self._prepare_kafka_proxies(cluster_configuration["kafka_proxy"])
         if self.yt_config.tablet_balancer_count > 0:
@@ -600,6 +605,13 @@ class YTInstance(object):
             if self.yt_config.queue_agent_count > 0:
                 queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
 
+            query_tracker_dynamic_config = None
+            if self.yt_config.query_tracker_count > 0:
+                query_tracker_dynamic_config = self._apply_query_tracker_dynamic_config(client)
+
+            if self.yt_config.query_tracker_count > 0:
+                self.start_query_trackers(sync=False)
+
             # TODO(nadya73): fill kafka proxy dynamic config.
 
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
@@ -640,6 +652,8 @@ class YTInstance(object):
             self._wait_for_dynamic_config_update(patched_node_config, client)
             if queue_agent_dynamic_config is not None:
                 self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
+            if query_tracker_dynamic_config is not None:
+                self._wait_for_dynamic_config_update(query_tracker_dynamic_config, client, instance_type="query_tracker/instances")
             # TODO(nadya73): update kafka proxy dynamic config
             self._write_environment_info_to_file()
             logger.info("Environment started")
@@ -1373,6 +1387,23 @@ class YTInstance(object):
             self.config_paths["queue_agent"].append(config_path)
             self._service_processes["queue_agent"].append(None)
 
+    def _prepare_query_trackers(self, query_tracker_configs):
+        for query_tracker_index in xrange(self.yt_config.query_tracker_count):
+            query_tracker_config_name = "query_tracker-{0}.yson".format(query_tracker_index)
+            config_path = os.path.join(self.configs_path, query_tracker_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Query tracker config {0} not found. It is possible that you requested "
+                                  "more query trackers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = query_tracker_configs[query_tracker_index]
+                write_config(config, config_path)
+
+            self.configs["query_tracker"].append(config)
+            self.config_paths["query_tracker"].append(config_path)
+            self._service_processes["query_tracker"].append(None)
+
     def start_queue_agents(self, sync=True):
         self._run_builtin_yt_component("queue-agent", name="queue_agent")
 
@@ -1398,6 +1429,33 @@ class YTInstance(object):
 
         self._wait_or_skip(
             lambda: self._wait_for(queue_agents_ready, "queue_agent", max_wait_time=20),
+            sync)
+
+    def start_query_trackers(self, sync=True):
+        self._run_builtin_yt_component("query-tracker", name="query_tracker")
+
+        client = self._create_cluster_client()
+
+        def query_trackers_ready():
+            self._validate_processes_are_running("query_tracker")
+
+            try:
+                if not client.exists("//sys/query_tracker/instances"):
+                    return False
+                instances = client.list("//sys/query_tracker/instances")
+                if len(instances) != self.yt_config.query_tracker_count:
+                    return False
+                for instance in instances:
+                    if not client.exists("//sys/query_tracker/instances/" + instance + "/orchid/service"):
+                        return False
+            except YtError:
+                logger.exception("Error while waiting for query trackers")
+                return False
+
+            return True
+
+        self._wait_or_skip(
+            lambda: self._wait_for(query_trackers_ready, "query_tracker", max_wait_time=20),
             sync)
 
     def _prepare_timestamp_providers(self, timestamp_provider_configs, force_overwrite=False):
@@ -2199,10 +2257,16 @@ class YTInstance(object):
         logger.info("Watcher started")
 
     def _apply_queue_agent_dynamic_config(self, client):
-        dyn_queue_agent_config = get_dynamic_queue_agent_config(self.yt_config)
+        dynamic_queue_agent_config = get_dynamic_queue_agent_config(self.yt_config)
         client.create("map_node", "//sys/queue_agents", ignore_existing=True)
-        client.create("document", "//sys/queue_agents/config", ignore_existing=True, attributes={"value": dyn_queue_agent_config})
-        return dyn_queue_agent_config
+        client.create("document", "//sys/queue_agents/config", ignore_existing=True, attributes={"value": dynamic_queue_agent_config})
+        return dynamic_queue_agent_config
+
+    def _apply_query_tracker_dynamic_config(self, client):
+        dynamic_query_tracker_config = get_dynamic_query_tracker_config(self.yt_config)
+        client.create("map_node", "//sys/query_tracker", ignore_existing=True)
+        client.create("document", "//sys/query_tracker/config", ignore_existing=True, attributes={"value": dynamic_query_tracker_config})
+        return dynamic_query_tracker_config
 
     def _apply_nodes_dynamic_config(self, client):
         patched_dynamic_node_config = get_patched_dynamic_node_config(self.yt_config)

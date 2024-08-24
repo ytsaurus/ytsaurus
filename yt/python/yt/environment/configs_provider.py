@@ -53,9 +53,10 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         logs_dir)
 
     # Note that queue agent config depends on master rpc ports and master config depends on queue agent rpc ports.
-    # That's why we prepare queue agent rpc ports separately before both configs.
+    # Cypress proxies and query trackers are involved in a similar cycle.
+    # That's why we prepare their rpc ports before preparing any configs.
     queue_agent_rpc_ports = _allocate_queue_agent_rpc_ports(yt_config, ports_generator)
-    # Cypress proxies are involved in a similar cycle.
+    query_tracker_rpc_ports = _allocate_query_tracker_rpc_ports(yt_config, ports_generator)
     cypress_proxy_rpc_ports = _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator)
 
     master_configs, master_connection_configs = _build_master_configs(
@@ -65,6 +66,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         clock_connection_config,
         discovery_configs,
         queue_agent_rpc_ports,
+        query_tracker_rpc_ports,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir)
@@ -131,6 +133,18 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         master_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
+        ports_generator,
+        logs_dir,
+        yt_config)
+
+    query_tracker_configs = _build_query_tracker_configs(
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        discovery_configs,
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        cypress_proxy_rpc_ports,
+        query_tracker_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -219,6 +233,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         master_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
+        query_tracker_rpc_ports,
         yt_config=yt_config)
 
     rpc_driver_config = _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url)
@@ -264,6 +279,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "clock": clock_configs,
         "discovery": discovery_configs,
         "queue_agent": queue_agent_configs,
+        "query_tracker": query_tracker_configs,
         "kafka_proxy": kafka_proxy_configs,
         "timestamp_provider": timestamp_provider_configs,
         "cell_balancer": cell_balancer_configs,
@@ -288,7 +304,8 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
             timestamp_provider_addresses,
             master_cache_addresses,
             cypress_proxy_rpc_ports,
-            queue_agent_rpc_ports),
+            queue_agent_rpc_ports,
+            query_tracker_rpc_ports),
     }
 
     return cluster_configuration
@@ -300,6 +317,7 @@ def _build_master_configs(yt_config,
                           clock_connection_config,
                           discovery_configs,
                           queue_agent_rpc_ports,
+                          query_tracker_rpc_ports,
                           cypress_proxy_rpc_ports,
                           ports_generator,
                           logs_dir):
@@ -352,7 +370,8 @@ def _build_master_configs(yt_config,
             timestamp_provider_addresses=[],
             master_cache_addresses=[],
             cypress_proxy_rpc_ports=cypress_proxy_rpc_ports,
-            queue_agent_rpc_ports=queue_agent_rpc_ports)
+            queue_agent_rpc_ports=queue_agent_rpc_ports,
+            query_tracker_rpc_ports=query_tracker_rpc_ports)
 
     configs = {}
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
@@ -424,6 +443,16 @@ def _allocate_queue_agent_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
     for i in xrange(yt_config.queue_agent_count):
+        rpc_port = next(ports_generator)
+        rpc_ports.append(rpc_port)
+
+    return rpc_ports
+
+
+def _allocate_query_tracker_rpc_ports(yt_config, ports_generator):
+    rpc_ports = []
+
+    for i in xrange(yt_config.query_tracker_count):
         rpc_port = next(ports_generator)
         rpc_ports.append(rpc_port)
 
@@ -564,6 +593,47 @@ def _build_queue_agent_configs(master_connection_configs,
         config["monitoring_port"] = next(ports_generator)
 
         set_at(config, "queue_agent/stage", "production")
+
+        configs.append(config)
+
+    return configs
+
+
+def _build_query_tracker_configs(master_connection_configs,
+                                 clock_connection_config,
+                                 discovery_configs,
+                                 timestamp_provider_addresses,
+                                 master_cache_addresses,
+                                 cypress_proxy_rpc_ports,
+                                 rpc_ports,
+                                 ports_generator,
+                                 logs_dir,
+                                 yt_config):
+    configs = []
+    for i in xrange(yt_config.query_tracker_count):
+        config = default_config.get_query_tracker_config()
+
+        init_singletons(config, yt_config, i)
+
+        init_jaeger_collector(config, "query_tracker", {
+            "query_tracker_index": str(i)
+        })
+
+        config["logging"] = _init_logging(logs_dir,
+                                          "query-tracker-" + str(i),
+                                          yt_config)
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
+
+        config["rpc_port"] = rpc_ports[i]
+        config["monitoring_port"] = next(ports_generator)
 
         configs.append(config)
 
@@ -1211,6 +1281,7 @@ def _build_native_driver_configs(master_connection_configs,
                                  master_cache_addresses,
                                  cypress_proxy_rpc_ports,
                                  queue_agent_rpc_ports,
+                                 query_tracker_rpc_ports,
                                  yt_config):
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
@@ -1229,7 +1300,8 @@ def _build_native_driver_configs(master_connection_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 cypress_proxy_rpc_ports,
-                queue_agent_rpc_ports))
+                queue_agent_rpc_ports,
+                query_tracker_rpc_ports))
         else:
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {
@@ -1391,8 +1463,10 @@ def _build_cluster_connection_config(yt_config,
                                      master_cache_addresses,
                                      cypress_proxy_rpc_ports,
                                      queue_agent_rpc_ports=None,
+                                     query_tracker_rpc_ports=None,
                                      config_template=None):
     queue_agent_rpc_ports = queue_agent_rpc_ports or []
+    query_tracker_rpc_ports = query_tracker_rpc_ports or []
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
@@ -1449,6 +1523,17 @@ def _build_cluster_connection_config(yt_config,
                 "configuration_refresh_period": 500,
                 "resolve_symlinks": True,
                 "resolve_replicas": True,
+            },
+        },
+        "query_tracker": {
+            "stages": {
+                "production": {
+                    "channel": {
+                        "addresses": ["{}:{}".format(yt_config.fqdn, port) for port in query_tracker_rpc_ports],
+                    },
+                    "root": "//sys/query_tracker",
+                    "user": "root",
+                },
             },
         },
         "permission_cache": {
