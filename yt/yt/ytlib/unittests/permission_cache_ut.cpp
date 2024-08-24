@@ -33,11 +33,6 @@ TEST(TPermissionCacheConfigTest, Simple)
     ysonConfig = TYsonString(TYsonStringBuf("{master_read_options={read_from=follower}}"));
     config = ConvertTo<TPermissionCacheConfigPtr>(ysonConfig);
     EXPECT_EQ(config->MasterReadOptions->ReadFrom, EMasterChannelKind::Follower);
-
-    // COMPAT(dakovalkov)
-    ysonConfig = TYsonString(TYsonStringBuf("{master_read_options={read_from=follower};read_from=leader}"));
-    config = ConvertTo<TPermissionCacheConfigPtr>(ysonConfig);
-    EXPECT_EQ(config->MasterReadOptions->ReadFrom, EMasterChannelKind::Leader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

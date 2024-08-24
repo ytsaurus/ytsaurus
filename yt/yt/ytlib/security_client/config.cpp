@@ -18,10 +18,6 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
         // COMPAT(babenko): turn this off and remove the feature flag
         .Default(true);
 
-    // COMPAT(dakovalkov)
-    registrar.Parameter("read_from", &TThis::ReadFrom_)
-        .Optional();
-
     registrar.Preprocessor([] (TThis* config) {
         config->MasterReadOptions->ReadFrom = NApi::EMasterChannelKind::Cache;
         config->MasterReadOptions->CacheStickyGroupSize = 1;
@@ -35,11 +31,6 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         config->MasterReadOptions->ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime;
         config->MasterReadOptions->ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime;
-
-        // COMPAT(dakovalkov)
-        if (config->ReadFrom_) {
-            config->MasterReadOptions->ReadFrom = *config->ReadFrom_;
-        }
     });
 }
 
