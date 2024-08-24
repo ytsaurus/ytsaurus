@@ -179,6 +179,10 @@ func (s Metrics) List() []Metric {
 	return slices.Clone(s.metrics)
 }
 
+func (s Metrics) Len() int {
+	return len(s.metrics)
+}
+
 func tsAsRef(t *time.Time) *int64 {
 	if t == nil {
 		return nil
