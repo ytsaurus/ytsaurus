@@ -146,7 +146,7 @@ Example: `alter_query(query_id="my_query_id", access_control_object="my_new_aco"
 
 ## Access control {#access-control}
 
-To manage access to queries and their results, the query can store an optional `access_control_object` string that points to `//sys/access_control_object_namespace/queries/[access_control_object]`.
+To manage access to queries and their results, the query can store an optional `access_control_object` string that points to `//sys/access_control_object_namespaces/queries/[access_control_object]`.
 
 An Access Control Object (ACO) is an object with the `@principal_acl` attribute. It sets access rules in the same manner as `@acl` does for Cypress nodes. For more information, see [Access control](../../user-guide/storage/access-control.md).
 
