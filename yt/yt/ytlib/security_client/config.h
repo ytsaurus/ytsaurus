@@ -21,12 +21,6 @@ public:
     REGISTER_YSON_STRUCT(TPermissionCacheConfig);
 
     static void Register(TRegistrar registrar);
-
-private:
-    // COMPAT(dakovalkov): This option is deprecated.
-    // Use MasterReadOptions instead.
-    // TODO(dakovalkov): delete it after elimination from all configs.
-    std::optional<NApi::EMasterChannelKind> ReadFrom_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCacheConfig)
