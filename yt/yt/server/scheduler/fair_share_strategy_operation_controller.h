@@ -26,6 +26,7 @@ public:
 
     TCompositeNeededResources GetNeededResources() const;
     TJobResourcesWithQuotaList GetDetailedMinNeededAllocationResources() const;
+    TJobResourcesWithQuotaList GetDetailedInitialMinNeededAllocationResources() const;
     TJobResources GetAggregatedMinNeededAllocationResources() const;
     TJobResources GetAggregatedInitialMinNeededAllocationResources() const;
 

@@ -918,28 +918,41 @@ public:
             .Run(operation, poolName);
     }
 
-    TError CheckOperationNecessaryResourceDemand(TOperationId operationId) const override
+    TError CheckOperationJobResourceLimitsRestrictions(const TSchedulerOperationElementPtr& element) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto element = GetOperationElement(operationId);
+        const auto& detailedMinNeededResources = element->GetDetailedInitialMinNeededResources();
 
-        std::vector<EJobResourceType> resourcesWithDemandViolations;
-        #define XX(name, Name) \
-            if (element->GetAggregatedInitialMinNeededResources().Get##Name() == 0 && \
-                Config_->NecessaryResourcesForOperation.contains(EJobResourceType::Name)) \
-            { \
-                resourcesWithDemandViolations.push_back(EJobResourceType::Name); \
+        for (const auto& minNeededResources : detailedMinNeededResources) {
+            THashSet<EJobResourceType> resourcesWithViolatedRestrictions;
+            Config_->MinJobResourceLimits->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+                if (auto lowerBound = Config_->MinJobResourceLimits.Get()->*resourceDataMember) {
+                    if (GetResource(minNeededResources, resourceType) < static_cast<double>(*lowerBound)) {
+                        resourcesWithViolatedRestrictions.insert(resourceType);
+                    }
+                }
+                if (auto upperBound = Config_->MaxJobResourceLimits.Get()->*resourceDataMember) {
+                    if (GetResource(minNeededResources, resourceType) > static_cast<double>(*upperBound)) {
+                        resourcesWithViolatedRestrictions.insert(resourceType);
+                    }
+                }
+            });
+
+            if (!resourcesWithViolatedRestrictions.empty()) {
+                return TError(
+                        EErrorCode::JobResourceLimitsRestrictionsViolated,
+                        "Operation has jobs with resource demand that violates restrictions for resources %lv in tree %Qlv",
+                        resourcesWithViolatedRestrictions,
+                        GetId())
+                    << TErrorAttribute("operation_id", element->GetOperationId())
+                    << TErrorAttribute("job_resource_demand", minNeededResources)
+                    << TErrorAttribute("lower_bounds", Config_->MinJobResourceLimits)
+                    << TErrorAttribute("upper_bounds", Config_->MaxJobResourceLimits);
             }
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-
-        if (resourcesWithDemandViolations.empty()) {
-            return TError();
         }
 
-        return TError("Operation has zero demand for resources which are necessary in tree %Qlv", GetId())
-            << TErrorAttribute("necessary_resources_with_zero_demand", resourcesWithDemandViolations);
+        return TError();
     }
 
     TPersistentTreeStatePtr BuildPersistentState() const override
@@ -982,12 +995,23 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    void OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
         TreeScheduler_->OnOperationMaterialized(element.Get());
+
+        // NB(eshcherbin): We don't apply this check to a revived operation so that
+        // it doesn't fail in the middle of its progress.
+        // TODO(eshcherbin): |revivedFromSnapshot| isn't 100% reliable because operation can be revived with clean start.
+        if (const auto& error = CheckOperationJobResourceLimitsRestrictions(element);
+            !error.IsOK() && !revivedFromSnapshot)
+        {
+            return error;
+        }
+
+        return {};
     }
 
     TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const override

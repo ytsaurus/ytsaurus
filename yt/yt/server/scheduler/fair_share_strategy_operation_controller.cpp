@@ -84,6 +84,11 @@ TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMin
     return Controller_->GetMinNeededAllocationResources();
 }
 
+TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedInitialMinNeededAllocationResources() const
+{
+    return Controller_->GetInitialMinNeededAllocationResources();
+}
+
 TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAllocationResources() const
 {
     // Min needed resources must be less than total needed resources of operation. See YT-9363.
@@ -97,7 +102,7 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAlloc
 
 TJobResources TFairShareStrategyOperationController::GetAggregatedInitialMinNeededAllocationResources() const
 {
-    auto initialMinNeededResources = Controller_->GetInitialMinNeededAllocationResources();
+    auto initialMinNeededResources = GetDetailedInitialMinNeededAllocationResources();
     if (initialMinNeededResources.empty()) {
         // A reasonable fallback, but this should really never happen.
         return TJobResources();
