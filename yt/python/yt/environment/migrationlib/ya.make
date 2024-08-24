@@ -1,7 +1,9 @@
 PY23_LIBRARY()
 
 IF (PYTHON2)
-    PEERDIR(yt/python_py2/yt/environment/migrationlib)
+    IF (NOT OPENSOURCE)
+        PEERDIR(yt/python_py2/yt/environment/migrationlib)
+    ENDIF()
 ELSE()
     PEERDIR(
         yt/python/yt
