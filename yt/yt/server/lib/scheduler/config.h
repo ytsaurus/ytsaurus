@@ -433,9 +433,10 @@ public:
 
     bool EnableGuaranteePriorityScheduling;
 
-    THashSet<EJobResourceType> NecessaryResourcesForOperation;
-
     bool EnableFastChildFunctionSummationInFifoPools;
+
+    TJobResourcesConfigPtr MinJobResourceLimits;
+    TJobResourcesConfigPtr MaxJobResourceLimits;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
