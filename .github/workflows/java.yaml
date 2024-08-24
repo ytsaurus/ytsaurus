@@ -3,7 +3,7 @@ name: Java SDK CI
 on:
   push:
     branches:
-      - darwin_cmake
+      - members/ignat/darwin_cmake
 
 jobs:
   check:
