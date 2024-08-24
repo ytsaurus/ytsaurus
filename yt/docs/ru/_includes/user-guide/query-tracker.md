@@ -147,7 +147,7 @@ Query tracker позволяет:
 
 ## Access control {#access-control}
 
-Для управления доступом к запросам и их результатам, в запрос сохраняется список строк `access_control_objects`, которые указывают на `//sys/access_control_object_namespace/queries/[access_control_object]`.
+Для управления доступом к запросам и их результатам, в запрос сохраняется список строк `access_control_objects`, которые указывают на `//sys/access_control_object_namespaces/queries/[access_control_object]`.
 
 Access Control Object (ACO) — это объект с атрибутом `@principal_acl`, который задаёт правила доступа тем же способом, что и `@acl` для нод Кипариса. Подробнее можно почитать в разделе [Контроль доступа](../../user-guide/storage/access-control.md).
 
