@@ -12,69 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-lease_server)
-
-
-target_compile_options(server-lib-lease_server PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_include_directories(server-lib-lease_server PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
-
-target_link_libraries(server-lib-lease_server PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  server-lib-hive
-  server-lib-hydra
-  contrib-libs-protobuf
-)
-
-target_sources(server-lib-lease_server PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/lease_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/serialize.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
-)
-
-target_proto_messages(server-lib-lease_server PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.proto
-)
-
-
-target_proto_outs(server-lib-lease_server
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-target_proto_addincls(server-lib-lease_server
-  ./yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)

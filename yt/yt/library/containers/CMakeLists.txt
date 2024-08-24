@@ -12,40 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(disk_manager)
-add_subdirectory(cri)
-add_subdirectory(unittests)
-
-add_library(yt-library-containers)
-
-
-target_compile_options(yt-library-containers PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-library-containers PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-porto-proto
-  yt-library-process
-  yt-yt-core
-  library-cpp-porto
-)
-
-target_sources(yt-library-containers PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroup.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroups_new.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/container_devices_checker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/process.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_executor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_resource_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_health_checker.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,103 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_subdirectory(proto)
-
-add_executable(yt-cpp-mapreduce-library-parallel_io-ut)
-
-
-target_compile_options(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-cpp-mapreduce-library-parallel_io-ut PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-mapreduce-client
-  cpp-mapreduce-interface
-  mapreduce-library-mock_client
-  mapreduce-library-parallel_io
-  parallel_io-ut-proto
-  mapreduce-tests-yt_unittest_lib
-  mapreduce-tests-gtest_main
-  tests-native-proto_lib
-  mapreduce-tests-lib
-  cpp-mapreduce-util
-)
-
-target_allocator(yt-cpp-mapreduce-library-parallel_io-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-target_link_options(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/parallel_reader_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/parallel_writer_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/parallel_file_writer_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/parallel_file_reader_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/ut/resource_limiter_ut.cpp
-)
-
-
-set_property(
-  TARGET
-  yt-cpp-mapreduce-library-parallel_io-ut
-  PROPERTY
-  SPLIT_FACTOR
-  1
-)
-
-add_yunittest(
-  NAME
-  yt-cpp-mapreduce-library-parallel_io-ut
-  TEST_TARGET
-  yt-cpp-mapreduce-library-parallel_io-ut
-  TEST_ARG
-  --print-before-suite
-  --print-before-test
-  --fork-tests
-  --print-times
-  --show-fails
-)
-
-set_yunittest_property(
-  TEST
-  yt-cpp-mapreduce-library-parallel_io-ut
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-
-set_yunittest_property(
-  TEST
-  yt-cpp-mapreduce-library-parallel_io-ut
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(yt-cpp-mapreduce-library-parallel_io-ut)
-
-set_yunittest_property(
-  TEST
-  yt-cpp-mapreduce-library-parallel_io-ut
-  PROPERTY
-  PROCESSORS
-  1
-)

@@ -12,27 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(library-web_assembly-api)
-
-
-target_compile_options(library-web_assembly-api PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(library-web_assembly-api PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-)
-
-target_sources(library-web_assembly-api PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/compartment.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/data_transfer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/function.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/memory_pool.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/type_builder.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

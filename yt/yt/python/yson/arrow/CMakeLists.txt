@@ -12,68 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
-add_library(python-yson-arrow INTERFACE)
-
-
-target_compile_options(python-yson-arrow INTERFACE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_include_directories(python-yson-arrow INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
-)
-
-target_link_libraries(python-yson-arrow INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-python-common
-  mapreduce-library-table_schema
-  cpp-yson-node
-  contrib-libs-pycxx
-  libs-apache-arrow
-  Python3::Module
-)
-
-
-add_global_library_for(python-yson-arrow.global
-  python-yson-arrow)
-
-
-target_compile_options(python-yson-arrow.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_include_directories(python-yson-arrow.global PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
-)
-
-target_link_libraries(python-yson-arrow.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-python-common
-  mapreduce-library-table_schema
-  cpp-yson-node
-  contrib-libs-pycxx
-  libs-apache-arrow
-  Python3::Module
-)
-
-target_sources(python-yson-arrow.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/file_format_converters.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/arrow_raw_iterator.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

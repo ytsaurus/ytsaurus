@@ -12,43 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_executable(mpsc_sharded_queue)
-
-
-target_compile_options(mpsc_sharded_queue PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(mpsc_sharded_queue PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  library-cpp-getopt
-  yt-yt-core
-)
-
-target_allocator(mpsc_sharded_queue
-  cpp-ytalloc-impl
-)
-
-target_link_options(mpsc_sharded_queue PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(mpsc_sharded_queue PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/mpsc_sharded_queue/main.cpp
-)
-
-
-vcs_info(mpsc_sharded_queue)

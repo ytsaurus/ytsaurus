@@ -12,77 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_executable(grpc_test)
-
-
-target_link_libraries(grpc_test PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-core
-  core-rpc-grpc
-  library-cpp-getopt
-  contrib-libs-protobuf
-)
-
-target_allocator(grpc_test
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-target_link_options(grpc_test PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(grpc_test PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
-)
-
-target_proto_messages(grpc_test PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
-)
-
-
-target_proto_outs(grpc_test
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
-)
-
-target_proto_addincls(grpc_test
-  ./
-  ${PROJECT_SOURCE_DIR}/
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-
-vcs_info(grpc_test)

@@ -12,51 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
-add_library(python-driver-rpc INTERFACE)
-
-
-target_compile_options(python-driver-rpc INTERFACE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_link_libraries(python-driver-rpc INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  python-driver-lib
-  Python3::Module
-)
-
-
-add_global_library_for(python-driver-rpc.global
-  python-driver-rpc)
-
-
-target_compile_options(python-driver-rpc.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_link_libraries(python-driver-rpc.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  python-driver-lib
-  Python3::Module
-)
-
-target_sources(python-driver-rpc.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/rpc/driver_rpc.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

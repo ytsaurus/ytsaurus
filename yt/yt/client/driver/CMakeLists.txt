@@ -12,44 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-client-driver)
-
-
-target_compile_options(yt-client-driver PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-client-driver PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-library-formats
-)
-
-target_sources(yt-client-driver PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/bundle_controller_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/command.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/distributed_table_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,31 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(ut)
-add_subdirectory(ut_core_http)
-
-add_library(mapreduce-library-parallel_io)
-
-
-target_compile_options(mapreduce-library-parallel_io PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(mapreduce-library-parallel_io PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-mapreduce-interface
-  cpp-yt-memory
-)
-
-target_sources(mapreduce-library-parallel_io PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

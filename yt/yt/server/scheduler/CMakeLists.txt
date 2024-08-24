@@ -12,71 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(unittests)
-
-add_library(yt-server-scheduler)
-
-
-target_compile_options(yt-server-scheduler PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-server-scheduler PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-getopt
-  ytserver
-  server-lib-scheduler
-  server-lib-transaction_server
-  server-lib-controller_agent
-  yt-library-numeric
-  cpp-yt-phdr_cache
-)
-
-target_sources(yt-server-scheduler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/allocation_tracker_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/exec_node.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_element.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_operation_shared_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_profiling.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_scheduling_snapshot.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/allocation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/node_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/node_shard.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_alert_event.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operations_cleaner.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller_impl.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_allocation_scheduler_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_scheduler_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree_element.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,68 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_executable(joining_reader)
-
-
-target_compile_options(joining_reader PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(joining_reader PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gbenchmark
-  yt-yt-ytlib
-  yt-yt-client
-  yt-yt-core
-)
-
-target_allocator(joining_reader
-  cpp-ytalloc-impl
-)
-
-target_link_options(joining_reader PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(joining_reader PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/joining_reader/main.cpp
-)
-
-
-add_test(
-  NAME
-  joining_reader
-  COMMAND
-  joining_reader
-)
-
-set_property(
-  TEST
-  joining_reader
-  PROPERTY
-  LABELS
-  SMALL
-)
-
-vcs_info(joining_reader)
-
-set_property(
-  TEST
-  joining_reader
-  PROPERTY
-  PROCESSORS
-  1
-)

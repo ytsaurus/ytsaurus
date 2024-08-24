@@ -12,95 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
-add_subdirectory(arrow)
-
-add_library(yt-python-yson)
-
-
-target_compile_options(yt-python-yson PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_include_directories(yt-python-yson PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
-)
-
-target_link_libraries(yt-python-yson PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-library-skiff_ext
-  yt-python-common
-  contrib-libs-pycxx
-  library-cpp-skiff
-  Python3::Module
-)
-
-target_sources(yt-python-yson PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/error.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/lazy_dict.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/limited_yson_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/list_fragment_parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/pull_object_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/serialize.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/yson_lazy_map.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/consumer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_common.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_python_to_skiff.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/error.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/other_columns.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/parser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_consumer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_iterator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/record.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/schema.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/serialize.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/structured_iterator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/switch.cpp
-)
-
-
-add_global_library_for(yt-python-yson.global
-  yt-python-yson)
-
-
-target_compile_options(yt-python-yson.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_include_directories(yt-python-yson.global PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
-)
-
-target_link_libraries(yt-python-yson.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  yt-library-skiff_ext
-  yt-python-common
-  contrib-libs-pycxx
-  library-cpp-skiff
-  Python3::Module
-)
-
-target_sources(yt-python-yson.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/yson.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,65 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(MCTargetDesc)
-add_subdirectory(TargetInfo)
-add_subdirectory(AsmParser)
-add_subdirectory(Disassembler)
-
-add_library(lib-Target-BPF)
-
-
-target_compile_options(lib-Target-BPF PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(lib-Target-BPF PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
-)
-
-target_link_libraries(lib-Target-BPF PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  libs-llvm16-include
-  llvm16-lib-Analysis
-  llvm16-lib-CodeGen
-  lib-CodeGen-AsmPrinter
-  lib-CodeGen-SelectionDAG
-  llvm16-lib-IR
-  llvm16-lib-MC
-  llvm16-lib-Support
-  llvm16-lib-Target
-  Target-BPF-MCTargetDesc
-  Target-BPF-TargetInfo
-  llvm16-lib-TargetParser
-  lib-Transforms-IPO
-  lib-Transforms-Scalar
-  lib-Transforms-Utils
-)
-
-target_sources(lib-Target-BPF PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAbstractMemberAccess.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAdjustOpt.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAsmPrinter.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFCheckAndAdjustIR.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFFrameLowering.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFIRPeephole.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelDAGToDAG.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelLowering.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFInstrInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMCInstLower.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIChecking.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIPeephole.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMISimplifyPatchable.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFPreserveDIType.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFRegisterInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSelectionDAGInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSubtarget.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFTargetMachine.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BTFDebug.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
