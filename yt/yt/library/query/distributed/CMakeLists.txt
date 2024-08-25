@@ -12,28 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(library-query-distributed)
-
-
-target_compile_options(library-query-distributed PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_include_directories(library-query-distributed PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
-
-target_link_libraries(library-query-distributed PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-query-base
-)
-
-target_sources(library-query-distributed PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/distributed/join_tree.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/distributed/shuffle.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

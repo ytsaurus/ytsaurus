@@ -12,33 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(Target-PowerPC-Disassembler)
-
-
-target_compile_options(Target-PowerPC-Disassembler PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(Target-PowerPC-Disassembler PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler
-)
-
-target_link_libraries(Target-PowerPC-Disassembler PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  libs-llvm16-include
-  llvm16-lib-MC
-  lib-MC-MCDisassembler
-  llvm16-lib-Support
-  Target-PowerPC-TargetInfo
-)
-
-target_sources(Target-PowerPC-Disassembler PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler/PPCDisassembler.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,30 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(lib-DebugInfo-MSF)
-
-
-target_compile_options(lib-DebugInfo-MSF PRIVATE
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(lib-DebugInfo-MSF PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF
-)
-
-target_link_libraries(lib-DebugInfo-MSF PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  contrib-libs-llvm16
-  llvm16-lib-Support
-)
-
-target_sources(lib-DebugInfo-MSF PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF/MSFBuilder.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF/MSFCommon.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF/MSFError.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF/MappedBlockStream.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

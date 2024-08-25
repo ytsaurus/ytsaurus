@@ -12,28 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(cpp-yt-error)
-
-
-target_compile_options(cpp-yt-error PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(cpp-yt-error PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-assert
-  cpp-yt-global
-  cpp-yt-memory
-  cpp-yt-misc
-  cpp-yt-threading
-  cpp-yt-string
-)
-
-target_sources(cpp-yt-error PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/error/origin_attributes.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

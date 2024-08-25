@@ -12,30 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-library-gpu)
-
-
-target_compile_options(yt-library-gpu PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(yt-library-gpu PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-process
-  yt-yt-core
-  core-rpc-grpc
-  cpp-protobuf-interop
-)
-
-target_sources(yt-library-gpu PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -12,42 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-get_built_tool_path(
-  TOOL_enum_parser_bin
-  TOOL_enum_parser_dependency
-  tools/enum_parser/enum_parser
-  enum_parser
-)
-
-add_library(library-cpp-erasure)
-
-
-target_link_libraries(library-cpp-erasure PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  isa-l_ec
-  library-cpp-sse
-  cpp-yt-assert
-  tools-enum_parser-enum_serialization_runtime
-)
-
-target_sources(library-cpp-erasure PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/public.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/codec.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/isa_erasure.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/reed_solomon.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/reed_solomon_isa.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/lrc.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/lrc_isa.cpp
-)
-
-
-generate_enum_serilization(library-cpp-erasure
-  ${PROJECT_SOURCE_DIR}/library/cpp/erasure/public.h
-  INCLUDE_HEADERS
-  library/cpp/erasure/public.h
-)

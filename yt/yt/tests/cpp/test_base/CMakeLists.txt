@@ -12,26 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(tests-cpp-test_base)
-
-
-target_compile_options(tests-cpp-test_base PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(tests-cpp-test_base PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-yt-core
-  yt-yt-ytlib
-  yt-core-test_framework
-)
-
-target_sources(tests-cpp-test_base PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_base/api_test_base.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

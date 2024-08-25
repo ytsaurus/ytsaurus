@@ -12,70 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_executable(yt-cpp-mapreduce-interface-logging-ut)
-
-
-target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
-  mapreduce-interface-logging
-)
-
-target_allocator(yt-cpp-mapreduce-interface-logging-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-)
-
-target_sources(yt-cpp-mapreduce-interface-logging-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/ut/log_ut.cpp
-)
-
-
-add_test(
-  NAME
-  yt-cpp-mapreduce-interface-logging-ut
-  COMMAND
-  yt-cpp-mapreduce-interface-logging-ut
-)
-
-set_property(
-  TEST
-  yt-cpp-mapreduce-interface-logging-ut
-  PROPERTY
-  LABELS
-  SMALL
-)
-
-set_property(
-  TEST
-  yt-cpp-mapreduce-interface-logging-ut
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(yt-cpp-mapreduce-interface-logging-ut)
-
-set_property(
-  TEST
-  yt-cpp-mapreduce-interface-logging-ut
-  PROPERTY
-  PROCESSORS
-  1
-)

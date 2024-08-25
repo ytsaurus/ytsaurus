@@ -12,74 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-
-add_library(server-lib-controller_agent)
-
-
-target_compile_options(server-lib-controller_agent PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_include_directories(server-lib-controller_agent PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-)
-
-target_link_libraries(server-lib-controller_agent PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  server-lib-scheduler
-  server-lib-job_agent
-  contrib-libs-protobuf
-)
-
-target_sources(server-lib-controller_agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/progress_counter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/read_range_registry.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_size_constraints.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_report.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
-)
-
-target_proto_messages(server-lib-controller_agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
-)
-
-
-target_proto_outs(server-lib-controller_agent
-  --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
-)
-
-target_proto_addincls(server-lib-controller_agent
-  ./yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/yt
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)

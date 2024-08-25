@@ -12,35 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_subdirectory(unittests)
-
-add_library(isa-l_crc_yt_patch)
-
-
-target_compile_options(isa-l_crc_yt_patch PRIVATE
-  -mpclmul
-)
-
-target_link_libraries(isa-l_crc_yt_patch PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-)
-
-target_sources(isa-l_crc_yt_patch PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_refs.c
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/checksum.cpp
-)
-
-
-target_yasm_source(isa-l_crc_yt_patch
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_by8.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/include
-)

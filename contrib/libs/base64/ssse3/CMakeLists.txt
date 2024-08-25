@@ -12,38 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_library(libs-base64-ssse3)
-
-
-target_link_libraries(libs-base64-ssse3 PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-)
-
-target_sources(libs-base64-ssse3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/base64/ssse3/codec_ssse3.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/base64/ssse3/lib.c
-)
-
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/base64/ssse3/codec_ssse3.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-  -mssse3
-  -std=c11
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/base64/ssse3/lib.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-  -mssse3
-  -std=c11
-)

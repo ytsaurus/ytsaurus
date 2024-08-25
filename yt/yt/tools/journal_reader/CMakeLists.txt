@@ -12,50 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
-add_executable(journal_reader)
-
-
-target_compile_options(journal_reader PRIVATE
-  -Wdeprecated-this-capture
-)
-
-target_link_libraries(journal_reader PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-cpuid_check
-  yt-yt-ytlib
-  ytserver
-  server-lib-hydra
-  server-lib-hive
-  server-lib-transaction_supervisor
-  server-lib-tablet_node
-  cpp-getopt-small
-)
-
-target_allocator(journal_reader
-  cpp-ytalloc-impl
-)
-
-target_link_options(journal_reader PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(journal_reader PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/main.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/journal_dumper.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/mutation_dumper.cpp
-)
-
-
-vcs_info(journal_reader)
