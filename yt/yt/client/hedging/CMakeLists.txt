@@ -32,7 +32,6 @@ target_link_libraries(yt-client-hedging PUBLIC
   yt-client-cache
   yt-library-profiling
   yt-client-hedging-proto
-  library-cpp-iterator
 )
 
 target_sources(yt-client-hedging PRIVATE
@@ -40,7 +39,7 @@ target_sources(yt-client-hedging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/hedging.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/hedging_executor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
 )
 

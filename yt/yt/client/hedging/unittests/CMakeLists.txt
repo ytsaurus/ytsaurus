@@ -30,10 +30,10 @@ target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
   cpp-testing-gtest_main
   library-cpp-iterator
   cpp-testing-common
-  cpp-testing-hook
   yt-client-hedging
   client-unittests-mock
   yt-yt-core
+  yt-core-test_framework
   library-profiling-solomon
 )
 
@@ -55,10 +55,10 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
 )
 
 target_sources(yt-yt-client-hedging-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/helper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/penalty_provider_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
 )
 
 
