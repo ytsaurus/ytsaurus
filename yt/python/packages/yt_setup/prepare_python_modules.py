@@ -116,12 +116,15 @@ def prepare_python_modules(
     def python_contrib_path(path):
         return os.path.join(python_root, "contrib", path)
 
-    def prepare_bindings_library(module_path, library_path, name):
+    def prepare_bindings_module(module_path, library_path, name):
+        replace(os.path.join(source_root, module_path), output_path)
+
+        if not prepare_bindings_libraries:
+            return
+
         pattern = "*{name}.so"
         if sys.platform == "darwin":
             pattern = "*{name}.dylib"
-        replace(os.path.join(source_root, module_path), output_path)
-
         dir = os.path.join(build_root, library_path)
         lib_paths = glob.glob(os.path.join(dir, pattern.format(name=name)))
         if not lib_paths:
@@ -207,17 +210,17 @@ def prepare_python_modules(
 
     if prepare_bindings:
         if bindings_libraries is None or "yson_lib" in bindings_libraries:
-            prepare_bindings_library(
+            prepare_bindings_module(
                 module_path="yt/yt/python/yt_yson_bindings",
                 library_path="yt/yt/python/yson_shared/",
                 name="yson_lib")
         if bindings_libraries is None or "driver_lib" in bindings_libraries:
-            prepare_bindings_library(
+            prepare_bindings_module(
                 module_path="yt/yt/python/yt_driver_bindings",
                 library_path="yt/yt/python/driver/native_shared/",
                 name="driver_lib")
         if bindings_libraries is None or "driver_rpc_lib" in bindings_libraries:
-            prepare_bindings_library(
+            prepare_bindings_module(
                 module_path="yt/yt/python/yt_driver_rpc_bindings",
                 library_path="yt/yt/python/driver/rpc_shared/",
                 name="driver_rpc_lib")
