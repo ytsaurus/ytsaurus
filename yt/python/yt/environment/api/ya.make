@@ -1,7 +1,9 @@
 PY23_LIBRARY()
 
 IF (PYTHON2)
-    PEERDIR(yt/python_py2/yt/environment/api)
+    IF (NOT OPENSOURCE)
+        PEERDIR(yt/python_py2/yt/environment/api)
+    ENDIF()
 ELSE()
     PEERDIR(
         contrib/python/attrs
