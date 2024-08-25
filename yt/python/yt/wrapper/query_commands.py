@@ -91,12 +91,17 @@ def read_query_result(query_id, result_index=None, stage=None, format=None, raw=
         "stage": get_value(stage, "production"),
     }
 
-    return make_request(
+    response = make_request(
         "read_query_result",
         params=params,
         return_content=False,
         use_heavy_proxy=True,
         client=client)
+
+    if raw:
+        return response
+    else:
+        return format.load_rows(response)
 
 
 def get_query_result(query_id, result_index=None, stage=None, format=None, client=None):
