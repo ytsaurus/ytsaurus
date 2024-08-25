@@ -169,7 +169,7 @@ public:
             DataNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
-        , Config_(config)
+        , Config_(std::move(config))
         , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
         , Bootstrap_(bootstrap)
     {
