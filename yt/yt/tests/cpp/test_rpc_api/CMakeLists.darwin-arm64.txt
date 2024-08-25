@@ -72,7 +72,6 @@ set_property(
   cpp-integration-test-rpc-api
   PROPERTY
   ENVIRONMENT
-  "USE_YT_RECIPE_BUILT_FROM_SOURCE=yes"
 )
 
 vcs_info(cpp-integration-test-rpc-api)
