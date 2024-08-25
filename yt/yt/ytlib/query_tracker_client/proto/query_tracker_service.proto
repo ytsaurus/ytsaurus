@@ -96,7 +96,7 @@ message TReqGetQueryTrackerInfo
 }
 
 message TRspGetQueryTrackerInfo
-{ 
+{
     required NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo rpc_proxy_response = 1;
 }
 

@@ -701,7 +701,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
-    auto ApiService_ = CreateApiService(
+    auto apiService = CreateApiService(
         Config_->ApiService,
         GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
@@ -713,7 +713,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         proxyLogger,
         TProfiler());
-    GetRpcServer()->RegisterService(ApiService_);
+    GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }
 
