@@ -82,7 +82,7 @@ struct IJobController
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 
-    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 

@@ -43,6 +43,8 @@
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/orchid/orchid_service.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
@@ -110,6 +112,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -149,6 +152,9 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -167,7 +173,7 @@ void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,6 +652,26 @@ TString TJobProxy::AdjustPath(const TString& path) const
     return adjustedPath;
 }
 
+NYTree::IYPathServicePtr TJobProxy::CreateOrchidService()
+{
+    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto info = GetJobOrThrow()->GetOrchidInfo();
+        info.BuildOrchid(BuildYsonFluently(consumer));
+    });
+
+    return NYTree::IYPathService::FromProducer(std::move(producer));
+}
+
+void TJobProxy::InitializeOrchid()
+{
+    OrchidRoot_ = NYTree::CreateEphemeralNodeFactory(/*shouldHideAttributes*/true)->CreateMap();
+
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/job_proxy",
+        CreateVirtualNode(CreateOrchidService()));
+}
+
 void TJobProxy::UpdateCumulativeMemoryUsage(i64 memoryUsage)
 {
     auto now = Now();
@@ -758,8 +784,15 @@ TJobResult TJobProxy::RunJob()
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
 
+        InitializeOrchid();
+
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
+        RpcServer_->RegisterService(NOrchid::CreateOrchidService(
+            OrchidRoot_,
+            GetControlInvoker(),
+            /*authenticator*/ nullptr));
+
         RpcServer_->Start();
 
         if (TvmBridge_) {

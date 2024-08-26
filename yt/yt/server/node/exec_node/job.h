@@ -179,6 +179,7 @@ public:
     void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);
 
     TBriefJobInfo GetBriefInfo() const;
+    NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId);
 
@@ -370,6 +371,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProxy::IJobProbePtr JobProbe_;
 
+    NRpc::IChannelPtr JobProxyChannel_;
+
     std::vector<TNameWithAddress> ResolvedNodeAddresses_;
 
     // Artifact statistics.
@@ -392,6 +395,10 @@ private:
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
     const IJobInputCachePtr JobInputCache_;
+
+    NYTree::IYPathServicePtr CreateStaticOrchidService();
+    NYTree::IYPathServicePtr CreateJobProxyOrchidService();
+    NYTree::IYPathServicePtr CreateDynamicOrchidService();
 
     void OnResourcesAcquired() noexcept;
 

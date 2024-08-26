@@ -21,6 +21,9 @@ using namespace NConcurrency;
 using namespace NJobProberClient;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberClient

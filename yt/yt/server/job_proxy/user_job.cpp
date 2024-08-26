@@ -143,6 +143,9 @@ using NControllerAgent::NProto::TUserJobSpec;
 using NControllerAgent::NProto::TCoreInfo;
 using NChunkClient::TDataSliceDescriptor;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _unix_
@@ -1108,6 +1111,9 @@ private:
 
     void PrepareInputTablePipe()
     {
+        int jobDescriptor = 0;
+        InputPipePath_= CreateNamedPipePath();
+
         YT_LOG_DEBUG(
             "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
             InputPipePath_,
@@ -1115,8 +1121,6 @@ private:
             JobIOConfig_->PipeCapacity,
             JobIOConfig_->UseDeliveryFencedPipeWriter);
 
-        int jobDescriptor = 0;
-        InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         PipeConfigs_.emplace_back(std::move(pipeConfig));
@@ -1481,6 +1485,18 @@ private:
         return result;
     }
 
+    TJobProxyOrchidInfo GetOrchidInfo() override
+    {
+        TJobProxyOrchidInfo info;
+
+        if (JobType_ == EJobType::Vanilla) {
+            info.JobIOInfo.BufferRowCount = JobIOConfig_->BufferRowCount;
+        } else {
+            info.JobIOInfo.BufferRowCount = UserJobReadController_->CurrentBufferRowCount();
+        }
+
+        return info;
+    }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {

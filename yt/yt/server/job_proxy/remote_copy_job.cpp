@@ -73,6 +73,7 @@ using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

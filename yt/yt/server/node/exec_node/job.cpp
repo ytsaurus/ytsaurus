@@ -54,6 +54,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -83,6 +84,8 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/bus/tcp/client.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/net/address.h>
@@ -91,6 +94,11 @@
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <yt/yt/core/rpc/bus/channel.h>
+
+#include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -1251,6 +1259,74 @@ TBriefJobInfo TJob::GetBriefInfo() const
         JobEvents_,
         CoreInfos_,
         ExecAttributes_);
+}
+
+NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto jobInfoOrError = WaitFor(BIND_NO_PROPAGATE(
+            &TJob::GetBriefInfo,
+            MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run());
+
+        YT_LOG_FATAL_UNLESS(
+            jobInfoOrError.IsOK(),
+            jobInfoOrError,
+            "Failed to get brief job info for static orchid");
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Do(std::bind(
+                &TBriefJobInfo::BuildOrchid,
+                std::move(jobInfoOrError).Value(),
+                std::placeholders::_1))
+        .EndMap();
+    });
+
+    return NYTree::IYPathService::FromProducer(std::move(producer));
+}
+
+NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    try {
+        ValidateJobRunning();
+
+        if (!JobProxyChannel_) {
+            auto client = CreateBusClient(GetUserSlot()->GetBusClientConfig());
+            JobProxyChannel_ = NRpc::NBus::CreateBusChannel(std::move(client));
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to create job proxy orchid service");
+        return nullptr;
+    }
+
+    return NOrchid::CreateOrchidYPathService({
+        .Channel = JobProxyChannel_,
+        .RemoteRoot = "//job_proxy",
+    });
+}
+
+NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return New<NYTree::TCompositeMapService>()
+        ->AddChild("job_proxy", CreateJobProxyOrchidService());
+}
+
+IYPathServicePtr TJob::GetOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return New<TServiceCombiner>(
+        std::vector{
+            CreateStaticOrchidService(),
+            CreateDynamicOrchidService()
+        });
 }
 
 std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)

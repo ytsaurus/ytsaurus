@@ -14,6 +14,9 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NExecNode;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const double MaxBackoffMultiplier = 1000.0;

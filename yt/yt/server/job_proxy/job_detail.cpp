@@ -54,6 +54,9 @@ using NChunkClient::NProto::TDataStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = JobProxyLogger;
@@ -168,6 +171,15 @@ i64 TJob::GetStderrSize() const
 TSharedRef TJob::DumpSensors()
 {
     YT_UNIMPLEMENTED();
+}
+
+TJobProxyOrchidInfo TJob::GetOrchidInfo()
+{
+    return TJobProxyOrchidInfo{
+        .JobIOInfo = TJobIOOrchidInfo{
+            .BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount,
+        }
+    };
 }
 
 std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() const

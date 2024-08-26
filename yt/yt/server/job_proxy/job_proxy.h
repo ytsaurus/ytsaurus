@@ -168,6 +168,11 @@ private:
 
     NAuth::ITvmBridgePtr TvmBridge_;
 
+    NYTree::IMapNodePtr OrchidRoot_;
+
+    NYTree::IYPathServicePtr CreateOrchidService();
+    void InitializeOrchid();
+
     void UpdateCumulativeMemoryUsage(i64 memoryUsage);
 
     void SetJob(IJobPtr job);
