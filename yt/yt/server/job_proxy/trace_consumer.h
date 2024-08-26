@@ -21,20 +21,20 @@ public:
     explicit TTraceConsumer(TJobTraceEventProcessorPtr jobTraceEventProcessor);
 
 private:
-    std::unique_ptr<NJson::IJsonWriter> CreateJsonWriter();
-
-    TJobTraceEventProcessorPtr JobTraceEventProcessor_;
+    const TJobTraceEventProcessorPtr JobTraceEventProcessor_;
 
     // TODO(omgronny): Improve attribute consumer via adding a certain set of attributes.
-    NYTree::IAttributeDictionaryPtr Attributes_;
+    const NYTree::IAttributeDictionaryPtr Attributes_;
     NYTree::TAttributeConsumer AttributeConsumer_;
-
-    void OnMyListItem() override;
 
     std::unique_ptr<NJson::IJsonWriter> JsonWriter_;
     TStringStream JsonStream_;
 
     std::unique_ptr<NTableClient::TTableOutput> Output_;
+
+    std::unique_ptr<NJson::IJsonWriter> CreateJsonWriter();
+
+    void OnMyListItem() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

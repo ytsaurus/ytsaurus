@@ -612,7 +612,7 @@ private:
     IConnectionReaderPtr StderrPipeReader_;
     IConnectionReaderPtr ProfilePipeReader_;
 
-    TJobTraceEventProcessorPtr TraceEventProcessor_;
+    const TJobTraceEventProcessorPtr TraceEventProcessor_;
     TTraceConsumer TraceConsumer_;
     std::unique_ptr<TTableOutput> TraceEventOutput_;
 
@@ -1041,7 +1041,10 @@ private:
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
         const TError& wrappingError,
-        const std::function<void()>& onError = {})
+        std::function<void(const IConnectionReaderPtr&, const TError&)> onError =
+            [] (const IConnectionReaderPtr& /*input*/, const TError& error) {
+                THROW_ERROR error;
+            })
     {
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
@@ -1060,20 +1063,7 @@ private:
                     << ex;
                 YT_LOG_ERROR(error);
 
-                // We abort asyncInput for stderr.
-                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
-                // because we want to read and save as much stderr as possible even if job is failing.
-                // But if stderr transferring fiber itself fails, child process may hang
-                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
-                if (asyncInput == StderrPipeReader_) {
-                    YT_UNUSED_FUTURE(asyncInput->Abort());
-                }
-
-                if (onError) {
-                    onError();
-                } else {
-                    THROW_ERROR error;
-                }
+                onError(asyncInput, error);
             }
         }));
 
@@ -1183,7 +1173,16 @@ private:
             errorOutputDescriptors,
             CreateErrorOutput(),
             &StderrActions_,
-            TError("Error writing to stderr"));
+            TError("Error writing to stderr"),
+            /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& error) {
+                // We abort asyncInput for stderr.
+                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
+                // because we want to read and save as much stderr as possible even if job is failing.
+                // But if stderr transferring fiber itself fails, child process may hang
+                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
+                YT_UNUSED_FUTURE(input->Abort());
+                THROW_ERROR error;
+            });
 
         PrepareOutputTablePipes();
 
@@ -1220,7 +1219,8 @@ private:
                     profileOutput,
                     &StderrActions_,
                     TError("Error writing job profile"),
-                    /*onError*/ [&] {
+                    /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& /*error*/) {
+                        YT_UNUSED_FUTURE(input->Abort());
                         ++JobProfilerFailureCount_;
                     });
             }
