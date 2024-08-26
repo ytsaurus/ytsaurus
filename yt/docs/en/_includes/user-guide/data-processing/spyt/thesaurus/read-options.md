@@ -1,6 +1,24 @@
 
 # Read options
 
+## Multi-cluster reads
+
+By default, the computation process accesses data on the cluster that provides the computational resources (when running directly or when using a standalone cluster). SPYT runs its own RPC proxies to offload shared cluster proxies.
+
+Version 2.2.0 introduced the option to read data from different {{product-name}} clusters. To do this, you must explicitly indicate the cluster address in the table path.
+
+```python
+spark.read.yt('<cluster="localhost:8000">//home/table').show() # Table on cluster localhost:8000
+
+spark.read.yt('//home/table').show() # Table on home cluster
+```
+
+{% note info "Note" %}
+
+Data is read from other {{product-name}} clusters through shared proxies, which may put a heavy strain on them when the volume of data is high.
+
+{% endnote %}
+
 ## schema_hint
 
 Hard-coded [column type](../../../../../user-guide/storage/data-types.md). Useful when a column is of type `any` (a composite data type serialized as `yson`).
