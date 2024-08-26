@@ -62,8 +62,8 @@ public:
         TDuration threshold)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
-        , OnNetworkRelease_(onNetworkRelease)
-        , UserJobIOFactory_(userJobIOFactory)
+        , OnNetworkRelease_(std::move(onNetworkRelease))
+        , UserJobIOFactory_(std::move(userJobIOFactory))
         , UdfDirectory_(std::move(udfDirectory))
         , Guesser_(
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
@@ -334,8 +334,8 @@ private:
         TDuration pipeDelay)
     {
         if (Guesser_.IsEnabled()) {
-            PipeReaderToAdaptiveWriterByBatches(
-                reader,
+            PipeReaderToWriterByBatches(
+                CreateApiFromSchemalessChunkReaderAdapter(reader),
                 writer,
                 options,
                 BIND(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this)),
@@ -344,9 +344,10 @@ private:
         }
 
         PipeReaderToWriterByBatches(
-            reader,
+            CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
             options,
+            /*optionsUpdater*/ {},
             pipeDelay);
     }
 

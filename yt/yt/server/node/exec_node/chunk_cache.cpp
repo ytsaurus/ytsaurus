@@ -1353,7 +1353,7 @@ private:
                     << std::move(readerError);
             };
             PipeReaderToWriter(
-                reader,
+                CreateApiFromSchemalessChunkReaderAdapter(reader),
                 writer,
                 options);
         };

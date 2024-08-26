@@ -105,7 +105,7 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
-    TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
     }
@@ -139,47 +139,6 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
     ISchemalessChunkReaderPtr underlyingReader)
 {
     return New<TApiFromSchemalessChunkReaderAdapter>(std::move(underlyingReader));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PipeReaderToWriter(
-    const ISchemalessChunkReaderPtr& reader,
-    const IUnversionedRowsetWriterPtr& writer,
-    const TPipeReaderToWriterOptions& options)
-{
-    PipeReaderToWriter(
-        CreateApiFromSchemalessChunkReaderAdapter(reader),
-        writer,
-        options);
-}
-
-void PipeReaderToWriterByBatches(
-    const ISchemalessChunkReaderPtr& reader,
-    const NFormats::ISchemalessFormatWriterPtr& writer,
-    const TRowBatchReadOptions& options,
-    TDuration pipeDelay)
-{
-    PipeReaderToWriterByBatches(
-        CreateApiFromSchemalessChunkReaderAdapter(reader),
-        writer,
-        options,
-        pipeDelay);
-}
-
-void PipeReaderToAdaptiveWriterByBatches(
-    const ISchemalessChunkReaderPtr& reader,
-    const NFormats::ISchemalessFormatWriterPtr& writer,
-    const TRowBatchReadOptions& startingOptions,
-    TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> optionsUpdater,
-    TDuration pipeDelay)
-{
-    PipeReaderToAdaptiveWriterByBatches(
-        CreateApiFromSchemalessChunkReaderAdapter(reader),
-        writer,
-        startingOptions,
-        std::move(optionsUpdater),
-        pipeDelay);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

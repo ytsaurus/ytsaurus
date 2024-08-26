@@ -253,7 +253,7 @@ TJobResult TSimpleJobBase::Run()
         options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
         options.ValidateValues = true;
         PipeReaderToWriter(
-            Reader_,
+            CreateApiFromSchemalessChunkReaderAdapter(Reader_),
             Writer_,
             options);
     }

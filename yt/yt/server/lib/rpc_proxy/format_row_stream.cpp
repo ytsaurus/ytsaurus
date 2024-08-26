@@ -178,7 +178,7 @@ public:
         , Format_(std::move(format))
         , TableSchema_(std::move(tableSchema))
         , TableWriter_(New<TCapturingTableWriter>(NameTable_, TableSchema_))
-        , SchemalessWriter_(CreateSchemalessFromApiWriterAdapter(TableWriter_))
+        , SchemalessWriter_(CreateSchemalessFromApiWriterAdapter(StaticPointerCast<ITableWriter>(TableWriter_)))
         , ValueConsumer_(
             SchemalessWriter_,
             ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))

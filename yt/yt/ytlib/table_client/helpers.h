@@ -36,26 +36,6 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PipeReaderToWriter(
-    const ISchemalessChunkReaderPtr& reader,
-    const IUnversionedRowsetWriterPtr& writer,
-    const TPipeReaderToWriterOptions& options);
-
-void PipeReaderToWriterByBatches(
-    const ISchemalessChunkReaderPtr& reader,
-    const NFormats::ISchemalessFormatWriterPtr& writer,
-    const TRowBatchReadOptions& options,
-    TDuration pipeDelay);
-
-void PipeReaderToAdaptiveWriterByBatches(
-    const ISchemalessChunkReaderPtr& reader,
-    const NFormats::ISchemalessFormatWriterPtr& writer,
-    const TRowBatchReadOptions& startingOptions,
-    TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> optionsUpdater,
-    TDuration pipeDelay);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Checks whether chunk with `chunkSortColumns' sort columns
 //! can belong to sorted table with `tableSortColumns' sort columns and
 //! given key uniqueness.
