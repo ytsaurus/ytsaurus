@@ -5739,7 +5739,8 @@ private:
             return nullptr;
         }
 
-        auto isDestroyed = location->RemoveDestroyedReplica(chunkIdWithIndex);
+        const auto& config = GetDynamicConfig();
+        auto isDestroyed = config->Testing->DisableRemovingReplicasFromDestroyedQeueue ? false : location->RemoveDestroyedReplica(chunkIdWithIndex);
         if (isDestroyed) {
             --DestroyedReplicaCount_;
         }
@@ -5763,8 +5764,8 @@ private:
             ScheduleChunkRefresh(chunk, GetDynamicConfig()->DisposedPendingRestartNodeChunkRefreshDelay);
         }
 
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+        const auto& sequoiaReplicasConfig = config->SequoiaChunkReplicas;
+        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !sequoiaReplicasConfig->ProcessRemovedSequoiaReplicasOnMaster) {
             ScheduleChunkRefresh(chunk);
             return nullptr;
         }

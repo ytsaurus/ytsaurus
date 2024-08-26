@@ -432,6 +432,9 @@ public:
     //! If true, seal will always be unreliable.
     bool ForceUnreliableSeal;
 
+    //! If true, removed replicas won't be removed from DestroyedReplicas_.
+    bool DisableRemovingReplicasFromDestroyedQeueue;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -609,7 +612,6 @@ public:
 
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;
-
 
     //! Deprecated codec ids, used values from yt/core/compression by default.
     std::optional<THashSet<NCompression::ECodec>> ForbiddenCompressionCodecs;
