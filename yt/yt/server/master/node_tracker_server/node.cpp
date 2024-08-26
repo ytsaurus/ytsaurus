@@ -520,20 +520,12 @@ void TNode::SetRegistrationPending(TCellTag selfCellTag)
 
 void TNode::SetState(
     TCellTag cellTag,
-    ENodeState state,
-    bool redundant)
+    ENodeState state)
 {
     YT_VERIFY(HasMutationContext());
 
     auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
     auto mustRecomputeState = (descriptor.State != state);
-    if (redundant && mustRecomputeState) {
-        YT_LOG_ALERT("Cell reported new node state marked as redundant (NodeId: %v, CellTag: %v, OldState: %v, NewState: %v)",
-            GetId(),
-            cellTag,
-            descriptor.State,
-            state);
-    }
 
     if (descriptor.State == ENodeState::Offline && state != ENodeState::Offline) {
         descriptor.RegistrationPending = false;

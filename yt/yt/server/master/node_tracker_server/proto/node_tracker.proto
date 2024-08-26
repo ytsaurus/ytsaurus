@@ -52,9 +52,6 @@ message TReqFinishNodeDisposal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSendNodeStates
-{ }
-
 message TMediumStatistics
 {
     required int32 medium_index = 1;
@@ -68,25 +65,6 @@ message TNodeStatistics
     required int64 chunk_push_replication_queues_size = 3;
     required int64 chunk_pull_replication_queues_size = 4;
     required int64 pull_replication_chunk_count = 5;
-}
-
-// COMPAT(aleksandra-zh).
-message TReqSetCellNodeDescriptors
-{
-    message TNodeDescriptor
-    {
-        required int32 state = 1; // ENodeState
-        required TNodeStatistics statistics = 2;
-    }
-
-    message TEntry
-    {
-        required uint32 node_id = 1;
-        required TNodeDescriptor node_descriptor = 2;
-    }
-
-    required uint32 cell_tag = 1;
-    repeated TEntry entries = 2;
 }
 
 message TReqSetNodeStatistics
@@ -106,19 +84,6 @@ message TReqSetNodeAggregatedStateReliability
     required uint32 node_id = 1;
     required int32 cell_reliability = 2; // ECellAggregatedStateReliability
     required uint32 cell_tag = 3;
-}
-
-// COMPAT(aleksandra-zh)
-message TReqSetNodeStates
-{
-    message TEntry
-    {
-        required uint32 node_id = 1;
-        required int32 state = 2; // ENodeState
-    }
-
-    required uint32 cell_tag = 1;
-    repeated TEntry entries = 2;
 }
 
 message TReqSetNodeState
