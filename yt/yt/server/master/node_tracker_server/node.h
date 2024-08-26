@@ -326,8 +326,7 @@ public:
     //! Sets state for the given cell.
     void SetState(
         NObjectClient::TCellTag cellTag,
-        ENodeState state,
-        bool redundant);
+        ENodeState state);
     //! Sets statistics for the given cell.
     void SetStatistics(
         NObjectClient::TCellTag cellTag,

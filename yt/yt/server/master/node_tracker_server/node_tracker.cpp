@@ -133,16 +133,11 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraMaterializeNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
-        // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSendNodeStates, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStatistics, Unretained(this)));
-        // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeState, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeAggregatedStateReliability, Unretained(this)));
@@ -1487,35 +1482,6 @@ private:
         return true;
     }
 
-    // COMPAT(aleksandra-zh)
-    void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
-    {
-        auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!ValidateGossipCell(cellTag)) {
-            return;
-        }
-
-        YT_LOG_INFO("Received cell node descriptor gossip message (CellTag: %v)",
-            cellTag);
-
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TNodeId>(entry.node_id());
-            auto* node = FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            const auto& descriptor = entry.node_descriptor();
-            auto statistics = FromProto<TCellNodeStatistics>(descriptor.statistics());
-            node->SetStatistics(cellTag, statistics);
-
-            UpdateNodeCounters(node, -1);
-            auto state = ENodeState(descriptor.state());
-            node->SetState(cellTag, state, /*redundant*/ false);
-            UpdateNodeCounters(node, +1);
-        }
-    }
-
     void HydraSetNodeStatistics(TReqSetNodeStatistics* request)
     {
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
@@ -1570,32 +1536,6 @@ private:
         node->SetCellAggregatedStateReliability(cellTag, reliability);
     }
 
-    // COMPAT(aleksandra-zh)
-    void HydraSetNodeStates(TReqSetNodeStates* request)
-    {
-        auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!ValidateGossipCell(cellTag)) {
-            return;
-        }
-
-        YT_LOG_INFO("Received node states (CellTag: %v)",
-            cellTag);
-
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TNodeId>(entry.node_id());
-            auto* node = FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            auto state = ENodeState(entry.state());
-
-            UpdateNodeCounters(node, -1);
-            node->SetState(cellTag, state, /*redundant*/ true);
-            UpdateNodeCounters(node, +1);
-        }
-    }
-
     void HydraSetNodeState(TReqSetNodeState* request)
     {
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
@@ -1617,7 +1557,7 @@ private:
         }
 
         UpdateNodeCounters(node, -1);
-        node->SetState(cellTag, state, /*redundant*/ false);
+        node->SetState(cellTag, state);
         UpdateNodeCounters(node, +1);
     }
 
@@ -2284,47 +2224,6 @@ private:
             request.entries_size());
 
         multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
-    }
-
-    void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        TReqSetNodeStates gossipRequest;
-        gossipRequest.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
-
-        for (auto [nodeId, node] : NodeMap_) {
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            auto state = node->GetLocalState();
-            if (state != node->GetLastGossipState()) {
-                YT_LOG_ALERT("Node state was not reported on change (CurrentNodeState: %v, LastReportedState: %v)",
-                    state,
-                    node->GetLastGossipState());
-            }
-
-            auto* entry = gossipRequest.add_entries();
-            entry->set_node_id(ToProto<ui32>(node->GetId()));
-            entry->set_state(ToProto<int>(state));
-            node->SetLastGossipState(state);
-        }
-
-        if (gossipRequest.entries_size() == 0) {
-            return;
-        }
-
-        std::sort(
-            gossipRequest.mutable_entries()->begin(),
-            gossipRequest.mutable_entries()->end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs.node_id() < rhs.node_id();
-            });
-
-        YT_LOG_INFO("Sending node states gossip message (NodeCount: %v)",
-            gossipRequest.entries_size());
-        multicellManager->PostToPrimaryMaster(gossipRequest);
     }
 
     void SendNodeAggregatedStateReliability(TNode* node)
