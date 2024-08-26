@@ -64,6 +64,8 @@ jobs:
       build-python: true
       build-query-tracker: true
       cpp-build-system: ya-make
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:

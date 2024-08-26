@@ -58,6 +58,8 @@ jobs:
       build-python: true
       build-strawberry: true
       build-ytsaurus: true
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:

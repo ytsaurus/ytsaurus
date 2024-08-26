@@ -31,10 +31,16 @@ on:
         required: false
         type: boolean
 
+    secrets:
+      YA_YT_TOKEN:
+        required: true
+
 jobs:
   venv:
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
+    env:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     steps:
       - name: Prepare python virtual environment
         run: |
@@ -198,7 +204,7 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-put"
           STRIP_VALUE=no
           BUILD_TYPE=profile
           if [ "${{ matrix.build-type }}" == "release" ]
