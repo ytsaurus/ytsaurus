@@ -472,6 +472,8 @@ message TJobSpecExt
 
     map<string, TRemoteInputCluster> remote_input_clusters = 40;
 
+    optional bool allow_use_virtual_squashfs_layer = 41 [default = false];
+
     reserved 8, 28;
 }
 
