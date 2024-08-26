@@ -868,6 +868,8 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 break;
             }
 
+            RequireLeader();
+
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->GetNodeChunkMergerStatus(node->GetId()));
