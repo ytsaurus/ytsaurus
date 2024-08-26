@@ -136,7 +136,7 @@ void SerializeFragment(const TBackgroundActivityTaskInfoBase::TRuntimeData& runt
 void Serialize(const TBackgroundActivityTaskInfoBase& task, NYson::IYsonConsumer* consumer);
 
 template <class TTaskInfo>
-struct TGuardedTaskInfo
+class TGuardedTaskInfo
 {
 public:
     const TIntrusivePtr<TTaskInfo> Info;
