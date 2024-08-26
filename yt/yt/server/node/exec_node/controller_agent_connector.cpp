@@ -262,7 +262,7 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
     TTraceContextPtr requestTraceContext;
 
     if (currentConfig->EnableTracing) {
-        requestTraceContext = TTraceContext::NewRoot("AgentHeartbeatRequest");
+        requestTraceContext = TTraceContext::NewRoot("ControllerAgentHeartbeat");
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", ToString(nodeId));
 
