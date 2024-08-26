@@ -435,6 +435,9 @@ void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("force_unreliable_seal", &TThis::ForceUnreliableSeal)
         .Default(false);
+
+    registrar.Parameter("disable_removing_replicas_from_destroyed_queue", &TThis::DisableRemovingReplicasFromDestroyedQeueue)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

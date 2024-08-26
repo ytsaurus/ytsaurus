@@ -194,7 +194,10 @@ public:
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        // COMPAT(aleksandra-zh).
         jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+        ToProto(jobSpecExt->mutable_location_uuid(), ChunkLocationUuid_);
+
         if (!IsObjectAlive(Chunk_)) {
             jobSpecExt->set_chunk_is_dead(true);
             return true;

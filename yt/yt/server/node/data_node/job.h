@@ -94,7 +94,10 @@ protected:
     void SetAborted(const TError& error);
 
     IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex);
+    IChunkPtr FindLocalChunk(TChunkId chunkId, TChunkLocationUuid locationUuid);
+
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex);
+    IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid);
 
 private:
     void DoSetFinished(NJobAgent::EJobState finalState, const TError& error);

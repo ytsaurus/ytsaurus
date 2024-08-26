@@ -307,6 +307,26 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
     return nullptr;
 }
 
+IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, TChunkLocationUuid locationUuid) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(ChunkMapLock_);
+
+    auto itRange = ChunkMap_.equal_range(chunkId);
+    if (itRange.first == itRange.second) {
+        return nullptr;
+    }
+
+    for (auto it = itRange.first; it != itRange.second; ++it) {
+        if (it->second.Chunk->GetLocation()->GetUuid() == locationUuid) {
+            return it->second.Chunk;
+        }
+    }
+
+    return nullptr;
+}
+
 TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(const IChunkPtr& oldChunk, const IChunkPtr& newChunk)
 {
     VERIFY_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -572,6 +592,36 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
     ChunkRemoved_.Fire(chunk);
 }
 
+TStoreLocationPtr TChunkStore::GetChunkLocationByUuid(TChunkLocationUuid locationUuid)
+{
+    for (const auto& location : Locations_) {
+        if (location->GetUuid() == locationUuid) {
+            return location;
+        }
+    }
+
+    return nullptr;
+}
+
+void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
+{
+    auto location = GetChunkLocationByUuid(locationUuid);
+    if (!location) {
+        YT_LOG_ERROR("Chunk location is missing during nonexistent chunk removal (ChunkId: %v, LocationUuid: %v)",
+            chunkId,
+            locationUuid);
+        return;
+    }
+
+    TChunkDescriptor descriptor(chunkId);
+    auto chunk = CreateFromDescriptor(location, descriptor);
+
+    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v)",
+        chunkId,
+        location->GetId());
+    ChunkRemoved_.Fire(chunk);
+}
+
 TChunkStore::TChunkEntry TChunkStore::BuildChunkEntry(const IChunkPtr& chunk)
 {
     return TChunkEntry{
@@ -588,8 +638,24 @@ IChunkPtr TChunkStore::GetChunkOrThrow(TChunkId chunkId, int mediumIndex) const
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
-            "No such chunk %v",
-            chunkId);
+            "No such chunk %v on medium %v",
+            chunkId,
+            mediumIndex);
+    }
+
+    return chunk;
+}
+IChunkPtr TChunkStore::GetChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto chunk = FindChunk(chunkId, locationUuid);
+    if (!chunk) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchChunk,
+            "No such chunk %v on location %v",
+            chunkId,
+            locationUuid);
     }
 
     return chunk;

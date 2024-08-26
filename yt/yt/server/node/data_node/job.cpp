@@ -342,6 +342,13 @@ IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, int mediumIndex)
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, mediumIndex);
 }
+IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->FindChunk(chunkId, locationUuid);
+}
 
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
 {
@@ -349,6 +356,13 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
+}
+IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->GetChunkOrThrow(chunkId, locationUuid);
 }
 
 void TMasterJobBase::DoSetFinished(
@@ -425,13 +439,17 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
-        int mediumIndex = JobSpecExt_.medium_index();
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
+        // COMPAT(aleksandra-zh)
+        int mediumIndex = JobSpecExt_.has_medium_index() ? JobSpecExt_.medium_index() : -1;
+        auto locationUuid = JobSpecExt_.has_location_uuid() ? FromProto<TChunkLocationUuid>(JobSpecExt_.location_uuid()) : InvalidChunkLocationUuid;
+
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, ChunkLocationUuid: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
             mediumIndex,
+            locationUuid,
             replicas,
             replicasExpirationDeadline,
             chunkIsDead,
@@ -439,20 +457,37 @@ private:
 
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
-        auto chunk = chunkIsDead
-            ? FindLocalChunk(ChunkId_, mediumIndex)
-            : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        auto getChunk = [&] {
+            if (locationUuid != InvalidChunkLocationUuid) {
+                return chunkIsDead
+                    ? FindLocalChunk(ChunkId_, locationUuid)
+                    : GetLocalChunkOrThrow(ChunkId_, locationUuid);
+            }
+            // COMPAT(aleksandra-zh).
+            return chunkIsDead
+                ? FindLocalChunk(ChunkId_, mediumIndex)
+                : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
+        };
+        auto chunk = getChunk();
 
         if (!chunk) {
             YT_VERIFY(chunkIsDead);
             YT_LOG_INFO("Dead chunk is missing, reporting success");
+            if (locationUuid != InvalidChunkLocationUuid) {
+                YT_LOG_INFO("\"Removing\" nonexistent chunk (ChunkId: %v, LocationUuid: %v)",
+                    ChunkId_,
+                    locationUuid);
+
+                chunkStore->RemoveNonexistentChunk(ChunkId_, locationUuid);
+            }
             return VoidFuture;
         }
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
         // of a new fiber and an increase in the number of stacks.
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
         auto resultFuture = chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {

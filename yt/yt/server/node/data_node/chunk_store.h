@@ -101,6 +101,16 @@ public:
      */
     IChunkPtr FindChunk(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
 
+    //! Finds a chunk by id on specified location.
+    //! Returns |nullptr| if no chunk exists.
+    //! NB: must not be called until the node is registered at master (because
+    //! we lack medium name-to-index mapping until that).
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    IChunkPtr FindChunk(TChunkId chunkId, TChunkLocationUuid locationUuid) const;
+
     //! Finds chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex). Throws if no chunk exists.
     /*!
@@ -108,6 +118,13 @@ public:
      *  Thread affinity: any
      */
     IChunkPtr GetChunkOrThrow(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
+
+    //! Finds chunk by id on the specified location. Throws if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    IChunkPtr GetChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid) const;
 
     //! Returns the list of all registered chunks. These are not guaranteed to
     //! have unique IDs because a chunk may be stored on multiple media.
@@ -133,6 +150,12 @@ public:
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
     TFuture<void> RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay = {});
+
+    //! Returns location with a given location uuid or nullptr if there is no such location.
+    TStoreLocationPtr GetChunkLocationByUuid(TChunkLocationUuid locationUuid);
+
+    //! Fires the RemoveChunk_ callback for a chunk not physically present on a given location.
+    void RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid locationUuid);
 
     //! Triggers medium change for all chunks in location.
     void ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex);
