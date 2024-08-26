@@ -740,7 +740,7 @@ private:
     void ValidateRemoval() override
     {
         const auto* node = GetThisImpl();
-        if (node->GetLocalState() != ENodeState::Offline) {
+        if (node->GetAggregatedState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
 
