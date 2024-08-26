@@ -302,9 +302,7 @@ class YtClient(ClientState):
     def alter_replication_card(
             self,
             replication_card_id,
-            replicated_table_options=None,
-            enable_replicated_table_tracker=None,
-            replication_card_collocation_id=None,
+            replicated_table_options=None, enable_replicated_table_tracker=None, replication_card_collocation_id=None,
             collocation_options=None):
         """
         Changes mode and enables or disables a table replica. Also manipulates with card's collocation.
@@ -317,14 +315,13 @@ class YtClient(ClientState):
         :param str replication_card_collocation_id: id of collocation to set. Set "0-0-0-0" to remove card from collocation.
         :param str collocation_options: options to set for card's collocation. Card is expected to be a member of a collocation.
 
+
         """
         return client_api.alter_replication_card(
             replication_card_id,
             client=self,
-            replicated_table_options=replicated_table_options,
-            enable_replicated_table_tracker=enable_replicated_table_tracker,
-            replication_card_collocation_id=replication_card_collocation_id,
-            collocation_options=collocation_options)
+            replicated_table_options=replicated_table_options, enable_replicated_table_tracker=enable_replicated_table_tracker,
+            replication_card_collocation_id=replication_card_collocation_id, collocation_options=collocation_options)
 
     def alter_table(
             self,
