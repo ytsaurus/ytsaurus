@@ -754,6 +754,7 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
 EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const
 {
     YT_VERIFY(!HasMutationContext());
+    YT_VERIFY(IsLeader());
 
     auto it = NodeToChunkMergerStatus_.find(nodeId);
     return it == NodeToChunkMergerStatus_.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
@@ -1025,11 +1026,7 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
-    NodeToChunkMergerStatus_.clear();
     ConfigVersion_ = 0;
-    NodeToRescheduleCountAfterMaxBackoffDelay_.clear();
-    NodeToBackoffPeriod_.clear();
-    AccountIdToStuckNodes_.clear();
 
     OldNodesBeingMerged_.reset();
     NeedRestorePersistentStatistics_ = false;
@@ -1163,11 +1160,19 @@ void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
-    YT_VERIFY(NodesBeingMerged_.contains(chunkOwner->GetId()));
 
-    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
+    auto nodeId = chunkOwner->GetId();
+    YT_VERIFY(NodesBeingMerged_.contains(nodeId));
 
     if (IsLeader()) {
+        if (RunningSessions_.contains(nodeId)) {
+            auto accountId = chunkOwner->Account()->GetId();
+            YT_LOG_INFO("Node already has running merge session (NodeId: %v, AccountId: %v)",
+                nodeId,
+                accountId);
+            return;
+        }
+
         RegisterSessionTransient(chunkOwner);
     }
 }
@@ -1179,6 +1184,8 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
 
     auto nodeId = chunkOwner->GetId();
     auto* account = chunkOwner->Account().Get();
+
+    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
 
     YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
         nodeId,
@@ -2101,7 +2108,10 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         auto accountId = GetIteratorOrCrash(NodesBeingMerged_, nodeId)->second;
         RemoveFromNodesBeingMerged(nodeId);
-        NodeToChunkMergerStatus_.erase(nodeId);
+
+        if (IsLeader()) {
+            NodeToChunkMergerStatus_.erase(nodeId);
+        }
 
         auto* chunkOwner = FindChunkOwner(nodeId);
         if (!chunkOwner) {
@@ -2213,13 +2223,6 @@ void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
 
     if (!NodesBeingMerged_.contains(nodeId)) {
         YT_LOG_INFO("Node was removed from persistent merge state before merge was rescheduled (NodeId: %v, AccountId: %v)",
-            nodeId,
-            accountId);
-        return;
-    }
-
-    if (RunningSessions_.contains(nodeId)) {
-        YT_LOG_INFO("Node already has running merge session (NodeId: %v, AccountId: %v)",
             nodeId,
             accountId);
         return;
