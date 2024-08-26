@@ -53,6 +53,8 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
