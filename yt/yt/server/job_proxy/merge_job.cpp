@@ -32,6 +32,8 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::TDataSliceDescriptor;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,6 +24,9 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProberLogger, "JobProber");

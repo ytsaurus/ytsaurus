@@ -47,6 +47,9 @@
 #include <yt/yt/core/misc/statistics.h>
 #include <yt/yt/core/misc/process_exit_profiler.h>
 
+#include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
+
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -351,13 +354,11 @@ public:
         StartAllocationsScheduled_ = true;
     }
 
-    IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND_NO_PROPAGATE(
-            &TJobController::BuildOrchid,
-            MakeStrong(this)));
+        return DoGetOrchidService();
     }
 
     void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& outdatedAgentDescriptor) override
@@ -615,7 +616,7 @@ private:
         return error;
     }
 
-    std::vector<TJobPtr> GetJobs()
+    std::vector<TJobPtr> GetJobs() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -2050,17 +2051,6 @@ private:
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
     }
 
-    static void BuildJobsInfo(const std::vector<TBriefJobInfo>& jobsInfo, TFluentAny fluent)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        fluent.DoMapFor(
-            jobsInfo,
-            [&] (TFluentMap fluent, const TBriefJobInfo& jobInfo) {
-                jobInfo.BuildOrchid(fluent);
-            });
-    }
-
     static void BuildJobsWaitingForCleanupInfo(
         const std::vector<std::pair<TJobId, EJobPhase>>& jobsWaitingForCleanupInfo,
         TFluentAny fluent)
@@ -2093,66 +2083,57 @@ private:
         }
     }
 
-    auto DoGetStateSnapshot() const
+    auto DoGetStaticOrchidInfo() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
         TForbidContextSwitchGuard guard;
 
-        std::vector<TBriefJobInfo> jobInfo;
-        jobInfo.reserve(IdToJob_.size());
-
-        for (const auto& [_, job] : IdToJob_) {
-            jobInfo.emplace_back(job->GetBriefInfo());
-        }
+        auto jobCount = std::ssize(IdToJob_);
 
         std::vector<std::pair<TJobId, EJobPhase>> jobsWaitingForCleanupInfo;
-
         jobsWaitingForCleanupInfo.reserve(JobsWaitingForCleanup_.size());
 
-        for (TForbidContextSwitchGuard guard; const auto& job : JobsWaitingForCleanup_) {
+        for (const auto& job : JobsWaitingForCleanup_) {
             jobsWaitingForCleanupInfo.emplace_back(job->GetId(), job->GetPhase());
         }
 
         return std::tuple(
-            std::move(jobInfo),
+            jobCount,
             std::move(jobsWaitingForCleanupInfo),
             CachedJobProxyBuildInfo_.Load());
     }
 
-    auto GetStateSnapshot() const
+    auto GetStaticOrchidInfo() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshotOrError = WaitFor(BIND(
-            &TJobController::DoGetStateSnapshot,
+        auto staticOrchidInfo = WaitFor(BIND(
+            &TJobController::DoGetStaticOrchidInfo,
             MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run());
 
         YT_LOG_FATAL_UNLESS(
-            snapshotOrError.IsOK(),
-            snapshotOrError,
-            "Unexpected failure while making exec node job controller info snapshot");
+            staticOrchidInfo.IsOK(),
+            staticOrchidInfo,
+            "Unexpected failure while getting job controller static orchid info");
 
-        return std::move(snapshotOrError.Value());
+        return std::move(staticOrchidInfo.Value());
     }
 
-    void BuildOrchid(IYsonConsumer* consumer) const
+    void BuildStaticOrchid(IYsonConsumer* consumer) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto [
-            jobsInfo,
+            jobsCount,
             jobsWaitingForCleanupInfo,
             buildInfo
-        ] = GetStateSnapshot();
+        ] = GetStaticOrchidInfo();
 
         BuildYsonFluently(consumer).BeginMap()
-            .Item("active_job_count").Value(std::ssize(jobsInfo))
-            .Item("active_jobs").Do(std::bind(
-                &TJobController::BuildJobsInfo,
-                jobsInfo,
-                std::placeholders::_1))
+            .Item("active_job_count").Value(jobsCount)
             .Item("jobs_waiting_for_cleanup").Do(std::bind(
                 &TJobController::BuildJobsWaitingForCleanupInfo,
                 jobsWaitingForCleanupInfo,
@@ -2162,6 +2143,86 @@ private:
                 buildInfo,
                 std::placeholders::_1))
         .EndMap();
+    }
+
+    IYPathServicePtr CreateActiveJobsService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        class TActiveJobService
+            : public TVirtualMapBase
+        {
+        public:
+            explicit TActiveJobService(TIntrusivePtr<TJobController> jobController)
+                : JobController_(std::move(jobController))
+            {
+                SetOpaque(false);
+            }
+
+            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            {
+                std::vector<TString> keys;
+                keys.reserve(std::min<i64>(GetSize(), limit));
+
+                for (const auto& [id, _] : JobController_->IdToJob_) {
+                    if (std::ssize(keys) == limit) {
+                        break;
+                    }
+
+                    keys.push_back(NYT::ToString(id));
+                }
+
+                return keys;
+            }
+
+            i64 GetSize() const
+            {
+                return std::ssize(JobController_->IdToJob_);
+            }
+
+            IYPathServicePtr FindItemService(TStringBuf key) const
+            {
+                // NB: There is no guarantee that obtained key is
+                // still valid due to potential context switches
+                // during which IdToJob_ could be mutated.
+                if (auto job = JobController_->FindJob(TJobId(TGuid::FromString(key)))) {
+                    return job->GetOrchidService();
+                }
+
+                return nullptr;
+            }
+
+        private:
+            const TIntrusivePtr<TJobController> JobController_;
+        };
+
+        return New<TActiveJobService>(MakeStrong(this))->Via(Bootstrap_->GetJobInvoker());
+    }
+
+    IYPathServicePtr GetDynamicOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return New<TCompositeMapService>()
+            ->AddChild(
+                "active_jobs",
+                CreateActiveJobsService());
+    }
+
+    IYPathServicePtr DoGetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto staticOrchidService = IYPathService::FromProducer(BIND_NO_PROPAGATE(
+            &TJobController::BuildStaticOrchid,
+            MakeStrong(this)));
+
+        auto dynamicOrchidService = GetDynamicOrchidService();
+
+        return New<TServiceCombiner>(
+            std::vector{
+                std::move(staticOrchidService),
+                std::move(dynamicOrchidService)});
     }
 };
 

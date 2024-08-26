@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
+#include <yt/yt/server/lib/job_proxy/orchid.h>
 
 #include <yt/yt/server/lib/misc/job_report.h>
 
@@ -143,6 +144,8 @@ struct IJob
     virtual const NControllerAgent::TCoreInfos& GetCoreInfos() const = 0;
 
     virtual std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const = 0;
+
+    virtual TJobProxyOrchidInfo GetOrchidInfo() = 0;
 
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify

@@ -23,8 +23,6 @@ from yt.common import YtError
 
 from flaky import flaky
 
-import time
-import io
 import pytest
 import random
 import string
@@ -1634,11 +1632,6 @@ print(json.dumps(input))
     @pytest.mark.parametrize("ordered", [False, True])
     def test_adaptive_buffer_row_count(self, ordered):
         skip_if_old(self.Env, (24, 1), "Option is not present in older binaries")
-        if self.USE_SEQUOIA:
-            pytest.skip("Log parsing doesn't seem to work with sequoia")
-
-        # NB(arkady-e1ppa): Compat tests seem to fail on import otherwise.
-        import zstandard as zstd
 
         input_table = "//tmp/in"
         output_table = "//tmp/out"
@@ -1656,12 +1649,12 @@ print(json.dumps(input))
 
         update_nodes_dynamic_config(value=row_count * 100, path="exec_node/job_controller/job_proxy/pipe_reader_timeout_threshold")
 
-        map(
+        op = map(
             ordered=ordered,
-            track=True,
+            track=False,
             in_=input_table,
             out=output,
-            command="""cat""",
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={
                 "job_count": 1,
                 "job_io": {
@@ -1672,30 +1665,23 @@ print(json.dumps(input))
             },
         )
 
-        time.sleep(0.5)
+        (job_id, ) = wait_breakpoint()
 
         buffer_row_count = -1
-        # TODO(arkady-e1ppa): Use job_proxy orchid for this once it becomes a thing.
 
-        decompressor = zstd.ZstdDecompressor()
-        for node_idx in range(0, self.NUM_NODES):
-            try:
-                job_proxy_log_file = self.path_to_run + f"/logs/job_proxy-{node_idx}-slot-0.debug.log.zst"
+        for node in ls("//sys/cluster_nodes"):
+            orchid_prefix = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs"
+            orchid_suffix = "job_proxy/job_io/buffer_row_count"
+            if job_id not in get(orchid_prefix):
+                continue
 
-                with open(job_proxy_log_file, "rb") as fin:
-                    binary_reader = decompressor.stream_reader(fin, read_size=8192)
-                    text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
-                    for line in text_stream:
-                        if "Updating guess for batch row count" not in line:
-                            continue
-
-                        current_row_count = int(line.split("NextGuess: ")[1].split(")")[0])
-
-                        buffer_row_count = max(buffer_row_count, current_row_count)
-            except FileNotFoundError:
-                pass
+            buffer_row_count = get(f"{orchid_prefix}/{job_id}/{orchid_suffix}")
+            break
 
         assert buffer_row_count > 1
+
+        release_breakpoint()
+        op.track()
 
     @authors("galtsev")
     @pytest.mark.parametrize("job_count", list(range(1, 4)))

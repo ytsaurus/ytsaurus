@@ -38,6 +38,7 @@ struct IUserJobReadController
     virtual std::optional<NTableClient::TTimingStatistics> GetTimingStatistics() const = 0;
     virtual void InterruptReader() = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
+    virtual i64 CurrentBufferRowCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobReadController)

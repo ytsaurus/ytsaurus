@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     config.cpp
     job_probe.cpp
+    orchid.cpp
 
     proto/job_prober_service.proto
 )

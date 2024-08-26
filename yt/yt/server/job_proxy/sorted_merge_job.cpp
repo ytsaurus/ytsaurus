@@ -29,6 +29,9 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedMergeJob

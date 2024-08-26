@@ -41,6 +41,7 @@ public:
     void Fail() override;
     i64 GetStderrSize() const override;
     TSharedRef DumpSensors() override;
+    TJobProxyOrchidInfo GetOrchidInfo() override;
     std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override;
     bool HasInputStatistics() const override;
 

@@ -89,13 +89,11 @@ public:
         IAsyncYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*attributeFilter*/,
         bool /*stable*/) override
-    {
-        YT_ABORT();
-    }
+    { }
 
     bool ShouldHideAttributes() override
     {
-        YT_ABORT();
+        return true;
     }
 
 private:

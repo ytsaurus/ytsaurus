@@ -65,9 +65,11 @@ public:
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))
-        , Guesser_(JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
-            ? threshold
-            : TDuration::Zero())
+        , Guesser_(
+            JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
+                ? threshold
+                : TDuration::Zero(),
+            JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
     {
         YT_LOG_DEBUG("Guesser Threshold: %v, UseAdaptiveRowCount: %v", threshold, JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount);
     }
@@ -200,6 +202,16 @@ public:
         }
     }
 
+    i64 CurrentBufferRowCount() const override
+    {
+        return WaitFor(BIND([this_ = MakeStrong(this), this] {
+            return Guesser_.CurrentGuess();
+        })
+            .AsyncVia(SerializedInvoker_)
+            .Run())
+            .ValueOrThrow();
+    }
+
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
@@ -220,8 +232,9 @@ private:
     class TOptimalRowCountGuesser
     {
     public:
-        explicit TOptimalRowCountGuesser(TDuration threshold)
+        TOptimalRowCountGuesser(TDuration threshold, i64 currentGuess)
             : Threshold_(threshold)
+            , CurrentGuess_(currentGuess)
         { }
 
         bool IsEnabled() const noexcept
@@ -229,7 +242,12 @@ private:
             return Threshold_ != TDuration::Zero();
         }
 
-        i64 NextGuess(i64 currentGuess, TDuration processTime)
+        i64 CurrentGuess() const noexcept
+        {
+            return CurrentGuess_;
+        }
+
+        i64 NextGuess(TDuration processTime)
         {
             YT_VERIFY(IsEnabled());
 
@@ -237,13 +255,15 @@ private:
 
             auto scaling = Threshold_.MillisecondsFloat() / Aggregator_.GetAverage();
 
-            auto nextGuess = std::max<i64>(currentGuess * scaling, 1);
+            auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
 
             YT_LOG_DEBUG(
                 "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v)",
-                currentGuess,
+                CurrentGuess_,
                 processTime,
                 nextGuess);
+
+            CurrentGuess_ = nextGuess;
 
             return nextGuess;
         }
@@ -251,6 +271,7 @@ private:
     private:
         const TDuration Threshold_;
         TAdjustedExponentialMovingAverage Aggregator_;
+        i64 CurrentGuess_;
     };
 
     TOptimalRowCountGuesser Guesser_;
@@ -273,7 +294,7 @@ private:
     // NB(arkady-e1ppa): Single producer (caller) is assumed.
     void UpdateRowBatchReadOptions(NTableClient::TRowBatchReadOptions* currentOptions, TDuration processTime)
     {
-        currentOptions->MaxRowsPerRead = Guesser_.NextGuess(currentOptions->MaxRowsPerRead, processTime);
+        currentOptions->MaxRowsPerRead = Guesser_.NextGuess(processTime);
     }
 
     ISchemalessFormatWriterPtr PrepareWriterForInputActionsPassthrough(
@@ -455,6 +476,11 @@ public:
     TInterruptDescriptor GetInterruptDescriptor() const override
     {
         return {};
+    }
+
+    i64 CurrentBufferRowCount() const override
+    {
+        return 0;
     }
 };
 
