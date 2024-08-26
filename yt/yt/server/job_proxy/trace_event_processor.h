@@ -71,8 +71,6 @@ public:
     void OnEvent(TTraceEvent event);
 
 private:
-    bool IsControlEvent(const TTraceEvent& event) const;
-
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
     TJobTraceId TraceId_;
@@ -81,9 +79,11 @@ private:
     const TJobTraceEventProcessorConfigPtr Config_;
 
     const NConcurrency::TActionQueuePtr JobTraceReporterActionQueue_ = New<NConcurrency::TActionQueue>("JobTraceReporter");
-    TArchiveVersionHolderPtr ArchiveVersion_ = New<TArchiveVersionHolder>();
+    const TArchiveVersionHolderPtr ArchiveVersion_ = New<TArchiveVersionHolder>();
 
-    IArchiveReporterPtr ArchiveReporter_;
+    const IArchiveReporterPtr ArchiveReporter_;
+
+    bool IsControlEvent(const TTraceEvent& event) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTraceEventProcessor)
