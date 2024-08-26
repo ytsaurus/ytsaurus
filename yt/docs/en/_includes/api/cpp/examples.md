@@ -77,7 +77,7 @@ Let's say we have a table with a set of records on links occurring in web docume
   - `Host`: host part of the link url.
   - `Port`: port part of the link url.
   - `Path`: path part of the link url.
-- `OccurenceCount`: how many times link appears in the document.
+- `OccurrenceCount`: how many times link appears in the document.
 
 Our input table is sorted by `DocTitle` column. We want to aggregate information about each document into single row of output table.
 
@@ -90,7 +90,7 @@ Let's describe protobuf messages of the following form:
 The `TDoc` fields have the following semantics:
 - `Title`: Title.
 - `Links`: List of links occurring in the document.
-- `OccurenceCounts`: List with the number of times the given links occur (this list has same length as the `Links` list).
+- `OccurrenceCounts`: List with the number of times the given links occur (this list has same length as the `Links` list).
 - `ExtraInfo`: Additional information, which in this case includes the total number of times the links occurs.
 
 {% note warning "Attention" %}
