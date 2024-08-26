@@ -5,7 +5,7 @@ from .helpers import get_alias_from_env_or_raise
 from yt.yson import dumps
 from yt.wrapper import YtClient
 from yt.wrapper.config import get_config, get_option, set_option
-from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token
+from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token, _raise_for_status, create_response  # noqa
 from yt.wrapper.http_driver import HeavyProxyProvider, HeavyProxyProviderState, TokenAuth
 from yt.wrapper.common import get_version, get_started_by_short, generate_uuid, YtError
 from yt.wrapper.errors import create_http_response_error
@@ -125,19 +125,24 @@ def execute(query, alias=None, raw=None, format=None, settings=None, traceparent
         }
         logger.debug("Response received (%s)", format_logging_params(logging_params))
 
-        if response.status_code == 401:
-            raise_for_token(response, request_info)
-        elif response.status_code != 200:
+        if response.status_code != 200:
             if "X-Yt-Error" in response.headers:
                 # This case corresponds to situation when error is initiated by out proxy code.
-                error = create_http_response_error(YtError(**json.loads(response.headers["X-Yt-Error"])), response_headers=response.headers, **request_info)
+                response = create_response(
+                    response=response,
+                    request_info={"headers": headers, "url": url, "params": params},
+                    request_id=request_id,
+                    error_format=None,
+                    client=client
+                )
+                _raise_for_status(response, response.request_info)
             else:
                 # This case corresponds to situation when error is forwarded from ClickHouse.
                 error = create_http_response_error(YtError("ClickHouse error: " + response.text.strip(), attributes={
                     "trace_id": response.headers.get("X-YT-Trace-Id"),
                     "span_id": response.headers.get("X-YT-Span-Id"),
                 }), response_headers=response.headers, **request_info)
-            raise error
+                raise error
 
         for line in response.iter_lines():
             response_line_count += 1
