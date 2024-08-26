@@ -33,7 +33,7 @@ static constexpr auto& Logger = TableClientLogger;
 namespace {
 
 template <class T>
-static i64 GetVectorBytesCapacity(const std::vector<T>& vector)
+i64 GetVectorBytesCapacity(const std::vector<T>& vector)
 {
     return vector.capacity() * sizeof(T);
 }
