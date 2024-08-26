@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -146,7 +147,6 @@ public:
         , DynamicConfig_(std::move(dynamicConfig))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
-
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
@@ -219,13 +219,16 @@ public:
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
     {
+        if (ActiveQueriesGuard::Get() >= DynamicConfig_->MaxSimultaneousQueries) {
+            YT_LOG_INFO("Query was throttled (QueryId: %v, User: %v)", queryId, user);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::Throttled, "Query was throttled");
+        }
+
         YT_LOG_INFO("Starting query (QueryId: %v, User: %v)", queryId, user);
 
-        auto result = BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, user, request)
+        return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, user, request)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
-
-        return result;
     }
 
     TFuture<void> AbortQuery(TQueryId queryId) override
@@ -263,15 +266,6 @@ public:
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
         }
-    }
-
-    TRspGetYqlAgentState GetYqlAgentState() override
-    {
-        TRspGetYqlAgentState response;
-        response.set_ready_to_get_queries(
-            ActiveQueriesGuard::Get() < DynamicConfig_->MaxSimultaneousQueries);
-
-        return response;
     }
 
 private:

@@ -18,7 +18,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, StartQuery);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortQuery);
     DEFINE_RPC_PROXY_METHOD(NProto, GetQueryProgress);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetYqlAgentState);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

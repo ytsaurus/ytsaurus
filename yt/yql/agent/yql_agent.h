@@ -37,8 +37,6 @@ struct IYqlAgent
     virtual TFuture<void> AbortQuery(TQueryId queryId) = 0;
 
     virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId) = 0;
-
-    virtual NYqlClient::NProto::TRspGetYqlAgentState GetYqlAgentState() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IYqlAgent)

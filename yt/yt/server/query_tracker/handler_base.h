@@ -74,6 +74,7 @@ protected:
     void OnProgress(TYsonString progress);
 
     void OnQueryStarted();
+    void OnQueryThrottled();
     void OnQueryFailed(const TError& error);
     void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
     void OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);

@@ -224,6 +224,18 @@ void TQueryHandlerBase::OnQueryStarted()
     }
 }
 
+void TQueryHandlerBase::OnQueryThrottled()
+{
+    YT_LOG_INFO("Query throttled");
+
+    while (true) {
+        if (TryWriteQueryState(EQueryState::Pending, EQueryState::Running, {}, {})) {
+            break;
+        }
+        TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
+    }
+}
+
 void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors)
 {
     std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;

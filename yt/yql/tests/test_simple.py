@@ -8,7 +8,6 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
-import time
 import pytest
 
 
@@ -299,8 +298,8 @@ class TestAllYqlAgentsOverload(TestQueriesYqlBase):
         wait(lambda: q1.get()["state"] == "running")
 
         q2 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
-        time.sleep(2)
-        assert q2.get()["state"] == "pending"
+        wait(lambda: q2.get()["state"] == "running")
+        wait(lambda: q2.get()["state"] == "pending")
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 
