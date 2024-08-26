@@ -254,7 +254,14 @@ void TRecovery::DoRun()
                     changelogIdToTruncate);
                 continue;
             }
-            auto changelogToTruncate = errorOrChangelogToTruncate.ValueOrThrow();
+            auto changelogToTruncate = errorOrChangelogToTruncate
+                .ValueOrThrow();
+            if (!changelogToTruncate) {
+                YT_LOG_INFO("No such changelog (ChangelogId: %v)",
+                    changelogIdToTruncate);
+                continue;
+            }
+
             if (changelogToTruncate->GetRecordCount() > 0) {
                 YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
                     changelogIdToTruncate,
