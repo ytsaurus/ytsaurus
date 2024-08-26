@@ -37,26 +37,64 @@ const auto& Logger = YqlAgentLogger;
 class ActiveQueriesGuard
 {
 public:
-    explicit ActiveQueriesGuard()
+    ActiveQueriesGuard() = delete;
+
+    explicit ActiveQueriesGuard(const int maxSimultaneousQueries, std::atomic<int>& activeQueries)
+        : ActiveQueries_(activeQueries)
     {
-        ActiveQueries_.fetch_add(1);
+        IsTaken_ = true;
+        auto queries = ActiveQueries_.load();
+        do {
+            if (queries >= maxSimultaneousQueries) {
+                IsTaken_ = false;
+                return;
+            }
+        } while (!ActiveQueries_.compare_exchange_weak(queries, queries + 1));
     }
 
     ~ActiveQueriesGuard()
     {
-        ActiveQueries_.fetch_add(-1);
+        if (IsTaken_) {
+            ActiveQueries_.fetch_add(-1);
+        }
     }
 
-    static int Get()
+    bool IsTaken()
+    {
+        return IsTaken_;
+    }
+
+private:
+    bool IsTaken_;
+    std::atomic<int>& ActiveQueries_;
+};
+
+class ActiveQueriesGuardFactory
+{
+public:
+    ActiveQueriesGuardFactory(const int maxSimultaneousQueries)
+        : MaxSimultaneousQueries_(maxSimultaneousQueries)
+    { }
+
+    void Update(const int maxSimultaneousQueries)
+    {
+        MaxSimultaneousQueries_ = maxSimultaneousQueries;
+    }
+
+    ActiveQueriesGuard CreateGuard()
+    {
+        return ActiveQueriesGuard(MaxSimultaneousQueries_, ActiveQueries_);
+    }
+
+    int Get()
     {
         return ActiveQueries_.load();
     }
 
 private:
-    static std::atomic<int> ActiveQueries_;
+    int MaxSimultaneousQueries_;
+    std::atomic<int> ActiveQueries_;
 };
-
-std::atomic<int> ActiveQueriesGuard::ActiveQueries_ = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +184,7 @@ public:
         , AgentId_(std::move(agentId))
         , DynamicConfig_(std::move(dynamicConfig))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
+        , ActiveQueriesGuardFactory_(ActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
@@ -215,15 +254,18 @@ public:
         const TYqlAgentDynamicConfigPtr& newConfig) override
     {
         DynamicConfig_ = newConfig;
+        if (DynamicConfig_->MaxSimultaneousQueries >= Config_->YqlThreadCount) {
+            YT_LOG_ERROR("Decreased MaxSimultaneousQueries; it should be less than YqlThreadCount (MaxSimultaneousQueries: %v, YqlThreadCount: %v)",
+                DynamicConfig_->MaxSimultaneousQueries,
+                Config_->YqlThreadCount);
+
+            DynamicConfig_->MaxSimultaneousQueries = Config_->YqlThreadCount - 1;
+        }
+        ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
     }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
     {
-        if (ActiveQueriesGuard::Get() >= DynamicConfig_->MaxSimultaneousQueries) {
-            YT_LOG_INFO("Query was throttled (QueryId: %v, User: %v)", queryId, user);
-            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::Throttled, "Query was throttled");
-        }
-
         YT_LOG_INFO("Starting query (QueryId: %v, User: %v)", queryId, user);
 
         return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, user, request)
@@ -281,10 +323,16 @@ private:
     std::unique_ptr<NYqlPlugin::IYqlPlugin> YqlPlugin_;
 
     IThreadPoolPtr ThreadPool_;
+    ActiveQueriesGuardFactory ActiveQueriesGuardFactory_;
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
-        ActiveQueriesGuard guard = ActiveQueriesGuard();
+        ActiveQueriesGuard guard = ActiveQueriesGuardFactory_.CreateGuard();
+
+        if (!guard.IsTaken()) {
+            YT_LOG_INFO("Query was throttled (QueryId: %v, User: %v)", queryId, user);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::Throttled, "Query was throttled");
+        }
 
         static const auto EmptyMap = TYsonString(TString("{}"));
 
