@@ -124,6 +124,8 @@ items:
            href: user-guide/dynamic-tables/transactions.md
          - name: Sharding
            href: user-guide/dynamic-tables/resharding.md
+         - name: Automatic sharding and dynamic table balancing
+           href: user-guide/dynamic-tables/tablet-balancing.md
          - name: Background compaction
            href: user-guide/dynamic-tables/compaction.md
          - name: Running operations on dynamic tables

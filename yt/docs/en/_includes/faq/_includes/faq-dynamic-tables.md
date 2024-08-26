@@ -31,7 +31,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Too many stores in tablet, all writes disabled" error**
 
-**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../../user-guide/dynamic-tables/resharding.md#auto) limits the number of tablets to the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
+**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../../user-guide/dynamic-tables/tablet-balancing.md) limits the number of tablets to the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
 
 ------
 #### **Q: When querying a dynamic table, I get the error "Tablet ... is not known"**
