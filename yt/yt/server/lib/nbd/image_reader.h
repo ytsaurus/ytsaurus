@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/server/lib/nbd/random_access_file_reader.h>
+#include <yt/yt/server/lib/nbd/squash_fs_image_builder.h>
 
 namespace NYT::NNbd {
 
@@ -28,6 +29,16 @@ DEFINE_REFCOUNTED_TYPE(IImageReader)
 IImageReaderPtr CreateCypressFileImageReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     TString path,
+    NApi::NNative::IClientPtr client,
+    NConcurrency::IThroughputThrottlerPtr inThrottler,
+    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+    NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IImageReaderPtr CreateVirtualSquashFsImageReader(
+    std::unordered_map<TString, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
+    NSquashFs::TSquashFsImagePtr image,
     NApi::NNative::IClientPtr client,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,

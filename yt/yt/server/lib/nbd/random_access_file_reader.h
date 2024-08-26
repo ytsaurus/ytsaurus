@@ -14,10 +14,10 @@ namespace NYT::NNbd {
 
 struct TReadersStatistics
 {
-    i64 ReadBytes;
-    i64 ReadBlockBytesFromCache;
-    i64 ReadBlockBytesFromDisk;
-    i64 ReadBlockMetaBytesFromDisk;
+    i64 ReadBytes = 0;
+    i64 ReadBlockBytesFromCache = 0;
+    i64 ReadBlockBytesFromDisk = 0;
+    i64 ReadBlockMetaBytesFromDisk = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
