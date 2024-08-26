@@ -1319,6 +1319,8 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 
 
 class TestLookupCache(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
             "timestamp_provider": {
