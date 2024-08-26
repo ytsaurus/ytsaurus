@@ -31,7 +31,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Too many stores in tablet, all writes disabled" error**
 
-**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../../user-guide/dynamic-tables/resharding.md#auto) limits the number of tablets as the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
+**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../../user-guide/dynamic-tables/tablet-balancing.md) limits the number of tablets as the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
 
 ------
 #### **Q: When querying a dynamic table, I get the error "Tablet ... is not known'**
@@ -51,7 +51,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: In tablet_errors, I see the "Too many write timestamps in a versioned row" or "Too many delete timestamps in a versioned row" error**
 
-**A:** Sorted dynamic tables store many versions of the same value at the same time. In lookup format, each key can have no more than 2^16 versions. A simple solution is to use a column format (`@optimize_for = scan`). In practice, such a large number of versions is not necessary and they occur as a result of misconfiguration or a programming error. For example, when specifying `atomicity=none`, you can update the same table key with great frequency (in this mode, there is no row locking and transactions with overlapping time ranges can update the same key). It's not a good idea to do this.  If writing a large number of versions is due to a product need, such as frequent delta writes in aggregation columns, set the `@merge_rows_on_flush=%true` table attribute and correctly [ configure the TTL deletion](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data) so that only a small number of actually needed versions are written to the chunk in case of flush.
+**A:** Sorted dynamic tables store many versions of the same value at the same time. In lookup format, each key can have no more than 2^16 versions. A simple solution is to use a column format (`@optimize_for = scan`). In practice, such a large number of versions is not necessary and they occur as a result of misconfiguration or a programming error. For example, when specifying `atomicity=none`, you can update the same table key with great frequency (in this mode, there is no row locking and transactions with overlapping time ranges can update the same key). It's not a good idea to do this. If writing a large number of versions is due to a product need, such as frequent delta writes in aggregation columns, set the `@merge_rows_on_flush=%true` table attribute and correctly [ configure the TTL deletion](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data) so that only a small number of actually needed versions are written to the chunk in case of flush.
 
 ------
 #### **Q: When querying Select Rows, I get the "Maximum expression depth exceeded" error**

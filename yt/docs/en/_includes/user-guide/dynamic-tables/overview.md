@@ -44,7 +44,7 @@ The `chunk_row_count` attribute can be used to evaluate the table size, but the 
 Individual attributes of a dynamic table affect its behavior. In particular, you can use individual attributes to:
 - [Set up background compaction](../../../user-guide/dynamic-tables/compaction.md#attributes).
 - [Set TTL](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data): Time to live for individual values.
-- [Manage automatic sharding](../../../user-guide/dynamic-tables/resharding.md#auto).
+- [Manage automatic sharding](../../../user-guide/dynamic-tables/tablet-balancing.md).
 
 ## Limitations { #limitations }
 
