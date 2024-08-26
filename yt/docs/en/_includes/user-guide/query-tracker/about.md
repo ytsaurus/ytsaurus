@@ -19,13 +19,13 @@ In this way, you can process data using different languages and runtime environm
 
 Currently supported execution engines include:
 
-+ [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md)
++ [YT QL](../../../user-guide/dynamic-tables/dyn-query-language.md)
    + A query language built in YT. Only supports dynamic tables.
-+ [YQL](../../yql/index.md)
++ [YQL](../../../yql/index.md)
    + Executes the query on YQL agents, which break the query into individual YT operations (map, reduce, ...), start them, then retrieve and return the result.
-+ [CHYT](../../user-guide/data-processing/chyt/about-chyt.md)
++ [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md)
    + Executes the query on a clique.
-+ [SPYT](../../user-guide/data-processing/spyt/overview.md)
++ [SPYT](../../../user-guide/data-processing/spyt/overview.md)
    + Executes the query on the Spark cluster.
 
 ## API {#api}
@@ -45,8 +45,8 @@ Optional parameters:
 
 + `files`: List of files for the query in YSON format.
 + `settings`: Additional query parameters in YSON format.
-   + For [CHYT](../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
-   + For [SPYT](../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
+   + For [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
+   + For [SPYT](../../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
 + `draft`: Used to mark draft queries. These queries are terminated automatically without execution.
 + `annotations`: Arbitrary annotations to the query. They can make it easier to search for queries. Specified in YSON format.
 + `access_control_object`: Name of the object at `//sys/access_control_object_namespaces/queries/` that controls access to the query for other users.
@@ -148,9 +148,9 @@ Example: `alter_query(query_id="my_query_id", access_control_object="my_new_aco"
 
 To manage access to queries and their results, the query can store an optional `access_control_object` string that points to `//sys/access_control_object_namespaces/queries/[access_control_object]`.
 
-An Access Control Object (ACO) is an object with the `@principal_acl` attribute. It sets access rules in the same manner as `@acl` does for Cypress nodes. For more information, see [Access control](../../user-guide/storage/access-control.md).
+An Access Control Object (ACO) is an object with the `@principal_acl` attribute. It sets access rules in the same manner as `@acl` does for Cypress nodes. For more information, see [Access control](../../../user-guide/storage/access-control.md).
 
-You can create an ACO through the user interface or by calling the [create](../../user-guide/storage/cypress-example.md#create) command:
+You can create an ACO through the user interface or by calling the [create](../../../user-guide/storage/cypress-example.md#create) command:
 
 `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 

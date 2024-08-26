@@ -296,38 +296,41 @@ For documents located in the `_includes` folder, consider the following when add
 - A link path should be set relativelly to the document located in the `_includes` folder, but not in the original folder. What is original folder, see the example below.
 - You should never link to the `_includes` folder. A link should always refer to the document located in the original folder. 
 
-For an example, take a look at the [Query Tracker](https://ytsaurus.tech/docs/en/user-guide/query-tracker) article. Its source is stored in the [en/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) file:
+For an example, take a look at the [Query Tracker](https://ytsaurus.tech/docs/en/user-guide/query-tracker/about) article. Its source is stored in the [en/user-guide/query-tracker/about.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker/about.md) file:
 
 ```
 |-- ytsaurus/yt/docs
     |-- en/
         |-- user-guide/             # The original folder.
-            |-- query-tracker.md    
-        |-- dynamic-tables/  
+            |-- query-tracker/
+                |-- about.md
+        |-- dynamic-tables/
             |-- dyn-query-language.md
         |-- _includes/              # The "_includes" folder, where the shared content is stored.
-           |-- user-guide/
-               |-- query-tracker.md 
-           |-- dynamic-tables/  
-               |-- dyn-query-language.md
-                   
-```
-
-Text of this article is included from the `en/_includes/user-guide/query-tracker.md` file:
+            |-- user-guide/
+                |-- query-tracker/
+                    |-- about.md
+            |-- dynamic-tables/
+                |-- dyn-query-language.md
 
 ```
-{% include [Query Tracker](../_includes/user-guide/query-tracker.md) %}
+
+Text of this article is included from the `en/_includes/user-guide/query-tracker/about.md` file:
+
+```
+{% include [Query Tracker](../../_includes/user-guide/query-tracker/about.md) %}
 ```
 
-Now, open the [en/_includes/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/_includes/user-guide/query-tracker.md) file. There, you can find the link to the "YT Query Language" article:
+Now, open the [en/_includes/user-guide/query-tracker/about.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/_includes/user-guide/query-tracker/about.md) file. There, you can find the link to the "YT Query Language" article:
 
 ```
 Currently supported execution engines:
-+ [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
++ [YT QL](../../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
 Note the following:
-- The "YT QL" link path is set relativelly to the `query-tracker.md` document located in `_includes` folder (see the `../../` operands in a link path).
+
+- The "YT QL" link path is set relativelly to the `about.md` document located in `_includes` folder (see the `../../../` operands in a link path).
 - If you open the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md), you will see that this article reuses content as well. Though, the "YT QL" link refers to the original `dyn-query-language.md` file that located in `en/user-guide/dynamic-tables/` folder, but not to the `en/_includes/user-guide/dynamic-tables/dyn-query-language.md`.
 
 > If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
