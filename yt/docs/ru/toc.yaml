@@ -369,7 +369,9 @@ items:
             href: user-guide/excel.md
       - name: Query tracker
         when: audience == "public"
-        href: user-guide/query-tracker.md
+        items:
+          - name: Обзор
+            href: user-guide/query-tracker/about.md
       - name: Работа с Jupyter Notebooks
         when: audience == "public"
         href: user-guide/jupyt.md
