@@ -1133,7 +1133,11 @@ private:
     {
         auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
-            YT_VERIFY(clusterConnection);
+            if (!clusterConnection) {
+                // NB(apachee): Between GetClusterNames and FindRemoteConnection cluster directory synced
+                // and lost one of the clusters, so this cluster should just be ignored.
+                return {nullptr, nullptr};
+            }
 
             auto config = clusterConnection->GetConfig();
             const auto& stages = config->QueryTracker->Stages;
