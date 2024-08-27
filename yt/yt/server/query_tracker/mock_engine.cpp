@@ -93,6 +93,7 @@ public:
     void Start() override
     {
         YT_LOG_INFO("Starting mock query");
+        OnQueryStarted();
         if (Query_ == "fail") {
             OnQueryFailed(TError("Mock query failed"));
         } else if (Query_ == "fail_by_exception") {

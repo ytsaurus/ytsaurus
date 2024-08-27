@@ -318,14 +318,9 @@ private:
             leaseTransactionId,
             optionalRecord->State);
 
-        // If current query state is "pending", switch it to "running". Otherwise, keep the existing state of a query;
-        // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
-        auto newState = optionalRecord->State == EQueryState::Pending ? EQueryState::Running : optionalRecord->State;
-
         auto rowBuffer = New<TRowBuffer>();
         TActiveQueryPartial newRecord{
             .Key = queryRecord.Key,
-            .State = newState,
             .Incarnation = newIncarnation,
             .LeaseTransactionId = leaseTransactionId,
             .AssignedTracker = SelfAddress_,
@@ -357,9 +352,8 @@ private:
         queryRecord.Incarnation = newIncarnation;
         queryRecord.LeaseTransactionId = leaseTransactionId;
         YT_LOG_INFO(
-            "Query acquired (CommitTimestamp: %v, State: %v, Incarnation: %v, LeaseTransactionId: %v)",
+            "Query acquired (CommitTimestamp: %v, Incarnation: %v, LeaseTransactionId: %v)",
             commitResultOrError.Value().PrimaryCommitTimestamp,
-            newState,
             newIncarnation,
             leaseTransactionId);
 

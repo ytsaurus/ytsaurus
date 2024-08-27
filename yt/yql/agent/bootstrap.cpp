@@ -149,15 +149,16 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
+    DynamicConfigManager_->Start();
+
     YqlAgent_ = CreateYqlAgent(
         Config_,
         Config_->YqlAgent,
+        DynamicConfigManager_->GetConfig()->YqlAgent,
         NativeConnection_->GetClusterDirectory(),
         clientDirectory,
         ControlInvoker_,
         AgentId_);
-
-    DynamicConfigManager_->Start();
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(

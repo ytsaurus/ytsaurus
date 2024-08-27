@@ -86,6 +86,15 @@ class YqlAgent(ExternalComponent):
         remove("//sys/clusters/primary/yql_agent", recursive=True, force=True)
 
 
+def update_yql_agent_environment(cls):
+    if hasattr(cls, "YQL_AGENT_DYNAMIC_CONFIG") :
+        dynconfig = getattr(cls, "YQL_AGENT_DYNAMIC_CONFIG")
+
+        config = get("//sys/yql_agent/config")
+        config["yql_agent"] = dynconfig
+        set("//sys/yql_agent/config", config)
+
+
 @pytest.fixture
 def yql_agent_environment():
     create_user("yql_agent_test_user")
@@ -101,5 +110,7 @@ def yql_agent_environment():
 def yql_agent(request, yql_agent_environment):
     cls = request.cls
     count = getattr(cls, "NUM_YQL_AGENTS", 1)
+    update_yql_agent_environment(cls)
+
     with YqlAgent(cls.Env, count) as yql_agent:
         yield yql_agent

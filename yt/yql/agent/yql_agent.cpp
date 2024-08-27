@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -30,6 +31,70 @@ using namespace NSecurityClient;
 using namespace NLogging;
 
 const auto& Logger = YqlAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class ActiveQueriesGuard
+{
+public:
+    ActiveQueriesGuard() = delete;
+
+    explicit ActiveQueriesGuard(const int maxSimultaneousQueries, std::atomic<int>& activeQueries)
+        : ActiveQueries_(activeQueries)
+    {
+        IsTaken_ = true;
+        auto queries = ActiveQueries_.load();
+        do {
+            if (queries >= maxSimultaneousQueries) {
+                IsTaken_ = false;
+                return;
+            }
+        } while (!ActiveQueries_.compare_exchange_weak(queries, queries + 1));
+    }
+
+    ~ActiveQueriesGuard()
+    {
+        if (IsTaken_) {
+            ActiveQueries_.fetch_add(-1);
+        }
+    }
+
+    bool IsTaken()
+    {
+        return IsTaken_;
+    }
+
+private:
+    bool IsTaken_;
+    std::atomic<int>& ActiveQueries_;
+};
+
+class ActiveQueriesGuardFactory
+{
+public:
+    ActiveQueriesGuardFactory(const int maxSimultaneousQueries)
+        : MaxSimultaneousQueries_(maxSimultaneousQueries)
+    { }
+
+    void Update(const int maxSimultaneousQueries)
+    {
+        MaxSimultaneousQueries_ = maxSimultaneousQueries;
+    }
+
+    ActiveQueriesGuard CreateGuard()
+    {
+        return ActiveQueriesGuard(MaxSimultaneousQueries_, ActiveQueries_);
+    }
+
+    int Get()
+    {
+        return ActiveQueries_.load();
+    }
+
+private:
+    int MaxSimultaneousQueries_;
+    std::atomic<int> ActiveQueries_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +171,7 @@ public:
     TYqlAgent(
         TSingletonsConfigPtr singletonsConfig,
         TYqlAgentConfigPtr yqlAgentConfig,
+        TYqlAgentDynamicConfigPtr dynamicConfig,
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
@@ -116,7 +182,9 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
+        , DynamicConfig_(std::move(dynamicConfig))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
+        , ActiveQueriesGuardFactory_(ActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
@@ -183,8 +251,18 @@ public:
 
     void OnDynamicConfigChanged(
         const TYqlAgentDynamicConfigPtr& /*oldConfig*/,
-        const TYqlAgentDynamicConfigPtr& /*newConfig*/) override
-    { }
+        const TYqlAgentDynamicConfigPtr& newConfig) override
+    {
+        DynamicConfig_ = newConfig;
+        if (DynamicConfig_->MaxSimultaneousQueries >= Config_->YqlThreadCount) {
+            YT_LOG_ERROR("Decreased MaxSimultaneousQueries; it should be less than YqlThreadCount (MaxSimultaneousQueries: %v, YqlThreadCount: %v)",
+                DynamicConfig_->MaxSimultaneousQueries,
+                Config_->YqlThreadCount);
+
+            DynamicConfig_->MaxSimultaneousQueries = Config_->YqlThreadCount - 1;
+        }
+        ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
+    }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
     {
@@ -240,12 +318,22 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
 
+    TYqlAgentDynamicConfigPtr DynamicConfig_;
+
     std::unique_ptr<NYqlPlugin::IYqlPlugin> YqlPlugin_;
 
     IThreadPoolPtr ThreadPool_;
+    ActiveQueriesGuardFactory ActiveQueriesGuardFactory_;
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
+        ActiveQueriesGuard guard = ActiveQueriesGuardFactory_.CreateGuard();
+
+        if (!guard.IsTaken()) {
+            YT_LOG_INFO("Query was throttled (QueryId: %v, User: %v)", queryId, user);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::Throttled, "Query was throttled");
+        }
+
         static const auto EmptyMap = TYsonString(TString("{}"));
 
         const auto& Logger = YqlAgentLogger().WithTag("QueryId: %v", queryId);
@@ -363,6 +451,7 @@ private:
 IYqlAgentPtr CreateYqlAgent(
     TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
+    TYqlAgentDynamicConfigPtr dynamicConfig,
     TClusterDirectoryPtr clusterDirectory,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
@@ -371,6 +460,7 @@ IYqlAgentPtr CreateYqlAgent(
     return New<TYqlAgent>(
         std::move(singletonsConfig),
         std::move(config),
+        std::move(dynamicConfig),
         std::move(clusterDirectory),
         std::move(clientDirectory),
         std::move(controlInvoker),

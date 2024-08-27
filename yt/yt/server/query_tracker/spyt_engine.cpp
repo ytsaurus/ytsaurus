@@ -152,6 +152,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
+        OnQueryStarted();
         StartProgressWriter();
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
