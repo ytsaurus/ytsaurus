@@ -291,6 +291,11 @@ public:
     void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) override
     {
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
+
+        auto newExpectedMutationCommitDuration = newConfig->ExpectedMutationCommitDuration;
+        if (newExpectedMutationCommitDuration != ExpectedMutationCommitDuration_.load(std::memory_order::relaxed)) {
+            ExpectedMutationCommitDuration_.store(newExpectedMutationCommitDuration, std::memory_order::release);
+        }
     }
 
     IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const override
@@ -306,14 +311,13 @@ public:
         TCallback<std::unique_ptr<TMutation>()> mutationBuilder,
         TCallback<void(const NHydra::TMutationResponse& response)> replyCallback) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto epochId = GetCurrentEpochId();
 
         auto timeBefore = NProfiling::GetInstant();
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
+        auto expectedMutationCommitDuration = ExpectedMutationCommitDuration_.load(std::memory_order::acquire);
 
         semaphore->AsyncAcquire(
             BIND(
@@ -379,6 +383,8 @@ private:
     std::atomic<bool> AutomatonBlocked_ = false;
 
     TCancelableContextPtr EpochCancelableContext_;
+
+    std::atomic<TDuration> ExpectedMutationCommitDuration_ = TDuration::Zero();
 
     void OnStartEpoch()
     {
