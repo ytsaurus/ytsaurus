@@ -617,7 +617,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_scheduling_skipped(skipScheduleAllocations);
 
-    if (Config_->EnableAllocationAbortOnZeroUserSlots && node->GetResourceLimits().GetUserSlots() == 0) {
+    if (Config_->EnableAllocationAbortOnZeroUserSlots && node->ResourceLimits().GetUserSlots() == 0) {
         // Abort all allocations on node immediately, if it has no user slots.
         // Make a copy, the collection will be modified.
         auto allocations = node->Allocations();
@@ -690,7 +690,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (!skipScheduleAllocations) {
         HeartbeatWithScheduleAllocationsCounter_.Increment();
 
-        node->SetResourceUsage(schedulingContext->ResourceUsage());
+        node->ResourceUsage() = schedulingContext->ResourceUsage();
 
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
         if (statistics.ScheduleWithPreemption) {
@@ -1925,21 +1925,25 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
 
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     TotalNodeCount_ -= 1;
-    if (node->GetResourceLimits().GetUserSlots() > 0) {
+    if (node->ResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ -= 1;
     }
 }
 
 void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     TotalNodeCount_ += 1;
 
-    if (node->GetResourceLimits().GetUserSlots() > 0) {
+    if (node->ResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ += 1;
     } else {
         // Check that we successfully reset all resource limits to zero for node with zero user slots.
-        YT_VERIFY(node->GetResourceLimits() == TJobResources());
+        YT_VERIFY(node->ResourceLimits() == TJobResources());
     }
 }
 
@@ -1949,32 +1953,34 @@ void TNodeShard::UpdateNodeResources(
     const TJobResources& usage,
     TDiskResources diskResources)
 {
-    auto oldResourceLimits = node->GetResourceLimits();
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto oldResourceLimits = node->ResourceLimits();
 
     YT_VERIFY(node->GetSchedulerState() == ENodeState::Online);
 
     if (limits.GetUserSlots() > 0) {
-        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
+        if (node->ResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ += 1;
         }
-        node->SetResourceLimits(limits);
-        node->SetResourceUsage(usage);
-        node->SetDiskResources(std::move(diskResources));
+        node->ResourceLimits() = limits;
+        node->ResourceUsage() = usage;
+        node->DiskResources() = std::move(diskResources);
     } else {
-        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
+        if (node->ResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;
         }
-        node->SetResourceLimits({});
-        node->SetResourceUsage({});
+        node->ResourceLimits() = {};
+        node->ResourceUsage() = {};
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
         // Clear cache if node has come with non-zero usage.
-        if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
+        if (oldResourceLimits.GetUserSlots() == 0 && node->ResourceUsage().GetUserSlots() > 0) {
             CachedResourceStatisticsByTags_->Clear();
         }
 
-        if (!Dominates(node->GetResourceLimits(), node->GetResourceUsage())) {
+        if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {
             if (!node->GetResourcesOvercommitStartTime()) {
                 node->SetResourcesOvercommitStartTime(TInstant::Now());
             }

@@ -267,8 +267,8 @@ protected:
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
         auto execNode = New<TExecNode>(nodeId, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
-        execNode->SetResourceLimits(nodeResources.ToJobResources());
-        execNode->SetDiskResources(std::move(diskResources));
+        execNode->ResourceLimits() = nodeResources.ToJobResources();
+        execNode->DiskResources() = std::move(diskResources);
 
         execNode->SetTags(std::move(tags));
 

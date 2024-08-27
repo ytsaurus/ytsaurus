@@ -34,7 +34,7 @@ namespace NYT::NScheduler {
 
 //! Scheduler-side representation of an execution node.
 /*!
- *  Thread affinity: ControlThread (unless noted otherwise)
+ *  Thread affinity: corresponding node shard thread (unless noted otherwise).
  */
 class TExecNode
     : public TRefCounted
@@ -46,6 +46,20 @@ private:
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, NodeDescriptor);
+
+    //! Node's resource limits, as reported by the node.
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceLimits);
+
+    //! The most recent resource usage, as reported by the node.
+    /*!
+     *  Some fields are also updated by the scheduler strategy to
+     *  reflect recent job set changes.
+     *  E.g. when the scheduler decides to
+     *  start a new job it decrements the appropriate counters.
+     */
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
+
+    DEFINE_BYREF_RW_PROPERTY(TDiskResources, DiskResources);
 
     //! Allocations that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(THashSet<TAllocationPtr>, Allocations);
@@ -134,46 +148,14 @@ public:
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
     //! Constructs a descriptor containing the current snapshot of node's state.
-    /*!
-     *  Thread affinity: any
-     */
     TExecNodeDescriptorPtr BuildExecDescriptor() const;
 
     //! Set the node's IO weight.
     void SetIOWeights(const THashMap<TString, double>& mediumToWeight);
 
-    //! Returns the node's resource limits, as reported by the node.
-    const TJobResources& GetResourceLimits() const;
-
-    //! Sets the node's resource limits.
-    void SetResourceLimits(const TJobResources& value);
-
-    //! Returns the most recent resource usage, as reported by the node.
-    /*!
-     *  Some fields are also updated by the scheduler strategy to
-     *  reflect recent job set changes.
-     *  E.g. when the scheduler decides to
-     *  start a new job it decrements the appropriate counters.
-     */
-    const TJobResources& GetResourceUsage() const;
-
-    const TDiskResources& GetDiskResources() const;
-
-    //! Sets the node's resource usage.
-    void SetResourceUsage(const TJobResources& value);
-
-    void SetDiskResources(TDiskResources value);
-
     void SetTags(TBooleanFormulaTags tags);
 
     void BuildAttributes(NYTree::TFluentMap fluent);
-
-private:
-    TJobResources ResourceUsage_;
-    TDiskResources DiskResources_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    TJobResources ResourceLimits_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)

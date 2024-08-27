@@ -94,8 +94,8 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
 
             auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);
             node->SetTags(TBooleanFormulaTags(nodeGroupConfig->Tags));
-            node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
-            node->SetDiskResources(diskResources);
+            node->ResourceLimits() = GetNodeResourceLimit(nodeGroupConfig->ResourceLimits);
+            node->DiskResources() = diskResources;
             node->SetMasterState(NNodeTrackerClient::ENodeState::Online);
             node->SetSchedulerState(NScheduler::ENodeState::Online);
             execNodes.push_back(node);
