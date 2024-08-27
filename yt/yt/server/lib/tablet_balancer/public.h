@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TBundleTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterTableTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterBundleTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancingGroupConfig)
+DECLARE_REFCOUNTED_CLASS(TComponentFactorConfig)
 DECLARE_REFCOUNTED_CLASS(TParameterizedBalancingConfig)
 
 DEFINE_ENUM(EBalancingType,
