@@ -200,7 +200,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
     bool enableTracing = DynamicConfig_.Acquire()->EnableTracing;
 
     if (enableTracing) {
-        requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeatRequest");
+        requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeat");
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", ToString(nodeId));
 
