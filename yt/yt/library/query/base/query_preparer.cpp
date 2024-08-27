@@ -3102,7 +3102,7 @@ TJoinClausePtr BuildJoinClause(
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
-        foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
+    foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
         auto selfColumn = builder.GetColumnPtr(referenceExpr->Reference);
