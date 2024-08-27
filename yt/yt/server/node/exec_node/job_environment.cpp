@@ -31,6 +31,7 @@
 #include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/library/containers/cri/cri_executor.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -977,10 +978,13 @@ class TCriJobEnvironment
 public:
     TCriJobEnvironment(
         TCriJobEnvironmentConfigPtr config,
-        IBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        ICriExecutorPtr executor,
+        ICriImageCachePtr imageCache)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
-        , Executor_(CreateCriExecutor(Config_->CriExecutor))
+        , Executor_(std::move(executor))
+        , ImageCache_(std::move(imageCache))
     { }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1005,6 +1009,9 @@ public:
         auto tmpPodDescriptor = WaitFor(Executor_->RunPodSandbox(tmpPodSpec)).ValueOrThrow();
         WaitFor(Executor_->StopPodSandbox(tmpPodDescriptor)).ThrowOnError();
         WaitFor(Executor_->RemovePodSandbox(tmpPodDescriptor)).ThrowOnError();
+
+        WaitFor(ImageCache_->Initialize())
+            .ThrowOnError();
 
         WaitFor(Executor_->PullImage(TCriImageDescriptor{
             .Image = Config_->JobProxyImage,
@@ -1087,7 +1094,7 @@ public:
             invoker,
             std::move(context),
             directoryManager,
-            Executor_);
+            ImageCache_);
     }
 
 private:
@@ -1096,6 +1103,7 @@ private:
 
     const TCriJobEnvironmentConfigPtr Config_;
     const ICriExecutorPtr Executor_;
+    const ICriImageCachePtr ImageCache_;
 
     std::vector<TCriPodDescriptor> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
@@ -1290,9 +1298,13 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstr
 
         case EJobEnvironmentType::Cri: {
             auto criConfig = ConvertTo<TCriJobEnvironmentConfigPtr>(configNode);
+            auto executor = CreateCriExecutor(criConfig->CriExecutor);
+            auto imageCache = CreateCriImageCache(criConfig->CriImageCache, executor);
             return New<TCriJobEnvironment>(
                 criConfig,
-                bootstrap);
+                bootstrap,
+                std::move(executor),
+                std::move(imageCache));
         }
 
         default:

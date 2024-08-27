@@ -95,6 +95,9 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cri_executor", &TThis::CriExecutor)
         .DefaultNew();
 
+    registrar.Parameter("cri_image_cache", &TThis::CriImageCache)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_image", &TThis::JobProxyImage)
         .NonEmpty();
 
