@@ -21,6 +21,8 @@ import yt.yson as yson
 from datetime import timedelta
 import pytest
 
+from time import sleep
+
 
 ##################################################################
 
@@ -1644,6 +1646,22 @@ class TestPortals(YTEnvSetup):
         with raises_yt_error('Portal creation under nested transaction is forbidden'):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx2)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx1)
+
+    @authors("h0pless")
+    def test_attribute_inheritance_doesnt_crash(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
+
+        create("map_node", "//tmp/my_dir/node", recursive=True)
+        set("//tmp/my_dir/node/@chunk_merger_mode", "auto")
+
+        copy("//tmp/my_dir", "//tmp/p1/other_dir")
+        # Just don't crash
+        sleep(5)
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+
 
 ##################################################################
 
