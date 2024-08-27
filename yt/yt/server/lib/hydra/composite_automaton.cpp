@@ -573,7 +573,12 @@ void TCompositeAutomaton::OnRecoveryComplete()
 
 TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
 {
-    return &GetOrCrash(MethodNameToDescriptor_, mutationType);
+    auto it = MethodNameToDescriptor_.find(mutationType);
+    if (it == MethodNameToDescriptor_.end()) {
+        YT_LOG_FATAL("No handler for mutation type %v",
+            mutationType);
+    }
+    return &it->second;
 }
 
 std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()

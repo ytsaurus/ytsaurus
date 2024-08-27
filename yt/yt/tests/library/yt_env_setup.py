@@ -1703,6 +1703,10 @@ class YTEnvSetup(object):
         dynamic_master_config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
         dynamic_master_config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
 
+        # COMPAT(kvk1920)
+        if self.Env.get_component_version("ytserver-master").abi < (24, 2):
+            dynamic_master_config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
+
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
             if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
