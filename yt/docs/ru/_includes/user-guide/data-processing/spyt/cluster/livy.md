@@ -1,6 +1,6 @@
 # Livy сервер
 
-Начиная с версии 1.74.0 в SPYT доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker.md) для выполнения Spark SQL запросов в {{product-name}}.
+Начиная с версии 1.74.0 в SPYT доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker/about.md) для выполнения Spark SQL запросов в {{product-name}}.
 
 Дистрибутив Livy уже включен в релизный образ SPYT и помещается на кластер {{product-name}} по пути `//home/spark/livy/livy.tgz`.
 

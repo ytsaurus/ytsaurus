@@ -1,6 +1,6 @@
 # Spark SQL
 
-С таблицами {{product-name}} возможно работать из [Spark SQL](https://spark.apache.org/docs/latest/sql-ref-syntax.html). Этот диалект SQL используется для запросов в [Query tracker](../../../../user-guide/query-tracker.md) с использованием SPYT.
+С таблицами {{product-name}} возможно работать из [Spark SQL](https://spark.apache.org/docs/latest/sql-ref-syntax.html). Этот диалект SQL используется для запросов в [Query tracker](../../../../user-guide/query-tracker/about.md) с использованием SPYT.
 
 При работе с {{product-name}} в качестве идентификатора базы данных используется `yt`, а в качестве файловой системы — `ytTable:/`. Второе можно опускать, поэтому приведенная пара запросов эквивалентна:
 

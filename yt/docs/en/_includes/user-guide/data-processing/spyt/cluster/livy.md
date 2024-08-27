@@ -1,6 +1,6 @@
 # Livy server
 
-Starting with version 1.74.0, SPYT comes with [Livy](https://livy.apache.org/), a service that allows communication between the client and a Spark cluster over a REST interface. The [Query tracker](../../../../../user-guide/query-tracker.md) module uses this functionality to execute Spark SQL queries in {{product-name}}.
+Starting with version 1.74.0, SPYT comes with [Livy](https://livy.apache.org/), a service that allows communication between the client and a Spark cluster over a REST interface. The [Query tracker](../../../../../user-guide/query-tracker/about.md) module uses this functionality to execute Spark SQL queries in {{product-name}}.
 
 The Livy distribution is already included in the release image of SPYT and can be found on the {{product-name}} cluster at the path `//home/spark/livy/livy.tgz`.
 
