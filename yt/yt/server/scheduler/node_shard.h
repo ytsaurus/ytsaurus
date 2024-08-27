@@ -99,7 +99,8 @@ public:
         const TError& abortError,
         EAbortReason abortReason,
         bool controllerTerminated);
-    void ResumeOperationAllocations(TOperationId operationId);
+    void SuspendOperationScheduling(TOperationId operationId);
+    void ResumeOperationScheduling(TOperationId operationId);
 
     NNodeTrackerClient::TNodeDescriptor GetAllocationNode(TAllocationId allocationId);
 

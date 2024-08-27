@@ -302,11 +302,23 @@ void TNodeManager::AbortOperationAllocations(
         .ThrowOnError();
 }
 
-void TNodeManager::ResumeOperationAllocations(TOperationId operationId)
+void TNodeManager::SuspendOperationScheduling(TOperationId operationId)
 {
     std::vector<TFuture<void>> futures;
     for (const auto& nodeShard : NodeShards_) {
-        futures.push_back(BIND(&TNodeShard::ResumeOperationAllocations, nodeShard)
+        futures.push_back(BIND(&TNodeShard::SuspendOperationScheduling, nodeShard)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run(operationId));
+    }
+    WaitFor(AllSucceeded(futures))
+        .ThrowOnError();
+}
+
+void TNodeManager::ResumeOperationScheduling(TOperationId operationId)
+{
+    std::vector<TFuture<void>> futures;
+    for (const auto& nodeShard : NodeShards_) {
+        futures.push_back(BIND(&TNodeShard::ResumeOperationScheduling, nodeShard)
             .AsyncVia(nodeShard->GetInvoker())
             .Run(operationId));
     }
