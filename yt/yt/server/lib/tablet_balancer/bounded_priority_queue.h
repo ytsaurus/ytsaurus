@@ -10,29 +10,30 @@ template <class TPayload>
 class TBoundedPriorityQueue
 {
 public:
-    using TItem = std::pair<double, TPayload>;
+    using TElement = std::pair<double, TPayload>;
 
     explicit TBoundedPriorityQueue(int maxSize);
 
     void Insert(double cost, TPayload payload);
 
-    std::optional<TItem> ExtractMax();
+    std::optional<TElement> ExtractMax();
 
-    void Invalidate(std::function<bool(const TItem&)> filter);
+    template <class TFilter>
+    void Invalidate(TFilter&& filter);
 
     bool IsEmpty() const;
 
     void Reset();
 
 private:
-    static bool LessComparator(const TItem& lhs, const TItem& rhs);
+    const int Capacity_;
 
-    static bool GreaterComparator(const TItem& lhs, const TItem& rhs);
+    std::vector<TElement> Elements_;
+    double BestDiscardedCost_ = std::numeric_limits<double>::min();
 
-    const int MaxSize_;
+    static bool LessComparator(const TElement& lhs, const TElement& rhs);
 
-    std::vector<TItem> Elements_;
-    double BestDiscarded_ = std::numeric_limits<double>::min();
+    static bool GreaterComparator(const TElement& lhs, const TElement& rhs);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,7 +24,7 @@ class TBoundedPriorityQueueTest
     : public ::testing::Test
 { };
 
-TEST(TBoundedPriorityQueueTest, IsEmpty)
+TEST_F(TBoundedPriorityQueueTest, IsEmpty)
 {
     TBoundedPriorityQueue<int> priorityQueue{1};
     ASSERT_TRUE(priorityQueue.IsEmpty());
@@ -35,7 +35,7 @@ TEST(TBoundedPriorityQueueTest, IsEmpty)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, InvalidatingIterator)
+TEST_F(TBoundedPriorityQueueTest, InvalidatingIterator)
 {
     TBoundedPriorityQueue<int> priorityQueue{2};
     priorityQueue.Insert(1, 1);
@@ -47,7 +47,7 @@ TEST(TBoundedPriorityQueueTest, InvalidatingIterator)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, CorrectSize)
+TEST_F(TBoundedPriorityQueueTest, CorrectSize)
 {
     TBoundedPriorityQueue<int> priorityQueue{3};
     priorityQueue.Insert(1, 100);
@@ -63,7 +63,7 @@ TEST(TBoundedPriorityQueueTest, CorrectSize)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, CorrectDisplacement)
+TEST_F(TBoundedPriorityQueueTest, CorrectDisplacement)
 {
     TBoundedPriorityQueue<int> priorityQueue{2};
     priorityQueue.Insert(1, 100);
@@ -76,7 +76,7 @@ TEST(TBoundedPriorityQueueTest, CorrectDisplacement)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, Invalidate)
+TEST_F(TBoundedPriorityQueueTest, Invalidate)
 {
     TBoundedPriorityQueue<int> priorityQueue{5};
     priorityQueue.Insert(1, 101);
@@ -89,7 +89,7 @@ TEST(TBoundedPriorityQueueTest, Invalidate)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, BestDiscarded)
+TEST_F(TBoundedPriorityQueueTest, BestDiscarded)
 {
     TBoundedPriorityQueue<int> priorityQueue{1};
     priorityQueue.Insert(10, 100);
@@ -101,10 +101,10 @@ TEST(TBoundedPriorityQueueTest, BestDiscarded)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, RandomSequences)
+TEST_F(TBoundedPriorityQueueTest, RandomSequences)
 {
-    size_t testSize = 100;
-    auto randomData = GenerateRandomSequence(testSize);
+    constexpr int TestSize = 100;
+    auto randomData = GenerateRandomSequence(TestSize);
 
     TBoundedPriorityQueue<int> priorityQueue(10);
     for (int num : randomData) {
@@ -119,7 +119,7 @@ TEST(TBoundedPriorityQueueTest, RandomSequences)
     }
 }
 
-TEST(TBoundedPriorityQueueTest, Reset)
+TEST_F(TBoundedPriorityQueueTest, Reset)
 {
     TBoundedPriorityQueue<int> priorityQueue(3);
     priorityQueue.Insert(1, 100);
@@ -129,7 +129,7 @@ TEST(TBoundedPriorityQueueTest, Reset)
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
-TEST(TBoundedPriorityQueueTest, ResetAndPush)
+TEST_F(TBoundedPriorityQueueTest, ResetAndPush)
 {
     TBoundedPriorityQueue<int> priorityQueue(2);
     priorityQueue.Insert(1, 100);
