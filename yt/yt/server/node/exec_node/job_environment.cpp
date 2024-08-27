@@ -659,6 +659,8 @@ private:
             "Start destroy subcontainers (RootContainer: %v)",
             rootContainer);
 
+        NProfiling::TWallTimer timer;
+
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
@@ -696,7 +698,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finish destroy subcontainers (RootContainer: %v)", rootContainer);
+        YT_LOG_DEBUG(
+            "Finish destroy subcontainers (RootContainer: %v, TimeElapsed: %v)",
+            rootContainer,
+            timer.GetElapsedTime());
     }
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
