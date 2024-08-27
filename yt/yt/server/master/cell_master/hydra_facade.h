@@ -58,6 +58,7 @@ public:
 
     virtual const NObjectServer::TEpochContextPtr& GetEpochContext() = 0;
 
+    //! Thread affinity: any.
     virtual void CommitMutationWithSemaphore(
         const NConcurrency::TAsyncSemaphorePtr& semaphore,
         NRpc::IServiceContextPtr context,
