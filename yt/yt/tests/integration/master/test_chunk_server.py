@@ -937,6 +937,26 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
 
         self._wait_for_replicas_removal("//tmp/t", service_to_restart)
 
+    @authors("aleksandra-zh")
+    def test_nonexistent_chunk_replica_removal(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
+        node = get("#{0}/@stored_replicas".format(chunk_id))[0]
+
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
+        set("//sys/@config/chunk_manager/testing/disable_removing_replicas_from_destroyed_queue", True)
+
+        remove("//tmp/t")
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
+
+        sleep(1)
+
+        set("//sys/@config/chunk_manager/testing/disable_removing_replicas_from_destroyed_queue", False)
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
     @authors("aleksandra-zh", "danilalexeev")
     @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
     @pytest.mark.parametrize("wait_for_barrier", [True, False])
