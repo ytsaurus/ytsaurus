@@ -265,6 +265,8 @@ private:
     void RegisterSession(TChunkOwnerBase* chunkOwner);
     void DoRegisterSession(TChunkOwnerBase* chunkOwner);
     void RegisterSessionTransient(TChunkOwnerBase* chunkOwner);
+    void RegisterPermanentlyFailedSessionTransient(NCypressClient::TObjectId nodeId, NSecurityClient::TAccountId accountId);
+
     void FinalizeJob(
         TMergeJobInfo jobInfo,
         EMergeSessionResult result);
