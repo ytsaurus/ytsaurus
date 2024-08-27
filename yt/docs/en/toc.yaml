@@ -329,6 +329,11 @@ items:
            when: audience == "public"
            items:
             - include: { mode: link, path: yql/toc.yaml }
+       - name: Distributed locks
+         when: audience == "public"
+         items:
+         - name: Overview
+           href: user-guide/locking/cypress-as-locking-service.md
        - name: Proxy
          when: audience == "public"
          items:
