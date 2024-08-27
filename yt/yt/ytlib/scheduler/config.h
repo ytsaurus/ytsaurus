@@ -1123,6 +1123,10 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
+    //! Allow use of extra virtual squashfs layer.
+    //! Allow access to all immutable files via NBD.
+    bool AllowUseVirtualSquashFsLayer;
+
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
     //! Delay for performing sanity checks for operations (useful in tests).

@@ -818,6 +818,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
         .Default(false);
 
+    registrar.Parameter("allow_use_virtual_squashfs_layer", &TThis::AllowUseVirtualSquashFsLayer)
+        .Default(false);
+
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
