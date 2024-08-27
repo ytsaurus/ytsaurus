@@ -1728,6 +1728,25 @@ class TestMasterIntegration(TestQueueAgentBase):
         self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
 
 
+class TestMasterIntegrationFixes(TestQueueAgentBase):
+    DELTA_MASTER_CONFIG = {
+        "cluster_connection": {
+            "cluster_directory_synchronizer": {
+                "sync_period": 2**60,  # Never update cluster directory
+            },
+        },
+    }
+
+    @authors("apachee")
+    def test_queue_agent_nullptr_dereference_fix_yt_22654(self):
+        create("queue_consumer", "//tmp/c")
+        self._wait_for_component_passes()
+        # NB(apachee): Since cluster directory synchronizer is not yet configured,
+        # it should not be able to resolve this stage. Previously that led to nullptr dereference.
+        with raises_yt_error("Queue agent stage \"production\" is not found"):
+            get("//tmp/c/@queue_consumer_status")
+
+
 class TestCypressSynchronizerBase(TestQueueAgentBase):
     def _get_queue_name(self, name):
         return "//tmp/q-{}".format(name)
