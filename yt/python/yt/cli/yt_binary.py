@@ -2224,10 +2224,6 @@ if HAS_IDM_CLI_HELPERS:
             help="Disable boss approval requirement for personal roles")
 
         parser.add_argument(
-            "--members", "-m", action="store", dest="members",
-            nargs="*", default=[], help="Members list to remove or add. Only for groups")
-
-        parser.add_argument(
             "--subjects", "-s", dest="subjects", nargs="*", default=[],
             help="Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID")
 
