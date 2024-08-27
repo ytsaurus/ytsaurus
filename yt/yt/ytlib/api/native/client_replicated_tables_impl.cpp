@@ -95,6 +95,7 @@ TSharedRange<TUnversionedRow> TClient::PermuteAndEvaluateKeys(
     { };
     auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
     std::vector<TUnversionedRow> evaluatedKeys;
+    evaluatedKeys.reserve(keys.size());
 
     for (auto key : keys) {
         ValidateClientKey(key, *schema, idMapping, nameTable);
@@ -364,7 +365,7 @@ TString TClient::PickRandomCluster(
     return clusterNames[RandomNumber<size_t>() % clusterNames.size()];
 }
 
-std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
+std::vector<TTableReplicaInfoPtrList> TClient::PrepareInSyncReplicaCandidates(
     const TTabletReadOptions& options,
     const std::vector<TTableMountInfoPtr>& tableInfos)
 {
@@ -429,14 +430,13 @@ std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>
     };
 
     std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
+    asyncCandidates.reserve(tableInfos.size());
     for (const auto& tableInfo : tableInfos) {
         asyncCandidates.push_back(pickInSyncReplicas(tableInfo));
     }
 
-    auto candidates = WaitFor(AllSucceeded(asyncCandidates))
+    return WaitFor(AllSucceeded(asyncCandidates))
         .ValueOrThrow();
-
-    return {tableInfos, candidates};
 }
 
 std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyncClusterAndPatchQuery(
