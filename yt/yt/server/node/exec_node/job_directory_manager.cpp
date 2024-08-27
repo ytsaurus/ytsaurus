@@ -47,7 +47,7 @@ public:
         , Executor_(CreatePortoExecutor(
             config->PortoExecutor,
             Format("jobdir%v", locationIndex),
-            ExecNodeProfiler.WithPrefix("/job_directory/porto")))
+            ExecNodeProfiler().WithPrefix("/job_directory/porto")))
         , EnableDiskQuota_(config->EnableDiskQuota)
     {
         // Collect and drop all existing volumes.

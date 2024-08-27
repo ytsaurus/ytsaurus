@@ -49,7 +49,7 @@ class TJobInputCache
 public:
     TJobInputCache(
         NExecNode::IBootstrap* bootstrap,
-        NProfiling::TProfiler profiler = JobInputCacheProfiler);
+        NProfiling::TProfiler profiler = JobInputCacheProfiler());
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         NChunkClient::TChunkId chunkId,

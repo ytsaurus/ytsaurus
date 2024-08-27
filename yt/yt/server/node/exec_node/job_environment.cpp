@@ -442,12 +442,12 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
+            JobEnvironmentProfiler().WithPrefix("/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
-            ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
-        , ContainerDestroyFailureCounter_(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
+            JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
+        , ContainerDestroyFailureCounter_(JobEnvironmentProfiler().Counter("/container_destroy_failures"))
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
