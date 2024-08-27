@@ -355,7 +355,7 @@ public:
         const std::optional<TString>& title,
         TTransactionId hintId) override
     {
-        ValidateUploadTransactionStart(hintId, parent);
+        ValidateUploadTransactionStart(parent);
 
         return DoStartTransaction(
             /*upload*/ true,
@@ -414,23 +414,8 @@ public:
         }
     }
 
-    void ValidateUploadTransactionStart(TTransactionId hintId, TTransaction* parent)
+    void ValidateUploadTransactionStart(TTransaction* parent)
     {
-        if (hintId &&
-            TypeFromId(hintId) != EObjectType::UploadTransaction &&
-            TypeFromId(hintId) != EObjectType::UploadNestedTransaction)
-        {
-            if (IsHiveMutation()) {
-                // COMPAT(shakurov)
-                // This is a hive mutation posted by a pre-20.3 master (and being
-                // applied by a post-20.3 one).
-                YT_LOG_ALERT("Upload transaction has generic type despite dedicated types being enabled (TransactionId: %v)",
-                    hintId);
-            } else {
-                YT_ABORT();
-            }
-        }
-
         ValidateGenericTransactionStart(parent);
     }
 
