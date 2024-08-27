@@ -39,8 +39,6 @@ jobs:
   venv:
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
-    env:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     steps:
       - name: Prepare python virtual environment
         run: |
@@ -196,6 +194,8 @@ jobs:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
+    env:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
