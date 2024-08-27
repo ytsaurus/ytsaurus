@@ -46,6 +46,7 @@ DEFINE_REFCOUNTED_TYPE(IYqlAgent)
 IYqlAgentPtr CreateYqlAgent(
     TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
+    TYqlAgentDynamicConfigPtr dynamicConfig,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
     NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,

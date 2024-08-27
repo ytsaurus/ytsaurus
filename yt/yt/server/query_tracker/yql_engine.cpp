@@ -59,6 +59,14 @@ DECLARE_REFCOUNTED_CLASS(TYqlSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EYqlQueryState,
+    ((Invalid)   (-1))
+    ((Pending)   (0))
+    ((Running)   (2))
+    ((Throttled) (3))
+    ((Aborted)   (4))
+);
+
 class TYqlQueryHandler
     : public TQueryHandlerBase
 {
@@ -79,57 +87,42 @@ public:
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
+        , QueryState_(EYqlQueryState::Pending)
     { }
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", Stage_);
-
-        auto channelProvider = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
-        auto serviceName = TYqlServiceProxy::GetDescriptor().ServiceName;
-        YqlServiceChannel_ = WaitForFast(channelProvider->GetChannel(std::move(serviceName)))
-            .ValueOrThrow();
-        // TODO(max42, gritukan): Implement long polling for YQL queries.
-        YqlServiceChannel_ = CreateDefaultTimeoutChannel(YqlServiceChannel_, TDuration::Days(1));
-
-        TYqlServiceProxy proxy(YqlServiceChannel_);
-        auto req = proxy.StartQuery();
-        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
-        auto* yqlRequest = req->mutable_yql_request();
-        req->set_row_count_limit(Config_->RowCountLimit);
-        ToProto(req->mutable_query_id(), QueryId_);
-        yqlRequest->set_query(Query_);
-        yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
-        yqlRequest->set_mode(ToProto<int>(ExecuteMode_));
-
-        for (const auto& file : Files_) {
-            auto* protoFile = yqlRequest->add_files();
-            protoFile->set_name(file->Name);
-            protoFile->set_content(file->Content);
-            protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
-        }
-        req->set_build_rowsets(true);
-        AsyncQueryResult_ = req->Invoke();
-        AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
-
-        ProgressGetterExecutor_->Start();
-        StartProgressWriter();
+        YqlAgentChannelProvider_ = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        YqlServiceName_ = TYqlServiceProxy::GetDescriptor().ServiceName;
+        TryStart();
     }
 
     void Abort() override
     {
-        // Nothing smarter than that for now.
-        YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-        StopProgressWriter();
-        AsyncQueryResult_.Cancel(TError("Query aborted"));
+        auto guard = Guard(QueryStateSpinLock_);
+
+        if (QueryState_ == EYqlQueryState::Running) {
+            // Nothing smarter than that for now.
+            YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
+            StopProgressWriter();
+            AsyncQueryResult_.Cancel(TError("Query aborted"));
+        }
+
+        QueryState_ = EYqlQueryState::Aborted;
     }
 
     void Detach() override
     {
-        // Nothing smarter than that for now.
-        YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-        StopProgressWriter();
-        AsyncQueryResult_.Cancel(TError("Query detached"));
+        auto guard = Guard(QueryStateSpinLock_);
+
+        if (QueryState_ == EYqlQueryState::Running) {
+            // Nothing smarter than that for now.
+            YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
+            StopProgressWriter();
+            AsyncQueryResult_.Cancel(TError("Query detached"));
+        }
+
+        QueryState_ = EYqlQueryState::Aborted;
     }
 
 private:
@@ -141,10 +134,67 @@ private:
     const TString Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
+    IRoamingChannelProviderPtr YqlAgentChannelProvider_;
+    TString YqlServiceName_;
+
     IChannelPtr YqlServiceChannel_;
     TPeriodicExecutorPtr ProgressGetterExecutor_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryStateSpinLock_);
+    EYqlQueryState QueryState_;
+
+    void TryStart()
+    {
+        YT_LOG_DEBUG("Start YQL query attempt (Stage: %v)", Stage_);
+        auto yqlServiceChannel = WaitForFast(YqlAgentChannelProvider_->GetChannel(YqlServiceName_))
+            .ValueOrThrow();
+
+        // TODO(max42, gritukan): Implement long polling for YQL queries.
+        auto yqlServiceChannelWithBigTimeout = CreateDefaultTimeoutChannel(yqlServiceChannel, TDuration::Days(1));
+
+        TYqlServiceProxy proxy(yqlServiceChannelWithBigTimeout);
+        auto startQueryReq = proxy.StartQuery();
+        SetAuthenticationIdentity(startQueryReq, TAuthenticationIdentity(User_));
+        auto* yqlRequest = startQueryReq->mutable_yql_request();
+        startQueryReq->set_row_count_limit(Config_->RowCountLimit);
+        ToProto(startQueryReq->mutable_query_id(), QueryId_);
+        yqlRequest->set_query(Query_);
+        yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
+        yqlRequest->set_mode(ToProto<int>(ExecuteMode_));
+
+        for (const auto& file : Files_) {
+            auto* protoFile = yqlRequest->add_files();
+            protoFile->set_name(file->Name);
+            protoFile->set_content(file->Content);
+            protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
+        }
+        startQueryReq->set_build_rowsets(true);
+
+        {
+            auto guard = Guard(QueryStateSpinLock_);
+            if (QueryState_ != EYqlQueryState::Pending && QueryState_ != EYqlQueryState::Throttled) {
+                YT_LOG_DEBUG("Start YQL query attempt failed, query is not in pending or throttled state (State: %v)", QueryState_);
+                return;
+            }
+
+            YT_LOG_DEBUG("Start YQL query (Stage: %v, Channel: %v)",
+                Stage_,
+                yqlServiceChannel->GetEndpointDescription());
+
+            QueryState_ = EYqlQueryState::Running;
+
+            AsyncQueryResult_ = startQueryReq->Invoke();
+            AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
+
+            YqlServiceChannel_ = yqlServiceChannel;
+            ProgressGetterExecutor_->Start();
+            StartProgressWriter();
+        }
+
+        OnQueryStarted();
+    }
 
     void GetProgress()
     {
@@ -184,6 +234,18 @@ private:
         if (rspOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
+
+        if (rspOrError.FindMatching(NYqlClient::EErrorCode::Throttled)) {
+            {
+                auto guard = Guard(QueryStateSpinLock_);
+                QueryState_ = EYqlQueryState::Throttled;
+            }
+            OnQueryThrottled();
+            TDelayedExecutor::WaitForDuration(Config_->StartQueryAttemptPeriod);
+            TryStart();
+            return;
+        }
+
         if (!rspOrError.IsOK()) {
             OnQueryFailed(rspOrError);
             return;

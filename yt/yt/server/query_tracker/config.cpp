@@ -30,6 +30,8 @@ void TYqlEngineConfig::Register(TRegistrar registrar)
         .Default("production");
     registrar.Parameter("update_progress_period", &TThis::QueryProgressGetPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("start_query_attempt_period", &TThis::StartQueryAttemptPeriod)
+        .Default(TDuration::Seconds(2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

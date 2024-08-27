@@ -280,6 +280,59 @@ class TestYqlPlugin(TestQueriesYqlBase):
         """, [rows, [{"a": 42, "c": "test"}]])
 
 
+class TestAllYqlAgentsOverload(TestQueriesYqlBase):
+    YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
+    NUM_YQL_AGENTS = 1
+
+    @authors("mpereskokova")
+    def test_yql_agent_overload(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+
+        q1 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        wait(lambda: q1.get()["state"] == "running")
+
+        q2 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        wait(lambda: q2.get()["state"] == "running")
+        wait(lambda: q2.get()["state"] == "pending")
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+
+        q1.track()
+        q2.track()
+
+
+class TestPartialYqlAgentsOverload(TestQueriesYqlBase):
+    YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
+    NUM_YQL_AGENTS = 2
+
+    @authors("mpereskokova")
+    def test_yql_agent_overload(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+
+        q1 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        q2 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: q1.get()["state"] == "running")
+        wait(lambda: q2.get()["state"] == "running")
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+
+        q1.track()
+        q2.track()
+
+
 class TestYqlAgent(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
