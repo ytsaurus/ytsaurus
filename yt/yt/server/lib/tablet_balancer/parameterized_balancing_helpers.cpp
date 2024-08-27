@@ -238,6 +238,7 @@ private:
     std::vector<TTabletInfo> Tablets_;
     std::vector<TTabletCellInfo> Cells_;
     std::vector<TTableId> TableIds_;
+    std::vector<int> SortedCellIndexes_;
     THashMap<TNodeAddress, TNodeInfo> Nodes_;
 
     TBoundedPriorityQueue<TMoveActionInfo> MoveActions_;
@@ -266,7 +267,7 @@ private:
     void CalculateModifyingFactors();
     void CalculateAndApplyTableFactors();
 
-    void TryMoveTablet(
+    bool TryMoveTablet(
         TTabletInfo* tablet,
         TTabletCellInfo* cell);
 
@@ -427,6 +428,10 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     CalculateAndApplyTableFactors();
+
+    for (int index = 0; index < std::ssize(Cells_); ++index) {
+        SortedCellIndexes_.emplace_back(index);
+    }
 
     if (Bundle_->Config->EnableVerboseLogging) {
         for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
@@ -683,7 +688,8 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     return destinationCell->Node == sourceCell->Node || destinationCell->Node->FreeNodeMemory >= size;
 }
 
-void TParameterizedReassignSolver::TryMoveTablet(
+//! Generates an action moving |tablet| to |cell|. Returns |false| if it can be proven that all further actions will be pruned and the iteration can be stopped.
+bool TParameterizedReassignSolver::TryMoveTablet(
     TTabletInfo* tablet,
     TTabletCellInfo* cell)
 {
@@ -691,7 +697,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
 
     if (cell == sourceCell) {
         // Trying to move the tablet from the cell to itself.
-        return;
+        return true;
     }
 
     auto* sourceNode = sourceCell->Node;
@@ -709,17 +715,22 @@ void TParameterizedReassignSolver::TryMoveTablet(
             cell->Id,
             sourceNode->Address,
             destinationNode->Address);
-        return;
+        return true;
+    }
+
+    if (sourceNode == destinationNode && sourceCell->Metric < cell->Metric) {
+        // Moving to larger cell on the same node will not make metric smaller.
+        // Let's pretend that we can move to the cell so that we don’t try to move it to the same node again.
+        return true;
     }
 
     int tableIndex = tablet->TableIndex;
-
     double newMetricDiff = 0;
+
     if (sourceNode != destinationNode) {
         newMetricDiff +=
-            (sourceNodeMetric -
-                destinationNodeMetric -
-                tablet->Metric * NodeFactor_) *
+            (sourceNodeMetric - destinationNodeMetric -
+            tablet->Metric * NodeFactor_) *
             NodeFactor_;
 
         newMetricDiff +=
@@ -727,23 +738,32 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 TableByNodeMetric_[tableIndex][destinationNode->Index] -
                 tablet->Metric * TableNodeFactors_[tableIndex]) *
             TableNodeFactors_[tableIndex] * TableNormalizingCoefficient_;
-    } else {
-        if (sourceCell->Metric < cell->Metric) {
-            // Moving to larger cell on the same node will not make metric smaller.
-            // Let's pretend that we can move to the cell so that we don’t try to move it to the same node again.
-            return;
-        }
     }
 
     newMetricDiff +=
-        (sourceCell->Metric - cell->Metric -
-        tablet->Metric * CellFactor_) *
+        (sourceCell->Metric - tablet->Metric * CellFactor_) *
         CellFactor_;
 
     newMetricDiff +=
         (TableByCellMetric_[tableIndex][sourceCell->Index] -
-            TableByCellMetric_[tableIndex][cell->Index] -
             tablet->Metric * TableCellFactors_[tableIndex]) *
+        TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
+
+    if (newMetricDiff * (2.0 * tablet->Metric) < MoveActions_.GetBestDiscardedCost()) {
+        // Current value of newMetricDiff takes into account the "positive" part
+        // (a certain tablet was moved from a certain node&cell) and partly
+        // the "negative" part (a certain tablet is moved to a certain node).
+        // It overestimates the final newMetricDiff value. If this overestimate
+        // is below zero (and even below best discarded cost) then the action
+        // can be discarded. Furhermore, all further actions can be discarded
+        // as well since nodes are sorted in ascending order.
+        return false;
+    }
+
+    newMetricDiff -= cell->Metric * CellFactor_;
+
+    newMetricDiff -=
+        TableByCellMetric_[tableIndex][cell->Index] *
         TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
 
     newMetricDiff *= 2 * tablet->Metric;
@@ -763,7 +783,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
         sourceNode->Metric,
         destinationNode->Metric);
 
-    if (newMetricDiff > 0) {
+    if (newMetricDiff > 0.0) {
         MoveActions_.Insert(
             newMetricDiff,
             {
@@ -773,6 +793,8 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 .MetricDiff = newMetricDiff,
             });
     }
+
+    return true;
 }
 
 void TParameterizedReassignSolver::ApplyBestAction(int* availableActionCount)
@@ -863,11 +885,13 @@ void TParameterizedReassignSolver::RecomputeInvalidatedActions()
     }
 
     for (auto& tablet : Tablets_) {
-        auto* currentCell = &Cells_[tablet.CellIndex];
+        auto* sourceCell = &Cells_[tablet.CellIndex];
 
-        if (std::find(bannedNodes.begin(), bannedNodes.end(), currentCell->Node) != bannedNodes.end()) {
-            for (auto& cell : Cells_) {
-                TryMoveTablet(&tablet, &cell);
+        if (std::find(bannedNodes.begin(), bannedNodes.end(), sourceCell->Node) != bannedNodes.end()) {
+            for (auto cellIndex : SortedCellIndexes_) {
+                if (!TryMoveTablet(&tablet, &Cells_[cellIndex])) {
+                    break;
+                }
             }
         } else {
             for (auto* cell : invalidatedCells) {
@@ -881,14 +905,20 @@ void TParameterizedReassignSolver::RecomputeAllActions()
 {
     MoveActions_.Reset();
     for (auto& tablet : Tablets_) {
-        for (auto& cell : Cells_) {
-            TryMoveTablet(&tablet, &cell);
+        for (auto cellIndex : SortedCellIndexes_) {
+            if (!TryMoveTablet(&tablet, &Cells_[cellIndex])) {
+                break;
+            }
         }
     }
 }
 
 bool TParameterizedReassignSolver::TryFindBestAction()
 {
+    std::sort(SortedCellIndexes_.begin(), SortedCellIndexes_.end(), [&] (auto lhs, auto rhs) {
+        return Cells_[lhs].Node->Metric < Cells_[rhs].Node->Metric;
+    });
+
     if (MoveActions_.IsEmpty()) {
         ++FullRecomputeAttempts_;
         RecomputeAllActions();
