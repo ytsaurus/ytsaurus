@@ -732,7 +732,8 @@ public:
     {
         // Destroying accounts is rare, so O(n) deletion should be OK.
         if (IsShardActive(account->GetShardIndex())) {
-            std::remove(AccountsForProfiling_.begin(), AccountsForProfiling_.end(), account);
+            auto it = std::remove(AccountsForProfiling_.begin(), AccountsForProfiling_.end(), account);
+            AccountsForProfiling_.erase(it, AccountsForProfiling_.end());
         }
 
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
