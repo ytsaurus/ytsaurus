@@ -35,5 +35,6 @@ target_sources(library-containers-cri PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/cri_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/cri_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/image_cache.cpp
 )
 

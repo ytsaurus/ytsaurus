@@ -62,4 +62,37 @@ void TCriAuthConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCriImageCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("managed_prefixes", &TThis::ManagedPrefixes)
+        .Optional();
+
+    registrar.Parameter("unmanaged_prefixes", &TThis::UnmanagedPrefixes)
+        .Optional();
+
+    registrar.Parameter("pinned_images", &TThis::PinnedImages)
+        .Optional();
+
+    registrar.Parameter("image_size_estimation", &TThis::ImageSizeEstimation)
+        .Default(512_MB);
+
+    registrar.Parameter("image_compression_ratio_estimation", &TThis::ImageCompressionRatioEstimation)
+        .Default(4.0);
+
+    registrar.Parameter("always_pull_latest", &TThis::AlwaysPullLatest)
+        .Default(true);
+
+    registrar.Parameter("pull_period", &TThis::PullPeriod)
+        .Default();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->Capacity = Max<i64>();
+        config->ShardCount = 1;
+        config->TouchBufferCapacity = 32;
+        config->YoungerSizeFraction = 0.5;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers::NCri
