@@ -5393,11 +5393,18 @@ private:
         THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 6>> replicasToPurge;
         for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto it = SequoiaChunkPurgatory_.find(chunkId);
+            if (it == SequoiaChunkPurgatory_.end()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", chunkId);
+            }
             replicasToPurge[chunkId] = GetOrCrash(SequoiaChunkPurgatory_, chunkId);
         }
 
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TSequoiaChunkReplica>(protoReplica);
+            if (!SequoiaChunkPurgatory_.contains(replica.ChunkId)) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", replica.ChunkId);
+            }
             replicasToPurge[replica.ChunkId].push_back(replica);
         }
 
