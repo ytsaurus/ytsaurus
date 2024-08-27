@@ -811,7 +811,7 @@ public:
                 operation->GetState()));
         }
 
-        NodeManager_->ResumeOperationAllocations(operation->GetId());
+        NodeManager_->ResumeOperationScheduling(operation->GetId());
 
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
@@ -3291,7 +3291,11 @@ private:
                 error
                     << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
                 EAbortReason::OperationSuspended,
-                /* terminated */ false);
+                /*terminated*/ false);
+        } else {
+            // |AbortOperationAllocations| implies suspension, so we only need to do it explicitly if
+            // |abortRunningAllocations| is false.
+            NodeManager_->SuspendOperationScheduling(operation->GetId());
         }
 
         if (setAlert) {

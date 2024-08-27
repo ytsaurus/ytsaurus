@@ -64,7 +64,8 @@ public:
         const TError& error,
         EAbortReason abortReason,
         bool terminated);
-    void ResumeOperationAllocations(TOperationId operationId);
+    void SuspendOperationScheduling(TOperationId operationId);
+    void ResumeOperationScheduling(TOperationId operationId);
 
     TFuture<NNodeTrackerClient::TNodeDescriptor> GetAllocationNode(TAllocationId allocationId);
 
