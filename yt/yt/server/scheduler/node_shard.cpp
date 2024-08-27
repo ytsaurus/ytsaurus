@@ -1005,7 +1005,18 @@ void TNodeShard::AbortOperationAllocations(
     }
 }
 
-void TNodeShard::ResumeOperationAllocations(TOperationId operationId)
+void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
+
+    if (auto* operationState = FindOperationState(operationId)) {
+        operationState->ForbidNewAllocations = true;
+    }
+}
+
+void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 

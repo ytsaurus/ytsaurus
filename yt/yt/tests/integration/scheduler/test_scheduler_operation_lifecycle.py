@@ -759,6 +759,56 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert new_connection_time == connection_time
 
 
+# See: YT-22656.
+class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "watchers_update_period": 100,
+            "static_orchid_cache_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "static_orchid_cache_update_period": 100,
+        }
+    }
+
+    @authors("escherbin")
+    def test_suspend_stops_scheduling_in_current_snapshot(self):
+        blocking_op = run_sleeping_vanilla()
+        wait(lambda: len(blocking_op.get_running_jobs()) == 1)
+
+        op = run_sleeping_vanilla(job_count=3)
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/schedulable"))
+
+        update_scheduler_config("fair_share_update_period", 60000)
+
+        # Wait 2 times previous update period to make sure there are no more fair share updates in this test.
+        time.sleep(0.2)
+
+        op.suspend(abort_running_jobs=False)
+
+        job = list(op.get_running_jobs())[0]
+        abort_job(job)
+
+        time.sleep(3.0)
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/schedulable"))
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        op.resume()
+
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
