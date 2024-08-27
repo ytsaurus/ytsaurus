@@ -1001,7 +1001,7 @@ template <class IRowset, class TRow>
 TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     const TYPath& path,
     const TNameTablePtr& nameTable,
-    const TSharedRange<NTableClient::TLegacyKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TLookupRowsOptionsBase& options,
     const std::optional<TString>& retentionConfig,
     TEncoderWithMapping encoderWithMapping,
@@ -1186,7 +1186,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
                 auto error = TError(
                     NTabletClient::EErrorCode::NoInSyncReplicas,
-                    "No in-sync replicas found for table %v",
+                    "No working in-sync replicas found for table %v",
                     tableInfo->Path)
                     << TErrorAttribute("banned_replicas", bannedSyncReplicaIds);
                 *error.MutableInnerErrors() = std::move(replicaErrors);
@@ -1541,10 +1541,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
-    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
-        options,
-        GetQueryTableInfos(astQuery, cache));
-    if (!tableInfos.empty()) {
+    auto tableInfos = GetQueryTableInfos(astQuery, cache);
+    auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
+    if (!replicaCandidates.empty()) {
         std::vector<TYPath> paths;
         for (const auto& tableInfo : tableInfos) {
             paths.push_back(tableInfo->Path);
@@ -2505,7 +2504,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             ? Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId)
             : nullptr;
 
-        auto pickedSyncReplicas = PrepareInSyncReplicaCandidates(options, {tableInfo}).second[0];
+        auto pickedSyncReplicas = PrepareInSyncReplicaCandidates(options, {tableInfo})[0];
 
         auto retryCountLimit = tableInfo->ReplicationCardId
             ? Connection_->GetConfig()->ReplicaFallbackRetryCount
@@ -2534,7 +2533,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
                 auto error = TError(
                     NTabletClient::EErrorCode::NoInSyncReplicas,
-                    "No in-sync replicas found for table %v",
+                    "No working in-sync replicas found for table %v",
                     tableInfo->Path)
                     << TErrorAttribute("banned_replicas", bannedSyncReplicaIds);
                 *error.MutableInnerErrors() = std::move(replicaErrors);

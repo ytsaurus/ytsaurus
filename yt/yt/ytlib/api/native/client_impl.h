@@ -1067,7 +1067,7 @@ private:
         THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
         const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
 
-    std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
+    std::vector<TTableReplicaInfoPtrList> PrepareInSyncReplicaCandidates(
         const TTabletReadOptions& options,
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
 
