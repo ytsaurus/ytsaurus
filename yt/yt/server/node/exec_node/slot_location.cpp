@@ -93,7 +93,7 @@ TSlotLocation::TSlotLocation(
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
 {
-    ExecNodeProfiler.WithPrefix("/job_directory/artifacts")
+    ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .AddProducer("", MakeCopyMetricBuffer_);

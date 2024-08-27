@@ -28,12 +28,19 @@ struct TControllerAgentDescriptor;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ExecNodeLogger, "ExecNode");
-inline const NProfiling::TProfiler ExecNodeProfiler("/exec_node");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ExecNodeProfiler, "/exec_node");
 
-inline const NLogging::TLogger JobInputCacheLogger("JobInputCache");
-inline const NProfiling::TProfiler JobInputCacheProfiler = ExecNodeProfiler.WithPrefix("/job_input_cache");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, JobInputCacheLogger, "JobInputCache");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobInputCacheProfiler, ExecNodeProfiler().WithPrefix("/job_input_cache"));
 
-inline const NProfiling::TProfiler GpuManagerProfiler = ExecNodeProfiler.WithPrefix("/gpu_manager");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, GpuManagerProfiler, ExecNodeProfiler().WithPrefix("/gpu_manager"));
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerConnectorProfiler, ExecNodeProfiler().WithPrefix("/scheduler_connector"));
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerAgentConnectorProfiler, ExecNodeProfiler().WithPrefix("/controller_agent_connector"));
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobEnvironmentProfiler, ExecNodeProfiler().WithPrefix("/job_environment"));
+
+////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TmpfsRemoveAttemptCount = 5;
 

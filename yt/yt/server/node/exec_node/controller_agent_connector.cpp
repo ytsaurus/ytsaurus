@@ -464,7 +464,9 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     IBootstrap* const bootstrap)
     : DynamicConfig_(New<TControllerAgentConnectorDynamicConfig>())
     , Bootstrap_(bootstrap)
-    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
+    , TracingSampler_(New<TSampler>(
+        DynamicConfig_.Acquire()->TracingSampler,
+        ControllerAgentConnectorProfiler().WithPrefix("/tracing")))
 { }
 
 void TControllerAgentConnectorPool::Initialize()

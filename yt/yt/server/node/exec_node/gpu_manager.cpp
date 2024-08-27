@@ -164,7 +164,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     }
 
     if (DriverVersionString_ != GetDummyGpuDriverVersionString()) {
-        GpuManagerProfiler
+        GpuManagerProfiler()
             .WithRequiredTag("version", DriverVersionString_)
             .AddFuncGauge("/driver_version", MakeStrong(this), [] { return 1.0; });
     };

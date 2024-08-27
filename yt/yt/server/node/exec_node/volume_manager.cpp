@@ -1640,15 +1640,12 @@ public:
         , Bootstrap_(bootstrap)
         , PortoExecutor_(std::move(portoExecutor))
         , AbsorbLayer_(std::move(absorbLayer))
-        , HitCounter_(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .Counter("/layer_cache/tmpfs_cache_hits"))
-        , UpdateFailedCounter_(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .Gauge("/layer_cache/update_failed"))
-        , TmpfsLayerCacheCounters(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .WithGlobal())
+        , Profiler_(ExecNodeProfiler()
+            .WithPrefix("/layer_cache")
+            .WithTag("cache_name", CacheName_))
+        , HitCounter_(Profiler_.Counter("/tmpfs_cache_hits"))
+        , UpdateFailedCounter_(Profiler_.Gauge("/update_failed"))
+        , TmpfsLayerCacheCounters_(Profiler_.WithGlobal())
     {
         if (Bootstrap_) {
             Bootstrap_->SubscribePopulateAlerts(BIND(
@@ -1666,18 +1663,18 @@ public:
             guard.Release();
 
             // The following counter can help find layers that do not benefit from residing in tmpfs layer cache.
-            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
                 NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
-                "/layer_cache/tmpfs_layer_hits");
+                "/tmpfs_layer_hits");
 
             cacheHitsCypressPathCounter.Increment();
             HitCounter_.Increment();
             return layer;
         } else {
             // The following counter can help find layers that could benefit from residing in tmpfs layer cache.
-            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
                 NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
-                "/layer_cache/tmpfs_layer_misses");
+                "/tmpfs_layer_misses");
 
             cacheMissesCypressPathCounter.Increment();
         }
@@ -1822,10 +1819,12 @@ private:
 
     TPromise<void> Initialized_ = NewPromise<void>();
 
+    const NProfiling::TProfiler Profiler_;
+
     TCounter HitCounter_;
     TGauge UpdateFailedCounter_;
 
-    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters;
+    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters_;
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
@@ -2053,7 +2052,7 @@ public:
                 config->EnableLayersCache
                 ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
                 : 0),
-            ExecNodeProfiler.WithPrefix("/layer_cache"))
+            ExecNodeProfiler().WithPrefix("/layer_cache"))
         , Config_(config)
         , DynamicConfigManager_(dynamicConfigManager)
         , ChunkCache_(chunkCache)
@@ -2695,11 +2694,11 @@ public:
                 CreatePortoExecutor(
                     Config_->VolumeManager->PortoExecutor,
                     Format("volume%v", index),
-                    ExecNodeProfiler.WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
+                    ExecNodeProfiler().WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
                 CreatePortoExecutor(
                     Config_->VolumeManager->PortoExecutor,
                     Format("layer%v", index),
-                    ExecNodeProfiler.WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                    ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
@@ -2715,7 +2714,7 @@ public:
         auto tmpfsExecutor = CreatePortoExecutor(
             Config_->VolumeManager->PortoExecutor,
             "tmpfs_layer",
-            ExecNodeProfiler.WithPrefix("/tmpfs_layers/porto"));
+            ExecNodeProfiler().WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,

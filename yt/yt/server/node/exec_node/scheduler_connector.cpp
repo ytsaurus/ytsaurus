@@ -56,10 +56,12 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
             return this_ ? SendHeartbeat() : TError("Scheduler connector is destroyed");
         }),
         DynamicConfig_.Acquire()->HeartbeatExecutor))
-    , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
-    , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
-    , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
-    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
+    , TimeBetweenSentHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_sent_heartbeats"))
+    , TimeBetweenAcknowledgedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_acknowledged_heartbeats"))
+    , TimeBetweenFullyProcessedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_fully_processed_heartbeats"))
+    , TracingSampler_(New<TSampler>(
+        DynamicConfig_.Acquire()->TracingSampler,
+        SchedulerConnectorProfiler().WithPrefix("/tracing")))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
