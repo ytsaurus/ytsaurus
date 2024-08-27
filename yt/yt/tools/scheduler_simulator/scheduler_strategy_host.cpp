@@ -38,7 +38,7 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 
     for (const auto& execNode : *ExecNodes_) {
-        TotalResourceLimits_ += execNode->GetResourceLimits();
+        TotalResourceLimits_ += execNode->ResourceLimits();
     }
 }
 
@@ -102,7 +102,7 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     TJobResources result;
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
-            result += execNode->GetResourceLimits();
+            result += execNode->ResourceLimits();
         }
     }
 
@@ -137,7 +137,7 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     TMemoryDistribution distribution;
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
-            auto resourceLimits = execNode->GetResourceLimits();
+            auto resourceLimits = execNode->ResourceLimits();
             ++distribution[RoundUp(resourceLimits.GetMemory(), 1_GBs)];
         }
     }

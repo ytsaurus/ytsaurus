@@ -220,9 +220,9 @@ protected:
             NScheduler::ENodeState::Online);
         NextNodeId_ = TNodeId(NextNodeId_.Underlying() + 1);
         node->SetTags(TBooleanFormulaTags(THashSet<TString>{"internal"}));
-        node->SetResourceLimits(resourceLimits);
+        node->ResourceLimits() = resourceLimits;
 
-        auto diskResources = TDiskResources{
+        node->DiskResources() = TDiskResources{
             .DiskLocationResources = {
                 TDiskResources::TDiskLocationResources{
                     .Usage = 0,
@@ -230,8 +230,6 @@ protected:
                 },
             },
         };
-
-        node->SetDiskResources(diskResources);
 
         return node;
     }

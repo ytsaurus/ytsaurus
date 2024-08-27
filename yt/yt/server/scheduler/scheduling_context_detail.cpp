@@ -39,9 +39,9 @@ TSchedulingContextBase::TSchedulingContextBase(
         Config_->MinSpareAllocationResourcesOnNode
         ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
         : TJobResources())
-    , ResourceUsage_(Node_->GetResourceUsage())
-    , ResourceLimits_(Node_->GetResourceLimits())
-    , DiskResources_(Node_->GetDiskResources())
+    , ResourceUsage_(Node_->ResourceUsage())
+    , ResourceLimits_(Node_->ResourceLimits())
+    , DiskResources_(Node_->DiskResources())
     , RunningAllocations_(runningAllocations)
 {
     if (const auto& diskLocationResources = DiskResources_.DiskLocationResources;
