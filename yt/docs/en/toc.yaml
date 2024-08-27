@@ -256,6 +256,8 @@ items:
              items:
              - name: Executing queries
                href: user-guide/data-processing/chyt/reference/execute.md
+             - name: Selecting a coordinator
+               href: user-guide/data-processing/chyt/queries/instance-pick.md
              - name: Query settings
                href: user-guide/data-processing/chyt/reference/settings.md
              - name: Instance configuration
@@ -442,6 +444,8 @@ items:
          href: admin-guide/node-tags.md
        - name: Possible problems
          href: admin-guide/problems.md
+       - name: Cell addition
+         href: admin-guide/cell-addition.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
    - name: Releases
