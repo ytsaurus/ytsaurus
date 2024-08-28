@@ -10,6 +10,8 @@ WARNING_AGE = timedelta(minutes=120)
 
 
 def run_check(yt_client, logger, options, states):
+    yt_client.config["proxy"]["request_timeout"] = 40000
+
     result = states.FULLY_AVAILABLE_STATE
     unavailable_threshold = datetime.utcnow() - UNAVAILABLE_AGE
     warning_threshold = datetime.utcnow() - WARNING_AGE
