@@ -1,41 +1,62 @@
-# CHYT instance configuration
+# Clique configuration
 
 The entire clique configuration is described by a single [YSON document](../../../../../user-guide/storage/yson-docs.md) called a *speclet*.
 
 The clique speclet is stored in Cypress at `//sys/strawberry/chyt/<alias>/speclet`. You can also retrieve it by running the CLI command `yt clickhouse ctl get-speclet`.
 
-A speclet is a set of options that are interpreted by the controller at clique startup. In particular, the controller generates the final configuration of CHYT instances based on these options.
+A speclet is a set of [options](#options) that are interpreted by the controller at clique startup. In particular, the controller generates the final configuration of CHYT instances based on these options.
+
+An important difference between CHYT and original ClickHouse is that the settings are specified not in XML format, but in YSON format that is native for {{product-name}}. The principle by which the settings are interpreted in this format is described [below](#clickhouse_config).
+
+## How the configuration is formed { #how-form }
+
+The following information is used to form a configuration:
+
+1. The basic config from Cypress: `//sys/clickhouse/config`.
+2. Options described in the speclet.
+3. The native cluster connection configuration taken from the contents of `//sys/@cluster_connection`.
+
+{% note warning "Attention" %}
+
+All clique instances always work with the same configuration and it is impossible to change the configuration without restarting the clique.
+
+{% endnote %}
 
 ## Available options { #options }
 
 Here are the clique options that can be set by the `set-option` command (the default values are in square brackets):
 
-- `active` [`%false`]: If the option is enabled, the controller will try to run the Vanilla operation assigned to the clique. When the value is `%false`, the clique is inactive: it doesn't process queries or use any compute pool resources. Use this option, if you want to disable the clique for a while, preserving its configuration.
+- `active` [`%false`]: If the option is set, the controller will try to run the Vanilla operation assigned to the clique. When the value is `%false`, the clique is inactive: it doesn't process queries or use any compute pool resources. Use this option if you want to temporarily disable the clique while preserving its configuration.
 
-- `pool`: Name of the compute pool where you want to run the clique operation. To set this option, the user needs the `Use` permission for the specified compute pool. Setting this option is required if you want the clique operation to be run and administered by the controller.
+- `pool`: Name of the compute pool where you want to run the clique's operation. To set this option, the user needs the `Use` permission for the specified compute pool. Setting this option is required if you want the clique operation to be run and administered by the controller.
 
 - `enable_geodata` [`%true`]: Automatically set up the system dictionaries needed for [certain geo features in ClickHouse](https://clickhouse.com/docs/en/sql-reference/functions/ym-dict-functions/).
 
-- `restart_on_speclet_change` [`%true`]: If this option is set, the clique will automatically restart on any reconfiguration (upon speclet modification). Otherwise, you will need to restart the clique manually to apply its settings.
+- `restart_on_speclet_change` [`%true`]: If this option is set, the clique will automatically restart on any reconfiguration (upon speclet modification). Otherwise, you will need to restart the clique manually to apply its settings.
 
-- `query_settings`: Dictionary storing the default settings for all the queries sent to the clique. For more information about query settings, see the [relevant documentation section](../../../../../user-guide/data-processing/chyt/reference/settings).
+- `query_settings`:A dictionary that stores the default settings for all the queries sent to the clique. For more information about query settings, see the [relevant documentation section](../../../../../user-guide/data-processing/chyt/reference/settings).
 
-- `yt_config`: Dictionary with the {{product-name}} configuration for certain CHYT instances. This part of the configuration will be written to the generated instance configuration as it is. This setting is intended for advanced users. We don't recommend using this option, as this configuration has a pretty sophisticated structure. Use other options, whenever possible, to set changes to the configuration in a more straightforward way.
+- `yt_config`: A dictionary with the [{{product-name}} configuration for certain](#yt_config) CHYT instances. This part of the configuration will be written to the generated instance configuration as it is. This setting is intended for advanced users. We don't recommend using this option, as this configuration has a pretty sophisticated structure. Use other options, whenever possible, to set changes to the configuration in a more straightforward way.
 
-- `clickhouse_config`: Dictionary with the ClickHouse configuration for certain CHYT instances. This setting is intended for advanced users. Same case as with `yt_config`, we don't recommend using this option.
+- `clickhouse_config`: A dictionary with the [ClickHouse configuration for certain](#clickhouse_config) CHYT instances. These settings affect the logic of the ClickHouse computation engine and are identical to the original ClickHouse engine settings. Similar to `yt_config`, this option is intended for advanced users. We don't recommend using it.
 
-- `instance_count` [1]: Number of clique instances.
+- `instance_count` [1]: The number of clique instances.
 
 - `preemption_mode` [`normal`]: Preemption mode applied when running a clique's {{product-name}} operation. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value.
 
-
 {% if audience == "internal" %}
 
-- `network_project` [`cluster_node_nets` (will later be replaced by a dedicated `chyt` project)]: A network project whose network macro will run the clique instances. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value. If you're using a separate network project, make sure to read the article on Starting jobs in a separate network environment, which covers the network accesses and permissions that are required to start them.{% endif %}
+- `network_project` [`cluster_node_nets` (will later be replaced by a dedicated `chyt` project)]: A network project whose network macro will run the clique instances. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value. If you're using a separate network project, make sure to read the article on [starting jobs in a separate network environment](../../../../../user-guide/data-processing/operations/mtn#ispolzovanie-mtn), which covers the network accesses and permissions that are required for startup.
+
+{% endif %}
 
 - `instance_cpu` [16]: CPU resources to be allocated to each clique's instance. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value.
 
-- `instance_total_memory` [71940702208 (67 GiB)]: RAM (in bytes) to be allocated to each instance of the clique. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value.
+- `instance_total_memory` [71940702208 (67 Gib)]: RAM (in bytes) to be allocated to each clique's instance. This setting is intended only for advanced users. If you are not sure if you need it, we recommend keeping the default value.
+
+- `enable_sticky_query_distribution` [`%false`]: Distribute queries among instances taking into account the hashes of these queries. This increases the efficiency of cache use.
+
+- `query_sticky_group_size` [2]: The size of the group of instances selected deterministically by the query hash. A coordinator to execute the query will be uniformly selected among these instances. It is relevant only when `enable_sticky_query_distribution=%true`.
 
 ## Advanced configuration of the instance's {{product-name}} part { #yt_config }
 
@@ -45,36 +66,35 @@ The {{product-name}} part of the instance configuration resides in the `yt_confi
 
 - `table_writer`: [Table Writer configuration](../../../../../user-guide/storage/io-configuration.md#table_writer).
 
-- `table_attribute_cache`: Table attribute cache configuration. This cache significantly improves the responsiveness of CHYT, but at the moment it can potentially lead to non-consistent reads (data has already appeared in the table, but CHYT does not see it yet). To disable this cache, use the following configuration:
-   ```
-   {read_from=follower;expire_after_successful_update_time=0;expire_after_failed_update_time=0;refresh_time=0;expire_after_access_time=0}
-   ```
+- `table_attribute_cache`: Table attribute cache configuration. This cache significantly improves the responsiveness of CHYT, though at the moment it may lead to non-consistent reads (when data has already appeared in the table, but CHYT does not see it yet). To disable this cache, use the following configuration:
+  ```
+  {read_from=follower;expire_after_successful_update_time=0;expire_after_failed_update_time=0;refresh_time=0;expire_after_access_time=0}
+  ```
 - `create_table_default_attributes` [`{optimize_for = scan}`]: The default attributes with which tables will be created during `CREATE` queries in CHYT.
 
 - `health_checker`: The Health Checker configuration{% if audience == "internal" %}, see also the [corresponding section](../../../../../user-guide/data-processing/chyt/cliques/dashboard.md#health_checker) on the CHYT dashboard{% endif %}. Consists of 3 fields:
 
-   — `queries` [``["select * from `//sys/clickhouse/sample_table`"]``]: A list of test queries whose performance will be checked regularly.
+  — `queries` [``["select * from `//sys/clickhouse/sample_table`"]``]: A list of test queries whose performance will be checked regularly.
 
-   {% note warning "Attention" %}
+  {% note warning "Attention" %}
 
-   Queries from Health Checker are currently executed on behalf of user `yt-clickhouse` who must have the `read` permissions to access the table.
+    Queries from Health Checker are currently executed on behalf of user `yt-clickhouse` who must have the `read` permissions to access the table.
 
+  {% endnote %}
 
-   {% endnote %}
+  — `period` [60000]:The test triggering period in milliseconds.
 
-   — `period` [60000]:The test triggering period in milliseconds.
-
-   — `timeout` [`0.9 * period / len(queries)`]: The triggering timeout for each of the configured queries. If the query does not fit into the timeout, it is considered `failed`.
+  — `timeout` [`0.9 * period / len(queries)`]: The triggering timeout for each of the configured queries. If the query does not fit into the timeout, it is considered `failed`.
 
 - `subquery`: The configuration of the main system part which coordinates the execution of ClickHouse queries on top of {{product-name}} tables. Before configuring this part, read the article about [query execution within a clique](../../../../../user-guide/data-processing/chyt/queries/anatomy.md#query-execution).
 
-   — `min_data_weight_per_thread` [64 MiB]: (in bytes) When splitting the input into subqueries, the coordinator will try to give no less than the given amount to each core of each instance.
+  — `min_data_weight_per_thread` [64 MiB]: (in bytes) When splitting the input into subqueries, the coordinator will try to give no less than the given amount to each core of each instance.
 
-   — `max_data_weight_per_subquery` [50 GiB]: (in bytes) The maximum allowable amount of data to be processed on one core of one instance. This restriction is protective and protects clique users from accidentally running a huge query that processes petabytes. The constant of 50 GiB is selected, because such amount is processed on a single core in about dozens of minutes.
+  — `max_data_weight_per_subquery` [50 GiB]: (in bytes) The maximum allowable amount of data to be processed on one core of one instance. This restriction is protective and protects clique users from accidentally running a huge query that processes petabytes. The constant of 50 GiB is selected, because such amount is processed on a single core in about dozens of minutes.
 
 - `show_tables`: The `SHOW TABLES` query behavior configuration. Enables you to configure the list of directories in which `SHOW TABLES` will show a list of tables.
 
-   — `roots`: The list of YPath paths of directories in Cypress from which the tables will be collected for `SHOW TABLES`.
+  — `roots`: The list of YPath paths of directories in Cypress from which the tables will be collected for `SHOW TABLES`.
 
 {% note warning "Attention" %}
 
@@ -86,15 +106,14 @@ If this scenario is required or you need to process large amounts of data, confi
 
 ## Advanced configuration of the instance's ClickHouse part { #clickhouse_config }
 
-The `clickhouse_config` setting is used to customize the default configuration of the ClickHouse server.
+The `clickhouse_config` option is used to set up the configuration of the ClickHouse part. This option should be set so that it matches the standard ClickHouse XML configuration.
 
 The rules for converting a ClickHouse XML configuration into a CHYT YSON configuration can be described as follows:
 
 - Any non-multiple configuration node in the ClickHouse configuration is a dict (`map`).
-
 - A multiple node is represented by a list (`list`).
 
-Below is an example of converting an artificial XML configuration into a YSON configuration.
+Below is an example of converting an artificial XML configuration into a YSON configuration:
 
 
 ```xml
@@ -123,11 +142,11 @@ Below is an example of converting an artificial XML configuration into a YSON co
 Let's examine the `clickhouse_config` sub-options that may be of use in CHYT:
 
 - `dictionaries` (`[]`): The configuration of external dicts. The value must be a list of dict configurations. Each dict is configured by the map with the following fields that retain the meaning of the original ClickHouse configuration:
-   - `name`: The name of the external dict.
-   - `source`: The [data source](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources/) for the external dict.
-   - `layout`: [Representation](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-layout/) of the external dict in the instance memory.
-   - `structure`: The [schema of data](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-structure/) stored in the dict.
-   - `lifetime`: The dict [lifetime](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-lifetime/).
+  - `name`: The name of the external dict.
+  - `source`: The [data source](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources/) for the external dict.
+  - `layout`: [Representation](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-layout/) of the external dict in the instance memory.
+  - `structure`: The [schema of data](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-structure/) stored in the dict.
+  - `lifetime`: The dict [lifetime](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-lifetime/).
 
 ## External dicts { #external-dict }
 

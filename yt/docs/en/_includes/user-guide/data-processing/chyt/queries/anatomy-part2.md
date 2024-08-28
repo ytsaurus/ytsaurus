@@ -1,6 +1,6 @@
 ## Executing a query within a clique { #query_execution }
 
-A heavy proxy delegates query execution to a randomly selected instance from the clique. This instance is called the query `coordinator` (or `initiator`). If the query doesn't use {{product-name}} tables (for example, if it only refers to system tables starting with the `system.` prefix or it's an elementary query like `SELECT 1`), then it's executed on the coordinator normally, just like it would be done in ClickHouse.
+A heavy proxy [selects](../../../../../user-guide/data-processing/chyt/queries/instance-pick.md) one instance from the clique and delegates query execution to it. This instance is called the query "coordinator" (or "initiator"). If the query doesn't use {{product-name}} tables (for example, when querying system tables starting with the `system.` prefix, or when it's a primitive query like `SELECT 1`), then it's executed on the coordinator normally, just like it would be done in ClickHouse.
 
 However, if the query affects {{product-name}} tables , then it's always executed in a distributed manner. Let's examine the execution of a simple scan query that supports filtering, projection, and aggregation:
 
@@ -57,4 +57,4 @@ In most cases when working with ClickHouse, you want to use the columnar [format
 
 Columnar storage lets you efficiently read individual table columns without having to load the entire table into memory and helps conserve disk space, as {{product-name}} will apply different codecs for columnar storage, which will optimize column representation.
 
-However, there may be situations where the row-based format (`/@optimize_for = lookup`) is required. The main disadvantage of the columnar format is high memory consumption, especially for tables with a large number of columns, because each column requires its own buffer. In addition, it's worth noting that reading lookup tables is slightly less CPU-intensive.
+However, there may be situations requiring the row-oriented format (`/@optimize_for = lookup`). The main disadvantage of the columnar format is high memory consumption, especially for tables with a large number of columns, because each column requires its own buffer. In addition, it's worth noting that reading lookup tables is slightly less CPU-intensive.
