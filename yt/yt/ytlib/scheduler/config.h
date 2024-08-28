@@ -1156,6 +1156,10 @@ public:
     //! Read input tables via exec node.
     bool ReadViaExecNode;
 
+    //! If |true| shell environment would not inherit variables
+    //! starting with "YT_" such as "YT_JOB_ID"
+    bool IgnoreYtVariablesInShellEnvironment;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

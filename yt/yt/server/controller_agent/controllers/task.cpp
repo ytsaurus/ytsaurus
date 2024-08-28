@@ -1869,6 +1869,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
 
     jobSpecExt->set_interruptible(joblet->JobInterruptible);
 
+    jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYtVariablesInShellEnvironment);
+
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 

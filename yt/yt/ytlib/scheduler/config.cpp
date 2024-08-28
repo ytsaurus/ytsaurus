@@ -848,6 +848,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
 
+    registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYtVariablesInShellEnvironment)
+        .Default(false);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
