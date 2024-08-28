@@ -81,7 +81,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         }
 
         const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        nodeShard->ProcessHeartbeat(context);
     }));
 }
 

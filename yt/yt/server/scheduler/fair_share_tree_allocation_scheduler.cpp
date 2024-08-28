@@ -1947,6 +1947,11 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
 {
     ++SchedulingStatistics_.ControllerScheduleAllocationCount;
 
+    auto traceContext = NTracing::CreateTraceContextFromCurrent("ScheduleAllocation");
+    traceContext->AddTag("operation_id", element->GetOperationId());
+
+    NTracing::TTraceContextGuard guard(traceContext);
+
     auto scheduleAllocationResult = element->ScheduleAllocation(
         SchedulingContext_,
         availableResources,
@@ -1957,9 +1962,13 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
 
     MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleAllocationDelayScheduler);
 
-    // Discard the allocation in case of resource overcommit.
     if (scheduleAllocationResult->StartDescriptor) {
         const auto& startDescriptor = *scheduleAllocationResult->StartDescriptor;
+        auto allocationId = startDescriptor.Id;
+
+        traceContext->AddTag("allocation_id", allocationId);
+
+        // Discard the allocation in case of resource overcommit.
         // Note: |resourceDelta| might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
         // NB: If the element is disabled, we still choose the success branch. This is kind of a hotfix. See: YT-16070.
@@ -1973,7 +1982,6 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
                 break;
             }
             case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
-                auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
                 // NB(eshcherbin): GetHierarchicalAvailableResource will never return infinite resources here,
                 // because ResourceLimitExceeded could only be triggered if there's an ancestor with specified limits.
                 auto availableDelta = GetHierarchicalAvailableResources(element);
@@ -1994,7 +2002,6 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
                 break;
             }
             case EResourceTreeIncreaseResult::ElementIsNotAlive: {
-                auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
                 YT_LOG_DEBUG("Aborting allocation as operation is not alive in tree anymore (AllocationId: %v)", allocationId);
 
                 element->AbortAllocation(
@@ -2009,16 +2016,20 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
             default:
                 YT_ABORT();
         }
-    } else if (scheduleAllocationResult->Failed[EScheduleFailReason::Timeout] > 0) {
-        YT_LOG_WARNING("Allocation scheduling timed out");
+    } else {
+        traceContext->AddErrorTag();
 
-        ++SchedulingStatistics_.ControllerScheduleAllocationTimedOutCount;
+        if (scheduleAllocationResult->Failed[EScheduleFailReason::Timeout] > 0) {
+            YT_LOG_WARNING("Allocation scheduling timed out");
 
-        YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
-            element->GetOperationId(),
-            EOperationAlertType::ScheduleJobTimedOut,
-            TError("Allocation scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
-            TreeSnapshot_->ControllerConfig()->ScheduleAllocationTimeoutAlertResetTime));
+            ++SchedulingStatistics_.ControllerScheduleAllocationTimedOutCount;
+
+            YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
+                element->GetOperationId(),
+                EOperationAlertType::ScheduleJobTimedOut,
+                TError("Allocation scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
+                TreeSnapshot_->ControllerConfig()->ScheduleAllocationTimeoutAlertResetTime));
+        }
     }
 
     return scheduleAllocationResult;
@@ -3292,6 +3303,8 @@ TRunningAllocationStatistics TFairShareTreeAllocationScheduler::ComputeRunningAl
 
 void TFairShareTreeAllocationScheduler::DoRegularAllocationScheduling(TScheduleAllocationsContext* context)
 {
+    NTracing::TChildTraceContextGuard guard("RegularAllocationScheduling");
+
     const auto& treeConfig = context->TreeSnapshot()->TreeConfig();
 
     auto runRegularSchedulingStage = [&] (
@@ -3402,6 +3415,8 @@ void TFairShareTreeAllocationScheduler::DoPreemptiveAllocationScheduling(TSchedu
         YT_LOG_DEBUG("Skip preemptive scheduling");
         return;
     }
+
+    NTracing::TChildTraceContextGuard guard("PreemptiveAllocationScheduling");
 
     for (const auto& [stage, parameters] : BuildPreemptiveSchedulingStageList(context)) {
         // We allow to schedule at most one allocation using preemption.

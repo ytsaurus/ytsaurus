@@ -1696,14 +1696,15 @@ private:
         ScheduleAllocationRequestsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_schedule_allocation_requests(),
             [&] (auto* protoRequest) {
-                auto allocationId = FromProto<TAllocationId>(protoRequest->allocation_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
+                auto allocationId = FromProto<TAllocationId>(protoRequest->allocation_id());
 
                 auto traceContext = TTraceContext::NewChildFromRpc(
                     protoRequest->tracing_ext(),
-                    /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
-                    requestId,
-                    /*forceTracing*/ false);
+                    /*spanName*/ "ScheduleAllocation",
+                    requestId);
+                traceContext->AddTag("operation_id", operationId);
+                traceContext->AddTag("allocation_id", allocationId);
 
                 TCurrentTraceContextGuard traceContextGuard(traceContext);
 
@@ -1744,6 +1745,8 @@ private:
                 GuardedInvoke(
                     scheduleAllocationInvoker,
                     BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
+                        TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
+
                         auto controllerInvocationInstant = TInstant::Now();
 
                         YT_LOG_DEBUG(
@@ -1831,6 +1834,8 @@ private:
                             allocationId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
+                        TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
+
                         YT_LOG_DEBUG(
                             "Failed to schedule allocation due to operation cancelation (OperationId: %v, AllocationId: %v)",
                             operationId,

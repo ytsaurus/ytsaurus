@@ -203,7 +203,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
     if (enableTracing) {
         requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeat");
         requestTraceContext->SetRecorded();
-        requestTraceContext->AddTag("node_id", ToString(nodeId));
+        requestTraceContext->AddTag("node_id", nodeId);
 
         static const TString SchedulerConnectorTracingUserName = "scheduler_connector";
         TracingSampler_->SampleTraceContext(SchedulerConnectorTracingUserName, requestTraceContext);
