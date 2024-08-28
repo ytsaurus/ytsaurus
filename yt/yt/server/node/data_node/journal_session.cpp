@@ -66,8 +66,8 @@ i64 TJournalSession::GetMemoryUsage() const
 
 i64 TJournalSession::GetTotalSize() const
 {
-    auto chunk = Chunk_;
-    return chunk ? chunk->GetDataSize() : 0;
+    //TODO(don-dron): Calculate size.
+    return 0;
 }
 
 i64 TJournalSession::GetBlockCount() const
