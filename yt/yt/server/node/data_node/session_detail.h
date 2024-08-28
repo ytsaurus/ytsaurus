@@ -29,6 +29,7 @@ public:
     TChunkId GetChunkId() const& override;
     TSessionId GetId() const& override;
     ESessionType GetType() const override;
+    TInstant GetStartTime() const override;
     NClusterNode::TMasterEpoch GetMasterEpoch() const override;
 
     const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
@@ -79,6 +80,7 @@ protected:
     const NLogging::TLogger Logger;
 
     TLockedChunkGuard LockedChunkGuard_;
+    TInstant StartTime_;
 
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();
 

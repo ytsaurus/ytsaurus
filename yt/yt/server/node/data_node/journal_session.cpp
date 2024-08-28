@@ -58,6 +58,24 @@ void TJournalSession::DoCancel(const TError& /*error*/)
     OnFinished();
 }
 
+i64 TJournalSession::GetMemoryUsage() const
+{
+    //TODO(don-dron): Calculate memory usage.
+    return 0;
+}
+
+i64 TJournalSession::GetTotalSize() const
+{
+    auto chunk = Chunk_;
+    return chunk ? chunk->GetDataSize() : 0;
+}
+
+i64 TJournalSession::GetBlockCount() const
+{
+    //TODO(don-dron): Calculate block count.
+    return 0;
+}
+
 TFuture<TChunkInfo> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)

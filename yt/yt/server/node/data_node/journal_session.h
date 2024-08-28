@@ -17,6 +17,12 @@ class TJournalSession
 public:
     using TSessionBase::TSessionBase;
 
+    i64 GetMemoryUsage() const override;
+
+    i64 GetTotalSize() const override;
+
+    i64 GetBlockCount() const override;
+
 private:
     TJournalChunkPtr Chunk_;
     NHydra::IFileChangelogPtr Changelog_;

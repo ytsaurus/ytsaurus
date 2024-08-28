@@ -39,6 +39,12 @@ public:
         NConcurrency::TLease lease,
         TLockedChunkGuard lockedChunkGuard);
 
+    i64 GetMemoryUsage() const override;
+
+    i64 GetTotalSize() const override;
+
+    i64 GetBlockCount() const override;
+
 private:
     const TBlobWritePipelinePtr Pipeline_;
 
@@ -66,8 +72,10 @@ private:
     std::vector<TSlot> Window_;
     int WindowStartBlockIndex_ = 0;
     int WindowIndex_ = 0;
-    i64 Size_ = 0;
-    int BlockCount_ = 0;
+
+    std::atomic<i64> Size_ = 0;
+    std::atomic<i64> BlockCount_ = 0;
+    std::atomic<i64> MemoryUsage_ = 0;
 
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
@@ -107,6 +115,7 @@ private:
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
     TSlot& GetSlot(int blockIndex);
+    void ReleaseBlockSlot(TSlot& slot);
     void ReleaseBlocks(int flushedBlockIndex);
     NChunkClient::TBlock GetBlock(int blockIndex);
     void MarkAllSlotsFailed(const TError& error);
