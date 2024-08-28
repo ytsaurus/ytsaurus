@@ -454,6 +454,8 @@ void TNodeShard::AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason)
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     GetInvoker()->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(GetInvoker());
