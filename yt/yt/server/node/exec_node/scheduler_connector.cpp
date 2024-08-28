@@ -59,7 +59,9 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
-    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
+    , TracingSampler_(New<TSampler>(
+        DynamicConfig_.Acquire()->TracingSampler,
+        ExecNodeProfiler.WithPrefix("/scheduler_connector/tracing")))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
