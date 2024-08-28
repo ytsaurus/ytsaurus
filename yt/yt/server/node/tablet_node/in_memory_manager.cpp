@@ -89,10 +89,10 @@ using TInMemorySessionId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollocateImMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const INodeMemoryTrackerPtr& memoryUsageTracker)
+void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const INodeMemoryTrackerPtr& memoryUsageTracker)
 {
     i64 totalSize = 0;
-    for (const auto& block: blocks) {
+    for (const auto& block : blocks) {
         totalSize += block.Data.Size();
     }
 
@@ -123,7 +123,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     const INodeMemoryTrackerPtr& memoryUsageTracker,
     const IMemoryUsageTrackerPtr& memoryTracker)
 {
-    CollocateImMemoryBlocks(blocksWithCategory, memoryUsageTracker);
+    CollocateInMemoryBlocks(blocksWithCategory, memoryUsageTracker);
 
     std::vector<NChunkClient::TBlock> blocks;
     blocks.reserve(blocksWithCategory.size());
