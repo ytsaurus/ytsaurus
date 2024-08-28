@@ -16,17 +16,22 @@ except ImportError:
 
 import yt.wrapper as yt
 
-import os
-import signal
-import errno
-import logging
-import shutil
-import time
 import codecs
+import errno
+import importlib
+import logging
+import os
+import shutil
+import signal
+import time
 
 logger = logging.getLogger("YtLocal")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
+
+
+def _to_camelcase(snakecase_str):
+    return "".join(x.capitalize() for x in snakecase_str.lower().split("_"))
 
 
 def _load_config(config, is_proxy_config=False):
@@ -173,7 +178,8 @@ def start(master_count=1,
           replicated_table_tracker_count=0,
           job_proxy_logging_mode=None,
           use_native_client=False,
-          timestamp_provider_count=0):
+          timestamp_provider_count=0,
+          components=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -285,8 +291,6 @@ def start(master_count=1,
         watcher_config=watcher_config,
         ytserver_all_path=ytserver_all_path)
 
-    environment.id = sandbox_id
-
     require(_is_stopped(sandbox_id, path),
             lambda: YtError("Instance with id {0} is already running".format(sandbox_id)))
 
@@ -305,6 +309,42 @@ def start(master_count=1,
 
     if not prepare_only:
         environment.start()
+
+    component_runners = []
+    if components is not None:
+        for component in components:
+            name = component["name"]
+            snakecase_name = name.replace("-", "_")
+            camelcase_name = _to_camelcase(snakecase_name)
+
+            if "module_name" not in component:
+                component["module_name"] = f"yt.environment.components.{snakecase_name}"
+
+            if "class_name" not in component:
+                component["class_name"] = camelcase_name
+
+            if "config" not in component:
+                component["config"] = {"count": 1}
+
+            module_name = component["module_name"]
+            class_name = component["class_name"]
+            config = component["config"]
+
+            module = None
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError:
+                logger.warning(f"Failed to import {module_name}, install it if you want to start {name}")
+                continue
+
+            c = getattr(module, class_name)()
+            c.prepare(environment, config)
+            c.run()
+            component_runners.append(c)
+
+    for c in component_runners:
+        c.wait()
+        c.init()
 
     log_started_instance_info(environment, http_proxy_count > 0, rpc_proxy_count > 0, prepare_only)
     touch(is_started_file)

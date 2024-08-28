@@ -22,9 +22,9 @@ ELSE()
         NAMESPACE yt.environment
 
         __init__.py
+        component.py
         configs_provider.py
         default_config.py
-        external_component.py
         local_cluster_configuration.py
         helpers.py
         init_cluster.py
@@ -43,6 +43,7 @@ END()
 
 RECURSE(
     api
+    components
     migrationlib
 )
 

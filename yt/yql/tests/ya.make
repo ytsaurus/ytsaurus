@@ -21,6 +21,7 @@ ENDIF()
 
 PEERDIR(
     yt/yt/tests/conftest_lib
+    yt/python/yt/environment/components/yql_agent
 )
 
 END()

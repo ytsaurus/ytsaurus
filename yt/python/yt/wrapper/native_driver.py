@@ -339,6 +339,7 @@ def make_request(command_name, params,
             error = create_response_error(response.error())
             error.message = "Received driver response with error"
             raise error
+
         if output_stream is not None and not isinstance(output_stream, NullStream):
             value = output_stream.getvalue()
             return value
