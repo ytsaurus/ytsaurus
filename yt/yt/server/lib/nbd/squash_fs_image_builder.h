@@ -27,8 +27,9 @@ struct TArtifactDescription
 
 struct TSquashFsData
 {
-    TBlobOutput Header;
+    TBlobOutput Head;
     std::vector<TArtifactDescription> Files;
+    TBlobOutput Tail;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,17 +48,25 @@ public:
 public:
     explicit TSquashFsImage(TSquashFsData data);
 
-    TSharedRef ReadHeader(
+    TSharedRef ReadHead(
         i64 offset,
         i64 length) const;
     i64 GetHeaderSize() const;
+
+    TSharedRef ReadTail(
+        i64 offset,
+        i64 length) const;
+    i64 GetTailOffset() const;
+    i64 GetTailSize() const;
 
     // For testing purposes.
     void Dump(IOutputStream& output) const;
     void DumpHexText(IOutputStream& output) const;
 
 private:
-    TSharedRef Header_;
+    TSharedRef Head_;
+    TSharedRef Tail_;
+    i64 TailOffset_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSquashFsImage)

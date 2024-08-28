@@ -218,15 +218,15 @@ TFuture<TSharedRef> TVirtualSquashFsImageReader::Read(
 
     std::vector<TFuture<TSharedRef>> readFutures;
 
-    // Read the header from the image.
-    i64 headerSize = Image_->GetHeaderSize();
-    if (offset < headerSize) {
-        i64 sizeWithinHeader = std::min(headerSize - offset, length);
+    // Read the head from the image.
+    i64 headSize = Image_->GetHeaderSize();
+    if (offset < headSize) {
+        i64 sizeWithinHead = std::min(headSize - offset, length);
         readFutures.push_back(MakeFuture(
-            Image_->ReadHeader(offset, sizeWithinHeader)));
+            Image_->ReadHead(offset, sizeWithinHead)));
 
-        offset += sizeWithinHeader;
-        length -= sizeWithinHeader;
+        offset += sizeWithinHead;
+        length -= sizeWithinHead;
     }
 
     // Read the files from the readers.
@@ -257,6 +257,24 @@ TFuture<TSharedRef> TVirtualSquashFsImageReader::Read(
 
         length -= sizeWithinPart;
         offset += sizeWithinPart;
+    }
+
+    // Read the tail from the image.
+    i64 tailOffset = Image_->GetTailOffset();
+    i64 tailSize = Image_->GetTailSize();
+    if (length > 0 &&
+        tailOffset <= offset &&
+        offset < tailOffset + tailSize)
+    {
+        i64 beginWithinTail = std::max(offset - tailOffset, 0l);
+        i64 endWithinTail = std::min(beginWithinTail + length, tailSize);
+        i64 sizeWithinTail = endWithinTail - beginWithinTail;
+
+        readFutures.push_back(MakeFuture(
+            Image_->ReadTail(beginWithinTail, sizeWithinTail)));
+
+        offset += sizeWithinTail;
+        length -= sizeWithinTail;
     }
 
     // Add the padding.

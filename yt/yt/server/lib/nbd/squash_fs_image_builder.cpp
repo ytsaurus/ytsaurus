@@ -58,8 +58,8 @@ constexpr ui16 MaxEntriesInDirectoryTablePage = 256;
 // https://dr-emann.github.io/squashfs/squashfs.html#_the_superblock .
 constexpr ui32 MaxEntriesInIdTable = 1 << 16;
 
-// Inode talbe offset value for superblock.
-constexpr ui64 InodeTableOffset = 0x60;
+// Offset to Data blocks. Equal to Superblock size.
+constexpr ui64 DataBlocksOffset = 0x60;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,7 +374,9 @@ private:
         ui32 GetOffsetToLookupTable() const;
         ui32 GetSize() const;
 
-        void Dump(TBlobOutput& buffer) const;
+        void Dump(
+            TBlobOutput& buffer,
+            i64 tailOffset) const;
 
         void Reset();
 
@@ -461,9 +463,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSquashFsImage::TSquashFsImage(TSquashFsData data)
-    : Header_(TSharedRef::FromBlob(std::move(data.Header.Blob())))
+    : Head_(TSharedRef::FromBlob(std::move(data.Head.Blob())))
+    , Tail_(TSharedRef::FromBlob(std::move(data.Tail.Blob())))
 {
-    i64 offset = std::ssize(Header_);
+    i64 offset = std::ssize(Head_);
 
     for (auto& file : data.Files) {
         file.Offset = offset;
@@ -471,42 +474,92 @@ TSquashFsImage::TSquashFsImage(TSquashFsData data)
         Files_.push_back(std::move(file));
     }
 
+    TailOffset_ = offset;
+    offset += std::ssize(Tail_);
+
     Size_ = AlignUp<i64>(
         offset,
         DeviceBlockSize);
 }
 
-TSharedRef TSquashFsImage::ReadHeader(
+TSharedRef TSquashFsImage::ReadHead(
     i64 offset,
     i64 length) const
 {
     if (offset < 0 ||
         length < 0 ||
-        offset + length > std::ssize(Header_))
+        offset + length > std::ssize(Head_))
     {
         THROW_ERROR_EXCEPTION(
             "Invalid read offset %v with length %v, when size of header is %v",
             offset,
             length,
-            std::ssize(Header_));
+            std::ssize(Head_));
     }
 
-    return Header_.Slice(
+    return Head_.Slice(
         offset,
         offset + length);
 }
 
 i64 TSquashFsImage::GetHeaderSize() const
 {
-    return std::ssize(Header_);
+    return std::ssize(Head_);
+}
+
+TSharedRef TSquashFsImage::ReadTail(
+    i64 offset,
+    i64 length) const
+{
+    if (offset < 0 ||
+        length < 0 ||
+        offset + length > std::ssize(Tail_))
+    {
+        THROW_ERROR_EXCEPTION(
+            "Invalid read offset %v with length %v, when size of header is %v",
+            offset,
+            length,
+            std::ssize(Tail_));
+    }
+
+    return Tail_.Slice(
+        offset,
+        offset + length);
+}
+
+i64 TSquashFsImage::GetTailOffset() const
+{
+    return TailOffset_;
+}
+
+i64 TSquashFsImage::GetTailSize() const
+{
+    return std::ssize(Tail_);
 }
 
 void TSquashFsImage::Dump(IOutputStream& output) const
 {
+    i64 offset = 0;
+
     output.Write(
-        Header_.Begin(),
-        std::ssize(Header_));
-    for (int i = std::ssize(Header_); i < Size_; ++i) {
+        Head_.Begin(),
+        std::ssize(Head_));
+    offset += std::ssize(Head_);
+
+    for (auto file : Files_) {
+        for (i64 i = 0; i < file.Size; ++i) {
+            output.Write(0);
+        }
+
+        offset += file.Size;
+    }
+
+    output.Write(
+        Tail_.Begin(),
+        std::ssize(Tail_));
+    offset += std::ssize(Tail_);
+
+    for (auto i = offset; i < Size_; ++i) {
         output.Write(0);
     }
 }
@@ -786,16 +839,15 @@ TSquashFsImagePtr TSquashFsBuilder::Build()
     Traverse();
 
     auto superblock = BuildSuperblock();
-    i64 dataBlocksOffset = superblock.FragTable + IdTable_.GetSize();
-    InodeTable_.ShiftDataBlocksOffsetInFileInodes(dataBlocksOffset);
+    InodeTable_.ShiftDataBlocksOffsetInFileInodes(DataBlocksOffset);
 
     // Dump result.
     TSquashFsData imageData;
-    DumpSuperblock(superblock, imageData.Header);
-    InodeTable_.Dump(imageData.Header);
-    DirectoryTable_.Dump(imageData.Header);
-    IdTable_.Dump(imageData.Header);
+    DumpSuperblock(superblock, imageData.Head);
     DataBlocks_.Dump(imageData.Files);
+    InodeTable_.Dump(imageData.Tail);
+    DirectoryTable_.Dump(imageData.Tail);
+    IdTable_.Dump(imageData.Tail, superblock.InodeTable);
 
     return New<TSquashFsImage>(std::move(imageData));
 }
@@ -870,11 +922,11 @@ TSquashFsBuilder::TSuperblock TSquashFsBuilder::BuildSuperblock()
 
     // Calculate offsets to standard blocks.
     superblock.RootInode = (Root_->GetInode()->InodeBlockStart << 16) | Root_->GetInode()->InodeBlockOffset;
-    superblock.InodeTable = InodeTableOffset;
+    superblock.InodeTable = DataBlocksOffset + DataBlocks_.GetSize();
     superblock.DirTable = superblock.InodeTable + InodeTable_.GetSize();
     superblock.FragTable = superblock.DirTable + DirectoryTable_.GetSize();
     superblock.IdTable = superblock.FragTable + IdTable_.GetOffsetToLookupTable();
-    superblock.BytesUsed = superblock.FragTable + IdTable_.GetSize() + DataBlocks_.GetSize();
+    superblock.BytesUsed = superblock.FragTable + IdTable_.GetSize();
 
     return superblock;
 }
@@ -1275,7 +1327,9 @@ ui32 TSquashFsBuilder::TIdTable::GetSize() const
     return GetOffsetToLookupTable() + sizeof(ui64) * GetBlockCount();
 }
 
-void TSquashFsBuilder::TIdTable::Dump(TBlobOutput& buffer) const
+void TSquashFsBuilder::TIdTable::Dump(
+    TBlobOutput& buffer,
+    i64 tailOffset) const
 {
     TBlobOutput idBuffer;
     WriteRef(
@@ -1285,6 +1339,9 @@ void TSquashFsBuilder::TIdTable::Dump(TBlobOutput& buffer) const
     std::vector<ui64> lookupTable = AppendMetadata(
         buffer,
         idBuffer.Blob());
+    for (auto& offset : lookupTable) {
+        offset += tailOffset;
+    }
 
     WriteRef(
         buffer,
