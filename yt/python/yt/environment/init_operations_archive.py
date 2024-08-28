@@ -360,7 +360,6 @@ TRANSFORMS[49] = [
                 ("spec_version", "int64"),
                 ("type", "string"),
             ],
-            get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
@@ -378,7 +377,6 @@ TRANSFORMS[49] = [
             ], [
                 ("stderr", "string", {"max_inline_hunk_size": 512}),
             ],
-            get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
@@ -538,7 +536,6 @@ TRANSFORMS[52] = [
                 ("scheduling_attributes_per_pool_tree", "any"),
             ],
             in_memory=False,
-            get_pivot_keys=get_default_pivots,
             default_lock="operations_cleaner",
             attributes={
                 "tablet_cell_bundle": SYS_BUNDLE_NAME,
