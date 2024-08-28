@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from yt.wrapper.common import generate_uuid
 
-from yt.common import to_native_str, YtError, which  # noqa
+from yt.common import to_native_str, YtError, YtResponseError, which  # noqa
 
 import signal
 import sys
@@ -486,3 +486,37 @@ def find_cri_endpoint():
     finally:
         sock.close()
     return endpoint
+
+
+def wait_for_dynamic_config_update(client, expected_config, instances_path, config_node_name="dynamic_config_manager"):
+    instances = client.list(instances_path)
+
+    if not instances:
+        return
+
+    def check():
+        batch_client = client.create_batch_client()
+
+        # COMPAT(gryzlov-ad): Remove this when bundle_dynamic_config_manager is in cluster_node orchid
+        if instances_path == "//sys/cluster_nodes" and config_node_name == "bundle_dynamic_config_manager":
+            if not client.exists("{0}/{1}/orchid/{2}".format(instances_path, instances[0], config_node_name)):
+                return True
+
+        responses = [
+            batch_client.get("{0}/{1}/orchid/{2}".format(instances_path, instance, config_node_name))
+            for instance in instances
+        ]
+        batch_client.commit_batch()
+
+        for response in responses:
+            if not response.is_ok():
+                raise YtResponseError(response.get_error())
+
+            output = response.get_result()
+
+            if expected_config != output.get("applied_config"):
+                return False
+
+        return True
+
+    wait(check, error_message="Dynamic config didn't become as expected in time", ignore_exceptions=True)

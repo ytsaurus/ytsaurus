@@ -25,6 +25,7 @@ def issue_token(user, password=None,
     params = {"user": user}
     if password:
         params["password_sha256"] = encode_sha256(password)
+    params["output_format"] = "yson"
     return make_request(
         "issue_token",
         params=params,

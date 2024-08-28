@@ -607,3 +607,8 @@ class TestLocalMode(object):
 
             result_rows = [{"key": index + 1} for index in range(row_count)]
             assert list(client.read_table("//tmp/output_table")) == result_rows
+
+    def test_components(self):
+        with local_yt(id=_get_id("test_components"), components=[{"name": "query_tracker"}]) as environment:
+            client = environment.create_client()
+            assert client.list_queries()["queries"] == []

@@ -4,7 +4,7 @@ from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
 from yt.local.commands import get_main_process_pid_file_path
 
-from yt.wrapper.cli_helpers import run_main
+from yt.wrapper.cli_helpers import run_main, ParseStructuredArguments
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 import yt.yson as yson
 
@@ -156,6 +156,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents")
     parser.add_argument("--kafka-proxy-count", type=int, default=0, help="number of kafka proxies")
     parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers")
+
+    parser.add_argument("-c", "--component", action=ParseStructuredArguments, help="additional components", required=False, dest="components", nargs="*")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)
