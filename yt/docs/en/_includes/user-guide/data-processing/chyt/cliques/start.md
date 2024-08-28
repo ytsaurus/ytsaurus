@@ -86,7 +86,7 @@ $ yt clickhouse ctl status chyt_example_clique
 After starting the operation, you need to wait for the clique instances to start up and start accepting incoming queries. To make sure that the clique works, make a test query to the table `//sys/clickhouse/sample_table`. This table is available on all clusters with CHYT:
 
 ```bash
-$ yt clickhouse execute --proxy <cluster_name> --alias *chyt_example_clique 'select avg(a) from `//sys/clickhouse/sample_table`'
+$ yt clickhouse execute --proxy <cluster_name> --alias chyt_example_clique 'select avg(a) from `//sys/clickhouse/sample_table`'
 224.30769230769232
 ```
 

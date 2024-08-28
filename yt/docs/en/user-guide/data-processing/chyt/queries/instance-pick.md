@@ -1,3 +1,1 @@
-# Selecting a coordinator
-
-{% include [note](../../../../_includes/no-translation.md) %}
+{% include [Selecting a coordinator](../../../../_includes/user-guide/data-processing/chyt/queries/instance-pick.md) %}
