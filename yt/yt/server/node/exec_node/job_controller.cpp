@@ -698,18 +698,16 @@ private:
                 allocationId,
                 agentDescriptor);
 
-            allocation->SubscribeAllocationPrepared(BIND_NO_PROPAGATE(
-                &TJobController::OnAllocationPrepared,
-                MakeStrong(this))
+            allocation->SubscribeAllocationPrepared(
+                BIND_NO_PROPAGATE(&TJobController::OnAllocationPrepared, MakeStrong(this))
                     .Via(Bootstrap_->GetJobInvoker()));
-
             allocation->SubscribeAllocationFinished(
                 BIND_NO_PROPAGATE(&TJobController::OnAllocationFinished, MakeStrong(this))
                     .Via(Bootstrap_->GetJobInvoker()));
 
             allocation->SubscribeJobSettled(
                 BIND_NO_PROPAGATE(&TJobController::OnJobSettled, MakeStrong(this))
-                        .Via(Bootstrap_->GetJobInvoker()));
+                    .Via(Bootstrap_->GetJobInvoker()));
             allocation->SubscribeJobPrepared(
                 BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeStrong(this))
                     .Via(Bootstrap_->GetJobInvoker()));

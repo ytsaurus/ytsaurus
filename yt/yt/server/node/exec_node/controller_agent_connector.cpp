@@ -264,7 +264,7 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
     if (currentConfig->EnableTracing) {
         requestTraceContext = TTraceContext::NewRoot("ControllerAgentHeartbeat");
         requestTraceContext->SetRecorded();
-        requestTraceContext->AddTag("node_id", ToString(nodeId));
+        requestTraceContext->AddTag("node_id", nodeId);
 
         static const TString ControllerAgentConnectorTracingUserName = "controller_agent_connector";
         ControllerAgentConnectorPool_->TracingSampler_->SampleTraceContext(ControllerAgentConnectorTracingUserName, requestTraceContext);
