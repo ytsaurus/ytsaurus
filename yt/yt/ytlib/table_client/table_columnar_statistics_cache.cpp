@@ -102,11 +102,11 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         TLogger logger,
-        TProfiler registry)
+        TProfiler profiler)
         : TAsyncExpiringCache<TTableKey, TColumnarStatisticsEntry>(
             config,
             logger,
-            std::move(registry))
+            std::move(profiler))
         , Config_(config)
         , Client_(client)
         , Invoker_(invoker)
