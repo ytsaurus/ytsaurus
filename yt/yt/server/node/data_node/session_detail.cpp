@@ -39,6 +39,7 @@ TSessionBase::TSessionBase(
         Location_->GetId(),
         SessionId_))
     , LockedChunkGuard_(std::move(lockedChunkGuard))
+    , StartTime_(TInstant::Now())
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
@@ -72,6 +73,11 @@ ESessionType TSessionBase::GetType() const
         default:
             return ESessionType::User;
     }
+}
+
+TInstant TSessionBase::GetStartTime() const
+{
+    return StartTime_;
 }
 
 TMasterEpoch TSessionBase::GetMasterEpoch() const

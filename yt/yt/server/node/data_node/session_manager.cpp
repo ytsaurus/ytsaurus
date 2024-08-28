@@ -61,26 +61,45 @@ TSessionManager::TSessionManager(
 
 void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
 {
-    const auto memorySnapshot = GetMemoryUsageSnapshot();
+    THashMap<TSessionId, ISessionPtr> sessionMap;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+        sessionMap = SessionMap_;
+    }
 
-    YT_VERIFY(memorySnapshot);
+    THashMap<TSessionId, TStoreLocationPtr> sessionIdToLocations;
 
-    auto sessionIdToUsage = memorySnapshot->GetUsage(SessionIdAllocationTag);
+    for (const auto& [id, session] : sessionMap) {
+        EmplaceOrCrash(sessionIdToLocations, session->GetId(), session->GetStoreLocation());
+    }
 
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("sessions")
-            .DoListFor(
-                sessionIdToUsage.begin(),
-                sessionIdToUsage.end(),
-                [&] (TFluentList fluent, const auto& sessionToUsage) {
+            .BeginMap()
+            .DoFor(
+                sessionMap.begin(),
+                sessionMap.end(),
+                [&] (TFluentMap fluent, const auto& idToSession) {
+                    const auto& session = idToSession->second;
+                    const auto& location = GetOrCrash(sessionIdToLocations, session->GetId());
+
                     fluent
-                        .Item()
+                        .Item(ToString(session->GetId()))
                         .BeginMap()
-                            .Item("session_id").Value(sessionToUsage->first)
-                            .Item("heap_usage").Value(sessionToUsage->second)
+                            .Item("chunk_id").Value(session->GetChunkId())
+                            .Item("type").Value(ToString(session->GetType()))
+                            .Item("start_time").Value(session->GetStartTime())
+                            .Item("memory_usage").Value(session->GetMemoryUsage())
+                            .Item("block_count").Value(session->GetBlockCount())
+                            .Item("size").Value(session->GetTotalSize())
+                            .Item("location_id").Value(location->GetId())
+                            .Item("location_uuid").Value(location->GetUuid())
+                            .Item("medium").Value(location->GetMediumName())
                         .EndMap();
-            })
+                })
+            .EndMap()
+            .Item("session_count").Value(sessionMap.size())
         .EndMap();
 }
 
