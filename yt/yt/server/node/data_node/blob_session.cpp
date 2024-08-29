@@ -397,7 +397,7 @@ i64 TBlobSession::GetTotalSize() const
 
 i64 TBlobSession::GetBlockCount() const
 {
-    return MemoryUsage_.load();
+    return BlockCount_.load();
 }
 
 TChunkInfo TBlobSession::OnFinished(const TError& error)
