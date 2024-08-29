@@ -75,6 +75,21 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
             }
             return NTi::Struct(std::move(members));
         }
+        // Currently YT supports only Decimal128 with precision <= 35. Thus, we represent short enough arrow decimal types
+        // as the corresponding YT decimals, and longer arrow decimal types as strings in decimal form.
+        // The latter is subject to change whenever wider decimal types are introduced in YT.
+        case arrow::Type::type::DECIMAL128:
+        {
+            constexpr int MaximumYTDecimalPrecision = 35;
+            auto decimalType = std::reinterpret_pointer_cast<arrow::Decimal128Type>(arrowType);
+            if (decimalType->precision() <= MaximumYTDecimalPrecision) {
+                return NTi::Decimal(decimalType->precision(), decimalType->scale());
+            } else {
+                return NTi::String();
+            }
+        }
+        case arrow::Type::type::DECIMAL256:
+            return NTi::String();
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported arrow type %Qv", arrowType->ToString());
