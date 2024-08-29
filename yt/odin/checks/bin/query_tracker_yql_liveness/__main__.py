@@ -21,7 +21,7 @@ def run_check(yt_client, logger, options, states):
         states,
         soft_timeout,
         "yql",
-        "select x + 1 as result from `{table}`",
+        "pragma DqEngine = 'disable'; select x + 1 as result from `{table}`;",
         Data(SCHEMA, SOURCE_DATA, RESULT_DATA),
     )
 
