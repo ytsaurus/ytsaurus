@@ -848,8 +848,8 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
         [&] (TByUser::TMine) {
             request->set_mine(true);
         },
-        [&] (const TString& user) {
-            request->set_user(user);
+        [&] (const std::string& user) {
+            request->set_user(ToProto<TProtobufString>(user));
         });
 
     if (componentRegistryId != NullObjectId) {

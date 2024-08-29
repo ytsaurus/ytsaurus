@@ -27,7 +27,9 @@ DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)
 struct IRequestProfilingManager
     : public TRefCounted
 {
-    virtual TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method) = 0;
+    virtual TRequestProfilingCountersPtr GetCounters(
+        const std::string& user,
+        const std::string& method) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequestProfilingManager)

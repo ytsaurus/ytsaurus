@@ -872,7 +872,7 @@ bool TOperationControllerBase::NeedEraseOffloadingTrees() const
     return !userJobSpecs.empty() && !hasJobsAllowedForOffloading;
 }
 
-void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
+void TOperationControllerBase::ValidateIntermediateDataAccess(const std::string& user, EPermission permission) const
 {
     // Permission for IntermediateData can be only Read.
     YT_VERIFY(permission == EPermission::Read);
@@ -3706,7 +3706,8 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
             };
 
             auto userClosure = GetSubjectClosure(
-                AuthenticatedUser,
+                // TODO(babenko): switch to std::string
+                TString(AuthenticatedUser),
                 proxy,
                 client->GetNativeConnection(),
                 readOptions);
@@ -9457,7 +9458,7 @@ TInstant TOperationControllerBase::GetStartTime() const
     return StartTime_;
 }
 
-const TString& TOperationControllerBase::GetAuthenticatedUser() const
+const std::string& TOperationControllerBase::GetAuthenticatedUser() const
 {
     return AuthenticatedUser;
 }

@@ -508,7 +508,7 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(
 }
 
 void TOperationControllerHost::ValidateOperationAccess(
-    const TString& user,
+    const std::string& user,
     EPermission permission)
 {
     WaitFor(BIND(&TControllerAgent::ValidateOperationAccess, Bootstrap_->GetControllerAgent())

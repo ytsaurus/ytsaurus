@@ -13,7 +13,9 @@ namespace NYT {
 class TFormatManager
 {
 public:
-    TFormatManager(THashMap<NFormats::EFormatType, TFormatConfigPtr> formatConfigs, TString authenticatedUser);
+    TFormatManager(
+        THashMap<NFormats::EFormatType, TFormatConfigPtr> formatConfigs,
+        const std::string& authenticatedUser);
 
     NFormats::TFormat ConvertToFormat(const NYTree::INodePtr& formatNode, TString origin) const;
 
@@ -24,8 +26,8 @@ public:
     void ValidateAndPatchFormatNode(const NYTree::INodePtr& formatNode, TString origin) const;
 
 private:
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> FormatConfigs_;
-    TString AuthenticatedUser_;
+    const THashMap<NFormats::EFormatType, TFormatConfigPtr> FormatConfigs_;
+    const std::string AuthenticatedUser_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

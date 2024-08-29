@@ -863,7 +863,7 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/)
 {
     YT_VERIFY(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);

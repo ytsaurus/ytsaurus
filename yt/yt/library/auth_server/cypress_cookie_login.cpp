@@ -78,7 +78,7 @@ private:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp)
     {
-        auto replyAndLogError = [&] (const TError& error, const std::optional<TString>& user = {}) {
+        auto replyAndLogError = [&] (const TError& error, const std::optional<std::string>& user = {}) {
             ReplyError(rsp, error);
             YT_LOG_DEBUG(error, "Failed to login user using password (ConnectionId: %v, User: %v)",
                 req->GetConnectionId(),
@@ -176,7 +176,7 @@ private:
         rsp->GetHeaders()->Add("WWW-Authenticate", "Basic");
     }
 
-    TUserInfo FetchUserInfo(const TString& user)
+    TUserInfo FetchUserInfo(const std::string& user)
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 

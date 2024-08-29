@@ -20,7 +20,7 @@ namespace NYT::NJobProberClient {
 
 struct TJobShellDescriptorKey
 {
-    TString User;
+    std::string User;
     NJobTrackerClient::TJobId JobId;
     std::optional<TString> ShellName;
 

@@ -1130,7 +1130,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
             auto countingFilterAttributes = TCountingFilterAttributes{
                 .PoolTreeToPool = std::move(poolTreeToPool),
                 .Pools = std::move(pools),
-                .User = std::move(user),
+                .User = user,
                 .State = state,
                 .Type = type,
                 .HasFailedJobs = hasFailedJobs,

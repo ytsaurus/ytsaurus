@@ -183,7 +183,7 @@ public:
      *  \note Thread affinity: ControlThread
      */
     void ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         TOperationId operationId,
         NYTree::EPermission permission);
 

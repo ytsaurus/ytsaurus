@@ -285,7 +285,7 @@ private:
 
     struct TUserAndToken
     {
-        TString User;
+        std::string User;
         TString Token;
     };
 
@@ -612,7 +612,7 @@ private:
             } else {
                 cliqueAliasAndInstanceCookiePacked = IsLegacyQueryHandler_
                     ? TString(CgiParameters_.Get("database"))
-                    : std::move(user);
+                    : TString(user);
             }
 
             auto cliqueAliasAndInstanceCookie = ParseCliqueAliasAndInstanceCookie(std::move(cliqueAliasAndInstanceCookiePacked));
@@ -1327,14 +1327,15 @@ void TClickHouseHandler::HandleRequest(
     }
 }
 
-void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
+void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProfiler
             .WithSparse()
-            .WithTag("user", user)
+            // TODO(babenko): switch to std::string
+            .WithTag("user", TString(user))
             .Gauge("/running_query_count");
         return std::pair(0, gauge);
     }).first;

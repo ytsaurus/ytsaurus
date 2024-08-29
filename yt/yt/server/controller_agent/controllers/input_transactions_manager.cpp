@@ -65,7 +65,7 @@ TInputTransactionsManager::TInputTransactionsManager(
     const std::vector<TRichYPath>& filesAndTables,
     bool forceStartLocalTransaction,
     TTransactionId userTransactionId,
-    const TString& authenticatedUser,
+    const std::string& authenticatedUser,
     TControllerAgentConfigPtr config,
     TLogger logger)
     : OperationId_(operationId)
@@ -425,7 +425,7 @@ TError TInputTransactionsManager::ValidateSchedulerTransactions(
 
 void TInputTransactionsManager::ValidateRemoteOperationsAllowed(
     const NScheduler::TClusterName& clusterName,
-    const TString& authenticatedUser,
+    const std::string& authenticatedUser,
     const NYPath::TRichYPath& path) const
 {
     if (!IsLocal(clusterName)) {

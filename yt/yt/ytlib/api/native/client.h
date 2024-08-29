@@ -114,18 +114,18 @@ struct IClient
     virtual bool DoesOperationsArchiveExist(bool useOperationsArchiveClient = true) = 0;
 
     virtual TFuture<TIssueTokenResult> IssueSpecificTemporaryToken(
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options) = 0;
 
     virtual TFuture<TIssueTokenResult> IssueTemporaryToken(
-        const TString& user,
+        const std::string& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options) = 0;
 
     virtual TFuture<void> RefreshTemporaryToken(
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const TRefreshTemporaryTokenOptions& options) = 0;
 };

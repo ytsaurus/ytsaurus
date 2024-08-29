@@ -20,9 +20,9 @@ using namespace NYTree;
 
 TFormatManager::TFormatManager(
     THashMap<EFormatType, TFormatConfigPtr> formatConfigs,
-    TString authenticatedUser)
+    const std::string& authenticatedUser)
     : FormatConfigs_(std::move(formatConfigs))
-    , AuthenticatedUser_(std::move(authenticatedUser))
+    , AuthenticatedUser_(authenticatedUser)
 { }
 
 void TFormatManager::ValidateAndPatchOperationSpec(

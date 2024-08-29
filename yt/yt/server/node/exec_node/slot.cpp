@@ -383,7 +383,7 @@ public:
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {

@@ -121,7 +121,8 @@ THashMap<TString, TString> MakeWriteIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
         {FormatIOTag(EAggregateIOTag::Direction), "write"},
         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
     };
@@ -140,7 +141,8 @@ THashMap<TString, TString> MakeReadIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
     };
     if (chunkId) {

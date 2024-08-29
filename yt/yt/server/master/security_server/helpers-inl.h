@@ -28,7 +28,7 @@ THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashM
     for (const auto& [cellName, value] : map) {
         auto optionalCellTag = multicellManager->FindMasterCellTagByName(cellName);
         if (!optionalCellTag) {
-            THROW_ERROR_EXCEPTION("Invalid cell name %v", cellName);
+            THROW_ERROR_EXCEPTION("Invalid cell name %Qv", cellName);
         }
         YT_VERIFY(result.emplace(*optionalCellTag, value).second);
     }

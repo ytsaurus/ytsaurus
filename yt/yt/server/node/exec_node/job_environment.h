@@ -56,7 +56,7 @@ struct IJobEnvironment
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
         int startIndex) = 0;
 

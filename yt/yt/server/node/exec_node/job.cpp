@@ -3514,7 +3514,8 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
                     },
                     /*tags*/ {
                         {FormatIOTag(EAggregateIOTag::Direction), direction},
-                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                         {FormatIOTag(EAggregateIOTag::JobIoKind), "user_job"},
                     });
             }

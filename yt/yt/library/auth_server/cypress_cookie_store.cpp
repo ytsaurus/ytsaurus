@@ -101,7 +101,7 @@ public:
         }
     }
 
-    TCypressCookiePtr GetLastCookieForUser(const TString& user) override
+    TCypressCookiePtr GetLastCookieForUser(const std::string& user) override
     {
         auto guard = ReaderGuard(UserToLastCookieLock_);
         auto userIt = UserToLastCookie_.find(user);
@@ -112,7 +112,7 @@ public:
         }
     }
 
-    void RemoveLastCookieForUser(const TString& user) override
+    void RemoveLastCookieForUser(const std::string& user) override
     {
         auto guard = WriterGuard(UserToLastCookieLock_);
         UserToLastCookie_.erase(user);

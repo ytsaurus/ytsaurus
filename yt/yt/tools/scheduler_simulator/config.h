@@ -102,7 +102,7 @@ public:
 
     std::optional<TString> ConnectionFilename;
     NApi::NNative::TConnectionCompoundConfigPtr Connection;
-    TString User;
+    std::string User;
 
     REGISTER_YSON_STRUCT(TRemoteEventLogConfig);
 
@@ -123,7 +123,7 @@ public:
                 config->Connection = LoadConfig<NApi::NNative::TConnectionCompoundConfig>(*config->ConnectionFilename);
             }
 
-            if (!config->User) {
+            if (config->User.empty()) {
                 config->User = GetUsername();
             }
         });

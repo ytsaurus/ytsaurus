@@ -160,7 +160,7 @@ public:
 
     int ProxyThreadPoolSize;
 
-    TString User;
+    std::string User;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

@@ -645,7 +645,7 @@ TTableProfilerPtr CreateTableProfiler(
 template <class TCounter>
 TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
     bool disabled,
-    const std::optional<TString>& userTag,
+    const std::optional<std::string>& userTag,
     const TProfiler& profiler)
 {
     if (disabled) {
@@ -655,7 +655,8 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            return TCounter{profiler.WithTag("user", *userTag)};
+            // TODO(babenko): switch to std::string
+            return TCounter{profiler.WithTag("user", ToString(*userTag))};
         } else {
             return TCounter{profiler};
         }
@@ -665,7 +666,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 template <class TCounter>
 TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
     bool disabled,
-    const std::optional<TString>& userTag,
+    const std::optional<std::string>& userTag,
     const TProfiler& tabletProfiler,
     const TProfiler& mediumProfiler,
     const TTableSchemaPtr& schema)
@@ -677,7 +678,8 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            return TCounter(tabletProfiler.WithTag("user", *userTag), mediumProfiler, schema);
+            // TODO(babenko): switch to std::string
+            return TCounter(tabletProfiler.WithTag("user", TString(*userTag)), mediumProfiler, schema);
         } else {
             return TCounter(tabletProfiler, mediumProfiler, schema);
         }
@@ -745,42 +747,42 @@ TTabletCounters TTableProfiler::GetTabletCounters()
     return TTabletCounters{Profiler_};
 }
 
-TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<TString>& userTag)
+TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<std::string>& userTag)
 {
     return LookupCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
 }
 
-TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<TString>& userTag)
+TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<std::string>& userTag)
 {
     return WriteCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<TString>& userTag)
+TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<std::string>& userTag)
 {
     return CommitCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TSelectRowsCounters* TTableProfiler::GetSelectRowsCounters(const std::optional<TString>& userTag)
+TSelectRowsCounters* TTableProfiler::GetSelectRowsCounters(const std::optional<std::string>& userTag)
 {
     return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
 }
 
-TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag)
+TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<std::string>& userTag)
 {
     return DynamicStoreReadCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::optional<TString>& userTag)
+TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::optional<std::string>& userTag)
 {
     return QueryServiceCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TTabletServiceCounters* TTableProfiler::GetTabletServiceCounters(const std::optional<TString>& userTag)
+TTabletServiceCounters* TTableProfiler::GetTabletServiceCounters(const std::optional<std::string>& userTag)
 {
     return TabletServiceCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<TString>& userTag)
+TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<std::string>& userTag)
 {
     return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
 }

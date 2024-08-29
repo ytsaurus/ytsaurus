@@ -393,7 +393,8 @@ void TUser::InitializeCounters()
 {
     auto profiler = SecurityProfiler()
         .WithSparse()
-        .WithTag("user", Name_);
+        // TODO(babenko): switch to std::string
+        .WithTag("user", TString(Name_));
 
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");

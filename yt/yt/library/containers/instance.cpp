@@ -297,7 +297,7 @@ public:
         Spec_.GroupId = groupId;
     }
 
-    void SetUser(const TString& user) override
+    void SetUser(const std::string& user) override
     {
         Spec_.User = user;
     }

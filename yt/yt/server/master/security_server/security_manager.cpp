@@ -131,8 +131,7 @@ class TSecurityManager;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     ISecurityManagerPtr securityManager,
-    TUser* user,
-    const TString& userTag)
+    TUser* user)
 {
     if (!user) {
         return;
@@ -142,23 +141,20 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     securityManager->SetAuthenticatedUser(user);
     SecurityManager_ = std::move(securityManager);
 
-    AuthenticationIdentity_ = NRpc::TAuthenticationIdentity(
-        // TODO(babenko): switch to std::string
-        TString(user->GetName()),
-        userTag ? userTag : TString(user->GetName()));
+    AuthenticationIdentity_ = NRpc::TAuthenticationIdentity(user->GetName());
     AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
     CpuProfilerTagGuard_ = TCpuProfilerTagGuard(SecurityManager_->GetUserCpuProfilerTag(User_));
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     ISecurityManagerPtr securityManager,
-    NRpc::TAuthenticationIdentity identity)
+    const NRpc::TAuthenticationIdentity& identity)
 {
     User_ = securityManager->GetUserByNameOrThrow(identity.User, true /*activeLifeStageOnly*/);
     securityManager->SetAuthenticatedUser(User_);
     SecurityManager_ = std::move(securityManager);
 
-    AuthenticationIdentity_ = std::move(identity);
+    AuthenticationIdentity_ = identity;
     AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
     CpuProfilerTagGuard_ = TCpuProfilerTagGuard(SecurityManager_->GetUserCpuProfilerTag(User_));
 }
@@ -1595,7 +1591,7 @@ public:
         subject->LinkedObjects().clear();
     }
 
-    TUser* CreateUser(const TString& name, TObjectId hintId)
+    TUser* CreateUser(const std::string& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -3063,7 +3059,7 @@ private:
         }
     }
 
-    TUser* DoCreateUser(TUserId id, const TString& name)
+    TUser* DoCreateUser(TUserId id, const std::string& name)
     {
         auto userHolder = TPoolAllocator::New<TUser>(id);
         userHolder->SetName(name);
@@ -4039,7 +4035,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinUserInitialized(TUser*& user, TUserId id, const TString& name)
+    bool EnsureBuiltinUserInitialized(TUser*& user, TUserId id, const std::string& name)
     {
         if (user) {
             return false;

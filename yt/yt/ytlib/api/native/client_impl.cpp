@@ -639,7 +639,7 @@ NApi::IClientPtr TClient::CreateRootClient()
 
 void TClient::ValidateSuperuserPermissions()
 {
-    if (Options_.User == RootUserName) {
+    if (!Options_.User || Options_.User == RootUserName) {
         return;
     }
 

@@ -61,7 +61,7 @@ private:
     THashMap<TString, NScheduler::TOperationId> AliasToOperationId_;
     std::atomic<bool> AliasToOperationIdInitialized_ = false;
 
-    void AdjustQueryCount(const TString& user, int delta);
+    void AdjustQueryCount(const std::string& user, int delta);
 
     void UpdateOperationIds();
 };

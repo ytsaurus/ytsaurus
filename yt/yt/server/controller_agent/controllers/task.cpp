@@ -1977,7 +1977,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_task_name(GetVertexDescriptor());
     jobSpecExt->set_tree_id(joblet->TreeId);
-    jobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
+    jobSpecExt->set_authenticated_user(ToProto<TProtobufString>(TaskHost_->GetAuthenticatedUser()));
 
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {

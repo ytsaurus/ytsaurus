@@ -97,14 +97,14 @@ struct TDockerImageSpec
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
-    NApi::NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::IAttributeDictionaryPtr GetNetworkProject(
-    NApi::NNative::IClientPtr client,
-    TString authenticatedUser,
+    const NApi::NNative::IClientPtr& client,
+    const std::string& authenticatedUser,
     TString networkProject);
 
 ////////////////////////////////////////////////////////////////////////////////

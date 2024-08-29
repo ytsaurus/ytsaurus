@@ -126,7 +126,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& user = {}) override;
+        const std::string& user = {}) override;
 
     using THierarchicPermissionValidator<TObject>::ValidatePermission;
 

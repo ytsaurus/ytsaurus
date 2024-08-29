@@ -90,7 +90,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
 {
     constexpr TStringBuf UserNameHeader = "X-YT-User-Name";
     if (!Config_->RequireAuthentication) {
-        TString user = "root";
+        auto user = NRpc::RootUserName;
         if (auto userNameHeader = request->GetHeaders()->Find(UserNameHeader)) {
             user = *userNameHeader;
         }

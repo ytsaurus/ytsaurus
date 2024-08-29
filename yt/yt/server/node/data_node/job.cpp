@@ -651,7 +651,8 @@ private:
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "read"},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                        {FormatIOTag(EAggregateIOTag::User), "root"},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
                     });
             }
 
@@ -1196,7 +1197,8 @@ private:
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                            {FormatIOTag(EAggregateIOTag::User), "root"},
+                            // TODO(babenko): switch to std::string
+                            {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
                         });
                 }
 

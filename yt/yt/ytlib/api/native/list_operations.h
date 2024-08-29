@@ -29,7 +29,7 @@ struct TCountingFilterAttributes
 {
     std::optional<THashMap<TString, TString>> PoolTreeToPool;
     std::optional<std::vector<TString>> Pools;
-    TString User;
+    std::string User;
     NScheduler::EOperationState State = {};
     NScheduler::EOperationType Type = {};
     bool HasFailedJobs = false;

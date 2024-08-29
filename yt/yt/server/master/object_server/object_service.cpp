@@ -104,7 +104,7 @@ public:
         : ExpireTime_(DurationToCpuDuration(expireTime))
     { }
 
-    TError Get(const TString& userName)
+    TError Get(const std::string& userName)
     {
         auto now = GetCpuInstant();
         {
@@ -130,7 +130,7 @@ public:
         return {};
     }
 
-    void Put(const TString& userName, const TError& error)
+    void Put(const std::string& userName, const TError& error)
     {
         auto now = GetCpuInstant();
         {
@@ -301,7 +301,7 @@ private:
 
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
-    void SetStickyUserError(const TString& userName, const TError& error);
+    void SetStickyUserError(const std::string& userName, const TError& error);
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
@@ -380,7 +380,7 @@ public:
         });
     }
 
-    const TString& GetUserName() const
+    const std::string& GetUserName() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2408,7 +2408,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
     scheduler->ChargeUser(user->GetName(), workload.RequestTime);
 }
 
-void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
+void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

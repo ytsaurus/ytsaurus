@@ -525,7 +525,8 @@ private:
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
-        const TString& user = TString(),
+        // TODO(babenko): replace with optional
+        const std::string& user = TString(),
         bool* fresh = nullptr)
     {
         if (auto* transaction = TransactionMap_.Find(transactionId)) {

@@ -366,7 +366,7 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateOperationAccess(
-    const std::optional<TString>& user,
+    const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     EPermissionSet permissionSet,

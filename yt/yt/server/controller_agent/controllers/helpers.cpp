@@ -322,7 +322,7 @@ bool TDockerImageSpec::IsInternal() const
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TRichYPath> GetLayerPathsFromDockerImage(
-    NNative::IClientPtr client,
+    const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage)
 {
     try {
@@ -366,8 +366,8 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
 ////////////////////////////////////////////////////////////////////////////////
 
 IAttributeDictionaryPtr GetNetworkProject(
-    NApi::NNative::IClientPtr client,
-    TString authenticatedUser,
+    const NApi::NNative::IClientPtr& client,
+    const std::string& authenticatedUser,
     TString networkProject)
 {
     const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);

@@ -39,7 +39,7 @@ static TString GenerateToken()
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClient::DoSetUserPassword(
-    const TString& user,
+    const std::string& user,
     const TString& currentPasswordSha256,
     const TString& newPasswordSha256,
     const TSetUserPasswordOptions& options)
@@ -80,7 +80,7 @@ void TClient::DoSetUserPassword(
 }
 
 TIssueTokenResult TClient::DoIssueToken(
-    const TString& user,
+    const std::string& user,
     const TString& passwordSha256,
     const TIssueTokenOptions& options)
 {
@@ -99,7 +99,7 @@ TIssueTokenResult TClient::DoIssueToken(
 }
 
 TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
-    const TString& user,
+    const std::string& user,
     const TString& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
@@ -114,7 +114,7 @@ TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
 }
 
 TIssueTokenResult TClient::DoIssueTemporaryToken(
-    const TString& user,
+    const std::string& user,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
 {
@@ -128,7 +128,7 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
 }
 
 TIssueTokenResult TClient::DoIssueTokenImpl(
-    const TString& user,
+    const std::string& user,
     const TString& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTokenOptions& options)
@@ -180,7 +180,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 }
 
 void TClient::DoRefreshTemporaryToken(
-    const TString& user,
+    const std::string& user,
     const TString& token,
     const TRefreshTemporaryTokenOptions& options)
 {
@@ -214,7 +214,7 @@ void TClient::DoRefreshTemporaryToken(
 }
 
 void TClient::DoRevokeToken(
-    const TString& user,
+    const std::string& user,
     const TString& passwordSha256,
     const TString& tokenSha256,
     const TRevokeTokenOptions& options)
@@ -266,7 +266,7 @@ void TClient::DoRevokeToken(
 }
 
 TListUserTokensResult TClient::DoListUserTokens(
-    const TString& user,
+    const std::string& user,
     const TString& passwordSha256,
     const TListUserTokensOptions& options)
 {
@@ -329,7 +329,7 @@ TListUserTokensResult TClient::DoListUserTokens(
 
 void TClient::ValidateAuthenticationCommandPermissions(
     TStringBuf action,
-    const TString& user,
+    const std::string& user,
     const TString& passwordSha256,
     const TTimeoutOptions& options)
 {

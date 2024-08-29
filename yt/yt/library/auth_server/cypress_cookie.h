@@ -17,7 +17,7 @@ struct TCypressCookie
     TString Value;
 
     //! User for which cookie is issued.
-    TString User;
+    std::string User;
 
     //! Revision of password in the moment of cookie issue.
     ui64 PasswordRevision;

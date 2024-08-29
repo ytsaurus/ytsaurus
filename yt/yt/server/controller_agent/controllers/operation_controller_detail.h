@@ -416,7 +416,7 @@ public:
     EOperationType GetOperationType() const override;
     TInstant GetStartTime() const override;
 
-    const TString& GetAuthenticatedUser() const override;
+    const std::string& GetAuthenticatedUser() const override;
 
     const TOutputTablePtr& StderrTable() const override;
     const TOutputTablePtr& CoreTable() const override;
@@ -534,7 +534,7 @@ protected:
 
     const EOperationType OperationType;
     const TInstant StartTime_;
-    const TString AuthenticatedUser;
+    const std::string AuthenticatedUser;
     const NYTree::IMapNodePtr SecureVault;
     const NTransactionClient::TTransactionId UserTransactionId;
 
@@ -747,7 +747,7 @@ protected:
     virtual void LockInputs();
     void InitUnrecognizedSpec();
     void FillInitializeResult(TOperationControllerInitializeResult* result);
-    void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
+    void ValidateIntermediateDataAccess(const std::string& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
     virtual void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;

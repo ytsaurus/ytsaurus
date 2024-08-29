@@ -73,7 +73,7 @@ struct ISchedulerStrategyHost
     virtual void ValidatePoolPermission(
         TGuid poolObjectId,
         const TString& poolName,
-        const TString& user,
+        const std::string& user,
         NYTree::EPermission permission) const = 0;
 
     virtual void SetSchedulerAlert(
@@ -283,7 +283,7 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId) = 0;
 
@@ -292,7 +292,7 @@ struct ISchedulerStrategy
     virtual void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user) = 0;
+        const std::string& user) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;

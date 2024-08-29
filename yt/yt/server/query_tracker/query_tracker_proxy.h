@@ -28,37 +28,37 @@ public:
         const EQueryEngine engine,
         const TString& query,
         const NApi::TStartQueryOptions& options,
-        const TString& user);
+        const std::string& user);
 
     void AbortQuery(
         const TQueryId queryId,
         const NApi::TAbortQueryOptions& options,
-        const TString& user);
+        const std::string& user);
 
     NApi::TQueryResult GetQueryResult(
         const TQueryId queryId,
         const i64 resultIndex,
-        const TString& user);
+        const std::string& user);
 
     NApi::IUnversionedRowsetPtr ReadQueryResult(
         const TQueryId queryId,
         const i64 resultIndex,
         const NApi::TReadQueryResultOptions& options,
-        const TString& user);
+        const std::string& user);
 
     NApi::TQuery GetQuery(
         const TQueryId queryId,
         const NApi::TGetQueryOptions& options,
-        const TString& user);
+        const std::string& user);
 
     NApi::TListQueriesResult ListQueries(
         const NApi::TListQueriesOptions& options,
-        const TString& user);
+        const std::string& user);
 
     void AlterQuery(
         const TQueryId queryId,
         const NApi::TAlterQueryOptions& options,
-        const TString& user);
+        const std::string& user);
 
     NApi::TGetQueryTrackerInfoResult GetQueryTrackerInfo(
         const NApi::TGetQueryTrackerInfoOptions& options);
