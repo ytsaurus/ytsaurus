@@ -371,9 +371,10 @@ TEST_F(TLoggingTest, StreamWriter)
 {
     TStringStream stringOutput;
     auto config = New<TLogWriterConfig>();
+    auto eventProvider = CreateDefaultSystemLogEventProvider(config);
     auto writer = CreateStreamLogWriter(
         std::make_unique<TPlainTextLogFormatter>(),
-        CreateDefaultSystemLogEventProvider(config),
+        std::move(eventProvider),
         "test_writer",
         std::move(config),
         &stringOutput);
