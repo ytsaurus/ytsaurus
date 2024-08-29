@@ -468,7 +468,7 @@ items:
         href: admin-guide/problems.md
       - name: Синхронизация пользователей и групп с внешней системой
         href: admin-guide/identity-sync.md
-  - name: Релизы
+  - name: Релизы (en)
     href: admin-guide/releases.md
   - name: FAQ
     href: faq/faq.md
