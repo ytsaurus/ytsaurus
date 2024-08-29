@@ -41,6 +41,7 @@ struct IBootstrap
     virtual void ScheduleCellarHeartbeat() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetChangelogOutThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetSnapshotOutThrottler() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

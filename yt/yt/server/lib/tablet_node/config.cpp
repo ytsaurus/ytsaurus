@@ -1025,6 +1025,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_collocated_dat_node_throttling", &TThis::EnableCollocatedDatNodeThrottling)
         .Default(false);
+
+    registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,7 +24,8 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     NYPath::TYPath primaryPath,
     NYPath::TYPath secondaryPath,
     NApi::IClientPtr client,
-    NTransactionClient::TTransactionId prerequisiteTransactionId = {});
+    NTransactionClient::TTransactionId prerequisiteTransactionId = {},
+    NConcurrency::IThroughputThrottlerPtr snapshotOutThrottler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
