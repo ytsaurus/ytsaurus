@@ -143,8 +143,8 @@ public:
 
     bool IsUpload() const;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;

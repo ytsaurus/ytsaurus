@@ -11,12 +11,12 @@ using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TSecondaryIndex::GetLowercaseObjectName() const
+std::string TSecondaryIndex::GetLowercaseObjectName() const
 {
     return Format("secondary index %v", GetId());
 }
 
-TString TSecondaryIndex::GetCapitalizedObjectName() const
+std::string TSecondaryIndex::GetCapitalizedObjectName() const
 {
     return Format("Secondary index %v", GetId());
 }

@@ -37,12 +37,12 @@ TCellBundle::TCellBundle(TCellBundleId id)
     , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
 
-TString TCellBundle::GetLowercaseObjectName() const
+std::string TCellBundle::GetLowercaseObjectName() const
 {
     return Format("cell bundle %Qv", Name_);
 }
 
-TString TCellBundle::GetCapitalizedObjectName() const
+std::string TCellBundle::GetCapitalizedObjectName() const
 {
     return Format("Cell bundle %Qv", Name_);
 }

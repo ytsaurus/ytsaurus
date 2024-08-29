@@ -12,12 +12,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString THost::GetLowercaseObjectName() const
+std::string THost::GetLowercaseObjectName() const
 {
     return Format("host %Qv", GetName());
 }
 
-TString THost::GetCapitalizedObjectName() const
+std::string THost::GetCapitalizedObjectName() const
 {
     return Format("Host %Qv", GetName());
 }

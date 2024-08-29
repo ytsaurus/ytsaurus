@@ -65,8 +65,8 @@ public:
 public:
     using TObject::TObject;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
     //! Save ids of the participating tablets for future retrieval.

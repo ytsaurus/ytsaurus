@@ -9,12 +9,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TRack::GetLowercaseObjectName() const
+std::string TRack::GetLowercaseObjectName() const
 {
     return Format("rack %Qv", GetName());
 }
 
-TString TRack::GetCapitalizedObjectName() const
+std::string TRack::GetCapitalizedObjectName() const
 {
     return Format("Rack %Qv", GetName());
 }

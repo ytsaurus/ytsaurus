@@ -159,12 +159,12 @@ void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
     UnderlyingTree_ = underlyingTree;
 }
 
-TString TChunkView::GetLowercaseObjectName() const
+std::string TChunkView::GetLowercaseObjectName() const
 {
     return Format("chunk view %v", GetId());
 }
 
-TString TChunkView::GetCapitalizedObjectName() const
+std::string TChunkView::GetCapitalizedObjectName() const
 {
     return Format("Chunk view %v", GetId());
 }

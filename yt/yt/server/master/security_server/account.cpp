@@ -227,12 +227,12 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     , ChunkMergerNodeTraversals_(id)
 { }
 
-TString TAccount::GetLowercaseObjectName() const
+std::string TAccount::GetLowercaseObjectName() const
 {
     return Format("account %Qv", GetName());
 }
 
-TString TAccount::GetCapitalizedObjectName() const
+std::string TAccount::GetCapitalizedObjectName() const
 {
     return Format("Account %Qv", GetName());
 }

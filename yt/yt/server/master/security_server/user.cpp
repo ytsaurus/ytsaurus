@@ -314,12 +314,12 @@ void TUser::SetName(const std::string& name)
     InitializeCounters();
 }
 
-TString TUser::GetLowercaseObjectName() const
+std::string TUser::GetLowercaseObjectName() const
 {
     return Format("user %Qv", Name_);
 }
 
-TString TUser::GetCapitalizedObjectName() const
+std::string TUser::GetCapitalizedObjectName() const
 {
     return Format("User %Qv", Name_);
 }

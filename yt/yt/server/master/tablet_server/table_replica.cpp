@@ -14,12 +14,12 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TTableReplica::GetLowercaseObjectName() const
+std::string TTableReplica::GetLowercaseObjectName() const
 {
     return Format("table replica %v", GetId());
 }
 
-TString TTableReplica::GetCapitalizedObjectName() const
+std::string TTableReplica::GetCapitalizedObjectName() const
 {
     return Format("Table replica %v", GetId());
 }

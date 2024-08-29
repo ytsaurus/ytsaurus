@@ -46,18 +46,20 @@ TSchedulerPool::TSchedulerPool(TObjectId id, bool isRoot)
     , FullConfig_(New<NScheduler::TPoolConfig>())
 { }
 
-TString TSchedulerPool::GetLowercaseObjectName() const
+std::string TSchedulerPool::GetLowercaseObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetLowercaseObjectName()
-        : Format("scheduler pool %Qv", GetName());
+        // TODO(babenko): switch to std::string
+        : std::string(Format("scheduler pool %Qv", GetName()));
 }
 
-TString TSchedulerPool::GetCapitalizedObjectName() const
+std::string TSchedulerPool::GetCapitalizedObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetCapitalizedObjectName()
-        : Format("Scheduler pool %Qv", GetName());
+        // TODO(babenko): switch to std::string
+        : std::string(Format("Scheduler pool %Qv", GetName()));
 }
 
 void TSchedulerPool::FullValidate()
@@ -328,12 +330,12 @@ TSchedulerPoolTree::TSchedulerPoolTree(NCypressClient::TObjectId id)
     , SpecifiedConfig_(ConvertToYsonString(EmptyAttributes()))
 { }
 
-TString TSchedulerPoolTree::GetLowercaseObjectName() const
+std::string TSchedulerPoolTree::GetLowercaseObjectName() const
 {
     return Format("scheduler pool tree %Qv", TreeName_);
 }
 
-TString TSchedulerPoolTree::GetCapitalizedObjectName() const
+std::string TSchedulerPoolTree::GetCapitalizedObjectName() const
 {
     return Format("Scheduler pool tree %Qv", TreeName_);
 }
