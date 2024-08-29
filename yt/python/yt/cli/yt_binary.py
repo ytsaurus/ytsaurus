@@ -2147,6 +2147,7 @@ if HAS_IDM_CLI_HELPERS:
         object_group.add_argument("--bundle", dest="tablet_cell_bundle", help="Tablet cell bundle name")
         object_group.add_argument("--group", help="YT group name")
         object_group.add_argument("--pool", help="Pool name")
+        object_group.add_argument("--network-project", help="Network project name")
 
         parser.add_argument("--pool-tree", help="Pool tree name")
 
