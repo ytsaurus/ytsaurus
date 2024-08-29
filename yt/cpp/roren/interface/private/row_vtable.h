@@ -30,11 +30,13 @@ public:
     using TUniquePtr = std::unique_ptr<void, std::function<void(void*)>>;
     using TUniDataFunction = void (*)(void*);
     using TCopyDataFunction = void (*)(void*, const void*);
+    using TMoveDataFunction = void (*)(void*, void*);
     using TRawCoderFactoryFunction = IRawCoderPtr (*)();
     using TRowVtableFactoryFunction = TRowVtable (*)();
     using TCopyToUniquePtrFunction = TUniquePtr (*)(const void*);
     using TMoveToUniquePtrFunction = TUniquePtr (*)(void*);
     using THashFunction = size_t (*)(const void*);
+    using TEqualFunction = bool (*)(const void*, const void*);
 
 public:
     static constexpr ssize_t NotKv = -1;
@@ -46,9 +48,11 @@ public:
     TUniDataFunction DefaultConstructor = nullptr;
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
+    TMoveDataFunction MoveConstructor = nullptr;
     TCopyToUniquePtrFunction CopyToUniquePtr = nullptr;
     TMoveToUniquePtrFunction MoveToUniquePtr = nullptr;
     THashFunction Hash = nullptr;
+    TEqualFunction Equal = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
@@ -62,9 +66,11 @@ public:
         SaveLoadablePointer(DefaultConstructor),
         SaveLoadablePointer(Destructor),
         SaveLoadablePointer(CopyConstructor),
+        SaveLoadablePointer(MoveConstructor),
         SaveLoadablePointer(CopyToUniquePtr),
         SaveLoadablePointer(MoveToUniquePtr),
         SaveLoadablePointer(Hash),
+        SaveLoadablePointer(Equal),
         SaveLoadablePointer(RawCoderFactory),
         KeyOffset,
         ValueOffset,
@@ -91,10 +97,13 @@ TRowVtable MakeRowVtable()
         };
         auto noopCopy = [] (void* , const void*) {
         };
+        auto noopMove = [] (void* , void*) {
+        };
         vtable.DataSize = 0;
         vtable.Destructor = noop;
         vtable.DefaultConstructor = noop;
         vtable.CopyConstructor = noopCopy;
+        vtable.MoveConstructor = noopMove;
         vtable.RawCoderFactory = nullptr;
     } else {
         vtable.DataSize = sizeof(T);
@@ -107,6 +116,9 @@ TRowVtable MakeRowVtable()
         };
         vtable.CopyConstructor = [] (void* destination, const void* source) {
             new(destination) T(*reinterpret_cast<const T*>(source));
+        };
+        vtable.MoveConstructor = [] (void* destination, void* source) {
+            new(destination) T(std::move(*reinterpret_cast<T*>(source)));
         };
         vtable.RawCoderFactory = &MakeDefaultRawCoder<T>;
         vtable.CopyToUniquePtr = [] (const void* p) {
@@ -125,6 +137,11 @@ TRowVtable MakeRowVtable()
             vtable.Hash = [] (const void* p) -> size_t {
                 const T* obj = reinterpret_cast<const T*>(p);
                 return NRoren::NPrivate::TRorenHash<T>()(*obj);
+            };
+        }
+        if constexpr (isKey && requires (const T& lhs, const T& rhs) { { lhs == rhs } -> std::convertible_to<bool>; }) {
+            vtable.Equal = [] (const void* lhs, const void* rhs) -> bool {
+                return *reinterpret_cast<const T*>(lhs) == *reinterpret_cast<const T*>(rhs);
             };
         }
 
@@ -213,6 +230,15 @@ public:
         RowVtable_.CopyConstructor(GetData(), row);
     }
 
+    void MoveFrom(void* row)
+    {
+        Y_ASSERT(RowVtable_.MoveConstructor);
+        if (RowVtable_.Destructor != nullptr) {
+            RowVtable_.Destructor(GetData());
+        }
+        RowVtable_.MoveConstructor(GetData(), row);
+    }
+
     void* GetKeyOfKV()
     {
         Y_DEBUG_ABORT_UNLESS(RowVtable_.KeyOffset >= 0,
@@ -250,6 +276,50 @@ private:
     std::vector<char> Data_;
     TRowVtable RowVtable_;
 };
+
+class THashableKey
+{
+public:
+    static THashableKey GetKeyOfKV(const TRawRowHolder& holder)
+    {
+        const auto& vtable = holder.GetRowVtable();
+        Y_ABORT_IF(vtable.KeyOffset == TRowVtable::NotKv);
+        Y_ABORT_IF(vtable.KeyVtableFactory == nullptr);
+        TRawRowHolder key(vtable.KeyVtableFactory());
+        key.CopyFrom(holder.GetKeyOfKV());
+        return THashableKey(std::move(key));
+    }
+
+    THashableKey(TRawRowHolder key)
+        : Key_(std::move(key))
+    {
+        const auto& keyVtable = Key_.GetRowVtable();
+        Y_ABORT_IF(keyVtable.Hash == nullptr);
+        Y_ABORT_IF(keyVtable.Equal == nullptr);
+        Hash_ = keyVtable.Hash(Key_.GetData());
+    }
+
+    size_t GetHash() const noexcept
+    {
+        return Hash_;
+    }
+
+    bool operator==(const THashableKey& other) const
+    {
+        Y_ABORT_IF(Key_.GetRowVtable().Equal != other.Key_.GetRowVtable().Equal);
+        return Key_.GetRowVtable().Equal(Key_.GetData(), other.Key_.GetData());
+    }
+
+    const void* Get() const
+    {
+        return Key_.GetData();
+    }
+
+private:
+    TRawRowHolder Key_;
+    size_t Hash_ = 0;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,3 +422,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <>
+struct THash<NRoren::NPrivate::THashableKey>
+{
+    inline size_t operator()(const NRoren::NPrivate::THashableKey& key) const noexcept
+    {
+        return key.GetHash();
+    }
+};
