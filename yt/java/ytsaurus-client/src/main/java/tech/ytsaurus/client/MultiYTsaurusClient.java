@@ -188,6 +188,7 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banPenalty = Duration.ofMillis(1);
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
+        MultiExecutorCallback executorCallback = new NoopMultiExecutorCallback();
         Duration preferredAllowance = Duration.ofMillis(100);
         Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
                 YTsaurusClient::builder;
@@ -306,6 +307,16 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             return this;
         }
 
+        /**
+         * Set executor callback to monitor hedging request execution.
+         *
+         * @return self
+         */
+        public Builder setExecutorCallback(MultiExecutorCallback executorCallback) {
+            this.executorCallback = executorCallback;
+            return this;
+        }
+
         @Override
         protected Builder self() {
             return this;
@@ -319,6 +330,7 @@ class MultiExecutor implements Closeable {
     final Duration banPenalty;
     final Duration banDuration;
     final PenaltyProvider penaltyProvider;
+    final MultiExecutorCallback executorCallback;
     final List<YTsaurusClientEntry> clients;
 
     static final CancellationException CANCELLATION_EXCEPTION = new CancellationException();
@@ -336,6 +348,7 @@ class MultiExecutor implements Closeable {
         this.banPenalty = builder.banPenalty;
         this.banDuration = builder.banDuration;
         this.penaltyProvider = builder.penaltyProvider;
+        this.executorCallback = builder.executorCallback;
 
         this.clients = new ArrayList<>();
 
@@ -479,15 +492,21 @@ class MultiExecutor implements Closeable {
             } else {
                 future = new CompletableFuture<>();
                 ScheduledFuture<?> task = client.client.getExecutor().schedule(
-                        () -> callback.apply(client.client)
-                                .handle((value, ex) -> {
-                                    if (ex == null) {
-                                        future.complete(value);
-                                    } else {
-                                        future.completeExceptionally(ex);
-                                    }
-                                    return null;
-                                }),
+                        () -> {
+                            Instant realRequestStart = Instant.now();
+                            return callback.apply(client.client)
+                                    .handle((value, ex) -> {
+                                        if (ex == null) {
+                                            future.complete(value);
+                                        } else {
+                                            Duration completionTime = Duration.between(realRequestStart, Instant.now());
+                                            executorCallback.reportRequestHedgingFailure(client.getClusterName(),
+                                                    completionTime);
+                                            future.completeExceptionally(ex);
+                                        }
+                                        return null;
+                                    });
+                        },
                         effectivePenalty.toMillis(),
                         TimeUnit.MILLISECONDS);
                 delayedTasks.add(new DelayedTask<>(task, future, clientId, effectivePenalty, client, now));
@@ -495,9 +514,13 @@ class MultiExecutor implements Closeable {
 
             int copyClientId = clientId;
             future.whenComplete((value, error) -> {
+                Duration completionTime = Duration.between(now, Instant.now());
+
                 if (error == null) {
+                    executorCallback.reportRequestSuccess(client.getClusterName(), completionTime);
                     result.complete(value);
                 } else if (finishedClientsCount.incrementAndGet() == currentClients.size()) {
+                    executorCallback.reportRequestFailure(completionTime);
                     result.completeExceptionally(error);
                 }
 
