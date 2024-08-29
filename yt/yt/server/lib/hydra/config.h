@@ -266,6 +266,7 @@ public:
     std::optional<bool> AlertOnSnapshotFailure;
 
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
+    std::optional<bool> EnableSnapshotNetworkThrottling;
 
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 

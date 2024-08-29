@@ -339,25 +339,27 @@ constexpr int DynamicStoreCountLimit = 10;
 constexpr int EdenIndex = -1;
 
 DEFINE_ENUM(ETabletNodeThrottlerKind,
-    //! Controls outcoming bandwidth used by store flushes.
+    //! Controls outgoing bandwidth used by store flushes.
     (StoreFlushOut)
     //! Controls incoming bandwidth used by store compactions.
     (StoreCompactionAndPartitioningIn)
-    //! Controls outcoming bandwidth used by store compactions.
+    //! Controls outgoing bandwidth used by store compactions.
     (StoreCompactionAndPartitioningOut)
     //! Controls incoming bandwidth used by table replication.
     (ReplicationIn)
-    //! Controls outcoming bandwidth used by table replication.
+    //! Controls outgoing bandwidth used by table replication.
     (ReplicationOut)
     //! Controls incoming bandwidth used by in-memory tables preload.
     (StaticStorePreloadIn)
-    //! Controls outcoming bandwidth used by dynamic store remote reads.
+    //! Controls outgoing bandwidth used by dynamic store remote reads.
     (DynamicStoreReadOut)
     //! Controls incoming bandwidth used by lookups and selects
     //! that corresponds to tablet and data node interaction.
     (UserBackendIn)
-    //! Controls outcoming bandwidth used by remote changelogs.
+    //! Controls outgoing bandwidth used by remote changelogs.
     (ChangelogOut)
+    //! Controls outgoing bandwidth used by remote snapshot store.
+    (SnapshotOut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
