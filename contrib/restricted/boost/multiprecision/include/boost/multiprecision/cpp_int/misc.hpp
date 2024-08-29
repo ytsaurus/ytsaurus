@@ -184,7 +184,9 @@ eval_convert_to(R* result, const cpp_int_backend<MinBits1, MaxBits1, SignType1, 
 
 template <class R, std::size_t MinBits1, std::size_t MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<std::is_floating_point<R>::value && !is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value, void>::type
-eval_convert_to(R* result, const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& backend) noexcept(boost::multiprecision::detail::is_arithmetic<R>::value && std::numeric_limits<R>::has_infinity)
+eval_convert_to(R* result, const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& backend) noexcept(boost::multiprecision::detail::is_arithmetic<R>::value &&
+                                                                                                                         (std::numeric_limits<R>::has_infinity ||
+                                                                                                                          std::numeric_limits<R>::has_quiet_NaN))
 {
    BOOST_MP_FLOAT128_USING using std::ldexp;
    if (eval_is_zero(backend))
@@ -244,10 +246,11 @@ eval_convert_to(R* result, const cpp_int_backend<MinBits1, MaxBits1, SignType1, 
          if ((eval_lsb_imp(backend) < static_cast<std::size_t>(bits)) || eval_bit_test(backend, static_cast<std::size_t>(bits + 1)))
          {
             #ifdef BOOST_MP_MATH_AVAILABLE
-            BOOST_IF_CONSTEXPR(std::numeric_limits<R>::has_infinity)
+            BOOST_IF_CONSTEXPR(std::numeric_limits<R>::has_infinity || std::numeric_limits<R>::has_quiet_NaN)
             {
                // Must NOT throw:
-               *result = boost::math::float_next(*result, boost::math::policies::make_policy(boost::math::policies::overflow_error<boost::math::policies::ignore_error>()));
+               *result = boost::math::float_next(*result, boost::math::policies::make_policy(boost::math::policies::overflow_error<boost::math::policies::ignore_error>(),
+                                                                                             boost::math::policies::domain_error<boost::math::policies::ignore_error>()));
             }
             else
             {

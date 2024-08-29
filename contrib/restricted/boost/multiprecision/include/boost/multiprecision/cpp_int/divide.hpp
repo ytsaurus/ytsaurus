@@ -551,6 +551,10 @@ eval_modulus(
     const cpp_int_backend<MinBits2, MaxBits2, SignType2, Checked2, Allocator2>& a,
     const limb_type                                                             mod)
 {
+
+   if(mod == 0)
+     BOOST_MP_THROW_EXCEPTION(std::overflow_error("Division by zero."));
+
    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(a.size());
 
    const double_limb_type two_n_mod =
@@ -654,6 +658,44 @@ eval_modulus(
       BOOST_MP_THROW_EXCEPTION(std::overflow_error("Division by zero."));
    *result.limbs() %= *o.limbs();
    result.sign(result.sign());
+}
+
+template <std::size_t MinBits1, std::size_t MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, class V>
+BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<
+    is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && std::is_unsigned<V>::value>::type
+eval_modulus(
+    cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& result,
+    const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& a,
+    V o)
+{
+   using local_limb_type = typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::local_limb_type;
+
+   BOOST_IF_CONSTEXPR(std::numeric_limits<V>::digits > MaxBits1)
+   {
+      if (o >= (static_cast<V>(1u) << MaxBits1))
+      {
+         // Modulus is larger than any value that the result can hold,
+         // so the result is just "a":
+         result = a;
+         return;
+      }
+   }
+   if (!o)
+      BOOST_MP_THROW_EXCEPTION(std::overflow_error("Division by zero."));
+   *result.limbs() = *a.limbs() % static_cast<local_limb_type>(o);
+   result.sign(a.sign());
+}
+
+template <std::size_t MinBits1, std::size_t MaxBits1, cpp_integer_type SignType1, cpp_int_check_type Checked1, class Allocator1, class V>
+BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<
+    is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value && std::is_signed<V>::value>::type
+eval_modulus(
+    cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& result,
+    const cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& a,
+    V o)
+{
+   using unsigned_type = typename std::make_unsigned<V>::type;
+   eval_modulus(result, a, static_cast<unsigned_type>(o < 0 ? -o : o));
 }
 
 }}} // namespace boost::multiprecision::backends
