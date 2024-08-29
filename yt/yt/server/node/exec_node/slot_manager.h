@@ -113,6 +113,7 @@ public:
 
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
+    int GetInitializedSlotCount() const;
 
     i64 GetMajorPageFaultCount() const;
 
@@ -230,7 +231,9 @@ private:
     //! We maintain queue for distributing job logs evenly among slots.
     // Invoker affinity: JobInvoker
     TRingQueue<int> FreeSlots_;
+    std::atomic<int> InitializedSlotCount_ = 0;
     int UsedIdleSlotCount_ = 0;
+    ui64 InitializationEpoch_ = 0;
 
     double IdlePolicyRequestedCpu_ = 0;
 
@@ -319,6 +322,8 @@ private:
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void InitializeSlots();
 
     TDuration GetDisableJobsBackoff();
 

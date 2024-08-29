@@ -263,11 +263,13 @@ public:
             auto scheduleJobEnabled =
                 execNodeBootstrap->GetChunkCache()->IsEnabled() &&
                 !execNodeBootstrap->GetJobController()->AreJobsDisabled() &&
-                !Bootstrap_->IsReadOnly() &&
-                !slotManager->IsJobSchedulingDisabled();
+                !Bootstrap_->IsReadOnly();
 
+            // NB(arkady-e1ppa): It's still possible to send overly optimistic
+            // slot count value to scheduler if during the transmission
+            // slot manager restarts but is yet to finish slot initialization.
             result.UserSlots = scheduleJobEnabled
-                ? slotManager->GetSlotCount()
+                ? slotManager->GetInitializedSlotCount()
                 : 0;
 
             result.Gpu = resourceLimitsOverrides.has_gpu()
@@ -816,11 +818,20 @@ public:
             auto jobResourceManagerCount = OccupiedUserSlots() - neededResources.UserSlots;
 
             YT_LOG_FATAL_IF(
-                slotManagerCount != jobResourceManagerCount,
-                "Used slot count in slot manager must be equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
+                slotManagerCount > jobResourceManagerCount,
+                "Used slot count in slot manager must be lesser or equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
                 slotManagerCount,
                 slotManagerLimit,
                 jobResourceManagerCount);
+
+            if (slotManagerLimit == slotManager->GetInitializedSlotCount()) {
+                YT_LOG_FATAL_IF(
+                    slotManagerCount != jobResourceManagerCount,
+                    "Used slot count in slot manager must be equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
+                    slotManagerCount,
+                    slotManagerLimit,
+                    jobResourceManagerCount);
+            }
         }
 
         try {
