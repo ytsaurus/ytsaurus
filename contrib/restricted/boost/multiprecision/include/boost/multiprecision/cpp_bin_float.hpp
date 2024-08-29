@@ -37,7 +37,10 @@
 #endif
 
 #ifdef BOOST_HAS_FLOAT128
-#include <quadmath.h>
+#  if __has_include(<quadmath.h>)
+#    include <quadmath.h>
+#    define BOOST_MP_HAS_FLOAT128_SUPPORT
+#  endif
 #endif
 
 namespace boost {
@@ -66,7 +69,7 @@ template <class Float, std::ptrdiff_t bit_count>
 struct is_cpp_bin_float_implicitly_constructible_from_type<Float, bit_count, true>
 {
    static constexpr bool value = (std::numeric_limits<Float>::digits <= static_cast<int>(bit_count)) && (std::numeric_limits<Float>::radix == 2) && std::numeric_limits<Float>::is_specialized
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
                              && !std::is_same<Float, float128_type>::value
 #endif
                              && (std::is_floating_point<Float>::value || is_number<Float>::value);
@@ -82,7 +85,7 @@ template <class Float, std::ptrdiff_t bit_count>
 struct is_cpp_bin_float_explicitly_constructible_from_type<Float, bit_count, true>
 {
    static constexpr bool value = (std::numeric_limits<Float>::digits > static_cast<int>(bit_count)) && (std::numeric_limits<Float>::radix == 2) && std::numeric_limits<Float>::is_specialized
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
                              && !std::is_same<Float, float128_type>::value
 #endif
        ;
@@ -167,7 +170,7 @@ class cpp_bin_float
    {
       this->assign_float(f);
    }
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
    template <class Float>
    cpp_bin_float(const Float& f,
                  typename std::enable_if<
@@ -277,7 +280,7 @@ class cpp_bin_float
       }
       return *this;
    }
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
    template <class Float>
    typename std::enable_if<
        (number_category<Float>::value == number_kind_floating_point)
@@ -298,7 +301,7 @@ class cpp_bin_float
       return assign_float(f);
    }
 
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
    template <class Float>
    typename std::enable_if<std::is_same<Float, float128_type>::value && (std::numeric_limits<Float>::digits > Digits), cpp_bin_float&>::type assign_float(Float f)
    {
@@ -371,7 +374,7 @@ class cpp_bin_float
       return *this;
    }
 #endif
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
    template <class Float>
    typename std::enable_if<std::is_floating_point<Float>::value && !std::is_same<Float, float128_type>::value && (std::numeric_limits<Float>::digits > Digits), cpp_bin_float&>::type assign_float(Float f)
 #else
@@ -382,7 +385,7 @@ class cpp_bin_float
       cpp_bin_float<std::numeric_limits<Float>::digits, DigitBase, Allocator, Exponent, MinExponent, MaxExponent> bf(f);
       return *this = bf;
    }
-#ifdef BOOST_HAS_FLOAT128
+#ifdef BOOST_MP_HAS_FLOAT128_SUPPORT
    template <class Float>
    typename std::enable_if<std::is_floating_point<Float>::value && !std::is_same<Float, float128_type>::value && (std::numeric_limits<Float>::digits <= Digits), cpp_bin_float&>::type assign_float(Float f)
 #else

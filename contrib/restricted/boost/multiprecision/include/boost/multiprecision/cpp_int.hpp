@@ -844,10 +844,17 @@ struct cpp_int_base<MinBits, MinBits, unsigned_magnitude, Checked, void, false>
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR void normalize() noexcept((Checked == unchecked))
    {
       limb_pointer p = limbs();
-      detail::verify_limb_mask(m_limbs == internal_limb_count, p[internal_limb_count - 1], upper_limb_mask, checked_type());
+
+      limb_type c = p[internal_limb_count - 1];
+      bool full_limbs = m_limbs == internal_limb_count;
+
       p[internal_limb_count - 1] &= upper_limb_mask;
       while ((m_limbs - 1) && !p[m_limbs - 1])
          --m_limbs;
+      //
+      // Verification at the end, so that we're in a valid state if we throw:
+      //
+      detail::verify_limb_mask(full_limbs, c, upper_limb_mask, checked_type());
    }
 
    BOOST_MP_FORCEINLINE constexpr cpp_int_base() noexcept
@@ -1264,8 +1271,13 @@ struct cpp_int_base<MinBits, MinBits, unsigned_magnitude, Checked, void, true>
    }
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR void normalize() noexcept((Checked == unchecked))
    {
-      detail::verify_limb_mask(true, m_data, limb_mask, checked_type());
+      local_limb_type c = m_data;
       m_data &= limb_mask;
+      //
+      // Verification has to come afterwards, otherwise we can leave 
+      // ourselves in an invalid state:
+      //
+      detail::verify_limb_mask(true, c, limb_mask, checked_type());
    }
 
    BOOST_MP_FORCEINLINE constexpr cpp_int_base() noexcept : m_data(0) {}
