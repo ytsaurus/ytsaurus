@@ -453,7 +453,7 @@ items:
          href: admin-guide/cell-addition.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
-   - name: Releases
+   - name: Release notes
      href: admin-guide/releases.md
    - name: FAQ
      when: audience == "public"
