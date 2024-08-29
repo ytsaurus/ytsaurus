@@ -1087,7 +1087,7 @@ func TestIoctlFileDedupeRange(t *testing.T) {
 	// The first Info should be equal
 	if dedupe.Info[0].Status < 0 {
 		errno := unix.Errno(-dedupe.Info[0].Status)
-		if errno == unix.EINVAL {
+		if errno == unix.EINVAL || errno == unix.EOPNOTSUPP {
 			t.Skip("deduplication not supported on this filesystem")
 		}
 		t.Errorf("Unexpected error in FileDedupeRange: %s", unix.ErrnoName(errno))
@@ -1102,7 +1102,7 @@ func TestIoctlFileDedupeRange(t *testing.T) {
 	// The second Info should be different
 	if dedupe.Info[1].Status < 0 {
 		errno := unix.Errno(-dedupe.Info[1].Status)
-		if errno == unix.EINVAL {
+		if errno == unix.EINVAL || errno == unix.EOPNOTSUPP {
 			t.Skip("deduplication not supported on this filesystem")
 		}
 		t.Errorf("Unexpected error in FileDedupeRange: %s", unix.ErrnoName(errno))
