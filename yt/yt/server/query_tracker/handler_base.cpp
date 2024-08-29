@@ -185,7 +185,7 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previ
         THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v incarnation mismatch: expected %v, actual %v", QueryId_, Incarnation_, optionalRecords[0]->Incarnation);
     }
     if (optionalRecords[0]->State != previousState) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v is not in state %Qlv, actual state is %Qlv", QueryId_, previousState, optionalRecords[0]->State);
+        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::StateMismatch, "Query %v is not in state %Qlv, actual state is %Qlv", QueryId_, previousState, optionalRecords[0]->State);
     }
     YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
     return transaction;
