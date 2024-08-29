@@ -98,10 +98,13 @@ class TDetailedMasterMemory;
 struct TUserWorkload;
 
 constexpr int TypicalAccessLogAttributeCount = 2;
-using TAttributeVector = TCompactVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
+using TAccessLogAttributes = TCompactVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
+
 constexpr int TypicalSecurityTagCount = 16;
 using TSecurityTagsItems = TCompactVector<TSecurityTag, TypicalSecurityTagCount>;
+
 struct TSecurityTags;
+
 using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
 using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
