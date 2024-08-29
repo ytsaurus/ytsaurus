@@ -201,8 +201,6 @@ class RetryingTableWriterBaseImpl<T> {
                                                 .setTableSchema(result.schema)
                                                 .build();
                                     }
-                                } else if (!this.req.getTableSchema().get().equals(result.schema)) {
-                                    throw new IllegalStateException("Incorrect table schema");
                                 }
 
                                 this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
