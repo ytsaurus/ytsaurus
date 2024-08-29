@@ -24,4 +24,7 @@ PEERDIR(
     yt/python/yt/environment/components/yql_agent
 )
 
+FORK_SUBTESTS()
+SPLIT_FACTOR(2)
+
 END()
