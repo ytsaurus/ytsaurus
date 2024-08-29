@@ -166,7 +166,7 @@ public:
         const std::vector<TAllocationId>& allocationIds) override;
 
     void ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         NYTree::EPermission permission) override;
 
     TFuture<void> UpdateAccountResourceUsageLease(

@@ -407,7 +407,7 @@ public:
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
-        const TString& authenticatedUser,
+        const std::string& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,
         const std::optional<TString>& alias,

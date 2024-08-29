@@ -38,7 +38,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
-    const std::optional<TString>& user,
+    const std::optional<std::string>& user,
     EPermission permission,
     INodePtr acl,
     const TCheckPermissionByAclOptions& options)
@@ -50,7 +50,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
 
     auto req = TMasterYPathProxy::CheckPermissionByAcl();
     if (user) {
-        req->set_user(*user);
+        req->set_user(ToProto<TProtobufString>(*user));
     }
     req->set_permission(static_cast<int>(permission));
     req->set_acl(ConvertToYsonString(acl).ToString());
@@ -115,7 +115,7 @@ void TClient::DoRemoveMember(
 }
 
 TCheckPermissionResponse TClient::DoCheckPermission(
-    const TString& user,
+    const std::string& user,
     const TYPath& path,
     EPermission permission,
     const TCheckPermissionOptions& options)
@@ -126,7 +126,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     SetBalancingHeader(batchReq, options);
 
     auto req = TObjectYPathProxy::CheckPermission(path);
-    req->set_user(user);
+    req->set_user(ToProto<TProtobufString>(user));
     req->set_permission(static_cast<int>(permission));
     if (options.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *options.Columns);

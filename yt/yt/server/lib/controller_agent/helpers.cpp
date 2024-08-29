@@ -143,7 +143,7 @@ TTableSchemaPtr RenameColumnsInSchema(
 
 void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
-    const TString& user,
+    const std::string& user,
     const TString& jobShellName,
     const std::vector<TString>& jobShellOwners)
 {
@@ -158,13 +158,15 @@ void ValidateJobShellAccess(
     readOptions.ReadFrom = EMasterChannelKind::Cache;
 
     auto userClosure = GetSubjectClosure(
-        user,
+        // TODO(babenko): switch to std::string
+        TString(user),
         proxy,
         client->GetNativeConnection(),
         readOptions);
 
     auto allowedSubjects = jobShellOwners;
-    allowedSubjects.push_back(RootUserName);
+    // TODO(babenko): switch to std::string
+    allowedSubjects.push_back(TString(RootUserName));
     allowedSubjects.push_back(SuperusersGroupName);
 
     for (const auto& allowedSubject : allowedSubjects) {

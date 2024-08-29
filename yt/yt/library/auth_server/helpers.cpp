@@ -129,7 +129,7 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SignCsrfToken(const TString& userId, const TString& key, TInstant now)
+TString SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
 {
     auto msg = userId + ":" + ToString(now.TimeT());
     return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
@@ -137,7 +137,7 @@ TString SignCsrfToken(const TString& userId, const TString& key, TInstant now)
 
 TError CheckCsrfToken(
     const TString& csrfToken,
-    const TString& userId,
+    const std::string& userId,
     const TString& key,
     TInstant expirationTime)
 {

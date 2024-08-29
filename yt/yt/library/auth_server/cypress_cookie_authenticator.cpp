@@ -83,7 +83,7 @@ private:
 
     const IClientPtr Client_;
 
-    TFuture<ui64> GetUserPasswordRevision(const TString& user)
+    TFuture<ui64> GetUserPasswordRevision(const std::string& user)
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 

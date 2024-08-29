@@ -36,7 +36,7 @@ struct TObjectServiceCacheResponseTag
 
 TObjectServiceCacheKey::TObjectServiceCacheKey(
     TCellTag cellTag,
-    TString user,
+    const std::string& user,
     TYPath path,
     TString service,
     TString method,
@@ -44,7 +44,7 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     bool suppressUpstreamSync,
     bool suppressTransactionCoordinatorSync)
     : CellTag(std::move(cellTag))
-    , User(std::move(user))
+    , User(user)
     , Path(std::move(path))
     , Service(std::move(service))
     , Method(std::move(method))
@@ -417,7 +417,7 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
 }
 
-TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
+TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const TString& method)
 {
     auto key = std::tuple(user, method);
 
@@ -429,7 +429,8 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
     }
 
     auto counters = New<TCacheProfilingCounters>(Profiler_
-        .WithTag("user", user)
+        // TODO(babenko): switch to std::string
+        .WithTag("user", TString(user))
         .WithTag("method", method));
 
     {

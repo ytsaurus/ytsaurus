@@ -946,7 +946,7 @@ public:
     }
 
     void ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         TOperationId operationId,
         EPermission permission)
     {
@@ -2423,7 +2423,7 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 }
 
 void TControllerAgent::ValidateOperationAccess(
-    const TString& user,
+    const std::string& user,
     TOperationId operationId,
     NYTree::EPermission permission)
 {

@@ -38,7 +38,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
-        const auto& impersonationUser = context->GetAuthenticationIdentity().User;
+        // TODO(babenko): switch to std::string
+        auto impersonationUser = TString(context->GetAuthenticationIdentity().User);
 
         auto queryId = request->has_query_id()
             ? FromProto<TQueryId>(request->query_id())

@@ -22,7 +22,7 @@ struct TPermissionKey
     //! If set, permission will by validated via `CheckPermissionByAcl` YPath request against this ACL.
     std::optional<NYson::TYsonString> Acl;
 
-    TString User;
+    std::string User;
     NYTree::EPermission Permission;
 
     // Fields below may be specified only when `Object` is set.

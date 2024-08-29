@@ -88,11 +88,10 @@ class TAuthenticatedUserGuard
 public:
     TAuthenticatedUserGuard(
         ISecurityManagerPtr securityManager,
-        TUser* user,
-        const TString& userTag = {});
+        TUser* user);
     TAuthenticatedUserGuard(
         ISecurityManagerPtr securityManager,
-        NRpc::TAuthenticationIdentity identity);
+        const NRpc::TAuthenticationIdentity& identity);
     explicit TAuthenticatedUserGuard(
         ISecurityManagerPtr securityManager);
     ~TAuthenticatedUserGuard();

@@ -178,7 +178,7 @@ public:
     bool AbortOnUnrecognizedOptions;
 
     //! User for native clients in queue agent and Cypress synchronizer.
-    TString User;
+    std::string User;
 
     //! Paths to queue agent state.
     NQueueClient::TQueueAgentDynamicStateConfigPtr DynamicState;

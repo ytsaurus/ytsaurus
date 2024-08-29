@@ -355,7 +355,7 @@ template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission,
-    const TString& /*user*/)
+    const std::string& /*user*/)
 {
     ValidatePermission(TBase::GetThisImpl(), scope, permission);
 }

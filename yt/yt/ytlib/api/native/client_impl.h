@@ -517,13 +517,13 @@ public: \
         const TRemoveMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
-        const TString& user,
+        const std::string& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
     IMPLEMENT_METHOD(TCheckPermissionByAclResult, CheckPermissionByAcl, (
-        const std::optional<TString>& user,
+        const std::optional<std::string>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options),
@@ -800,40 +800,40 @@ public: \
         (cellId, leaseId, persistent, options))
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
-        const TString& user,
+        const std::string& user,
         const TString& currentPasswordSha256,
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, token, attributes, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, attributes, options))
     IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const TRefreshTemporaryTokenOptions& options),
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TString& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
@@ -1417,7 +1417,7 @@ private:
     //
 
     TIssueTokenResult DoIssueTokenImpl(
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
@@ -1430,7 +1430,7 @@ private:
     //! Always denies execution for other users.
     void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TTimeoutOptions& options);
 

@@ -80,7 +80,7 @@ public:
         //             for a job.
         bool forceStartLocalTransaction,
         NTransactionClient::TTransactionId userTransactionId,
-        const TString& authenticatedUser,
+        const std::string& authenticatedUser,
         TControllerAgentConfigPtr config,
         NLogging::TLogger logger);
 
@@ -129,7 +129,7 @@ private:
 
     void ValidateRemoteOperationsAllowed(
         const NScheduler::TClusterName& clusterName,
-        const TString& authenticatedUser,
+        const std::string& authenticatedUser,
         const NYPath::TRichYPath& path) const;
 };
 

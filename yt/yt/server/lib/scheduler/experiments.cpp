@@ -200,7 +200,7 @@ void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExper
 
 std::vector<TErrorOr<TExperimentAssignmentPtr>> TExperimentAssigner::Assign(
     EOperationType type,
-    const TString& user,
+    const std::string& user,
     const IMapNodePtr& specNode) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -397,9 +397,12 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentAssigner::TAssignmentContext::TAssignmentContext(EOperationType type, TString user, IMapNodePtr spec)
+TExperimentAssigner::TAssignmentContext::TAssignmentContext(
+    EOperationType type,
+    const std::string& user,
+    IMapNodePtr spec)
     : Type_(type)
-    , User_(std::move(user))
+    , User_(user)
     , Spec_(std::move(spec))
 { }
 

@@ -247,19 +247,19 @@ public:
         return CreateClient(name);
     }
 
-    void AssertPermission(const TString& user, const TYPath& path, EPermission permission, ESecurityAction action) const
+    void AssertPermission(const std::string& user, const TYPath& path, EPermission permission, ESecurityAction action) const
     {
         auto permissionResponse = WaitFor(Client_->CheckPermission(user, path, permission))
             .ValueOrThrow();
         ASSERT_EQ(permissionResponse.Action, action);
     }
 
-    void AssertPermissionAllowed(const TString& user, const TYPath& path, EPermission permission) const
+    void AssertPermissionAllowed(const std::string& user, const TYPath& path, EPermission permission) const
     {
         AssertPermission(user, path, permission, ESecurityAction::Allow);
     }
 
-    void AssertPermissionDenied(const TString& user, const TYPath& path, EPermission permission) const
+    void AssertPermissionDenied(const std::string& user, const TYPath& path, EPermission permission) const
     {
         AssertPermission(user, path, permission, ESecurityAction::Deny);
     }

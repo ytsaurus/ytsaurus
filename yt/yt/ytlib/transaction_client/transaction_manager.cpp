@@ -70,7 +70,7 @@ class TTransactionManager::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(IConnectionPtr connection, const TString& user);
+    TImpl(IConnectionPtr connection, const std::string& user);
 
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
@@ -1554,7 +1554,7 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     IConnectionPtr connection,
-    const TString& user)
+    const std::string& user)
     : Connection_(connection)
     , Config_(connection->GetConfig()->TransactionManager)
     , PrimaryCellId_(connection->GetPrimaryMasterCellId())
@@ -1705,7 +1705,7 @@ DELEGATE_SIGNAL(TTransaction, ITransaction::TAbortedHandlerSignature, Aborted, *
 
 TTransactionManager::TTransactionManager(
     IConnectionPtr connection,
-    const TString& user)
+    const std::string& user)
     : Impl_(New<TImpl>(std::move(connection), user))
 { }
 

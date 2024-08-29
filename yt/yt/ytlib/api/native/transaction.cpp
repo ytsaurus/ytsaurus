@@ -1442,7 +1442,7 @@ private:
             NSecurityClient::TPermissionKey permissionKey{
                 .Object = FromObjectId(TableInfo_->TableId),
                 .User = client->GetOptions().GetAuthenticatedUser(),
-                .Permission = NYTree::EPermission::Write
+                .Permission = NYTree::EPermission::Write,
             };
             auto future = permissionCache->Get(permissionKey);
             auto result = future.TryGet();

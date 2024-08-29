@@ -722,18 +722,20 @@ public:
         }
     }
 
-    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
+    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const override
     {
-        auto poolName = poolFromSpec.value_or(user);
+        // TODO(babenko): switch to std::string
+        auto poolName = poolFromSpec.value_or(TString(user));
 
         auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            return TPoolName(user, poolName);
+            // TODO(babenko): switch to std::string
+            return TPoolName(TString(user), poolName);
         }
         return TPoolName(poolName, std::nullopt);
     }
 
-    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const TString& user) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const override
     {
         const TSchedulerCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
@@ -2213,7 +2215,7 @@ private:
         return nullptr;
     }
 
-    TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
+    TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2280,7 +2282,7 @@ private:
         }
     }
 
-    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
+    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2350,7 +2352,7 @@ private:
         return poolsToValidate;
     }
 
-    void ValidateOperationCountLimit(const TPoolName& poolName, const TString& userName) const
+    void ValidateOperationCountLimit(const TPoolName& poolName, const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 

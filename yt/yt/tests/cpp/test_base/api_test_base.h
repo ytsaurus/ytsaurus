@@ -25,7 +25,7 @@ protected:
 
     static void TearDownTestCase();
 
-    static NApi::IClientPtr CreateClient(const TString& userName);
+    static NApi::IClientPtr CreateClient(const std::string& userName);
 
     static void WaitUntilEqual(const NYPath::TYPath& path, const TString& expected);
 

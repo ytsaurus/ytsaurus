@@ -66,7 +66,7 @@ struct TJobToConfirm
 
 void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
-    const TString& user,
+    const std::string& user,
     const TString& jobShellName,
     const std::vector<TString>& jobShellOwners);
 

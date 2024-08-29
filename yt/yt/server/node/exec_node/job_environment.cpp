@@ -196,7 +196,7 @@ public:
         TJobId /*jobId*/,
         const std::vector<TShellCommandConfigPtr>& /*commands*/,
         const TRootFS& /*rootFS*/,
-        const TString& /*user*/,
+        const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
         int /*startIndex*/) override
     {
@@ -561,7 +561,7 @@ public:
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
@@ -943,7 +943,7 @@ private:
         ESlotType slotType,
         TJobId jobId,
         const TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         int index)
     {
         auto launcher = CreatePortoInstanceLauncher(

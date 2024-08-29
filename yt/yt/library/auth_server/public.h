@@ -116,7 +116,7 @@ struct TServiceTicketCredentials
 
 struct TAuthenticationResult
 {
-    TString Login;
+    std::string Login;
     TString Realm;
     TString UserTicket;
 

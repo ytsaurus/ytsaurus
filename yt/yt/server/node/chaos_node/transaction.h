@@ -35,7 +35,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp, NTransactionClient::NullTimestamp);
 
-    DEFINE_BYVAL_RW_PROPERTY(TString, User);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, User);
 
 public:
     explicit TTransaction(TTransactionId id);

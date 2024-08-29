@@ -626,7 +626,7 @@ public:
     void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId) override
     {
@@ -691,7 +691,7 @@ public:
     void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user) override
+        const std::string& user) override
     {
         YT_VERIFY(origin);
 

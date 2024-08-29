@@ -105,7 +105,7 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateOperationAccess(
-    const std::optional<TString>& user,
+    const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     NYTree::EPermissionSet permissionSet,

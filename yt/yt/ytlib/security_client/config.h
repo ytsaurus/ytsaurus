@@ -15,7 +15,7 @@ class TPermissionCacheConfig
 {
 public:
     NApi::TSerializableMasterReadOptionsPtr MasterReadOptions;
-    TString RefreshUser;
+    std::string RefreshUser;
     bool AlwaysUseRefreshUser;
 
     REGISTER_YSON_STRUCT(TPermissionCacheConfig);

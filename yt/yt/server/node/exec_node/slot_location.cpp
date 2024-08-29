@@ -416,7 +416,8 @@ static THashMap<TString, TString> BuildSandboxCopyTags(
 {
     THashMap<TString, TString> result{
         {FormatIOTag(EAggregateIOTag::Direction), direction},
-        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
     };
     if (location) {
         result[FormatIOTag(ERawIOTag::LocationId)] = location->GetId();
@@ -637,7 +638,8 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                            // TODO(babenko): switch to std::string
+                            {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                             {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
                             {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},
                         });

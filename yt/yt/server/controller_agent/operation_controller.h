@@ -233,7 +233,7 @@ struct IOperationControllerHost
         const std::vector<TAllocationId>& allocationIds) = 0;
 
     virtual void ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         NYTree::EPermission permission) = 0;
 
     virtual TFuture<void> UpdateAccountResourceUsageLease(

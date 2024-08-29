@@ -98,7 +98,7 @@ private:
     template <class TTable>
     std::vector<typename TTable::TRowType> FetchStateRowsOrThrow(
         const NYPath::TRichYPath& stateReadPath,
-        const TString& user) const;
+        const std::string& user) const;
 
     //! Returns the stored dynamic config.
     TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;

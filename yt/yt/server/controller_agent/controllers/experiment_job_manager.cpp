@@ -112,7 +112,7 @@ TMtnJobExperiment::TMtnJobExperiment()
 
 TMtnJobExperiment::TMtnJobExperiment(
     const NApi::NNative::IClientPtr& client,
-    TString authenticatedUser,
+    const std::string& authenticatedUser,
     TString networkProject,
     NLogging::TLogger logger)
     : NetworkProject_(networkProject)
@@ -184,8 +184,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMtnJobExperiment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentJobManager::TExperimentJobManager()
-{ }
+TExperimentJobManager::TExperimentJobManager() = default;
 
 TExperimentJobManager::TExperimentJobManager(
     ICompetitiveJobManagerHost* host,

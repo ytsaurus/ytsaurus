@@ -21,7 +21,7 @@ using namespace NYson;
 DECLARE_REFCOUNTED_CLASS(TUserCache)
 
 class TUserCache
-    : public TAsyncExpiringCache<TString, void>
+    : public TAsyncExpiringCache<std::string, void>
 {
 public:
     TUserCache(
@@ -40,7 +40,7 @@ private:
 
     const IClientPtr Client_;
 
-    TFuture<void> DoGet(const TString& user, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<void> DoGet(const std::string& user, bool /*isPeriodicUpdate*/) noexcept override
     {
         YT_LOG_DEBUG("Getting user ban flag (User: %v)",
             user);
@@ -89,7 +89,7 @@ public:
             std::move(logger)))
     { }
 
-    void ValidateUser(const TString& user) override
+    void ValidateUser(const std::string& user) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

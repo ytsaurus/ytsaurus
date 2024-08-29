@@ -518,7 +518,7 @@ public:
     void ValidatePoolPermission(
         NObjectClient::TObjectId poolObjectId,
         const TString& poolName,
-        const TString& user,
+        const std::string& user,
         EPermission permission) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -549,7 +549,7 @@ public:
     }
 
     TFuture<void> ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         TOperationId operationId,
         EPermissionSet permissions)
     {
@@ -574,7 +574,7 @@ public:
 
     // COMPAT(pogorelov)
     void DoValidateJobShellAccess(
-        const TString& user,
+        const std::string& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners)
     {
@@ -595,7 +595,7 @@ public:
 
     // COMPAT(pogorelov)
     TFuture<void> ValidateJobShellAccess(
-        const TString& user,
+        const std::string& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners)
     {
@@ -608,7 +608,7 @@ public:
 
     TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
         EOperationType type,
-        const TString& user,
+        const std::string& user,
         TYsonString specString)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -630,7 +630,7 @@ public:
         EOperationType type,
         TTransactionId transactionId,
         TMutationId mutationId,
-        const TString& user,
+        const std::string& user,
         TPreprocessedSpec preprocessedSpec)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -649,7 +649,8 @@ public:
         if (spec->AddAuthenticatedUserToAcl) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                std::vector<TString>{user},
+                // TODO(babenko): switch to std::string
+                std::vector{TString(user)},
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 
@@ -684,7 +685,7 @@ public:
         IdToStartingOperation_.emplace(operationId, operation);
 
         if (!spec->Owners.empty()) {
-            // TODO(egor-gutrov): this is compat alert, remove it
+            // COMPAT(egor-gutrov): this is compat alert, remove it
             operation->SetAlertWithoutArchivation(
                 EOperationAlertType::OwnersInSpecIgnored,
                 TError("\"owners\" field in spec ignored as it was specified simultaneously with \"acl\""));
@@ -739,7 +740,7 @@ public:
     TFuture<void> AbortOperation(
         const TOperationPtr& operation,
         const TError& error,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -771,7 +772,7 @@ public:
 
     TFuture<void> SuspendOperation(
         const TOperationPtr& operation,
-        const TString& user,
+        const std::string& user,
         bool abortRunningAllocations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -803,7 +804,7 @@ public:
 
     TFuture<void> ResumeOperation(
         const TOperationPtr& operation,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -837,7 +838,7 @@ public:
     TFuture<void> CompleteOperation(
         const TOperationPtr& operation,
         const TError& error,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1032,7 +1033,7 @@ public:
 
     void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TString& user,
+        const std::string& user,
         INodePtr parameters)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1097,7 +1098,7 @@ public:
 
     TFuture<void> UpdateOperationParameters(
         const TOperationPtr& operation,
-        const TString& user,
+        const std::string& user,
         INodePtr parameters)
     {
         return BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this), operation, user, std::move(parameters))
@@ -1823,7 +1824,7 @@ private:
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
         const TSerializableAccessControlList& baseAcl,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId)
     {
@@ -1851,7 +1852,7 @@ private:
     TOperationRuntimeParametersPtr UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user)
+        const std::string& user)
     {
         YT_VERIFY(origin);
         auto result = CloneYsonStruct(origin);
@@ -3959,7 +3960,7 @@ private:
 
     TPreprocessedSpec DoAssignExperimentsAndParseSpec(
         EOperationType type,
-        const TString& user,
+        const std::string& user,
         TYsonString specString,
         NYTree::INodePtr specTemplate)
     {
@@ -4420,7 +4421,7 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
 
 TFuture<TPreprocessedSpec> TScheduler::AssignExperimentsAndParseSpec(
     EOperationType type,
-    const TString& user,
+    const std::string& user,
     TYsonString specString) const
 {
     return Impl_->AssignExperimentsAndParseSpec(
@@ -4433,7 +4434,7 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     TTransactionId transactionId,
     TMutationId mutationId,
-    const TString& user,
+    const std::string& user,
     TPreprocessedSpec preprocessedSpec)
 {
     return Impl_->StartOperation(
@@ -4447,14 +4448,14 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
 TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
     const TError& error,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->AbortOperation(operation, error, user);
 }
 
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
-    const TString& user,
+    const std::string& user,
     bool abortRunningAllocations)
 {
     return Impl_->SuspendOperation(operation, user, abortRunningAllocations);
@@ -4462,7 +4463,7 @@ TFuture<void> TScheduler::SuspendOperation(
 
 TFuture<void> TScheduler::ResumeOperation(
     TOperationPtr operation,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->ResumeOperation(operation, user);
 }
@@ -4470,7 +4471,7 @@ TFuture<void> TScheduler::ResumeOperation(
 TFuture<void> TScheduler::CompleteOperation(
     TOperationPtr operation,
     const TError& error,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->CompleteOperation(operation, error, user);
 }
@@ -4507,7 +4508,7 @@ void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation
 
 TFuture<void> TScheduler::UpdateOperationParameters(
     TOperationPtr operation,
-    const TString& user,
+    const std::string& user,
     INodePtr parameters)
 {
     return Impl_->UpdateOperationParameters(operation, user, parameters);
@@ -4543,7 +4544,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 }
 
 TFuture<void> TScheduler::ValidateJobShellAccess(
-    const TString& user,
+    const std::string& user,
     const TString& jobShellName,
     const std::vector<TString>& jobShellOwners)
 {

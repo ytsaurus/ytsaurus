@@ -20,7 +20,7 @@ void SwitchLeader(
     const std::vector<std::string>& addresses,
     const std::string& newLeaderAddress,
     const std::optional<TDuration>& timeout,
-    const std::optional<TString>& user)
+    const std::optional<std::string>& user)
 {
     {
         YT_LOG_INFO("Validating new leader");

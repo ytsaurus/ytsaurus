@@ -105,27 +105,27 @@ public:
     //! Build preprocessed spec for a newly registered operation.
     TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
         EOperationType type,
-        const TString& user,
+        const std::string& user,
         NYson::TYsonString specString) const;
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         NTransactionClient::TTransactionId transactionId,
         NRpc::TMutationId mutationId,
-        const TString& user,
+        const std::string& user,
         TPreprocessedSpec preprocessedSpec);
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user);
-    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningAllocations);
-    TFuture<void> ResumeOperation(TOperationPtr operation, const TString& user);
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const std::string& user);
+    TFuture<void> SuspendOperation(TOperationPtr operation, const std::string& user, bool abortRunningAllocations);
+    TFuture<void> ResumeOperation(TOperationPtr operation, const std::string& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,
         const TError& error,
-        const TString& user);
+        const std::string& user);
 
     TFuture<void> UpdateOperationParameters(
         TOperationPtr operation,
-        const TString& user,
+        const std::string& user,
         NYTree::INodePtr parameters);
 
     void OnOperationCompleted(const TOperationPtr& operation);
@@ -164,7 +164,7 @@ public:
         std::optional<TDuration> timeout = {});
 
     TFuture<void> ValidateJobShellAccess(
-        const TString& user,
+        const std::string& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners);
 

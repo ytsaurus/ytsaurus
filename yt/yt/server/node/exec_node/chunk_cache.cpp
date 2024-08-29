@@ -1098,7 +1098,8 @@ private:
                         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
                     });
             }
@@ -1421,7 +1422,8 @@ private:
                     {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                     {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                     {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                    {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                    // TODO(babenko): switch to std::string
+                    {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                     {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
                 });
         }

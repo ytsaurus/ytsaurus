@@ -872,7 +872,7 @@ private:
 
     struct TDetailedProfilingCountersKey
     {
-        std::optional<TString> UserTag;
+        std::optional<std::string> UserTag;
         std::optional<TYPath> TablePath;
 
         operator size_t() const
@@ -955,7 +955,8 @@ private:
 
         if (config->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                {RpcProxyUserAllocationTag, identity.User},
+                // TODO(babenko): switch to std::string
+                {RpcProxyUserAllocationTag, TString(identity.User)},
                 {RpcProxyRequestIdAllocationTag, ToString(context->GetRequestId())},
                 {RpcProxyRpcAllocationTag, TString(context->RequestHeader().method())}
             });
@@ -1211,7 +1212,8 @@ private:
                 }
                 if (key.UserTag) {
                     profiler = profiler
-                        .WithTag("user", *key.UserTag);
+                        // TODO(babenko): switch to std::string
+                        .WithTag("user", ToString(*key.UserTag));
                 }
                 return New<TDetailedProfilingCounters>(std::move(profiler));
             })
@@ -3438,7 +3440,7 @@ private:
 
     void ProcessLookupRowsDetailedProfilingInfo(
         TWallTimer timer,
-        const TString& userTag,
+        const std::string& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
@@ -3467,7 +3469,7 @@ private:
 
     void ProcessSelectRowsDetailedProfilingInfo(
         TWallTimer timer,
-        const TString& userTag,
+        const std::string& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
@@ -5009,7 +5011,7 @@ private:
         if (request->has_user()) {
             auto user = request->user();
             requestInfo.AppendFormat(", User: ", user);
-            filter.User = std::move(user);
+            filter.User = user;
         } else if (request->mine()) {
             filter.User = TByUser::TMine{};
             requestInfo.AppendString(", Mine: true");
@@ -5583,7 +5585,7 @@ private:
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
 
-    void ValidateFormat(const TString& user, const INodePtr& formatNode)
+    void ValidateFormat(const std::string& user, const INodePtr& formatNode)
     {
         const auto& config = Config_.Acquire();
         const auto& formatConfigs = config->Formats;

@@ -161,7 +161,7 @@ class TFormatConfig
     : public TFormatConfigBase
 {
 public:
-    THashMap<TString, TFormatConfigBasePtr> UserOverrides;
+    THashMap<std::string, TFormatConfigBasePtr> UserOverrides;
 
     REGISTER_YSON_STRUCT(TFormatConfig);
 
@@ -223,7 +223,7 @@ public:
     TArchiveHandlerConfigPtr JobProfileHandler;
     TArchiveHandlerConfigPtr JobTraceEventHandler;
 
-    TString User;
+    std::string User;
     bool ReportStatisticsLz4;
 
     // COMPAT(dakovalkov): Delete these when all job reporter configs are in new format.

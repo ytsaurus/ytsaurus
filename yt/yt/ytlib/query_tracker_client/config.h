@@ -31,7 +31,7 @@ class TQueryTrackerStageConfig
 public:
     TQueryTrackerChannelConfigPtr Channel;
     NYPath::TYPath Root;
-    TString User;
+    std::string User;
 
     REGISTER_YSON_STRUCT(TQueryTrackerStageConfig);
 

@@ -105,7 +105,7 @@ struct IInstanceLauncher
     virtual void SetEnableFuse(bool enableFuse) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetGroup(int groupId) = 0;
-    virtual void SetUser(const TString& user) = 0;
+    virtual void SetUser(const std::string& user) = 0;
     virtual void SetIPAddresses(
         const std::vector<NNet::TIP6Address>& addresses,
         bool enableNat64 = false) = 0;

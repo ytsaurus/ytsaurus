@@ -81,7 +81,7 @@ void TApiTestBase::TearDownTestCase()
     Connection_.Reset();
 }
 
-IClientPtr TApiTestBase::CreateClient(const TString& userName)
+IClientPtr TApiTestBase::CreateClient(const std::string& userName)
 {
     auto clientOptions = TClientOptions::FromUser(userName);
     return Connection_->CreateClient(clientOptions);

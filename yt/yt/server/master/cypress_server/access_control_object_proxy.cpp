@@ -293,7 +293,7 @@ private:
         return false;
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }
@@ -815,7 +815,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }

@@ -88,11 +88,11 @@ private:
         auto query = rpcRequest.query();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo();
 
         QueryTracker_->StartQuery(queryId, engine, query, options, user);
 
+        context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();
     }
 
@@ -103,8 +103,7 @@ private:
 
         auto rpcRequest = request->rpc_proxy_request();
 
-        TQueryId queryId;
-        FromProto(&queryId, rpcRequest.query_id());
+        auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TAbortQueryOptions options;
         options.AbortMessage = rpcRequest.has_abort_message()
@@ -113,8 +112,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo("QueryId: %v", queryId);
 
         QueryTracker_->AbortQuery(queryId, options, user);
 
@@ -129,14 +127,14 @@ private:
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
-        TQueryId queryId;
-        FromProto(&queryId, rpcRequest.query_id());
+        auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v, User: %v", queryId, resultIndex, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
+            queryId,
+            resultIndex);
 
         auto queryResult = QueryTracker_->GetQueryResult(queryId, resultIndex, user);
 
@@ -160,8 +158,7 @@ private:
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
-        TQueryId queryId;
-        FromProto(&queryId, rpcRequest.query_id());
+        auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TReadQueryResultOptions options;
         options.LowerRowIndex = rpcRequest.has_lower_row_index()
@@ -177,8 +174,9 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v, User: %v", queryId, resultIndex, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
+            queryId,
+            resultIndex);
 
         auto rowset = QueryTracker_->ReadQueryResult(queryId, resultIndex, options, user);
 
@@ -198,8 +196,7 @@ private:
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
-        TQueryId queryId;
-        FromProto(&queryId, rpcRequest.query_id());
+        auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TGetQueryOptions options;
         options.Attributes = rpcRequest.has_attributes()
@@ -211,8 +208,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo("QueryId: %v", queryId);
 
         auto query = QueryTracker_->GetQuery(queryId, options, user);
         ToProto(rpcResponse->mutable_query(), query);
@@ -267,7 +263,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("User: %v", context->GetAuthenticationIdentity().User);
+        context->SetRequestInfo();
 
         auto result = QueryTracker_->ListQueries(options, user);
 
@@ -286,9 +282,7 @@ private:
         YT_VERIFY(NRpcProxy::NProto::TRspAlterQuery::GetDescriptor()->field_count() == 0);
 
         auto rpcRequest = request->rpc_proxy_request();
-
-        TQueryId queryId;
-        FromProto(&queryId, rpcRequest.query_id());
+        auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TAlterQueryOptions options;
         options.Annotations = rpcRequest.has_annotations()
@@ -305,8 +299,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->SetRequestInfo("QueryId: %v", queryId);
 
         QueryTracker_->AlterQuery(queryId, options, user);
 
@@ -326,7 +319,7 @@ private:
             options.Attributes = FromProto<TAttributeFilter>(rpcRequest.attributes());
         }
 
-        context->SetRequestInfo("User: %v", context->GetAuthenticationIdentity().User);
+        context->SetRequestInfo();
 
         auto result = QueryTracker_->GetQueryTrackerInfo(options);
 

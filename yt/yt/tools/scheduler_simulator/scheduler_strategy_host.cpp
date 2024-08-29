@@ -181,7 +181,7 @@ void TSchedulerStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYs
 void TSchedulerStrategyHost::ValidatePoolPermission(
     TGuid /*poolObjectId*/,
     const TString& /*poolName*/,
-    const TString& /*user*/,
+    const std::string& /*user*/,
     NYTree::EPermission /*permission*/) const
 { }
 

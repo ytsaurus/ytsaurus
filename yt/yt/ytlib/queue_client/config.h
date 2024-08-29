@@ -86,7 +86,7 @@ public:
     TDuration ConfigurationRefreshPeriod;
 
     //! User under which requests are performed to read and write state tables.
-    TString User;
+    std::string User;
 
     //! If true, then symbolic links in queues' and consumers' paths will be resolved in registrations and unregistrations.
     bool ResolveSymlinks;

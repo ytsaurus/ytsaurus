@@ -17,7 +17,7 @@ struct TArchiveOperationRequest
     TInstant StartTime;
     TInstant FinishTime;
     EOperationState State;
-    TString AuthenticatedUser;
+    std::string AuthenticatedUser;
     EOperationType OperationType;
     NYson::TYsonString Progress;
     NYson::TYsonString BriefProgress;

@@ -51,7 +51,7 @@ TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
     const TWeakPtr<NApi::NNative::IConnection>& connection,
     const std::optional<TString>& cluster,
     const TYPath& path,
-    const TString& user)
+    const std::string& user)
 {
     auto localConnection = connection.Lock();
     if (!localConnection) {
@@ -497,7 +497,7 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrat
 template <class TTable>
 std::vector<typename TTable::TRowType> TQueueConsumerRegistrationManager::FetchStateRowsOrThrow(
     const NYPath::TRichYPath& stateReadPath,
-    const TString& user) const
+    const std::string& user) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -95,7 +95,7 @@ public:
 
     TMtnJobExperiment(
         const NApi::NNative::IClientPtr& client,
-        TString authenticatedUser,
+        const std::string& authenticatedUser,
         TString networkProject,
         NLogging::TLogger logger);
 

@@ -20,8 +20,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> GetCurrentProfilingUser();
-std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity);
+std::optional<std::string> GetCurrentProfilingUser();
+std::optional<std::string> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,13 +68,10 @@ public:
         std::function<void()> destructCallback,
         TDuration delayBeforeDestruct = TDuration::Zero(),
         IInvokerPtr destructCallbackInvoker = nullptr);
-
     TTestAllocationGuard(const TTestAllocationGuard& other) = delete;
-
     TTestAllocationGuard(TTestAllocationGuard&& other);
 
     TTestAllocationGuard& operator=(const TTestAllocationGuard& other) = delete;
-
     TTestAllocationGuard& operator=(TTestAllocationGuard&& other);
 
     ~TTestAllocationGuard();

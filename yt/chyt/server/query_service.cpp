@@ -250,16 +250,16 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ExecuteQuery)
     {
-        const auto& user = context->GetAuthenticationIdentity().User;
-        auto queryId = request->has_query_id()
-            ? FromProto<TQueryId>(request->query_id())
-            : TQueryId::Create();
-        ToProto(response->mutable_query_id(), queryId);
+        // TODO(babenko): switch to std::string
+        auto user = TString(context->GetAuthenticationIdentity().User);
+        auto queryId = FromProto<TQueryId>(request->query_id());
 
         context->SetRequestInfo("QueryId: %v, Query: %v, RowCountLimit: %v",
             queryId,
             request->chyt_request().query(),
             request->row_count_limit());
+
+        ToProto(response->mutable_query_id(), queryId);
 
         TExecuteQueryCall call(request, user, queryId, Host_);
         auto rowsetOrError = call.Execute();

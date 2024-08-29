@@ -153,7 +153,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /*user*/ = {}) override;
+        const std::string& /*user*/ = {}) override;
 
     void ValidatePermission(
         TObject* object,
@@ -170,7 +170,7 @@ protected:
         void ValidatePermission(
             NYTree::EPermissionCheckScope scope,
             NYTree::EPermission permission,
-            const TString& user = {}) override
+            const std::string& user = {}) override
         {
             if (auto owner = Owner_.Lock()) {
                 owner->ValidatePermission(scope, permission, user);
