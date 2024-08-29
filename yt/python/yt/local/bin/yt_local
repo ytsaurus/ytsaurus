@@ -144,18 +144,18 @@ def start_func(**kwargs):
 def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options")
     parser.set_defaults(func=start_func)
-    parser.add_argument("--master-count", type=int, default=1, help="number of masters")
-    parser.add_argument("--node-count", type=int, default=1, help="number of nodes")
-    parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers")
-    parser.add_argument("--http-proxy-count", type=int, default=1, help="number of http proxies")
-    parser.add_argument("--rpc-proxy-count", type=int, default=0, help="number of rpc proxies")
+    parser.add_argument("--master-count", type=int, default=1, help="number of masters (default: %(default)s)")
+    parser.add_argument("--node-count", type=int, default=1, help="number of nodes (default: %(default)s)")
+    parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers (default: %(default)s)")
+    parser.add_argument("--http-proxy-count", type=int, default=1, help="number of http proxies (default: %(default)s)")
+    parser.add_argument("--rpc-proxy-count", type=int, default=0, help="number of rpc proxies (default: %(default)s)")
     parser.add_argument("--secondary-master-cell-count", type=int, default=0,
-                        help="number of secondary cells. Do not use it if you are not sure what you are doing.")
-    parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers")
-    parser.add_argument("--master-cache-count", type=int, default=0, help="number of master caches")
-    parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents")
-    parser.add_argument("--kafka-proxy-count", type=int, default=0, help="number of kafka proxies")
-    parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers")
+                        help="number of secondary cells. Do not use it if you are not sure what you are doing. (default: %(default)s)")
+    parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers (default: %(default)s)")
+    parser.add_argument("--master-cache-count", type=int, default=0, help="number of master caches (default: %(default)s)")
+    parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents (default: %(default)s)")
+    parser.add_argument("--kafka-proxy-count", type=int, default=0, help="number of kafka proxies (default: %(default)s)")
+    parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers (default: %(default)s)")
 
     parser.add_argument("-c", "--component", action=ParseStructuredArguments, help="additional components", required=False, dest="components", nargs="*")
 
@@ -190,7 +190,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--enable-logging-compression", action="store_true", default=False,
                         help="enables logging compression by server")
     parser.add_argument("--log-compression-method", default="gzip", choices=["gzip", "zstd"],
-                        help="compression algorithm to use for logs")
+                        help="compression algorithm to use for logs (default: %(default)s)")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
                                              "Will be used to store performance critical parts.")
     parser.add_argument("--port-range-start", type=int,
@@ -230,10 +230,10 @@ def add_start_subparser(subparsers):
                         help="time in seconds after which local YT will be stopped automatically "
                              "(applies only to sync mode)")
     parser.add_argument("--cell-tag", type=int, default=1,
-                        help="cluster cell tag")
+                        help="cluster cell tag (default: %(default)s)")
 
     parser.add_argument("--job-proxy-logging-mode", choices=["simple", "per_job_directory"], default="simple",
-                        help="job proxy logging mode")
+                        help="job proxy logging mode (default: %(default)s)")
 
     parser.add_argument("--ytserver-all-path",
                         help="Use specified ytserver_all binary instead of per-service binaries in PATH")
