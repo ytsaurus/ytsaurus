@@ -7,12 +7,7 @@ LICENSE(
 )
 
 SRCS(
-    interface.go
+    godebug.go
 )
 
 END()
-
-RECURSE(
-    gzkp
-    gzstd
-)

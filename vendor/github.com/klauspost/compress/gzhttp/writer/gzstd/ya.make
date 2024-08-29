@@ -7,12 +7,13 @@ LICENSE(
 )
 
 SRCS(
-    interface.go
+    stdlib.go
 )
+
+GO_TEST_SRCS(stdlib_test.go)
 
 END()
 
 RECURSE(
-    gzkp
-    gzstd
+    gotest
 )
