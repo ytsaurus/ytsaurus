@@ -188,7 +188,7 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banPenalty = Duration.ofMillis(1);
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
-        MultiExecutorMonitoring executorCallback = new NoopMultiExecutorCallback();
+        MultiExecutorMonitoring executorMonitoring = new NoopMultiExecutorMonitoring();
         Duration preferredAllowance = Duration.ofMillis(100);
         Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
                 YTsaurusClient::builder;
@@ -312,8 +312,8 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
          *
          * @return self
          */
-        public Builder setExecutorCallback(MultiExecutorMonitoring executorCallback) {
-            this.executorCallback = executorCallback;
+        public Builder setExecutorMonitoring(MultiExecutorMonitoring executorMonitoring) {
+            this.executorMonitoring = executorMonitoring;
             return this;
         }
 
@@ -330,7 +330,7 @@ class MultiExecutor implements Closeable {
     final Duration banPenalty;
     final Duration banDuration;
     final PenaltyProvider penaltyProvider;
-    final MultiExecutorMonitoring executorCallback;
+    final MultiExecutorMonitoring executorMonitoring;
     final List<YTsaurusClientEntry> clients;
 
     static final CancellationException CANCELLATION_EXCEPTION = new CancellationException();
@@ -348,7 +348,7 @@ class MultiExecutor implements Closeable {
         this.banPenalty = builder.banPenalty;
         this.banDuration = builder.banDuration;
         this.penaltyProvider = builder.penaltyProvider;
-        this.executorCallback = builder.executorCallback;
+        this.executorMonitoring = builder.executorMonitoring;
 
         this.clients = new ArrayList<>();
 
@@ -500,7 +500,7 @@ class MultiExecutor implements Closeable {
                                             future.complete(value);
                                         } else {
                                             Duration completionTime = Duration.between(requestStartTime, Instant.now());
-                                            executorCallback.reportRequestHedgingFailure(client.getClusterName(),
+                                            executorMonitoring.reportRequestHedgingFailure(client.getClusterName(),
                                                     completionTime);
                                             future.completeExceptionally(ex);
                                         }
@@ -517,10 +517,10 @@ class MultiExecutor implements Closeable {
                 Duration completionTime = Duration.between(executionStartTime, Instant.now());
 
                 if (error == null) {
-                    executorCallback.reportRequestSuccess(client.getClusterName(), completionTime);
+                    executorMonitoring.reportRequestSuccess(client.getClusterName(), completionTime);
                     result.complete(value);
                 } else if (finishedClientsCount.incrementAndGet() == currentClients.size()) {
-                    executorCallback.reportRequestFailure(completionTime);
+                    executorMonitoring.reportRequestFailure(completionTime);
                     result.completeExceptionally(error);
                 }
 

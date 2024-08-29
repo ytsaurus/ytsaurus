@@ -27,7 +27,7 @@ public interface MultiExecutorMonitoring {
     void reportRequestHedgingFailure(String clusterName, Duration time);
 }
 
-class NoopMultiExecutorCallback implements MultiExecutorMonitoring {
+class NoopMultiExecutorMonitoring implements MultiExecutorMonitoring {
 
     @Override
     public void reportRequestSuccess(String clusterName, Duration time) {
