@@ -40,6 +40,8 @@ target_link_options(grpc_cpp PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(grpc_cpp PRIVATE

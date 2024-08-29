@@ -30,6 +30,8 @@ target_link_options(arithmetic_expression PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(arithmetic_expression PRIVATE

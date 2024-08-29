@@ -30,6 +30,8 @@ target_link_options(03_combine_by_key PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(03_combine_by_key PRIVATE

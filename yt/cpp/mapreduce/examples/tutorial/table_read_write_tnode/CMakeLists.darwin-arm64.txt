@@ -33,6 +33,8 @@ target_link_options(table_read_write_tnode PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(table_read_write_tnode PRIVATE

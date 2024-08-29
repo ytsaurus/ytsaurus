@@ -31,6 +31,8 @@ target_link_options(benchmark_bus PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(benchmark_bus PRIVATE

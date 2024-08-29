@@ -31,6 +31,8 @@ target_link_options(02_group_by_key PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(02_group_by_key PRIVATE

@@ -34,6 +34,8 @@ target_link_options(profile_cpu PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(profile_cpu PRIVATE

@@ -30,6 +30,8 @@ target_link_options(crash_handler_tests PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(crash_handler_tests PRIVATE

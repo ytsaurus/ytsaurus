@@ -33,6 +33,8 @@ target_link_options(multiple_input_reduce_tnode PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
+  -framework
+  CoreFoundation
 )
 
 target_sources(multiple_input_reduce_tnode PRIVATE
