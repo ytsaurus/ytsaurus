@@ -41,44 +41,22 @@ void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
     const NRpc::IServiceContextPtr& context,
     NCypressServer::TNodeId id,
-    const std::optional<TString>& path,
+    std::optional<NYPath::TYPathBuf> path,
     const NTransactionServer::TTransaction* transaction,
-    const TAttributeVector& additionalAttributes = {},
-    const std::optional<TStringBuf> methodOverride = std::nullopt);
-
-void LogAccess(
-    NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    NCypressServer::TNodeId id,
-    const TString& path,
-    const NTransactionServer::TTransaction* transaction,
-    const TAttributeVector& additionalAttributes = {},
-    const std::optional<TStringBuf> methodOverride = std::nullopt);
-
-void LogAccess(
-    NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    NCypressServer::TNodeId id,
-    const TStringBuf path,
-    const NTransactionServer::TTransaction* transaction,
-    const TAttributeVector& additionalAttributes = {},
-    const std::optional<TStringBuf> methodOverride = std::nullopt);
-
-////////////////////////////////////////////////////////////////////////////////
+    const TAccessLogAttributes& additionalAttributes = {},
+    const std::optional<std::string>& methodOverride = std::nullopt);
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
     NCypressServer::TNodeId id,
     const TStringBuf path,
     const NTransactionServer::TTransaction* transaction,
-    const TStringBuf method,
-    const TAttributeVector& additionalAttributes = {});
-
-////////////////////////////////////////////////////////////////////////////////
+    const std::string& method,
+    const TAccessLogAttributes& additionalAttributes = {});
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
-    const TStringBuf method,
+    const std::string& method,
     const NTransactionServer::TTransaction* transaction);
 
 ////////////////////////////////////////////////////////////////////////////////

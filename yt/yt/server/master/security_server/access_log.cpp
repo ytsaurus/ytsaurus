@@ -48,10 +48,10 @@ void TraverseTransactionAncestors(
         })
         .DoIf(attributes, [&] (auto fluent) {
             const auto& attributeMap = attributes->Attributes();
-            static const std::vector<TString> Keys{
-                TString("operation_id"),
-                TString("operation_title"),
-                TString("operation_type")
+            static const std::vector<std::string> Keys{
+                "operation_id",
+                "operation_title",
+                "operation_type",
             };
             for (const auto& key : Keys) {
                 if (auto it = attributeMap.find(key)) {
@@ -88,10 +88,10 @@ void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
     const NRpc::IServiceContextPtr& context,
     NCypressServer::TNodeId id,
-    const std::optional<TString>& path,
+    std::optional<TYPathBuf> path,
     const NTransactionServer::TTransaction* transaction,
-    const TAttributeVector& additionalAttributes,
-    const std::optional<TStringBuf> methodOverride)
+    const TAccessLogAttributes& additionalAttributes,
+    const std::optional<std::string>& methodOverride)
 {
     // Seeing as it has come to actually logging something, surely everything
     // has been actually evaluated by YT_EVALUATE_FOR_ACCESS_LOG, right? (Because
@@ -102,44 +102,6 @@ void LogAccess(
         return;
     }
 
-    LogAccess(
-        bootstrap,
-        context,
-        id,
-        TStringBuf(*path),
-        transaction,
-        additionalAttributes,
-        methodOverride);
-}
-
-void LogAccess(
-    NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    NCypressServer::TNodeId id,
-    const TString& path,
-    const NTransactionServer::TTransaction* transaction,
-    const TAttributeVector& additionalAttributes,
-    const std::optional<TStringBuf> methodOverride)
-{
-    LogAccess(
-        bootstrap,
-        context,
-        id,
-        TStringBuf(path),
-        transaction,
-        additionalAttributes,
-        methodOverride);
-}
-
-void LogAccess(
-    NCellMaster::TBootstrap* bootstrap,
-    const NRpc::IServiceContextPtr& context,
-    TNodeId id,
-    const TStringBuf path,
-    const TTransaction* transaction,
-    const TAttributeVector& additionalAttributes,
-    const std::optional<TStringBuf> methodOverride)
-{
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -147,7 +109,7 @@ void LogAccess(
     const auto& targetSuffix = GetRequestTargetYPath(context->RequestHeader());
     auto targetSuffixIsForDestinationPath = context->GetMethod() == "Move" || context->GetMethod() == "Copy";
 
-    auto doPath = [&] (auto fluent, const TStringBuf path, bool appendTargetSuffix) {
+    auto doPath = [&] (auto fluent, TYPathBuf path, bool appendTargetSuffix) {
         if (!appendTargetSuffix) {
             fluent.Value(path);
             return;
@@ -169,13 +131,13 @@ void LogAccess(
         .Item("type").Value(TypeFromId(id))
         .Item("id").Value(id)
         .Item("path").Do([&] (auto fluent) {
-            doPath(fluent, path, !targetSuffixIsForDestinationPath);
+            doPath(fluent, *path, !targetSuffixIsForDestinationPath);
         })
         .DoIf(NHydra::HasMutationContext(), [&] (auto fluent) {
             fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
         })
         .Do([&] (auto fluent) {
-            const TString* originalPath = nullptr;
+            const TProtobufString* originalPath = nullptr;
             if (targetSuffixIsForDestinationPath) {
                 // COMPAT(shakurov)
                 if (ypathExt.original_additional_paths_size() == 1) {
@@ -216,10 +178,10 @@ void LogAccess(
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
     TNodeId id,
-    const TStringBuf path,
+    TYPathBuf path,
     const TTransaction* transaction,
-    const TStringBuf method,
-    const TAttributeVector& additionalAttributes)
+    const std::string& method,
+    const TAccessLogAttributes& additionalAttributes)
 {
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
@@ -245,7 +207,7 @@ void LogAccess(
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
-    const TStringBuf method,
+    const std::string& method,
     const NTransactionServer::TTransaction* transaction)
 {
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
