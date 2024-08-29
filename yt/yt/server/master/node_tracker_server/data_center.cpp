@@ -8,12 +8,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TDataCenter::GetLowercaseObjectName() const
+std::string TDataCenter::GetLowercaseObjectName() const
 {
     return Format("data center %Qv", GetName());
 }
 
-TString TDataCenter::GetCapitalizedObjectName() const
+std::string TDataCenter::GetCapitalizedObjectName() const
 {
     return Format("Data center %Qv", GetName());
 }

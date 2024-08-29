@@ -24,8 +24,8 @@ public:
 protected:
     using TBase = TTabletOwnerBase;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;

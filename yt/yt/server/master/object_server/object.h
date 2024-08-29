@@ -211,8 +211,8 @@ public:
     bool IsNative() const;
 
     //! Builds a human-readable string for diagnostics.
-    virtual TString GetLowercaseObjectName() const;
-    virtual TString GetCapitalizedObjectName() const;
+    virtual std::string GetLowercaseObjectName() const;
+    virtual std::string GetCapitalizedObjectName() const;
 
     //! Builds a human-readable path for diagnostics.
     virtual NYPath::TYPath GetObjectPath() const;

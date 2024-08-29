@@ -189,12 +189,12 @@ int TObject::GetObjectEphemeralRefCounter() const
     return EphemeralRefCounter_.GetValue();
 }
 
-TString TObject::GetLowercaseObjectName() const
+std::string TObject::GetLowercaseObjectName() const
 {
     return Format("object %v", Id_);
 }
 
-TString TObject::GetCapitalizedObjectName() const
+std::string TObject::GetCapitalizedObjectName() const
 {
     return Format("Object %v", Id_);
 }

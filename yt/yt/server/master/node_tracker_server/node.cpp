@@ -589,12 +589,12 @@ ENodeState TNode::GetAggregatedState() const
     return AggregatedState_;
 }
 
-TString TNode::GetLowercaseObjectName() const
+std::string TNode::GetLowercaseObjectName() const
 {
     return Format("node %v", GetDefaultAddress());
 }
 
-TString TNode::GetCapitalizedObjectName() const
+std::string TNode::GetCapitalizedObjectName() const
 {
     return Format("Node %v", GetDefaultAddress());
 }

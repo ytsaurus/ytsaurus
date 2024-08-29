@@ -15,12 +15,12 @@ TZookeeperShard::TZookeeperShard(TZookeeperShardId id)
     , NZookeeperMaster::TZookeeperShard(id)
 { }
 
-TString TZookeeperShard::GetLowercaseObjectName() const
+std::string TZookeeperShard::GetLowercaseObjectName() const
 {
     return Format("zookeeper shard %v", GetId());
 }
 
-TString TZookeeperShard::GetCapitalizedObjectName() const
+std::string TZookeeperShard::GetCapitalizedObjectName() const
 {
     return Format("Zookeeper shard %v", GetId());
 }

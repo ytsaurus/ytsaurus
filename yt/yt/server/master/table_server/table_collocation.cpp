@@ -11,12 +11,12 @@ using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TTableCollocation::GetLowercaseObjectName() const
+std::string TTableCollocation::GetLowercaseObjectName() const
 {
     return Format("table collocation %v", GetId());
 }
 
-TString TTableCollocation::GetCapitalizedObjectName() const
+std::string TTableCollocation::GetCapitalizedObjectName() const
 {
     return Format("Table collocation %v", GetId());
 }

@@ -125,12 +125,12 @@ bool TTransaction::IsUpload() const
     return Upload_;
 }
 
-TString TTransaction::GetLowercaseObjectName() const
+std::string TTransaction::GetLowercaseObjectName() const
 {
     return Format("transaction %v", GetId());
 }
 
-TString TTransaction::GetCapitalizedObjectName() const
+std::string TTransaction::GetCapitalizedObjectName() const
 {
     return Format("Transaction %v", GetId());
 }

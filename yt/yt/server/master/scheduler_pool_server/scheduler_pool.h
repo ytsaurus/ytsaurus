@@ -23,8 +23,8 @@ public:
     using TNonversionedMapObjectBase<TSchedulerPool>::TNonversionedMapObjectBase;
     explicit TSchedulerPool(NCypressClient::TObjectId id, bool isRoot = false);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
     void FullValidate();
@@ -81,8 +81,8 @@ public:
     using TObject::TObject;
     explicit TSchedulerPoolTree(NCypressClient::TObjectId id);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;

@@ -25,12 +25,12 @@ TAccountResourceUsageLease::TAccountResourceUsageLease(
     , Account_(account)
 { }
 
-TString TAccountResourceUsageLease::GetLowercaseObjectName() const
+std::string TAccountResourceUsageLease::GetLowercaseObjectName() const
 {
     return Format("account resource usage lease %v", GetId());
 }
 
-TString TAccountResourceUsageLease::GetCapitalizedObjectName() const
+std::string TAccountResourceUsageLease::GetCapitalizedObjectName() const
 {
     return Format("Account usage lease %v", GetId());
 }

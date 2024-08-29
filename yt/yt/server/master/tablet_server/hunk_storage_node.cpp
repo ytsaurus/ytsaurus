@@ -12,12 +12,12 @@ using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString THunkStorageNode::GetLowercaseObjectName() const
+std::string THunkStorageNode::GetLowercaseObjectName() const
 {
     return Format("hunk storage %v", GetId());
 }
 
-TString THunkStorageNode::GetCapitalizedObjectName() const
+std::string THunkStorageNode::GetCapitalizedObjectName() const
 {
     return Format("Hunk storage %v", GetId());
 }

@@ -313,12 +313,12 @@ const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLoc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TLock::GetLowercaseObjectName() const
+std::string TLock::GetLowercaseObjectName() const
 {
     return Format("lock %v", GetId());
 }
 
-TString TLock::GetCapitalizedObjectName() const
+std::string TLock::GetCapitalizedObjectName() const
 {
     return Format("Lock %v", GetId());
 }

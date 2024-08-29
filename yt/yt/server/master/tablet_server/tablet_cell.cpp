@@ -23,12 +23,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TTabletCell::GetLowercaseObjectName() const
+std::string TTabletCell::GetLowercaseObjectName() const
 {
     return Format("tablet cell %v", GetId());
 }
 
-TString TTabletCell::GetCapitalizedObjectName() const
+std::string TTabletCell::GetCapitalizedObjectName() const
 {
     return Format("Tablet cell %v", GetId());
 }

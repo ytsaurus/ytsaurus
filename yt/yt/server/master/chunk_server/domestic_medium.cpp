@@ -15,12 +15,12 @@ bool TDomesticMedium::IsDomestic() const
     return true;
 }
 
-TString TDomesticMedium::GetLowercaseObjectName() const
+std::string TDomesticMedium::GetLowercaseObjectName() const
 {
     return Format("domestic medium %Qv", GetName());
 }
 
-TString TDomesticMedium::GetCapitalizedObjectName() const
+std::string TDomesticMedium::GetCapitalizedObjectName() const
 {
     return Format("Domestic medium %Qv", GetName());
 }

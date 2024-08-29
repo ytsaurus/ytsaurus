@@ -11,12 +11,12 @@ TProxyRole::TProxyRole(TProxyRoleId id)
     , Acd_(this)
 { }
 
-TString TProxyRole::GetLowercaseObjectName() const
+std::string TProxyRole::GetLowercaseObjectName() const
 {
     return Format("%Qlv proxy role %Qv", ProxyKind_, Name_);
 }
 
-TString TProxyRole::GetCapitalizedObjectName() const
+std::string TProxyRole::GetCapitalizedObjectName() const
 {
     return Format("%Qv proxy role %Qv", ProxyKind_, Name_);
 }

@@ -6,12 +6,12 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString THunkTablet::GetLowercaseObjectName() const
+std::string THunkTablet::GetLowercaseObjectName() const
 {
     return Format("hunk tablet %v", GetId());
 }
 
-TString THunkTablet::GetCapitalizedObjectName() const
+std::string THunkTablet::GetCapitalizedObjectName() const
 {
     return Format("Hunk tablet %v", GetId());
 }

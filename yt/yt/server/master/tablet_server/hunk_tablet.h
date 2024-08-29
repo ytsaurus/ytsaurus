@@ -13,8 +13,8 @@ public:
     using TBase = TTabletBase;
     using TBase::TBase;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const override;
 

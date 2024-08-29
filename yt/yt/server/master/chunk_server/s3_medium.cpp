@@ -11,12 +11,12 @@ bool TS3Medium::IsDomestic() const
     return false;
 }
 
-TString TS3Medium::GetLowercaseObjectName() const
+std::string TS3Medium::GetLowercaseObjectName() const
 {
     return "S3 medium";
 }
 
-TString TS3Medium::GetCapitalizedObjectName() const
+std::string TS3Medium::GetCapitalizedObjectName() const
 {
     return "S3 medium";
 }
