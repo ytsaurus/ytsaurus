@@ -150,15 +150,15 @@ class TRepairAllPartsSession
 public:
     TRepairAllPartsSession(
         ICodec* codec,
-        const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-        const std::vector<IChunkWriterPtr>& writers,
-        const IChunkReader::TReadBlocksOptions& options)
+        TPartIndexList erasedIndices,
+        std::vector<IChunkReaderAllowingRepairPtr> readers,
+        std::vector<IChunkWriterPtr> writers,
+        IChunkReader::TReadBlocksOptions options)
         : Codec_(codec)
-        , Readers_(readers)
-        , Writers_(writers)
-        , ErasedIndices_(erasedIndices)
-        , ReadBlocksOptions_(options)
+        , Readers_(std::move(readers))
+        , Writers_(std::move(writers))
+        , ErasedIndices_(std::move(erasedIndices))
+        , ReadBlocksOptions_(std::move(options))
     {
         YT_VERIFY(erasedIndices.size() == writers.size());
     }
@@ -302,17 +302,17 @@ private:
 
 TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
-    const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const IChunkReader::TReadBlocksOptions& options)
+    TPartIndexList erasedIndices,
+    std::vector<IChunkReaderAllowingRepairPtr> readers,
+    std::vector<IChunkWriterPtr> writers,
+    IChunkReader::TReadBlocksOptions options)
 {
     auto session = New<TRepairAllPartsSession>(
         codec,
-        erasedIndices,
-        readers,
-        writers,
-        options);
+        std::move(erasedIndices),
+        std::move(readers),
+        std::move(writers),
+        std::move(options));
     return session->Run();
 }
 
@@ -595,7 +595,7 @@ private:
 TFuture<std::vector<TBlock>> ExecuteErasureRepairingSession(
     TChunkId chunkId,
     NErasure::ICodec* codec,
-    NErasure::TPartIndexList erasedIndices,
+    TPartIndexList erasedIndices,
     std::vector<IChunkReaderAllowingRepairPtr> readers,
     std::vector<int> blockIndexes,
     IChunkReader::TReadBlocksOptions options,

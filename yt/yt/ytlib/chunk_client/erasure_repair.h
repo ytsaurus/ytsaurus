@@ -17,10 +17,10 @@ namespace NYT::NChunkClient {
 
 TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
-    const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const IChunkReader::TReadBlocksOptions& options);
+    NErasure::TPartIndexList erasedIndices,
+    std::vector<IChunkReaderAllowingRepairPtr> readers,
+    std::vector<IChunkWriterPtr> writers,
+    IChunkReader::TReadBlocksOptions options);
 
 using TPartWriterFactory = std::function<NChunkClient::IChunkWriterPtr(int partIndex)>;
 

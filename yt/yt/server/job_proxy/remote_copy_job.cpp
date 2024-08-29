@@ -703,7 +703,7 @@ private:
         WaitFor(RepairErasedParts(
             erasureCodec,
             erasedPartIndices,
-            repairPartReaders,
+            std::move(repairPartReaders),
             erasedPartWriters,
             ReadBlocksOptions_))
             .ThrowOnError();

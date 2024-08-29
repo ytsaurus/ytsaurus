@@ -74,15 +74,6 @@ public:
             EmplaceOrCrash(PartIndexToReaderIndex_, partIndex, readerIndex);
         }
 
-        NErasure::TPartIndexList erasedIndices;
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
-            if (!PartIndexToReaderIndex_.contains(partIndex)) {
-                erasedIndices.push_back(partIndex);
-            }
-        }
-
-        YT_VERIFY(Codec_->CanRepair(erasedIndices));
-
         std::vector<i64> segmentSizes;
         segmentSizes.reserve(placement.segment_block_counts_size());
         int blockIndex = 0;
@@ -97,7 +88,7 @@ public:
         THashMap<int, NErasure::TPartIndexSet> segmentIndexToRequiredParts;
         for (const auto& descriptor : plan) {
             auto& segmentState = SegmentIndexToState_[descriptor.SegmentIndex];
-            segmentState.Parts.resize(Codec_->GetTotalPartCount());
+            segmentState.PartFutures.resize(Codec_->GetTotalPartCount());
             segmentState.PartIndexToRequestCount.resize(Codec_->GetTotalPartCount());
 
             if (!PartIndexToReaderIndex_.contains(descriptor.PartIndex)) {
@@ -137,8 +128,8 @@ public:
                     }
                 }
 
-                segmentState.PartIndexToRequestCount[partIndex]++;
-            } else if (++segmentState.PartIndexToRequestCount[partIndex] > 0) {
+                ++segmentState.PartIndexToRequestCount[partIndex];
+            } else if (segmentState.PartIndexToRequestCount[partIndex]++ == 0) {
                 requestPart(partIndex);
             }
         }
@@ -162,7 +153,7 @@ public:
 
         auto& requestCounter = segmentState.PartIndexToRequestCount[descriptor.PartIndex];
 
-        auto& future = segmentState.Parts[descriptor.PartIndex];
+        auto& future = segmentState.PartFutures[descriptor.PartIndex];
         if (!future) {
             DoReadSegmentPart(descriptor);
             YT_VERIFY(future);
@@ -192,7 +183,7 @@ private:
     struct TSegmentState
     {
         TCompactVector<int, TypicalReplicaCount> PartIndexToRequestCount;
-        TCompactVector<TFuture<TBlock>, TypicalReplicaCount> Parts;
+        TCompactVector<TFuture<TBlock>, TypicalReplicaCount> PartFutures;
 
         bool NeedRepair = false;
     };
@@ -218,6 +209,7 @@ private:
         }
 
         for (auto repairIndex : *repairIndices) {
+            YT_VERIFY(PartIndexToReaderIndex_.contains(repairIndex));
             partsToFetch.set(repairIndex);
         }
 
@@ -235,7 +227,7 @@ private:
     {
         const auto& segmentState = SegmentIndexToState_[descriptor.SegmentIndex];
         if (segmentState.NeedRepair) {
-            DoRepairReadSegmentPart(descriptor);
+            DoRepairReadSegmentParts(descriptor.SegmentIndex);
         } else {
             DoRegularReadSegmentPart(descriptor);
         }
@@ -245,21 +237,21 @@ private:
     {
         auto partFuture = FetchSegmentPart(descriptor);
         auto& segmentState = GetOrCrash(SegmentIndexToState_, descriptor.SegmentIndex);
-        YT_VERIFY(!segmentState.Parts[descriptor.PartIndex]);
+        YT_VERIFY(!segmentState.PartFutures[descriptor.PartIndex]);
         YT_VERIFY(segmentState.PartIndexToRequestCount[descriptor.PartIndex] > 0);
-        segmentState.Parts[descriptor.PartIndex] = std::move(partFuture);
+        segmentState.PartFutures[descriptor.PartIndex] = std::move(partFuture);
     }
 
-    void DoRepairReadSegmentPart(const TSegmentPartDescriptor& descriptor)
+    void DoRepairReadSegmentParts(int segmentIndex)
     {
-        auto getPartDescriptor = [descriptor] (int partIndex) {
+        auto getPartDescriptor = [segmentIndex] (int partIndex) {
             return TSegmentPartDescriptor{
-                .SegmentIndex = descriptor.SegmentIndex,
+                .SegmentIndex = segmentIndex,
                 .PartIndex = partIndex,
             };
         };
 
-        auto* segmentState = &GetOrCrash(SegmentIndexToState_, descriptor.SegmentIndex);
+        auto* segmentState = &GetOrCrash(SegmentIndexToState_, segmentIndex);
 
         NErasure::TPartIndexSet requiredParts;
         for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
@@ -267,11 +259,12 @@ private:
                 requiredParts.set(partIndex);
             }
         }
-        auto partsToFetch = *GetPartsToFetch(requiredParts);
+        auto maybePartsToFetch = GetPartsToFetch(requiredParts);
+        YT_VERIFY(maybePartsToFetch);
 
         std::vector<TFuture<TBlock>> partFutures(Codec_->GetTotalPartCount(), MakeFuture(TBlock()));
         std::vector<bool> partFetched(Codec_->GetTotalPartCount());
-        for (auto partIndex : partsToFetch) {
+        for (auto partIndex : *maybePartsToFetch) {
             partFutures[partIndex] = FetchSegmentPart(getPartDescriptor(partIndex));
             partFetched[partIndex] = true;
         }
@@ -279,7 +272,7 @@ private:
         auto partsFuture = AllSucceeded(std::move(partFutures))
             .ApplyUnique(
                 BIND([=, this, this_ = MakeStrong(this)] (std::vector<TBlock>&& parts) {
-                    for (auto partIndex : partsToFetch) {
+                    for (auto partIndex : *maybePartsToFetch) {
                         ValidateChecksum(getPartDescriptor(partIndex), &parts[partIndex]);
                     }
 
@@ -291,7 +284,7 @@ private:
         for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
             if (segmentState->PartIndexToRequestCount[partIndex] > 0) {
                 if (partFetched[partIndex]) {
-                    segmentState->Parts[partIndex] = partsFuture.Apply(BIND([=] (const std::vector<TBlock>& parts) {
+                    segmentState->PartFutures[partIndex] = partsFuture.Apply(BIND([=] (const std::vector<TBlock>& parts) {
                         return parts[partIndex];
                     }));
                 } else {
@@ -305,8 +298,8 @@ private:
             YT_VERIFY(partFetched[partIndex]);
         }
 
-        auto repairFuture = partsFuture.ApplyUnique(
-            BIND([=, this, this_ = MakeStrong(this)] (std::vector<TBlock>&& blocks) {
+        auto repairFuture = partsFuture.Apply(
+            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) {
                 std::vector<TSharedRef> repairParts;
                 repairParts.reserve(repairIndices.size());
                 for (auto partIndex : repairIndices) {
@@ -330,7 +323,7 @@ private:
 
         for (int erasedPartIndex = 0; erasedPartIndex < std::ssize(erasedIndices); ++erasedPartIndex) {
             auto partIndex = erasedIndices[erasedPartIndex];
-            segmentState->Parts[partIndex] = repairFuture.Apply(BIND([=] (const std::vector<TBlock>& parts) {
+            segmentState->PartFutures[partIndex] = repairFuture.Apply(BIND([=] (const std::vector<TBlock>& parts) {
                 return parts[erasedPartIndex];
             }));
         }

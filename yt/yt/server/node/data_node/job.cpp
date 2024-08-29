@@ -833,9 +833,9 @@ private:
 
     TFuture<void> StartChunkRepairJob(
         NErasure::ICodec* codec,
-        const NErasure::TPartIndexList& erasedPartIndexes,
-        const IChunkReader::TReadBlocksOptions& readBlocksOptions,
-        const std::vector<IChunkWriterPtr>& writers)
+        NErasure::TPartIndexList erasedPartIndexes,
+        IChunkReader::TReadBlocksOptions readBlocksOptions,
+        std::vector<IChunkWriterPtr> writers)
     {
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
@@ -909,14 +909,14 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManagerHolder),
-                readBlocksOptions);
+                std::move(readBlocksOptions));
         } else {
             return RepairErasedParts(
                 codec,
-                erasedPartIndexes,
-                readers,
-                writers,
-                readBlocksOptions);
+                std::move(erasedPartIndexes),
+                std::move(readers),
+                std::move(writers),
+                std::move(readBlocksOptions));
         }
     }
 
@@ -986,9 +986,9 @@ private:
                 case EObjectType::ErasureChunk: {
                     future = StartChunkRepairJob(
                         codec,
-                        erasedPartIndexes,
-                        readBlocksOptions,
-                        writers);
+                        std::move(erasedPartIndexes),
+                        std::move(readBlocksOptions),
+                        std::move(writers));
                     break;
                 }
 
