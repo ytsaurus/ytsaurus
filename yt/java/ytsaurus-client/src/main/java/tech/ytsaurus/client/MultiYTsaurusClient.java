@@ -188,7 +188,7 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banPenalty = Duration.ofMillis(1);
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
-        MultiExecutorCallback executorCallback = new NoopMultiExecutorCallback();
+        MultiExecutorMonitoring executorCallback = new NoopMultiExecutorCallback();
         Duration preferredAllowance = Duration.ofMillis(100);
         Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
                 YTsaurusClient::builder;
@@ -312,7 +312,7 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
          *
          * @return self
          */
-        public Builder setExecutorCallback(MultiExecutorCallback executorCallback) {
+        public Builder setExecutorCallback(MultiExecutorMonitoring executorCallback) {
             this.executorCallback = executorCallback;
             return this;
         }
@@ -330,7 +330,7 @@ class MultiExecutor implements Closeable {
     final Duration banPenalty;
     final Duration banDuration;
     final PenaltyProvider penaltyProvider;
-    final MultiExecutorCallback executorCallback;
+    final MultiExecutorMonitoring executorCallback;
     final List<YTsaurusClientEntry> clients;
 
     static final CancellationException CANCELLATION_EXCEPTION = new CancellationException();
@@ -474,8 +474,8 @@ class MultiExecutor implements Closeable {
     }
 
     <R> CompletableFuture<R> execute(Function<BaseYTsaurusClient, CompletableFuture<R>> callback) {
-        Instant now = Instant.now();
-        List<YTsaurusClientEntry> currentClients = updateAdaptivePenalty(now);
+        Instant executionStartTime = Instant.now();
+        List<YTsaurusClientEntry> currentClients = updateAdaptivePenalty(executionStartTime);
         Duration minPenalty = getMinPenalty(currentClients);
         List<DelayedTask<R>> delayedTasks = new ArrayList<>();
         CompletableFuture<R> result = new CompletableFuture<>();
@@ -493,13 +493,13 @@ class MultiExecutor implements Closeable {
                 future = new CompletableFuture<>();
                 ScheduledFuture<?> task = client.client.getExecutor().schedule(
                         () -> {
-                            Instant realRequestStart = Instant.now();
+                            Instant requestStartTime = Instant.now();
                             return callback.apply(client.client)
                                     .handle((value, ex) -> {
                                         if (ex == null) {
                                             future.complete(value);
                                         } else {
-                                            Duration completionTime = Duration.between(realRequestStart, Instant.now());
+                                            Duration completionTime = Duration.between(requestStartTime, Instant.now());
                                             executorCallback.reportRequestHedgingFailure(client.getClusterName(),
                                                     completionTime);
                                             future.completeExceptionally(ex);
@@ -509,12 +509,12 @@ class MultiExecutor implements Closeable {
                         },
                         effectivePenalty.toMillis(),
                         TimeUnit.MILLISECONDS);
-                delayedTasks.add(new DelayedTask<>(task, future, clientId, effectivePenalty, client, now));
+                delayedTasks.add(new DelayedTask<>(task, future, clientId, effectivePenalty, client, executionStartTime));
             }
 
             int copyClientId = clientId;
             future.whenComplete((value, error) -> {
-                Duration completionTime = Duration.between(now, Instant.now());
+                Duration completionTime = Duration.between(executionStartTime, Instant.now());
 
                 if (error == null) {
                     executorCallback.reportRequestSuccess(client.getClusterName(), completionTime);

@@ -2,7 +2,7 @@ package tech.ytsaurus.client;
 
 import java.time.Duration;
 
-public interface MultiExecutorCallback {
+public interface MultiExecutorMonitoring {
     /**
      * Report successful request execution.
      *
@@ -27,7 +27,7 @@ public interface MultiExecutorCallback {
     void reportRequestHedgingFailure(String clusterName, Duration time);
 }
 
-class NoopMultiExecutorCallback implements MultiExecutorCallback {
+class NoopMultiExecutorCallback implements MultiExecutorMonitoring {
 
     @Override
     public void reportRequestSuccess(String clusterName, Duration time) {
