@@ -60,7 +60,7 @@ public:
 
     //! Returns object's child key if it has a parent, the result of GetRootName()
     //! if it's a designated root or id preceded by a hash otherwise.
-    TString GetName() const;
+    std::string GetName() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -69,7 +69,7 @@ protected:
     bool IsRoot_ = false;
 
     //! Returns the name of a designated root object (id preceded by a hash by default).
-    virtual TString GetRootName() const;
+    virtual std::string GetRootName() const;
 
 private:
     TSelf* GetSelf();

@@ -215,7 +215,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
-    const TString& key,
+    const std::string& key,
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy)
 {
     auto* impl = TBase::GetThisImpl();
@@ -236,7 +236,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidateAfterAttachChild(
-    const TString& /*key*/,
+    const std::string& /*key*/,
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& /*childProxy*/)
 { }
 
@@ -298,7 +298,7 @@ void TNonversionedMapObjectProxyBase<TObject>::RemoveChildren()
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::AttachChild(
-    const TString& key,
+    const std::string& key,
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy) noexcept
 {
     YT_VERIFY(childProxy);
@@ -437,7 +437,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::GetBuiltinAttribute(
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName)
+void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const std::string& newName)
 {
     auto* impl = TBase::GetThisImpl();
     auto* parent = impl->GetParent();
@@ -454,7 +454,7 @@ void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::DoRenameSelf(const TString& newName)
+void TNonversionedMapObjectProxyBase<TObject>::DoRenameSelf(const std::string& newName)
 {
     auto* impl = TBase::GetThisImpl();
     auto oldName = impl->GetName();
@@ -474,7 +474,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
 {
     switch (key) {
         case EInternedAttributeKey::Name: {
-            auto newName = ConvertTo<TString>(value);
+            auto newName = ConvertTo<std::string>(value);
             RenameSelf(newName);
             return true;
         }
@@ -486,7 +486,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
                     << TErrorAttribute("id", impl->GetId());
             }
 
-            auto newParentName = ConvertTo<TString>(value);
+            auto newParentName = ConvertTo<std::string>(value);
             auto newParent = ResolveNameOrThrow(newParentName);
             auto name = impl->GetName();
 
@@ -513,7 +513,7 @@ TNonversionedMapObjectProxyBase<TObject>::GetProxy(TObject* object) const
 }
 
 template <class TObject>
-TString TNonversionedMapObjectProxyBase<TObject>::GetShortPath() const
+NYPath::TYPath TNonversionedMapObjectProxyBase<TObject>::GetShortPath() const
 {
     return NObjectClient::FromObjectId(TObjectProxyBase::GetId());
 }
@@ -641,14 +641,14 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::ValidateChildName(const TString& childName)
+void TNonversionedMapObjectProxyBase<TObject>::ValidateChildName(const std::string& childName)
 {
     GetTypeHandler()->ValidateObjectName(childName);
     ValidateChildNameAvailability(childName);
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::ValidateChildNameAvailability(const TString& childName)
+void TNonversionedMapObjectProxyBase<TObject>::ValidateChildNameAvailability(const std::string& childName)
 {
     auto* impl = TBase::GetThisImpl();
     if (impl->KeyToChild().count(childName) != 0) {
@@ -944,7 +944,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::LogEvent(
 template <class TObject>
 void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
     const TProxyPtr& parent,
-    const TString& key,
+    const std::string& key,
     const TProxyPtr& child)
 {
     try {
@@ -954,7 +954,8 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
         LogEvent({
             EEventType::AttachChild,
             parent,
-            key,
+            // TODO(babenko): switch to std::string
+            TString(key),
             child
         });
 

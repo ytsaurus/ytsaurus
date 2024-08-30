@@ -1379,7 +1379,7 @@ private:
                 : DefaultVirtualChildLimit;
 
             if (limit <= 0) {
-                THROW_ERROR_EXCEPTION("Invalid value for limit: %v", limit);
+                THROW_ERROR_EXCEPTION("Invalid limit value %v", limit);
             }
 
             auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();

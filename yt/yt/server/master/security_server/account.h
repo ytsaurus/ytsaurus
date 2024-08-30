@@ -206,7 +206,7 @@ private:
     //! merger that belong to this account.
     NObjectServer::TEpochRefCounter ChunkMergerNodeTraversals_;
 
-    TString GetRootName() const override;
+    std::string GetRootName() const override;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccount)

@@ -88,7 +88,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    DEFINE_BYVAL_RW_PROPERTY(TString, TreeName);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, TreeName);
     DEFINE_BYVAL_RW_PROPERTY(TSchedulerPool*, RootPool, nullptr);
 
     DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, SpecifiedConfig);

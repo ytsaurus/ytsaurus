@@ -242,7 +242,7 @@ TYPath TAccount::GetObjectPath() const
     return Format("//sys/accounts/%v", GetName());
 }
 
-TString TAccount::GetRootName() const
+std::string TAccount::GetRootName() const
 {
     YT_VERIFY(IsRoot());
     return NSecurityClient::RootAccountName;

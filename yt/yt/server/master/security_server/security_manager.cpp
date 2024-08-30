@@ -209,10 +209,10 @@ public:
     std::optional<TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override;
 
-    void RegisterName(const TString& name, TAccount* account) noexcept override;
-    void UnregisterName(const TString& name, TAccount* account) noexcept override;
+    void RegisterName(const std::string& name, TAccount* account) noexcept override;
+    void UnregisterName(const std::string& name, TAccount* account) noexcept override;
 
-    TString GetRootPath(const TAccount* rootAccount) const override;
+    NYPath::TYPath GetRootPath(const TAccount* rootAccount) const override;
 
 protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
@@ -809,13 +809,13 @@ public:
         return account;
     }
 
-    void RegisterAccountName(const TString& name, TAccount* account) noexcept
+    void RegisterAccountName(const std::string& name, TAccount* account) noexcept
     {
         YT_VERIFY(account);
         YT_VERIFY(AccountNameMap_.emplace(name, account).second);
     }
 
-    void UnregisterAccountName(const TString& name) noexcept
+    void UnregisterAccountName(const std::string& name) noexcept
     {
         YT_VERIFY(AccountNameMap_.erase(name) == 1);
     }
@@ -2819,7 +2819,7 @@ private:
     TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
-    THashMap<TString, TAccount*> AccountNameMap_;
+    THashMap<std::string, TAccount*> AccountNameMap_;
 
     NHydra::TEntityMap<TAccountResourceUsageLease> AccountResourceUsageLeaseMap_;
 
@@ -5010,12 +5010,12 @@ void TAccountTypeHandler::DoZombifyObject(TAccount* account)
     Owner_->DestroyAccount(account);
 }
 
-void TAccountTypeHandler::RegisterName(const TString& name, TAccount* account) noexcept
+void TAccountTypeHandler::RegisterName(const std::string& name, TAccount* account) noexcept
 {
     Owner_->RegisterAccountName(name, account);
 }
 
-void TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /*account*/) noexcept
+void TAccountTypeHandler::UnregisterName(const std::string& name, TAccount* /*account*/) noexcept
 {
     Owner_->UnregisterAccountName(name);
 }

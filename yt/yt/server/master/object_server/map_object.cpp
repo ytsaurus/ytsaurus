@@ -108,17 +108,16 @@ std::string TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) c
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetName() const
+std::string TNonversionedMapObjectBase<TSelf>::GetName() const
 {
     if (Parent_) {
-        // TODO(babenko): switch to std::string
-        return TString(Parent_->GetChildKey(GetSelf()));
+        return Parent_->GetChildKey(GetSelf());
     }
-    return IsRoot() ? GetRootName() : NObjectClient::FromObjectId(GetId());
+    return IsRoot() ? GetRootName() : std::string(NObjectClient::FromObjectId(GetId()));
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetRootName() const
+std::string TNonversionedMapObjectBase<TSelf>::GetRootName() const
 {
     YT_VERIFY(IsRoot());
     return NObjectClient::FromObjectId(GetId());

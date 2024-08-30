@@ -33,7 +33,8 @@ private:
         std::vector<TString> names;
         names.reserve(sizeLimit);
         for (const auto& [_, poolTree] : GetPoolTrees()) {
-            names.push_back(poolTree->GetTreeName());
+            // TODO(babenko): switch to std::string
+            names.push_back(TString(poolTree->GetTreeName()));
             if (std::ssize(names) == sizeLimit) {
                 break;
             }
@@ -55,7 +56,7 @@ private:
         return Bootstrap_->GetObjectManager()->GetProxy(poolTree);
     }
 
-    const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const
+    const THashMap<std::string, TSchedulerPoolTree*>& GetPoolTrees() const
     {
         return Bootstrap_->GetSchedulerPoolManager()->GetPoolTrees();
     }

@@ -35,10 +35,10 @@ public:
     //! Returns Cypress path to a map object which must be a designated root.
     virtual TString GetRootPath(const TObject* rootObject) const = 0;
 
-    virtual void RegisterName(const TString& /*name*/, TObject* /*object*/) noexcept = 0;
-    virtual void UnregisterName(const TString& /*name*/, TObject* /*object*/) noexcept = 0;
+    virtual void RegisterName(const std::string& /*name*/, TObject* /*object*/) noexcept = 0;
+    virtual void UnregisterName(const std::string& /*name*/, TObject* /*object*/) noexcept = 0;
 
-    virtual void ValidateObjectName(const TString& name);
+    virtual void ValidateObjectName(const std::string& name);
 
 protected:
     static constexpr int MaxNameLength_ = 100;
@@ -51,7 +51,7 @@ protected:
     virtual TProxyPtr GetMapObjectProxy(TObject* object) = 0;
 
     NObjectServer::TObject* CreateObjectImpl(
-        const TString& name,
+        const std::string& name,
         TObject* parent,
         NYTree::IAttributeDictionary* attributes);
 
