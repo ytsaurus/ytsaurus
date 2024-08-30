@@ -61,6 +61,8 @@ logging.getLogger("library.python.filelock").setLevel(logging.INFO)
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
+BinaryInfo = namedtuple("BinaryInfo", ["name", "path"])
+
 _environment_driver_logging_config = None
 
 
@@ -93,19 +95,45 @@ def _get_yt_binary_path(binary, custom_paths):
     return None
 
 
-def _get_yt_versions(custom_paths):
+def _do_get_yt_binary_versions(binary_infos):
     result = OrderedDict()
+
+    # It is important to run processes simultaneously to reduce delay when reading output.
+    processes = []
+    for binary_info in binary_infos:
+        assert binary_info.path
+
+        process = subprocess.Popen([binary_info.path, "--version"], stdout=subprocess.PIPE)
+        processes.append((binary_info.name, process))
+
+    for name, process in processes:
+        stdout, _ = process.communicate()
+        assert name not in result
+        result[name] = _parse_version(to_native_str(stdout))
+
+    return result
+
+
+def get_yt_binary_versions(named_paths):
+    binary_infos = [
+        BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=[custom_path]))
+        for name, custom_path in named_paths
+    ]
+    return _do_get_yt_binary_versions(binary_infos)
+
+
+def _get_yt_versions(custom_paths):
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent"]
 
-    binary_paths = [(name, _get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
+    binary_infos = [BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
     path_dir_to_binaries = defaultdict(list)
     missing_binaries = []
-    for name, path in binary_paths:
+    for name, path in binary_infos:
         if path is None:
             missing_binaries.append(name)
         else:
@@ -117,16 +145,9 @@ def _get_yt_versions(custom_paths):
     for path_dir, binaries in iteritems(path_dir_to_binaries):
         logger.debug("Binaries %s found at directory %s", binaries, path_dir)
 
-    # It is important to run processes simultaneously to reduce delay when reading output.
-    processes = [(name, subprocess.Popen([path, "--version"], stdout=subprocess.PIPE)) for
-                 name, path in binary_paths if path is not None]
+    filtered_binary_infos = [binary_info for binary_info in binary_infos if binary_info.path is not None]
 
-    for name, process in processes:
-        stdout, stderr = process.communicate()
-        process.poll()
-        result[name] = _parse_version(to_native_str(stdout))
-
-    return result
+    return _do_get_yt_binary_versions(filtered_binary_infos)
 
 
 def _configure_logger(path):

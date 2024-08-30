@@ -338,8 +338,8 @@ private:
             const auto& tvmService = GetTvmService(request.TvmId, DefaultTvmIdForNewTokens_);
             const auto vaultTicket = tvmService->GetServiceTicket(Config_->VaultServiceId);
             headers->Add("Content-Type", "application/json");
-            headers->Add("X-Ya-User-Ticket", request.UserTicket);
-            headers->Add("X-Ya-Service-Ticket", vaultTicket);
+            headers->Add(NHeaders::UserTicketHeaderName, request.UserTicket);
+            headers->Add(NHeaders::ServiceTicketHeaderName, vaultTicket);
             const auto body = MakeGetDelegationTokenRequestBody(request);
 
             const auto responseBody = HttpPost(url, body, headers);

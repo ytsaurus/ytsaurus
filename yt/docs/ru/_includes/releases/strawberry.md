@@ -1,6 +1,6 @@
 ## Strawberry
 
-Is published as a docker image.
+Is released as a docker image.
 
 **Current release:** {{strawberry-version}} (`ytsaurus/strawberry:{{strawberry-version}}`)
 

@@ -14,7 +14,7 @@ import pytest
 
 
 class TestComposite(ClickHouseTestBase):
-    @authors("max42")
+    @authors("max42", "buyval01")
     def test_dict(self):
         create("table", "//tmp/t", attributes={"schema": [
             {
@@ -30,31 +30,39 @@ class TestComposite(ClickHouseTestBase):
 
         with Clique(1) as clique:
             assert get_schema_from_description(clique.make_query('describe `//tmp/t`')) == [
-                {"name": "a", "type": "Array(Tuple(key String, value String))"},
+                {"name": "a", "type": "Map(String, String)"},
             ]
             assert clique.make_query("select toTypeName(a) as ta from `//tmp/t` limit 1") == [
-                {"ta": "Array(Tuple(key String, value String))"}
+                {"ta": "Map(String, String)"}
             ]
             assert clique.make_query("select * from `//tmp/t`") == [
-                {"a": []},
-                {"a": [{"key": "k1", "value": "v1"}, {"key": "k2", "value": "v2"}]}
+                {"a": {}},
+                {"a": {"k1": "v1", "k2": "v2"}}
             ]
-            assert clique.make_query(
-                "select arrayMap(item -> toTypeName(item), a) as ti from `//tmp/t[#1]` limit 1") == [
-                    {"ti": ["Tuple(key String, value String)"] * 2}
-                ]
-            assert clique.make_query(
-                "select arrayMap(item -> tupleElement(item, 'value'), a) as values "
-                "from `//tmp/t`") == [
-                    {"values": []},
-                    {"values": ["v1", "v2"]}
-                ]
-            assert clique.make_query(
-                "select tupleElement(arrayFirst(item -> tupleElement(item, 'key') == 'k1', a), 'value') as v1 "
-                "from `//tmp/t`") == [
-                    {"v1": ""},
-                    {"v1": "v1"}
-                ]
+            clique.make_query("insert into `//tmp/t`(a) values ({'k1': 'v2', 'k3': 'v3'}), (CAST((['k3', 'k4'], ['v3', 'v4']), 'Map(String, String)'))")
+            assert clique.make_query("select mapKeys(a) as keys from `//tmp/t`") == [
+                {"keys": []},
+                {"keys": ["k1", "k2"]},
+                {"keys": ["k1", "k3"]},
+                {"keys": ["k3", "k4"]},
+            ]
+            assert clique.make_query("select mapValues(a) as values from `//tmp/t`") == [
+                {"values": []},
+                {"values": ["v1", "v2"]},
+                {"values": ["v2", "v3"]},
+                {"values": ["v3", "v4"]},
+            ]
+            assert clique.make_query("select a['k1'] as k1 from `//tmp/t`") == [
+                {"k1": ""},
+                {"k1": "v1"},
+                {"k1": "v2"},
+                {"k1": ""},
+            ]
+            clique.make_query('create table "//tmp/tt" engine YtTable() as select * from "//tmp/t"')
+            assert clique.make_query("select toTypeName(a) as ta from `//tmp/tt` limit 1") == [
+                {"ta": "Map(String, String)"}
+            ]
+            assert read_table("//tmp/t") == read_table("//tmp/tt")
 
     @authors("max42")
     def test_struct(self):

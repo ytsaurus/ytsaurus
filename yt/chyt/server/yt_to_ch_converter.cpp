@@ -17,6 +17,7 @@
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnDecimal.h>
+#include <Columns/ColumnMap.h>
 #include <Columns/ColumnNothing.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
@@ -27,6 +28,7 @@
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
@@ -705,16 +707,13 @@ public:
         columns.emplace_back(std::move(keyColumn));
         columns.emplace_back(std::move(valueColumn));
         auto columnTuple = DB::ColumnTuple::create(std::move(columns));
-        return DB::ColumnArray::create(std::move(columnTuple), columnOffsets);
+        auto columnArray = DB::ColumnArray::create(std::move(columnTuple), columnOffsets);
+        return DB::ColumnMap::create(std::move(columnArray));
     }
 
     DB::DataTypePtr GetDataType() const override
     {
-        auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
-            std::vector<DB::DataTypePtr>{KeyConverter_->GetDataType(), ValueConverter_->GetDataType()},
-            std::vector<std::string>{"key", "value"});
-
-        return std::make_shared<DB::DataTypeArray>(std::move(tupleDataType));
+        return std::make_shared<DB::DataTypeMap>(KeyConverter_->GetDataType(), ValueConverter_->GetDataType());
     }
 
 private:
@@ -1290,7 +1289,6 @@ private:
         } else if (type->GetMetatype() == ELogicalMetatype::List) {
             return CreateListConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Dict) {
-            ValidateReadOnly(descriptor);
             return CreateDictConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Tuple) {
             return CreateTupleConverter(descriptor);

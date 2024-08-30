@@ -6,6 +6,7 @@
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/json/json_writer.h>
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -88,7 +89,7 @@ protected:
                 EXPECT_THAT(body, HasSubstr(Format("ticket:yav:%v", tvmId)));
                 request->Output() << HttpResponse(200, response);
             } else if (firstLine.StartsWith("POST /1/secrets/secret-id/tokens/")) {
-                auto* header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+                auto* header = request->Input().Headers().FindHeader(NHttp::NHeaders::ServiceTicketHeaderName);
                 EXPECT_THAT(header->Value(), HasSubstr(Format("ticket:yav:%v", tvmId)));
                 EXPECT_THAT(body, HasSubstr(SecretSignature));
                 request->Output() << HttpResponse(200, response);

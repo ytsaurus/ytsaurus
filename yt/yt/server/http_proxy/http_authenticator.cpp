@@ -198,8 +198,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
     }
 
-    constexpr TStringBuf UserTicketHeaderName = "X-Ya-User-Ticket";
-    if (auto userTicketHeader = request->GetHeaders()->Find(UserTicketHeaderName)) {
+    if (auto userTicketHeader = request->GetHeaders()->Find(NHeaders::UserTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
 
         TTicketCredentials credentials;
@@ -219,8 +218,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
-    constexpr TStringBuf ServiceTicketHeaderName = "X-Ya-Service-Ticket";
-    if (auto serviceTicketHeader = request->GetHeaders()->Find(ServiceTicketHeaderName)) {
+    if (auto serviceTicketHeader = request->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
 
         TServiceTicketCredentials credentials;

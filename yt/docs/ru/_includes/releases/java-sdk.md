@@ -1,6 +1,6 @@
 ### Java
 
-Is published as packages in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
+Is released as packages in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
 
 **Current release:** {{java-sdk-version}}
 

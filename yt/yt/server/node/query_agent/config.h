@@ -33,6 +33,8 @@ public:
 
     i64 MaxPullQueueResponseDataWeight;
 
+    bool AccountUserBackendOutTraffic;
+
     REGISTER_YSON_STRUCT(TQueryAgentConfig);
 
     static void Register(TRegistrar registrar);
@@ -55,6 +57,7 @@ public:
     bool RejectInMemoryRequestsUponThrottlerOverdraft;
 
     std::optional<i64> MaxPullQueueResponseDataWeight;
+    std::optional<bool> AccountUserBackendOutTraffic;
 
     REGISTER_YSON_STRUCT(TQueryAgentDynamicConfig);
 
