@@ -8,20 +8,21 @@
 namespace NYT::NNodeTrackerServer {
 
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString THost::GetLowercaseObjectName() const
+std::string THost::GetLowercaseObjectName() const
 {
     return Format("host %Qv", GetName());
 }
 
-TString THost::GetCapitalizedObjectName() const
+std::string THost::GetCapitalizedObjectName() const
 {
     return Format("Host %Qv", GetName());
 }
 
-TString THost::GetObjectPath() const
+TYPath THost::GetObjectPath() const
 {
     return Format("//sys/hosts/%v", GetName());
 }

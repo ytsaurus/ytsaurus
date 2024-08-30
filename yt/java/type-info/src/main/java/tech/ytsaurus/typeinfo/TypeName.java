@@ -40,6 +40,10 @@ public enum TypeName {
     TzDatetime("tz_datetime"),
     TzTimestamp("tz_timestamp"),
     Interval("interval"),
+    Date32("date32"),
+    Datetime64("datetime64"),
+    Timestamp64("timestamp64"),
+    Interval64("interval64"),
 
     Decimal("decimal"),
     Json("json"),

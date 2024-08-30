@@ -28,7 +28,7 @@ public:
         return CreateChannel(address);
     }
 
-    IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
     }

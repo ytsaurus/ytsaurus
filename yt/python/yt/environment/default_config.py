@@ -190,8 +190,6 @@ def get_dynamic_master_config():
     cell_master = {
         alert_update_period = 500;
     };
-
-    enable_boomerangs_identity = %true;
 }
 """)
 
@@ -243,7 +241,6 @@ def get_scheduler_config():
             enable_response_keeper = %true;
         };
         crash_on_allocation_heartbeat_processing_exception = %true;
-        enable_fair_share_preupdate_offloading = %true;
 
         template_pool_tree_config_map = {
             common = {

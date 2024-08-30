@@ -133,16 +133,11 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraMaterializeNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
-        // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSendNodeStates, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStatistics, Unretained(this)));
-        // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeState, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeAggregatedStateReliability, Unretained(this)));
@@ -218,7 +213,7 @@ public:
         NodeDisposalManager_->Initialize();
     }
 
-    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
+    void ProcessRegisterNode(const std::string& address, TCtxRegisterNodePtr context) override
     {
         if (!context->Request().chunk_locations_supported()) {
             YT_LOG_ALERT("Node does not support real chunk locations (Address: %v)",
@@ -330,6 +325,10 @@ public:
         // and must obey it regardless of the node's state.
         EnsureNodeDisposed(node);
 
+        // Reset pending restart maintenace flag before node removal to ensure
+        // that `NodePendingRestartChanged` signal is fired.
+        ResetNodePendingRestart(node);
+
         RemoveFromAddressMaps(node);
 
         RecomputePendingRegisterNodeMutationCounters();
@@ -373,20 +372,20 @@ public:
         return node;
     }
 
-    TNode* FindNodeByAddress(const TString& address) override
+    TNode* FindNodeByAddress(const std::string& address) override
     {
         auto it = AddressToNodeMap_.find(address);
         return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
-    TNode* GetNodeByAddress(const TString& address) override
+    TNode* GetNodeByAddress(const std::string& address) override
     {
         auto* node = FindNodeByAddress(address);
         YT_VERIFY(node);
         return node;
     }
 
-    TNode* GetNodeByAddressOrThrow(const TString& address) override
+    TNode* GetNodeByAddressOrThrow(const std::string& address) override
     {
         auto* node = FindNodeByAddress(address);
         if (!node) {
@@ -395,30 +394,30 @@ public:
         return node;
     }
 
-    TNode* FindNodeByHostName(const TString& hostName) override
+    TNode* FindNodeByHostName(const std::string& hostName) override
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
-    THost* GetHostByNameOrThrow(const TString& name) override
+    THost* GetHostByNameOrThrow(const std::string& hostName) override
     {
-        auto* host = FindHostByName(name);
+        auto* host = FindHostByName(hostName);
         if (!host) {
-            THROW_ERROR_EXCEPTION("No such host %Qv", name);
+            THROW_ERROR_EXCEPTION("No such host %Qv", hostName);
         }
         return host;
     }
 
-    THost* FindHostByName(const TString& name) override
+    THost* FindHostByName(const std::string& hostName) override
     {
-        auto it = NameToHostMap_.find(name);
+        auto it = NameToHostMap_.find(hostName);
         return it == NameToHostMap_.end() ? nullptr : it->second;
     }
 
-    THost* GetHostByName(const TString& name) override
+    THost* GetHostByName(const std::string& hostName) override
     {
-        auto* host = FindHostByName(name);
+        auto* host = FindHostByName(hostName);
         YT_VERIFY(host);
         return host;
     }
@@ -564,7 +563,7 @@ public:
             this);
     }
 
-    THost* CreateHost(const TString& name, TObjectId hintId) override
+    THost* CreateHost(const std::string& name, TObjectId hintId) override
     {
         ValidateHostName(name);
 
@@ -607,7 +606,7 @@ public:
         HostDestroyed_.Fire(host);
     }
 
-    TRack* CreateRack(const TString& name, TObjectId hintId) override
+    TRack* CreateRack(const std::string& name, TObjectId hintId) override
     {
         ValidateRackName(name);
 
@@ -655,7 +654,7 @@ public:
         RackDestroyed_.Fire(rack);
     }
 
-    void RenameRack(TRack* rack, const TString& newName) override
+    void RenameRack(TRack* rack, const std::string& newName) override
     {
         if (rack->GetName() == newName)
             return;
@@ -682,13 +681,13 @@ public:
         RackRenamed_.Fire(rack);
     }
 
-    TRack* FindRackByName(const TString& name) override
+    TRack* FindRackByName(const std::string& name) override
     {
         auto it = NameToRackMap_.find(name);
         return it == NameToRackMap_.end() ? nullptr : it->second;
     }
 
-    TRack* GetRackByNameOrThrow(const TString& name) override
+    TRack* GetRackByNameOrThrow(const std::string& name) override
     {
         auto* rack = FindRackByName(name);
         if (!rack) {
@@ -700,7 +699,7 @@ public:
         return rack;
     }
 
-    TRack* GetRackByName(const TString& name) override
+    TRack* GetRackByName(const std::string& name) override
     {
         auto* rack = FindRackByName(name);
         YT_VERIFY(rack);
@@ -735,7 +734,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId) override
+    TDataCenter* CreateDataCenter(const std::string& name, TObjectId hintId) override
     {
         ValidateDataCenterName(name);
 
@@ -781,10 +780,11 @@ public:
         DataCenterDestroyed_.Fire(dc);
     }
 
-    void RenameDataCenter(TDataCenter* dc, const TString& newName) override
+    void RenameDataCenter(TDataCenter* dc, const std::string& newName) override
     {
-        if (dc->GetName() == newName)
+        if (dc->GetName() == newName) {
             return;
+        }
 
         if (FindDataCenterByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -810,13 +810,13 @@ public:
         DataCenterRenamed_.Fire(dc);
     }
 
-    TDataCenter* FindDataCenterByName(const TString& name) override
+    TDataCenter* FindDataCenterByName(const std::string& name) override
     {
         auto it = NameToDataCenterMap_.find(name);
         return it == NameToDataCenterMap_.end() ? nullptr : it->second;
     }
 
-    TDataCenter* GetDataCenterByNameOrThrow(const TString& name) override
+    TDataCenter* GetDataCenterByNameOrThrow(const std::string& name) override
     {
         auto* dc = FindDataCenterByName(name);
         if (!dc) {
@@ -828,7 +828,7 @@ public:
         return dc;
     }
 
-    TDataCenter* GetDataCenterByName(const TString& name) override
+    TDataCenter* GetDataCenterByName(const std::string& name) override
     {
         auto* dc = FindDataCenterByName(name);
         YT_VERIFY(dc);
@@ -861,7 +861,7 @@ public:
         return NodeListPerRole_[nodeRole].Nodes();
     }
 
-    const std::vector<TString>& GetNodeAddressesForRole(ENodeRole nodeRole) override
+    const std::vector<std::string>& GetNodeAddressesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Addresses();
     }
@@ -961,14 +961,13 @@ private:
     int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
-    THashMap<TString, TNode*> AddressToNodeMap_;
-    THashMultiMap<TString, TNode*> HostNameToNodeMap_;
+    THashMap<std::string, TNode*> AddressToNodeMap_;
+    THashMultiMap<std::string, TNode*> HostNameToNodeMap_;
     THashMap<TTransaction*, TNode*> TransactionToNodeMap_;
-    THashMap<TString, THost*> NameToHostMap_;
-    THashMap<TString, TRack*> NameToRackMap_;
-    THashMap<TString, TDataCenter*> NameToDataCenterMap_;
+    THashMap<std::string, THost*> NameToHostMap_;
+    THashMap<std::string, TRack*> NameToRackMap_;
+    THashMap<std::string, TDataCenter*> NameToDataCenterMap_;
 
-    TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
     TPeriodicExecutorPtr ResetNodePendingRestartMaintenanceExecutor_;
 
@@ -984,7 +983,7 @@ private:
 
     struct TNodeGroup
     {
-        TString Id;
+        std::string Id;
         TNodeGroupConfigPtr Config;
         int LocalRegisteredNodeCount = 0;
         int PendingRegisterNodeMutationCount = 0;
@@ -992,7 +991,7 @@ private:
 
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
-    THashSet<TString> PendingRegisterNodeAddresses_;
+    THashSet<std::string> PendingRegisterNodeAddresses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -1004,16 +1003,16 @@ private:
         std::optional<TNodeId> NodeId;
         TNodeAddressMap NodeAddresses;
         TAddressMap Addresses;
-        TString DefaultAddress;
+        std::string DefaultAddress;
         TTransactionId LeaseTransactionId;
         std::vector<TString> Tags;
         THashSet<ENodeFlavor> Flavors;
         bool ExecNodeIsNotDataNode;
-        TString HostName;
+        std::string HostName;
         std::optional<TYsonString> CypressAnnotations;
         std::optional<TString> BuildVersion;
-        std::optional<TString> Rack;
-        std::optional<TString> DataCenter;
+        std::optional<std::string> Rack;
+        std::optional<std::string> DataCenter;
     };
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1041,7 +1040,7 @@ private:
     }
 
 
-    static TYPath GetNodePath(const TString& address)
+    static TYPath GetNodePath(const std::string& address)
     {
         return GetClusterNodesPath() + "/" + ToYPathLiteral(address);
     }
@@ -1165,7 +1164,7 @@ private:
         }
     }
 
-    void KickOutPreviousNodeIncarnation(TNode* node, const TString& address)
+    void KickOutPreviousNodeIncarnation(TNode* node, const std::string& address)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1200,7 +1199,7 @@ private:
         ResetCellAggregatedStateReliabilities(node);
     }
 
-    void CreateHostObject(TNode* node, const TString& hostName, TRack* rack)
+    void CreateHostObject(TNode* node, const std::string& hostName, TRack* rack)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1229,7 +1228,7 @@ private:
         }
     }
 
-    void CreateDataCenterObject(const TString& name)
+    void CreateDataCenterObject(const std::string& name)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1250,7 +1249,7 @@ private:
         }
     }
 
-    void CreateRackObject(const TString& name, const std::optional<TString>& dataCenter)
+    void CreateRackObject(const std::string& name, const std::optional<std::string>& dataCenter)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1320,14 +1319,6 @@ private:
         EnsureNodeObjectCreated(options);
 
         auto* node = GetNodeByAddress(address);
-
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                address);
-        }
 
         if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
@@ -1410,14 +1401,6 @@ private:
 
         auto* node = GetNodeByAddress(address);
 
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                address);
-        }
-
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
         bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
@@ -1499,35 +1482,6 @@ private:
         return true;
     }
 
-    // COMPAT(aleksandra-zh)
-    void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
-    {
-        auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!ValidateGossipCell(cellTag)) {
-            return;
-        }
-
-        YT_LOG_INFO("Received cell node descriptor gossip message (CellTag: %v)",
-            cellTag);
-
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TNodeId>(entry.node_id());
-            auto* node = FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            const auto& descriptor = entry.node_descriptor();
-            auto statistics = FromProto<TCellNodeStatistics>(descriptor.statistics());
-            node->SetStatistics(cellTag, statistics);
-
-            UpdateNodeCounters(node, -1);
-            auto state = ENodeState(descriptor.state());
-            node->SetState(cellTag, state, /*redundant*/ false);
-            UpdateNodeCounters(node, +1);
-        }
-    }
-
     void HydraSetNodeStatistics(TReqSetNodeStatistics* request)
     {
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
@@ -1582,32 +1536,6 @@ private:
         node->SetCellAggregatedStateReliability(cellTag, reliability);
     }
 
-    // COMPAT(aleksandra-zh)
-    void HydraSetNodeStates(TReqSetNodeStates* request)
-    {
-        auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!ValidateGossipCell(cellTag)) {
-            return;
-        }
-
-        YT_LOG_INFO("Received node states (CellTag: %v)",
-            cellTag);
-
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TNodeId>(entry.node_id());
-            auto* node = FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            auto state = ENodeState(entry.state());
-
-            UpdateNodeCounters(node, -1);
-            node->SetState(cellTag, state, /*redundant*/ true);
-            UpdateNodeCounters(node, +1);
-        }
-    }
-
     void HydraSetNodeState(TReqSetNodeState* request)
     {
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
@@ -1629,7 +1557,7 @@ private:
         }
 
         UpdateNodeCounters(node, -1);
-        node->SetState(cellTag, state, /*redundant*/ false);
+        node->SetState(cellTag, state);
         UpdateNodeCounters(node, +1);
     }
 
@@ -1752,10 +1680,18 @@ private:
             if (!IsObjectAlive(node)) {
                 continue;
             }
+            ResetNodePendingRestart(node);
+        }
+    }
 
-            if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-                OnNodePendingRestartUpdated(node);
-            }
+    void ResetNodePendingRestart(TNode* node)
+    {
+        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+            OnNodePendingRestartUpdated(node);
+
+            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
         }
     }
 
@@ -2041,12 +1977,6 @@ private:
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
             NodeStatisticsGossipExecutor_->Start();
-
-            // COMPAT(aleksandra-zh).
-            FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
-                BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this)));
-            FullNodeStatesGossipExecutor_->Start();
         }
 
         for (auto& group : NodeGroups_) {
@@ -2066,11 +1996,6 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
-
-        if (FullNodeStatesGossipExecutor_) {
-            YT_UNUSED_FUTURE(FullNodeStatesGossipExecutor_->Stop());
-            FullNodeStatesGossipExecutor_.Reset();
-        }
 
         if (NodeStatisticsGossipExecutor_) {
             YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
@@ -2301,59 +2226,6 @@ private:
         multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
     }
 
-    void OnNodeStatesGossip()
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsLocalMasterCellRegistered()) {
-            return;
-        }
-
-        TReqSendNodeStates request;
-        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger()));
-    }
-
-    void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        TReqSetNodeStates gossipRequest;
-        gossipRequest.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
-
-        for (auto [nodeId, node] : NodeMap_) {
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            auto state = node->GetLocalState();
-            if (state != node->GetLastGossipState()) {
-                YT_LOG_ALERT("Node state was not reported on change (CurrentNodeState: %v, LastReportedState: %v)",
-                    state,
-                    node->GetLastGossipState());
-            }
-
-            auto* entry = gossipRequest.add_entries();
-            entry->set_node_id(ToProto<ui32>(node->GetId()));
-            entry->set_state(ToProto<int>(state));
-            node->SetLastGossipState(state);
-        }
-
-        if (gossipRequest.entries_size() == 0) {
-            return;
-        }
-
-        std::sort(
-            gossipRequest.mutable_entries()->begin(),
-            gossipRequest.mutable_entries()->end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs.node_id() < rhs.node_id();
-            });
-
-        YT_LOG_INFO("Sending node states gossip message (NodeCount: %v)",
-            gossipRequest.entries_size());
-        multicellManager->PostToPrimaryMaster(gossipRequest);
-    }
-
     void SendNodeAggregatedStateReliability(TNode* node)
     {
         YT_VERIFY(HasMutationContext());
@@ -2523,7 +2395,7 @@ private:
                 TReqReplicateMaintenanceRequestCreation addMaintenance;
                 addMaintenance.set_component(ToProto<i32>(EMaintenanceComponent::ClusterNode));
                 addMaintenance.set_comment(request.Comment);
-                addMaintenance.set_user(request.User);
+                addMaintenance.set_user(ToProto<TProtobufString>(request.User));
                 addMaintenance.set_type(ToProto<i32>(request.Type));
                 addMaintenance.set_address(node->GetDefaultAddress());
                 ToProto(addMaintenance.mutable_id(), id);
@@ -2568,7 +2440,7 @@ private:
     {
         YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            HostNameToNodeMap_.emplace(TString(GetServiceHostName(address)), node);
+            HostNameToNodeMap_.emplace(std::string(GetServiceHostName(address)), node);
         }
     }
 
@@ -2576,7 +2448,7 @@ private:
     {
         YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(address)));
+            auto hostNameRange = HostNameToNodeMap_.equal_range(std::string(GetServiceHostName(address)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {
                     HostNameToNodeMap_.erase(it);
@@ -2702,7 +2574,7 @@ private:
         return result;
     }
 
-    TNodeGroupList GetGroupsForNode(const TString& address)
+    TNodeGroupList GetGroupsForNode(const std::string& address)
     {
         auto* node = FindNodeByAddress(address);
         if (!IsObjectAlive(node)) {
@@ -2762,9 +2634,6 @@ private:
 
     void ReconfigureGossipPeriods()
     {
-        if (FullNodeStatesGossipExecutor_) {
-            FullNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->FullNodeStatesGossipPeriod);
-        }
         if (NodeStatisticsGossipExecutor_) {
             NodeStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsGossipPeriod);
         }

@@ -89,7 +89,7 @@ IYPathServicePtr CreateService(
 
             case ENodeType::List: {
                 auto channelConfig = New<TBalancingChannelConfig>();
-                channelConfig->Addresses = ConvertTo<std::vector<TString>>(manifest->RemoteAddresses);
+                channelConfig->Addresses = ConvertTo<std::vector<std::string>>(manifest->RemoteAddresses);
                 auto endpointDescription = TString("Orchid@");
                 auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                     .BeginMap()

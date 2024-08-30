@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NApi::NNative {
@@ -17,6 +19,7 @@ using namespace NYTree;
 using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NHydra;
 using namespace NConcurrency;
 
@@ -41,6 +44,7 @@ private:
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id", TCellId());
         auto tablePaths = attributes->Get<std::vector<TYPath>>("table_paths");
         auto type = attributes->Get<NTableClient::ETableCollocationType>("type");
+        auto maybeCollocationOptions = attributes->Find<TString>("options");
 
         if (type != ETableCollocationType::Replication) {
             THROW_ERROR_EXCEPTION("Unknown collocation type: %v",
@@ -49,6 +53,10 @@ private:
 
         if (tablePaths.empty()) {
             THROW_ERROR_EXCEPTION("Cannot create empty replication card collocation");
+        }
+
+        if (maybeCollocationOptions) {
+            Y_UNUSED(ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(*maybeCollocationOptions)));
         }
 
         if (!chaosCellId) {
@@ -62,6 +70,9 @@ private:
         auto req = proxy.CreateReplicationCardCollocation();
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_ids(), replicationCardIds);
+        if (maybeCollocationOptions) {
+            req->set_options(*maybeCollocationOptions);
+        }
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

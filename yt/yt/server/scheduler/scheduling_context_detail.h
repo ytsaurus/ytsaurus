@@ -22,19 +22,20 @@ public:
 
     int GetNodeShardId() const override;
 
+    void InitializeConditionalDiscounts(int capacity) override;
     void ResetDiscounts() override;
 
-    const TJobResourcesWithQuota& UnconditionalDiscount() const override;
+    TJobResourcesWithQuota GetUnconditionalDiscount() const override;
     void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) override;
 
     TJobResourcesWithQuota GetMaxConditionalDiscount() const override;
-    TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const override;
-    void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discountForOperation) override;
+    TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const override;
+    void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation) override;
 
-    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const override;
+    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const override;
     TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscount() const override;
-    TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
+    TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const override;
 
     const TJobResources& ResourceLimits() const override;
     const TJobResources& ResourceUsage() const;
@@ -48,7 +49,7 @@ public:
 
     bool CanStartAllocationForOperation(
         const TJobResourcesWithQuota& allocationResourcesWithQuota,
-        TOperationId operationId,
+        TOperationIndex operationIndex,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const override;
     bool CanStartMoreAllocations(
         const std::optional<TJobResources>& customMinSpareAllocationResources) const override;
@@ -89,24 +90,27 @@ private:
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
     const TJobResources DefaultMinSpareAllocationResources_;
 
-    TJobResourcesWithQuota UnconditionalDiscount_;
-    TJobResourcesWithQuota MaxConditionalDiscount_;
-
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_;
 
     TDiskResources DiskResources_;
-    std::optional<int> DiscountMediumIndex_;
+    std::vector<TDiskQuota> DiskRequests_;
+    THashMap<TAllocationId, int> DiskRequestIndexPerAllocationId_;
 
     std::vector<TAllocationPtr> StartedAllocations_;
     std::vector<TAllocationPtr> RunningAllocations_;
     std::vector<TPreemptedAllocation> PreemptedAllocations_;
 
-    std::vector<TDiskQuota> DiskRequests_;
-    THashMap<TAllocationId, int> DiskRequestIndexPerAllocationId_;
+    struct TJobResourcesWithQuotaDiscount
+    {
+        TJobResources JobResources;
+        i64 DiscountMediumDiskQuota = 0;
+    };
 
-    // TODO(eshcherbin): Should we optimize and use tree index instead of operation ID here?
-    THashMap<TOperationId, TJobResourcesWithQuota> ConditionalDiscountMap_;
+    std::optional<int> DiscountMediumIndex_;
+    TJobResourcesWithQuotaDiscount UnconditionalDiscount_;
+    TJobResourcesWithQuotaDiscount MaxConditionalDiscount_;
+    std::vector<TJobResourcesWithQuotaDiscount> ConditionalDiscounts_;
 
     TScheduleAllocationsStatistics SchedulingStatistics_;
 
@@ -114,13 +118,17 @@ private:
 
     ESchedulingStopReason SchedulingStopReason_ = ESchedulingStopReason::FullyScheduled;
 
-    // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr
+    // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr.
     bool CanSatisfyResourceRequest(
         const TJobResources& allocationResources,
         const TJobResources& conditionalDiscount,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources = nullptr) const;
 
-    TDiskQuota GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const;
+    const TJobResourcesWithQuotaDiscount& ConditionalDiscountForOperation(TOperationIndex operationIndex) const;
+
+    TJobResourcesWithQuota ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const;
+    TDiskQuota ToDiscountDiskQuota(std::optional<i64> discountMediumQuota) const;
+    i64 GetDiscountMediumQuota(const TDiskQuota& diskQuota) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,6 +37,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -114,7 +115,7 @@ i64 TChunk::GetPartDiskSpace() const
     return result;
 }
 
-TString TChunk::GetLowercaseObjectName() const
+std::string TChunk::GetLowercaseObjectName() const
 {
     switch (GetType()) {
         case EObjectType::Chunk:
@@ -130,7 +131,7 @@ TString TChunk::GetLowercaseObjectName() const
     }
 }
 
-TString TChunk::GetCapitalizedObjectName() const
+std::string TChunk::GetCapitalizedObjectName() const
 {
     switch (GetType()) {
         case EObjectType::Chunk:
@@ -146,7 +147,7 @@ TString TChunk::GetCapitalizedObjectName() const
     }
 }
 
-TString TChunk::GetObjectPath() const
+TYPath TChunk::GetObjectPath() const
 {
     return Format("//sys/chunks/%v", GetId());
 }

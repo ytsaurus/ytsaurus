@@ -188,7 +188,7 @@ public:
 
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.
-    void OverrideMasterAddresses(const std::vector<TString>& addresses);
+    void OverrideMasterAddresses(const std::vector<std::string>& addresses);
 
     REGISTER_YSON_STRUCT(TConnectionStaticConfig);
 
@@ -229,6 +229,7 @@ public:
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+    NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
@@ -285,6 +286,7 @@ public:
     TDuration DefaultPullRowsTimeout;
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;
+    TDuration DefaultChaosWatcherClientRequestTimeout;
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;
 

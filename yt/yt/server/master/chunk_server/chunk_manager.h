@@ -166,7 +166,7 @@ struct IChunkManager
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        const std::optional<TString>& preferredHostName) = 0;
+        const std::optional<std::string>& preferredHostName) = 0;
 
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
@@ -253,7 +253,7 @@ struct IChunkManager
     virtual bool IsChunkRequisitionUpdateEnabled() = 0;
     virtual bool IsChunkSealerEnabled() = 0;
 
-    virtual void ScheduleChunkRefresh(TChunk* chunk) = 0;
+    virtual void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {}) = 0;
     virtual void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) = 0;
     virtual void ScheduleChunkSeal(TChunk* chunk) = 0;
     virtual void ScheduleChunkMerge(TChunkOwnerBase* node) = 0;
@@ -290,7 +290,7 @@ struct IChunkManager
     virtual TMedium* GetMediumByIndexOrThrow(int index) const = 0;
 
     //! Renames an existing medium. Throws on name conflict.
-    virtual void RenameMedium(TMedium* medium, const TString& newName) = 0;
+    virtual void RenameMedium(TMedium* medium, const std::string& newName) = 0;
 
     //! Validates and changes medium priority.
     virtual void SetMediumPriority(TMedium* medium, int priority) = 0;
@@ -299,10 +299,10 @@ struct IChunkManager
     virtual void SetMediumConfig(TDomesticMedium* medium, TDomesticMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    virtual TMedium* FindMediumByName(const TString& name) const = 0;
+    virtual TMedium* FindMediumByName(const std::string& name) const = 0;
 
     //! Returns the medium with a given name (throws if none).
-    virtual TMedium* GetMediumByNameOrThrow(const TString& name) const = 0;
+    virtual TMedium* GetMediumByNameOrThrow(const std::string& name) const = 0;
 
     //! Returns chunk replicas "ideal" from CRP point of view.
     //! This reflects the target chunk placement, not the actual one.
@@ -370,14 +370,14 @@ private:
     virtual void DestroyDynamicStore(TDynamicStore* dynamicStore) = 0;
 
     virtual TDomesticMedium* CreateDomesticMedium(
-        const TString& name,
+        const std::string& name,
         std::optional<bool> transient,
         std::optional<int> priority,
         std::optional<int> hintIndex,
         NObjectClient::TObjectId hintId) = 0;
 
     virtual TS3Medium* CreateS3Medium(
-        const TString& name,
+        const std::string& name,
         TS3MediumConfigPtr config,
         std::optional<int> priority,
         std::optional<int> hintIndex,

@@ -194,7 +194,10 @@ public:
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        // COMPAT(aleksandra-zh).
         jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+        ToProto(jobSpecExt->mutable_location_uuid(), ChunkLocationUuid_);
+
         if (!IsObjectAlive(Chunk_)) {
             jobSpecExt->set_chunk_is_dead(true);
             return true;
@@ -1491,7 +1494,15 @@ bool TChunkReplicator::TryScheduleReplicationJob(
             replicationFactor - temporarilyUnavailableReplicaCount,
             replicationFactor - MaxTemporarilyUnavailableReplicaCount,
             minRackAwareReplicaCount}) - replicaCount;
-        YT_VERIFY(replicasNeeded > 0);
+
+        if (replicasNeeded < 0) {
+            YT_LOG_ALERT(
+                "Chunk replicas needed count is negative (ChunkId: %v, MediumIndex: %v, MediumStatus: %v)",
+                chunkId,
+                targetMediumIndex,
+                mediumStatistics.Status);
+            return true;
+        }
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
     } else {
@@ -2626,7 +2637,7 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
     return std::min(cap, result);
 }
 
-void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
+void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay)
 {
     // Fast path.
     if (!ShouldProcessChunk(chunk)) {
@@ -2641,7 +2652,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
         return;
     }
 
-    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0});
+    auto adjustedDelay = delay
+        ? std::make_optional(DurationToCpuDuration(*delay))
+        : std::nullopt;
+    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)

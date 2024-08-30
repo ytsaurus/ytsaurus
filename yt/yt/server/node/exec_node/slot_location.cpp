@@ -93,7 +93,7 @@ TSlotLocation::TSlotLocation(
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
 {
-    ExecNodeProfiler.WithPrefix("/job_directory/artifacts")
+    ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .AddProducer("", MakeCopyMetricBuffer_);
@@ -199,7 +199,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 {
     ValidateEnabled();
 
-    YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
+    YT_LOG_DEBUG("Preparing sandbox directories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
         slotIndex,
         sandboxInsideTmpfs);
 
@@ -416,7 +416,8 @@ static THashMap<TString, TString> BuildSandboxCopyTags(
 {
     THashMap<TString, TString> result{
         {FormatIOTag(EAggregateIOTag::Direction), direction},
-        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
     };
     if (location) {
         result[FormatIOTag(ERawIOTag::LocationId)] = location->GetId();
@@ -637,7 +638,8 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                            // TODO(babenko): switch to std::string
+                            {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                             {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
                             {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},
                         });

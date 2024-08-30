@@ -295,7 +295,7 @@ public:
         CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::CommonPeriodicActivity));
+            GetBackgroundInvoker());
 
         StrategyHungOperationsChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
@@ -518,7 +518,7 @@ public:
     void ValidatePoolPermission(
         NObjectClient::TObjectId poolObjectId,
         const TString& poolName,
-        const TString& user,
+        const std::string& user,
         EPermission permission) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -549,7 +549,7 @@ public:
     }
 
     TFuture<void> ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         TOperationId operationId,
         EPermissionSet permissions)
     {
@@ -574,7 +574,7 @@ public:
 
     // COMPAT(pogorelov)
     void DoValidateJobShellAccess(
-        const TString& user,
+        const std::string& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners)
     {
@@ -595,7 +595,7 @@ public:
 
     // COMPAT(pogorelov)
     TFuture<void> ValidateJobShellAccess(
-        const TString& user,
+        const std::string& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners)
     {
@@ -608,7 +608,7 @@ public:
 
     TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
         EOperationType type,
-        const TString& user,
+        const std::string& user,
         TYsonString specString)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -630,7 +630,7 @@ public:
         EOperationType type,
         TTransactionId transactionId,
         TMutationId mutationId,
-        const TString& user,
+        const std::string& user,
         TPreprocessedSpec preprocessedSpec)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -649,7 +649,8 @@ public:
         if (spec->AddAuthenticatedUserToAcl) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                std::vector<TString>{user},
+                // TODO(babenko): switch to std::string
+                std::vector{TString(user)},
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 
@@ -684,7 +685,7 @@ public:
         IdToStartingOperation_.emplace(operationId, operation);
 
         if (!spec->Owners.empty()) {
-            // TODO(egor-gutrov): this is compat alert, remove it
+            // COMPAT(egor-gutrov): this is compat alert, remove it
             operation->SetAlertWithoutArchivation(
                 EOperationAlertType::OwnersInSpecIgnored,
                 TError("\"owners\" field in spec ignored as it was specified simultaneously with \"acl\""));
@@ -739,7 +740,7 @@ public:
     TFuture<void> AbortOperation(
         const TOperationPtr& operation,
         const TError& error,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -771,7 +772,7 @@ public:
 
     TFuture<void> SuspendOperation(
         const TOperationPtr& operation,
-        const TString& user,
+        const std::string& user,
         bool abortRunningAllocations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -803,7 +804,7 @@ public:
 
     TFuture<void> ResumeOperation(
         const TOperationPtr& operation,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -823,7 +824,7 @@ public:
                 operation->GetState()));
         }
 
-        NodeManager_->ResumeOperationAllocations(operation->GetId());
+        NodeManager_->ResumeOperationScheduling(operation->GetId());
 
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
@@ -837,7 +838,7 @@ public:
     TFuture<void> CompleteOperation(
         const TOperationPtr& operation,
         const TError& error,
-        const TString& user)
+        const std::string& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1032,7 +1033,7 @@ public:
 
     void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TString& user,
+        const std::string& user,
         INodePtr parameters)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1097,7 +1098,7 @@ public:
 
     TFuture<void> UpdateOperationParameters(
         const TOperationPtr& operation,
-        const TString& user,
+        const std::string& user,
         INodePtr parameters)
     {
         return BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this), operation, user, std::move(parameters))
@@ -1122,19 +1123,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto resourceLimits = NodeManager_->GetResourceLimits(filter);
-
-        if (!IsFairSharePreUpdateOffloadingEnabled()) {
-            auto value = std::pair(GetCpuInstant(), resourceLimits);
-            auto it = CachedResourceLimitsByTags_.find(filter);
-            if (it == CachedResourceLimitsByTags_.end()) {
-                CachedResourceLimitsByTags_.emplace(filter, std::move(value));
-            } else {
-                it->second = std::move(value);
-            }
-        }
-
-        return resourceLimits;
+        return NodeManager_->GetResourceLimits(filter);
     }
 
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
@@ -1809,8 +1798,6 @@ private:
         NYson::TYsonString Alerts;
     };
 
-    mutable THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
-
     IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
     std::unique_ptr<IYsonConsumer> OffloadedEventLogWriterConsumer_;
@@ -1831,15 +1818,13 @@ private:
     TError LastExperimentAssignmentError_;
     TInstant LastExperimentAssignmentErrorTime_;
 
-    std::atomic<bool> EnableFairSharePreUpdateOffloading_ = true;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
         const TSerializableAccessControlList& baseAcl,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId)
     {
@@ -1867,7 +1852,7 @@ private:
     TOperationRuntimeParametersPtr UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user)
+        const std::string& user)
     {
         YT_VERIFY(origin);
         auto result = CloneYsonStruct(origin);
@@ -2389,7 +2374,6 @@ private:
             BackgroundThreadPool_->Configure(Config_->BackgroundThreadCount);
 
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
-            EnableFairSharePreUpdateOffloading_.store(Config_->EnableFairSharePreUpdateOffloading);
         }
 
         ++ConfigRevision_;
@@ -2561,6 +2545,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        YT_LOG_DEBUG("Calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+
         auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
         TMemoryDistribution result;
@@ -2569,6 +2555,9 @@ private:
                 ++result[RoundUp<i64>(descriptor->ResourceLimits.GetMemory(), 1_GB)];
             }
         }
+
+        YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+
         return result;
     }
 
@@ -3071,8 +3060,10 @@ private:
                     "aborted allocations supposed to be considered by controller agent (OperationId: %v)",
                     operation->GetId());
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Failed to wait full heartbeat from agent (OperationId: %v)", operation->GetId());
-                OnOperationAgentUnregistered(operation);
+                auto error = TError("Failed to wait full heartbeat from agent for operation %v", operation->GetId())
+                    << ex;
+                YT_LOG_WARNING(error);
+                Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
             }
         }
     }
@@ -3314,6 +3305,10 @@ private:
                     << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
                 EAbortReason::OperationSuspended,
                 /*terminated*/ false);
+        } else {
+            // |AbortOperationAllocations| implies suspension, so we only need to do it explicitly if
+            // |abortRunningAllocations| is false.
+            NodeManager_->SuspendOperationScheduling(operation->GetId());
         }
 
         if (setAlert) {
@@ -3449,9 +3444,14 @@ private:
                 WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Failed to abort controller of operation %v, unregistering operation agent",
-                    operation->GetId());
-                OnOperationAgentUnregistered(operation);
+                auto error = TError("Failed to abort controller of operation %v", operation->GetId())
+                    << ex;
+                if (auto agent = operation->FindAgent()) {
+                    YT_LOG_WARNING(error);
+                    Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
+                } else {
+                    YT_LOG_WARNING(error, "Operation termination failed but looks like controller is already unregistered");
+                }
                 return;
             }
         }
@@ -3466,11 +3466,14 @@ private:
                 WaitFor(operation->AbortCommonTransactions())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)",
+                YT_LOG_DEBUG(
+                    ex,
+                    "Failed to abort transactions of orphaned operation (OperationId: %v)",
                     operation->GetId());
             }
         } else {
-            YT_LOG_DEBUG("Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
+            YT_LOG_DEBUG(
+                "Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
                 operation->GetId(),
                 initialState,
                 static_cast<bool>(operation->Transactions()));
@@ -3587,20 +3590,6 @@ private:
         FinishOperation(operation);
     }
 
-    void RemoveExpiredResourceLimitsTags()
-    {
-        std::vector<TSchedulingTagFilter> toRemove;
-        for (const auto& [filter, record] : CachedResourceLimitsByTags_) {
-            if (record.first + DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout) < GetCpuInstant()) {
-                toRemove.push_back(filter);
-            }
-        }
-
-        for (const auto& filter : toRemove) {
-            EraseOrCrash(CachedResourceLimitsByTags_, filter);
-        }
-    }
-
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
@@ -3613,8 +3602,6 @@ private:
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        RemoveExpiredResourceLimitsTags();
 
         auto nodeYsons = NodeManager_->BuildNodeYsonList();
         BuildYsonFluently(consumer)
@@ -3639,20 +3626,9 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     // TODO(renadeen): we should move this map into tree orchid.
                     .Item("resource_limits_by_tags")
-                        .Do([&] (TFluentAny fluent) {
-                            if (IsFairSharePreUpdateOffloadingEnabled()) {
-                                fluent.DoMapFor(Strategy_->GetResourceLimitsByTagFilter(), [] (TFluentMap fluent, const auto& pair) {
-                                    const auto& [filter, limits] = pair;
-                                    fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(limits);
-                                });
-                            } else {
-                                fluent.DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                                    const auto& [filter, record] = pair;
-                                    if (!filter.IsEmpty()) {
-                                        fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
-                                    }
-                                });
-                            }
+                        .DoMapFor(Strategy_->GetResourceLimitsByTagFilter(), [] (TFluentMap fluent, const auto& pair) {
+                            const auto& [filter, limits] = pair;
+                            fluent.Item(ToString(filter)).Value(limits);
                         })
                     .Item("medium_directory").Value(
                         Bootstrap_
@@ -3994,7 +3970,7 @@ private:
 
     TPreprocessedSpec DoAssignExperimentsAndParseSpec(
         EOperationType type,
-        const TString& user,
+        const std::string& user,
         TYsonString specString,
         NYTree::INodePtr specTemplate)
     {
@@ -4036,11 +4012,6 @@ private:
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
-    }
-
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return EnableFairSharePreUpdateOffloading_.load();
     }
 
     void LogOperationFinished(
@@ -4460,7 +4431,7 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
 
 TFuture<TPreprocessedSpec> TScheduler::AssignExperimentsAndParseSpec(
     EOperationType type,
-    const TString& user,
+    const std::string& user,
     TYsonString specString) const
 {
     return Impl_->AssignExperimentsAndParseSpec(
@@ -4473,7 +4444,7 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     TTransactionId transactionId,
     TMutationId mutationId,
-    const TString& user,
+    const std::string& user,
     TPreprocessedSpec preprocessedSpec)
 {
     return Impl_->StartOperation(
@@ -4487,14 +4458,14 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
 TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
     const TError& error,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->AbortOperation(operation, error, user);
 }
 
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
-    const TString& user,
+    const std::string& user,
     bool abortRunningAllocations)
 {
     return Impl_->SuspendOperation(operation, user, abortRunningAllocations);
@@ -4502,7 +4473,7 @@ TFuture<void> TScheduler::SuspendOperation(
 
 TFuture<void> TScheduler::ResumeOperation(
     TOperationPtr operation,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->ResumeOperation(operation, user);
 }
@@ -4510,7 +4481,7 @@ TFuture<void> TScheduler::ResumeOperation(
 TFuture<void> TScheduler::CompleteOperation(
     TOperationPtr operation,
     const TError& error,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->CompleteOperation(operation, error, user);
 }
@@ -4547,7 +4518,7 @@ void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation
 
 TFuture<void> TScheduler::UpdateOperationParameters(
     TOperationPtr operation,
-    const TString& user,
+    const std::string& user,
     INodePtr parameters)
 {
     return Impl_->UpdateOperationParameters(operation, user, parameters);
@@ -4583,7 +4554,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 }
 
 TFuture<void> TScheduler::ValidateJobShellAccess(
-    const TString& user,
+    const std::string& user,
     const TString& jobShellName,
     const std::vector<TString>& jobShellOwners)
 {

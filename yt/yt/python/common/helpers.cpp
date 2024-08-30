@@ -136,7 +136,7 @@ TError BuildErrorFromPythonException(bool clear)
     TString message = errorValue.isNone()
         ? "No message"
         : Str(errorValue);
-    auto error = TError(message)
+    auto error = TError(std::move(message), TError::DisableFormat)
         << TErrorAttribute("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
@@ -309,6 +309,6 @@ bool WaitForSettingFuture(TFuture<void> future)
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NPython

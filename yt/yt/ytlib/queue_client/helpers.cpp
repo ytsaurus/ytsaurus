@@ -19,16 +19,20 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetQueueAgentObjectRemotePath(const TString& cluster, const TString& objectKind, const TYPath& objectPath)
+namespace {
+
+TYPath GetQueueAgentObjectRemotePath(const std::string& cluster, const TString& objectKind, const TYPath& objectPath)
 {
     auto objectRef = Format("%v:%v", cluster, objectPath);
     // NB: Mind the plural!
     return Format("//queue_agent/%vs/%v", objectKind, ToYPathLiteral(objectRef));
 }
 
+} // namespace
+
 IYPathServicePtr CreateQueueAgentYPathService(
     IChannelPtr queueAgentChannel,
-    const TString& cluster,
+    const std::string& cluster,
     const TString& objectKind,
     const TYPath& objectPath)
 {

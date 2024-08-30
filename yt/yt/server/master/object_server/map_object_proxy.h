@@ -57,15 +57,15 @@ public:
     void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     int GetChildCount() const override;
-    std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
-    std::vector<TString> GetKeys() const override;
-    NYTree::INodePtr FindChild(const TString& key) const override;
-    std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
+    std::vector<std::string> GetKeys() const override;
+    NYTree::INodePtr FindChild(const std::string& key) const override;
+    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
-    bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
+    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    bool RemoveChild(const TString& key) override;
+    bool RemoveChild(const std::string& key) override;
 
     std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
 
@@ -73,11 +73,11 @@ public:
 
     TSelfPtr Create(
         EObjectType type,
-        const TString& path,
+        const NYPath::TYPath& path,
         NYTree::IAttributeDictionary* attributes);
     TSelfPtr Copy(
-        const TString& sourcePath,
-        const TString& targetPath,
+        const NYPath::TYPath& sourcePath,
+        const NYPath::TYPath& targetPath,
         NCypressClient::ENodeCloneMode mode,
         bool ignoreExisting);
 
@@ -118,7 +118,7 @@ protected:
     NYPath::TYPath GetShortPath() const;
     NObjectServer::TObject* ResolvePathToNonversionedObject(const NYPath::TYPath& path) const;
 
-    virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
+    virtual TSelfPtr ResolveNameOrThrow(const std::string& name) = 0;
 
     TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
     TObject* GetParentForPermissionValidation(TObject* object) override;
@@ -126,15 +126,15 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& user = {}) override;
+        const std::string& user = {}) override;
 
     using THierarchicPermissionValidator<TObject>::ValidatePermission;
 
     virtual void ValidateBeforeAttachChild(
-        const TString& key,
+        const std::string& key,
         const TSelfPtr& childProxy);
     virtual void ValidateAfterAttachChild(
-        const TString& key,
+        const std::string& key,
         const TSelfPtr& childProxy);
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
     virtual void ValidateAttachChildSubtreeSize(const TSelfPtr& child);
@@ -164,17 +164,17 @@ protected:
     virtual void DoRemoveChild(const TSelfPtr& childProxy);
 
     //! Attaches a child object without validations.
-    void AttachChild(const TString& key, const TSelfPtr& childProxy) noexcept;
+    void AttachChild(const std::string& key, const TSelfPtr& childProxy) noexcept;
     //! Detaches a child object without removing it. It's implied that no validations are needed for this.
     void DetachChild(const TSelfPtr& childProxy) noexcept;
 
     void RemoveChildren();
 
-    void ValidateChildName(const TString& childName);
-    virtual void ValidateChildNameAvailability(const TString& childName);
+    void ValidateChildName(const std::string& childName);
+    virtual void ValidateChildNameAvailability(const std::string& childName);
 
-    void RenameSelf(const TString& newName);
-    virtual void DoRenameSelf(const TString& newName);
+    void RenameSelf(const std::string& newName);
+    virtual void DoRenameSelf(const std::string& newName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +207,7 @@ public:
     virtual void Commit();
     virtual void Rollback();
 
-    virtual void AttachChild(const TProxyPtr& parent, const TString& key, const TProxyPtr& child);
+    virtual void AttachChild(const TProxyPtr& parent, const std::string& key, const TProxyPtr& child);
     virtual void DetachChild(const TProxyPtr& parent, const TProxyPtr& child);
 
 protected:

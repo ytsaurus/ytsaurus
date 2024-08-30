@@ -78,7 +78,7 @@ class TestChunkMerger(YTEnvSetup):
             "memory_limits": {
                 "system_jobs": {
                     "type": "static",
-                    "value": 1000000
+                    "value": 1024**3,
                 }
             }
         }
@@ -1441,6 +1441,42 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "d"})
         self._wait_for_merge("//tmp/d/d1/d2/t", None)
         remove("//aba", force=True)
+
+    @authors("kazachonok")
+    def test_shallow_merge_cancellation(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "chunk_cancellation_delay": 10000,
+                },
+            },
+        })
+        schema = make_schema(
+            [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+                {"name": "c", "type": "int64"}
+            ],
+            strict=False
+        )
+        create("table", "//tmp/t", attributes={"schema": schema})
+        self._remove_merge_quotas("//tmp/t")
+
+        rows1 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "x": "x" + str(i)} for i in range(0, 10)]
+        write_table("<append=true>//tmp/t", rows1)
+        rows2 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "y": "y" + str(i)} for i in range(10, 20)]
+        write_table("<append=true>//tmp/t", rows2)
+        rows3 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "z": "z" + str(i)} for i in range(20, 30)]
+        write_table("<append=true>//tmp/t", rows3)
+        assert read_table("//tmp/t") == rows1 + rows2 + rows3
+
+        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger_auto_merge_fallback_count")
+
+        assert sum(counter.get_delta() for counter in fallback_counters) == 0
+
+        self._wait_for_merge("//tmp/t", "auto")
+
+        wait(lambda: sum(counter.get_delta() for counter in fallback_counters) > 0)
 
 
 class TestChunkMergerMulticell(TestChunkMerger):

@@ -333,7 +333,7 @@ public:
     std::vector<TString> Tags;
 
     //! Name of the host node is running on.
-    TString HostName;
+    std::optional<std::string> HostName;
 
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;

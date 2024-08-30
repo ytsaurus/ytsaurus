@@ -758,40 +758,45 @@ public:
     TSecondaryIndex* CreateSecondaryIndex(
         TObjectId hintId,
         ESecondaryIndexKind kind,
-        TTableNode* table,
-        TTableNode* indexTable,
+        TTableId tableId,
+        TTableId indexTableId,
         std::optional<TString> predicate) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto validate = [&] {
+        const auto& tableManager = Bootstrap_->GetTableManager();
+
+        auto* table = tableManager->GetTableNodeOrThrow(tableId);
+        auto* indexTable = tableManager->FindTableNode(indexTableId);
+
+        if (table->IsNative()) {
+            THROW_ERROR_EXCEPTION_IF(!indexTable, "Index table not found by id %v",
+                indexTableId);
+
             THROW_ERROR_EXCEPTION_IF(!table->IsDynamic() || !indexTable->IsDynamic(),
                 "Both table and index table must be dynamic");
+
+            if (!indexTable->IsNative()) {
+                THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
+                    << TErrorAttribute("table_cell_tag", tableId)
+                    << TErrorAttribute("index_table_cell_tag", indexTableId);
+            }
             if (!indexTable->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
             }
             if (indexTable->GetIndexTo()) {
                 THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
             }
-
-            if (table->GetExternalCellTag() != indexTable->GetExternalCellTag()) {
-                THROW_ERROR_EXCEPTION("Table and index table external cell tags differ")
-                    << TErrorAttribute("table_external_cell_tag", table->GetExternalCellTag())
-                    << TErrorAttribute("index_table_external_cell_tag", indexTable->GetExternalCellTag());
-            }
-
-            table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
-
-            auto tableType = TypeFromId(table->GetId());
-            auto indexTableType = TypeFromId(indexTable->GetId());
-            if (tableType != indexTableType) {
-                THROW_ERROR_EXCEPTION("Type mismatch: trying to create index of type %Qlv for a table of type %Qlv",
-                    indexTableType,
-                    tableType);
-            }
-
             if (table->GetUpstreamReplicaId() || indexTable->GetUpstreamReplicaId()) {
-                THROW_ERROR_EXCEPTION("Cannot create %Qlv on replica tables");
+                THROW_ERROR_EXCEPTION("Cannot create secondary index on replica tables");
+            }
+
+            auto tableType = TypeFromId(tableId);
+            auto indexTableType = TypeFromId(indexTableId);
+            if (tableType != indexTableType) {
+                THROW_ERROR_EXCEPTION("Table type mismatch")
+                    << TErrorAttribute("table_type", tableType)
+                    << TErrorAttribute("index_table_type", indexTableType);
             }
 
             switch (tableType) {
@@ -822,26 +827,28 @@ public:
                     THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
             }
 
-            const auto& tableSchema = table->GetSchema()->AsTableSchema();
-            const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
+            table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
+
+            const auto& tableSchema = *table->GetSchema()->AsTableSchema();
+            const auto& indexTableSchema = *indexTable->GetSchema()->AsTableSchema();
 
             switch(kind) {
                 case ESecondaryIndexKind::FullSync:
                     ValidateFullSyncIndexSchema(
-                        *tableSchema,
-                        *indexTableSchema);
+                        tableSchema,
+                        indexTableSchema);
                     break;
 
                 case ESecondaryIndexKind::Unfolding:
                     FindUnfoldingColumnAndValidate(
-                        *tableSchema,
-                        *indexTableSchema);
+                        tableSchema,
+                        indexTableSchema);
                     break;
 
                 case ESecondaryIndexKind::Unique:
                     ValidateUniqueIndexSchema(
-                        *tableSchema,
-                        *indexTableSchema);
+                        tableSchema,
+                        indexTableSchema);
                     break;
 
                 default:
@@ -849,7 +856,7 @@ public:
             }
 
             if (predicate) {
-                auto expr = PrepareExpression(*predicate, *tableSchema);
+                auto expr = PrepareExpression(*predicate, tableSchema);
                 THROW_ERROR_EXCEPTION_IF(expr->GetWireType() != EValueType::Boolean,
                     "Expected boolean expression as predicate, got %v",
                     *expr->LogicalType);
@@ -857,22 +864,11 @@ public:
                 TColumnSet predicateColumns;
                 TReferenceHarvester(&predicateColumns).Visit(expr);
 
-                ValidateColumnsAreInIndexLockGroup(predicateColumns, *tableSchema, *indexTableSchema);
-            }
-        };
-
-        if (table->IsNative()) {
-            validate();
-        } else {
-            try {
-                validate();
-            } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Index creation validation failed on the foreign cell");
+                ValidateColumnsAreInIndexLockGroup(predicateColumns, tableSchema, indexTableSchema);
             }
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto secondaryIndexId = objectManager->GenerateId(EObjectType::SecondaryIndex, hintId);
+        auto secondaryIndexId = Bootstrap_->GetObjectManager()->GenerateId(EObjectType::SecondaryIndex, hintId);
 
         auto* secondaryIndex = SecondaryIndexMap_.Insert(
             secondaryIndexId,
@@ -880,14 +876,16 @@ public:
         // A single reference ensures index object is deleted when either primary or index table is deleted.
         YT_VERIFY(secondaryIndex->RefObject() == 1);
         secondaryIndex->SetKind(kind);
-        secondaryIndex->SetTable(table);
-        secondaryIndex->SetIndexTable(indexTable);
+        secondaryIndex->SetTableId(tableId);
+        secondaryIndex->SetIndexTableId(indexTableId);
         secondaryIndex->SetExternalCellTag(table->IsNative()
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
         secondaryIndex->Predicate() = std::move(predicate);
 
-        indexTable->SetIndexTo(secondaryIndex);
+        if (table->IsNative()) {
+            indexTable->SetIndexTo(secondaryIndex);
+        }
         InsertOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
 
         return secondaryIndex;
@@ -2078,6 +2076,14 @@ private:
         Save(context, QueueProducers_);
     }
 
+    void UpdateReplicationCollocationOptions(
+        TTableCollocation* collocation,
+        NTabletClient::TReplicationCollocationOptionsPtr options) override
+    {
+        collocation->ReplicationCollocationOptions() = std::move(options);
+        OnReplicationCollocationCreated(collocation);
+    }
+
     void OnReplicationCollocationCreated(TTableCollocation* collocation)
     {
         std::vector<TTableId> tableIds;
@@ -2091,6 +2097,7 @@ private:
             ReplicationCollocationCreated_.Fire(TTableCollocationData{
                 .Id = collocation->GetId(),
                 .TableIds = std::move(tableIds),
+                .Options = collocation->ReplicationCollocationOptions(),
             });
         }
     }

@@ -26,10 +26,10 @@ struct ICypressCookieStore
 
     //! Returns known cookie for given user with maximum |ExpiresAt|.
     //! If no cookies for user are known, returns |nullptr|.
-    virtual TCypressCookiePtr GetLastCookieForUser(const TString& user) = 0;
+    virtual TCypressCookiePtr GetLastCookieForUser(const std::string& user) = 0;
 
     //! Invalidates last cookie for user.
-    virtual void RemoveLastCookieForUser(const TString& user) = 0;
+    virtual void RemoveLastCookieForUser(const std::string& user) = 0;
 
     //! Registers cookie in Cypress. If registration is successful, also stores
     //! cookie locally.

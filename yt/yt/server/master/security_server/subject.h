@@ -23,7 +23,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
     //! Transitive closure of the set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, RecursiveMemberOf);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Aliases);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<std::string>, Aliases);
 
 
     using TLinkedObjects = THashMap<TObject*, int>;
@@ -36,8 +36,8 @@ public:
     using TObject::TObject;
     explicit TSubject(TSubjectId id);
 
-    TString GetName() const;
-    virtual void SetName(const TString& name);
+    const std::string& GetName() const;
+    virtual void SetName(const std::string& name);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

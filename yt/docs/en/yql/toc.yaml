@@ -96,8 +96,20 @@ items:
          items:
           - name: Overview
             href: udf/list/index.md
+          - name: CatBoost
+            href: udf/list/catboost.md
+          - name: DateTime
+            href: udf/list/datetime.md
+          - name: Digest
+            href: udf/list/digest.md
+          - name: Histogram
+            href: udf/list/histogram.md
           - name: Hyperscan
             href: udf/list/hyperscan.md
+          - name: Ip
+            href: udf/list/ip.md
+          - name: Math
+            href: udf/list/math.md
           - name: Pcre
             href: udf/list/pcre.md
           - name: Pire
@@ -106,22 +118,14 @@ items:
             href: udf/list/re2.md
           - name: String
             href: udf/list/string.md
+          - name: TensorFlow
+            href: udf/list/tensorflow.md
           - name: Unicode
             href: udf/list/unicode.md
-          - name: DateTime
-            href: udf/list/datetime.md
           - name: Url
             href: udf/list/url.md
-          - name: Ip
-            href: udf/list/ip.md
           - name: Yson
             href: udf/list/yson.md
-          - name: Digest
-            href: udf/list/digest.md
-          - name: Math
-            href: udf/list/math.md
-          - name: Histogram
-            href: udf/list/histogram.md
           # - name: H3
           #   href: udf/list/h3.md
           # - name: Streaming

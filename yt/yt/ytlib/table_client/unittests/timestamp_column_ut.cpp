@@ -60,7 +60,7 @@ protected:
     void SetUp() override
     {
         TDataBlockWriter blockWriter;
-        auto timestampWriter = CreateTimestampWriter(&blockWriter);
+        auto timestampWriter = CreateTimestampWriter(&blockWriter, GetNullMemoryUsageTracker());
 
         // Write 3 rows with given timestamp records, split into 2 segments.
         timestampWriter->WriteTimestamps(TRange(CreateSegment1()));

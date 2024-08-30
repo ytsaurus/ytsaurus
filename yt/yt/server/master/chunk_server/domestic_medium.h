@@ -17,6 +17,7 @@ class TDomesticMedium
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
+
     // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
     DEFINE_BYREF_RW_PROPERTY(TDomesticMediumConfigPtr, Config, New<TDomesticMediumConfig>());
 
@@ -29,8 +30,8 @@ public:
 
     bool IsDomestic() const override;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;

@@ -9,7 +9,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
-    create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
+    create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config)
 
@@ -29,6 +29,7 @@ import subprocess
 import time
 import threading
 import builtins
+import json
 from queue import Queue
 
 if arcadia_interop.yatest_common is not None:
@@ -1537,3 +1538,131 @@ class TestJobProfiling(YTEnvSetup):
         for job in jobs:
             assert "has_trace" in job["archive_features"]
             assert job["archive_features"]["has_trace"]
+
+
+class TestJobTraceEvents(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_cuda_profile_event_streaming": True,
+                        "job_trace_event_processor": {
+                            "reporter": {
+                                "reporting_period": 10,
+                                "min_repeat_delay": 10,
+                                "max_repeat_delay": 10,
+                            },
+                            "logging_period": 1,
+                        },
+                    },
+                },
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "cuda_profiler_environment": {
+                "path_environment_variable_name": "CUDA_INJECTION64_PATH",
+                "path_environment_variable_value": "/opt/some/path",
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestJobTraceEvents, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def _start_vanilla_operation(self, profile, should_sleep=True):
+        command = f"""
+            if [[ "$CUDA_INJECTION64_PATH" != "/opt/some/path" ]];
+            then exit 0;
+            fi
+            if [[ "$YT_JOB_PROFILER_SPEC" == *"cuda"* ]];
+            then printf '{profile}' > $YT_CUDA_PROFILER_PATH && printf '{profile}' > $YT_CUDA_PROFILER_PATH
+            fi
+        """
+        if should_sleep:
+            command += "\n sleep 100000"
+
+        spec = {
+            "tasks": {
+                "task": {
+                    "profilers": [{
+                        "binary": "user_job",
+                        "type": "cuda",
+                        "profiling_probability": 1.0,
+                    }],
+                    "job_count": 2,
+                    "command": command,
+                },
+            },
+        }
+
+        return vanilla(track=False, spec=spec)
+
+    @authors("omgronny")
+    def test_no_profiling(self):
+        run_test_vanilla(
+            job_count=2,
+            command="sleep 0",
+            track=True,
+        )
+
+    @authors("omgronny")
+    def test_incorrect_event(self):
+        profiles = [
+            "{\"event\": \"profile\", \"tid\": 1}",
+            "{\"event\": \"profile\", \"ts\": 1.5}",
+            "{\"event\": \"profile\"}",
+            "",
+            "{",
+            "}",
+            "{\"event\": \"profile\", \"ts\": 1.5}, \"tid\": 1}",
+            "{\"event\": \"profile\", \"ts: 1.5, \"tid\": 1}",
+        ]
+
+        for profile in profiles:
+            op = self._start_vanilla_operation(profile, should_sleep=False)
+            op.wait_for_state("completed")
+
+        events = select_rows("* from [//sys/operations_archive/job_trace_events]")
+        assert len(events) == 0
+
+    @authors("omgronny")
+    def test_stream_cuda_profiles(self):
+        profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
+        _ = self._start_vanilla_operation(profile)
+
+        @wait_no_assert
+        def events_are_ready():
+            events = select_rows("* from [//sys/operations_archive/job_trace_events]")
+            assert len(events) == 2 * 2
+
+            for i, event in enumerate(events):
+                event_map = json.loads(event["event"])
+                assert event_map["ts"] == 1.5
+                assert event_map["event"] == "profile"
+                assert event_map["tid"] == 1
+                assert event["event_time"] == 1
+                assert event["event_index"] == (i % 2)

@@ -138,7 +138,7 @@ void SetupClusterConnectionDynamicConfigUpdate(
         policy,
         connection->GetClusterName());
 
-    connection->GetClusterDirectory()->SubscribeOnClusterUpdated(BIND([=] (const TString& clusterName, const INodePtr& configNode) {
+    connection->GetClusterDirectory()->SubscribeOnClusterUpdated(BIND([=] (const std::string& clusterName, const INodePtr& configNode) {
         if (clusterName != connection->GetClusterName()) {
             YT_LOG_DEBUG(
                 "Skipping cluster directory update for unrelated cluster (UpdatedCluster: %v)",

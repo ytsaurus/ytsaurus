@@ -263,7 +263,8 @@ def run_check(yt_client, logger, options, states):
         row["key"] = int(calendar.timegm(dt.timetuple()) * 1000000 + dt.microsecond)
         row["value"] = str(42)
         insert_options = {"raw": False}
-        if not any(replicas[replica_id]["mode"] == "sync" for replica_id in replicas.keys()):
+        has_sync_replicas = any(replicas[replica_id]["mode"] == "sync" for replica_id in replicas.keys())
+        if not has_sync_replicas:
             insert_options["require_sync_replica"] = False
 
         logger.info("Writing a row into replicated table {} of cluster {}".format(replicated_table_path, metacluster))
@@ -306,7 +307,9 @@ def run_check(yt_client, logger, options, states):
                         logger.warning("Encountered NoInSyncReplicas error; will retry")
                         return False
                 raise e
-        wait_for_result(_lookup, "lookup from metacluster")
+
+        if has_sync_replicas:
+            wait_for_result(_lookup, "lookup from metacluster")
 
     def check_replication(index):
         assert is_replica_cluster()

@@ -121,11 +121,13 @@ public:
         int columnId,
         const TColumnSchema& columnSchema,
         TDataBlockWriter* blockWriter,
-        int maxValueCount)
+        int maxValueCount,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
-            blockWriter)
+            blockWriter,
+            std::move(memoryUsageTracker))
         , MaxValueCount_(maxValueCount)
     {
         Reset();
@@ -143,6 +145,14 @@ public:
                 Values_.push_back(data);
                 return std::ssize(Values_) >= MaxValueCount_;
             });
+        MemoryGuard_.SetSize(GetMemoryUsage());
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return GetVectorMemoryUsage(Values_) +
+            DistinctValues_.size() * sizeof(i64) +
+            TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -170,6 +180,7 @@ private:
     {
         TVersionedColumnWriterBase::Reset();
         TIntegerColumnWriterBase::Reset();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     size_t GetDictionarySize() const
@@ -243,26 +254,30 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedInt64ColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<i64>>(
         columnId,
         columnSchema,
         dataBlockWriter,
-        maxValueCount);
+        maxValueCount,
+        std::move(memoryUsageTracker));
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedUint64ColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<ui64>>(
         columnId,
         columnSchema,
         dataBlockWriter,
-        maxValueCount);
+        maxValueCount,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,8 +289,12 @@ class TUnversionedIntegerColumnWriter
     , private TIntegerColumnWriterBase
 {
 public:
-    TUnversionedIntegerColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
-        : TColumnWriterBase(blockWriter)
+    TUnversionedIntegerColumnWriter(
+        int columnIndex,
+        TDataBlockWriter* blockWriter,
+        int maxValueCount,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , ColumnIndex_(columnIndex)
         , MaxValueCount_(maxValueCount)
     {
@@ -290,6 +309,13 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         DoWriteValues(rows);
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return GetVectorMemoryUsage(Values_) +
+            DistinctValues_.size() * sizeof(i64) +
+            NullBitmap_.GetByteSize();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -324,6 +350,7 @@ private:
 
         NullBitmap_ = TBitmapOutput();
         RunCount_ = 0;
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     i32 GetSegmentSize(EUnversionedIntegerSegmentType type) const
@@ -529,6 +556,7 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     template <class TRow>
@@ -565,23 +593,27 @@ private:
 std::unique_ptr<IValueColumnWriter> CreateUnversionedInt64ColumnWriter(
     int columnIndex,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TUnversionedIntegerColumnWriter<i64>>(
         columnIndex,
         dataBlockWriter,
-        maxValueCount);
+        maxValueCount,
+        std::move(memoryUsageTracker));
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedUint64ColumnWriter(
     int columnIndex,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount)
 {
     return std::make_unique<TUnversionedIntegerColumnWriter<ui64>>(
         columnIndex,
         dataBlockWriter,
-        maxValueCount);
+        maxValueCount,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

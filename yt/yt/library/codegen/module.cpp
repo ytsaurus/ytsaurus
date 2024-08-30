@@ -201,7 +201,7 @@ public:
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
-                << TError(TString(what));
+                << TError(std::move(what), TError::DisableFormat);
         }
 
 #if !LLVM_VERSION_GE(3, 9)

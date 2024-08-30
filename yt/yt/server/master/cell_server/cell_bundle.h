@@ -78,8 +78,8 @@ public:
 public:
     explicit TCellBundle(TCellBundleId id);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     void IncreaseActiveTabletActionCount();
     void DecreaseActiveTabletActionCount();

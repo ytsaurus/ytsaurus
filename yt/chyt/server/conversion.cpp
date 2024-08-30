@@ -113,7 +113,7 @@ TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColu
         }
         auto columnKind = columns.get(keyColumnName).default_desc.kind;
         if (columnKind != DB::ColumnDefaultKind::Default) {
-            THROW_ERROR_EXCEPTION("Key column %Qv is not ordinary, actual column kind is %v", toString(columnKind));
+            THROW_ERROR_EXCEPTION("Key column %Qv is not ordinary, actual column kind is %v", keyColumnName, toString(columnKind));
         }
         columnOrder.emplace_back(keyColumnName);
         usedColumns.emplace(keyColumnName);

@@ -120,9 +120,9 @@ public:
 
     explicit TTablet(TTabletId tablet);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;

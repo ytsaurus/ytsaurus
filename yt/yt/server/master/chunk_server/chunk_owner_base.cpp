@@ -381,41 +381,6 @@ bool TChunkOwnerBase::HasDataWeight() const
     return SnapshotStatistics_.IsDataWeightValid() && DeltaStatistics().IsDataWeightValid();
 }
 
-void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
-{
-    TCypressNode::CheckInvariants(bootstrap);
-
-    YT_VERIFY(!IsTrunk() || !IsStatisticsFixNeeded());
-}
-
-void TChunkOwnerBase::FixStatisticsAndAlert()
-{
-    if (!IsStatisticsFixNeeded()) {
-        return;
-    }
-
-    YT_LOG_ALERT("Fixing chunk owner statistics (ChunkOwnerId: %v, SnapshotStatistics: %v, DeltaStatistics: %v)",
-        GetId(),
-        SnapshotStatistics_,
-        DeltaStatistics());
-
-    DoFixStatistics();
-}
-
-bool TChunkOwnerBase::IsStatisticsFixNeeded() const
-{
-    YT_VERIFY(IsTrunk());
-
-    return DeltaStatistics_ && DeltaStatistics() != TChunkOwnerDataStatistics();
-}
-
-void TChunkOwnerBase::DoFixStatistics()
-{
-    // In this specific order.
-    SnapshotStatistics_ = ComputeTotalStatistics();
-    DeltaStatistics_.reset();
-}
-
 TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
 {
     return TCypressNode::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());

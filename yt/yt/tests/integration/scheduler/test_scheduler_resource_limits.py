@@ -12,7 +12,7 @@ from yt_helpers import read_structured_log, write_log_barrier
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import YtError, update_inplace
+from yt.common import YtError, update
 import pytest
 
 import string
@@ -246,7 +246,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
 
     @authors("arkady-e1ppa")
     def test_cumulative_memory_statistics(self):
-        job_count = 5
+        job_count = 2
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
@@ -267,7 +267,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
                 "data_weight_per_job": 1,
                 "mapper": {
-                    "memory_limit": 500 * 10 ** 6,
+                    "memory_limit": 200 * 10 ** 6,
                     "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
                 },
@@ -867,19 +867,21 @@ class TestSchedulerGpu(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["job_resource_manager"]["resource_limits"]["user_slots"] = 4
-            config["job_resource_manager"]["resource_limits"]["cpu"] = 4
-            job_controller_config_patch = {
-                "exec_node": {
-                    "gpu_manager": {
-                        "testing": {
-                            "test_resource": True,
-                            "test_gpu_count": 4,
-                        },
-                    }
+            config["job_resource_manager"] = update(config.get("job_resource_manager"), {
+                "resource_limits": {
+                    "user_slots": 4,
+                    "cpu": 4,
+                },
+            })
+
+            config["exec_node"] = update(config.get("exec_node"), {
+                "gpu_manager": {
+                    "testing": {
+                        "test_resource": True,
+                        "test_gpu_count": 4,
+                    },
                 }
-            }
-            update_inplace(config, job_controller_config_patch)
+            })
 
     def setup_method(self, method):
         super(TestSchedulerGpu, self).setup_method(method)

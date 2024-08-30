@@ -4,13 +4,13 @@
 
 #include <yt/yt/server/controller_agent/public.h>
 
-#include <yt/yt/server/lib/controller_agent/persistence.h>
-
 #include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -47,17 +47,19 @@ class TClusterResolver
 {
 public:
     TClusterResolver() = default;
-    explicit TClusterResolver(NApi::NNative::IClientPtr client);
+    explicit TClusterResolver(const NApi::NNative::IClientPtr& client);
+
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
-    const TString& GetLocalClusterName() const;
+    const std::string& GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
 private:
-    TString LocalClusterName_;
+    std::string LocalClusterName_;
 
-    bool IsLocalClusterName(const TString& name) const;
+    bool IsLocalClusterName(const std::string& name) const;
 };
+
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +80,7 @@ public:
         //             for a job.
         bool forceStartLocalTransaction,
         NTransactionClient::TTransactionId userTransactionId,
-        const TString& authenticatedUser,
+        const std::string& authenticatedUser,
         TControllerAgentConfigPtr config,
         NLogging::TLogger logger);
 
@@ -127,7 +129,7 @@ private:
 
     void ValidateRemoteOperationsAllowed(
         const NScheduler::TClusterName& clusterName,
-        const TString& authenticatedUser,
+        const std::string& authenticatedUser,
         const NYPath::TRichYPath& path) const;
 };
 

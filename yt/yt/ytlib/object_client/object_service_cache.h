@@ -18,7 +18,7 @@ namespace NYT::NObjectClient {
 struct TObjectServiceCacheKey
 {
     TCellTag CellTag;
-    TString User;
+    std::string User;
     NYPath::TYPath Path;
     TString Service;
     TString Method;
@@ -29,7 +29,7 @@ struct TObjectServiceCacheKey
 
     TObjectServiceCacheKey(
         TCellTag cellTag,
-        TString user,
+        const std::string& user,
         NYPath::TYPath path,
         TString service,
         TString method,
@@ -181,7 +181,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
-    using TProfilingCountersKey = std::tuple<TString, TString>;
+    using TProfilingCountersKey = std::tuple<std::string, TString>;
     THashMap<TProfilingCountersKey, TCacheProfilingCountersPtr> KeyToCounters_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExpiredEntriesLock_);
@@ -190,7 +190,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TopEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> TopEntries_;
 
-    TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);
+    TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user, const TString& method);
 
     void MaybeEraseTopEntry(const TObjectServiceCacheKey& key);
 

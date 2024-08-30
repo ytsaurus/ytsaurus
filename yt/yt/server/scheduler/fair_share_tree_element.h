@@ -274,7 +274,7 @@ public:
     //! Fair share update initialization method.
     // At this stage we prepare attributes that need to be computed in the control thread
     // in a thread-unsafe manner.
-    virtual void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context);
+    virtual void InitializeUpdate(TInstant now);
 
     //! PreUpdate method prepares heavy attributes for fair share update in offloaded invoker.
     virtual void PreUpdate(TFairSharePreUpdateContext* context);
@@ -487,7 +487,7 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
 
     //! Pre fair share update methods.
-    void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context) override;
+    void InitializeUpdate(TInstant now) override;
     void PreUpdate(TFairSharePreUpdateContext* context) override;
 
     //! Fair share update methods that implements NVectorHdrf::TCompositeElement interface.
@@ -863,7 +863,7 @@ public:
     void DetachParent();
 
     //! Pre fair share update methods.
-    void InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context) override;
+    void InitializeUpdate(TInstant now) override;
     void PreUpdate(TFairSharePreUpdateContext* context) override;
 
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
@@ -913,6 +913,7 @@ public:
         EAbortReason abortReason,
         TControllerEpoch allocationEpoch);
 
+    TJobResourcesWithQuotaList GetDetailedInitialMinNeededResources() const;
     TJobResources GetAggregatedInitialMinNeededResources() const;
 
     //! Resource tree methods.
@@ -1022,7 +1023,7 @@ public:
 
     //! Pre fair share update methods.
     // Computes various lightweight attributes in the tree. Must be called in control thread.
-    void InitializeFairShareUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context);
+    void InitializeFairShareUpdate(TInstant now);
 
     //! Fair share update methods that implements NVectorHdrf::TRootElement interface.
     double GetSpecifiedBurstRatio() const override;

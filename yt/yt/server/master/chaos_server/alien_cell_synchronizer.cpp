@@ -218,7 +218,7 @@ private:
         return std::vector<TCellId>(seen.begin(), seen.end());
     }
 
-    NNative::IClientPtr GetAlienClusterClient(const TString& clusterName)
+    NNative::IClientPtr GetAlienClusterClient(const std::string& clusterName)
     {
         auto connection = NNative::FindRemoteConnection(Bootstrap_->GetClusterConnection(), clusterName);
         if (!connection) {

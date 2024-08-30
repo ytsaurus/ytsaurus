@@ -6,7 +6,7 @@ from yt_helpers import profiler_factory
 import yt_commands
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, remove,
+    authors, wait, create, ls, get, set, copy, remove, create_secondary_index,
     exists, concatenate,
     remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     lookup_rows, alter_table, write_table, read_table, wait_for_cells,
@@ -245,6 +245,44 @@ def check_dynamic_tables():
     clear_metadata_caches()
     wait_for_cells()
     assert lookup_rows("//tmp/table_dynamic", keys) == rows
+
+
+def check_secondary_indices():
+    table_id = create_dynamic_table(
+        "//tmp/main_table",
+        schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
+    )
+    attributes = {
+        "dynamic": True,
+        "schema": [
+            {"name": "value", "type": "string", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "$empty", "type": "int64"}
+        ]
+    }
+    if exists(f"#{table_id}/@external_cell_tag"):
+        attributes["external_cell_tag"] = get(f"#{table_id}/@external_cell_tag")
+
+    create("table", "//tmp/index_table", attributes=attributes)
+    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync")
+
+    yield
+
+    assert exists(f"#{index_id}")
+    assert get("//tmp/main_table/@secondary_indices") == {
+        index_id: {
+            "index_path": "//tmp/index_table",
+            "kind": "full_sync",
+        }
+    }
+    assert get("//tmp/index_table/@index_to") == {
+        "index_id": index_id,
+        "table_path": "//tmp/main_table",
+        "kind": "full_sync",
+    }
 
 
 def check_chaos_replicated_table():
@@ -638,6 +676,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_performance_counters_refactoring,
     check_account_resource_usage_lease,
     check_queue_agent_objects,
+    check_secondary_indices,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
@@ -651,6 +690,9 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chunk_locations)
 
 # Test for fix of chaos replicated consumers for update from 23.1 to version 23.2, do not run it in compat from 23.2 to trunk.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_queue_agent_objects)
+
+# secondary indices are a feature from 24.1.
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_secondary_indices)
 
 
 class TestMasterSnapshots(YTEnvSetup):

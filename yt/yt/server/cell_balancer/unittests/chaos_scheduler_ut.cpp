@@ -334,7 +334,7 @@ TEST(TChaosCellBundleManagement, TestCreateAreas)
 
     EXPECT_EQ(2, std::ssize(mutations.ForeignChaosAreasToCreate));
 
-    for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
+    for (const std::string& cluster : {"chaos-alpha", "chaos-beta"}) {
         EXPECT_TRUE(mutations.ForeignChaosAreasToCreate[cluster].contains("bigc"));
     }
 }
@@ -374,7 +374,7 @@ TEST(TChaosCellBundleManagement, TestCreateChaosCells)
 
     EXPECT_EQ(2, std::ssize(mutations.ForeignChaosCellsToCreate));
 
-    for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
+    for (const std::string& cluster : {"chaos-alpha", "chaos-beta"}) {
         const auto& cellsToCreate = mutations.ForeignChaosCellsToCreate[cluster];
         EXPECT_EQ(2, std::ssize(cellsToCreate));
 
@@ -403,7 +403,7 @@ TEST(TChaosCellBundleManagement, TestCreateChaosCells)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(2, std::ssize(mutations.ForeignChaosCellsToCreate));
 
-    for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
+    for (const std::string& cluster : {"chaos-alpha", "chaos-beta"}) {
         const auto& cellsToCreate = mutations.ForeignChaosCellsToCreate[cluster];
         EXPECT_EQ(4, std::ssize(cellsToCreate));
 
@@ -455,7 +455,7 @@ TEST(TChaosCellBundleManagement, TestSetMetadataCells)
 
     EXPECT_EQ(2, std::ssize(mutations.ForeignMetadataCellIdsToSet));
 
-    for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
+    for (const std::string& cluster : {"chaos-alpha", "chaos-beta"}) {
         const auto& metadataCellIds = mutations.ForeignMetadataCellIdsToSet[cluster]["bigc"];
         EXPECT_EQ(2, std::ssize(metadataCellIds));
 

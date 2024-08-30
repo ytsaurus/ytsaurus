@@ -62,7 +62,7 @@ void RequestJobInterruption(
 void RequestJobAbort(
     const TJobProberServiceProxy& jobProberProxy,
     TJobId jobId,
-    const TString& user)
+    const std::string& user)
 {
     auto error = TError("Job aborted by user request")
         << TErrorAttribute("abort_reason", NScheduler::EAbortReason::UserRequest)

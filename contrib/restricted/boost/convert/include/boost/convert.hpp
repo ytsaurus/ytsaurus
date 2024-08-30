@@ -38,10 +38,11 @@ namespace boost
 
     namespace cnv
     {
+        using char_cptr = char const*;
+
         template<typename, typename, typename> struct reference;
         struct by_default;
     }
-
     /// @brief Boost.Convert main deployment interface
     /// @param[in] value_in   Value of the TypeIn type to be converted to the TypeOut type
     /// @param[in] converter  Converter to be used for conversion
@@ -63,7 +64,6 @@ namespace boost
         boost::unwrap_ref(converter)(value_in, result);
         return result;
     }
-
     namespace cnv { namespace detail
     {
         template<typename TypeOut, typename TypeIn, typename Converter =boost::cnv::by_default>

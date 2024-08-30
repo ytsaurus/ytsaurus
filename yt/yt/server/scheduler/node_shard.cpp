@@ -454,6 +454,8 @@ void TNodeShard::AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason)
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     GetInvoker()->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -617,7 +619,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_scheduling_skipped(skipScheduleAllocations);
 
-    if (Config_->EnableAllocationAbortOnZeroUserSlots && node->GetResourceLimits().GetUserSlots() == 0) {
+    if (Config_->EnableAllocationAbortOnZeroUserSlots && node->ResourceLimits().GetUserSlots() == 0) {
         // Abort all allocations on node immediately, if it has no user slots.
         // Make a copy, the collection will be modified.
         auto allocations = node->Allocations();
@@ -690,7 +692,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (!skipScheduleAllocations) {
         HeartbeatWithScheduleAllocationsCounter_.Increment();
 
-        node->SetResourceUsage(schedulingContext->ResourceUsage());
+        node->ResourceUsage() = schedulingContext->ResourceUsage();
 
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
         if (statistics.ScheduleWithPreemption) {
@@ -798,7 +800,7 @@ void TNodeShard::RemoveOperationScheduleAllocationEntries(const TOperationId ope
     OperationIdToAllocationIterators_.erase(operationId);
 }
 
-void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
+void TNodeShard::RemoveMissingNodes(const std::vector<std::string>& nodeAddresses)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -806,7 +808,7 @@ void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
         return;
     }
 
-    auto nodeAddressesSet = THashSet<TString>(nodeAddresses.begin(), nodeAddresses.end());
+    auto nodeAddressesSet = THashSet<std::string>(nodeAddresses.begin(), nodeAddresses.end());
 
     std::vector<TExecNodePtr> nodesToUnregister;
     for (const auto& [id, node] : IdToNode_) {
@@ -828,7 +830,7 @@ void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
     }
 }
 
-std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
+std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<std::string, INodePtr>>& nodeMaps)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1005,7 +1007,18 @@ void TNodeShard::AbortOperationAllocations(
     }
 }
 
-void TNodeShard::ResumeOperationAllocations(TOperationId operationId)
+void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
+
+    if (auto* operationState = FindOperationState(operationId)) {
+        operationState->ForbidNewAllocations = true;
+    }
+}
+
+void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1914,21 +1927,25 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
 
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     TotalNodeCount_ -= 1;
-    if (node->GetResourceLimits().GetUserSlots() > 0) {
+    if (node->ResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ -= 1;
     }
 }
 
 void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     TotalNodeCount_ += 1;
 
-    if (node->GetResourceLimits().GetUserSlots() > 0) {
+    if (node->ResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ += 1;
     } else {
         // Check that we successfully reset all resource limits to zero for node with zero user slots.
-        YT_VERIFY(node->GetResourceLimits() == TJobResources());
+        YT_VERIFY(node->ResourceLimits() == TJobResources());
     }
 }
 
@@ -1938,32 +1955,34 @@ void TNodeShard::UpdateNodeResources(
     const TJobResources& usage,
     TDiskResources diskResources)
 {
-    auto oldResourceLimits = node->GetResourceLimits();
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto oldResourceLimits = node->ResourceLimits();
 
     YT_VERIFY(node->GetSchedulerState() == ENodeState::Online);
 
     if (limits.GetUserSlots() > 0) {
-        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
+        if (node->ResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ += 1;
         }
-        node->SetResourceLimits(limits);
-        node->SetResourceUsage(usage);
-        node->SetDiskResources(std::move(diskResources));
+        node->ResourceLimits() = limits;
+        node->ResourceUsage() = usage;
+        node->DiskResources() = std::move(diskResources);
     } else {
-        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
+        if (node->ResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;
         }
-        node->SetResourceLimits({});
-        node->SetResourceUsage({});
+        node->ResourceLimits() = {};
+        node->ResourceUsage() = {};
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
         // Clear cache if node has come with non-zero usage.
-        if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
+        if (oldResourceLimits.GetUserSlots() == 0 && node->ResourceUsage().GetUserSlots() > 0) {
             CachedResourceStatisticsByTags_->Clear();
         }
 
-        if (!Dominates(node->GetResourceLimits(), node->GetResourceUsage())) {
+        if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {
             if (!node->GetResourcesOvercommitStartTime()) {
                 node->SetResourcesOvercommitStartTime(TInstant::Now());
             }
@@ -2400,7 +2419,8 @@ void TNodeShard::UnregisterAllocation(const TAllocationPtr& allocation, bool cau
                 allocation->GetTreeId(),
                 TJobResources(),
                 allocation->GetNode()->NodeDescriptor().GetDataCenter(),
-                allocation->GetNode()->GetInfinibandCluster()};
+                allocation->GetNode()->GetInfinibandCluster(),
+            };
         operationState->AllocationsToSubmitToStrategy.insert(allocationId);
 
         YT_LOG_DEBUG_IF(

@@ -31,6 +31,7 @@
 #include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/library/containers/cri/cri_executor.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -195,7 +196,7 @@ public:
         TJobId /*jobId*/,
         const std::vector<TShellCommandConfigPtr>& /*commands*/,
         const TRootFS& /*rootFS*/,
-        const TString& /*user*/,
+        const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
         int /*startIndex*/) override
     {
@@ -441,12 +442,12 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
+            JobEnvironmentProfiler().WithPrefix("/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
-            ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
-        , ContainerDestroyFailureCounter_(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
+            JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
+        , ContainerDestroyFailureCounter_(JobEnvironmentProfiler().Counter("/container_destroy_failures"))
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
@@ -560,7 +561,7 @@ public:
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
@@ -659,6 +660,8 @@ private:
             "Start destroy subcontainers (RootContainer: %v)",
             rootContainer);
 
+        NProfiling::TWallTimer timer;
+
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
@@ -696,7 +699,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finish destroy subcontainers (RootContainer: %v)", rootContainer);
+        YT_LOG_DEBUG(
+            "Finish destroy subcontainers (RootContainer: %v, TimeElapsed: %v)",
+            rootContainer,
+            timer.GetElapsedTime());
     }
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
@@ -937,7 +943,7 @@ private:
         ESlotType slotType,
         TJobId jobId,
         const TRootFS& rootFS,
-        const TString& user,
+        const std::string& user,
         int index)
     {
         auto launcher = CreatePortoInstanceLauncher(
@@ -972,10 +978,13 @@ class TCriJobEnvironment
 public:
     TCriJobEnvironment(
         TCriJobEnvironmentConfigPtr config,
-        IBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        ICriExecutorPtr executor,
+        ICriImageCachePtr imageCache)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
-        , Executor_(CreateCriExecutor(Config_->CriExecutor))
+        , Executor_(std::move(executor))
+        , ImageCache_(std::move(imageCache))
     { }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1000,6 +1009,9 @@ public:
         auto tmpPodDescriptor = WaitFor(Executor_->RunPodSandbox(tmpPodSpec)).ValueOrThrow();
         WaitFor(Executor_->StopPodSandbox(tmpPodDescriptor)).ThrowOnError();
         WaitFor(Executor_->RemovePodSandbox(tmpPodDescriptor)).ThrowOnError();
+
+        WaitFor(ImageCache_->Initialize())
+            .ThrowOnError();
 
         WaitFor(Executor_->PullImage(TCriImageDescriptor{
             .Image = Config_->JobProxyImage,
@@ -1082,7 +1094,7 @@ public:
             invoker,
             std::move(context),
             directoryManager,
-            Executor_);
+            ImageCache_);
     }
 
 private:
@@ -1091,6 +1103,7 @@ private:
 
     const TCriJobEnvironmentConfigPtr Config_;
     const ICriExecutorPtr Executor_;
+    const ICriImageCachePtr ImageCache_;
 
     std::vector<TCriPodDescriptor> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
@@ -1288,9 +1301,13 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstr
 
         case EJobEnvironmentType::Cri: {
             auto criConfig = ConvertTo<TCriJobEnvironmentConfigPtr>(configNode);
+            auto executor = CreateCriExecutor(criConfig->CriExecutor);
+            auto imageCache = CreateCriImageCache(criConfig->CriImageCache, executor);
             return New<TCriJobEnvironment>(
                 criConfig,
-                bootstrap);
+                bootstrap,
+                std::move(executor),
+                std::move(imageCache));
         }
 
         default:

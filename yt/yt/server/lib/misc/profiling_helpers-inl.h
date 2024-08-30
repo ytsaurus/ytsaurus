@@ -10,12 +10,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE std::optional<TString> GetCurrentProfilingUser()
+Y_FORCE_INLINE std::optional<std::string> GetCurrentProfilingUser()
 {
     return GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());
 }
 
-Y_FORCE_INLINE std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity)
+Y_FORCE_INLINE std::optional<std::string> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity)
 {
     if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
         return {};

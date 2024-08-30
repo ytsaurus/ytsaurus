@@ -1,1 +1,1 @@
-{% include [Транзакции](../../_includes/user-guide/storage/transactions.md) %}
+{% include [Transactions](../../_includes/user-guide/storage/transactions.md) %}

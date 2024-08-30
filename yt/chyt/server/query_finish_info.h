@@ -13,7 +13,8 @@ namespace NYT::NClickHouseServer {
 struct TQueryFinishInfo
 {
     TStatistics Statistics;
-    std::vector<TQueryId> SecondaryQueryIds;;
+    NYTree::IAttributeDictionaryPtr RuntimeVariables;
+    std::vector<TQueryId> SecondaryQueryIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

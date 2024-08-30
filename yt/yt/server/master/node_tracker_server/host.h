@@ -19,16 +19,16 @@ class THost
     , public TRefTracked<THost>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack, nullptr);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
 
 public:
     using TObject::TObject;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

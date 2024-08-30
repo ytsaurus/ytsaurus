@@ -12,7 +12,7 @@ struct IAlienCellPeerChannelFactory
     : public virtual TRefCounted
 {
     virtual NRpc::IChannelPtr CreateChannel(
-        const TString& cluster,
+        const std::string& cluster,
         TCellId cellId,
         int peerId) = 0;
 };

@@ -11,10 +11,10 @@ void SwitchLeader(
     const std::vector<NRpc::IChannelPtr>& peerChannels,
     const NRpc::IChannelPtr& currentLeaderChannel,
     const NRpc::IChannelPtr& newLeaderChannel,
-    const std::vector<TString>& addresses,
-    const TString& newLeaderAddress,
+    const std::vector<std::string>& addresses,
+    const std::string& newLeaderAddress,
     const std::optional<TDuration>& timeout,
-    const std::optional<TString>& user);
+    const std::optional<std::string>& user);
 
 ////////////////////////////////////////////////////////////////////////////////
 

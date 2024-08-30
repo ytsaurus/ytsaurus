@@ -31,6 +31,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSystemBlockMetaExt, 65)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TVersionedRowDigestExt, 66)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnGroupInfosExt, 67)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TCompressionDictionaryExt, 68)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TLargeColumnarStatisticsExt, 69)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,14 +74,14 @@ std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     std::optional<int> keyColumnCount = std::nullopt);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 bool FindBoundaryKeyBounds(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     TOwningKeyBound* lowerBound,
     TOwningKeyBound* upperBound);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TCachedBlockMeta
     : public TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>

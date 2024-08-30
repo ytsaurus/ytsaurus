@@ -17,6 +17,12 @@ DEFINE_ENUM(EPoolKind,
     (Sorted)
 );
 
+DEFINE_ENUM(EReadInOrderMode,
+    (None)
+    (Forward)
+    (Backward)
+);
+
 struct TQueryAnalysisResult
 {
     std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
@@ -24,6 +30,7 @@ struct TQueryAnalysisResult
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
+    EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
 };
 
 struct TSecondaryQuery
@@ -56,6 +63,9 @@ public:
 
     //! Prepare method should be called before GetOptimizedQueryProcessingStage.
     DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
+
+    //! Prepare method should be called before GetReadInOrderMode.
+    EReadInOrderMode GetReadInOrderMode() const;
 
     //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
@@ -92,6 +102,8 @@ private:
 
     std::optional<DB::QueryProcessingStage::Enum> OptimizedQueryProcessingStage_;
 
+    EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
+
     std::vector<DB::ASTPtr> JoinKeyRightExpressions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
@@ -104,6 +116,8 @@ private:
     void InferSortedJoinKeyColumns(bool needSortedPool);
 
     void OptimizeQueryProcessingStage();
+
+    void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
     IStorageDistributorPtr GetStorage(const DB::ASTTableExpression* tableExpression) const;
 

@@ -4672,6 +4672,16 @@ class TestAccountsProfiling(YTEnvSetup):
         wait(lambda: is_active_primary_master_leader(old_leader_rpc_address))
         wait(lambda: is_active_primary_master_follower(new_leader_rpc_address))
 
+    def _check_profiling_totality(self, all_accounts, profilers, gauge_name):
+        profiled_accounts = []
+        for profiler in profilers:
+            values = profiler.gauge(gauge_name).get_all()
+            for value in values:
+                account = value['tags'].get('account')
+                if account is not None:
+                    profiled_accounts.append(account)
+        return sorted(profiled_accounts) == sorted(all_accounts)
+
     @authors("h0pless")
     def test_account_profiling_buckets(self):
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
@@ -4759,3 +4769,47 @@ class TestAccountsProfiling(YTEnvSetup):
             self._check_profiler_values(follower_profiler, gauge_name, False)
         for profiler in secondary_profilers:
             self._check_profiler_values(profiler, gauge_name, False)
+
+    @authors("kazachonok")
+    def test_accounts_profiling2(self):
+        # Testing that every existing account is profiled by someone, and that all profiled accounts exist
+
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", True)
+        set("//sys/@config/security_manager/accounts_profiling_period", 1)
+
+        # Only builtin accounts are profiled at first
+        accounts = ls("//sys/accounts")
+        self.current_account_index = 1
+
+        def create_new_account():
+            name = "max_" + str(self.current_account_index)
+            accounts.append(name)
+            create_account(name)
+            self.current_account_index += 1
+
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+
+        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
+
+        profilers = [leader_profiler] + follower_profilers
+
+        gauge_name = "accounts/chunk_count"
+
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)
+
+        for i in range(10):
+            create_new_account()
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)
+
+        for i in range(5):
+            remove_account(accounts[-1])
+            del accounts[-1]
+
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=10)
+
+        for i in range(10):
+            create_new_account()
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)

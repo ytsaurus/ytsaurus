@@ -2,6 +2,7 @@
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/query_common.h>
 
 namespace NYT::NOrm::NQuery {
 
@@ -130,7 +131,7 @@ private:
         if (Visit(expression)) {
             if (ReverseSign_) {
                 SubTrees_.push_back(Holder_->New<TUnaryOpExpression>(
-                    NQueryClient::NullSourceLocation,
+                    NQueryClient::TSourceLocation(),
                     NQueryClient::EUnaryOp::Not,
                     expression));
             } else {

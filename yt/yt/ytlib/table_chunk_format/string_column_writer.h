@@ -12,18 +12,21 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,18 +35,21 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////

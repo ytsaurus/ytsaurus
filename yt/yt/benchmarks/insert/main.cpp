@@ -80,7 +80,7 @@ class TTestConfig
     : public TYsonStructLite
 {
 public:
-    TString User;
+    std::string User;
     TString Token;
     TString Table;
 
@@ -556,7 +556,7 @@ private:
     {
         IClientPtr client;
         auto clientOptions = NApi::TClientOptions();
-        if (Config_.User) {
+        if (!Config_.User.empty()) {
             clientOptions.User = Config_.User;
         }
         if (Config_.Token) {

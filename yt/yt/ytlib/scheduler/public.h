@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/library/vector_hdrf/public.h>
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
@@ -162,7 +164,7 @@ using TJobShellOptionsMap = THashMap<
     TString,
     TOperationJobShellRuntimeParametersPtr>;
 
-using TJobShellOptionsUpdeteMap = THashMap<
+using TJobShellOptionsUpdateMap = THashMap<
     TString,
     std::optional<TOperationJobShellRuntimeParametersPtr>>;
 
@@ -173,8 +175,9 @@ class TOperationServiceProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): switch to std::string
 inline const TString RootPoolName("<Root>");
-inline const TString PoolTreesRootCypressPath("//sys/pool_trees");
+inline const NYPath::TYPath PoolTreesRootCypressPath("//sys/pool_trees");
 
 ////////////////////////////////////////////////////////////////////////////////
 

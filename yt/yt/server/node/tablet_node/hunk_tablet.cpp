@@ -264,7 +264,7 @@ void THunkTablet::OnStopLeading()
 
     auto error = TError(
         NRpc::EErrorCode::Unavailable,
-        "Tablet cell stopped leading",
+        "Tablet cell %v stopped leading",
         Id_);
     ActiveStorePromise_.TrySet(error);
     RenewPromise(error);

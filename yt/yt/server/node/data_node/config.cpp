@@ -444,6 +444,8 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("delay_before_full_heartbeat_report", &TThis::DelayBeforeFullHeartbeatReport)
+        .Default();
 
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default({
@@ -519,6 +521,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         .Default(0.75);
 
     registrar.Parameter("delay_before_blob_session_block_free", &TThis::DelayBeforeBlobSessionBlockFree)
+        .Default();
+
+    registrar.Parameter("chunk_cancellation_delay", &TThis::ChunkCancellationDelay)
         .Default();
 
     registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
@@ -598,6 +603,9 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
 
+    registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         // Disable target allocation from master.
         config->Writer->UploadReplicationFactor = 1;
@@ -628,6 +636,8 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("writer", &TThis::Writer)
         .DefaultNew();
 
+    registrar.Parameter("track_writer_memory", &TThis::TrackWriterMemory)
+        .Default(false);
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
 

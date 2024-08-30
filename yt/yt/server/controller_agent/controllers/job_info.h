@@ -12,9 +12,9 @@
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/core/misc/statistics.h>
 
@@ -176,6 +176,8 @@ struct TJoblet
 
     // Used for restarting jobs in gang vanilla operations.
     TString OperationIncarnation;
+
+    std::optional<TDuration> ArchiveTtl;
 
     // Used only for persistence.
     TJoblet() = default;

@@ -53,7 +53,7 @@ TEST(TSchemalessColumnTest, Simple)
         });
 
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateSchemalessColumnWriter(0, &blockWriter);
+    auto columnWriter = CreateSchemalessColumnWriter(0, &blockWriter, GetNullMemoryUsageTracker());
 
     // Make two separate writes.
     columnWriter->WriteUnversionedValues(TRange(expected.data(), 2));

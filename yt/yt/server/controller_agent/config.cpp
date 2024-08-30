@@ -672,7 +672,13 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("chunk_location_throttler", &TThis::ChunkLocationThrottler)
-        .DefaultNew();
+        .DefaultCtor([] {
+            // NB(coteeq): Controller will flood itself with
+            // OnChunkLocated calls if throttler is unlimited.
+            auto config = New<NConcurrency::TThroughputThrottlerConfig>();
+            config->Limit = 5'000;
+            return config;
+        });
 
     registrar.Parameter("event_log", &TThis::EventLog)
         .DefaultCtor([] {
@@ -1166,6 +1172,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
 
+    registrar.Parameter("enable_job_archive_ttl", &TThis::EnableJobArchiveTtl)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
@@ -1207,7 +1216,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
             for (auto metricName : TEnumTraits<NScheduler::EJobMetricName>::GetDomainValues()) {
                 if (FormatEnum(metricName) == profilingName) {
-                    THROW_ERROR_EXCEPTION("Custom job metric with profiling name $Qv is already presented as builtin metric",
+                    THROW_ERROR_EXCEPTION(
+                        "Custom job metric with profiling name %Qv is already presented as builtin metric",
                         profilingName);
                 }
             }

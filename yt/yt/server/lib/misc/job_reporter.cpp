@@ -92,7 +92,8 @@ public:
             .StartTime = Report_.StartTime(),
             .FinishTime = Report_.FinishTime(),
             .UpdateTime = TInstant::Now().MicroSeconds(),
-            .Address = Report_.Address(),
+            // TODO(babenko): switch to std::string
+            .Address = Report_.Address() ? TString(*Report_.Address()) : std::optional<std::string>(),
             .StderrSize = Report_.StderrSize(),
             .HasCompetitors = Report_.HasCompetitors(),
             .HasProbingCompetitors = Report_.HasProbingCompetitors(),
@@ -152,6 +153,10 @@ public:
         // COMPAT(omgronny)
         if (archiveVersion >= 51 && Report_.ArchiveFeatures()) {
             record.ArchiveFeatures = TYsonString(*Report_.ArchiveFeatures());
+        }
+        // COMPAT(omgronny)
+        if (archiveVersion >= 53 && Report_.Ttl()) {
+            record.Ttl = Report_.Ttl()->MilliSeconds();
         }
 
         return FromRecord(record);

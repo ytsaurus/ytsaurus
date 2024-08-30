@@ -16,7 +16,7 @@ using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TAccessControlObjectNamespaceTypeHandler
     : public TObjectTypeHandlerWithMapBase<TAccessControlObjectNamespace>

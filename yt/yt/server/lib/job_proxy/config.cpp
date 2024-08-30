@@ -103,6 +103,17 @@ void TBindConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobTraceEventProcessorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reporter", &TThis::Reporter)
+        .DefaultNew();
+
+    registrar.Parameter("logging_period", &TThis::LoggingInterval)
+        .Default(100);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
@@ -266,6 +277,17 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
         .DefaultNew();
 
+    registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
+        .Default(false);
+
+    registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
+        .DefaultNew();
+
+    registrar.Parameter("operations_archive_version", &TThis::OperationsArchiveVersion)
+        .Default();
+    registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
+        .Default(TDuration::Seconds(30));
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -308,6 +330,12 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
         .Default(false);
 
+    registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
+        .Default(false);
+
+    registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
+        .DefaultNew();
+
     registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
         .DefaultCtor([] {
             auto config = New<NRpc::TRetryingChannelConfig>();
@@ -315,6 +343,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
             config->RetryAttempts = 10;
             return config;
         });
+
+    registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

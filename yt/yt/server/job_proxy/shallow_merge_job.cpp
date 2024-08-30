@@ -47,6 +47,9 @@ using namespace NTableClient::NProto;
 using namespace NTracing;
 using namespace NCompression;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = JobProxyLogger;

@@ -45,7 +45,7 @@ struct TAccessControlEntry
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
     std::optional<TBooleanFormula> SubjectTagFilter;
-    std::optional<std::vector<TString>> Columns;
+    std::optional<std::vector<std::string>> Columns;
     std::optional<bool> Vital;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -74,7 +74,7 @@ TAccessControlList DeserializeAclOrThrow(
     const NYTree::INodePtr& node,
     const ISecurityManagerPtr& securityManager);
 
-std::pair<TAccessControlList, std::vector<TString>>
+std::pair<TAccessControlList, std::vector<std::string>>
 DeserializeAclGatherMissingSubjectsOrThrow(
     const NYTree::INodePtr& node,
     const ISecurityManagerPtr& securityManager);

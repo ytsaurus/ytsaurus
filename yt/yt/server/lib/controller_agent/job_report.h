@@ -14,8 +14,9 @@ public:
     TControllerJobReport JobId(TJobId jobId);
     TControllerJobReport HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType);
     TControllerJobReport JobCookie(ui64 jobCookie);
-    TControllerJobReport Address(std::optional<TString> address);
+    TControllerJobReport Address(std::optional<std::string> address);
     TControllerJobReport ControllerState(EJobState controllerState);
+    TControllerJobReport Ttl(std::optional<TDuration> ttl);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -562,48 +562,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
-    @authors("akozhikhov")
-    def test_reconfigure_reader_upon_remount(self):
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@chunk_reader", {"prefer_local_replicas": False})
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": str(i)} for i in range(0, 10)]
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        def _check(local_cache):
-            bytes_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/chunk_reader_statistics/data_bytes_transmitted")
-            row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/row_count")
-
-            assert_items_equal(
-                lookup_rows("//tmp/t", [{"key": i} for i in range(0, 10)]),
-                rows)
-
-            wait(lambda: row_count.get_delta() > 0)
-
-            if local_cache:
-                return bytes_transmitted.get_delta() == 0
-            else:
-                wait(lambda: bytes_transmitted.get_delta() > 0)
-                return True
-
-        assert _check(False)
-        assert _check(True)
-
-        set("//tmp/t/@chunk_reader", {
-            "use_block_cache": False,
-            "use_uncompressed_block_cache": False,
-            "prefer_local_replicas": False,
-        })
-        remount_table("//tmp/t")
-
-        wait(lambda: _check(False))
-        assert _check(False)
-
     @authors("ifsmirnov")
     def test_lookup_from_multiple_nodes(self):
         cells_per_node = 4
@@ -1361,6 +1319,8 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 
 
 class TestLookupCache(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
             "timestamp_provider": {
@@ -1797,7 +1757,6 @@ class TestLookupRpcProxy(TestLookup):
 
         keys = [{"key": i} for i in range(100)]
         rows = [{"key": i, "value": str(i)} for i in range(100)]
-        empty_result = [yson.YsonEntity() for i in range(100)]
 
         insert_rows("//tmp/t", rows)
         assert lookup_rows("//tmp/t", keys, timeout=1000) == rows
@@ -1819,4 +1778,48 @@ class TestLookupRpcProxy(TestLookup):
         assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == rows
 
         _set_timeout_slack_options(1000)
-        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == empty_result
+        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True,) == []
+
+################################################################################
+
+
+class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "enable_fair_throttler": False,
+        "query_agent":  {
+            "account_user_backend_out_traffic": True,
+        }
+    }
+
+    @authors("capone212")
+    def test_lookup_repeated_keys(self):
+        update_nodes_dynamic_config({
+            "query_agent" : {
+                "account_user_backend_out_traffic" : True,
+            }
+        })
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        keys = [{"key": i % 2} for i in range(10)]
+        expected = [{"key": i % 2, "value": str(i % 2)} for i in range(10)]
+        assert lookup_rows("//tmp/t", keys) == expected
+
+        expected = [{"value": str(i % 2)} for i in range(10)]
+        assert lookup_rows("//tmp/t", keys, column_names=["value"]) == expected
+
+################################################################################
+
+
+class TestLookupOutThrottlingFairThrottler(TestLookupOutThrottlingLegacyThrottler):
+    DELTA_NODE_CONFIG = {
+        "enable_fair_throttler": True,
+        "query_agent":  {
+            "account_user_backend_out_traffic": True,
+        }
+    }

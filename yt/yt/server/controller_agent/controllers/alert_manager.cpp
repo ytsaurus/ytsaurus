@@ -148,7 +148,7 @@ private:
 
         TError error;
         if (!errors.empty()) {
-            error = TError(message) << errors;
+            error = TError(TRuntimeFormat(message)) << errors;
         }
 
         Host_->SetOperationAlert(alertType, error);
@@ -428,7 +428,7 @@ private:
                 FormatEnum(jobType));
 
             if (value > 0) {
-                innerErrors.emplace_back("Detected excessive disk IO in %Qlv jobs", jobType);
+                innerErrors.push_back(TError("Detected excessive disk IO in %Qlv jobs", jobType));
             }
         }
 

@@ -157,7 +157,7 @@ public:
     //! specification of experiment overrides in operation spec.
     std::vector<TErrorOr<TExperimentAssignmentPtr>> Assign(
         EOperationType operationType,
-        const TString& user,
+        const std::string& user,
         const NYTree::IMapNodePtr& specNode) const;
 
     class TAssignmentContext;
@@ -171,14 +171,14 @@ public:
     class TAssignmentContext
     {
     public:
-        TAssignmentContext(EOperationType type, TString user, NYTree::IMapNodePtr spec);
+        TAssignmentContext(EOperationType type, const std::string& user, NYTree::IMapNodePtr spec);
 
         const NYson::TYsonString& GetAttributesAsYson();
 
     private:
-        EOperationType Type_;
-        TString User_;
-        NYTree::IMapNodePtr Spec_;
+        const EOperationType Type_;
+        const std::string User_;
+        const NYTree::IMapNodePtr Spec_;
 
         NYson::TYsonString AttributesAsYson_;
     };

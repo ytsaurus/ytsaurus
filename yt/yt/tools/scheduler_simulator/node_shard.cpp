@@ -107,9 +107,9 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         event.NodeId,
         node->GetDefaultAddress(),
         NScheduler::FormatResourceUsage(
-            TJobResources(node->GetResourceUsage()),
-            TJobResources(node->GetResourceLimits())),
-        node->GetDiskResources(),
+            TJobResources(node->ResourceUsage()),
+            TJobResources(node->ResourceLimits())),
+        node->DiskResources(),
         node->Allocations().size());
 
     // Prepare scheduling context.
@@ -129,7 +129,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, /*skipScheduleJobs*/ false))
         .ThrowOnError();
 
-    node->SetResourceUsage(schedulingContext->ResourceUsage());
+    node->ResourceUsage() = schedulingContext->ResourceUsage();
 
     // Create events for all started jobs.
     for (const auto& allocation : schedulingContext->StartedAllocations()) {
@@ -280,7 +280,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 
     const auto& node = IdToNode_[event.NodeId];
     YT_VERIFY(node == event.AllocationNode);
-    node->SetResourceUsage(node->GetResourceUsage() - allocation->ResourceUsage());
+    node->ResourceUsage() = node->ResourceUsage() - allocation->ResourceUsage();
 
     if (operation->GetState() == EOperationState::Completed && operation->SetCompleting()) {
         // Notify scheduler.

@@ -607,11 +607,11 @@ TCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
     return cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
 }
 
-std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cellId)
+std::vector<std::string> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     if (cellDirectory->IsCellRegistered(cellId)) {
-        std::vector<TString> addresses;
+        std::vector<std::string> addresses;
         auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
         for (const auto& peerDescriptor : cellDescriptor->Peers) {
             addresses.push_back(peerDescriptor.GetDefaultAddress());
@@ -639,7 +639,7 @@ NApi::IClientPtr TClient::CreateRootClient()
 
 void TClient::ValidateSuperuserPermissions()
 {
-    if (Options_.User == RootUserName) {
+    if (!Options_.User || Options_.User == RootUserName) {
         return;
     }
 
@@ -807,10 +807,10 @@ TClusterMeta TClient::DoGetClusterMeta(
         meta.MediumDirectory->Swap(masterRsp->mutable_medium_directory());
     }
     if (options.PopulateMasterCacheNodeAddresses) {
-        meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(masterRsp->master_cache_node_addresses());
+        meta.MasterCacheNodeAddresses = FromProto<std::vector<std::string>>(masterRsp->master_cache_node_addresses());
     }
     if (options.PopulateTimestampProviderAddresses) {
-        meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(masterRsp->timestamp_provider_node_addresses());
+        meta.TimestampProviderAddresses = FromProto<std::vector<std::string>>(masterRsp->timestamp_provider_node_addresses());
     }
     if (options.PopulateFeatures) {
         if (masterRsp->has_features()) {

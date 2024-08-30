@@ -106,7 +106,7 @@ std::unique_ptr<IReducer> CreateFromProto(
     const TTable& input,
     const NProto::TReducer& operationProto);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TTable CreateTableFromMapOperation(const IMultiMapper& op);
 TTable CreateTableFromReduceOperation(

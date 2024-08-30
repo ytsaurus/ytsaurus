@@ -157,7 +157,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         getBasicAttributesContext.Permission = CheckedEnumCast<EPermission>(request->permission());
     }
     if (request->has_columns()) {
-        getBasicAttributesContext.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        getBasicAttributesContext.Columns = FromProto<std::vector<std::string>>(request->columns().items());
     }
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
@@ -863,7 +863,7 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/)
 {
     YT_VERIFY(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);

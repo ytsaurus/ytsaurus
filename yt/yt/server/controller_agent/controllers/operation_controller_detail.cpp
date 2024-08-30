@@ -74,6 +74,7 @@
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
@@ -871,7 +872,7 @@ bool TOperationControllerBase::NeedEraseOffloadingTrees() const
     return !userJobSpecs.empty() && !hasJobsAllowedForOffloading;
 }
 
-void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
+void TOperationControllerBase::ValidateIntermediateDataAccess(const std::string& user, EPermission permission) const
 {
     // Permission for IntermediateData can be only Read.
     YT_VERIFY(permission == EPermission::Read);
@@ -3705,7 +3706,8 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
             };
 
             auto userClosure = GetSubjectClosure(
-                AuthenticatedUser,
+                // TODO(babenko): switch to std::string
+                TString(AuthenticatedUser),
                 proxy,
                 client->GetNativeConnection(),
                 readOptions);
@@ -4434,7 +4436,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
         }
         auto errorMessage = errorMessageBuilder.Flush();
-        DoFailOperation(TError(errorMessage));
+        DoFailOperation(TError(std::move(errorMessage), TError::DisableFormat));
         return;
     }
 
@@ -4669,6 +4671,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     if (Spec_->EnableCodegenComparator) {
         jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
     }
+
+    jobSpecExt->set_allow_use_virtual_squashfs_layer(Spec_->AllowUseVirtualSquashFsLayer);
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -5777,7 +5781,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            suppressionErrors.emplace_back("Output table %v is dynamic", table->Path);
+            suppressionErrors.push_back(TError("Output table %v is dynamic", table->Path));
             break;
         }
     }
@@ -5786,9 +5790,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         if (table->ExternalCellTag == connection->GetPrimaryMasterCellTag() &&
             !connection->GetSecondaryMasterCellTags().empty())
         {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Output table %v is non-external and cluster is multicell",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5796,9 +5800,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     // TODO(ifsmirnov): YT-11498. This is not the suppression you are looking for.
     for (const auto& table : InputManager->GetInputTables()) {
         if (table->Schema->HasNontrivialSchemaModification()) {
-            suppressionErrors.emplace_back(
+            suppressionErrors.push_back(TError(
                 "Input table %v has non-trivial schema modification",
-                table->Path);
+                table->Path));
             break;
         }
     }
@@ -5813,7 +5817,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
             NRe2::StringPiece(AuthenticatedUser.data()),
             *Config->LegacyLivePreviewUserBlacklist))
         {
-            suppressionErrors.emplace_back(TError(
+            suppressionErrors.push_back(TError(
                 "User %Qv belongs to legacy live preview suppression blacklist; in order "
                 "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
@@ -5824,7 +5828,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     }
 
     if (IntermediateOutputCellTagList.size() != 1 && IsLegacyIntermediateLivePreviewSupported() && suppressionErrors.empty()) {
-        suppressionErrors.emplace_back(TError(
+        suppressionErrors.push_back(TError(
             "Legacy live preview appears to have been disabled in the controller agents config when the operation started"));
     }
 
@@ -6218,7 +6222,6 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     MaxTimestamp)
                     << TErrorAttribute("output_timestamp", outputTimestamp)
                     << TErrorAttribute("table_path", path);
-
             }
 
             table->Timestamp = outputTimestamp;
@@ -7120,7 +7123,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 {
                     const auto& rspOrError = getAttributesRspsOrError[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file ", path);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %v", path);
                     const auto& rsp = rspOrError.Value();
                     const auto& linkRsp = getLinkAttributesRspsOrError[index];
                     index++;
@@ -7345,11 +7348,14 @@ void TOperationControllerBase::ParseInputQuery(
     };
 
     // Use query column filter for input tables.
+    bool allowTimestampColumns = false;
     for (auto table : InputManager->GetInputTables()) {
         auto columns = getColumns(*query->GetReadSchema(), *table->Schema);
         if (columns) {
             table->Path.SetColumns(*columns);
         }
+
+        allowTimestampColumns |= table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
     }
 
     InputQuery.emplace();
@@ -7360,7 +7366,8 @@ void TOperationControllerBase::ParseInputQuery(
     ValidateTableSchema(
         *InputQuery->Query->GetTableSchema(),
         /*isTableDynamic*/ false,
-        /*allowUnversionedUpdateColumns*/ true);
+        /*allowUnversionedUpdateColumns*/ true,
+        allowTimestampColumns);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)
@@ -8128,7 +8135,7 @@ void TOperationControllerBase::AttachToLivePreview(
         return;
     }
 
-    if (auto livePreview = LivePreviews_->find(tableName); livePreview != LivePreviews_->end()) {
+    if (LivePreviews_->contains(tableName)) {
         InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
     }
 }
@@ -9451,7 +9458,7 @@ TInstant TOperationControllerBase::GetStartTime() const
     return StartTime_;
 }
 
-const TString& TOperationControllerBase::GetAuthenticatedUser() const
+const std::string& TOperationControllerBase::GetAuthenticatedUser() const
 {
     return AuthenticatedUser;
 }
@@ -9691,6 +9698,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (jobSpecConfig->Monitoring->Enable) {
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
+    }
+
+    if (Config->EnableJobArchiveTtl && jobSpecConfig->ArchiveTtl) {
+        jobSpec->set_archive_ttl(ToProto<i64>(*jobSpecConfig->ArchiveTtl));
     }
 
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
@@ -10688,7 +10699,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
         jobReport
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .Address(joblet->NodeDescriptor.Address));
+            .Address(joblet->NodeDescriptor.Address)
+            .Ttl(joblet->ArchiveTtl));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

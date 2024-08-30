@@ -23,6 +23,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/async_stream.h>
 
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <algorithm>
@@ -43,6 +45,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NLogging::TLogger Logger("UserJobReadController");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJobReadController
     : public IUserJobReadController
 {
@@ -52,17 +58,27 @@ public:
         IInvokerPtr invoker,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
-        std::optional<TString> udfDirectory)
+        std::optional<TString> udfDirectory,
+        TDuration threshold)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
-        , OnNetworkRelease_(onNetworkRelease)
-        , UserJobIOFactory_(userJobIOFactory)
+        , OnNetworkRelease_(std::move(onNetworkRelease))
+        , UserJobIOFactory_(std::move(userJobIOFactory))
         , UdfDirectory_(std::move(udfDirectory))
-    { }
+        , Guesser_(
+            JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
+                ? threshold
+                : TDuration::Zero(),
+            JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
+    {
+        YT_LOG_DEBUG("Guesser Threshold: %v, UseAdaptiveRowCount: %v", threshold, JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount);
+    }
 
     //! Returns closure that launches data transfer to given async output.
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput, bool enableContextSaving) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
+        YT_LOG_DEBUG("PrepareJobInputTransfer (GuesserEnabled: %v)", Guesser_.IsEnabled());
+
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
         const auto& userJobSpec = jobSpecExt.user_job_spec();
@@ -71,10 +87,16 @@ public:
         auto enableRowFilter = jobSpecExt.input_query_spec().options().enable_row_filter();
 
         if (jobSpecExt.has_input_query_spec() && enableRowFilter) {
-            return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput, enableContextSaving);
-        } else {
-            return PrepareInputActionsPassthrough(format, asyncOutput, enableContextSaving);
+            YT_LOG_DEBUG("Selected PrepareInputActionsQuery");
+            return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput);
         }
+
+        YT_LOG_DEBUG(
+            "Selected PrepareInputActionsPassthrough (InputQuerySpec: %v, EnableRowFilter: %v)",
+            jobSpecExt.has_input_query_spec(),
+            enableRowFilter);
+
+        return PrepareInputActionsPassthrough(format, asyncOutput);
     }
 
     double GetProgress() const override
@@ -180,6 +202,16 @@ public:
         }
     }
 
+    i64 CurrentBufferRowCount() const override
+    {
+        return WaitFor(BIND([this_ = MakeStrong(this), this] {
+            return Guesser_.CurrentGuess();
+        })
+            .AsyncVia(SerializedInvoker_)
+            .Run())
+            .ValueOrThrow();
+    }
+
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
@@ -192,12 +224,82 @@ private:
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
 
+    // Jobs have interruption timeout
+    // known here as |Threshold_|.
+    // We want to process as much rows per batch
+    // as possible while taking less time than
+    // the value of |Threshold_|.
+    class TOptimalRowCountGuesser
+    {
+    public:
+        TOptimalRowCountGuesser(TDuration threshold, i64 currentGuess)
+            : Threshold_(threshold)
+            , CurrentGuess_(currentGuess)
+        { }
+
+        bool IsEnabled() const noexcept
+        {
+            return Threshold_ != TDuration::Zero();
+        }
+
+        i64 CurrentGuess() const noexcept
+        {
+            return CurrentGuess_;
+        }
+
+        i64 NextGuess(TDuration processTime)
+        {
+            YT_VERIFY(IsEnabled());
+
+            Aggregator_.UpdateAt(TInstant::Now(), processTime.MillisecondsFloat());
+
+            auto scaling = Threshold_.MillisecondsFloat() / Aggregator_.GetAverage();
+
+            auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
+
+            YT_LOG_DEBUG(
+                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v)",
+                CurrentGuess_,
+                processTime,
+                nextGuess);
+
+            CurrentGuess_ = nextGuess;
+
+            return nextGuess;
+        }
+
+    private:
+        const TDuration Threshold_;
+        TAdjustedExponentialMovingAverage Aggregator_;
+        i64 CurrentGuess_;
+    };
+
+    TOptimalRowCountGuesser Guesser_;
 
 private:
-    TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
+    bool IsContextSavingEnabled() const
+    {
+        auto jobIOConfig = JobSpecHelper_->GetJobIOConfig();
+        YT_LOG_DEBUG(
+            "IsContextSavingEnabled (PipeCapacity: %v, DeliveryFencedWriterFlag: %v, GuesserEnabled: %v)",
+            jobIOConfig->PipeCapacity,
+            jobIOConfig->UseDeliveryFencedPipeWriter,
+            Guesser_.IsEnabled());
+        return
+            !(jobIOConfig->PipeCapacity.has_value() ||
+            jobIOConfig->UseDeliveryFencedPipeWriter ||
+            Guesser_.IsEnabled());
+    }
+
+    // NB(arkady-e1ppa): Single producer (caller) is assumed.
+    void UpdateRowBatchReadOptions(NTableClient::TRowBatchReadOptions* currentOptions, TDuration processTime)
+    {
+        currentOptions->MaxRowsPerRead = Guesser_.NextGuess(processTime);
+    }
+
+    ISchemalessFormatWriterPtr PrepareWriterForInputActionsPassthrough(
         const TFormat& format,
-        const IAsyncOutputStreamPtr& asyncOutput,
-        bool enableContextSaving)
+        const IAsyncOutputStreamPtr& asyncOutput)
     {
         InitializeReader();
 
@@ -210,7 +312,7 @@ private:
             Reader_->GetNameTable(),
             schemas,
             asyncOutput,
-            enableContextSaving,
+            IsContextSavingEnabled(),
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
             JobSpecHelper_->GetKeySwitchColumnCount());
 
@@ -222,11 +324,47 @@ private:
 
         FormatWriters_.push_back(writer);
 
+        return writer;
+    }
+
+    void ConnectPipeReaderToWriter(
+        const ISchemalessChunkReaderPtr& reader,
+        const NFormats::ISchemalessFormatWriterPtr& writer,
+        const TRowBatchReadOptions& options,
+        TDuration pipeDelay)
+    {
+        if (Guesser_.IsEnabled()) {
+            PipeReaderToWriterByBatches(
+                CreateApiFromSchemalessChunkReaderAdapter(reader),
+                writer,
+                options,
+                BIND(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this)),
+                pipeDelay);
+            return;
+        }
+
+        PipeReaderToWriterByBatches(
+            CreateApiFromSchemalessChunkReaderAdapter(reader),
+            writer,
+            options,
+            /*optionsUpdater*/ {},
+            pipeDelay);
+    }
+
+    TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
+        const TFormat& format,
+        const IAsyncOutputStreamPtr& asyncOutput)
+    {
+        auto writer
+            = PrepareWriterForInputActionsPassthrough(format, asyncOutput);
+
         NTableClient::TRowBatchReadOptions options;
         options.Columnar = format.GetType() == EFormatType::Arrow;
         options.MaxRowsPerRead = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
+        // NB(arkady-e1ppa): BIND catches job_proxy trace context
+        // for logs in adapters.
         return BIND([=, this, this_ = MakeStrong(this)] {
-            PipeReaderToWriterByBatches(
+            ConnectPipeReaderToWriter(
                 Reader_,
                 writer,
                 options,
@@ -239,8 +377,7 @@ private:
     TCallback<TFuture<void>()> PrepareInputActionsQuery(
         const TQuerySpec& querySpec,
         const TFormat& format,
-        const IAsyncOutputStreamPtr& asyncOutput,
-        bool enableContextSaving)
+        const IAsyncOutputStreamPtr& asyncOutput)
     {
         if (JobSpecHelper_->GetJobIOConfig()->ControlAttributes->EnableKeySwitch) {
             THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
@@ -261,7 +398,7 @@ private:
                         std::move(nameTable),
                         {std::move(schema)},
                         asyncOutput,
-                        enableContextSaving,
+                        IsContextSavingEnabled(),
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
                         0);
 
@@ -299,7 +436,7 @@ class TVanillaUserJobReadController
     : public IUserJobReadController
 {
 public:
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/, bool /*enableContextSaving*/) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/) override
     {
         return BIND([] { return VoidFuture; });
     }
@@ -341,6 +478,11 @@ public:
     {
         return {};
     }
+
+    i64 CurrentBufferRowCount() const override
+    {
+        return 0;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
@@ -354,7 +496,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     TClientChunkReadOptions chunkReadOptions,
-    TString localHostName)
+    TString localHostName,
+    TDuration adaptiveConfigTimeoutThreshold)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
@@ -376,7 +519,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
                 std::move(chunkReaderHost),
                 std::move(localHostName),
                 nullptr),
-            udfDirectory);
+            udfDirectory,
+            adaptiveConfigTimeoutThreshold);
     } else {
         return New<TVanillaUserJobReadController>();
     }

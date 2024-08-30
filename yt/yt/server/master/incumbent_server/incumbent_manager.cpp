@@ -89,8 +89,8 @@ public:
 
     int GetIncumbentCount(EIncumbentType type) const override
     {
-        TCompactSet<TString, 7> addresses;
-        for (auto& address : LocalIncumbentMap_[type].Addresses) {
+        TCompactSet<std::string, 7> addresses;
+        for (const auto& address : LocalIncumbentMap_[type].Addresses) {
             if (address) {
                 addresses.insert(*address);
             }
@@ -106,7 +106,7 @@ private:
     // Leader state.
     struct TPeerState
     {
-        TString Address;
+        std::string Address;
 
         bool Leader = false;
         bool Online = false;
@@ -168,7 +168,7 @@ private:
         }
     }
 
-    TString GetSelfAddress() const
+    std::string GetSelfAddress() const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -350,7 +350,7 @@ private:
         return LocalIncumbentMap_[type].Addresses[shardIndex] == GetSelfAddress();
     }
 
-    std::optional<TString> GetIncumbentAddress(EIncumbentType type, int shardIndex) const override
+    std::optional<std::string> GetIncumbentAddress(EIncumbentType type, int shardIndex) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -420,7 +420,7 @@ private:
                 protoDescriptor->set_type(static_cast<int>(incumbentType));
                 for (const auto& address : descriptor.Addresses) {
                     if (address) {
-                        protoDescriptor->add_addresses(*address);
+                        protoDescriptor->add_addresses(ToProto<TProtobufString>(*address));
                     } else {
                         protoDescriptor->add_addresses();
                     }

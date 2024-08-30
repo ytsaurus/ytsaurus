@@ -565,7 +565,7 @@ public:
         }
     }
 
-    void ScheduleJobHeartbeat(const TString& jobTrackerAddress) override
+    void ScheduleJobHeartbeat(const std::string& jobTrackerAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -648,14 +648,14 @@ private:
         TAsyncReaderWriterLock JobHeartbeatLock;
     };
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerJobTrackerDataLock_);
-    THashMap<TString, std::unique_ptr<TPerJobTrackerData>> PerJobTrackerData_;
+    THashMap<std::string, std::unique_ptr<TPerJobTrackerData>> PerJobTrackerData_;
 
     IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobTrackerAddressesLock_);
-    std::vector<TString> JobTrackerAddresses_;
+    std::vector<std::string> JobTrackerAddresses_;
     int JobHeartbeatJobTrackerIndex_ = 0;
 
     IInvokerPtr HeartbeatInvoker_;
@@ -694,7 +694,7 @@ private:
 
         TCounter ConfirmedAnnouncementRequests;
 
-        TIncrementalHeartbeatCounters(const TProfiler& profiler)
+        explicit TIncrementalHeartbeatCounters(const TProfiler& profiler)
             : Reported(profiler.WithPrefix("/reported"))
             , FailedToReport(profiler.WithPrefix("/failed_to_report"))
             , ConfirmedAnnouncementRequests(profiler.Counter("/confirmed_announcement_request_count"))
@@ -909,7 +909,7 @@ private:
         StartHeartbeats();
     }
 
-    void InitPerCellData(TCellTag cellTag, const std::vector<TString>& masterAddresses)
+    void InitPerCellData(TCellTag cellTag, const std::vector<std::string>& masterAddresses)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1008,7 +1008,7 @@ private:
             HeartbeatInvoker_);
     }
 
-    void ReportJobHeartbeat(TString jobTrackerAddress, bool outOfOrder)
+    void ReportJobHeartbeat(const std::string& jobTrackerAddress, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1113,6 +1113,10 @@ private:
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run())
             .ValueOrThrow();
+
+        if (auto delay = Config_->DelayBeforeFullHeartbeatReport) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
 
         YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -1310,7 +1314,7 @@ private:
         return cellTagData->ChunksDelta.get();
     }
 
-    TPerJobTrackerData* GetJobTrackerData(const TString& jobTrackerAddress)
+    TPerJobTrackerData* GetJobTrackerData(const std::string& jobTrackerAddress)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1319,7 +1323,7 @@ private:
         return GetOrCrash(PerJobTrackerData_, jobTrackerAddress).get();
     }
 
-    std::vector<TString> GetJobTrackerAddresses() const
+    std::vector<std::string> GetJobTrackerAddresses() const
     {
         auto guard = ReaderGuard(JobTrackerAddressesLock_);
         return JobTrackerAddresses_;
@@ -1392,11 +1396,18 @@ private:
         mediumUpdater->UpdateLocationMedia(response.medium_overrides());
     }
 
+    TDataNodeDynamicConfigPtr GetNodeDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode;
+    }
+
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector;
+        return GetNodeDynamicConfig()->MasterConnector;
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

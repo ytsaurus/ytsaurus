@@ -25,6 +25,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/DataTypeUUID.h>
 #include <DataTypes/IDataType.h>
 
 #include <library/cpp/iterator/functools.h>
@@ -511,6 +512,35 @@ TEST_F(TCHToYTConversionTest, LowCadrinalityNullable)
     ExpectConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
+TEST_F(TCHToYTConversionTest, MapInt32String)
+{
+    auto dataType = std::make_shared<DB::DataTypeMap>(
+        std::make_shared<DB::DataTypeInt32>(),
+        std::make_shared<DB::DataTypeString>()
+    );
+
+    auto column = MakeColumn(dataType, {
+        DB::Map{DB::Tuple{DB::Int32(42), DB::String("foo")}, DB::Tuple{DB::Int32(27), DB::String("bar")}},
+        DB::Map{},
+        DB::Map{DB::Tuple{DB::Int32(-1), DB::String("")}},
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "[[42; foo]; [27; bar]]",
+        "[]",
+        "[[-1; \"\"]]",
+    };
+
+    auto expectedLogicalType = DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::Int32),
+        SimpleLogicalType(ESimpleLogicalValueType::String)
+    );
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
 TEST_F(TCHToYTConversionTest, LowCadrinalityComposite)
 {
     auto dataType = std::make_shared<DB::DataTypeArray>(
@@ -536,48 +566,46 @@ TEST_F(TCHToYTConversionTest, LowCadrinalityComposite)
 
 TEST_F(TCHToYTConversionTest, UnsupportedTypesToString)
 {
-    auto dataTypeMap = std::make_shared<DB::DataTypeMap>(
-        std::make_shared<DB::DataTypeString>(),
-        std::make_shared<DB::DataTypeInt64>());
-
-    auto columnMap = MakeColumn(dataTypeMap, {
-        DB::Map{DB::Tuple{"abcd", 1}, DB::Tuple{"b", 2}},
+    auto dataTypeUUID = std::make_shared<DB::DataTypeUUID>();
+    auto columnUUID = MakeColumn(dataTypeUUID, {
+        DB::UUID(123454321),
     });
 
-    std::vector<TStringBuf> expectedMapValueYsons = {
-        R"("{'abcd':1,'b':2}")",
+    std::vector<TStringBuf> expectedUUIDValueYsons = {
+        R"("00000000-075b-c371-0000-000000000000")",
     };
 
-    auto expectedMapLogicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
+    auto expectedUUIDLogicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
 
-    EXPECT_THROW(Converter_.emplace(dataTypeMap, Settings_), std::exception);
+    EXPECT_THROW(Converter_.emplace(dataTypeUUID, Settings_), std::exception);
 
-    auto dataTypeArrayMap = std::make_shared<DB::DataTypeArray>(dataTypeMap);
+    auto dataTypeArrayUUID = std::make_shared<DB::DataTypeArray>(dataTypeUUID);
 
-    auto columnArrayMap = MakeColumn(dataTypeArrayMap, {
+    auto columnArrayUUID = MakeColumn(dataTypeArrayUUID, {
         DB::Array{
-            DB::Map{},
-            DB::Map{DB::Tuple{"a", 1}},
+            DB::UUID{},
+            DB::UUID{123454321},
         },
     });
 
-    std::vector<TStringBuf> expectedArrayMapValueYsons = {
-        R"(["{}"; "{'a':1}"])",
+    std::vector<TStringBuf> expectedArrayUUIDValueYsons = {
+        R"(["00000000-0000-0000-0000-000000000000";"00000000-075b-c371-0000-000000000000";])",
     };
 
-    auto expectedArrayMapLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto expectedArrayUUIDLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
 
-    EXPECT_THROW(Converter_.emplace(dataTypeArrayMap, Settings_), std::exception);
+    EXPECT_THROW(Converter_.emplace(dataTypeArrayUUID, Settings_), std::exception);
 
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = true;
 
-    Converter_.emplace(dataTypeMap, settings);
-    ExpectConversion(columnMap, expectedMapLogicalType, expectedMapValueYsons);
+    Converter_.emplace(dataTypeUUID, settings);
+    ExpectConversion(columnUUID, expectedUUIDLogicalType, expectedUUIDValueYsons);
 
-    Converter_.emplace(dataTypeArrayMap, settings);
-    ExpectYsonConversion(columnArrayMap, expectedArrayMapLogicalType, expectedArrayMapValueYsons);
+    Converter_.emplace(dataTypeArrayUUID, settings);
+    ExpectYsonConversion(columnArrayUUID, expectedArrayUUIDLogicalType, expectedArrayUUIDValueYsons);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

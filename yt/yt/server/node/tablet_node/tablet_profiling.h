@@ -441,17 +441,17 @@ public:
 
     TTabletCounters GetTabletCounters();
 
-    TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
-    TTabletServiceCounters* GetTabletServiceCounters(const std::optional<TString>& userTag);
+    TQueryServiceCounters* GetQueryServiceCounters(const std::optional<std::string>& userTag);
+    TTabletServiceCounters* GetTabletServiceCounters(const std::optional<std::string>& userTag);
 
-    TLookupCounters* GetLookupCounters(const std::optional<TString>& userTag);
-    TWriteCounters* GetWriteCounters(const std::optional<TString>& userTag);
-    TCommitCounters* GetCommitCounters(const std::optional<TString>& userTag);
-    TSelectRowsCounters* GetSelectRowsCounters(const std::optional<TString>& userTag);
-    TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
-    TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
+    TLookupCounters* GetLookupCounters(const std::optional<std::string>& userTag);
+    TWriteCounters* GetWriteCounters(const std::optional<std::string>& userTag);
+    TCommitCounters* GetCommitCounters(const std::optional<std::string>& userTag);
+    TSelectRowsCounters* GetSelectRowsCounters(const std::optional<std::string>& userTag);
+    TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<std::string>& userTag);
+    TPullRowsCounters* GetPullRowsCounters(const std::optional<std::string>& userTag);
 
-    TReplicaCounters GetReplicaCounters(const TString& cluster);
+    TReplicaCounters GetReplicaCounters(const std::string& cluster);
 
     TTablePullerCounters* GetTablePullerCounters();
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
@@ -471,15 +471,15 @@ private:
     template <class TCounter>
     struct TUserTaggedCounter
     {
-        NConcurrency::TSyncMap<std::optional<TString>, TCounter> Counters;
+        NConcurrency::TSyncMap<std::optional<std::string>, TCounter> Counters;
 
         TCounter* Get(
             bool disabled,
-            const std::optional<TString>& userTag,
+            const std::optional<std::string>& userTag,
             const NProfiling::TProfiler& profiler);
         TCounter* Get(
             bool disabled,
-            const std::optional<TString>& userTag,
+            const std::optional<std::string>& userTag,
             const NProfiling::TProfiler& tableProfiler,
             const NProfiling::TProfiler& mediumProfiler,
             const NTableClient::TTableSchemaPtr& schema);
@@ -537,7 +537,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TWriterProfiler)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReaderProfiler
     : public TRefCounted

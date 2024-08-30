@@ -154,7 +154,7 @@ public:
         return it != LastFinishedJobs_.end() ? it->second : nullptr;
     }
 
-    const THashSet<TJobPtr>& GetNodeJobs(const TString& nodeAddress) const override
+    const THashSet<TJobPtr>& GetNodeJobs(const std::string& nodeAddress) const override
     {
         auto nodeIt = NodeAddressToJobs_.find(nodeAddress);
         if (nodeIt == NodeAddressToJobs_.end()) {

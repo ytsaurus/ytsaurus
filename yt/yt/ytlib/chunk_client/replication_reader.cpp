@@ -64,6 +64,7 @@
 
 #include <util/random/shuffle.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace NYT::NChunkClient {
@@ -100,7 +101,7 @@ DEFINE_ENUM(EPeerType,
 struct TPeer
 {
     TChunkReplicaWithMedium Replica;
-    TString Address;
+    std::string Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
@@ -149,7 +150,7 @@ struct IRequestBatcher
 
     struct TRequest
     {
-        TString Address;
+        std::string Address;
         IChannelPtr Channel;
         std::vector<int> BlockIndexes;
         TIntrusivePtr<TSessionBase> Session;
@@ -310,9 +311,9 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
     //! Peers returning NoSuchChunk error are banned forever.
-    THashSet<TString> BannedForeverPeers_;
+    THashSet<std::string> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    THashMap<TString, int> PeerBanCountMap_;
+    THashMap<std::string, int> PeerBanCountMap_;
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
@@ -321,6 +322,11 @@ private:
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
+
+    bool CanFetchSeedsFromMaster() const
+    {
+        return Options_->AllowFetchingSeedsFromMaster && !Options_->UseProxyingDataNodeService;
+    }
 
     TFuture<TAllyReplicasInfo> GetReplicasFuture()
     {
@@ -334,7 +340,7 @@ private:
             }
         }
 
-        YT_VERIFY(Options_->AllowFetchingSeedsFromMaster);
+        YT_VERIFY(CanFetchSeedsFromMaster());
         const auto& chunkReplicaCache = Client_->GetNativeConnection()->GetChunkReplicaCache();
         auto futures = chunkReplicaCache->GetReplicas({DecodeChunkId(ChunkId_).Id});
         YT_VERIFY(futures.size() == 1);
@@ -343,7 +349,7 @@ private:
 
     void DiscardSeeds(const TFuture<TAllyReplicasInfo>& future)
     {
-        if (!Options_->AllowFetchingSeedsFromMaster) {
+        if (!CanFetchSeedsFromMaster()) {
             // We're not allowed to ask master for seeds.
             // Better keep the initial ones.
             return;
@@ -382,7 +388,7 @@ private:
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
-    void OnPeerBanned(const TString& peerAddress)
+    void OnPeerBanned(const std::string& peerAddress)
     {
         auto guard = Guard(PeersSpinLock_);
         auto [it, inserted] = PeerBanCountMap_.emplace(peerAddress, 1);
@@ -395,20 +401,20 @@ private:
         }
     }
 
-    void BanPeerForever(const TString& peerAddress)
+    void BanPeerForever(const std::string& peerAddress)
     {
         auto guard = Guard(PeersSpinLock_);
         BannedForeverPeers_.insert(peerAddress);
     }
 
-    int GetBanCount(const TString& peerAddress) const
+    int GetBanCount(const std::string& peerAddress) const
     {
         auto guard = Guard(PeersSpinLock_);
         auto it = PeerBanCountMap_.find(peerAddress);
         return it == PeerBanCountMap_.end() ? 0 : it->second;
     }
 
-    bool IsPeerBannedForever(const TString& peerAddress) const
+    bool IsPeerBannedForever(const std::string& peerAddress) const
     {
         if (!Config_->BanPeersPermanently) {
             return false;
@@ -520,18 +526,19 @@ protected:
     TAllyReplicasInfo SeedReplicas_;
 
     //! Set of peer addresses banned for the current retry.
-    THashSet<TString> BannedPeers_;
+    THashSet<std::string> BannedPeers_;
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
     using TPeerQueue = std::priority_queue<
         TPeerQueueEntry,
         std::vector<TPeerQueueEntry>,
-        std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>>;
+        std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>
+    >;
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    THashMap<TString, TPeer> Peers_;
+    THashMap<std::string, TPeer> Peers_;
 
     //! The instant this session was started.
     TInstant StartTime_ = TInstant::Now();
@@ -671,7 +678,7 @@ protected:
         MediumThrottler_->Acquire(extraBytesToThrottle);
     }
 
-    void BanPeer(const TString& address, bool forever)
+    void BanPeer(const std::string& address, bool forever)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -691,7 +698,7 @@ protected:
         }
     }
 
-    const TNodeDescriptor& GetPeerDescriptor(const TString& address)
+    const TNodeDescriptor& GetPeerDescriptor(const std::string& address)
     {
         return *GetOrCrash(Peers_, address).NodeDescriptor;
     }
@@ -699,7 +706,7 @@ protected:
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
         TChunkReplicaWithMedium replica,
-        const TString& address,
+        const std::string& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
         std::optional<TInstant> nodeSuspicionMarkTime)
@@ -744,7 +751,7 @@ protected:
     }
 
     //! Reinstall peer in the peer queue.
-    void ReinstallPeer(const TString& address)
+    void ReinstallPeer(const std::string& address)
     {
         auto reader = Reader_.Lock();
         if (!reader || IsPeerBanned(address)) {
@@ -760,12 +767,12 @@ protected:
         });
     }
 
-    bool IsSeed(const TString& address)
+    bool IsSeed(const std::string& address)
     {
         return GetOrCrash(Peers_, address).Type == EPeerType::Seed;
     }
 
-    bool IsPeerBanned(const TString& address)
+    bool IsPeerBanned(const std::string& address)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -775,7 +782,7 @@ protected:
         return BannedPeers_.find(address) != BannedPeers_.end() || reader->IsPeerBannedForever(address);
     }
 
-    IChannelPtr GetChannel(const TString& address)
+    IChannelPtr GetChannel(const std::string& address)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -840,7 +847,7 @@ protected:
         const TReplicationReaderPtr& reader,
         int count,
         bool enableEarlyExit,
-        std::function<bool(const TString&)> filter = {})
+        std::function<bool(const std::string&)> filter = {})
     {
         TPeerList candidates;
         while (!PeerQueue_.empty() && std::ssize(candidates) < count) {
@@ -1003,7 +1010,7 @@ protected:
         std::vector<const TNodeDescriptor*> peerDescriptors;
         std::vector<TChunkReplicaWithMedium> replicas;
         std::vector<TNodeId> nodeIds;
-        std::vector<TString> peerAddresses;
+        std::vector<std::string> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
         replicas.reserve(seedReplicas.size());
         nodeIds.reserve(seedReplicas.size());
@@ -1055,7 +1062,9 @@ protected:
             RegisterError(TError(
                 NChunkClient::EErrorCode::NoChunkSeedsKnown,
                 "No feasible seeds to start a pass"));
-            if (ReaderOptions_->AllowFetchingSeedsFromMaster) {
+
+            auto reader = Reader_.Lock();
+            if (reader && reader->CanFetchSeedsFromMaster()) {
                 OnRetryFailed();
             } else {
                 OnSessionFailed(/*fatal*/ true);
@@ -1102,7 +1111,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfIncomplete(const TResponsePtr& rsp, const TString& address)
+    void BanSeedIfIncomplete(const TResponsePtr& rsp, const std::string& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             YT_LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
@@ -1170,7 +1179,7 @@ protected:
             }).AsyncVia(SessionInvoker_));
     }
 
-    bool ShouldThrottle(const TString& address, bool condition) const
+    bool ShouldThrottle(const std::string& address, bool condition) const
     {
         return condition &&
             (ReaderConfig_->EnableLocalThrottling || !IsAddressLocal(address));
@@ -1448,7 +1457,7 @@ private:
 
     TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
         const IChannelPtr& channel,
-        const TString& address,
+        const std::string& address,
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
@@ -1715,7 +1724,7 @@ private:
     THashMap<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    THashMap<TString, THashSet<int>> PeerBlocksMap_;
+    THashMap<std::string, THashSet<int>> PeerBlocksMap_;
 
     //! address -> block_index -> (session_id, iteration).
     THashMap<TNodeId, THashMap<int, NChunkClient::NProto::TP2PBarrier>> P2PDeliveryBarrier_;
@@ -1842,6 +1851,7 @@ private:
             OnSessionSucceeded();
             return;
         }
+        std::sort(blockIndexes.begin(), blockIndexes.end());
 
         std::vector<TBlockWithCookie> cachedBlocks;
         std::vector<TBlockWithCookie> uncachedBlocks;
@@ -1900,7 +1910,7 @@ private:
 
         int desiredPeerCount = GetDesiredPeerCount();
         while (std::ssize(candidates) < desiredPeerCount) {
-            auto hasUnfetchedBlocks = [&] (const TString& address) {
+            auto hasUnfetchedBlocks = [&] (const std::string& address) {
                 const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
 
                 for (const auto& block : blocksToFetch) {
@@ -1929,6 +1939,7 @@ private:
     }
 
     //! Fetches blocks from nodes and adds them to block cache via cookies.
+    //! Blocks must be sorted by block index.
     //! Returns |True| if more blocks can be requested and |False| otherwise.
     bool FetchBlocksFromNodes(
         const TReplicationReaderPtr& reader,
@@ -2070,6 +2081,10 @@ private:
         auto& requestedBlockIndexes = result.Value().RequestedBlocks;
         auto requestedBlockIndexIt = requestedBlockIndexes.begin();
         auto responseBlockIt = responseBlocks.begin();
+
+        // Two pointer algorithm requires block indexes to be sorted.
+        YT_VERIFY(std::is_sorted(blockIndexes.begin(), blockIndexes.end()));
+        YT_VERIFY(std::is_sorted(requestedBlockIndexes.begin(), requestedBlockIndexes.end()));
 
         for (int index = 0; index < std::ssize(blockIndexes); ++index) {
             int blockIndex = blockIndexes[index];
@@ -3426,8 +3441,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    THashMap<TString, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
-    THashMap<TString, TNodeState<TGetBlocksResult>> GetBlocksStates_;
+    THashMap<std::string, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
+    THashMap<std::string, TNodeState<TGetBlocksResult>> GetBlocksStates_;
 
     template <class TResponse>
     TRequestBatch<TResponse> BuildRequestBatch(const TRequest& request)
@@ -3448,8 +3463,8 @@ private:
         return batch;
     }
 
-    template<class TResponse>
-    THashMap<TString, TNodeState<TResponse>>& GetNodeStates()
+    template <class TResponse>
+    THashMap<std::string, TNodeState<TResponse>>& GetNodeStates()
     {
         if constexpr (std::is_same_v<TResponse, TPeerResponsePtr>) {
             return ProbeBlocksStates_;
@@ -3460,8 +3475,8 @@ private:
         }
     }
 
-    template<class TResponse>
-    TString GetRequestLogName()
+    template <class TResponse>
+    std::string GetRequestLogName()
     {
         if constexpr (std::is_same_v<TResponse, TPeerResponsePtr>) {
             return "ProbeBlockSet";
@@ -3654,7 +3669,7 @@ private:
 
     template <class TResponse>
     void OnBatchRequestFinished(
-        TString address,
+        const std::string& address,
         const TError& /*error*/)
     {
         auto guard = Guard(Lock_);
@@ -3677,7 +3692,7 @@ private:
             requestFuture.Subscribe(BIND(
                 &TRequestBatcher::OnBatchRequestFinished<TResponse>,
                 MakeStrong(this),
-                std::move(address))
+                address)
                 .Via(nextBatch.Session->SessionInvoker_));
         } else {
             state.Current = {};

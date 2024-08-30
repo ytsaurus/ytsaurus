@@ -93,7 +93,7 @@ public:
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
-        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics))
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -196,7 +196,11 @@ public:
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        return EncodingChunkWriter_->GetDataStatistics();
+        auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
+
+        return dataStatistics;
     }
 
     TCodecStatistics GetCompressionStatistics() const override
@@ -286,6 +290,9 @@ protected:
             ColumnarStatistics_.ChunkRowCount.reset();
         }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
+        if (!ColumnarStatistics_.LargeStatistics.Empty() && Config_->EnableLargeColumnarStatistics) {
+            SetProtoExtension(meta->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_.LargeStatistics));
+        }
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;
@@ -712,6 +719,7 @@ public:
                 keyColumnIndex,
                 columnSchema,
                 BlockWriters_[blockWriterIndex].get(),
+                Options_->MemoryUsageTracker,
                 Config_->MaxSegmentValueCount));
         }
 
@@ -730,12 +738,15 @@ public:
                 valueColumnIndex,
                 columnSchema,
                 BlockWriters_[blockWriterIndex].get(),
+                Options_->MemoryUsageTracker,
                 Config_->MaxSegmentValueCount));
         }
 
         // Timestamp column.
         ColumnToGroupIndex_.push_back(mainBlockWriter);
-        TimestampWriter_ = CreateTimestampWriter(BlockWriters_[mainBlockWriter].get());
+        TimestampWriter_ = CreateTimestampWriter(
+            BlockWriters_[mainBlockWriter].get(),
+            Options_->MemoryUsageTracker);
 
         YT_VERIFY(BlockWriters_.size() > 0);
     }

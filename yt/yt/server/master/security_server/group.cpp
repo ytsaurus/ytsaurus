@@ -5,20 +5,21 @@
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TGroup::GetLowercaseObjectName() const
+std::string TGroup::GetLowercaseObjectName() const
 {
     return Format("group %Qv", Name_);
 }
 
-TString TGroup::GetCapitalizedObjectName() const
+std::string TGroup::GetCapitalizedObjectName() const
 {
     return Format("Group %Qv", Name_);
 }
 
-TString TGroup::GetObjectPath() const
+TYPath TGroup::GetObjectPath() const
 {
     return Format("//sys/groups/%v", Name_);
 }

@@ -316,7 +316,8 @@ public:
         , ProfileManager_(CreateQueueProfileManager(
             QueueAgentProfilerGlobal
                 .WithRequiredTag("queue_path", QueueRef_.Path)
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
+                // TODO(babenko): migrate to std::string
+                .WithRequiredTag("queue_cluster", TString(QueueRef_.Cluster)),
             Logger))
         , AlertManager_(CreateAlertManager(Logger, ProfileManager_->GetQueueProfiler(), Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))

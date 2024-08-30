@@ -10,8 +10,6 @@
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/misc/update_executor.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -23,6 +21,7 @@
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 

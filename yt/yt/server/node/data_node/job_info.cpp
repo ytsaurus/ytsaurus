@@ -11,7 +11,7 @@ TBriefJobInfo::TBriefJobInfo(
     NChunkServer::TJobId jobId,
     NJobAgent::EJobState jobState,
     NJobAgent::EJobType jobType,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     TInstant jobStartTime,
     TDuration jobDuration,
     const NClusterNode::TJobResources& baseResourceUsage,
@@ -19,7 +19,7 @@ TBriefJobInfo::TBriefJobInfo(
     : JobId_(jobId)
     , JobState_(jobState)
     , JobType_(jobType)
-    , JobTrackerAddress_(std::move(jobTrackerAddress))
+    , JobTrackerAddress_(jobTrackerAddress)
     , JobStartTime_(jobStartTime)
     , JobDuration_(jobDuration)
     , BaseResourceUsage_(baseResourceUsage)

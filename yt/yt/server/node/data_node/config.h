@@ -440,6 +440,10 @@ public:
     //! Splay for job heartbeats.
     TDuration JobHeartbeatPeriodSplay;
 
+    //! Delay before a node sends its first data heartbeat
+    //! to master-server after successful registration.
+    std::optional<TDuration> DelayBeforeFullHeartbeatReport;
+
     REGISTER_YSON_STRUCT(TMasterConnectorConfig);
 
     static void Register(TRegistrar registrar);
@@ -535,6 +539,9 @@ public:
 
     // Delay before blob session block free.
     std::optional<TDuration> DelayBeforeBlobSessionBlockFree;
+
+    // Delay before cancelling chunk
+    std::optional<TDuration> ChunkCancellationDelay;
 
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
@@ -640,6 +647,8 @@ class TReplicateChunkJobDynamicConfig
 public:
     NChunkClient::TReplicationWriterConfigPtr Writer;
 
+    bool UseBlockCache;
+
     REGISTER_YSON_STRUCT(TReplicateChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -672,6 +681,7 @@ public:
 
     // Testing options.
     bool FailShallowMergeValidation;
+    bool TrackWriterMemory;
 
     i64 ReadMemoryLimit;
 

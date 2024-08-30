@@ -232,7 +232,7 @@ bool TClusterStateProvider::CheckIfNodeCanHostCells(const TNode* node) const
     return CellHostNodes_.contains(node);
 }
 
-const TCellSet* TClusterStateProvider::FindAssignedCells(const TString& address) const
+const TCellSet* TClusterStateProvider::FindAssignedCells(const std::string& address) const
 {
     auto it = AddressToCell_.find(address);
     return it != AddressToCell_.end()
@@ -254,7 +254,7 @@ bool TClusterStateProvider::IsAlienPeer(const TCellBase* cell, int peerId) const
     return it->second.contains(peerId);
 }
 
-TNode* TClusterStateProvider::FindNodeByAddress(const TString& address)
+TNode* TClusterStateProvider::FindNodeByAddress(const std::string& address)
 {
     auto it = AddressToNode_.find(address);
     if (it == AddressToNode_.end()) {

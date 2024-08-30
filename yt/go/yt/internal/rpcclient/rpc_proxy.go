@@ -32,6 +32,9 @@ func (c *client) listRPCProxies() ([]string, error) {
 	if c.conf.ProxyRole != "" {
 		v.Add("role", c.conf.ProxyRole)
 	}
+	if c.conf.NetworkName != "" {
+		v.Add("network_name", c.conf.NetworkName)
+	}
 
 	var resolveURL url.URL
 	resolveURL.Scheme = c.schema()

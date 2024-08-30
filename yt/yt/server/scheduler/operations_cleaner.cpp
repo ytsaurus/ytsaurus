@@ -316,7 +316,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 
     std::vector<TString> parts;
     parts.push_back(ToString(request.Id));
-    parts.push_back(request.AuthenticatedUser);
+    parts.push_back(ToString(request.AuthenticatedUser));
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
 
@@ -393,7 +393,8 @@ TUnversionedOwningRow BuildOrderedByIdTableRow(
             .IdLo = requestIdAsGuid.Parts64[1],
         },
         .State = FormatEnum(request.State),
-        .AuthenticatedUser = request.AuthenticatedUser,
+        // TODO(babenko): switch to std::string
+        .AuthenticatedUser = TString(request.AuthenticatedUser),
         .OperationType = FormatEnum(request.OperationType),
         .StartTime = request.StartTime.MicroSeconds(),
         .FinishTime = request.FinishTime.MicroSeconds(),
@@ -484,7 +485,8 @@ TUnversionedOwningRow BuildOrderedByStartTimeTableRow(
         },
         .OperationType = FormatEnum(request.OperationType),
         .State = FormatEnum(request.State),
-        .AuthenticatedUser = request.AuthenticatedUser,
+        // TODO(babenko): switch to std::string
+        .AuthenticatedUser = TString(request.AuthenticatedUser),
         .FilterFactors = GetFilterFactors(request),
     };
 

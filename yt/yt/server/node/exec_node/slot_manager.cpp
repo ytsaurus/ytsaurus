@@ -242,24 +242,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->Cpu,
         GetIdleCpuFraction());
 
-    auto slotInitTimeout = DynamicConfig_.Acquire()->SlotInitTimeout;
-    FreeSlots_.clear();
-    for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-        auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
-            .WithTimeout(slotInitTimeout);
-        slotInitFuture.Subscribe(
-            BIND([this, this_ = MakeStrong(this), slotIndex] (const TError& error) {
-                VERIFY_THREAD_AFFINITY(JobThread);
-
-                if (error.IsOK()) {
-                    FreeSlots_.push(slotIndex);
-                } else {
-                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
-                    JobEnvironment_->Disable(std::move(wrappedError));
-                }
-            })
-            .Via(Bootstrap_->GetJobInvoker()));
-    }
+    InitializeSlots();
 
     if (!JobEnvironment_->IsEnabled()) {
         auto error = TError("Job environment is disabled");
@@ -370,6 +353,18 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
         THROW_ERROR_EXCEPTION(EErrorCode::SchedulerJobsDisabled, "Slot manager disabled");
     }
 
+    // NB(arkady-e1ppa): This branch covers scenario when
+    // heartbeat to scheduler was prepared with UserSlotCount == max, then
+    // slot manager got both disabled and resurrected but is yet to initialize
+    // all of its slots. Concurrently, scheduler sends job creation requests which
+    // user slot demand is greater than the amount of fully initialized slots.
+    // This case is very tricky to track in job resource manager since
+    // it is not designed to know about non-instant slot initialization
+    // thus we check for it here.
+    if (FreeSlots_.empty()) {
+        THROW_ERROR_EXCEPTION(EErrorCode::NotEnoughInitializedSlots, "Some user slots are not initialized yet");
+    }
+
     UpdateAliveLocations();
 
     int feasibleLocationCount = 0;
@@ -476,6 +471,13 @@ int TSlotManager::GetUsedSlotCount() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return SlotCount_ - std::ssize(FreeSlots_);
+}
+
+int TSlotManager::GetInitializedSlotCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return InitializedSlotCount_.load();
 }
 
 bool TSlotManager::IsInitialized() const
@@ -595,6 +597,46 @@ bool TSlotManager::CanResurrect() const
     auto guard = ReaderGuard(AlertsLock_);
 
     return jobSchedulingDisabled && FixableByResurrect();
+}
+
+void TSlotManager::InitializeSlots()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    ++InitializationEpoch_;
+
+    auto slotInitTimeout = DynamicConfig_.Acquire()->SlotInitTimeout;
+
+    FreeSlots_.clear();
+    InitializedSlotCount_.store(0);
+
+    for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
+            .WithTimeout(slotInitTimeout);
+
+        slotInitFuture.Subscribe(
+            BIND([this, this_ = MakeStrong(this), slotIndex, epoch = InitializationEpoch_] (const TError& error) {
+                VERIFY_THREAD_AFFINITY(JobThread);
+
+                if (epoch != InitializationEpoch_) {
+                    YT_LOG_DEBUG(
+                        "Stale slot initialization encountered; skipping (OldEpoch: %v, NewEpoch: %v)",
+                        epoch,
+                        InitializationEpoch_);
+                    return;
+                }
+
+                if (error.IsOK()) {
+                    FreeSlots_.push(slotIndex);
+                    InitializedSlotCount_.fetch_add(1);
+                    YT_LOG_DEBUG("Slot initialized (SlotIndex: %v)", slotIndex);
+                } else {
+                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
+                    JobEnvironment_->Disable(std::move(wrappedError));
+                }
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
+    }
 }
 
 TDuration TSlotManager::GetDisableJobsBackoff()

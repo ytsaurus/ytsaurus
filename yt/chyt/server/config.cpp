@@ -140,6 +140,13 @@ void TExecutionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_min_max_filtering", &TThis::EnableMinMaxFiltering)
         .Default(true);
+
+    registrar.Parameter("enable_optimize_read_in_order", &TThis::EnableOptimizeReadInOrder)
+        .Default(false);
+    registrar.Parameter("assume_no_null_keys", &TThis::AssumeNoNullKeys)
+        .Default(false);
+    registrar.Parameter("assume_no_nan_keys", &TThis::AssumeNoNanKeys)
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,6 +287,8 @@ void TShowTablesConfig::Register(TRegistrar registrar)
 
 void TSubqueryConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("columnar_statistics_fetcher", &TThis::ColumnarStatisticsFetcher)
+        .DefaultNew();
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
     registrar.Parameter("max_job_count_for_pool", &TThis::MaxJobCountForPool)

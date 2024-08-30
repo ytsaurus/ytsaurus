@@ -36,19 +36,6 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PipeReaderToWriter(
-    const ISchemalessChunkReaderPtr& reader,
-    const IUnversionedRowsetWriterPtr& writer,
-    const TPipeReaderToWriterOptions& options);
-
-void PipeReaderToWriterByBatches(
-    const ISchemalessChunkReaderPtr& reader,
-    const NFormats::ISchemalessFormatWriterPtr& writer,
-    const TRowBatchReadOptions& options,
-    TDuration pipeDelay);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Checks whether chunk with `chunkSortColumns' sort columns
 //! can belong to sorted table with `tableSortColumns' sort columns and
 //! given key uniqueness.
@@ -223,7 +210,18 @@ void ToProto(
 void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    const NProto::TLargeColumnarStatisticsExt* protoLargeStatisticsExt,
     i64 chunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TLargeColumnarStatistics* statistics,
+    const NProto::TLargeColumnarStatisticsExt& protoLargeStatisticsExt);
+
+void ToProto(
+    NProto::TLargeColumnarStatisticsExt* protoStatisticsExt,
+    const TLargeColumnarStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

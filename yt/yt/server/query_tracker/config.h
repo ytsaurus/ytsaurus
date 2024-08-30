@@ -43,6 +43,7 @@ class TYqlEngineConfig
 public:
     TString Stage;
     TDuration QueryProgressGetPeriod;
+    TDuration StartQueryAttemptPeriod;
 
     REGISTER_YSON_STRUCT(TYqlEngineConfig);
 
@@ -159,7 +160,7 @@ public:
 
     int ProxyThreadPoolSize;
 
-    TString User;
+    std::string User;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

@@ -122,7 +122,8 @@ public:
 
         auto connectionConfig = New<TDiscoveryConnectionConfig>();
         auto addresses = DiscoveryServers_->GetDiscoveryServersAddresses();
-        connectionConfig->Addresses = addresses;
+        // TODO(babenko): switch to std::string
+        connectionConfig->Addresses = {addresses.begin(), addresses.end()};
 
         Connection_ = New<TMockDistributedThrottlerConnection>(connectionConfig);
 

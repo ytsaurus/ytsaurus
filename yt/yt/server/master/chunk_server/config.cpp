@@ -142,10 +142,6 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_node_statistics_fix", &TThis::EnableNodeStatisticsFix)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
         .Default(false)
         .DontSerializeDefault();
@@ -439,6 +435,9 @@ void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("force_unreliable_seal", &TThis::ForceUnreliableSeal)
         .Default(false);
+
+    registrar.Parameter("disable_removing_replicas_from_destroyed_queue", &TThis::DisableRemovingReplicasFromDestroyedQeueue)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,6 +682,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
         .Default(TDuration::Minutes(3))
+        .DontSerializeDefault();
+
+    registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
+        .Default(TDuration::Minutes(1))
         .DontSerializeDefault();
 
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)

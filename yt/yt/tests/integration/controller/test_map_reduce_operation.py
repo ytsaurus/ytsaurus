@@ -7,7 +7,7 @@ from yt_commands import (
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
     abandon_job, abort_job, get_operation,
     raises_yt_error,
-    set_node_banned)
+    set_node_banned, get_table_columnar_statistics)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
@@ -31,6 +31,8 @@ import os
 
 
 class TestSchedulerMapReduceBase(YTEnvSetup):
+    ENABLE_UNIQUE_COUNT_CHECK = True
+
     def _find_intermediate_chunks(self):
         # Figure out the intermediate chunk
         chunks = ls("//sys/chunks", attributes=["requisition"])
@@ -569,6 +571,9 @@ print "x={0}\ty={1}".format(x, y)
         )
 
         assert len(read_table("//tmp/t_out", verbose=False)) == 2
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t_out{x,y,z}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'x': 2, 'y': 2, 'z': 1}
 
     @authors("gritukan")
     def test_force_complete_sorted_reduce(self):

@@ -32,7 +32,7 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetPar
 }
 
 template <class TObject>
-void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TString& name)
+void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const std::string& name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Name cannot be empty");
@@ -86,7 +86,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::DoZombifyObject(TObject* ob
 
 template <class TObject>
 NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::CreateObjectImpl(
-    const TString& name,
+    const std::string& name,
     TObject* parent,
     NYTree::IAttributeDictionary* attributes)
 {

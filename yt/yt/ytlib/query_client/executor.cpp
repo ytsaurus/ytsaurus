@@ -655,7 +655,7 @@ private:
         const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
         bool sortedDataSource,
-        const TString& address)
+        const std::string& address)
     {
         auto Logger = MakeQueryLogger(query);
 

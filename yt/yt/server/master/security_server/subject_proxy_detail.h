@@ -74,7 +74,7 @@ protected:
                 return true;
             case EInternedAttributeKey::Aliases:
                 NYTree::BuildYsonFluently(consumer)
-                    .DoListFor(subject->Aliases(), [] (NYTree::TFluentList fluent, const TString& alias) {
+                    .DoListFor(subject->Aliases(), [] (NYTree::TFluentList fluent, const std::string& alias) {
                         fluent
                             .Item().Value(alias);
                     });
@@ -94,12 +94,12 @@ protected:
 
         switch (key) {
             case EInternedAttributeKey::Name: {
-                auto newName = NYTree::ConvertTo<TString>(value);
+                auto newName = NYTree::ConvertTo<std::string>(value);
                 securityManager->RenameSubject(subject, newName);
                 return true;
             }
             case EInternedAttributeKey::Aliases: {
-                auto newAliases = NYTree::ConvertTo<std::vector<TString>>(value);
+                auto newAliases = NYTree::ConvertTo<std::vector<std::string>>(value);
                 securityManager->SetSubjectAliases(subject, newAliases);
                 return true;
             }

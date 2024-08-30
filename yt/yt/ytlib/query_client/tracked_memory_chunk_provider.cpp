@@ -53,10 +53,7 @@ std::unique_ptr<TAllocationHolder> TTrackedMemoryChunkProvider::Allocate(size_t 
     size_t allocated = Allocated_.load();
     do {
         if (allocated + size > Limit_) {
-            THROW_ERROR_EXCEPTION("Not enough memory to serve allocation",
-                size,
-                allocated,
-                Limit_)
+            THROW_ERROR_EXCEPTION("Not enough memory to serve allocation")
                 << TErrorAttribute("allocation_size", size)
                 << TErrorAttribute("allocated", allocated)
                 << TErrorAttribute("limit", Limit_);

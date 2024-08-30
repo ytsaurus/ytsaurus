@@ -19,6 +19,11 @@ class IRawOutput
 {
 public:
     virtual void AddRaw(const void* row, ssize_t count) = 0;
+    virtual void MoveRaw(void* row, ssize_t count)
+    {
+        AddRaw(row, count);
+    }
+
     virtual void Close() = 0;
 
     template <typename TRow>

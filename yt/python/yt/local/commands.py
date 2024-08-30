@@ -7,7 +7,6 @@ from yt.common import YtError, require, is_process_alive, get_fqdn
 
 
 import yt.yson as yson
-import yt.json_wrapper as json
 
 try:
     from yt.packages.six.moves import map as imap, filter as ifilter
@@ -16,20 +15,24 @@ except ImportError:
 
 import yt.wrapper as yt
 
-import os
-import signal
 import errno
+import importlib
 import logging
+import os
 import shutil
+import signal
 import time
-import codecs
 
 logger = logging.getLogger("YtLocal")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
 
 
-def _load_config(config, is_proxy_config=False):
+def _to_camelcase(snakecase_str):
+    return "".join(x.capitalize() for x in snakecase_str.lower().split("_"))
+
+
+def _load_config(config):
     if config is None:
         return {}
 
@@ -38,10 +41,7 @@ def _load_config(config, is_proxy_config=False):
 
     path = config
     with open(path, "rb") as fin:
-        if not is_proxy_config:
-            return yson.load(fin)
-        else:
-            return json.load(codecs.getreader("utf-8")(fin))
+        return yson.load(fin)
 
 
 def get_root_path(path=None):
@@ -172,7 +172,9 @@ def start(master_count=1,
           chaos_node_count=0,
           replicated_table_tracker_count=0,
           job_proxy_logging_mode=None,
-          use_native_client=False):
+          use_native_client=False,
+          timestamp_provider_count=0,
+          components=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -237,7 +239,7 @@ def start(master_count=1,
         delta_controller_agent_config=_load_config(controller_agent_config),
         delta_node_config=_load_config(node_config),
         delta_rpc_proxy_config=_load_config(rpc_proxy_config),
-        delta_http_proxy_config=_load_config(proxy_config, is_proxy_config=True),
+        delta_http_proxy_config=_load_config(proxy_config),
         delta_master_cache_config=_load_config(master_cache_config),
         delta_driver_config=_load_config(driver_config),
         delta_global_cluster_connection_config=_load_config(global_cluster_connection_config),
@@ -272,7 +274,8 @@ def start(master_count=1,
         init_operations_archive=init_operations_archive,
         job_proxy_logging=job_proxy_logging,
         job_proxy_log_manager=job_proxy_log_manager,
-        use_native_client=use_native_client)
+        use_native_client=use_native_client,
+        timestamp_provider_count=timestamp_provider_count)
 
     environment = YTInstance(
         sandbox_path,
@@ -282,8 +285,6 @@ def start(master_count=1,
         kill_child_processes=set_pdeath_sig,
         watcher_config=watcher_config,
         ytserver_all_path=ytserver_all_path)
-
-    environment.id = sandbox_id
 
     require(_is_stopped(sandbox_id, path),
             lambda: YtError("Instance with id {0} is already running".format(sandbox_id)))
@@ -303,6 +304,42 @@ def start(master_count=1,
 
     if not prepare_only:
         environment.start()
+
+    component_runners = []
+    if components is not None:
+        for component in components:
+            name = component["name"]
+            snakecase_name = name.replace("-", "_")
+            camelcase_name = _to_camelcase(snakecase_name)
+
+            if "module_name" not in component:
+                component["module_name"] = f"yt.environment.components.{snakecase_name}"
+
+            if "class_name" not in component:
+                component["class_name"] = camelcase_name
+
+            if "config" not in component:
+                component["config"] = {"count": 1}
+
+            module_name = component["module_name"]
+            class_name = component["class_name"]
+            config = component["config"]
+
+            module = None
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError:
+                logger.warning(f"Failed to import {module_name}, install it if you want to start {name}")
+                continue
+
+            c = getattr(module, class_name)()
+            c.prepare(environment, config)
+            c.run()
+            component_runners.append(c)
+
+    for c in component_runners:
+        c.wait()
+        c.init()
 
     log_started_instance_info(environment, http_proxy_count > 0, rpc_proxy_count > 0, prepare_only)
     touch(is_started_file)

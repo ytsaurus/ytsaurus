@@ -164,8 +164,8 @@ struct IFairShareTree
     virtual void ProcessActivatableOperations() = 0;
     virtual void TryRunAllPendingOperations() = 0;
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const = 0;
-    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const TString& user) const = 0;
+    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const = 0;
+    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const = 0;
 
     virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
     virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
@@ -174,14 +174,12 @@ struct IFairShareTree
     virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
 
-    virtual TError CheckOperationNecessaryResourceDemand(TOperationId operationId) const = 0;
-
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
     virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
-    virtual void OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;

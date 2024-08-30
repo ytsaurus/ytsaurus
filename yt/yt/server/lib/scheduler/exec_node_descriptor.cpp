@@ -20,19 +20,19 @@ using NYT::ToProto;
 
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
-    TString address,
-    std::optional<TString> dataCenter,
+    const std::string& address,
+    const std::optional<std::string>& dataCenter,
     double ioWeight,
     bool online,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
     const TDiskResources& diskResources,
     const TBooleanFormulaTags& tags,
-    std::optional<TString> infinibandCluster,
+    const std::optional<std::string>& infinibandCluster,
     IAttributeDictionaryPtr schedulingOptions)
     : Id(id)
-    , Address(std::move(address))
-    , DataCenter(std::move(dataCenter))
+    , Address(address)
+    , DataCenter(dataCenter)
     , IOWeight(ioWeight)
     , Online(online)
     , ResourceUsage(resourceUsage)
@@ -64,7 +64,7 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
     protoDescriptor->set_node_id(ToProto<ui32>(descriptor.Id));
-    protoDescriptor->set_address(descriptor.Address);
+    protoDescriptor->set_address(ToProto<TProtobufString>(descriptor.Address));
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
     ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);

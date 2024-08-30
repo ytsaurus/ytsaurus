@@ -2,9 +2,9 @@
 
 #include "helpers.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/statistics.h>
@@ -13,7 +13,7 @@
 
 namespace NYT::NControllerAgent {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! This class encapsulates everything a task needs to know in order to decide
 //! whether it's allowed to launch jobs in a tentative tree.

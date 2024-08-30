@@ -56,7 +56,7 @@ protected:
         return std::make_unique<TAccountFactory>(Bootstrap_);
     }
 
-    TBasePtr ResolveNameOrThrow(const TString& name) override
+    TBasePtr ResolveNameOrThrow(const std::string& name) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
@@ -64,7 +64,7 @@ protected:
     }
 
     void ValidateBeforeAttachChild(
-        const TString& key,
+        const std::string& key,
         const TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>>& child) override
     {
         TBase::ValidateBeforeAttachChild(key, child);
@@ -105,7 +105,7 @@ private:
         TBase::ValidateRemoval();
     }
 
-    void ValidateChildNameAvailability(const TString& childName) override
+    void ValidateChildNameAvailability(const std::string& childName) override
     {
         TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(childName);
 

@@ -124,7 +124,7 @@ protected:
         NTransactionServer::TTransaction* Transaction_ = nullptr;
         NHydra::TReign Version_;
 
-        THashMap<TCypressNode*, std::vector<std::pair<TString, TNodeId>>> NodeToChildren_;
+        THashMap<TCypressNode*, std::vector<std::pair<std::string, TNodeId>>> NodeToChildren_;
         THashMap<TNodeId, TCypressNode*> OldIdToNode_;
 
         std::vector<std::pair<TNodeId, TRef>> NodeIdToData_;
@@ -257,7 +257,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /*user*/ = "") override;
+        const std::string& user = {}) override;
 
     // Inject other overloads into the scope.
     using THierarchicPermissionValidator<TCypressNode>::ValidatePermission;
@@ -527,14 +527,14 @@ public:
 
     void Clear() override;
     int GetChildCount() const override;
-    std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
-    std::vector<TString> GetKeys() const override;
-    NYTree::INodePtr FindChild(const TString& key) const override;
-    bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
-    bool RemoveChild(const TString& key) override;
+    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
+    std::vector<std::string> GetKeys() const override;
+    NYTree::INodePtr FindChild(const std::string& key) const override;
+    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
+    bool RemoveChild(const std::string& key) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
@@ -571,7 +571,7 @@ private:
 
     void DoRemoveChild(
         TCypressMapNode* impl,
-        const TString& key,
+        const std::string& key,
         TCypressNode* childImpl);
 };
 

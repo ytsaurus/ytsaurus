@@ -7,6 +7,7 @@ SRCS(
     merge_attributes_ut.cpp
     scalar_attribute_ut.cpp
     unwrapping_consumer_ut.cpp
+    yson_builder_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

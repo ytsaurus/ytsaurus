@@ -466,7 +466,7 @@ void TTabletChunkSpecFetcher::DoFetch()
     }
 }
 
-void TTabletChunkSpecFetcher::DoFetchFromNode(const TString& address)
+void TTabletChunkSpecFetcher::DoFetchFromNode(const std::string& address)
 {
     auto& state = NodeAddressToState_[address];
 

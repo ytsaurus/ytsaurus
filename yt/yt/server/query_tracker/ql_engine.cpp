@@ -21,7 +21,7 @@ using namespace NHiveClient;
 using namespace NYTree;
 using namespace NConcurrency;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TQLQueryHandler
     : public TQueryHandlerBase
@@ -42,6 +42,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting QL query");
+        OnQueryStarted();
         AsyncQueryResult_ = QueryClient_->SelectRows(Query_);
         AsyncQueryResult_.Subscribe(BIND(&TQLQueryHandler::OnQueryFinish, MakeWeak(this)).Via(GetCurrentInvoker()));
     }
@@ -114,6 +115,6 @@ IQueryEnginePtr CreateQLEngine(const IClientPtr& stateClient, const TYPath& stat
     return New<TQLEngine>(stateClient, stateRoot);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

@@ -24,7 +24,7 @@ TExecNode::TExecNode(
     , HasPendingUnregistration_(false)
 { }
 
-const TString& TExecNode::GetDefaultAddress() const
+const std::string& TExecNode::GetDefaultAddress() const
 {
     return NodeDescriptor_.GetDefaultAddress();
 }
@@ -36,8 +36,6 @@ bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 
 TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 {
-    auto guard = ReaderGuard(SpinLock_);
-
     return New<TExecNodeDescriptor>(
         Id_,
         GetDefaultAddress(),
@@ -54,47 +52,11 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
 {
-    auto guard = WriterGuard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;
     for (const auto& [medium, weight] : mediumToWeight) {
         IOWeight_ += weight;
     }
-}
-
-const TJobResources& TExecNode::GetResourceLimits() const
-{
-    return ResourceLimits_;
-}
-
-void TExecNode::SetResourceLimits(const TJobResources& value)
-{
-    auto guard = WriterGuard(SpinLock_);
-    ResourceLimits_ = value;
-}
-
-const TJobResources& TExecNode::GetResourceUsage() const
-{
-    return ResourceUsage_;
-}
-
-
-const TDiskResources& TExecNode::GetDiskResources() const
-{
-    return DiskResources_;
-}
-
-
-void TExecNode::SetResourceUsage(const TJobResources& value)
-{
-    // NB: No locking is needed since ResourceUsage_ is not used
-    // in BuildExecDescriptor.
-    ResourceUsage_ = value;
-}
-
-void TExecNode::SetDiskResources(TDiskResources value)
-{
-    DiskResources_ = std::move(value);
 }
 
 void TExecNode::SetTags(TBooleanFormulaTags tags)

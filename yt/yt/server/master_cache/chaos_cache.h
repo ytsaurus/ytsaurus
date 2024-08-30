@@ -78,7 +78,7 @@ public:
         TDuration successExpirationTime,
         TDuration failureExpirationTime,
         NChaosClient::TReplicationEra refreshEra,
-        const TString& user);
+        const std::string& user);
 
     void EndLookup(
         NRpc::TRequestId requestId,
@@ -92,7 +92,7 @@ private:
 
     THashMap<TString, TCacheProfilingCountersPtr> UserToCounters_;
 
-    TCacheProfilingCountersPtr GetProfilingCounters(const TString& user);
+    TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user);
 
     virtual bool IsResurrectionSupported() const override;
 

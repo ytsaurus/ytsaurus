@@ -35,7 +35,7 @@ struct TOperationDescription
     std::vector<TJobDescription> JobDescriptions;
     TInstant StartTime;
     TDuration Duration;
-    TString AuthenticatedUser;
+    std::string AuthenticatedUser;
     NScheduler::EOperationType Type;
     TString State;
     bool InTimeframe;

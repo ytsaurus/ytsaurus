@@ -54,6 +54,9 @@ using NChunkClient::NProto::TDataStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = JobProxyLogger;
@@ -170,6 +173,15 @@ TSharedRef TJob::DumpSensors()
     YT_UNIMPLEMENTED();
 }
 
+TJobProxyOrchidInfo TJob::GetOrchidInfo()
+{
+    return TJobProxyOrchidInfo{
+        .JobIOInfo = TJobIOOrchidInfo{
+            .BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount,
+        }
+    };
+}
+
 std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() const
 {
     return std::nullopt;
@@ -241,7 +253,7 @@ TJobResult TSimpleJobBase::Run()
         options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
         options.ValidateValues = true;
         PipeReaderToWriter(
-            Reader_,
+            CreateApiFromSchemalessChunkReaderAdapter(Reader_),
             Writer_,
             options);
     }

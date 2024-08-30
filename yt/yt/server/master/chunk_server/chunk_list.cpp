@@ -10,6 +10,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,17 +65,17 @@ void TChunkList::ValidateUniqueAncestors()
     }
 }
 
-TString TChunkList::GetLowercaseObjectName() const
+std::string TChunkList::GetLowercaseObjectName() const
 {
     return Format("chunk list %v", GetId());
 }
 
-TString TChunkList::GetCapitalizedObjectName() const
+std::string TChunkList::GetCapitalizedObjectName() const
 {
     return Format("Chunk list %v", GetId());
 }
 
-TString TChunkList::GetObjectPath() const
+TYPath TChunkList::GetObjectPath() const
 {
     return Format("//sys/chunk_lists/%v", GetId());
 }

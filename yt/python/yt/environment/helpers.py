@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from yt.wrapper.common import generate_uuid
 
-from yt.common import to_native_str, YtError, which  # noqa
+from yt.common import to_native_str, YtError, YtResponseError, which  # noqa
 
 import signal
 import sys
@@ -399,18 +399,19 @@ KAFKA_PROXIES_SERVICE = "kafka_proxies"
 
 
 class Restarter(object):
-    def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
+    def __init__(self, yt_instance, components, sync=True, start_bin_path=None, *args, **kwargs):
         self.yt_instance = yt_instance
         self.components = components
         if type(self.components) is str:
             self.components = [self.components]
         self.sync = sync
+        self.start_custom_paths = [start_bin_path] if start_bin_path is not None else None
         self.kill_args = args
         self.kill_kwargs = kwargs
 
         self.start_dict = {
-            SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
-            CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
+            SCHEDULERS_SERVICE: lambda sync: self.yt_instance.start_schedulers(sync=sync, custom_paths=self.start_custom_paths),
+            CONTROLLER_AGENTS_SERVICE: lambda sync: self.yt_instance.start_controller_agents(sync=sync, custom_paths=self.start_custom_paths),
             NODES_SERVICE: self.yt_instance.start_nodes,
             CHAOS_NODES_SERVICE: self.yt_instance.start_chaos_nodes,
             MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(
@@ -485,3 +486,37 @@ def find_cri_endpoint():
     finally:
         sock.close()
     return endpoint
+
+
+def wait_for_dynamic_config_update(client, expected_config, instances_path, config_node_name="dynamic_config_manager"):
+    instances = client.list(instances_path)
+
+    if not instances:
+        return
+
+    def check():
+        batch_client = client.create_batch_client()
+
+        # COMPAT(gryzlov-ad): Remove this when bundle_dynamic_config_manager is in cluster_node orchid
+        if instances_path == "//sys/cluster_nodes" and config_node_name == "bundle_dynamic_config_manager":
+            if not client.exists("{0}/{1}/orchid/{2}".format(instances_path, instances[0], config_node_name)):
+                return True
+
+        responses = [
+            batch_client.get("{0}/{1}/orchid/{2}".format(instances_path, instance, config_node_name))
+            for instance in instances
+        ]
+        batch_client.commit_batch()
+
+        for response in responses:
+            if not response.is_ok():
+                raise YtResponseError(response.get_error())
+
+            output = response.get_result()
+
+            if expected_config != output.get("applied_config"):
+                return False
+
+        return True
+
+    wait(check, error_message="Dynamic config didn't become as expected in time", ignore_exceptions=True)

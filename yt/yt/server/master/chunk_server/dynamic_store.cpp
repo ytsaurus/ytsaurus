@@ -17,7 +17,7 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TDynamicStore::GetLowercaseObjectName() const
+std::string TDynamicStore::GetLowercaseObjectName() const
 {
     return Format(
         "%v dynamic store %v",
@@ -25,7 +25,7 @@ TString TDynamicStore::GetLowercaseObjectName() const
         GetId());
 }
 
-TString TDynamicStore::GetCapitalizedObjectName() const
+std::string TDynamicStore::GetCapitalizedObjectName() const
 {
     return Format(
         "%v dynamic store %v",

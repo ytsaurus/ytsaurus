@@ -22,6 +22,7 @@ using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NSequoiaServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,17 +189,17 @@ int TObject::GetObjectEphemeralRefCounter() const
     return EphemeralRefCounter_.GetValue();
 }
 
-TString TObject::GetLowercaseObjectName() const
+std::string TObject::GetLowercaseObjectName() const
 {
     return Format("object %v", Id_);
 }
 
-TString TObject::GetCapitalizedObjectName() const
+std::string TObject::GetCapitalizedObjectName() const
 {
     return Format("Object %v", Id_);
 }
 
-TString TObject::GetObjectPath() const
+TYPath TObject::GetObjectPath() const
 {
     return "";
 }

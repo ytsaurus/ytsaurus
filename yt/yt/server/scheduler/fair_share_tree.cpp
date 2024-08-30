@@ -64,6 +64,22 @@ using NVectorHdrf::RatioComparisonPrecision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareUpdateResult
+{
+    TJobResources ResourceUsage;
+    TJobResources ResourceLimits;
+
+    THashMap<TSchedulingTagFilter, TJobResources> ResourceLimitsByTagFilter;
+
+    TNonOwningOperationElementMap EnabledOperationIdToElement;
+    TNonOwningOperationElementMap DisabledOperationIdToElement;
+    TNonOwningPoolElementMap PoolNameToElement;
+
+    std::vector<TError> Errors;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccumulatedResourceUsageInfo
 {
 public:
@@ -706,18 +722,20 @@ public:
         }
     }
 
-    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
+    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const override
     {
-        auto poolName = poolFromSpec.value_or(user);
+        // TODO(babenko): switch to std::string
+        auto poolName = poolFromSpec.value_or(TString(user));
 
         auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            return TPoolName(user, poolName);
+            // TODO(babenko): switch to std::string
+            return TPoolName(TString(user), poolName);
         }
         return TPoolName(poolName, std::nullopt);
     }
 
-    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const TString& user) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const override
     {
         const TSchedulerCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
@@ -902,28 +920,41 @@ public:
             .Run(operation, poolName);
     }
 
-    TError CheckOperationNecessaryResourceDemand(TOperationId operationId) const override
+    TError CheckOperationJobResourceLimitsRestrictions(const TSchedulerOperationElementPtr& element) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto element = GetOperationElement(operationId);
+        const auto& detailedMinNeededResources = element->GetDetailedInitialMinNeededResources();
 
-        std::vector<EJobResourceType> resourcesWithDemandViolations;
-        #define XX(name, Name) \
-            if (element->GetAggregatedInitialMinNeededResources().Get##Name() == 0 && \
-                Config_->NecessaryResourcesForOperation.contains(EJobResourceType::Name)) \
-            { \
-                resourcesWithDemandViolations.push_back(EJobResourceType::Name); \
+        for (const auto& minNeededResources : detailedMinNeededResources) {
+            THashSet<EJobResourceType> resourcesWithViolatedRestrictions;
+            Config_->MinJobResourceLimits->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+                if (auto lowerBound = Config_->MinJobResourceLimits.Get()->*resourceDataMember) {
+                    if (GetResource(minNeededResources, resourceType) < static_cast<double>(*lowerBound)) {
+                        resourcesWithViolatedRestrictions.insert(resourceType);
+                    }
+                }
+                if (auto upperBound = Config_->MaxJobResourceLimits.Get()->*resourceDataMember) {
+                    if (GetResource(minNeededResources, resourceType) > static_cast<double>(*upperBound)) {
+                        resourcesWithViolatedRestrictions.insert(resourceType);
+                    }
+                }
+            });
+
+            if (!resourcesWithViolatedRestrictions.empty()) {
+                return TError(
+                        EErrorCode::JobResourceLimitsRestrictionsViolated,
+                        "Operation has jobs with resource demand that violates restrictions for resources %lv in tree %Qlv",
+                        resourcesWithViolatedRestrictions,
+                        GetId())
+                    << TErrorAttribute("operation_id", element->GetOperationId())
+                    << TErrorAttribute("job_resource_demand", minNeededResources)
+                    << TErrorAttribute("lower_bounds", Config_->MinJobResourceLimits)
+                    << TErrorAttribute("upper_bounds", Config_->MaxJobResourceLimits);
             }
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-
-        if (resourcesWithDemandViolations.empty()) {
-            return TError();
         }
 
-        return TError("Operation has zero demand for resources which are necessary in tree %Qlv", GetId())
-            << TErrorAttribute("necessary_resources_with_zero_demand", resourcesWithDemandViolations);
+        return TError();
     }
 
     TPersistentTreeStatePtr BuildPersistentState() const override
@@ -966,12 +997,23 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    void OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
         TreeScheduler_->OnOperationMaterialized(element.Get());
+
+        // NB(eshcherbin): We don't apply this check to a revived operation so that
+        // it doesn't fail in the middle of its progress.
+        // TODO(eshcherbin): |revivedFromSnapshot| isn't 100% reliable because operation can be revived with clean start.
+        if (const auto& error = CheckOperationJobResourceLimitsRestrictions(element);
+            !error.IsOK() && !revivedFromSnapshot)
+        {
+            return error;
+        }
+
+        return {};
     }
 
     TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const override
@@ -1337,7 +1379,7 @@ private:
                 : DefaultVirtualChildLimit;
 
             if (limit <= 0) {
-                THROW_ERROR_EXCEPTION("Invalid value for limit: %v", limit);
+                THROW_ERROR_EXCEPTION("Invalid limit value %v", limit);
             }
 
             auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
@@ -1630,112 +1672,106 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
-        // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
-        std::optional<TJobResources> resourceUsage;
-        std::optional<TJobResources> resourceLimits;
-        std::optional<TFairShareUpdateContext> fairShareUpdateContext;
-        if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
-            resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
-            resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
-            fairShareUpdateContext.emplace(
-                TFairShareUpdateOptions{
-                    .MainResource = Config_->MainResource,
-                    .IntegralPoolCapacitySaturationPeriod = Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                    .IntegralSmoothPeriod = Config_->IntegralGuarantees->SmoothPeriod,
-                    .EnableFastChildFunctionSummationInFifoPools = Config_->EnableFastChildFunctionSummationInFifoPools,
-                },
-                *resourceLimits,
-                now,
-                LastFairShareUpdateTime_);
-        }
         const int nodeCount = NodeCount_;
 
         auto rootElement = RootElement_->Clone();
         {
             TEventTimerGuard timer(FairSharePreUpdateTimer_);
-            rootElement->InitializeFairShareUpdate(now, fairShareUpdateContext);
+            rootElement->InitializeFairShareUpdate(now);
         }
 
-        TFairSharePostUpdateContext fairSharePostUpdateContext{
-            .TreeConfig = Config_,
-            .Now = now,
-        };
         auto allocationSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(rootElement.Get());
 
-        // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
-        TJobResourcesByTagFilter resourceLimitsByTagFilter;
-        // TODO(eshcherbin): This capture by reference is currently thread-unsafe. We need to fix it.
-        auto asyncUpdate = BIND([&, treeId = TreeId_, config = Config_, lastFairShareUpdateTime = LastFairShareUpdateTime_]
-            {
+        auto asyncUpdate =
+            BIND([
+                this,
+                this_ = MakeStrong(this),
+                now,
+                treeId = TreeId_,
+                config = Config_,
+                &rootElement,
+                &allocationSchedulerPostUpdateContext,
+                lastFairShareUpdateTime = LastFairShareUpdateTime_
+            ] () -> TFairShareUpdateResult {
+                TFairShareUpdateResult fairShareUpdateResult;
+
                 TForbidContextSwitchGuard contextSwitchGuard;
                 {
                     TEventTimerGuard timer(FairShareUpdateTimer_);
 
                     YT_LOG_DEBUG("Fair share tree update started");
 
-                    if (StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
-                        resourceUsage.emplace(StrategyHost_->GetResourceUsage(config->NodesFilter));
-                        resourceLimits.emplace(StrategyHost_->GetResourceLimits(config->NodesFilter));
+                    fairShareUpdateResult.ResourceUsage = StrategyHost_->GetResourceUsage(config->NodesFilter);
+                    fairShareUpdateResult.ResourceLimits = StrategyHost_->GetResourceLimits(config->NodesFilter);
 
-                        auto fairSharePreUpdateContext = CreatePreUpdateContext(now, config->NodesFilter, *resourceLimits);
-                        rootElement->PreUpdate(&fairSharePreUpdateContext);
-                        resourceLimitsByTagFilter = fairSharePreUpdateContext.ResourceLimitsByTagFilter;
+                    auto fairSharePreUpdateContext = CreatePreUpdateContext(now, config->NodesFilter, fairShareUpdateResult.ResourceLimits);
+                    rootElement->PreUpdate(&fairSharePreUpdateContext);
+                    fairShareUpdateResult.ResourceLimitsByTagFilter = std::move(fairSharePreUpdateContext.ResourceLimitsByTagFilter);
 
-                        fairShareUpdateContext.emplace(
-                            TFairShareUpdateOptions{
-                                .MainResource = config->MainResource,
-                                .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
-                                .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
-                                .EnableFastChildFunctionSummationInFifoPools = config->EnableFastChildFunctionSummationInFifoPools,
-                            },
-                            *resourceLimits,
-                            now,
-                            lastFairShareUpdateTime);
-                    }
+                    TFairShareUpdateContext fairShareUpdateContext(
+                        TFairShareUpdateOptions{
+                            .MainResource = config->MainResource,
+                            .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
+                            .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
+                            .EnableFastChildFunctionSummationInFifoPools = config->EnableFastChildFunctionSummationInFifoPools,
+                        },
+                        fairShareUpdateResult.ResourceLimits,
+                        now,
+                        lastFairShareUpdateTime);
 
                     TFairShareUpdateExecutor updateExecutor(
                         rootElement,
-                        &*fairShareUpdateContext,
+                        &fairShareUpdateContext,
                         /*loggingTag*/ Format("TreeId: %v", treeId));
                     updateExecutor.Run();
+                    fairShareUpdateResult.Errors = std::move(fairShareUpdateContext.Errors);
 
+                    TFairSharePostUpdateContext fairSharePostUpdateContext{
+                        .TreeConfig = config,
+                        .Now = now,
+                    };
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
-                    rootElement->UpdateStarvationStatuses(now, fairSharePostUpdateContext.TreeConfig->EnablePoolStarvation);
+                    rootElement->UpdateStarvationStatuses(now, config->EnablePoolStarvation);
 
                     TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &allocationSchedulerPostUpdateContext);
+
+                    fairShareUpdateResult.EnabledOperationIdToElement = std::move(fairSharePostUpdateContext.EnabledOperationIdToElement);
+                    fairShareUpdateResult.DisabledOperationIdToElement = std::move(fairSharePostUpdateContext.DisabledOperationIdToElement);
+                    fairShareUpdateResult.PoolNameToElement = std::move(fairSharePostUpdateContext.PoolNameToElement);
+
+                    YT_LOG_DEBUG(
+                        "Fair share tree update finished "
+                        "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v)",
+                        rootElement->GetTreeSize(),
+                        rootElement->SchedulableElementCount(),
+                        fairSharePostUpdateContext.UnschedulableReasons);
                 }
 
-                MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate);
+                MaybeDelay(config->TestingOptions->DelayInsideFairShareUpdate);
 
-                YT_LOG_DEBUG(
-                    "Fair share tree update finished "
-                    "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v, IsFairSharePreUpdateOffloadingEnabled: %v)",
-                    rootElement->GetTreeSize(),
-                    rootElement->SchedulableElementCount(),
-                    fairSharePostUpdateContext.UnschedulableReasons,
-                    StrategyHost_->IsFairSharePreUpdateOffloadingEnabled());
+                return fairShareUpdateResult;
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
-        WaitFor(asyncUpdate)
-            .ThrowOnError();
+        auto fairShareUpdateResult = WaitFor(asyncUpdate)
+            .ValueOrThrow();
 
         YT_LOG_DEBUG("Processing fair share tree update result and creating a tree snapshot");
 
         TError error;
-        if (!fairShareUpdateContext->Errors.empty()) {
+        if (!fairShareUpdateResult.Errors.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId_)
                 << TErrorAttribute("pool_tree", TreeId_)
-                << std::move(fairShareUpdateContext->Errors);
+                << std::move(fairShareUpdateResult.Errors);
         }
 
         // Copy persistent attributes back to the original tree.
-        for (const auto& [operationId, element] : fairSharePostUpdateContext.EnabledOperationIdToElement) {
+        for (const auto& [operationId, element] : fairShareUpdateResult.EnabledOperationIdToElement) {
             if (auto originalElement = FindOperationElement(operationId)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
         }
-        for (const auto& [poolName, element] : fairSharePostUpdateContext.PoolNameToElement) {
+        for (const auto& [poolName, element] : fairShareUpdateResult.PoolNameToElement) {
             if (auto originalElement = FindPool(poolName)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
@@ -1749,16 +1785,16 @@ private:
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
             std::move(rootElement),
-            std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
-            std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
-            std::move(fairSharePostUpdateContext.PoolNameToElement),
+            std::move(fairShareUpdateResult.EnabledOperationIdToElement),
+            std::move(fairShareUpdateResult.DisabledOperationIdToElement),
+            std::move(fairShareUpdateResult.PoolNameToElement),
             Config_,
             ControllerConfig_,
-            *resourceUsage,
-            *resourceLimits,
+            fairShareUpdateResult.ResourceUsage,
+            fairShareUpdateResult.ResourceLimits,
             nodeCount,
             std::move(treeSchedulingSnapshot),
-            std::move(resourceLimitsByTagFilter));
+            std::move(fairShareUpdateResult.ResourceLimitsByTagFilter));
 
         if (Config_->EnableResourceUsageSnapshot) {
             TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
@@ -2179,7 +2215,7 @@ private:
         return nullptr;
     }
 
-    TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
+    TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2246,7 +2282,7 @@ private:
         }
     }
 
-    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
+    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2316,7 +2352,7 @@ private:
         return poolsToValidate;
     }
 
-    void ValidateOperationCountLimit(const TPoolName& poolName, const TString& userName) const
+    void ValidateOperationCountLimit(const TPoolName& poolName, const std::string& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 

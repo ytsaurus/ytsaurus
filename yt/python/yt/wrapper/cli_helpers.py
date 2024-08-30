@@ -8,6 +8,7 @@ from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
 import os
+import builtins
 import sys
 import traceback
 import yt
@@ -102,6 +103,15 @@ class ParseStructuredArgument(Action):
         old_value = get_value(getattr(namespace, self.dest), {})
         new_value = update(old_value, self.action_load_method(values))
         setattr(namespace, self.dest, new_value)
+
+
+class ParseStructuredArguments(Action):
+    def __init__(self, option_strings, dest, action_load_method=yson._loads_from_native_str, **kwargs):
+        Action.__init__(self, option_strings, dest, **kwargs)
+        self.action_load_method = action_load_method
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, builtins.list(map(self.action_load_method, values)))
 
 
 def populate_argument_help(parser):

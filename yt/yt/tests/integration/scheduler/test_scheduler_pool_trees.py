@@ -1833,7 +1833,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 ##################################################################
 
 
-class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
+class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1858,50 +1858,60 @@ class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
         }
     }
 
-    @authors("omgronny")
-    def test_forbid_operations_with_zero_resource_demand(self):
-        create_pool_tree(
-            "other",
-            config={
-                "nodes_filter": "other",
-                "necessary_resources_for_operation": ["gpu", "network"],
-            })
-        create_pool("pool", pool_tree="other")
-
-        with raises_yt_error("Operation has zero demand for resources which are necessary in tree \"other\""):
-            run_sleeping_vanilla(
-                spec={
-                    "pool": "pool",
-                    "pool_trees": ["other"],
-                    "resource_limits": {
-                        "cpu": 0,
-                    },
+    @authors("eshcherbin")
+    def test_simple(self):
+        update_pool_tree_config(
+            "default",
+            {
+                "min_job_resource_limits": {
+                    "cpu": 0.7,
                 },
-                track=True,
-            )
-
-    @authors("omgronny")
-    def test_do_not_forbid_operations_with_zero_resource_demand_during_revive(self):
-        update_pool_tree_config_option("default", "necessary_resources_for_operation", ["gpu"])
-
-        op = run_sleeping_vanilla(
-            spec={
-                "pool_trees": ["default"],
-            },
-            job_count=1,
-            task_patch={
-                "gpu_limit": 1,
+                "max_job_resource_limits": {
+                    "gpu": 4,
+                    "cpu": 1.0,
+                },
             },
         )
 
-        wait(lambda: op.get_job_count("running") == 1)
+        run_test_vanilla("echo OK >&2", track=True)
 
+        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 0.5}, track=True)
+
+        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 1.0, "gpu_limit": 8}, track=True)
+
+        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 2.0, "gpu_limit": 8}, track=True)
+
+        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 2.0, "gpu_limit": 4}, track=True)
+
+        run_test_vanilla("echo OK >&2", task_patch={"gpu_limit": 4}, track=True)
+
+    @authors("eshcherbin")
+    def test_old_revived_operations_do_not_fail(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        wait_breakpoint()
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
+            # Forbid operations without gpu demand.
+            update_pool_tree_config(
+                "default",
+                {
+                    "min_job_resource_limits": {"gpu": 1},
+                },
+            )
 
-        wait(lambda: op.get_job_count("running") == 1)
+        op.wait_for_state("running")
+
+        release_breakpoint()
+        op.track()
+
+        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            run_test_vanilla("echo FAIL >&2", track=True)
 
 
 ##################################################################

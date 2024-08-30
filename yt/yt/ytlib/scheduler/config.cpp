@@ -196,6 +196,8 @@ void TJobIOConfig::Register(TRegistrar registrar)
     registrar.Parameter("buffer_row_count", &TThis::BufferRowCount)
         .Default(10 * 1000)
         .GreaterThan(0);
+    registrar.Parameter("use_adaptive_buffer_row_count", &TThis::UseAdaptiveRowCount)
+        .Default(false);
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()
@@ -816,6 +818,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
         .Default(false);
 
+    registrar.Parameter("allow_use_virtual_squashfs_layer", &TThis::AllowUseVirtualSquashFsLayer)
+        .Default(false);
+
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
@@ -846,6 +851,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
+
+    registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYtVariablesInShellEnvironment)
+        .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -1102,6 +1110,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("extra_environment", &TThis::ExtraEnvironment)
+        .Default();
+
+    registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
@@ -1466,6 +1477,7 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("foreign_table_lookup_keys_threshold", &TThis::ForeignTableLookupKeysThreshold)
         .Default();
+
 
     registrar.Postprocessor([] (TReduceOperationSpec* spec) {
         NTableClient::ValidateSortColumns(spec->JoinBy);
@@ -2698,6 +2710,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMandatoryUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOptionalUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaTaskSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

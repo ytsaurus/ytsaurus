@@ -46,7 +46,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger("QueryTrackerProxy");
 
@@ -155,7 +155,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     return asyncRecord;
 };
 
-THashSet<TString> GetUserSubjects(const TString& user, const IClientPtr& client)
+THashSet<TString> GetUserSubjects(const std::string& user, const IClientPtr& client)
 {
     // Get all subjects for the user.
     TGetNodeOptions options;
@@ -170,7 +170,7 @@ THashSet<TString> GetUserSubjects(const TString& user, const IClientPtr& client)
 }
 
 ESecurityAction CheckAccessControl(
-    const TString& user,
+    const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
     const TString& queryAuthor,
     const IClientPtr& client,
@@ -211,7 +211,7 @@ ESecurityAction CheckAccessControl(
 void ThrowAccessDeniedException(
     TQueryId queryId,
     EPermission permission,
-    const TString& user,
+    const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
     const TString& queryAuthor)
 {
@@ -277,7 +277,7 @@ void ValidateQueryPermissions(
     TQueryId queryId,
     const TString& root,
     TTimestamp timestamp,
-    const TString& user,
+    const std::string& user,
     const IClientPtr& client,
     EPermission permission,
     const TLogger& logger)
@@ -453,7 +453,7 @@ void AddFilterConditions(
     NQueryClient::TQueryBuilder& builder,
     TYsonString& placeholderValues,
     const TListQueriesOptions& options,
-    const TString& user,
+    const std::string& user,
     const std::vector<TString>& acosForUser,
     const TString& table,
     bool isSuperuser)
@@ -536,7 +536,7 @@ void GetQueriesByStartTime(
     const TString& root,
     const TListQueriesOptions& requestOptions,
     const TTimestamp timestamp,
-    const TString& user,
+    const std::string& user,
     const std::vector<TString>& acosForUser,
     const TString& tableName,
     std::vector<std::pair<TTimestamp, TQueryId>>& results,
@@ -639,7 +639,7 @@ void TQueryTrackerProxy::StartQuery(
     const EQueryEngine engine,
     const TString& query,
     const TStartQueryOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     if (ssize(options.Files) > ProxyConfig_->MaxQueryFileCount) {
         THROW_ERROR_EXCEPTION("Too many files: limit is %v, actual count is %v",
@@ -686,7 +686,8 @@ void TQueryTrackerProxy::StartQuery(
                 .Query = query,
                 .Files = ConvertToYsonString(options.Files),
                 .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-                .User = user,
+                // TODO(babenko): switch to std::string
+                .User = TString(user),
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .StartTime = startTime,
                 .State = EQueryState::Draft,
@@ -708,7 +709,8 @@ void TQueryTrackerProxy::StartQuery(
             TFinishedQueryByStartTime newRecord{
                 .Key = {.MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
-                .User = user,
+                // TODO(babenko): switch to std::string
+                .User = TString(user),
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -725,7 +727,8 @@ void TQueryTrackerProxy::StartQuery(
             static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
 
             TFinishedQueryByUserAndStartTime newRecord{
-                .Key = {.User = user, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
+                // TODO(babenko): switch to std::string
+                .Key = {.User = TString(user), .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -748,7 +751,8 @@ void TQueryTrackerProxy::StartQuery(
                     TFinishedQueryByAcoAndStartTime newRecord{
                         .Key = {.AccessControlObject = aco, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                         .Engine = engine,
-                        .User = user,
+                        // TODO(babenko): switch to std::string
+                        .User = TString(user),
                         .State = EQueryState::Draft,
                         .FilterFactors = filterFactors,
                     };
@@ -768,7 +772,8 @@ void TQueryTrackerProxy::StartQuery(
             .Query = query,
             .Files = ConvertToYsonString(options.Files),
             .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-            .User = user,
+            // TODO(babenko): switch to std::string
+            .User = TString(user),
             .AccessControlObjects = ConvertToYsonString(accessControlObjects),
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,
@@ -792,7 +797,7 @@ void TQueryTrackerProxy::StartQuery(
 void TQueryTrackerProxy::AbortQuery(
     const TQueryId queryId,
     const TAbortQueryOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     auto abortError = TError(
         "Query was aborted by user %Qv%v",
@@ -869,7 +874,7 @@ void TQueryTrackerProxy::AbortQuery(
 TQueryResult TQueryTrackerProxy::GetQueryResult(
     const TQueryId queryId,
     const i64 resultIndex,
-    const TString& user)
+    const std::string& user)
 {
     auto timestamp = WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
@@ -923,7 +928,7 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
     const TQueryId queryId,
     const i64 resultIndex,
     const TReadQueryResultOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     YT_LOG_DEBUG(
         "Reading query result (QueryId: %v, ResultIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
@@ -1003,7 +1008,7 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
 TQuery TQueryTrackerProxy::GetQuery(
     const TQueryId queryId,
     const TGetQueryOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     auto timestamp = options.Timestamp != NullTimestamp
         ? options.Timestamp
@@ -1029,7 +1034,7 @@ TQuery TQueryTrackerProxy::GetQuery(
 
 TListQueriesResult TQueryTrackerProxy::ListQueries(
     const TListQueriesOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     auto timestamp = WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
@@ -1059,17 +1064,18 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     }
 
     auto userSubjects = GetUserSubjects(user, StateClient_);
-    userSubjects.insert(user);
+    // TODO(babenko): switch to std::string
+    userSubjects.insert(TString(user));
 
     std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
-    YT_LOG_DEBUG("Fetched user %Qv subjects: %v", user, userSubjectsVector);
+    YT_LOG_DEBUG("Fetched user subjects (User: %v, Subjects: %v)", user, userSubjectsVector);
 
     bool isSuperuser = userSubjects.contains(SuperusersGroupName);
     std::vector<TString> acosForUser;
 
     if (!isSuperuser) {
         acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
-        YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", user, acosForUser);
+        YT_LOG_DEBUG("Fetched suitable access control objects for user (User: %v, Acos: %v)", user, acosForUser);
     }
 
     auto addSelectExpressionsFromAttributes = [&] (NQueryClient::TQueryBuilder& builder, const TNameTablePtr& nameTable) {
@@ -1245,7 +1251,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 void TQueryTrackerProxy::AlterQuery(
     const TQueryId queryId,
     const TAlterQueryOptions& options,
-    const TString& user)
+    const std::string& user)
 {
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
@@ -1283,6 +1289,8 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TFinishedQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
+                .Annotations = query.Annotations ? query.Annotations : TYsonString(TString("{}")),
             };
             if (options.Annotations) {
                 record.Annotations = ConvertToYsonString(options.Annotations);
@@ -1291,6 +1299,8 @@ void TQueryTrackerProxy::AlterQuery(
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
+
+            filterFactors = GetFilterFactors(record);
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
@@ -1303,10 +1313,8 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TFinishedQueryByStartTimePartial record{
                 .Key = {.MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                .FilterFactors = filterFactors,
             };
-            if (options.Annotations) {
-                record.FilterFactors = filterFactors;
-            }
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
@@ -1329,8 +1337,8 @@ void TQueryTrackerProxy::AlterQuery(
 
                 TFinishedQueryByUserAndStartTimePartial record{
                     .Key = {.User = *query.User, .MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                    .FilterFactors = filterFactors,
                 };
-                record.FilterFactors = filterFactors;
 
                 std::vector rows{
                     record.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
@@ -1375,10 +1383,11 @@ void TQueryTrackerProxy::AlterQuery(
                 for (const auto& aco : acoToInsert) {
                     TFinishedQueryByAcoAndStartTimePartial record{
                         .Key = {.AccessControlObject = aco, .MinusStartTime = -i64(query.StartTime->MicroSeconds()), .QueryId = queryId},
+                        .Engine = query.Engine,
+                        .User = query.User,
+                        .State = query.State,
+                        .FilterFactors = filterFactors,
                     };
-                    if (options.Annotations) {
-                        record.FilterFactors = filterFactors;
-                    }
                     rows.push_back(record.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
                 }
                 transaction->WriteRows(
@@ -1392,14 +1401,16 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TActiveQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
+                .Annotations = query.Annotations ? query.Annotations : TYsonString(TString("{}")),
             };
             if (options.Annotations) {
                 record.Annotations = ConvertToYsonString(options.Annotations);
-                record.FilterFactors = GetFilterFactors(record);
             }
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
+            record.FilterFactors = GetFilterFactors(record);
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
@@ -1464,7 +1475,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     };
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     IClientPtr stateClient,
@@ -1477,6 +1488,6 @@ TQueryTrackerProxyPtr CreateQueryTrackerProxy(
         std::move(config));
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryTracker

@@ -22,16 +22,6 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-concept CParDoArgs =
-    requires {
-        typename T::TInputRow;
-        typename T::TOutputRow;
-    }
-    && std::constructible_from<T, const typename T::TInputRow&, TOutput<typename T::TOutputRow>&, IExecutionContext&>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename T>
 concept CIntrusivePtr = TIsSpecializationOf<TIntrusivePtr, T>::value;
 
 ////////////////////////////////////////////////////////////////////////////////

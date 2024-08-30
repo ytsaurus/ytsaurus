@@ -29,6 +29,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkRef>, HunkChunkRefs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkMeta>, HunkChunkMetas);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TColumnarStatisticsExt>, ColumnarStatisticsExt);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
 
 public:
 

@@ -175,7 +175,7 @@ std::vector<TGroupBlockHolder> CreateGroupBlockHolders(
     return groupHolders;
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
     std::vector<TRange<ui32>> groupBlockIndexes,
@@ -223,7 +223,7 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
     return blockInfos;
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncBlockWindowManager
     : public IBlockManager
@@ -265,8 +265,12 @@ public:
                 return false;
             }
 
-            auto loadedBlocks = FetchedBlocks_.GetUnique()
-                .ValueOrThrow();
+            auto loadedBlocksOrError = FetchedBlocks_.GetUnique();
+            if (!loadedBlocksOrError.IsOK()) {
+                return false;
+            }
+
+            auto loadedBlocks = std::move(loadedBlocksOrError).Value();
 
             size_t index = 0;
             for (auto& blockHolder : BlockHolders_) {

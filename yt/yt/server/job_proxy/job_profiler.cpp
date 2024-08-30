@@ -22,6 +22,9 @@ using namespace NScheduler;
 using namespace NJobAgent;
 using namespace NYTProf;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = JobProxyLogger;

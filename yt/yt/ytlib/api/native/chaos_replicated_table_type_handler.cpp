@@ -144,7 +144,7 @@ private:
         const auto& attributes = node->Attributes();
         auto optionalAttributeValue = attributes.Find<T>(attributeKey);
         if (!optionalAttributeValue) {
-            THROW_ERROR_EXCEPTION(errorMessage);
+            THROW_ERROR_EXCEPTION(TRuntimeFormat(errorMessage));
         }
 
         return *optionalAttributeValue;

@@ -235,6 +235,11 @@ public:
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        // Remove maintenance flag once full data node heartbeat is reported.
+        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+            nodeTracker->OnNodeMaintenanceUpdated(node, EMaintenanceType::PendingRestart);
+        }
+
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
@@ -372,7 +377,7 @@ public:
     }
 
     void ValidateRegisterNode(
-        const TString& address,
+        const std::string& address,
         TReqRegisterNode* request) override
     {
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());

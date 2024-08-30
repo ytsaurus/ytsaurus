@@ -178,7 +178,7 @@ public:
     MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
     MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
     MOCK_METHOD(const NChaosClient::IBannedReplicaTrackerCachePtr&, GetBannedReplicaTrackerCache, (), (override));
-    MOCK_METHOD(std::vector<TString>, GetDiscoveryServerAddresses, (), (const, override));
+    MOCK_METHOD(std::vector<std::string>, GetDiscoveryServerAddresses, (), (const, override));
     MOCK_METHOD(NDiscoveryClient::IDiscoveryClientPtr, CreateDiscoveryClient, (NDiscoveryClient::TDiscoveryClientConfigPtr, NRpc::IChannelFactoryPtr), (override));
     MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, TString, TString), (override));
     MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
@@ -192,7 +192,7 @@ public:
     MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
     MOCK_METHOD(const TString&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const TString&, GetClusterId, (), (const, override));
-    MOCK_METHOD(const std::optional<TString>&, GetClusterName, (), (const, override));
+    MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));
     MOCK_METHOD(NHiveClient::ITransactionParticipantPtr, CreateTransactionParticipant, (NHiveClient::TCellId, const NApi::TTransactionParticipantOptions&), (override));
     MOCK_METHOD(void, ClearMetadataCaches, (), (override));
@@ -203,7 +203,7 @@ public:
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
     TConnectionDynamicConfigPtr GetConfig() const override;
-    NRpc::IChannelPtr CreateChannelByAddress(const TString& address);
+    NRpc::IChannelPtr CreateChannelByAddress(const std::string& address);
     IClientPtr CreateNativeClient(const TClientOptions& options) override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;

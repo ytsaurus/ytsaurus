@@ -10,6 +10,8 @@
 #include "tmpfs_manager.h"
 #include "environment.h"
 #include "core_watcher.h"
+#include "trace_event_processor.h"
+#include "trace_consumer.h"
 
 #ifdef __linux__
 #include <yt/yt/library/containers/instance.h>
@@ -141,6 +143,9 @@ using NControllerAgent::NProto::TUserJobSpec;
 using NControllerAgent::NProto::TCoreInfo;
 using NChunkClient::TDataSliceDescriptor;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _unix_
@@ -207,6 +212,17 @@ public:
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
         , TmpfsManager_(New<TTmpfsManager>(Config_->TmpfsManager))
         , MemoryTracker_(New<TMemoryTracker>(Config_->MemoryTracker, UserJobEnvironment_, TmpfsManager_))
+        , TraceEventProcessor_(New<TJobTraceEventProcessor>(
+            Config_->JobTraceEventProcessor,
+            Host_->GetClient()->GetNativeConnection(),
+            Host_->GetOperationId(),
+            jobId,
+            Config_->OperationsArchiveVersion))
+        , TraceConsumer_(TraceEventProcessor_)
+        , TraceEventOutput_(std::make_unique<NTableClient::TTableOutput>(CreateParserForFormat(
+            TFormat(EFormatType::Json),
+            EDataType::Tabular,
+            &TraceConsumer_)))
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
@@ -277,7 +293,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             GetSandboxRelPath(ESandboxKind::Udf),
             ChunkReadOptions_,
-            Host_->GetLocalHostName());
+            Host_->GetLocalHostName(),
+            Config_->PipeReaderTimeoutThreshold);
     }
 
     TJobResult Run() override
@@ -611,6 +628,10 @@ private:
     IConnectionReaderPtr StderrPipeReader_;
     IConnectionReaderPtr ProfilePipeReader_;
 
+    const TJobTraceEventProcessorPtr TraceEventProcessor_;
+    TTraceConsumer TraceConsumer_;
+    std::unique_ptr<TTableOutput> TraceEventOutput_;
+
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
     // Actually InputActions_ has only one element,
@@ -637,6 +658,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
     NYT::TStatistics CustomStatistics_;
+
+    std::atomic<int> JobProfilerFailureCount_ = 0;
 
     TCoreWatcherPtr CoreWatcher_;
 
@@ -667,10 +690,12 @@ private:
         visibleEnvironment.reserve(Environment_.size());
 
         for (const auto& variable : Environment_) {
-            if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) && !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
+            if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
                 continue;
             }
-            if (variable.StartsWith("YT_")) {
+            if (variable.StartsWith("YT_") && 
+                !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()) {
                 shellEnvironment.push_back(variable);
             }
             visibleEnvironment.push_back(variable);
@@ -1041,7 +1066,11 @@ private:
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
-        const TError& wrappingError)
+        const TError& wrappingError,
+        std::function<void(const IConnectionReaderPtr&, const TError&)> onError =
+            [] (const IConnectionReaderPtr& /*input*/, const TError& error) {
+                THROW_ERROR error;
+            })
     {
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
@@ -1060,16 +1089,7 @@ private:
                     << ex;
                 YT_LOG_ERROR(error);
 
-                // We abort asyncInput for stderr.
-                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
-                // because we want to read and save as much stderr as possible even if job is failing.
-                // But if stderr transferring fiber itself fails, child process may hang
-                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
-                if (asyncInput == StderrPipeReader_) {
-                    YT_UNUSED_FUTURE(asyncInput->Abort());
-                }
-
-                THROW_ERROR error;
+                onError(asyncInput, error);
             }
         }));
 
@@ -1078,6 +1098,9 @@ private:
 
     void PrepareInputTablePipe()
     {
+        int jobDescriptor = 0;
+        InputPipePath_= CreateNamedPipePath();
+
         YT_LOG_DEBUG(
             "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
             InputPipePath_,
@@ -1085,8 +1108,6 @@ private:
             JobIOConfig_->PipeCapacity,
             JobIOConfig_->UseDeliveryFencedPipeWriter);
 
-        int jobDescriptor = 0;
-        InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         PipeConfigs_.emplace_back(std::move(pipeConfig));
@@ -1100,8 +1121,7 @@ private:
         //! NB: Context saving effectively forces writer to ignore pipe capacity limit
         //! as it only ever flushes once the socket is closed.
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
-            asyncOutput,
-            /*enableContextSaving*/ !(JobIOConfig_->PipeCapacity.has_value() || JobIOConfig_->UseDeliveryFencedPipeWriter));
+            asyncOutput);
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
@@ -1178,7 +1198,16 @@ private:
             errorOutputDescriptors,
             CreateErrorOutput(),
             &StderrActions_,
-            TError("Error writing to stderr"));
+            TError("Error writing to stderr"),
+            /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& error) {
+                // We abort asyncInput for stderr.
+                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
+                // because we want to read and save as much stderr as possible even if job is failing.
+                // But if stderr transferring fiber itself fails, child process may hang
+                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
+                YT_UNUSED_FUTURE(input->Abort());
+                THROW_ERROR error;
+            });
 
         PrepareOutputTablePipes();
 
@@ -1190,7 +1219,20 @@ private:
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
 
-            if (auto* profileOutput = JobProfiler_->GetUserJobProfileOutput()) {
+            auto* profileOutput = [&] () -> IOutputStream* {
+                if (!JobProfiler_ || !JobProfiler_->GetUserJobProfilerSpec()) {
+                    return nullptr;
+                }
+
+                if (Config_->EnableCudaProfileEventStreaming &&
+                    JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda)
+                {
+                    return TraceEventOutput_.get();
+                }
+                return JobProfiler_->GetUserJobProfileOutput();
+            }();
+
+            if (profileOutput) {
                 auto pipe = CreateNamedPipe();
 
                 auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
@@ -1201,7 +1243,11 @@ private:
                     {JobProfileFD},
                     profileOutput,
                     &StderrActions_,
-                    TError("Error writing job profile"));
+                    TError("Error writing job profile"),
+                    /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& /*error*/) {
+                        YT_UNUSED_FUTURE(input->Abort());
+                        ++JobProfilerFailureCount_;
+                    });
             }
         }
 
@@ -1430,9 +1476,24 @@ private:
 
             result.PipeStatistics = pipeStatistics;
         }
+
+        statistics.AddSample("/user_job/profiler_failure_count", JobProfilerFailureCount_);
+
         return result;
     }
 
+    TJobProxyOrchidInfo GetOrchidInfo() override
+    {
+        TJobProxyOrchidInfo info;
+
+        if (JobType_ == EJobType::Vanilla) {
+            info.JobIOInfo.BufferRowCount = JobIOConfig_->BufferRowCount;
+        } else {
+            info.JobIOInfo.BufferRowCount = UserJobReadController_->CurrentBufferRowCount();
+        }
+
+        return info;
+    }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
@@ -1444,7 +1505,7 @@ private:
             return;
         }
 
-        YT_LOG_ERROR(TError(message) << error);
+        YT_LOG_ERROR(TError(TRuntimeFormat(message)) << error);
 
         CleanupUserProcesses();
 
@@ -1516,7 +1577,8 @@ private:
         {
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
             auto processWorkingDirectory = CombinePaths(Host_->GetPreparationPath(), GetSandboxRelPath(ESandboxKind::User));
-            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Config_->BusServer->UnixDomainSocketPath);
+            // TODO(babenko): switch to std::string
+            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, TString(*Config_->BusServer->UnixDomainSocketPath));
             executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
         }
 

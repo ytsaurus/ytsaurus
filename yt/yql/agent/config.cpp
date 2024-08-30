@@ -335,8 +335,11 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYqlAgentDynamicConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_simultaneous_queries", &TThis::MaxSimultaneousQueries)
+        .Default(128);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

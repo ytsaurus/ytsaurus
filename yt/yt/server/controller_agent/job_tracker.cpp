@@ -33,7 +33,7 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
 static const auto JobTrackerProfiler = ControllerAgentProfiler.WithPrefix("/job_tracker");
 static const auto NodeHeartbeatProfiler = JobTrackerProfiler.WithPrefix("/node_heartbeat");
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
 using namespace NScheduler;
@@ -45,7 +45,7 @@ using namespace NYson;
 using NYT::FromProto;
 using NYT::ToProto;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -100,7 +100,7 @@ std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TJobToRelease
 
 } // namespace
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobTracker::TJobTrackerNodeOrchidService
     : public TVirtualMapBase
@@ -129,7 +129,8 @@ public:
                 break;
             }
 
-            keys.push_back(nodeInfo.NodeAddress);
+            // TOOD(babenko): migrate to std::string
+            keys.push_back(TString(nodeInfo.NodeAddress));
         }
 
         return keys;
@@ -543,7 +544,7 @@ private:
     const TJobTracker* const JobTracker_;
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TJobTracker::TAllocationInfo*
 TJobTracker::TNodeJobs::FindAllocation(TAllocationId allocationId)
@@ -792,7 +793,7 @@ TEvent& TJobTracker::TAllocationInfo::GetEventOrCrash(TNonNullPtr<TSchedulerToAg
     return *typedEvent;
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     : Bootstrap_(bootstrap)
@@ -2556,7 +2557,7 @@ void TJobTracker::DoRequestJobGracefulAbort(
         [&] (TGracefulAbortRequestOptions& /*requestOptions*/) { });
 }
 
-void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const TString& nodeAddress)
+void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const std::string& nodeAddress)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2568,7 +2569,7 @@ void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operation
             .ControllerState(EJobState::Aborted));
 }
 
-TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2579,7 +2580,7 @@ TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const TSt
     return RegisterNode(nodeId, nodeAddress);
 }
 
-TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2619,12 +2620,12 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
             .Jobs = {},
             .Lease = std::move(lease),
             .RegistrationId = registrationId,
-            .NodeAddress = std::move(nodeAddress),
+            .NodeAddress = nodeAddress,
         });
     return emplaceIt->second;
 }
 
-TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2656,7 +2657,7 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
     }
 }
 
-void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGuid maybeNodeRegistrationId)
+void TJobTracker::UnregisterNode(TNodeId nodeId, const std::string& nodeAddress, TGuid maybeNodeRegistrationId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2787,7 +2788,7 @@ TJobTracker::TNodeInfo* TJobTracker::FindNodeInfo(TNodeId nodeId)
 
 // NB(pogorelov): Sometimes nodeId or address may change.
 // So we use registrationId to prevent new node unregistration on old lease expiration (CloseLease is racy).
-void TJobTracker::OnNodeHeartbeatLeaseExpired(TGuid registrationId, TNodeId nodeId, const TString& nodeAddress)
+void TJobTracker::OnNodeHeartbeatLeaseExpired(TGuid registrationId, TNodeId nodeId, const std::string& nodeAddress)
 {
     YT_LOG_DEBUG(
         "Node heartbeat lease expired, unregister node (NodeId: %v, NodeAddress: %v)",
@@ -2998,13 +2999,12 @@ void TJobTracker::ProcessAbortedAllocations(
     }
 }
 
-const TString& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
+const std::string& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (auto nodeIt = ExecNodes_->find(nodeId); nodeIt == std::end(*ExecNodes_)) {
-        static const TString NotReceivedAddress{"<address not received>"};
-
+        static const std::string NotReceivedAddress{"<address not received>"};
         return NotReceivedAddress;
     } else {
         return nodeIt->second->Address;
@@ -3229,7 +3229,7 @@ void TJobTracker::DoCleanup()
     RegisteredOperations_.clear();
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TJobTrackerOperationHandler::TJobTrackerOperationHandler(
     TJobTracker* jobTracker,
@@ -3362,6 +3362,6 @@ void TJobTrackerOperationHandler::ProcessAllocationEvents(
         Passed(std::move(abortedAllocations))));
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

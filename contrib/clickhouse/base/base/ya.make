@@ -11,6 +11,8 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
+VERSION(23.8.16.40)
+
 PEERDIR(
     contrib/libs/fmt
     contrib/libs/poco/Foundation

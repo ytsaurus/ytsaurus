@@ -334,7 +334,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};"
                 "{tablet_index=3; cell_index=3}]")));
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TTestMergeSplitTabletsOfTable
     : public TTestTabletBalancingHelpers
@@ -393,7 +393,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=300}]}",
             /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=200}]")));
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TTestTabletBalancingHelpersWithoutDescriptors
     : public ::testing::Test

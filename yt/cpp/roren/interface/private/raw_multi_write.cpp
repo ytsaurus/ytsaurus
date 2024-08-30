@@ -30,10 +30,22 @@ TRawMultiWrite::TRawMultiWrite(std::vector<IRawWritePtr> writes)
     }
 }
 
-void TRawMultiWrite::AddRaw(const void* row, ssize_t count)
+void TRawMultiWrite::AddRaw(const void* rows, ssize_t count)
 {
     for (const auto& write : Writes_) {
-        write->AddRaw(row, count);
+        write->AddRaw(rows, count);
+    }
+}
+
+void TRawMultiWrite::MoveRaw(void* rows, ssize_t count)
+{
+    ssize_t lastIdx = std::ssize(Writes_) - 1;
+    for (ssize_t i = 0; i < std::ssize(Writes_); ++i) {
+        if (lastIdx != i) {
+            Writes_[i]->AddRaw(rows, count);
+        } else {
+            Writes_[i]->MoveRaw(rows, count);
+        }
     }
 }
 

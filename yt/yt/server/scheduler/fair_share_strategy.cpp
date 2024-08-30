@@ -214,7 +214,7 @@ public:
 
     INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         TNodeId nodeId,
-        const TString& address,
+        const std::string& address,
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const override
     {
@@ -356,10 +356,9 @@ public:
             YT_LOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
-                error = TError(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
                     << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                     << TErrorAttribute("actual_type", poolTreesNode->GetType());
-                THROW_ERROR(error);
             }
 
             auto poolsMap = poolTreesNode->AsMap();
@@ -391,10 +390,9 @@ public:
             auto defaultTreeId = poolsMap->Attributes().Find<TString>(DefaultTreeAttributeName);
 
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
-                errors.emplace_back("Default tree is missing");
-                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                errors.push_back(TError("Default tree is missing"));
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                THROW_ERROR(error);
             }
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
@@ -402,9 +400,8 @@ public:
             bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treeIdsWithChangedFilter.empty();
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
-                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                THROW_ERROR(error);
             }
 
             // Update configs and pools structure of all trees.
@@ -629,7 +626,7 @@ public:
     void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId) override
     {
@@ -694,7 +691,7 @@ public:
     void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user) override
+        const std::string& user) override
     {
         YT_VERIFY(origin);
 
@@ -1092,7 +1089,7 @@ public:
 
     TFuture<void> RegisterOrUpdateNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1102,7 +1099,7 @@ public:
             .Run(nodeId, nodeAddress, tags);
     }
 
-    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
+    void UnregisterNode(TNodeId nodeId, const std::string& nodeAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1186,7 +1183,7 @@ public:
 
             Host_->SetSchedulerAlert(
                 alertType,
-                TError(alertMessage)
+                TError(TRuntimeFormat(alertMessage))
                     << std::move(alerts));
         }
     }
@@ -1311,17 +1308,14 @@ public:
         std::vector<TError> multiTreeSchedulingErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            tree->OnOperationMaterialized(operationId);
-
-            if (auto error = tree->CheckOperationNecessaryResourceDemand(operationId);
-                !error.IsOK() &&
-                !revivedFromSnapshot)
+            if (auto error = tree->OnOperationMaterialized(operationId, revivedFromSnapshot);
+                !error.IsOK())
             {
                 return error;
             }
 
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
-                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration")
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
                     << std::move(error));
             }
         }
@@ -1372,7 +1366,7 @@ public:
 
     void BuildSchedulingAttributesForNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         TFluentMap fluent) const override
     {
@@ -1438,12 +1432,12 @@ private:
     struct TStrategyExecNodeDescriptor
     {
         TBooleanFormulaTags Tags;
-        TString Address;
+        std::string Address;
         std::optional<TString> TreeId;
     };
 
     THashMap<TNodeId, TStrategyExecNodeDescriptor> NodeIdToDescriptor_;
-    THashSet<TString> NodeAddresses_;
+    THashSet<std::string> NodeAddresses_;
     THashMap<TString, TNodeIdSet> NodeIdsPerTree_;
     TNodeIdSet NodeIdsWithoutTree_;
 
@@ -1556,7 +1550,7 @@ private:
 
     int FindTreeIndexForNode(
         const std::vector<IFairShareTreePtr>& trees,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const
     {
         bool hasMultipleMatchingTrees = false;
@@ -1588,7 +1582,7 @@ private:
     }
 
     std::pair<IFairShareTreePtr, TMatchingTreeCookie> FindTreeForNodeWithCookie(
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         TMatchingTreeCookie cookie) const
     {
@@ -1612,7 +1606,7 @@ private:
         }
     }
 
-    IFairShareTreePtr FindTreeForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    IFairShareTreePtr FindTreeForNode(const std::string& nodeAddress, const TBooleanFormulaTags& nodeTags) const
     {
         auto snapshot = TreeSetSnapshot_.Acquire();
         if (!snapshot) {
@@ -1777,7 +1771,9 @@ private:
         THashSet<TString>* treeIdsWithChangedFilter,
         THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key : poolsMap->GetKeys()) {
+        for (const auto& key_ : poolsMap->GetKeys()) {
+            // TODO(babenko): migrate to std::string
+            auto key = TString(key_);
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
@@ -1990,7 +1986,7 @@ private:
 
     void DoRegisterOrUpdateNode(
         TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -2143,7 +2139,7 @@ private:
             return;
         }
 
-        std::vector<TString> nodeAddresses;
+        std::vector<std::string> nodeAddresses;
         int nodeCount = 0;
         bool truncated = false;
         for (auto nodeId : NodeIdsWithoutTree_) {
@@ -2295,6 +2291,8 @@ private:
         { }
 
     private:
+        const TIntrusivePtr<TFairShareStrategy> Strategy_;
+
         i64 GetSize() const final
         {
             VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
@@ -2334,9 +2332,7 @@ private:
 
             return tree->GetOrchidService();
         }
-
-        const TIntrusivePtr<TFairShareStrategy> Strategy_;
-    };
+  };
 
     class TNodeHeartbeatStrategyProxy
         : public INodeHeartbeatStrategyProxy
@@ -2392,9 +2388,9 @@ private:
         }
 
     private:
-        TNodeId NodeId_;
-        IFairShareTreePtr Tree_;
-        TMatchingTreeCookie Cookie_;
+        const TNodeId NodeId_;
+        const IFairShareTreePtr Tree_;
+        const TMatchingTreeCookie Cookie_;
     };
 };
 

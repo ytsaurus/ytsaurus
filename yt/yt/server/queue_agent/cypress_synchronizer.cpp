@@ -463,7 +463,7 @@ private:
     //!    1) Objects present in the current dynamic state and not present in the watchlist AND in the set of polled objects.
     //! Deleted (from registration table mapping):
     //!    1) Objects present in the current dynamic state and not present in set of polled objects.
-    void InferChangesFromClusterWatchlist(const TString& cluster, TCypressWatchlist cypressWatchlist)
+    void InferChangesFromClusterWatchlist(const std::string& cluster, TCypressWatchlist cypressWatchlist)
     {
         // First, we collect all dynamic state objects for which the current Cypress revision
         // is larger than the stored revision.
@@ -763,7 +763,7 @@ private:
         }
     }
 
-    NNative::IClientPtr GetNativeClientOrThrow(const TString& cluster) const
+    NNative::IClientPtr GetNativeClientOrThrow(const std::string& cluster) const
     {
         try {
             return AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));

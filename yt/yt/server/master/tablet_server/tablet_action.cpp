@@ -11,20 +11,21 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TTabletAction::GetLowercaseObjectName() const
+std::string TTabletAction::GetLowercaseObjectName() const
 {
     return Format("tablet action %v", GetId());
 }
 
-TString TTabletAction::GetCapitalizedObjectName() const
+std::string TTabletAction::GetCapitalizedObjectName() const
 {
     return Format("Tablet action %v", GetId());
 }
 
-TString TTabletAction::GetObjectPath() const
+TYPath TTabletAction::GetObjectPath() const
 {
     return Format("//sys/tablet_actions/%v", GetId());
 }

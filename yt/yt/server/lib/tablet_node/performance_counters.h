@@ -30,8 +30,8 @@ namespace NYT::NTabletNode {
 
 struct TTabletPerformanceCounters
 {
-    static const TEmaCounter::TWindowDurations TabletPerformanceWindowDurations;
-    #define XX(name, Name) TEmaCounter Name = TEmaCounter(TabletPerformanceWindowDurations);
+    static const TEmaCounterWindowDurations<> TabletPerformanceWindowDurations;
+    #define XX(name, Name) TEmaCounter<i64> Name = TEmaCounter<i64>(TabletPerformanceWindowDurations);
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX

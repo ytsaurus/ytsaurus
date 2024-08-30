@@ -33,7 +33,7 @@ public:
     const THashSet<NCellServer::TCellBase*>& Cells(NCellarClient::ECellarType cellarType);
     bool IsAlienPeer(const NCellServer::TCellBase* cell, int peerId) const;
 
-    NNodeTrackerServer::TNode* FindNodeByAddress(const TString& address);
+    NNodeTrackerServer::TNode* FindNodeByAddress(const std::string& address);
 
 private:
     NHydra::TEntityMap<NCellServer::TCellBundle> CellBundleMap_;
@@ -45,12 +45,12 @@ private:
 
     THashSet<const NNodeTrackerServer::TNode::TCellSlot*> WarmedUpSlots_;
     THashSet<const NNodeTrackerServer::TNode*> CellHostNodes_;
-    THashMap<TString, NCellServer::TCellSet> AddressToCell_;
+    THashMap<std::string, NCellServer::TCellSet> AddressToCell_;
     THashMap<NCellarClient::ECellarType, THashSet<NCellServer::TCellBase*>> CellsPerTypeMap_;
     THashMap<const NCellServer::TCellBase*, THashSet<int>> AlienPeers_;
-    THashMap<TString, NNodeTrackerServer::TNode*> AddressToNode_;
+    THashMap<std::string, NNodeTrackerServer::TNode*> AddressToNode_;
 
-    const NCellServer::TCellSet* FindAssignedCells(const TString& address) const;
+    const NCellServer::TCellSet* FindAssignedCells(const std::string& address) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterStateProvider)

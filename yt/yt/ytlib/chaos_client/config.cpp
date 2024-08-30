@@ -24,4 +24,16 @@ void TReplicationCardChannelConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TReplicationCardsWatcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("poll_expiration_time", &TThis::PollExpirationTime)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("gone_cards_expiration_time", &TThis::GoneCardsExpirationTime)
+        .Default(TDuration::Minutes(10));
+    registrar.Parameter("replication_card_keep_alive_period", &TThis::ExpirationSweepPeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosClient

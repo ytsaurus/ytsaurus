@@ -104,7 +104,7 @@ public:
         : ExpireTime_(DurationToCpuDuration(expireTime))
     { }
 
-    TError Get(const TString& userName)
+    TError Get(const std::string& userName)
     {
         auto now = GetCpuInstant();
         {
@@ -130,7 +130,7 @@ public:
         return {};
     }
 
-    void Put(const TString& userName, const TError& error)
+    void Put(const std::string& userName, const TError& error)
     {
         auto now = GetCpuInstant();
         {
@@ -268,7 +268,7 @@ private:
         virtual TCallback<void()> ExtractCallback() override;
 
     private:
-        TSessionSchedulerPtr SessionScheduler_;
+        const TSessionSchedulerPtr SessionScheduler_;
     };
 
     TIntrusivePtr<TLocalReadCallbackProvider> LocalReadCallbackProvider_;
@@ -283,7 +283,6 @@ private:
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
-    std::atomic<bool> EnableBoomerangsIdentity_ = false;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
     static IInvokerPtr GetRpcInvoker()
@@ -302,7 +301,7 @@ private:
 
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
-    void SetStickyUserError(const TString& userName, const TError& error);
+    void SetStickyUserError(const std::string& userName, const TError& error);
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
@@ -381,7 +380,7 @@ public:
         });
     }
 
-    const TString& GetUserName() const
+    const std::string& GetUserName() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -519,7 +518,6 @@ private:
     int ThrottledAutomatonSubrequestIndex_ = -1;
     int ThrottledLocalReadSubrequestIndex_ = -1;
 
-    IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
 
     TEphemeralObjectPtr<TUser> User_;
@@ -910,7 +908,9 @@ private:
         if (future.IsSet()) {
             OnSyncPhaseOneCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
@@ -1161,8 +1161,7 @@ private:
                             .RequestId = RequestId_,
                             .SubrequestIndex = subrequestIndex,
                         },
-                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
-                        Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
+                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
                 }
                 if (subrequest.Mutation) {
                     // Pre-phase-two.
@@ -1185,8 +1184,7 @@ private:
                     .Identity = Identity_,
                     .RequestId = RequestId_,
                 },
-                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
-                Owner_->EnableBoomerangsIdentity_.load(std::memory_order::acquire));
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -1243,7 +1241,9 @@ private:
         if (future.IsSet()) {
             OnSyncPhaseTwoCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
@@ -1272,7 +1272,9 @@ private:
             // NB: sync-phase-three is usually no-op, so this is the common case.
             OnSyncPhaseThreeCompleted(future.Get());
         } else {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this)));
+            future.Subscribe(
+                BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this))
+                    .Via(GetRpcInvoker()));
         }
     }
 
@@ -1501,10 +1503,6 @@ private:
         const auto& hydraManager = hydraFacade->GetHydraManager();
 
         hydraManager->ValidatePeer(EPeerKind::LeaderOrFollower);
-
-        if (!EpochAutomatonInvoker_) {
-            EpochAutomatonInvoker_ = hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
-        }
 
         if (!EpochCancelableContext_) {
             EpochCancelableContext_ = hydraManager->GetAutomatonCancelableContext();
@@ -2273,13 +2271,13 @@ TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(TSessionS
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 {
-    if (SessionScheduler_->IsEmpty()) {
+    auto optionalSession = SessionScheduler_->TryDequeue();
+    if (!optionalSession) {
         return {};
     }
 
-    auto session = SessionScheduler_->Dequeue();
+    const auto& session = *optionalSession;
     TCurrentTraceContextGuard guard(session->GetTraceContext());
-
     return BIND(&TObjectService::TExecuteSession::RunRead, session);
 }
 
@@ -2304,9 +2302,6 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
-        std::memory_order::release);
-    EnableBoomerangsIdentity_.store(
-        Bootstrap_->GetConfigManager()->GetConfig()->EnableBoomerangsIdentity,
         std::memory_order::release);
 
     LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);
@@ -2357,10 +2352,14 @@ void TObjectService::ProcessSessions()
         }
     });
 
-    while (!AutomatonSessionScheduler_->IsEmpty() && GetCpuInstant() < deadlineTime) {
-        auto session = AutomatonSessionScheduler_->Dequeue();
-        TCurrentTraceContextGuard guard(session->GetTraceContext());
+    while (GetCpuInstant() < deadlineTime) {
+        auto optionalSession = AutomatonSessionScheduler_->TryDequeue();
+        if (!optionalSession) {
+            break;
+        }
 
+        const auto& session = *optionalSession;
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
         session->RunAutomatonSlow();
     }
 
@@ -2409,7 +2408,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
     scheduler->ChargeUser(user->GetName(), workload.RequestTime);
 }
 
-void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
+void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

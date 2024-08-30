@@ -13,7 +13,8 @@ public:
     TRawMultiWrite();
     TRawMultiWrite(std::vector<IRawWritePtr> writes);
 
-    void AddRaw(const void* row, ssize_t count) override;
+    void AddRaw(const void* rows, ssize_t count) override;
+    void MoveRaw(void* rows, ssize_t count) override;
     void Close() override;
 
     std::vector<TDynamicTypeTag> GetInputTags() const override;

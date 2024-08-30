@@ -1306,26 +1306,19 @@ private:
             THashMap<TString, std::vector<TString>> tagToAgentIds;
 
             auto children = ConvertToNode(TYsonString(rsp->value()))->AsMap()->GetChildren();
-            for (auto& [agentId, node] : children) {
+            for (const auto& [agentId, node] : children) {
                 const auto tags = [&node{node}, &agentId{agentId}] () -> THashSet<TString> {
                     try {
-                        const auto children = node->Attributes().ToMap()->GetChildOrThrow("tags")->AsList()->GetChildren();
-                        THashSet<TString> tags;
-                        tags.reserve(std::size(children));
-
-                        for (const auto& tagNode : children) {
-                            tags.insert(tagNode->AsString()->GetValue());
-                        }
-                        return tags;
+                        return node->Attributes().Get<THashSet<TString>>("tags");
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(ex, "Cannot parse tags of agent %v", agentId);
                         return {};
                     }
                 }();
 
-                tagToAgentIds.reserve(std::size(tags));
-                for (auto& tag : tags) {
-                    tagToAgentIds[std::move(tag)].push_back(agentId);
+                for (const auto& tag : tags) {
+                    // TODO(babenko): migrate to TString
+                    tagToAgentIds[TString(tag)].push_back(TString(agentId));
                 }
             }
 

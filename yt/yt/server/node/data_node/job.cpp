@@ -45,6 +45,8 @@
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
 
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
+
 #include <yt/yt/ytlib/journal_client/erasure_repair.h>
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
 #include <yt/yt/ytlib/journal_client/helpers.h>
@@ -134,14 +136,14 @@ using NYT::FromProto;
 TMasterJobBase::TMasterJobBase(
     NChunkServer::TJobId jobId,
     const NChunkServer::NProto::TJobSpec& jobSpec,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     const TJobResources& resourceLimits,
     IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->DataNode)
     , JobId_(jobId)
     , JobSpec_(jobSpec)
-    , JobTrackerAddress_(std::move(jobTrackerAddress))
+    , JobTrackerAddress_(jobTrackerAddress)
     , Logger(DataNodeLogger().WithTag(
         "JobId: %v, JobType: %v",
         jobId,
@@ -237,7 +239,7 @@ bool TMasterJobBase::IsUrgent() const
     return JobSpec_.urgent();
 }
 
-const TString& TMasterJobBase::GetJobTrackerAddress() const
+const std::string& TMasterJobBase::GetJobTrackerAddress() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -340,6 +342,13 @@ IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, int mediumIndex)
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, mediumIndex);
 }
+IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->FindChunk(chunkId, locationUuid);
+}
 
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
 {
@@ -347,6 +356,13 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
+}
+IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    return chunkStore->GetChunkOrThrow(chunkId, locationUuid);
 }
 
 void TMasterJobBase::DoSetFinished(
@@ -388,13 +404,13 @@ public:
     TChunkRemovalJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext))
@@ -423,13 +439,17 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
-        int mediumIndex = JobSpecExt_.medium_index();
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
+        // COMPAT(aleksandra-zh)
+        int mediumIndex = JobSpecExt_.has_medium_index() ? JobSpecExt_.medium_index() : -1;
+        auto locationUuid = JobSpecExt_.has_location_uuid() ? FromProto<TChunkLocationUuid>(JobSpecExt_.location_uuid()) : InvalidChunkLocationUuid;
+
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, ChunkLocationUuid: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
             mediumIndex,
+            locationUuid,
             replicas,
             replicasExpirationDeadline,
             chunkIsDead,
@@ -437,20 +457,37 @@ private:
 
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
-        auto chunk = chunkIsDead
-            ? FindLocalChunk(ChunkId_, mediumIndex)
-            : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        auto getChunk = [&] {
+            if (locationUuid != InvalidChunkLocationUuid) {
+                return chunkIsDead
+                    ? FindLocalChunk(ChunkId_, locationUuid)
+                    : GetLocalChunkOrThrow(ChunkId_, locationUuid);
+            }
+            // COMPAT(aleksandra-zh).
+            return chunkIsDead
+                ? FindLocalChunk(ChunkId_, mediumIndex)
+                : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
+        };
+        auto chunk = getChunk();
 
         if (!chunk) {
             YT_VERIFY(chunkIsDead);
             YT_LOG_INFO("Dead chunk is missing, reporting success");
+            if (locationUuid != InvalidChunkLocationUuid) {
+                YT_LOG_INFO("\"Removing\" nonexistent chunk (ChunkId: %v, LocationUuid: %v)",
+                    ChunkId_,
+                    locationUuid);
+
+                chunkStore->RemoveNonexistentChunk(ChunkId_, locationUuid);
+            }
             return VoidFuture;
         }
 
         // Usually, when subscribing, there are more free fibers than when calling wait for,
         // and the lack of free fibers during a forced context switch leads to the creation
         // of a new fiber and an increase in the number of stacks.
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
         auto resultFuture = chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
@@ -482,13 +519,13 @@ public:
     TChunkReplicationJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext))
@@ -543,7 +580,7 @@ private:
 
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
-        chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
+        chunkReadOptions.BlockCache = DynamicConfig_->UseBlockCache ? Bootstrap_->GetBlockCache() : GetNullBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
@@ -614,7 +651,8 @@ private:
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "read"},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                        {FormatIOTag(EAggregateIOTag::User), "root"},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
                     });
             }
 
@@ -687,14 +725,14 @@ public:
     TChunkRepairJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap,
         TMasterJobSensors sensors)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
@@ -796,9 +834,9 @@ private:
 
     TFuture<void> StartChunkRepairJob(
         NErasure::ICodec* codec,
-        const NErasure::TPartIndexList& erasedPartIndexes,
-        const IChunkReader::TReadBlocksOptions& readBlocksOptions,
-        const std::vector<IChunkWriterPtr>& writers)
+        NErasure::TPartIndexList erasedPartIndexes,
+        IChunkReader::TReadBlocksOptions readBlocksOptions,
+        std::vector<IChunkWriterPtr> writers)
     {
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
@@ -872,14 +910,14 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManagerHolder),
-                readBlocksOptions);
+                std::move(readBlocksOptions));
         } else {
             return RepairErasedParts(
                 codec,
-                erasedPartIndexes,
-                readers,
-                writers,
-                readBlocksOptions);
+                std::move(erasedPartIndexes),
+                std::move(readers),
+                std::move(writers),
+                std::move(readBlocksOptions));
         }
     }
 
@@ -949,9 +987,9 @@ private:
                 case EObjectType::ErasureChunk: {
                     future = StartChunkRepairJob(
                         codec,
-                        erasedPartIndexes,
-                        readBlocksOptions,
-                        writers);
+                        std::move(erasedPartIndexes),
+                        std::move(readBlocksOptions),
+                        std::move(writers));
                     break;
                 }
 
@@ -993,13 +1031,13 @@ public:
     TSealChunkJob(
         NChunkServer::TJobId jobId,
         TJobSpec&& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext))
@@ -1159,7 +1197,8 @@ private:
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                            {FormatIOTag(EAggregateIOTag::User), "root"},
+                            // TODO(babenko): switch to std::string
+                            {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
                         });
                 }
 
@@ -1196,14 +1235,14 @@ public:
     TChunkMergeJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap,
         i64 readMemoryLimit)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
@@ -1528,7 +1567,7 @@ private:
         }
         options->MaxHeavyColumns = MaxHeavyColumns_;
         options->MaxBlockCount = MaxBlockCount_;
-        options->MemoryUsageTracker = MemoryUsageTracker_;
+        options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
 
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
@@ -1536,8 +1575,16 @@ private:
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        for (const auto& chunkReadContext : InputChunkReadContexts_) {
-            writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
+        try {
+            for (const auto& chunkReadContext : InputChunkReadContexts_) {
+                writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
+            }
+        } catch (const TErrorException& ex) {
+            if (ex.Error().GetCode() == NChunkClient::EErrorCode::IncompatibleChunkMetas) {
+                WaitFor(writer->Cancel()).
+                    ThrowOnError();
+            }
+            throw;
         }
 
         for (const auto& chunkReadContext : InputChunkReadContexts_) {
@@ -1615,7 +1662,7 @@ private:
         if (EnableSkynetSharing_) {
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
-        chunkWriterOptions->MemoryUsageTracker = MemoryUsageTracker_;
+        chunkWriterOptions->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
         chunkWriterOptions->Postprocess();
 
         auto minTs = NullTimestamp;
@@ -1683,7 +1730,7 @@ private:
         options->TableSchema = Schema_;
         options->CompressionCodec = CompressionCodec_;
         options->ErasureCodec = ErasureCodec_;
-        options->MemoryUsageTracker = MemoryUsageTracker_;
+        options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
 
         return CreateConfirmingWriter(
             DynamicConfig_->Writer,
@@ -1912,13 +1959,13 @@ public:
     TChunkReincarnationJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(
@@ -2129,16 +2176,39 @@ private:
         IChunkWriterPtr confirmingWriter,
         TChunkStatePtr oldChunkState)
     {
-        auto reader = CreateVersionedChunkReader(
-            NTableClient::TChunkReaderConfig::GetDefault(),
-            std::move(remoteReader),
-            oldChunkState,
-            TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta),
-            readerOptions,
-            MakeSingletonRowRange(MinKey(), MaxKey()),
-            /*columnFilter*/ {},
-            AllCommittedTimestamp,
-            /*produceAllVersions*/ true);
+        IVersionedReaderPtr reader;
+
+        if (oldChunkMeta->format() == ToUnderlying(EChunkFormat::TableVersionedColumnar)) {
+            auto chunkMeta = TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta);
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                NTableClient::TChunkReaderConfig::GetDefault(),
+                std::move(remoteReader),
+                oldChunkState->BlockCache,
+                readerOptions,
+                chunkMeta,
+                GetCurrentInvoker());
+
+            reader = NColumnarChunkFormat::CreateVersionedChunkReader(
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                AllCommittedTimestamp,
+                chunkMeta,
+                oldChunkState->TableSchema,
+                TColumnFilter(),
+                oldChunkState->ChunkColumnMapping,
+                blockManagerFactory,
+                /*produceAllVersions*/ true);
+        } else {
+            reader = CreateVersionedChunkReader(
+                NTableClient::TChunkReaderConfig::GetDefault(),
+                std::move(remoteReader),
+                oldChunkState,
+                TCachedVersionedChunkMeta::Create(false, nullptr, oldChunkMeta),
+                readerOptions,
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                /*columnFilter*/ {},
+                AllCommittedTimestamp,
+                /*produceAllVersions*/ true);
+        }
 
         auto writer = CreateVersionedChunkWriter(
             New<TChunkWriterConfig>(),
@@ -2249,13 +2319,13 @@ public:
     TAutotomizeChunkJob(
         NChunkServer::TJobId jobId,
         const TJobSpec& jobSpec,
-        TString jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
-            std::move(jobTrackerAddress),
+            jobTrackerAddress,
             resourceLimits,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TAutotomizeChunkJobSpecExt::autotomize_chunk_job_spec_ext))
@@ -2865,7 +2935,7 @@ private:
 TMasterJobBasePtr CreateJob(
     NChunkServer::TJobId jobId,
     TJobSpec&& jobSpec,
-    TString jobTrackerAddress,
+    const std::string& jobTrackerAddress,
     const TJobResources& resourceLimits,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors)
@@ -2877,7 +2947,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2886,7 +2956,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2895,7 +2965,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap,
                 sensors);
@@ -2905,7 +2975,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2926,7 +2996,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap,
                 readMemoryLimit);
@@ -2937,7 +3007,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 
@@ -2946,7 +3016,7 @@ TMasterJobBasePtr CreateJob(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
-                std::move(jobTrackerAddress),
+                jobTrackerAddress,
                 resourceLimits,
                 bootstrap);
 

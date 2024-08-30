@@ -31,6 +31,8 @@ DECLARE_REFCOUNTED_CLASS(TMemoryTracker)
 
 DECLARE_REFCOUNTED_CLASS(TTmpfsManager)
 
+DECLARE_REFCOUNTED_CLASS(TJobTraceEventProcessor)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

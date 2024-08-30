@@ -121,9 +121,9 @@ public:
     using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
     TAccount(TAccountId id, bool isRoot = false);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -174,7 +174,7 @@ public:
     void RecomputeClusterStatistics();
 
     //! Attaches a child account and adds its resource usage to its new ancestry.
-    void AttachChild(const TString& key, TAccount* child) noexcept override;
+    void AttachChild(const std::string& key, TAccount* child) noexcept override;
     //! Unlinks a child account and subtracts its resource usage from its former ancestry.
     void DetachChild(TAccount* child) noexcept override;
 
@@ -206,7 +206,7 @@ private:
     //! merger that belong to this account.
     NObjectServer::TEpochRefCounter ChunkMergerNodeTraversals_;
 
-    TString GetRootName() const override;
+    std::string GetRootName() const override;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccount)

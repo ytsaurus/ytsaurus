@@ -355,7 +355,7 @@ public:
         const std::optional<TString>& title,
         TTransactionId hintId) override
     {
-        ValidateUploadTransactionStart(hintId, parent);
+        ValidateUploadTransactionStart(parent);
 
         return DoStartTransaction(
             /*upload*/ true,
@@ -414,23 +414,8 @@ public:
         }
     }
 
-    void ValidateUploadTransactionStart(TTransactionId hintId, TTransaction* parent)
+    void ValidateUploadTransactionStart(TTransaction* parent)
     {
-        if (hintId &&
-            TypeFromId(hintId) != EObjectType::UploadTransaction &&
-            TypeFromId(hintId) != EObjectType::UploadNestedTransaction)
-        {
-            if (IsHiveMutation()) {
-                // COMPAT(shakurov)
-                // This is a hive mutation posted by a pre-20.3 master (and being
-                // applied by a post-20.3 one).
-                YT_LOG_ALERT("Upload transaction has generic type despite dedicated types being enabled (TransactionId: %v)",
-                    hintId);
-            } else {
-                YT_ABORT();
-            }
-        }
-
         ValidateGenericTransactionStart(parent);
     }
 
@@ -1037,27 +1022,12 @@ public:
             // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
             // And it *is* coordinated by this cell, even though there's no corresponding 'native' object.
 
-            NProto::TReqStartForeignTransaction startRequest;
-            ToProto(startRequest.mutable_id(), effectiveTransactionId);
-            if (effectiveParentTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), effectiveParentTransactionId);
-            }
-            if (currentTransaction->GetTitle()) {
-                startRequest.set_title(*currentTransaction->GetTitle());
-            }
-            startRequest.set_upload(currentTransaction->IsUpload());
-            if (const auto* attributes = transaction->GetAttributes()) {
-                if (auto operationType = attributes->Find("operation_type")) {
-                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
-                }
-                if (auto operationId = attributes->Find("operation_id")) {
-                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
-                }
-                if (auto operationTitle = attributes->Find("operation_title")) {
-                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
-                }
-            }
-            multicellManager->PostToMasters(startRequest, cellTags);
+            PostForeignTransactionStart(
+                currentTransaction,
+                effectiveTransactionId,
+                effectiveParentTransactionId,
+                cellTags,
+                transaction);
         }
 
         return shouldExternalize
@@ -1092,6 +1062,72 @@ public:
         }
 
         return {};
+    }
+
+    void PostForeignTransactionStart(
+        TTransaction* transaction,
+        TTransactionId transactionId,
+        TTransactionId parentTransactionId,
+        TCellTagList dstCellTags,
+        TTransaction* transactionAttributeHolderOverride) override
+    {
+        NProto::TReqStartForeignTransaction startRequest;
+
+        ToProto(startRequest.mutable_id(), transactionId);
+
+        if (parentTransactionId) {
+            ToProto(startRequest.mutable_parent_id(), parentTransactionId);
+        }
+
+        if (auto title = transaction->GetTitle()) {
+            startRequest.set_title(*title);
+        }
+
+        startRequest.set_upload(transaction->IsUpload());
+
+        if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
+            if (const auto* attributes = transaction->GetAttributes()) {
+                if (auto operationType = attributes->Find("operation_type")) {
+                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                }
+                if (auto operationId = attributes->Find("operation_id")) {
+                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                }
+                if (auto operationTitle = attributes->Find("operation_title")) {
+                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                }
+            }
+
+            auto* user = transaction->Acd().GetOwner()->AsUser();
+            if (IsObjectAlive(user)) {
+                startRequest.set_user(ToProto<TProtobufString>(user->GetName()));
+            } else {
+                YT_LOG_ALERT("Transaction user is not alive during %v (TransactionId: %v)",
+                    transaction->GetId() == transactionId
+                    ? "replication"
+                    : "externalization",
+                    transaction->GetId());
+            }
+        } else {
+            // TODO(shakurov): this is a reproduction of an old bug. Remove.
+            const auto* attributes = transactionAttributeHolderOverride
+                ? transactionAttributeHolderOverride->GetAttributes()
+                : transaction->GetAttributes();
+            if (attributes) {
+                if (auto operationType = attributes->Find("operation_type")) {
+                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                }
+                if (auto operationId = attributes->Find("operation_id")) {
+                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                }
+                if (auto operationTitle = attributes->Find("operation_title")) {
+                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                }
+            }
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(startRequest, dstCellTags);
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId) override
@@ -1270,8 +1306,7 @@ public:
                 /*syncWithUpstream*/ false,
                 Bootstrap_,
                 prerequisiteTransactionIds,
-                IsMirroringToSequoiaEnabled(),
-                IsBoomerangsIdentityEnabled()));
+                IsMirroringToSequoiaEnabled()));
         }
 
         if (!cellIdsToSyncWith.empty()) {
@@ -2092,6 +2127,22 @@ private:
                 << TErrorAttribute("parent_transaction_id", parentId);
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetRootUser();
+        // COMPAT(shakurov): in 24.2, user will never be null.
+        if (request->has_user()) {
+            const auto& userName = request->user();
+            user = securityManager->FindUserByName(userName, true /*activeLifeStageOnly*/);
+            if (!IsObjectAlive(user)) {
+                YT_LOG_ALERT("Foreign transaction user not found, falling back to root (User: %v)",
+                    userName);
+                user = securityManager->GetRootUser();
+            }
+        }
+
+        // NB: DoStartTransaction below cares about authenticated user.
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+
         auto title = YT_PROTO_OPTIONAL(*request, title);
 
         YT_VERIFY(
@@ -2477,13 +2528,6 @@ private:
             boomerangRequest.mutable_boomerang_mutation_id()->Swap(request->mutable_boomerang_mutation_id());
             boomerangRequest.set_boomerang_mutation_type(request->boomerang_mutation_type());
             boomerangRequest.set_boomerang_mutation_data(request->boomerang_mutation_data());
-
-            if (request->has_user()) {
-                boomerangRequest.set_user(request->user());
-            }
-            if (request->has_user_tag()) {
-                boomerangRequest.set_user_tag(request->user_tag());
-            }
 
             multicellManager->PostToMaster(boomerangRequest, destinationCellTag);
         }
@@ -3273,14 +3317,6 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
-    }
-
-    bool IsBoomerangsIdentityEnabled()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        return config->EnableBoomerangsIdentity;
     }
 
     // NB: This function doesn't work properly if Cypress transaction service is

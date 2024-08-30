@@ -131,17 +131,17 @@ TTablet::TTablet(TTabletId id)
     , RetainedTimestamp_(MinTimestamp)
 { }
 
-TString TTablet::GetLowercaseObjectName() const
+std::string TTablet::GetLowercaseObjectName() const
 {
     return Format("tablet %v", GetId());
 }
 
-TString TTablet::GetCapitalizedObjectName() const
+std::string TTablet::GetCapitalizedObjectName() const
 {
     return Format("Tablet %v", GetId());
 }
 
-TString TTablet::GetObjectPath() const
+TYPath TTablet::GetObjectPath() const
 {
     return Format("//sys/tablets/%v", GetId());
 }

@@ -215,13 +215,14 @@ protected:
     {
         auto node = New<TExecNode>(
             /*nodeId*/ NextNodeId_,
-            TNodeDescriptor(Format("node%02d", NextNodeId_)),
+            // TODO(babenko): switch to std::string
+            TNodeDescriptor(std::string(Format("node%02d", NextNodeId_))),
             NScheduler::ENodeState::Online);
         NextNodeId_ = TNodeId(NextNodeId_.Underlying() + 1);
         node->SetTags(TBooleanFormulaTags(THashSet<TString>{"internal"}));
-        node->SetResourceLimits(resourceLimits);
+        node->ResourceLimits() = resourceLimits;
 
-        auto diskResources = TDiskResources{
+        node->DiskResources() = TDiskResources{
             .DiskLocationResources = {
                 TDiskResources::TDiskLocationResources{
                     .Usage = 0,
@@ -229,8 +230,6 @@ protected:
                 },
             },
         };
-
-        node->SetDiskResources(diskResources);
 
         return node;
     }
@@ -382,7 +381,7 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
     statisticsOutput.ExpectNoPreemption(operations[1]);
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NSchedulerSimulator

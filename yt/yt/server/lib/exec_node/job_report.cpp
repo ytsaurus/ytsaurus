@@ -136,9 +136,9 @@ TNodeJobReport TNodeJobReport::MonitoringDescriptor(TString monitoringDescriptor
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::Address(std::optional<TString> address)
+TNodeJobReport TNodeJobReport::Address(std::optional<std::string> address)
 {
-    Address_ = std::move(address);
+    Address_ = address;
     return std::move(*this);
 }
 
@@ -176,6 +176,11 @@ TNodeJobReport TNodeJobReport::ArchiveFeatures(const TYsonString& archiveFeature
 {
     ArchiveFeatures_ = archiveFeatures.ToString();
     return std::move(*this);
+}
+
+void TNodeJobReport::SetTtl(TDuration ttl)
+{
+    Ttl_ = ttl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

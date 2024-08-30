@@ -65,6 +65,16 @@ i64 TArtifactKey::GetCompressedDataSize() const
     return compressedDataSize;
 }
 
+i64 TArtifactKey::GetUncompressedDataSize() const
+{
+    i64 uncompressedDataSize = 0;
+    for (const auto& chunkSpec : chunk_specs()) {
+        uncompressedDataSize += GetChunkUncompressedDataSize(chunkSpec);
+    }
+
+    return uncompressedDataSize;
+}
+
 TArtifactKey::operator size_t() const
 {
     size_t result = 0;

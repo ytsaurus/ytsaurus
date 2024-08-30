@@ -17,7 +17,7 @@ using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildEmaCounterYson(const TEmaCounter& counter, TFluentAny fluent)
+void BuildEmaCounterYson(const TEmaCounter<i64, WindowCount>& counter, TFluentAny fluent)
 {
     auto immediateRate = counter.ImmediateRate;
     auto oneMinuteRateRaw = counter.WindowRates[0];

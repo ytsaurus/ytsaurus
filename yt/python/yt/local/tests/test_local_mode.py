@@ -9,7 +9,6 @@ from yt.test_helpers import get_tests_sandbox, get_build_root, wait, prepare_yt_
 import yt.subprocess_wrapper as subprocess
 
 import yt.yson as yson
-import yt.json_wrapper as json
 
 import yt.wrapper as yt
 
@@ -44,7 +43,7 @@ def _get_local_mode_tests_sandbox():
 
 def _get_yt_local_binary():
     if yatest_common is not None:
-        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_native_make/yt_local")
     else:
         return os.path.join(TESTS_LOCATION, "../bin/yt_local")
 
@@ -387,15 +386,13 @@ class TestLocalMode(object):
         try:
             with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
-            with tempfile.NamedTemporaryFile(mode="w", dir=get_tests_sandbox(), delete=False) as json_file:
-                json.dump(patch, json_file)
 
             with local_yt(id=_get_id("test_configs_patches"),
                           rpc_proxy_count=1,
                           master_config=yson_file.name,
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
-                          proxy_config=json_file.name,
+                          proxy_config=yson_file.name,
                           rpc_proxy_config=yson_file.name,
                           watcher_config=yson_file.name) as environment:
                 for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
@@ -408,7 +405,6 @@ class TestLocalMode(object):
                         assert config["test_key"] == "test_value"
         finally:
             remove_file(yson_file.name, force=True)
-            remove_file(json_file.name, force=True)
 
     def test_config_patches_value(self):
         patch = {"test_key": "test_value"}
@@ -607,3 +603,8 @@ class TestLocalMode(object):
 
             result_rows = [{"key": index + 1} for index in range(row_count)]
             assert list(client.read_table("//tmp/output_table")) == result_rows
+
+    def test_components(self):
+        with local_yt(id=_get_id("test_components"), components=[{"name": "query_tracker"}]) as environment:
+            client = environment.create_client()
+            assert client.list_queries()["queries"] == []

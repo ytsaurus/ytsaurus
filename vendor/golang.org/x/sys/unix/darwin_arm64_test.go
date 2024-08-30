@@ -114,6 +114,8 @@ var darwinTests = [...]darwinTest{
 	{"removexattr", libc_removexattr_trampoline_addr},
 	{"rename", libc_rename_trampoline_addr},
 	{"renameat", libc_renameat_trampoline_addr},
+	{"renameatx_np", libc_renameatx_np_trampoline_addr},
+	{"renamex_np", libc_renamex_np_trampoline_addr},
 	{"revoke", libc_revoke_trampoline_addr},
 	{"rmdir", libc_rmdir_trampoline_addr},
 	{"select", libc_select_trampoline_addr},

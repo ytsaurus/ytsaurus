@@ -11,7 +11,7 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    set_node_banned, update_inplace, update_controller_agent_config)
+    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
@@ -36,6 +36,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_UNIQUE_COUNT_CHECK = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -143,6 +144,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{v1,v2}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'v1': 1, 'v2': 1}
+
     @authors("ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     @pytest.mark.timeout(150)
@@ -159,6 +164,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted_dicts(new_data) == sorted_dicts([{"index": i} for i in range(count)])
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -185,6 +194,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_output2") == [{"value": 42}]
         assert sorted_dicts(read_table("//tmp/t_output1")) == [{"index": i} for i in range(count)]
+
+        if self.ENABLE_UNIQUE_COUNT_CHECK:
+            all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
     def test_write_two_outputs_consistently(self):
@@ -1613,6 +1627,61 @@ print(json.dumps(input))
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
+
+    @authors("arkady-e1ppa")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_adaptive_buffer_row_count(self, ordered):
+        skip_if_old(self.Env, (24, 1), "Option is not present in older binaries")
+
+        input_table = "//tmp/in"
+        output_table = "//tmp/out"
+        row_count = 1000
+
+        create("table", input_table)
+        write_table(
+            input_table,
+            [{"value": f"{i}"} for i in range(row_count + 1)]
+        )
+
+        attributes = "<sorted_by=[key]>" if ordered else ""
+        output = f"{attributes}{output_table}"
+        create("table", output)
+
+        update_nodes_dynamic_config(value=row_count * 100, path="exec_node/job_controller/job_proxy/pipe_reader_timeout_threshold")
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_=input_table,
+            out=output,
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            spec={
+                "job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "use_adaptive_buffer_row_count": True,
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        (job_id, ) = wait_breakpoint()
+
+        buffer_row_count = -1
+
+        for node in ls("//sys/cluster_nodes"):
+            orchid_prefix = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs"
+            orchid_suffix = "job_proxy/job_io/buffer_row_count"
+            if job_id not in get(orchid_prefix):
+                continue
+
+            buffer_row_count = get(f"{orchid_prefix}/{job_id}/{orchid_suffix}")
+            break
+
+        assert buffer_row_count > 1
+
+        release_breakpoint()
+        op.track()
 
     @authors("galtsev")
     @pytest.mark.parametrize("job_count", list(range(1, 4)))

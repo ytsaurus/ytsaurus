@@ -608,6 +608,54 @@ class TestJobShellInSubcontainer(TestJobProber):
         check_job_shell_permission("nirvana", "yt_dev", allowed=True)
         check_job_shell_permission("nirvana", "root", allowed=True)
 
+    @authors("arkady-e1ppa")
+    def test_job_shell_in_subcontainer_no_yt_variables(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = run_test_vanilla(
+            with_breakpoint("portoctl create N && BREAKPOINT"),
+            spec={
+                "enable_porto": "isolate",
+                "job_shells": [
+                    {
+                        "name": "default",
+                        "subcontainer": "",
+                    },
+                ],
+                "ignore_yt_variables_in_shell_environment": True,
+            },
+            task_patch={"enable_porto": "isolate"},
+        )
+        try:
+            job_id = wait_breakpoint()[0]
+        except YtError:
+            op.track()
+            assert False
+
+        r = poll_job_shell(
+            job_id,
+            shell_name="default",
+            authenticated_user="root",
+            operation="spawn",
+            command="printenv | cat"
+        )
+
+        output = self._poll_until_shell_exited(job_id, r["shell_id"])
+
+        print_debug(output)
+
+        for line in output.split():
+            # NB(arkady-e1ppa): YT_SHELL_ID is added outside of job_proxy
+            # configuration and thus is somewhat built-in
+            # there seems to be no logic involved with parsing
+            # said ID and thus it should be satisfactory to leave it be.
+            if line.startswith("YT_SHELL_ID"):
+                continue
+
+            assert not line.startswith("YT_")
+
     @authors("gritukan")
     def test_job_shell_in_subcontainer_invalid(self):
         with pytest.raises(YtError):

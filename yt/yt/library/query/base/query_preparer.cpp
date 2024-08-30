@@ -4,6 +4,7 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
+#include "private.h"
 #include "query_helpers.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
@@ -26,8 +27,6 @@ using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static constexpr size_t MaxExpressionDepth = 50;
 
 struct TQueryPreparerBufferTag
 { };
@@ -1434,7 +1433,7 @@ public:
 
 private:
     std::set<TString> UsedAliases_;
-    size_t Depth_ = 0;
+    int Depth_ = 0;
 
     THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
 
@@ -3103,7 +3102,7 @@ TJoinClausePtr BuildJoinClause(
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
-        foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
+    foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
         auto selfColumn = builder.GetColumnPtr(referenceExpr->Reference);

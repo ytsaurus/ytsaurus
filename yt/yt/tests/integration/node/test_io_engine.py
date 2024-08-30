@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup)
+from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
 from yt_helpers import profiler_factory
 
@@ -9,7 +9,10 @@ import os.path
 import threading
 import yt
 
-from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config, get_applied_node_dynamic_config, print_debug)
+from yt_commands import (
+    authors, wait, read_table, get, ls, create, write_table, set,
+    update_nodes_dynamic_config, get_applied_node_dynamic_config, print_debug,
+    create_domestic_medium, exists, remove)
 from yt.common import YtError
 
 
@@ -51,6 +54,20 @@ class TestIoEngine(YTEnvSetup):
             },
         }
     }
+
+    def setup_method(self, method):
+        super(TestIoEngine, self).setup_method(method)
+        for location in ls("//sys/chunk_locations"):
+            remove(f"//sys/chunk_locations/{location}/@medium_override")
+
+        def check_media():
+            for location in ls("//sys/chunk_locations", attributes=["statistics"]):
+                if location.attributes["statistics"]["medium_name"] != "default":
+                    return False
+            return True
+
+        wait(check_media)
+        self._wait_for_io_engine_enabled("thread_pool")
 
     def get_write_sensors(self, node):
         node_profiler = profiler_factory().at_node(node)
@@ -436,39 +453,72 @@ class TestIoEngine(YTEnvSetup):
         write_table("//tmp/sick", [{"a": i} for i in range(100)])
         wait(lambda: get_sick_count() > 0)
 
+    def _wait_for_io_engine_enabled(self, name):
+        def enabled_engines():
+            def none_to_zero(x):
+                return x or 0
+
+            return sum(
+                none_to_zero(profiler_factory().at_node(node).gauge(
+                    name="location/engine_enabled",
+                    fixed_tags={"location_type": "store", "engine_type": name})
+                    .get())
+                for node in ls("//sys/cluster_nodes")
+            )
+
+        wait(lambda: enabled_engines() == self.NUM_NODES)
+
+    def _set_io_engine(self, per_medium_io_engine):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    medium: {"io_engine_type": io_engine}
+                    for medium, io_engine in per_medium_io_engine.items()
+                }
+            }
+        })
+
     @authors("prime")
     def test_dynamic_io_engine(self):
         create("table", "//tmp/table")
 
-        def use_engine(name):
-            update_nodes_dynamic_config({
-                "data_node": {
-                    "store_location_config_per_medium": {
-                        "default": {
-                            "io_engine_type": name
-                        }
-                    }
-                }
-            })
+        content1 = [{"a": i} for i in range(100)]
+        content2 = [{"a": i} for i in range(100, 200)]
 
-            def enabled_engines():
-                return sum(
-                    profiler_factory().at_node(node).gauge(name="location/engine_enabled", fixed_tags={"location_type": "store", "engine_type": name}).get()
-                    for node in ls("//sys/cluster_nodes")
-                )
+        self._set_io_engine({"default": "fair_share_thread_pool"})
+        self._wait_for_io_engine_enabled("fair_share_thread_pool")
+        write_table("//tmp/table", content1)
 
-            wait(lambda: enabled_engines() == self.NUM_NODES)
+        self._set_io_engine({"default": "thread_pool"})
+        self._wait_for_io_engine_enabled("thread_pool")
+        write_table("<append=%true>//tmp/table", content2)
 
-            write_table("//tmp/table", [{"a": i} for i in range(100)])
-
-        use_engine("thread_pool")
-        use_engine("fair_share_thread_pool")
+        assert read_table("//tmp/table") == content1 + content2
 
         if not is_uring_supported() or is_uring_disabled():
             return
 
         # uring is broken in CI
         # use_engine("uring")
+
+    @authors("kvk1920")
+    def test_dynamic_io_engine_with_overriden_medium(self):
+        if not exists("//sys/media/ssd_blobs"):
+            create_domestic_medium("ssd_blobs")
+
+        self._set_io_engine({
+            "default": "thread_pool",
+            "ssd_blobs": "fair_share_thread_pool"
+        })
+        for location in ls("//sys/chunk_locations"):
+            set(f"//sys/chunk_locations/{location}/@medium_override", "ssd_blobs")
+        self._wait_for_io_engine_enabled("fair_share_thread_pool")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        # Shouldn't change.
+        self._wait_for_io_engine_enabled("fair_share_thread_pool")
 
 
 def parse_version(vstring):

@@ -44,7 +44,7 @@ using namespace NYTree;
 
 using namespace std::placeholders;
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TConsumerSnapshotBuildSession final
 {
@@ -439,7 +439,8 @@ public:
         , ProfileManager_(CreateConsumerProfileManager(
             QueueAgentProfilerGlobal
                 .WithRequiredTag("consumer_path", ConsumerRef_.Path)
-                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
+                // TODO(babenko): switch to std::string
+                .WithRequiredTag("consumer_cluster", TString(ConsumerRef_.Cluster)),
             Logger))
     {
         // Prepare initial erroneous snapshot.

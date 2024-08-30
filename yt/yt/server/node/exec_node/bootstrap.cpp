@@ -133,7 +133,7 @@ public:
                     std::move(config),
                     ToString(kind),
                     ExecNodeLogger(),
-                    ExecNodeProfiler.WithPrefix("/throttlers"));
+                    ExecNodeProfiler().WithPrefix("/throttlers"));
 
                 auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
                 if (kind == EExecNodeThrottlerKind::ArtifactCacheIn || kind == EExecNodeThrottlerKind::JobIn) {

@@ -4,7 +4,7 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCypressFileBlockDeviceConfig::Register(TRegistrar registrar)
+void TFileSystemBlockDeviceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);
     registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead)

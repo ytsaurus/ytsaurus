@@ -81,7 +81,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         }
 
         const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        nodeShard->ProcessHeartbeat(context);
     }));
 }
 
@@ -237,8 +237,8 @@ TRefCountedExecNodeDescriptorMapPtr TNodeManager::GetExecNodeDescriptors()
 
 TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
 {
-    std::vector<std::vector<std::pair<TString, INodePtr>>> nodesPerShard(NodeShards_.size());
-    std::vector<std::vector<TString>> nodeAddressesPerShard(NodeShards_.size());
+    std::vector<std::vector<std::pair<std::string, INodePtr>>> nodesPerShard(NodeShards_.size());
+    std::vector<std::vector<std::string>> nodeAddressesPerShard(NodeShards_.size());
 
     for (const auto& child : nodeList->GetChildren()) {
         auto address = child->GetValue<TString>();
@@ -302,11 +302,23 @@ void TNodeManager::AbortOperationAllocations(
         .ThrowOnError();
 }
 
-void TNodeManager::ResumeOperationAllocations(TOperationId operationId)
+void TNodeManager::SuspendOperationScheduling(TOperationId operationId)
 {
     std::vector<TFuture<void>> futures;
     for (const auto& nodeShard : NodeShards_) {
-        futures.push_back(BIND(&TNodeShard::ResumeOperationAllocations, nodeShard)
+        futures.push_back(BIND(&TNodeShard::SuspendOperationScheduling, nodeShard)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run(operationId));
+    }
+    WaitFor(AllSucceeded(futures))
+        .ThrowOnError();
+}
+
+void TNodeManager::ResumeOperationScheduling(TOperationId operationId)
+{
+    std::vector<TFuture<void>> futures;
+    for (const auto& nodeShard : NodeShards_) {
+        futures.push_back(BIND(&TNodeShard::ResumeOperationScheduling, nodeShard)
             .AsyncVia(nodeShard->GetInvoker())
             .Run(operationId));
     }

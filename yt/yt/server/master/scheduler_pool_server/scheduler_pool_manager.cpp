@@ -68,7 +68,7 @@ public:
 
     void Initialize() override;
 
-    TSchedulerPoolTree* CreatePoolTree(TString treeName)
+    TSchedulerPoolTree* CreatePoolTree(const std::string& treeName)
     {
         ValidatePoolName(treeName, PoolNameRegexForAdministrators());
 
@@ -87,7 +87,7 @@ public:
 
         rootPool->SetMaybePoolTree(poolTree);
 
-        RegisterPoolTreeObject(std::move(treeName), poolTree);
+        RegisterPoolTreeObject(treeName, poolTree);
 
         return poolTree;
     }
@@ -123,19 +123,19 @@ public:
         return poolTree;
     }
 
-    void RegisterPoolTreeObject(TString treeName, TSchedulerPoolTree* schedulerPool)
+    void RegisterPoolTreeObject(const std::string& treeName, TSchedulerPoolTree* schedulerPool)
     {
-        YT_VERIFY(PoolTreeToPoolsMap_.emplace(treeName, THashMap<TString, TSchedulerPool*>()).second);
-        YT_VERIFY(PoolTrees_.emplace(std::move(treeName), schedulerPool).second);
+        YT_VERIFY(PoolTreeToPoolsMap_.emplace(treeName, THashMap<std::string, TSchedulerPool*>()).second);
+        YT_VERIFY(PoolTrees_.emplace(treeName, schedulerPool).second);
     }
 
-    void UnregisterPoolTreeObject(const TString& treeName)
+    void UnregisterPoolTreeObject(const std::string& treeName)
     {
         YT_VERIFY(PoolTreeToPoolsMap_.erase(treeName) == 1);
         YT_VERIFY(PoolTrees_.erase(treeName) == 1);
     }
 
-    TSchedulerPool* FindSchedulerPoolByName(const TString& treeName, const TString& name) const override
+    TSchedulerPool* FindSchedulerPoolByName(const std::string& treeName, const std::string& name) const override
     {
         auto poolsMapIt = PoolTreeToPoolsMap_.find(treeName);
         if (poolsMapIt == PoolTreeToPoolsMap_.end()) {
@@ -146,19 +146,19 @@ public:
         return it != poolsMap.end() ? it->second : nullptr;
     }
 
-    TSchedulerPoolTree* FindPoolTreeObjectByName(const TString& treeName) const override
+    TSchedulerPoolTree* FindPoolTreeObjectByName(const std::string& treeName) const override
     {
         auto it = PoolTrees_.find(treeName);
         return it != PoolTrees_.end() ? it->second : nullptr;
     }
 
-    TSchedulerPool* FindPoolTreeOrSchedulerPoolOrThrow(const TString& treeName, const TString& name) const override
+    TSchedulerPool* FindPoolTreeOrSchedulerPoolOrThrow(const std::string& treeName, const std::string& name) const override
     {
         // TODO(renadeen, gritukan): Is it intended?
         return FindSchedulerPoolOrRootPoolOrThrow(treeName, name);
     }
 
-    TSchedulerPool* FindSchedulerPoolOrRootPoolOrThrow(const TString& treeName, const TString& name) const
+    TSchedulerPool* FindSchedulerPoolOrRootPoolOrThrow(const std::string& treeName, const std::string& name) const
     {
         auto* poolTree = FindPoolTreeObjectByName(treeName);
         if (!poolTree) {
@@ -180,7 +180,7 @@ public:
         return schedulerPool;
     }
 
-    void RegisterPoolName(const TString& name, TSchedulerPool* schedulerPool)
+    void RegisterPoolName(const std::string& name, TSchedulerPool* schedulerPool)
     {
         auto maybePoolTreeName = GetMaybePoolTreeName(schedulerPool);
         YT_VERIFY(maybePoolTreeName);
@@ -189,7 +189,7 @@ public:
         YT_VERIFY(it->second.emplace(name, schedulerPool).second);
     }
 
-    void UnregisterPoolName(const TString& name, TSchedulerPool* schedulerPool)
+    void UnregisterPoolName(const std::string& name, TSchedulerPool* schedulerPool)
     {
         auto maybePoolTreeName = GetMaybePoolTreeName(schedulerPool);
         YT_VERIFY(maybePoolTreeName);
@@ -198,7 +198,7 @@ public:
         YT_VERIFY(it->second.erase(name) == 1);
     }
 
-    const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const override
+    const THashMap<std::string, TSchedulerPoolTree*>& GetPoolTrees() const override
     {
         return PoolTrees_;
     }
@@ -251,7 +251,7 @@ public:
         }
     }
 
-    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept override
+    std::optional<std::string> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept override
     {
         while (auto* parent = schedulerPool->GetParent()) {
             schedulerPool = parent;
@@ -338,8 +338,8 @@ public:
     }
 
     void UpdatePoolNameRegexes(
-        const TString& poolNameRegexForAdministrators,
-        const TString& poolNameRegexForUsers)
+        const std::string& poolNameRegexForAdministrators,
+        const std::string& poolNameRegexForUsers)
     {
         if (!PoolNameRegexForAdministrators_ ||
             PoolNameRegexForAdministrators_->pattern() != poolNameRegexForAdministrators)
@@ -354,7 +354,7 @@ public:
         }
     }
 
-    void ValidateSchedulerPoolName(const TString& name)
+    void ValidateSchedulerPoolName(const std::string& name)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
@@ -458,8 +458,8 @@ private:
     TEntityMap<TSchedulerPool> SchedulerPoolMap_;
     TEntityMap<TSchedulerPoolTree> SchedulerPoolTreeMap_;
 
-    THashMap<TString, THashMap<TString, TSchedulerPool*>> PoolTreeToPoolsMap_;
-    THashMap<TString, TSchedulerPoolTree*> PoolTrees_;
+    THashMap<std::string, THashMap<std::string, TSchedulerPool*>> PoolTreeToPoolsMap_;
+    THashMap<std::string, TSchedulerPoolTree*> PoolTrees_;
 
     THashSet<TInternedAttributeKey> KnownPoolAttributes_;
     THashSet<TInternedAttributeKey> KnownPoolTreeAttributes_;
@@ -502,7 +502,7 @@ private:
                 continue;
             }
             YT_VERIFY(PoolTrees_.emplace(schedulerPoolTree->GetTreeName(), schedulerPoolTree).second);
-            auto [it, inserted] = PoolTreeToPoolsMap_.emplace(schedulerPoolTree->GetTreeName(), THashMap<TString, TSchedulerPool*>());
+            auto [it, inserted] = PoolTreeToPoolsMap_.emplace(schedulerPoolTree->GetTreeName(), THashMap<std::string, TSchedulerPool*>());
             YT_VERIFY(inserted);
 
             BuildPoolNameMapRecursively(schedulerPoolTree->GetRootPool(), &it->second);
@@ -513,7 +513,7 @@ private:
         }
     }
 
-    void BuildPoolNameMapRecursively(TSchedulerPool* schedulerPool, THashMap<TString, TSchedulerPool*>* map)
+    void BuildPoolNameMapRecursively(TSchedulerPool* schedulerPool, THashMap<std::string, TSchedulerPool*>* map)
     {
         for (const auto& [_, child] : schedulerPool->KeyToChild()) {
             YT_VERIFY(map->emplace(child->GetName(), child).second);
@@ -574,30 +574,30 @@ public:
 
     TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
-        const auto name = attributes->GetAndRemove<TString>("name");
-        const auto poolTree = attributes->GetAndRemove<TString>("pool_tree");
-        const auto parentName = attributes->GetAndRemove<TString>("parent_name", RootPoolName);
+        const auto name = attributes->GetAndRemove<std::string>("name");
+        const auto poolTree = attributes->GetAndRemove<std::string>("pool_tree");
+        const auto parentName = attributes->GetAndRemove<std::string>("parent_name", RootPoolName);
         auto* parentObject = Owner_->FindSchedulerPoolOrRootPoolOrThrow(poolTree, parentName);
 
         return CreateObjectImpl(name, parentObject, attributes);
     }
 
-    void RegisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
+    void RegisterName(const std::string& name, TSchedulerPool* schedulerPool) noexcept override
     {
         Owner_->RegisterPoolName(name, schedulerPool);
     }
 
-    void UnregisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
+    void UnregisterName(const std::string& name, TSchedulerPool* schedulerPool) noexcept override
     {
         Owner_->UnregisterPoolName(name, schedulerPool);
     }
 
-    void ValidateObjectName(const TString& name) override
+    void ValidateObjectName(const std::string& name) override
     {
         Owner_->ValidateSchedulerPoolName(name);
     }
 
-    TString GetRootPath(const TSchedulerPool* rootPool) const override
+    NYPath::TYPath GetRootPath(const TSchedulerPool* rootPool) const override
     {
         YT_VERIFY(rootPool && rootPool->IsRoot());
         YT_VERIFY(rootPool->GetMaybePoolTree());
@@ -623,11 +623,11 @@ protected:
     std::optional<NObjectServer::TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override
     {
-        auto poolTree = attributes->Get<TString>("pool_tree");
-        auto parentName = attributes->Get<TString>("parent_name", RootPoolName);
+        auto poolTree = attributes->Get<std::string>("pool_tree");
+        auto parentName = attributes->Get<std::string>("parent_name", RootPoolName);
         auto* parentObject = Owner_->FindSchedulerPoolOrRootPoolOrThrow(poolTree, parentName);
 
-        auto name = attributes->Get<TString>("name");
+        auto name = attributes->Get<std::string>("name");
         return parentObject->FindChild(name);
     }
 
@@ -676,7 +676,7 @@ public:
 
     TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
-        const auto name = attributes->GetAndRemove<TString>("name");
+        const auto name = attributes->GetAndRemove<std::string>("name");
         ValidatePoolTreeCreationPermission();
         return Owner_->CreatePoolTree(name);
     }
@@ -713,7 +713,7 @@ protected:
     std::optional<NObjectServer::TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override
     {
-        auto name = attributes->Get<TString>("name");
+        auto name = attributes->Get<std::string>("name");
         return Owner_->FindPoolTreeObjectByName(name);
     }
 

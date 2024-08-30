@@ -298,7 +298,7 @@ public:
     TImpl(TDataNodeConfigPtr config, IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             TSlruCacheConfig::CreateWithCapacity(config->GetCacheCapacity()),
-            ExecNodeProfiler.WithPrefix("/chunk_cache"))
+            ExecNodeProfiler().WithPrefix("/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , ArtifactCacheReaderConfig_(New<TArtifactCacheReaderConfig>())
@@ -1098,7 +1098,8 @@ private:
                         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
                     });
             }
@@ -1353,7 +1354,7 @@ private:
                     << std::move(readerError);
             };
             PipeReaderToWriter(
-                reader,
+                CreateApiFromSchemalessChunkReaderAdapter(reader),
                 writer,
                 options);
         };
@@ -1421,7 +1422,8 @@ private:
                     {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                     {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                     {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                    {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                    // TODO(babenko): switch to std::string
+                    {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                     {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
                 });
         }

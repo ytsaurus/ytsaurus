@@ -46,6 +46,17 @@ DEFINE_REFCOUNTED_TYPE(TAsyncBlockCacheEntry)
 
 TCachedBlock PrepareBlockToCache(TCachedBlock block, const IMemoryUsageTrackerPtr& tracker)
 {
+    if (const auto& holder = block.Data.GetHolder()) {
+        auto totalMemory = holder->GetTotalByteSize();
+
+        if (totalMemory && *totalMemory > block.Data.Size()) {
+            struct TCopiedBlockCache
+            { };
+
+            block.Data = TSharedMutableRef::MakeCopy<TCopiedBlockCache>(block.Data);
+        }
+    }
+
     block.Data = TrackMemory(tracker, std::move(block.Data));
     return block;
 }

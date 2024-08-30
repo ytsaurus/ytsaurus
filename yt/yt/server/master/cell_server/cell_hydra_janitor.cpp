@@ -32,6 +32,10 @@
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include "yt/yt/core/ypath/helpers.h"
+
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NCellServer {
 
 using namespace NConcurrency;
@@ -45,6 +49,9 @@ using namespace NIncumbentClient;
 using namespace NIncumbentServer;
 using namespace NCellMaster;
 using namespace NCellarClient;
+using namespace NObjectClient;
+using namespace NTabletServer;
+using namespace NApi;
 
 using NYT::ToProto;
 
@@ -64,6 +71,7 @@ public:
             bootstrap->GetIncumbentManager(),
             EIncumbentType::CellJanitor)
         , Bootstrap_(bootstrap)
+        , DynamicConfig_(New<TDynamicTabletManagerConfig>())
     { }
 
     void Initialize() override
@@ -87,11 +95,31 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    TAtomicIntrusivePtr<TDynamicTabletManagerConfig> DynamicConfig_;
 
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    struct TPeerInfo
+    {
+        TCellId CellId;
+        std::optional<int> PeerId = std::nullopt;
+    };
+
+    struct TListResult
+    {
+        IListNodePtr Primary;
+        IListNodePtr Secondary;
+    };
+
+    struct TPeerCleanupInfo
+    {
+        TPeerInfo Peer;
+        TListResult Snapshots;
+        TListResult Changelogs;
+        int ThresholdId = 0;
+    };
 
     void OnStartEpoch()
     {
@@ -114,143 +142,248 @@ private:
         }
     }
 
-
-    const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
+    TDynamicTabletManagerConfigPtr GetDynamicConfig()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+        return DynamicConfig_.Acquire();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& config = GetDynamicConfig();
-        PeriodicExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
+        const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+        DynamicConfig_.Store(newConfig);
+
+        PeriodicExecutor_->SetPeriod(newConfig->TabletCellsCleanupPeriod);
     }
 
-
-    std::optional<std::vector<THydraFileInfo>> ListHydraFiles(const TYPath& path)
+    // COMPAT(danilalexeev)
+    // Returns primary and secondary persistence storage paths for a given peer.
+    std::pair<TString, TString> GetPeerPersistencePaths(TPeerInfo peer)
     {
-        auto client = Bootstrap_->GetRootClient();
-        NApi::TListNodeOptions options{
-            .Attributes = TAttributeFilter({"compressed_data_size"}),
-        };
-        auto rspOrError = WaitFor(client->ListNode(path, options));
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_WARNING("Missing storage path (Path: %v)", path);
-            return std::vector<THydraFileInfo>();
+        if (peer.PeerId) {
+            return std::pair(
+                Format("%v/%v", GetCellHydraPersistencePath(peer.CellId), *peer.PeerId),
+                Format("%v/%v", GetCellPath(peer.CellId), *peer.PeerId));
+        } else {
+            return std::pair(
+                GetCellHydraPersistencePath(peer.CellId),
+                GetCellPath(peer.CellId));
         }
-        auto list = ConvertTo<IListNodePtr>(TYsonString(rspOrError.ValueOrThrow()));
-        auto children = list->GetChildren();
+    }
 
-        std::vector<THydraFileInfo> result;
-        result.reserve(children.size());
-        for (const auto& child : children) {
-            auto key = ConvertTo<TString>(child);
-            int id;
-            if (!TryFromString<int>(key, id)) {
-                YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
-                    path,
-                    key);
+    std::vector<TPeerCleanupInfo> GetCleanupInfoForPeers(
+        const std::vector<TPeerInfo>& peers,
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto proxy = CreateObjectServiceReadProxy(
+            Bootstrap_->GetRootClient(),
+            EMasterChannelKind::Follower);
+
+        // Batch request contains four requests for each cell:
+        // - primary path -> snapshots
+        // - secondary path -> snapshots
+        // - primary path -> changelogs
+        // - secondary path -> changelogs
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto addListRequest = [&] (const TYPath& path) {
+            auto req = TYPathProxy::List(path);
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                "compressed_data_size"
+            });
+            batchReq->AddRequest(req);
+        };
+
+        for (auto peer : peers) {
+            auto [primaryPath, secondaryPath] = GetPeerPersistencePaths(peer);
+            for (const char* fileType : {"snapshots", "changelogs"}) {
+                addListRequest(YPathJoin(primaryPath, fileType));
+                addListRequest(YPathJoin(secondaryPath, fileType));
+            }
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto getMergedHydraFiles = [&] (
+            const TListResult& listResult,
+            TPeerInfo peer) -> std::optional<std::vector<THydraFileInfo>>
+        {
+            std::vector<THydraFileInfo> result;
+            auto tryParseHydraFiles = [&] (const IListNodePtr& list, const TYPath& path) {
+                if (!list) {
+                    return true;
+                }
+                auto children = list->GetChildren();
+                result.reserve(result.size() + children.size());
+                for (const auto& child : children) {
+                    auto key = ConvertTo<TString>(child);
+                    int id = 0;
+                    if (!TryFromString<int>(key, id)) {
+                        YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
+                            path,
+                            key);
+                        return false;
+                    }
+
+                    const auto& attributes = child->Attributes();
+                    result.push_back({id, attributes.Get<i64>("compressed_data_size")});
+                }
+                return true;
+            };
+
+            auto [primaryPath, secondaryPath] = GetPeerPersistencePaths(peer);
+            if (!tryParseHydraFiles(listResult.Primary, primaryPath) ||
+                !tryParseHydraFiles(listResult.Secondary, secondaryPath))
+            {
                 return std::nullopt;
             }
 
-            const auto& attributes = child->Attributes();
-            result.push_back({id, attributes.Get<i64>("compressed_data_size")});
+            return result;
+        };
+
+        auto getListResult = [&] (
+            int primarySubrequestIndex,
+            int secondarySubrequestIndex,
+            TPeerInfo peer) -> std::optional<TListResult>
+        {
+            auto getListResponse = [&] (int subrequestIndex) -> IListNodePtr {
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(subrequestIndex);
+                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    return nullptr;
+                }
+                return ConvertTo<IListNodePtr>(TYsonString(rspOrError.ValueOrThrow()->value()));
+            };
+
+            auto primaryList = getListResponse(primarySubrequestIndex);
+            auto secondaryList = checkSecondaryStorage[GetCellarTypeFromCellId(peer.CellId)]
+                ? getListResponse(secondarySubrequestIndex)
+                : nullptr;
+
+            if (!primaryList && !secondaryList) {
+                YT_LOG_WARNING("Missing both storages for cell (CellId: %v)",
+                    peer.CellId);
+                return std::nullopt;
+            }
+
+            return TListResult{std::move(primaryList), std::move(secondaryList)};
+        };
+
+        std::vector<TPeerCleanupInfo> result;
+        for (auto [index, peer] : Enumerate(peers)) {
+            auto snapshots = getListResult(
+                /*primarySubrequestIndex*/ 4 * index + 0,
+                /*secondarySubrequestIndex*/ 4 * index + 1,
+                peer);
+            auto changelogs = getListResult(
+                /*primarySubrequestIndex*/ 4 * index + 2,
+                /*secondarySubrequestIndex*/ 4 * index + 3,
+                peer);
+            if (!snapshots || !changelogs) {
+                continue;
+            }
+
+            auto snapshotFiles = getMergedHydraFiles(*snapshots, peer);
+            auto changelogFiles = getMergedHydraFiles(*changelogs, peer);
+            if (!snapshotFiles || !changelogFiles) {
+                continue;
+            }
+
+            auto thresholdId = ComputeJanitorThresholdId(
+                *snapshotFiles,
+                *changelogFiles,
+                GetDynamicConfig());
+
+            result.push_back(TPeerCleanupInfo{
+                .Peer = peer,
+                .Snapshots = std::move(*snapshots),
+                .Changelogs = std::move(*changelogs),
+                .ThresholdId = thresholdId,
+            });
         }
 
         return result;
     }
 
-    void RemoveHydraPersistence(const TYPath& path, int thresholdId, int* budget)
-    {
-        auto client = Bootstrap_->GetRootClient();
-        auto rspOrError = WaitFor(client->ListNode(path));
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_WARNING("Missing storage path (Path: %v)", path);
-            return;
-        }
-        auto list = ConvertTo<IListNodePtr>(rspOrError.ValueOrThrow());
-        auto children = list->GetChildren();
-
-        for (const auto& child : children) {
-            if (*budget <= 0) {
-                break;
-            }
-
-            auto key = ConvertTo<TString>(child);
-            int id;
-            if (!TryFromString<int>(key, id)) {
-                continue;
-            }
-
-            if (id >= thresholdId) {
-                continue;
-            }
-
-            auto filePath = path + "/" + ToYPathLiteral(key);
-            YT_LOG_DEBUG("Janitor is removing Hydra file (Path: %v)", filePath);
-
-            --(*budget);
-
-            client->RemoveNode(filePath)
-                .Subscribe(BIND([=] (const TErrorOr<void>& removeRspOrError) {
-                    if (removeRspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
-                    } else {
-                        YT_LOG_WARNING(removeRspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
-                    }
-                }));
-        }
-    }
-
     // COMPAT(danilalexeev): Purge `secondaryPath`.
-    void CleanSnapshotsAndChangelogs(
-        TCellId /*cellId*/,
-        TString primaryPath,
-        std::optional<TString> secondaryPath,
+    void CleanPeersPersistence(
+        const std::vector<TPeerInfo>& peers,
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage,
         int* snapshotBudget,
         int* changelogBudget)
     {
-        std::vector<THydraFileInfo> allSnapshots;
-        std::vector<THydraFileInfo> allChangelogs;
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto tryPopulateHydraPersistence = [&] (const TYPath& path) {
-            auto snapshots = ListHydraFiles(path + "/snapshots");
-            auto changelogs = ListHydraFiles(path + "/changelogs");
+        auto cleanupInfo = GetCleanupInfoForPeers(peers, checkSecondaryStorage);
 
-            if (!snapshots || !changelogs) {
-                return false;
+        auto proxy = CreateObjectServiceWriteProxy(
+            Bootstrap_->GetRootClient());
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto removeHydraPersistence = [&] (
+            const IListNodePtr& list,
+            const TYPath& path,
+            int thresholdId,
+            int* budget)
+        {
+            if (!list) {
+                return;
             }
 
-            allSnapshots.reserve(allSnapshots.size() + snapshots->size());
-            allChangelogs.reserve(allChangelogs.size() + changelogs->size());
-            std::copy(snapshots->begin(), snapshots->end(), std::back_inserter(allSnapshots));
-            std::copy(changelogs->begin(), changelogs->end(), std::back_inserter(allChangelogs));
+            auto children = list->GetChildren();
+            for (const auto& child : children) {
+                if (*budget <= 0) {
+                    break;
+                }
 
-            return true;
+                auto key = ConvertTo<TString>(child);
+                int id = 0;
+                if (!TryFromString<int>(key, id)) {
+                    YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
+                        path,
+                        key);
+                    continue;
+                }
+
+                if (id >= thresholdId) {
+                    continue;
+                }
+
+                auto filePath = path + "/" + ToYPathLiteral(key);
+                YT_LOG_DEBUG("Janitor is removing Hydra file (Path: %v)", filePath);
+
+                --(*budget);
+
+                auto removeReq = TYPathProxy::Remove(filePath);
+                removeReq->Tag() = filePath;
+                batchReq->AddRequest(removeReq);
+            }
         };
 
-        if (!tryPopulateHydraPersistence(primaryPath) ||
-            secondaryPath && !tryPopulateHydraPersistence(*secondaryPath))
-        {
-            return;
+        for (const auto& info : cleanupInfo) {
+            auto [primaryPath, secondaryPath] = GetPeerPersistencePaths(info.Peer);
+            removeHydraPersistence(info.Snapshots.Primary, primaryPath + "/snapshots", info.ThresholdId, snapshotBudget);
+            removeHydraPersistence(info.Changelogs.Primary, primaryPath + "/changelogs", info.ThresholdId, changelogBudget);
+            removeHydraPersistence(info.Snapshots.Secondary, secondaryPath + + "/snapshots", info.ThresholdId, snapshotBudget);
+            removeHydraPersistence(info.Changelogs.Secondary, secondaryPath + "/changelogs", info.ThresholdId, changelogBudget);
         }
 
-        auto thresholdId = ComputeJanitorThresholdId(
-            allSnapshots,
-            allChangelogs,
-            GetDynamicConfig());
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
 
-        auto removeHydraPersistence = [&] (const TYPath& path) {
-            RemoveHydraPersistence(path + "/snapshots", thresholdId, snapshotBudget);
-            RemoveHydraPersistence(path + "/changelogs", thresholdId, changelogBudget);
-        };
-        removeHydraPersistence(primaryPath);
-        if (secondaryPath) {
-            removeHydraPersistence(*secondaryPath);
+        for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspRemove>()) {
+            auto filePath = std::any_cast<TString>(tag);
+            if (!rspOrError.IsOK()) {
+                YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
+            } else {
+                YT_LOG_WARNING(rspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
+            }
         }
     }
 
@@ -269,13 +402,13 @@ private:
         int changelogBudget = GetDynamicConfig()->MaxChangelogCountToRemovePerCheck;
 
         // COMPAT(danilalexeev)
-        TEnumIndexedArray<ECellarType, bool> isCellMapVirtual;
+        TEnumIndexedArray<ECellarType, bool> isLegacyCellMap;
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto tabletCellMapNode = cypressManager->ResolvePathToNodeProxy(TabletCellCypressPrefix);
             auto chaosCellMapNode = cypressManager->ResolvePathToNodeProxy(ChaosCellCypressPrefix);
-            isCellMapVirtual[ECellarType::Tablet] = tabletCellMapNode->GetTrunkNode()->GetType() == EObjectType::VirtualTabletCellMap;
-            isCellMapVirtual[ECellarType::Chaos] = chaosCellMapNode->GetTrunkNode()->GetType() == EObjectType::VirtualChaosCellMap;
+            isLegacyCellMap[ECellarType::Tablet] = tabletCellMapNode->GetTrunkNode()->GetType() == EObjectType::TabletCellMap;
+            isLegacyCellMap[ECellarType::Chaos] = chaosCellMapNode->GetTrunkNode()->GetType() == EObjectType::ChaosCellMap;
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_WARNING(ex,
@@ -286,6 +419,7 @@ private:
         }
 
         const auto& tamedCellManager = Bootstrap_->GetTamedCellManager();
+        std::vector<TPeerInfo> peersToCleanup;
         auto cellIds = ListActiveCellIds();
         for (auto cellId : cellIds) {
             auto* cell = tamedCellManager->FindCell(cellId);
@@ -293,30 +427,30 @@ private:
                 continue;
             }
 
-            try {
-                if (cell->CellBundle()->GetOptions()->IndependentPeers) {
-                    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
-                        if (cell->IsAlienPeer(peerId)) {
-                            continue;
-                        }
-                        auto primaryPath = Format("%v/%v", GetCellHydraPersistencePath(cellId), peerId);
-                        auto secondaryPath = isCellMapVirtual[GetCellarTypeFromCellId(cellId)]
-                            ? std::nullopt
-                            : std::make_optional(Format("%v/%v", GetCellPath(cellId), peerId));
-                        CleanSnapshotsAndChangelogs(cellId, primaryPath, secondaryPath, &snapshotBudget, &changelogBudget);
+            if (cell->CellBundle()->GetOptions()->IndependentPeers) {
+                for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                    if (cell->IsAlienPeer(peerId)) {
+                        continue;
                     }
-                } else {
-                    auto primaryPath = GetCellHydraPersistencePath(cellId);
-                    auto secondaryPath = isCellMapVirtual[GetCellarTypeFromCellId(cellId)]
-                        ? std::nullopt
-                        : std::make_optional(GetCellPath(cellId));
-                    CleanSnapshotsAndChangelogs(cellId, primaryPath, secondaryPath, &snapshotBudget, &changelogBudget);
+                    peersToCleanup.push_back(TPeerInfo{
+                        .CellId = cellId,
+                        .PeerId = peerId,
+                    });
                 }
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex,
-                    "Cell janitor cleanup failed (CellId: %v)",
-                    cellId);
+            } else {
+                peersToCleanup.push_back(TPeerInfo{
+                    .CellId = cellId,
+                });
             }
+        }
+
+        auto result = WaitFor(BIND(&TCellHydraJanitor::CleanPeersPersistence, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run(peersToCleanup, isLegacyCellMap, &snapshotBudget, &changelogBudget));
+
+        if (!result.IsOK()) {
+            YT_LOG_WARNING(result, "Cell janitor cleanup failed");
+            return;
         }
 
         YT_LOG_DEBUG("Cell janitor cleanup completed (CellCount: %v, RemainingSnapshotBudget: %v, RemainingChangelogBudget: %v)",

@@ -45,12 +45,12 @@ protected:
     bool IsKnownPoolAttribute(NYTree::TInternedAttributeKey key);
     bool IsKnownPoolTreeAttribute(NYTree::TInternedAttributeKey key);
 
-    TProxyBasePtr ResolveNameOrThrow(const TString& name) override;
+    TProxyBasePtr ResolveNameOrThrow(const std::string& name) override;
 
     std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool);
 
-    void ValidateChildNameAvailability(const TString& newChildName) override;
-    void ValidateAfterAttachChild(const TString& key, const TProxyBasePtr& childProxy) override;
+    void ValidateChildNameAvailability(const std::string& newChildName) override;
+    void ValidateAfterAttachChild(const std::string& key, const TProxyBasePtr& childProxy) override;
 
     void DoRemoveSelf(bool recursive, bool force) override;
 

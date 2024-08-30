@@ -12,7 +12,7 @@ namespace NYT::NIncumbentClient {
 
 struct TIncumbentDescriptor
 {
-    std::vector<std::optional<TString>> Addresses;
+    std::vector<std::optional<std::string>> Addresses;
 };
 
 using TIncumbentMap = TEnumIndexedArray<EIncumbentType, TIncumbentDescriptor>;

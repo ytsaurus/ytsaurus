@@ -53,7 +53,7 @@ struct TReplicaData
     NTabletClient::TTableReplicaId Id;
     NTabletClient::ETableReplicaMode Mode;
     bool Enabled;
-    TString ClusterName;
+    std::string ClusterName;
     NYPath::TYPath TablePath;
     bool TrackingEnabled;
     // NB: RTT treats replicas with different ContentType independently.
@@ -72,6 +72,7 @@ struct TTableCollocationData
 {
     NTableClient::TTableCollocationId Id;
     std::vector<NTableClient::TTableId> TableIds;
+    NTabletClient::TReplicationCollocationOptionsPtr Options = New<NTabletClient::TReplicationCollocationOptions>();
 };
 
 void ToProto(

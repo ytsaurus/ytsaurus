@@ -70,18 +70,36 @@ $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
 
 cd $ytsaurus_source_path/yt/python/packages
 
+bindings_library_option=""
+if [[ ${ytsaurus_package_name} == "" ]]; then
+    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
+    prepare_bindings_libraries=true
+ else
+    packages=("${ytsaurus_package_name}")
+    if [[ ${ytsaurus_package_name} == "ytsaurus-native-driver" ]]; then
+        bindings_library_option="--bindings-library driver_lib"
+    elif [[ ${ytsaurus_package_name} == "ytsaurus-rpc-driver" ]]; then
+        bindings_library_option="--bindings-library driver_rpc_lib"
+    elif [[ ${package} == "ytsaurus-yson" ]]; then
+        bindings_library_option="--bindings-library yson_lib"
+    else
+        prepare_bindings_libraries=false
+    fi
+fi
+
 if [[ "$prepare_bindings_libraries" = true ]]; then
     prepare_bindings_libraries_option="--prepare-bindings-libraries"
 else
     prepare_bindings_libraries_option=""
 fi
-
+    
 python3 -m yt_setup.prepare_python_modules \
     --source-root ${ytsaurus_source_path} \
     --build-root ${ytsaurus_build_path} \
     --output-path ${ytsaurus_python} \
     --patch-os-files \
-    $prepare_bindings_libraries_option
+    $prepare_bindings_libraries_option \
+    $bindings_library_option
 
 cd ${ytsaurus_python}
 
@@ -97,7 +115,7 @@ for package in ${packages[@]}; do
     package_undescored=$(echo -e $package | sed -e s/-/_/g)
     dist_dir="${package_undescored}_dist"
 
-    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
+    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-rpc-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
         if [[ ${apply_auditwheel} == "true" ]]; then
             for wheel in ${dist_dir}/${package_undescored}*.whl; do

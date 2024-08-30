@@ -1,6 +1,5 @@
 #pragma once
 
-#include "persistence.h"
 #include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
@@ -14,6 +13,8 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/statistics.h>

@@ -67,12 +67,57 @@ message TRspFindReplicationCard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqWatchReplicationCard
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+    required uint64 replication_card_cache_timestamp = 2;
+}
+
+message TRspWatchReplicationCard
+{
+    message TReplicationCardChanged
+    {
+        required uint64 replication_card_cache_timestamp = 1;
+        required TReplicationCard replication_card = 2;
+    }
+
+    message TReplicationCardNotChanged
+    { }
+
+    message TReplicationCardMigrated
+    {
+        required NYT.NProto.TGuid migrate_to_cell_id = 1;
+    }
+
+    message TReplicationCardDeleted
+    { }
+
+    message TUnknownReplicationCard
+    { }
+
+    message TInstanceIsNotLeader
+    { }
+
+    oneof replication_card_state {
+        TReplicationCardChanged replication_card_changed = 1;
+        TReplicationCardNotChanged replication_card_not_changed = 2;
+        TReplicationCardMigrated replication_card_migrated = 3;
+        TReplicationCardDeleted replication_card_deleted = 4;
+        TUnknownReplicationCard unknown_replication_card = 5;
+        TInstanceIsNotLeader instance_is_not_leader = 6;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAlterReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+
     optional bytes replicated_table_options = 2; // NTabletClient::TReplicatedTableOptions
     optional bool enable_replicated_table_tracker = 3;
     optional NYT.NProto.TGuid replication_card_collocation_id = 4;
+    optional bytes collocation_options = 5; // NTabletClient::TReplicationCollocationOptions
 }
 
 message TRspAlterReplicationCard
@@ -163,6 +208,7 @@ message TRspResumeChaosCell
 message TReqCreateReplicationCardCollocation
 {
     repeated NYT.NProto.TGuid replication_card_ids = 1;
+    optional bytes options = 2; // YSON-serialized
 }
 
 message TRspCreateReplicationCardCollocation

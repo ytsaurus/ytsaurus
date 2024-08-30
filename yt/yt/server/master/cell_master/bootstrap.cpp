@@ -158,6 +158,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -783,6 +785,8 @@ void TBootstrap::DoInitialize()
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
+
     SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger());
 
     // If Sequoia is local it's safe to create the client right now.
@@ -882,7 +886,8 @@ void TBootstrap::DoInitialize()
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
         if (peer->Address) {
-            addresses.push_back(*peer->Address);
+            // TOOD(babenko): switch to std::string
+            addresses.push_back(TString(*peer->Address));
         }
     }
 
@@ -1127,7 +1132,7 @@ void TBootstrap::DoRun()
 {
     if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
         ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+            BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
                 if (clusterName == *groundClusterName) {
                     auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
                     auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});

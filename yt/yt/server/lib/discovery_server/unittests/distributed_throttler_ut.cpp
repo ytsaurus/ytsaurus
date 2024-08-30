@@ -50,7 +50,8 @@ public:
         }
 
         auto serverConfig = New<TDiscoveryServerConfig>();
-        serverConfig->ServerAddresses = Addresses_;
+        // TODO(babenko): switch to std::string
+        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
         serverConfig->AttributesUpdatePeriod = TDuration::MilliSeconds(500);
         serverConfig->GossipPeriod = TDuration::MilliSeconds(400);
 
@@ -92,7 +93,7 @@ public:
     }
 
 private:
-    std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
+    std::vector<std::string> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
     std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 
@@ -106,7 +107,8 @@ private:
 
         auto server = NDiscoveryServer::CreateDiscoveryServer(
             RpcServers_[index],
-            Addresses_[index],
+            // TODO(babenko): switch to std::string
+            TString(Addresses_[index]),
             serverConfig,
             ChannelFactory_,
             serverActionQueue->GetInvoker(),

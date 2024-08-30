@@ -3,7 +3,7 @@ The package includes `yt`. In order to use the CHYT features, you can run any co
 For example, you can make a test query to the public clique `ch_public` as follows:
 
 ```bash
-yt clickhouse execute "select 'Hello world'" --alias *ch_public
+yt clickhouse execute "select 'Hello world'" --alias ch_public
 ```
 
 The package additionally contains the CHYT Python API available in the `yt.clickhouse` module:
@@ -16,7 +16,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> import yt.clickhouse as chyt
 >>> import yt.wrapper as yt
 >>> client = yt.YtClient("<cluster_name>")
->>> list(chyt.execute("select * from `//home/user/sample_table`", alias="*ch_public", client=client))
+>>> list(chyt.execute("select * from `//home/user/sample_table`", alias="ch_public", client=client))
 [{'a': 100}, {'a': 101}, {'a': 102}, {'a': 205}, {'a': 206}, {'a': 1100}]
 ```
 

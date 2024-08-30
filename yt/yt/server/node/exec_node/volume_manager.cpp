@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 
-#include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
+#include <yt/yt/server/lib/nbd/file_system_block_device.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -102,7 +102,7 @@ static const TString MountSuffix = "mount";
 
 namespace {
 
-IBlockDevicePtr CreateCypressFileBlockDevice(
+IBlockDevicePtr CreateFileSystemBlockDevice(
     TNbdConfigPtr nbdConfig,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
@@ -120,7 +120,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs_size());
 
-    auto config = New<TCypressFileBlockDeviceConfig>();
+    auto config = New<TFileSystemBlockDeviceConfig>();
     config->Path = artifactKey.data_source().path();
     config->TestSleepBeforeRead = nbdConfig->Server->TestBlockDeviceSleepBeforeRead;
     if (config->Path.empty()) {
@@ -131,13 +131,22 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
             << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
     }
 
-    auto device = CreateCypressFileBlockDevice(
-        artifactKey.nbd_export_id(),
-        artifactKey.chunk_specs(),
-        std::move(config),
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
+        artifactKey.chunk_specs().begin(),
+        artifactKey.chunk_specs().end());
+
+    auto reader = CreateCypressFileImageReader(
+        std::move(chunkSpecs),
+        config->Path,
+        std::move(client),
         std::move(inThrottler),
         std::move(outRpsThrottler),
-        std::move(client),
+        Logger());
+
+    auto device = CreateFileSystemBlockDevice(
+        artifactKey.nbd_export_id(),
+        std::move(config),
+        std::move(reader),
         std::move(invoker),
         Logger());
 
@@ -1564,7 +1573,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TTmpfsLayerCacheCounters
 {
@@ -1602,7 +1611,7 @@ private:
     THashMap<TKey, NProfiling::TCounter> Counters_;
 };
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 using TAbsorbLayerCallback = TCallback<TFuture<TLayerPtr>(
     const TArtifactKey& artifactKey,
@@ -1631,15 +1640,12 @@ public:
         , Bootstrap_(bootstrap)
         , PortoExecutor_(std::move(portoExecutor))
         , AbsorbLayer_(std::move(absorbLayer))
-        , HitCounter_(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .Counter("/layer_cache/tmpfs_cache_hits"))
-        , UpdateFailedCounter_(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .Gauge("/layer_cache/update_failed"))
-        , TmpfsLayerCacheCounters(ExecNodeProfiler
-            .WithTag("cache_name", CacheName_)
-            .WithGlobal())
+        , Profiler_(ExecNodeProfiler()
+            .WithPrefix("/layer_cache")
+            .WithTag("cache_name", CacheName_))
+        , HitCounter_(Profiler_.Counter("/tmpfs_cache_hits"))
+        , UpdateFailedCounter_(Profiler_.Gauge("/update_failed"))
+        , TmpfsLayerCacheCounters_(Profiler_.WithGlobal())
     {
         if (Bootstrap_) {
             Bootstrap_->SubscribePopulateAlerts(BIND(
@@ -1657,18 +1663,18 @@ public:
             guard.Release();
 
             // The following counter can help find layers that do not benefit from residing in tmpfs layer cache.
-            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
                 NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
-                "/layer_cache/tmpfs_layer_hits");
+                "/tmpfs_layer_hits");
 
             cacheHitsCypressPathCounter.Increment();
             HitCounter_.Increment();
             return layer;
         } else {
             // The following counter can help find layers that could benefit from residing in tmpfs layer cache.
-            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
                 NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
-                "/layer_cache/tmpfs_layer_misses");
+                "/tmpfs_layer_misses");
 
             cacheMissesCypressPathCounter.Increment();
         }
@@ -1813,10 +1819,12 @@ private:
 
     TPromise<void> Initialized_ = NewPromise<void>();
 
+    const NProfiling::TProfiler Profiler_;
+
     TCounter HitCounter_;
     TGauge UpdateFailedCounter_;
 
-    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters;
+    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters_;
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
@@ -2024,7 +2032,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCache)
 DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCache)
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLayerCache
     : public TAsyncSlruCacheBase<TArtifactKey, TLayer>
@@ -2044,7 +2052,7 @@ public:
                 config->EnableLayersCache
                 ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
                 : 0),
-            ExecNodeProfiler.WithPrefix("/layer_cache"))
+            ExecNodeProfiler().WithPrefix("/layer_cache"))
         , Config_(config)
         , DynamicConfigManager_(dynamicConfigManager)
         , ChunkCache_(chunkCache)
@@ -2135,9 +2143,10 @@ public:
         }
 
         if (!IsEnabled()) {
-            alerts->emplace_back(
-                NExecNode::EErrorCode::NoLayerLocationAvailable,
-                "Layer cache is disabled");
+            alerts->push_back(
+                TError(
+                    NExecNode::EErrorCode::NoLayerLocationAvailable,
+                    "Layer cache is disabled"));
         }
     }
 
@@ -2685,11 +2694,11 @@ public:
                 CreatePortoExecutor(
                     Config_->VolumeManager->PortoExecutor,
                     Format("volume%v", index),
-                    ExecNodeProfiler.WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
+                    ExecNodeProfiler().WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
                 CreatePortoExecutor(
                     Config_->VolumeManager->PortoExecutor,
                     Format("layer%v", index),
-                    ExecNodeProfiler.WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                    ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
@@ -2705,7 +2714,7 @@ public:
         auto tmpfsExecutor = CreatePortoExecutor(
             Config_->VolumeManager->PortoExecutor,
             "tmpfs_layer",
-            ExecNodeProfiler.WithPrefix("/tmpfs_layers/porto"));
+            ExecNodeProfiler().WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
@@ -2883,7 +2892,7 @@ private:
             auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
             auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
 
-            auto device = CreateCypressFileBlockDevice(
+            auto device = CreateFileSystemBlockDevice(
                 Bootstrap_->GetDynamicConfig()->ExecNode->Nbd,
                 Bootstrap_->GetDefaultInThrottler(),
                 Bootstrap_->GetReadRpsOutThrottler(),

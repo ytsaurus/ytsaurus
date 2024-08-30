@@ -42,11 +42,13 @@ public:
         int columnId,
         const TColumnSchema& columnSchema,
         TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         int maxValueCount)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
-            blockWriter)
+            blockWriter,
+            std::move(memoryUsageTracker))
         , MaxValueCount_(maxValueCount)
     {
         Reset();
@@ -60,6 +62,14 @@ public:
                 Values_.push_back(static_cast<T>(value.Data.Double));
                 return std::ssize(Values_) >= MaxValueCount_;
             });
+
+        MemoryGuard_.SetSize(GetMemoryUsage());
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return GetVectorMemoryUsage(Values_) +
+            TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -92,6 +102,8 @@ private:
     {
         TVersionedColumnWriterBase::Reset();
         Values_.clear();
+
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -125,12 +137,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount)
 {
     return std::make_unique<TVersionedFloatingPointColumnWriter<T>>(
         columnId,
         columnSchema,
         blockWriter,
+        std::move(memoryUsageTracker),
         mavValueCount);
 }
 
@@ -141,8 +155,12 @@ class TUnversionedFloatingPointColumnWriter
     : public TColumnWriterBase
 {
 public:
-    TUnversionedFloatingPointColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
-        : TColumnWriterBase(blockWriter)
+    TUnversionedFloatingPointColumnWriter(
+        int columnIndex,
+        TDataBlockWriter* blockWriter,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        int maxValueCount)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , ColumnIndex_(columnIndex)
         , MaxValueCount_(maxValueCount)
     {
@@ -158,6 +176,11 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         DoWriteValues(rows);
+    }
+
+    i64 GetMemoryUsage() const
+    {
+        return GetVectorMemoryUsage(Values_) + NullBitmap_.GetByteSize();
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -188,6 +211,7 @@ private:
     {
         Values_.clear();
         NullBitmap_ = TBitmapOutput();
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
@@ -219,6 +243,8 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
+        MemoryGuard_.SetSize(GetMemoryUsage());
+
         if (std::ssize(Values_) >= MaxValueCount_) {
             FinishCurrentSegment();
         }
@@ -243,9 +269,14 @@ template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount)
 {
-    return std::make_unique<TUnversionedFloatingPointColumnWriter<T>>(columnIndex, blockWriter, mavValueCount);
+    return std::make_unique<TUnversionedFloatingPointColumnWriter<T>>(
+        columnIndex,
+        blockWriter,
+        std::move(memoryUsageTracker),
+        mavValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,12 +285,14 @@ template
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter<float>(
     int columnIndex,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount);
 
 template
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter<double>(
     int columnIndex,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount);
 
 template
@@ -267,6 +300,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<flo
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount);
 
 template
@@ -274,6 +308,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<dou
     int columnId,
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     int mavValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////

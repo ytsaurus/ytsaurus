@@ -100,8 +100,14 @@ protected:
     TValue ValueOrThrow(TErrorOr<TValue> errorOrValue) const;
     void ThrowOnError(TError error) const;
     // Feeds the arguments to TError, enriches it with path info and throws.
-    template <typename... Args>
-    [[noreturn]] void Throw(Args&&... args) const;
+    template <class U>
+        requires (!CStringLiteral<std::remove_cvref_t<U>>)
+    [[noreturn]] void Throw(U&& u) const;
+    template <class... TArgs>
+    [[noreturn]] void Throw(TFormatString<TArgs...> format, TArgs&&... args) const;
+    template <class... TArgs>
+    [[noreturn]] void Throw(TErrorCode code, TFormatString<TArgs...> format, TArgs&&... args) const;
+    [[noreturn]] inline void Throw() const;
 
 private:
     // Maintains the path supplied by the caller.

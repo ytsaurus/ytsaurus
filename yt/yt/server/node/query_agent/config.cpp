@@ -44,6 +44,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_pull_queue_response_data_weight", &TThis::MaxPullQueueResponseDataWeight)
         .Default(16_MB);
 
+    registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
     });
@@ -71,6 +74,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("reject_in_memory_requests_upon_throttler_overdraft", &TThis::RejectInMemoryRequestsUponThrottlerOverdraft)
         .Default(false);
     registrar.Parameter("max_pull_queue_response_data_weight", &TThis::MaxPullQueueResponseDataWeight)
+        .Optional();
+    registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
         .Optional();
 }
 

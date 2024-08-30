@@ -3,9 +3,28 @@ GO_LIBRARY()
 LICENSE(Apache-2.0)
 
 SRCS(
+    experimental.go
     internal.go
     xds_handshake_cluster.go
 )
+
+IF (OS_LINUX)
+    SRCS(
+        tcp_keepalive_unix.go
+    )
+ENDIF()
+
+IF (OS_DARWIN)
+    SRCS(
+        tcp_keepalive_unix.go
+    )
+ENDIF()
+
+IF (OS_WINDOWS)
+    SRCS(
+        tcp_keepalive_windows.go
+    )
+ENDIF()
 
 END()
 
@@ -28,6 +47,7 @@ RECURSE(
     grpctest
     grpcutil
     hierarchy
+    idle
     leakcheck
     metadata
     pretty

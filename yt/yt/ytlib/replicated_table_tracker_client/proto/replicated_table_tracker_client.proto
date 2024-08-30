@@ -27,6 +27,7 @@ message TTableCollocationData
 {
     required NYT.NProto.TGuid collocation_id = 1;
     repeated NYT.NProto.TGuid table_ids = 2;
+    optional bytes options = 3; // YSON-serialized
 }
 
 message TReplicatedTableTrackerSnapshot

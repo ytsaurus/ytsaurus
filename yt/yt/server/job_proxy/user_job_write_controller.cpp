@@ -52,6 +52,9 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NYTree;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Allows to write to single underlying writer rows

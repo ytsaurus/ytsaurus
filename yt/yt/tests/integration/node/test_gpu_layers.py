@@ -9,6 +9,8 @@ from yt_commands import (
     run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
+from yt_helpers import profiler_factory
+
 import yt.environment.init_operations_archive as init_operations_archive
 
 import pytest
@@ -33,6 +35,7 @@ class TestGpuJobSetup(YTEnvSetup):
         },
         "exec_node": {
             "gpu_manager": {
+                "driver_version": "117.225.42",
                 # For to GPU manager to initialize properly.
                 "testing": {
                     "test_resource": True,
@@ -170,6 +173,12 @@ class TestGpuJobSetup(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == b"SETUP-GPU-OUTPUT-DYNAMIC\n"
+
+    @authors("eshcherbin")
+    def test_driver_version_profiling(self):
+        node = ls("//sys/cluster_nodes")[0]
+        version_gauge = profiler_factory().at_node(node).gauge("exec_node/gpu_manager/driver_version")
+        wait(lambda: version_gauge.get(tags={"version": "117.225.42"}) == 1.0)
 
 
 @authors("ignat")
@@ -1148,11 +1157,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         )
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
-        wait(lambda: get(alerts_path), timeout=INCREASED_TIMEOUT)
-
-        alerts = get(alerts_path)
-        assert len(alerts) == 1
-        assert "Preliminary GPU check command failed" in str(alerts[0])
+        wait(lambda: any("Preliminary GPU check command failed" in str(alert) for alert in get(alerts_path)), timeout=INCREASED_TIMEOUT)
 
         resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
         wait(lambda: get(resource_limits_path)["user_slots"] == 0)

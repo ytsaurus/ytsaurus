@@ -91,17 +91,65 @@ public:
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopLeading, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartFollowing, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopFollowing, MakeWeak(this)));
     }
 
     bool IsInitialized() override
     {
+        Bootstrap_->VerifyPersistentStateRead();
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* rootNode = cypressManager->GetRootNode();
-        return !rootNode->KeyToChild().empty();
+        auto isInitialized = !rootNode->KeyToChild().empty();
+        if (CachedIsInitialized_.load(std::memory_order::relaxed) != isInitialized) {
+            CachedIsInitialized_.store(isInitialized, std::memory_order::release);
+        }
+        return isInitialized;
+    }
+
+    void ValidateInitialized_AnyThread() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto throwNotInitialized = [] (const TError& nested) {
+            TError error(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
+            if (!nested.IsOK()) {
+                error <<= nested;
+            }
+            THROW_ERROR error;
+        };
+
+        if (CachedIsInitialized_.load(std::memory_order::acquire)) {
+            return;
+        }
+
+        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic);
+        if (!invoker) {
+            // The absence of invoker means we're between epochs now.
+            throwNotInitialized({});
+        }
+
+        auto isInitializedOrError = WaitFor(BIND([weakThis = MakeWeak(this)] () {
+            if (auto strongThis = weakThis.Lock()) {
+                return strongThis->IsInitialized();
+            }
+
+            return false;
+        })
+            .AsyncVia(std::move(invoker))
+            .Run());
+
+        if (!isInitializedOrError.ValueOrDefault(false)) {
+            throwNotInitialized(isInitializedOrError);
+        }
     }
 
     void ValidateInitialized() override
     {
+        Bootstrap_->VerifyPersistentStateRead();
+
         if (!IsInitialized()) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
         }
@@ -126,14 +174,33 @@ private:
     TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
     TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
 
+    std::atomic<bool> CachedIsInitialized_ = false;
+
     void OnLeaderActive()
     {
+        CachedIsInitialized_.store(false, std::memory_order::release);
+
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
         // We'll post an initialization callback to the automaton invoker instead.
         ScheduleInitialize();
 
         ScheduleUpdateAnnotations();
+    }
+
+    void OnStopLeading()
+    {
+        CachedIsInitialized_.store(false, std::memory_order::release);
+    }
+
+    void OnStartFollowing()
+    {
+        CachedIsInitialized_.store(false, std::memory_order::release);
+    }
+
+    void OnStopFollowing()
+    {
+        CachedIsInitialized_.store(false, std::memory_order::release);
     }
 
     void ScheduleInitialize(TDuration delay = TDuration::Zero())
@@ -931,7 +998,7 @@ private:
 
             std::vector<TYPath> orchidAddresses;
 
-            auto createOrchidNode = [&] (const TYPath& addressPath, const TString& address) {
+            auto createOrchidNode = [&] (const TYPath& addressPath, const std::string& address) {
                 orchidAddresses.push_back(addressPath);
 
                 ScheduleCreateNode(

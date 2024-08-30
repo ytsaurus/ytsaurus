@@ -73,7 +73,7 @@ struct ISchedulerStrategyHost
     virtual void ValidatePoolPermission(
         TGuid poolObjectId,
         const TString& poolName,
-        const TString& user,
+        const std::string& user,
         NYTree::EPermission permission) const = 0;
 
     virtual void SetSchedulerAlert(
@@ -100,8 +100,6 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
     virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
-
-    virtual bool IsFairSharePreUpdateOffloadingEnabled() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,8 +118,8 @@ struct TAllocationUpdate
     // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
     TJobResources AllocationResources;
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
-    std::optional<TString> AllocationDataCenter;
-    std::optional<TString> AllocationInfinibandCluster;
+    std::optional<std::string> AllocationDataCenter;
+    std::optional<std::string> AllocationInfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +172,7 @@ struct ISchedulerStrategy
     //! Create proxy for handling node heartbeat.
     virtual INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& address,
+        const std::string& address,
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const = 0;
 
@@ -196,13 +194,13 @@ struct ISchedulerStrategy
     //! Registers or updates a node.
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& tags) = 0;
 
     //! Unregisters node.
     virtual void UnregisterNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress) = 0;
+        const std::string& nodeAddress) = 0;
 
     //! Validates that operation can be started.
     /*!
@@ -285,7 +283,7 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TString& user,
+        const std::string& user,
         EOperationType operationType,
         TOperationId operationId) = 0;
 
@@ -294,7 +292,7 @@ struct ISchedulerStrategy
     virtual void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
-        const TString& user) = 0;
+        const std::string& user) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
@@ -332,7 +330,7 @@ struct ISchedulerStrategy
     //! These methods are used for diagnostics.
     virtual void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         NYTree::TFluentMap fluent) const = 0;
 

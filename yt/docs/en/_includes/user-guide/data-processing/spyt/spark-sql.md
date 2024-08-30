@@ -1,6 +1,6 @@
 # Spark SQL
 
-You can work with {{product-name}} tables from [Spark SQL](https://spark.apache.org/docs/latest/sql-ref-syntax.html). This SQL dialect is used for queries in [Query Tracker](../../../../user-guide/query-tracker.md) using SPYT.
+You can work with {{product-name}} tables from [Spark SQL](https://spark.apache.org/docs/latest/sql-ref-syntax.html). This SQL dialect is used for queries in [Query Tracker](../../../../user-guide/query-tracker/about.md) using SPYT.
 
 When working with {{product-name}}, `yt` is used as a database ID, and `ytTable:/` is used as a file system. The latter can be omitted, so the below pair of queries is equivalent:
 

@@ -13,6 +13,8 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
+VERSION(16.0.6)
+
 ADDINCL(
     contrib/libs/clang16-rt/lib
 )

@@ -5,12 +5,12 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TMasterObject::GetLowercaseObjectName() const
+std::string TMasterObject::GetLowercaseObjectName() const
 {
     return "master";
 }
 
-TString TMasterObject::GetCapitalizedObjectName() const
+std::string TMasterObject::GetCapitalizedObjectName() const
 {
     return "Master";
 }

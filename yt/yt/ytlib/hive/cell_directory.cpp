@@ -40,24 +40,25 @@ class TAlienClusterChannelProvider
 {
 public:
     TAlienClusterChannelProvider(
-        TString address,
-        TString cluster,
+        const std::string& address,
+        const std::string& cluster,
         TClusterDirectoryPtr clusterDirectory,
         TLogger logger)
-        : Address_(std::move(address))
-        , Cluster_(std::move(cluster))
+        : Address_(address)
+        , Cluster_(cluster)
         , ClusterDirectory_(std::move(clusterDirectory))
+        , EndpointDescription_(address)
         , Logger(std::move(logger))
     { }
 
     const TString& GetEndpointDescription() const override
     {
-        return Address_;
+        return EndpointDescription_;
     }
 
     const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        static auto attributes = CreateEphemeralAttributes();
+        static const auto attributes = CreateEphemeralAttributes();
         return *attributes;
     }
 
@@ -92,9 +93,10 @@ public:
     }
 
 private:
-    const TString Address_;
-    const TString Cluster_;
+    const std::string Address_;
+    const std::string Cluster_;
     const TClusterDirectoryPtr ClusterDirectory_;
+    const TString EndpointDescription_;
     const TLogger Logger;
 };
 
@@ -107,9 +109,9 @@ class TAlienClusterChannelFactory
 {
 public:
     TAlienClusterChannelFactory(
-        THashSet<TString> nativeClusterAddresses,
+        THashSet<std::string> nativeClusterAddresses,
         IChannelFactoryPtr nativeChannelFactory,
-        THashMap<TString, TString> addressToAlienCluster,
+        THashMap<std::string, std::string> addressToAlienCluster,
         TClusterDirectoryPtr clusterDirectory,
         TLogger logger)
         : NativeClusterAddresses_(std::move(nativeClusterAddresses))
@@ -119,7 +121,7 @@ public:
         , Logger(std::move(logger))
     { }
 
-    IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const std::string& address) override
     {
         if (NativeClusterAddresses_.contains(address)) {
             return NativeChannelFactory_->CreateChannel(address);
@@ -139,9 +141,9 @@ public:
     }
 
 private:
-    const THashSet<TString> NativeClusterAddresses_;
+    const THashSet<std::string> NativeClusterAddresses_;
     const IChannelFactoryPtr NativeChannelFactory_;
-    const THashMap<TString, TString> AddressToAlienCluster_;
+    const THashMap<std::string, std::string> AddressToAlienCluster_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TLogger Logger;
 };
@@ -259,7 +261,7 @@ void Deserialize(TCellPeerDescriptor& descriptor, INodePtr node)
     auto mapNode = node->AsMap();
 
     descriptor.SetVoting(mapNode->GetChildValueOrThrow<bool>("voting"));
-    if (auto child = mapNode->FindChildValue<TString>("alien_cluster")) {
+    if (auto child = mapNode->FindChildValue<std::string>("alien_cluster")) {
         descriptor.SetAlienCluster(*child);
     }
 }
@@ -425,7 +427,7 @@ public:
         return result;
     }
 
-    std::optional<TString> FindPeerAddress(TCellId cellId, int peerId) override
+    std::optional<std::string> FindPeerAddress(TCellId cellId, int peerId) override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);
@@ -599,8 +601,8 @@ private:
 
     void InitChannel(TEntry* entry)
     {
-        THashMap<TString, TString> addressToAlienCluster;
-        THashSet<TString> nativeClusterAddresses;
+        THashMap<std::string, std::string> addressToAlienCluster;
+        THashSet<std::string> nativeClusterAddresses;
 
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellId = entry->Descriptor->CellId;

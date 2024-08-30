@@ -41,7 +41,7 @@ class TCellPeerDescriptor
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Voting);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, AlienCluster);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, AlienCluster);
 
 public:
     TCellPeerDescriptor();
@@ -142,7 +142,7 @@ struct ICellDirectory
     virtual TCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
-    virtual std::optional<TString> FindPeerAddress(TCellId cellId, int peerId) = 0;
+    virtual std::optional<std::string> FindPeerAddress(TCellId cellId, int peerId) = 0;
 
 
     //! Returns the list of all registered cells, their versions, and configurations.

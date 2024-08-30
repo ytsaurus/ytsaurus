@@ -4,6 +4,8 @@
 
 namespace NYT::NSecurityServer {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkProject::TNetworkProject(TNetworkProjectId id)
@@ -11,17 +13,17 @@ TNetworkProject::TNetworkProject(TNetworkProjectId id)
     , Acd_(this)
 { }
 
-TString TNetworkProject::GetLowercaseObjectName() const
+std::string TNetworkProject::GetLowercaseObjectName() const
 {
     return Format("network project %Qv", Name_);
 }
 
-TString TNetworkProject::GetCapitalizedObjectName() const
+std::string TNetworkProject::GetCapitalizedObjectName() const
 {
     return Format("Network project %Qv", Name_);
 }
 
-TString TNetworkProject::GetObjectPath() const
+TYPath TNetworkProject::GetObjectPath() const
 {
     return Format("//sys/network_projects/%v", GetName());
 }

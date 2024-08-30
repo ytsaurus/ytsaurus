@@ -29,19 +29,19 @@ struct IDistributedSession
 
     virtual void RenewLease() const = 0;
 
-    virtual std::vector<TString> GetPropagationAddresses() const = 0;
+    virtual std::vector<std::string> GetPropagationAddresses() const = 0;
 
-    virtual void ErasePropagationAddresses(const std::vector<TString>& addresses) = 0;
+    virtual void ErasePropagationAddresses(const std::vector<std::string>& addresses) = 0;
 
     virtual NCompression::ECodec GetCodecId() const = 0;
 
     virtual TFuture<void> PushRowset(
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         NQueryClient::TRowsetId rowsetId,
         NTableClient::TTableSchemaPtr schema,
         const std::vector<TRange<NTableClient::TUnversionedRow>>& subranges,
         NNodeTrackerClient::INodeChannelFactoryPtr channelFactory,
-        size_t desiredUncompressedResponseBlockSize) = 0;
+        i64 desiredUncompressedResponseBlockSize) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedSession)

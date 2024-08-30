@@ -3,9 +3,9 @@
 #include <yt/yt/core/ypath/public.h>
 #include <yt/yt/core/yson/string.h>
 
-#include <yt/yt/orm/library/attributes/helpers.h>
 #include <yt/yt/orm/library/attributes/merge_attributes.h>
 #include <yt/yt/orm/library/attributes/unwrapping_consumer.h>
+#include <yt/yt/orm/library/attributes/yson_builder.h>
 
 namespace NYT::NOrm::NAttributes::NTests {
 namespace {
@@ -17,22 +17,22 @@ NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
     std::ranges::sort(values, /*comparator*/ {}, /*projection*/ &TAttributeValue::Path);
     ValidateSortedPaths(values, &TAttributeValue::Path, &TAttributeValue::IsEtc);
 
-    TYsonStringWriterHelper writeHelper(NYson::EYsonFormat::Text);
-    TMergeAttributesHelper mergeHelper(writeHelper.GetConsumer());
+    TYsonStringBuilder builder(NYson::EYsonFormat::Text);
+    TMergeAttributesHelper mergeHelper(builder.GetConsumer());
     for (const auto& value : values) {
         mergeHelper.ToNextPath(value.Path, value.IsEtc);
         if (value.IsEtc) {
-            TUnwrappingConsumer unwrappingConsumer(writeHelper.GetConsumer());
+            TUnwrappingConsumer unwrappingConsumer(builder.GetConsumer());
             unwrappingConsumer.OnRaw(value.Value.AsStringBuf(), value.Value.GetType());
         } else {
-            writeHelper.GetConsumer()->OnRaw(value.Value);
+            builder->OnRaw(value.Value);
         }
     }
     mergeHelper.Finalize();
-    return writeHelper.Flush();
+    return builder.Flush();
 }
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TMergeAttributesTest, ListForwardSimple)
 {

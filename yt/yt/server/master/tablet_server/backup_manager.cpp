@@ -815,17 +815,7 @@ private:
         TRequest currentReq;
         int storeCount = 0;
 
-        auto commitMutation = [&] (auto mutation) {
-            // TODO(aleksandra-zh, gritukan): Mutation commit from non-automaton thread
-            // should not be a problem for new Hydra.
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            return BIND([=, mutation = std::move(mutation)] {
-                return CreateMutation(hydraManager, mutation)
-                    ->CommitAndLog(Logger());
-            })
-                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
-                .Run();
-        };
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
 
         auto maybeFlush = [&] (bool force) {
             if (storeCount < MaxStoresPerBackupMutation && !force) {
@@ -838,7 +828,9 @@ private:
 
             ToProto(currentReq.mutable_transaction_id(), transaction->GetId());
 
-            asyncCommitResults.push_back(commitMutation(std::move(currentReq)));
+            asyncCommitResults.push_back(CreateMutation(hydraManager, std::move(currentReq))
+                ->CommitAndLog(Logger()));
+
             storeCount = 0;
             currentReq = {};
         };
@@ -863,7 +855,8 @@ private:
         if constexpr (std::is_same_v<TRequest, NProto::TReqFinishBackup>) {
             NProto::TReqResetBackupMode req;
             ToProto(req.mutable_table_id(), table->GetId());
-            asyncCommitResults.push_back(commitMutation(std::move(req)));
+            asyncCommitResults.push_back(CreateMutation(hydraManager, std::move(req))
+                ->CommitAndLog(Logger()));
         }
 
         return AllSucceeded(asyncCommitResults).AsVoid();
@@ -1041,7 +1034,7 @@ private:
         for (const auto& descriptor : replicaBackupDescriptors) {
             const auto* replica = tabletManager->FindTableReplica(descriptor.ReplicaId);
             if (!replica || replica->GetTable() != table) {
-                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table")
+                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table", descriptor.ReplicaId)
                     << TErrorAttribute("table_id", table->GetId());
             }
             if (!validateModes) {

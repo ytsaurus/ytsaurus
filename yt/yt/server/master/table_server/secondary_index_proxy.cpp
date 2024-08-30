@@ -6,6 +6,7 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -54,26 +55,27 @@ private:
         const auto* secondaryIndex = GetThisImpl();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
 
         switch (key) {
             case EInternedAttributeKey::TableId:
                 BuildYsonFluently(consumer)
-                    .Value(secondaryIndex->GetTable()->GetId());
+                    .Value(secondaryIndex->GetTableId());
                 return true;
 
             case EInternedAttributeKey::TablePath:
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(secondaryIndex->GetTable(), /*transaction*/ nullptr));
+                    .Value(cypressManager->GetNodePath(tableManager->GetTableNodeOrThrow(secondaryIndex->GetTableId()), /*transaction*/ nullptr));
                 return true;
 
             case EInternedAttributeKey::IndexTableId:
                 BuildYsonFluently(consumer)
-                    .Value(secondaryIndex->GetIndexTable()->GetId());
+                    .Value(secondaryIndex->GetIndexTableId());
                 return true;
 
             case EInternedAttributeKey::IndexTablePath:
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(secondaryIndex->GetIndexTable(), /*transaction*/ nullptr));
+                    .Value(cypressManager->GetNodePath(tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()), /*transaction*/nullptr));
                 return true;
 
             case EInternedAttributeKey::Kind:

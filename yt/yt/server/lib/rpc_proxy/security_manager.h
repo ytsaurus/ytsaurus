@@ -12,7 +12,7 @@ namespace NYT::NRpcProxy {
 struct ISecurityManager
     : public TRefCounted
 {
-    virtual void ValidateUser(const TString& user) = 0;
+    virtual void ValidateUser(const std::string& user) = 0;
     virtual void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) = 0;
 };
 

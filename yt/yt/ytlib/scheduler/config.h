@@ -513,6 +513,7 @@ public:
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     i64 BufferRowCount;
+    bool UseAdaptiveRowCount;
     std::optional<int> PipeCapacity;
     bool UseDeliveryFencedPipeWriter;
 
@@ -1122,6 +1123,10 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
+    //! Allow use of extra virtual squashfs layer.
+    //! Allow access to all immutable files via NBD.
+    bool AllowUseVirtualSquashFsLayer;
+
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
     //! Delay for performing sanity checks for operations (useful in tests).
@@ -1153,6 +1158,10 @@ public:
     //! Read input tables via exec node.
     bool ReadViaExecNode;
 
+    //! If |true| shell environment would not inherit variables
+    //! starting with "YT_" such as "YT_JOB_ID"
+    bool IgnoreYtVariablesInShellEnvironment;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1182,6 +1191,7 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 class TUserJobSpec
     : public NYTree::TYsonStruct
+    , public virtual NPhoenix::TDynamicTag
 {
 public:
     TString Command;
@@ -1321,11 +1331,16 @@ public:
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
 
+    std::optional<TDuration> ArchiveTtl;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUserJobSpec, 0x79afb872);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
@@ -1339,6 +1354,9 @@ public:
     REGISTER_YSON_STRUCT(TMandatoryUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMandatoryUserJobSpec, 0x90adb891);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMandatoryUserJobSpec)
@@ -1354,6 +1372,9 @@ public:
     REGISTER_YSON_STRUCT(TOptionalUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOptionalUserJobSpec, 0x90adad80);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
@@ -1376,6 +1397,9 @@ public:
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTaskSpec, 0x2bbc0210);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
@@ -2024,7 +2048,7 @@ public:
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
-    TJobShellOptionsUpdeteMap OptionsPerJobShell;
+    TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<TString> ControllerAgentTag;
 

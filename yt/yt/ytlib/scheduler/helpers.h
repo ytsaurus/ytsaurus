@@ -31,7 +31,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update);
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update);
 
 class TJobShellInfo
 {
@@ -87,6 +87,7 @@ const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
 const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 const NYPath::TYPath& GetOperationsArchiveOperationIdsPath();
+const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath();
 
 const NYPath::TYPath& GetUserToDefaultPoolMapPath();
 
@@ -104,7 +105,7 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateOperationAccess(
-    const std::optional<TString>& user,
+    const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     NYTree::EPermissionSet permissionSet,
@@ -122,8 +123,8 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CheckPoolName(const TString& poolName, const re2::RE2& regex);
-void ValidatePoolName(const TString& poolName, const re2::RE2& regex);
+TError CheckPoolName(const std::string& poolName, const re2::RE2& regex);
+void ValidatePoolName(const std::string& poolName, const re2::RE2& regex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

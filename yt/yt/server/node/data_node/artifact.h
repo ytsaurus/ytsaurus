@@ -21,6 +21,7 @@ struct TArtifactKey
     explicit TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor);
 
     i64 GetCompressedDataSize() const;
+    i64 GetUncompressedDataSize() const;
 
     // Hasher.
     operator size_t() const;

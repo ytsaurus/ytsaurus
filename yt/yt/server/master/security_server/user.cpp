@@ -308,23 +308,23 @@ TUser::TUser(TUserId id)
     , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
-void TUser::SetName(const TString& name)
+void TUser::SetName(const std::string& name)
 {
     TSubject::SetName(name);
     InitializeCounters();
 }
 
-TString TUser::GetLowercaseObjectName() const
+std::string TUser::GetLowercaseObjectName() const
 {
     return Format("user %Qv", Name_);
 }
 
-TString TUser::GetCapitalizedObjectName() const
+std::string TUser::GetCapitalizedObjectName() const
 {
     return Format("User %Qv", Name_);
 }
 
-TString TUser::GetObjectPath() const
+TYPath TUser::GetObjectPath() const
 {
     return Format("//sys/users/%v", GetName());
 }
@@ -391,9 +391,10 @@ void TUser::Load(TLoadContext& context)
 
 void TUser::InitializeCounters()
 {
-    auto profiler = SecurityProfiler
+    auto profiler = SecurityProfiler()
         .WithSparse()
-        .WithTag("user", Name_);
+        // TODO(babenko): switch to std::string
+        .WithTag("user", TString(Name_));
 
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");

@@ -23,11 +23,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTableNode*>, Tables);
     DEFINE_BYVAL_RW_PROPERTY(ETableCollocationType, Type);
 
+    DEFINE_BYREF_RW_PROPERTY(
+        NTabletClient::TReplicationCollocationOptionsPtr,
+        ReplicationCollocationOptions,
+        New<NTabletClient::TReplicationCollocationOptions>());
+
 public:
     using TObject::TObject;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

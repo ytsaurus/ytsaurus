@@ -14,7 +14,8 @@ std::vector<TString> ToNames(const std::vector<T>& objects)
     std::vector<TString> names;
     names.reserve(objects.size());
     for (const auto* object : objects) {
-        names.push_back(object->GetName());
+        // TODO(babenko): switch to std::string
+        names.push_back(TString(object->GetName()));
     }
     return names;
 }

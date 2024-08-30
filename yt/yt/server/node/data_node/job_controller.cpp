@@ -102,7 +102,7 @@ public:
         return result;
     }
 
-    std::vector<TMasterJobBasePtr> GetJobs(const TString& jobTrackerAddress) const
+    std::vector<TMasterJobBasePtr> GetJobs(const std::string& jobTrackerAddress) const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -125,7 +125,7 @@ public:
 
     TFuture<void> PrepareHeartbeatRequest(
         TCellTag cellTag,
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TReqHeartbeatPtr& request) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -137,7 +137,7 @@ public:
     }
 
     TFuture<void> ProcessHeartbeatResponse(
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TRspHeartbeatPtr& response) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -147,7 +147,7 @@ public:
             .Run(jobTrackerAddress, response);
     }
 
-    TMasterJobBasePtr FindJob(const TString& jobTrackerAddress, NChunkServer::TJobId jobId) const
+    TMasterJobBasePtr FindJob(const std::string& jobTrackerAddress, NChunkServer::TJobId jobId) const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -271,7 +271,7 @@ private:
 
     TMasterJobBasePtr CreateJob(
         NChunkServer::TJobId jobId,
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TJobResources& resourceLimits,
         TJobSpec&& jobSpec)
     {
@@ -307,7 +307,7 @@ private:
 
     void RegisterJob(
         const NChunkServer::TJobId jobId,
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TMasterJobBasePtr& job,
         const TDuration waitingJobTimeout)
     {
@@ -405,7 +405,7 @@ private:
 
     void DoPrepareHeartbeatRequest(
         TCellTag cellTag,
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TReqHeartbeatPtr& request)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -448,7 +448,7 @@ private:
     }
 
     void DoProcessHeartbeatResponse(
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TRspHeartbeatPtr& response)
     {
         VERIFY_THREAD_AFFINITY(JobThread);

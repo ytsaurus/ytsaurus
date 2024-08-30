@@ -85,7 +85,7 @@ struct IMasterConnector
     *  \note
     *  Thread affinity: any
     */
-    virtual TString GetLocalHostName() const = 0;
+    virtual std::string GetLocalHostName() const = 0;
 
     //! Returns a counter that is incremented after each master unregistration.
     /*!

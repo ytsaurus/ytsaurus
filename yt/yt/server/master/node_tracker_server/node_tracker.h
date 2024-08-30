@@ -42,7 +42,7 @@ public:
         NNodeTrackerClient::NProto::TReqRegisterNode,
         NNodeTrackerClient::NProto::TRspRegisterNode>;
     using TCtxRegisterNodePtr = TIntrusivePtr<TCtxRegisterNode>;
-    virtual void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) = 0;
+    virtual void ProcessRegisterNode(const std::string& address, TCtxRegisterNodePtr context) = 0;
 
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqHeartbeat,
@@ -156,25 +156,25 @@ public:
     virtual TNode* GetNodeOrThrow(TNodeId id) = 0;
 
     //! Returns a node registered at the given address (|nullptr| if none).
-    virtual TNode* FindNodeByAddress(const TString& address) = 0;
+    virtual TNode* FindNodeByAddress(const std::string& address) = 0;
 
     //! Returns a node registered at the given address (fails if none).
-    virtual TNode* GetNodeByAddress(const TString& address) = 0;
+    virtual TNode* GetNodeByAddress(const std::string& address) = 0;
 
     //! Returns a node registered at the given address (throws if none).
-    virtual TNode* GetNodeByAddressOrThrow(const TString& address) = 0;
+    virtual TNode* GetNodeByAddressOrThrow(const std::string& address) = 0;
 
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
-    virtual TNode* FindNodeByHostName(const TString& hostName) = 0;
+    virtual TNode* FindNodeByHostName(const std::string& hostName) = 0;
 
     //! Returns a host with a given name (throws if none).
-    virtual THost* GetHostByNameOrThrow(const TString& name) = 0;
+    virtual THost* GetHostByNameOrThrow(const std::string& hostName) = 0;
 
     //! Returns a host with a given name (|nullptr| if none).
-    virtual THost* FindHostByName(const TString& name) = 0;
+    virtual THost* FindHostByName(const std::string& hostName) = 0;
 
     //! Returns a host with a given name (fails if none).
-    virtual THost* GetHostByName(const TString& hostName) = 0;
+    virtual THost* GetHostByName(const std::string& hostName) = 0;
 
     //! Sets the rack and notifies the subscribers.
     virtual void SetHostRack(THost* host, TRack* rack) = 0;
@@ -217,32 +217,32 @@ public:
         const NProto::TReqUpdateNodeResources& request) = 0;
 
     //! Renames an existing racks. Throws on name conflict.
-    virtual void RenameRack(TRack* rack, const TString& newName) = 0;
+    virtual void RenameRack(TRack* rack, const std::string& newName) = 0;
 
     //! Returns a rack with a given name (|nullptr| if none).
-    virtual TRack* FindRackByName(const TString& name) = 0;
+    virtual TRack* FindRackByName(const std::string& name) = 0;
 
     //! Returns a rack with a given name (throws if none).
-    virtual TRack* GetRackByNameOrThrow(const TString& name) = 0;
+    virtual TRack* GetRackByNameOrThrow(const std::string& name) = 0;
 
     //! Returns a rack with a given name (fails if none).
-    virtual TRack* GetRackByName(const TString& name) = 0;
+    virtual TRack* GetRackByName(const std::string& name) = 0;
 
     //! Sets the data center and notifies the subscribers.
     virtual void SetRackDataCenter(TRack* rack, TDataCenter* dc) = 0;
 
 
     //! Renames an existing data center. Throws on name conflict.
-    virtual void RenameDataCenter(TDataCenter* dc, const TString& newName) = 0;
+    virtual void RenameDataCenter(TDataCenter* dc, const std::string& newName) = 0;
 
     //! Returns a data center with a given name (|nullptr| if none).
-    virtual TDataCenter* FindDataCenterByName(const TString& name) = 0;
+    virtual TDataCenter* FindDataCenterByName(const std::string& name) = 0;
 
     //! Returns a data center with a given name (throws if none).
-    virtual TDataCenter* GetDataCenterByNameOrThrow(const TString& name) = 0;
+    virtual TDataCenter* GetDataCenterByNameOrThrow(const std::string& name) = 0;
 
     //! Returns a data center with a given name (fails if none).
-    virtual TDataCenter* GetDataCenterByName(const TString& name) = 0;
+    virtual TDataCenter* GetDataCenterByName(const std::string& name) = 0;
 
 
     //! Returns the total cluster statistics, aggregated over all nodes.
@@ -258,7 +258,7 @@ public:
     virtual const std::vector<TNode*>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
 
     //! Returns the list of default addresses of nodes with the given role.
-    virtual const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
+    virtual const std::vector<std::string>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
 
     //! Called by node trackers when node reports a heartbeat.
     virtual void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType) = 0;
@@ -277,13 +277,13 @@ private:
 
     virtual void ZombifyNode(TNode* node) = 0;
 
-    virtual THost* CreateHost(const TString& address, NObjectClient::TObjectId hintId) = 0;
+    virtual THost* CreateHost(const std::string& address, NObjectClient::TObjectId hintId) = 0;
     virtual void ZombifyHost(THost* host) = 0;
 
-    virtual TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId) = 0;
+    virtual TRack* CreateRack(const std::string& name, NObjectClient::TObjectId hintId) = 0;
     virtual void ZombifyRack(TRack* rack) = 0;
 
-    virtual TDataCenter* CreateDataCenter(const TString& name, NObjectClient::TObjectId hintId) = 0;
+    virtual TDataCenter* CreateDataCenter(const std::string& name, NObjectClient::TObjectId hintId) = 0;
     virtual void ZombifyDataCenter(TDataCenter* dc) = 0;
 };
 

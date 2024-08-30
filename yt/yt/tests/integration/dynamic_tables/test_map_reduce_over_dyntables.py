@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
     authors, print_debug, wait, create, get, set, copy, insert_rows, trim_rows,
-    alter_table, write_file, read_table, write_table, map, map_reduce, generate_timestamp,
+    alter_table, write_file, read_table, write_table, map, sort, reduce, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, merge,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
-    lookup_rows, raises_yt_error)
+    lookup_rows, raises_yt_error, select_rows, generate_uuid)
 
 from yt_type_helpers import make_schema
 
@@ -29,6 +29,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
@@ -453,6 +454,148 @@ class TestMapOnDynamicTables(YTEnvSetup):
             out="<output_timestamp=123>//tmp/t_out")
         chunk_id = get_singular_chunk_id("//tmp/t_out")
         assert get(f"#{chunk_id}/@min_timestamp") == 123
+
+    @authors("dave11ar")
+    @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
+    def test_versioned_map_reduce_read(self, enable_dynamic_store_read):
+        input = "//tmp/t_input"
+        schema = [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "string"},
+            {"name": "v2", "type": "string"},
+            {"name": "v3", "type": "string"},
+            {"name": "v4", "type": "int64", "aggregate": "sum"},
+            {"name": "v5", "type": "string"},
+        ]
+
+        def flush_optionally():
+            if not enable_dynamic_store_read:
+                sync_flush_table(input)
+
+        sync_create_cells(1)
+
+        create_dynamic_table(input, schema=schema, enable_dynamic_store_read=enable_dynamic_store_read)
+        sync_mount_table(input)
+        insert_rows(
+            path=input,
+            data=[{"k": 1, "v1": "a", "v2": "a", "v3": "a", "v4": 1, "v5": "a"}],
+        )
+        insert_rows(
+            path=input,
+            data=[{"k": 1, "v1": "b", "v3": "b"}],
+            update=True,
+        )
+        insert_rows(
+            path=input,
+            data=[{"k": 1, "v2": "c", "v5": "c"}],
+            update=True,
+        )
+        flush_optionally()
+
+        def get_rows_from_output(operation, **kwargs):
+            output = f"//tmp/t_output{generate_uuid()}"
+            create("table", output)
+
+            operation(
+                in_=f"<versioned_read_options={{read_mode=latest_timestamp}}>{input}",
+                out=output,
+                **kwargs,
+            )
+
+            return read_table(output)
+
+        def check_all_operations(checker, only_input_query=False):
+            checker(map, command="cat")
+            checker(merge, mode="ordered")
+            checker(merge, mode="unordered")
+            if not only_input_query:
+                checker(reduce, reduce_by="k", command="cat")
+                checker(map_reduce, reduce_by="k", mapper_command="cat", reducer_command="cat")
+                checker(sort, sort_by="k")
+
+        def check_simple(operation, **kwargs):
+            for row in get_rows_from_output(operation, **kwargs):
+                assert row == select_rows(
+                    f"* from [{input}] where k = {row['k']}",
+                    versioned_read_options={"read_mode": "latest_timestamp"}
+                )[0]
+
+        check_all_operations(check_simple)
+
+        insert_rows(
+            path=input,
+            data=[{"k": 2, "v1": "a", "v2": "a", "v3": "a", "v4": 1, "v5": "a"}],
+        )
+        flush_optionally()
+
+        def get_column_type(column):
+            ts_pref = "$timestamp:"
+            column_to_type = {
+                "k": "int64",
+                "v1": "string",
+                "v2": "string",
+                "v3": "string",
+                "v4": "int64",
+                "v5": "string",
+            }
+
+            if column.startswith(ts_pref):
+                assert column[len(ts_pref):] in column_to_type
+                return "uint64"
+
+            return column_to_type[column]
+
+        def check_spec(input_query_before_from, input_query_after_from, input_schema_columns):
+            def checker(operation, **kwargs):
+                input_query = f"{input_query_before_from} {input_query_after_from}"
+                input_schema = (
+                    [{"name": name, "type": get_column_type(name)} for name in input_schema_columns]
+                    if input_schema_columns is not None
+                    else None
+                )
+                expected = select_rows(
+                    f"{input_query_before_from} from [{input}] {input_query_after_from}",
+                    versioned_read_options={"read_mode": "latest_timestamp"},
+                )
+
+                assert_items_equal(
+                    get_rows_from_output(
+                        operation,
+                        spec={
+                            "input_query": input_query,
+                            "input_schema": input_schema,
+                        },
+                        **kwargs
+                    ),
+                    expected,
+                )
+
+            check_all_operations(checker, only_input_query=True)
+
+        check_spec("*", "", None)
+        check_spec("k, v1, [$timestamp:v1]", "", ["k", "v1", "$timestamp:v1"])
+        check_spec("k, [$timestamp:v5], [$timestamp:v2], v3", "where k = 2", ["k", "$timestamp:v2", "v3", "$timestamp:v5", "v4"])
+        check_spec(
+            "k, [$timestamp:v5] as t5, [$timestamp:v5] as t5_2, [$timestamp:v1], [$timestamp:v3], v5",
+            "where k = 1",
+            ["k", "v5", "$timestamp:v5", "$timestamp:v1", "$timestamp:v3"]
+        )
+
+        def error_checker(operation, **kwargs):
+            with raises_yt_error('Undefined reference "$timestamp:v1"'):
+                get_rows_from_output(
+                    operation,
+                    spec={
+                        "input_query": "k, [$timestamp:v1]",
+                        "input_schema": [
+                            {"name": "k", "type": "int64"},
+                            {"name": "v1", "type": "string"},
+                        ],
+                    },
+                    **kwargs,
+                )
+
+        check_all_operations(error_checker, only_input_query=True)
 
 
 ##################################################################

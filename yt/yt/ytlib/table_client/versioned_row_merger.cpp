@@ -1,4 +1,5 @@
 #include "versioned_row_merger.h"
+#include "nested_row_merger.h"
 
 #include "config.h"
 #include "private.h"
@@ -13,6 +14,8 @@
 #include <yt/yt/client/tablet_client/watermark_runtime_data.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 
@@ -30,7 +33,7 @@ static constexpr auto& Logger = TableClientLogger;
 namespace {
 
 template <class T>
-static i64 GetVectorBytesCapacity(const std::vector<T>& vector)
+i64 GetVectorBytesCapacity(const std::vector<T>& vector)
 {
     return vector.capacity() * sizeof(T);
 }
@@ -570,13 +573,15 @@ public:
         // FlushMode assumes that timestamp range in store is not intersected with any other for given key range.
         // Adjacent delete timestamps and aggregates (before allVersionsTimestamp) can be merged.
         // Major timestamp should be zero in flush mode.
-        bool flushMode)
+        bool flushMode,
+        TNestedColumnsSchema nestedColumnsSchema)
         : RowBuffer_(std::move(rowBuffer))
         , ColumnEvaluator_(std::move(columnEvaluator))
         , AllVersionsTimestamp_(allVersionsTimestamp)
         , RetentionTimestamp_(retentionTimestamp)
         , MajorTimestamp_(majorTimestamp)
         , FlushMode_(flushMode)
+        , NestedColumnsSchema_(std::move(nestedColumnsSchema))
     {
         YT_VERIFY(RetentionTimestamp_ <= AllVersionsTimestamp_);
         YT_VERIFY(MajorTimestamp_ <= AllVersionsTimestamp_);
@@ -615,15 +620,25 @@ public:
         Keys_.resize(resultKeyColumnCount);
         Values_.resize(resultValueColumnCount);
 
-        for (int id = keyColumnCount; id < columnCount; ++id) {
-            if (ColumnIdToIndex_[id] == -1) {
+        for (int columnId = keyColumnCount; columnId < columnCount; ++columnId) {
+            if (ColumnIdToIndex_[columnId] == -1) {
                 continue;
             }
 
-            YT_VERIFY(ColumnIdToIndex_[id] >= resultKeyColumnCount);
-            int valueIndex = ColumnIdToIndex_[id] - resultKeyColumnCount;
+            YT_VERIFY(ColumnIdToIndex_[columnId] >= resultKeyColumnCount);
+            int valueIndex = ColumnIdToIndex_[columnId] - resultKeyColumnCount;
 
-            if (ColumnEvaluator_->IsAggregate(id)) {
+            // TODO(lukyan): Support column filter for nested columns.
+
+            if (GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+                continue;
+            }
+
+            if (GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+                continue;
+            }
+
+            if (ColumnEvaluator_->IsAggregate(columnId)) {
                 AggregateColumnIndexes_.push_back(valueIndex);
             } else {
                 ReplacingColumnIndexes_.push_back(valueIndex);
@@ -777,6 +792,86 @@ public:
             values.erase(values.begin(), valueIt);
         }
 
+        NestedKeyColumns_.clear();
+
+        auto resultKeyColumnCount = std::ssize(Keys_);
+
+        for (auto [nestedKeyColumnId, _] : NestedColumnsSchema_.KeyColumns) {
+            YT_VERIFY(ColumnIdToIndex_[nestedKeyColumnId] >= resultKeyColumnCount);
+            int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
+
+            auto& values = Values_[columnIndex];
+            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
+            auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
+
+            NestedKeyColumns_.push_back({valueIt, endCompactValueIt});
+        }
+
+        NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
+        NestedMerger_.BuildMergeScript();
+
+        for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
+            auto nestedKeyColumnId = NestedColumnsSchema_.KeyColumns[index].Id;
+            YT_VERIFY(ColumnIdToIndex_[nestedKeyColumnId] >= resultKeyColumnCount);
+            int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
+
+            auto valueIt = NestedKeyColumns_[index].Begin();
+            auto endCompactValueIt = NestedKeyColumns_[index].End();
+
+            if (valueIt < endCompactValueIt) {
+                auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
+
+                auto state = NestedMerger_.BuildMergedKeyColumns(index, RowBuffer_.Get());
+
+                // TODO(lukyan): Move inside BuildMergedKeyColumns?
+                state.Id = nestedKeyColumnId;
+                state.Flags = (state.Flags & ~EValueFlags::Aggregate) | initialAggregateFlags;
+
+                valueIt = endCompactValueIt - 1;
+                *valueIt = state;
+
+                if (Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+                    ++valueIt;
+                }
+            }
+
+            auto& values = Values_[columnIndex];
+
+            values.erase(values.begin(), valueIt);
+        }
+
+        for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+            auto nestedValueColumnId = NestedColumnsSchema_.ValueColumns[index].Id;
+            YT_VERIFY(ColumnIdToIndex_[nestedValueColumnId] >= resultKeyColumnCount);
+            int columnIndex = ColumnIdToIndex_[nestedValueColumnId] - resultKeyColumnCount;
+
+            auto& values = Values_[columnIndex];
+            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
+            auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
+
+            if (valueIt < endCompactValueIt) {
+                auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
+
+                auto mergedValue = NestedMerger_.ApplyMergeScript(
+                    {valueIt, endCompactValueIt},
+                    NestedColumnsSchema_.ValueColumns[index].Type,
+                    NestedColumnsSchema_.ValueColumns[index].AggregateFunction,
+                    RowBuffer_.Get());
+
+                mergedValue.Id = nestedValueColumnId;
+                mergedValue.Flags = (mergedValue.Flags & ~EValueFlags::Aggregate) | initialAggregateFlags;
+
+                valueIt = endCompactValueIt - 1;
+                *valueIt = mergedValue;
+
+                if (Precedes(valueIt->Timestamp, RetentionTimestamp_)) {
+                    ++valueIt;
+                }
+            }
+
+            values.erase(values.begin(), valueIt);
+        }
+
         int resultValueCount = 0;
         for (int index = 0; index < std::ssize(Values_); ++index) {
             auto& values = Values_[index];
@@ -863,6 +958,7 @@ private:
     // There are no timestamps older than this in other stores (not in current merge session).
     const TTimestamp MajorTimestamp_;
     const bool FlushMode_;
+    const TNestedColumnsSchema NestedColumnsSchema_;
 
     std::vector<int> ColumnIdToIndex_;
     std::vector<TUnversionedValue> Keys_;
@@ -873,6 +969,9 @@ private:
 
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
+
+    TNestedTableMerger NestedMerger_;
+    std::vector<TMutableRange<TVersionedValue>> NestedKeyColumns_;
 
     bool Started_ = false;
 
@@ -1052,7 +1151,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-    bool mergeRowsOnFlush)
+    bool mergeRowsOnFlush,
+    TNestedColumnsSchema nestedColumnsSchema)
 {
     if (config && config->IgnoreMajorTimestamp) {
         mergeRowsOnFlush = true;
@@ -1071,7 +1171,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
         allVersionsTimestamp,
         retentionTimestamp,
         std::min(majorTimestamp, allVersionsTimestamp),
-        mergeRowsOnFlush);
+        mergeRowsOnFlush,
+        nestedColumnsSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1164,9 +1265,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 currentTimestamp,
                 majorTimestamp,
                 columnEvaluator,
-                mergeRowsOnFlush);
-        default:
-            YT_ABORT();
+                mergeRowsOnFlush,
+                GetNestedColumnsSchema(tableSchema));
     }
 }
 

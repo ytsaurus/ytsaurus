@@ -90,18 +90,19 @@ int TCellConfig::CountVotingPeers() const
     return votingPeerCount;
 }
 
-int TCellConfig::FindPeerId(const TString& address) const
+int TCellConfig::FindPeerId(const std::string& address) const
 {
+    auto canonicalAddress = to_lower(TString(address));
     for (int id = 0; id < std::ssize(Peers); ++id) {
         const auto& peerAddress = Peers[id]->Address;
-        if (peerAddress && to_lower(*peerAddress) == to_lower(address)) {
+        if (peerAddress && to_lower(TString(*peerAddress)) == canonicalAddress) {
             return id;
         }
     }
     return InvalidPeerId;
 }
 
-int TCellConfig::GetPeerIdOrThrow(const TString& address) const
+int TCellConfig::GetPeerIdOrThrow(const std::string& address) const
 {
     auto id = FindPeerId(address);
     if (id == InvalidPeerId) {

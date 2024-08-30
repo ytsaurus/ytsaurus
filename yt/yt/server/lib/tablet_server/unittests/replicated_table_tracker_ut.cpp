@@ -351,6 +351,22 @@ public:
         return collocationId;
     }
 
+    void UpdateReplicationCollocationOptions(
+        TTableCollocationId collocationId,
+        std::optional<std::vector<TString>> preferredSyncReplicaClusters)
+    {
+        const auto& collocationInfo = GetOrCrash(CollocationIdToInfo_, collocationId);
+
+        auto options = New<TReplicationCollocationOptions>();
+        options->PreferredSyncReplicaClusters = std::move(preferredSyncReplicaClusters);
+
+        ReplicationCollocationCreated_(TTableCollocationData{
+            .Id = collocationId,
+            .TableIds = collocationInfo.TableIds,
+            .Options = std::move(options),
+        });
+    }
+
     void DestroyTable(TTableId tableId)
     {
         ReplicatedTableDestroyed_(tableId);
@@ -846,7 +862,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
 {
     auto [table1, replica11, replica12, table2, replica21, replica22] = CreateTablesForCollocation();
 
-    Host_->CreateReplicationCollocation({table1, table2});
+    auto collocationId = Host_->CreateReplicationCollocation({table1, table2});
 
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
@@ -862,20 +878,44 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
     options->PreferredSyncReplicaClusters = {Cluster1};
     Host_->SetTableOptions(table2, std::move(options));
 
+    auto validateSyncOnCluster1 = [&] {
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
+    };
+
+    auto validateSyncOnCluster2 = [&] {
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Async);
+    };
+
+    validateSyncOnCluster1();
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster1, Cluster2});
+
     WaitForUpdatesFromTracker();
-    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeRemained(replica12);
+    Host_->ValidateReplicaModeRemained(replica11);
+    Host_->ValidateReplicaModeRemained(replica21);
+    Host_->ValidateReplicaModeRemained(replica22);
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster2});
+
+    validateSyncOnCluster2();
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::nullopt);
+
+    validateSyncOnCluster1();
 
     auto client1 = Host_->GetMockClient(Cluster1);
     MockBadTable(client1);
 
-    WaitForUpdatesFromTracker();
-    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
-    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Async);
-    Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Sync);
+    validateSyncOnCluster2();
 }
 
 TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)

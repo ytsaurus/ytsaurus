@@ -415,10 +415,11 @@ private:
 
     void ProcessVote(int id, const TStatus& status)
     {
-        YT_LOG_DEBUG("Vote received (PeerId: %v, State: %v, VoteId: %v, Priority: %v)",
+        YT_LOG_DEBUG("Vote received (PeerId: %v, State: %v, VoteId: %v, EpochId: %v, Priority: %v)",
             id,
             status.State,
             status.VoteId,
+            status.VoteEpochId,
             Owner_->ElectionCallbacks_->FormatPriority(status.Priority));
 
         YT_VERIFY(id != InvalidPeerId);

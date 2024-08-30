@@ -46,7 +46,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdeteMap& update)
+void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update)
 {
     for (const auto& [jobShellName, options] : update) {
         if (!options) {
@@ -289,6 +289,12 @@ const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
     return path;
 }
 
+const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath()
+{
+    static const TYPath path = "//sys/operations_archive/job_trace_events";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return
@@ -360,7 +366,7 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateOperationAccess(
-    const std::optional<TString>& user,
+    const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     EPermissionSet permissionSet,
@@ -465,7 +471,7 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 const int PoolNameMaxLength = 100;
 
-TError CheckPoolName(const TString& poolName, const re2::RE2& regex)
+TError CheckPoolName(const std::string& poolName, const re2::RE2& regex)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
@@ -485,7 +491,7 @@ TError CheckPoolName(const TString& poolName, const re2::RE2& regex)
     return TError();
 }
 
-void ValidatePoolName(const TString& poolName, const re2::RE2& regex)
+void ValidatePoolName(const std::string& poolName, const re2::RE2& regex)
 {
     CheckPoolName(poolName, regex).ThrowOnError();
 }

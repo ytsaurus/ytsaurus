@@ -870,6 +870,8 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 break;
             }
 
+            RequireLeader();
+
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->GetNodeChunkMergerStatus(node->GetId()));
@@ -1898,17 +1900,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             auto externalizedTransactionId =
                 transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag});
 
-            NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
-            ToProto(startRequest.mutable_id(), uploadTransactionId);
-            if (externalizedTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
-            }
-            if (uploadTransactionTitle) {
-                startRequest.set_title(*uploadTransactionTitle);
-            }
-            startRequest.set_upload(true);
-
-            multicellManager->PostToMaster(startRequest, dstCellTag);
+            transactionManager->PostForeignTransactionStart(
+                uploadTransaction,
+                uploadTransactionId,
+                externalizedTransactionId,
+                {dstCellTag});
         }
     }
 

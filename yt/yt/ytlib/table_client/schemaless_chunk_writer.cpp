@@ -159,7 +159,7 @@ public:
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
-        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics))
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
     {
         if (dataSink) {
             PackBaggageForChunkWriter(
@@ -390,6 +390,9 @@ protected:
             ColumnarStatistics_.ChunkRowCount.reset();
         }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
+        if (!ColumnarStatistics_.LargeStatistics.Empty() && Config_->EnableLargeColumnarStatistics) {
+            SetProtoExtension(meta->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_.LargeStatistics));
+        }
 
         if (IsSorted()) {
             ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
@@ -668,7 +671,8 @@ public:
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 columnIndex,
                 columnSchema,
-                getBlockWriter(columnSchema)));
+                getBlockWriter(columnSchema),
+                Options_->MemoryUsageTracker));
         }
 
         if (!Schema_->GetStrict() || BlockWriters_.empty()) {
@@ -677,7 +681,8 @@ public:
             auto blockWriter = std::make_unique<TDataBlockWriter>();
             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
                 Schema_->GetColumnCount(),
-                blockWriter.get()));
+                blockWriter.get(),
+                Options_->MemoryUsageTracker));
             BlockWriters_.emplace_back(std::move(blockWriter));
         }
 

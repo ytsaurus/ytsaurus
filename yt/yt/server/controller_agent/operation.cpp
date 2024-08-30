@@ -47,7 +47,7 @@ const IOperationControllerPtr& TOperation::GetControllerOrThrow() const
     return Controller_;
 }
 
-void TOperation::UpdateJobShellOptions(const TJobShellOptionsUpdeteMap& update)
+void TOperation::UpdateJobShellOptions(const TJobShellOptionsUpdateMap& update)
 {
     ApplyJobShellOptionsUpdate(&OptionsPerJobShell_, update);
 }

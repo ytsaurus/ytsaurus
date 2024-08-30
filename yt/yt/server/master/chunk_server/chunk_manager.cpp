@@ -738,7 +738,7 @@ public:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        const std::optional<TString>& preferredHostName) override
+        const std::optional<std::string>& preferredHostName) override
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -1897,10 +1897,9 @@ public:
         return ChunkSealer_->IsEnabled();
     }
 
-
-    void ScheduleChunkRefresh(TChunk* chunk) override
+    void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {}) override
     {
-        ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        ChunkReplicator_->ScheduleChunkRefresh(chunk, delay);
     }
 
     void ScheduleConsistentlyPlacedChunkRefresh(std::vector<TChunk*> chunks)
@@ -2048,7 +2047,7 @@ public:
         return chunkList;
     }
 
-    void CreateMediumPrologue(const TString& name)
+    void CreateMediumPrologue(const std::string& name)
     {
         ValidateMediumName(name);
 
@@ -2066,7 +2065,7 @@ public:
     }
 
     TDomesticMedium* CreateDomesticMedium(
-        const TString& name,
+        const std::string& name,
         std::optional<bool> transient,
         std::optional<int> priority,
         std::optional<int> hintIndex,
@@ -2086,7 +2085,7 @@ public:
     }
 
     TS3Medium* CreateS3Medium(
-        const TString& name,
+        const std::string& name,
         TS3MediumConfigPtr config,
         std::optional<int> priority,
         std::optional<int> hintIndex,
@@ -2112,7 +2111,7 @@ public:
         MediumMap_.Release(medium->GetId());
     }
 
-    void RenameMedium(TMedium* medium, const TString& newName) override
+    void RenameMedium(TMedium* medium, const std::string& newName) override
     {
         if (medium->GetName() == newName) {
             return;
@@ -2163,27 +2162,22 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMedium* FindMediumByName(const TString& name) const override
+    TMedium* FindMediumByName(const std::string& name) const override
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TErrorOr<TMedium*> GetMediumByName(const TString& name) const
+    TMedium* GetMediumByNameOrThrow(const std::string& name) const override
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
-            return TError(
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
                 "No such medium %Qv",
                 name);
         }
         return medium;
-    }
-
-    TMedium* GetMediumByNameOrThrow(const TString& name) const override
-    {
-        return GetMediumByName(name).ValueOrThrow();
     }
 
     TMedium* GetMediumOrThrow(TMediumId id) const override
@@ -2486,7 +2480,7 @@ private:
     THashSet<TChunk*> ForeignChunks_;
 
     NHydra::TEntityMap<TMedium, TEntityMapTypeTraits<TMedium>> MediumMap_;
-    THashMap<TString, TMedium*> NameToMediumMap_;
+    THashMap<std::string, TMedium*> NameToMediumMap_;
     std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
@@ -2727,6 +2721,7 @@ private:
     void OnNodePendingRestartChanged(TNode* node)
     {
         if (node->ReportedDataNodeHeartbeat()) {
+            // This might be heavy.
             ScheduleNodeRefresh(node);
         }
     }
@@ -3161,7 +3156,14 @@ private:
         // This could be under 'else', but it is not.
         refreshSequoiaChunks(request->added_chunks());
 
-        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        ProcessRemovedReplicas(
+            locationDirectory,
+            node,
+            request->removed_chunks(),
+            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
+            request->caused_by_node_disposal()
+                ? ERemoveReplicaReason::NodeDisposed
+                : ERemoveReplicaReason::IncrementalHeartbeat);
     }
 
     static void BuildReplicasListYson(
@@ -3430,14 +3432,15 @@ private:
     void ProcessRemovedReplicas(
         const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         TNode* node,
-        const auto& removedReplicas)
+        const auto& removedReplicas,
+        ERemoveReplicaReason reason)
     {
         for (const auto& chunkInfo : removedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
                 continue;
             }
 
-            if (auto* chunk = ProcessRemovedChunk(node, locationDirectory, chunkInfo)) {
+            if (auto* chunk = ProcessRemovedChunk(node, locationDirectory, chunkInfo, reason)) {
                 if (IsObjectAlive(chunk) && chunk->IsBlob()) {
                     ScheduleEndorsement(chunk);
                 }
@@ -3501,7 +3504,11 @@ private:
         const auto& counters = GetIncrementalHeartbeatCounters(node);
         counters.RemovedChunks.Increment(request->removed_chunks().size());
 
-        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        ProcessRemovedReplicas(
+            locationDirectory,
+            node,
+            request->removed_chunks(),
+            ERemoveReplicaReason::IncrementalHeartbeat);
         UpdateChunkRemovalLockedMap(node, request->sequence_number());
 
         const auto* mutationContext = GetCurrentMutationContext();
@@ -4087,7 +4094,7 @@ private:
 
             auto cellTag = FromProto<TCellTag>(exportData.destination_cell_tag());
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-                THROW_ERROR_EXCEPTION("Cell %v is not registered");
+                THROW_ERROR_EXCEPTION("Cell %v is not registered", cellTag);
             }
 
             if (chunk->ChunkMeta() && chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
@@ -4223,7 +4230,7 @@ private:
             auto* subrequests,
             auto* subresponses,
             auto handler,
-            const char* errorMessage)
+            TFormatString<> errorMessage)
         {
             for (auto& subrequest : *subrequests) {
                 auto* subresponse = subresponses ? subresponses->Add() : nullptr;
@@ -4953,7 +4960,7 @@ private:
         TMedium*& medium,
         TMediumId id,
         int mediumIndex,
-        const TString& name)
+        const std::string& name)
     {
         if (medium) {
             return false;
@@ -5386,11 +5393,18 @@ private:
         THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 6>> replicasToPurge;
         for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto it = SequoiaChunkPurgatory_.find(chunkId);
+            if (it == SequoiaChunkPurgatory_.end()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", chunkId);
+            }
             replicasToPurge[chunkId] = GetOrCrash(SequoiaChunkPurgatory_, chunkId);
         }
 
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TSequoiaChunkReplica>(protoReplica);
+            if (!SequoiaChunkPurgatory_.contains(replica.ChunkId)) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", replica.ChunkId);
+            }
             replicasToPurge[replica.ChunkId].push_back(replica);
         }
 
@@ -5552,7 +5566,10 @@ private:
                 ChunkReplicator_->OnReplicaRemoved(chunkLocation, replica, reason);
                 break;
             case ERemoveReplicaReason::NodeDisposed:
-                // Do nothing.
+                if (node->IsPendingRestart()) {
+                    // We delay the refresh for chunks with replicas disposed from a pending restart node.
+                    ScheduleChunkRefresh(chunk, GetDynamicConfig()->DisposedPendingRestartNodeChunkRefreshDelay);
+                }
                 break;
             default:
                 YT_ABORT();
@@ -5713,7 +5730,8 @@ private:
     TChunk* ProcessRemovedChunk(
         TNode* node,
         const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
-        const TChunkRemoveInfo& chunkInfo)
+        const TChunkRemoveInfo& chunkInfo,
+        ERemoveReplicaReason reason)
     {
         auto nodeId = node->GetId();
         auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -5728,7 +5746,8 @@ private:
             return nullptr;
         }
 
-        auto isDestroyed = location->RemoveDestroyedReplica(chunkIdWithIndex);
+        const auto& config = GetDynamicConfig();
+        auto isDestroyed = config->Testing->DisableRemovingReplicasFromDestroyedQeueue ? false : location->RemoveDestroyedReplica(chunkIdWithIndex);
         if (isDestroyed) {
             --DestroyedReplicaCount_;
         }
@@ -5745,8 +5764,15 @@ private:
             return nullptr;
         }
 
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+        if (reason == ERemoveReplicaReason::NodeDisposed && node->IsPendingRestart()) {
+            // TODO(danilalexeev or aleksandra-zh): Intorduce common location disposal mechanisms for
+            // master replicas and Sequoia replicas stored at master.
+            // We delay the refresh for chunks with replicas disposed from a pending restart node.
+            ScheduleChunkRefresh(chunk, GetDynamicConfig()->DisposedPendingRestartNodeChunkRefreshDelay);
+        }
+
+        const auto& sequoiaReplicasConfig = config->SequoiaChunkReplicas;
+        if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId()) && !sequoiaReplicasConfig->ProcessRemovedSequoiaReplicasOnMaster) {
             ScheduleChunkRefresh(chunk);
             return nullptr;
         }
@@ -5948,7 +5974,7 @@ private:
     TDomesticMedium* DoCreateDomesticMedium(
         TMediumId id,
         int mediumIndex,
-        const TString& name,
+        const std::string& name,
         std::optional<bool> transient,
         std::optional<int> priority)
     {
@@ -5977,7 +6003,7 @@ private:
     TS3Medium* DoCreateS3Medium(
         TMediumId id,
         int mediumIndex,
-        const TString& name,
+        const std::string& name,
         TS3MediumConfigPtr config,
         std::optional<int> priority)
     {
@@ -6074,7 +6100,7 @@ private:
         if (auto channel = FindChunkReplicatorChannel(chunk)) {
             return channel;
         } else {
-            THROW_ERROR_EXCEPTION("Chunk replicator for chunk %Qlv is not alive")
+            THROW_ERROR_EXCEPTION("Chunk replicator for chunk %v is not alive", chunk->GetId())
                 << TErrorAttribute("shard_index", chunk->GetShardIndex());
         }
     }
@@ -6083,7 +6109,7 @@ private:
     {
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
 
-        THashSet<TString> replicatorAddresses;
+        THashSet<std::string> replicatorAddresses;
         replicatorAddresses.reserve(ChunkShardCount);
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
             auto address = incumbentManager->GetIncumbentAddress(
@@ -6188,20 +6214,6 @@ private:
 
         if (SequoiaReplicaRemovalExecutor_) {
             SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
-        }
-    }
-
-    static void ValidateMediumName(const TString& name)
-    {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Medium name cannot be empty");
-        }
-    }
-
-    static void ValidateMediumPriority(int priority)
-    {
-        if (priority < 0 || priority > MaxMediumPriority) {
-            THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
 };

@@ -31,10 +31,10 @@ TYsonParserAdapter::Object::Iterator TYsonParserAdapter::Object::end() const
     return Iterator{pairs, pairs->size()};
 }
 
-std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>> TYsonParserAdapter::Object::GetKeyValuePairs() const
+std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> TYsonParserAdapter::Object::GetKeyValuePairs() const
 {
     if (!KeyValuePairs_) {
-        KeyValuePairs_ = std::make_shared<std::vector<std::pair<TString, NYTree::INodePtr>>>(MapNode_->GetChildren());
+        KeyValuePairs_ = std::make_shared<std::vector<std::pair<std::string, NYTree::INodePtr>>>(MapNode_->GetChildren());
     }
     return KeyValuePairs_;
 }

@@ -754,6 +754,7 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
 EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const
 {
     YT_VERIFY(!HasMutationContext());
+    YT_VERIFY(IsLeader());
 
     auto it = NodeToChunkMergerStatus_.find(nodeId);
     return it == NodeToChunkMergerStatus_.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
@@ -819,7 +820,8 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        return IsObjectAlive(account) ? account->GetName() : Format("<%v>", accountId);
+        // TODO(babenko): switch to std::string
+        return IsObjectAlive(account) ? account->GetName() : std::string(Format("<%v>", accountId));
     };
 
     for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
@@ -965,10 +967,7 @@ void TChunkMerger::OnLeaderActive()
     for (auto [nodeId, accountId] : NodesBeingMerged_) {
         auto* node = FindChunkOwner(nodeId);
         if (!CanScheduleMerge(node)) {
-            SessionsAwaitingFinalization_.push({
-                .NodeId = nodeId,
-                .Result = EMergeSessionResult::PermanentFailure
-            });
+            RegisterPermanentlyFailedSessionTransient(nodeId, accountId);
             continue;
         }
 
@@ -1025,11 +1024,7 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
-    NodeToChunkMergerStatus_.clear();
     ConfigVersion_ = 0;
-    NodeToRescheduleCountAfterMaxBackoffDelay_.clear();
-    NodeToBackoffPeriod_.clear();
-    AccountIdToStuckNodes_.clear();
 
     OldNodesBeingMerged_.reset();
     NeedRestorePersistentStatistics_ = false;
@@ -1163,11 +1158,19 @@ void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
-    YT_VERIFY(NodesBeingMerged_.contains(chunkOwner->GetId()));
 
-    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
+    auto nodeId = chunkOwner->GetId();
+    YT_VERIFY(NodesBeingMerged_.contains(nodeId));
 
     if (IsLeader()) {
+        if (RunningSessions_.contains(nodeId)) {
+            auto accountId = chunkOwner->Account()->GetId();
+            YT_LOG_DEBUG("Node already has running merge session (NodeId: %v, AccountId: %v)",
+                nodeId,
+                accountId);
+            return;
+        }
+
         RegisterSessionTransient(chunkOwner);
     }
 }
@@ -1183,12 +1186,36 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
     YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
         nodeId,
         account->GetName());
-    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession({.AccountId = account->GetId(), .SessionCreationTime = TInstant::Now()})).second);
+
+    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
+    EmplaceOrCrash(RunningSessions_, nodeId, TChunkMergerSession({.AccountId = account->GetId(), .SessionCreationTime = TInstant::Now()}));
 
     auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
 
     auto& queue = it->second;
     queue.push(chunkOwner->GetId());
+}
+
+void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, TAccountId accountId)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(IsLeader());
+
+    SessionsAwaitingFinalization_.push({
+        .NodeId = nodeId,
+        .Result = EMergeSessionResult::PermanentFailure
+    });
+
+    YT_LOG_DEBUG("Starting new permanently failed merge job session (NodeId: %v, AccountId: %v)",
+        nodeId,
+        accountId);
+
+    EmplaceOrCrash(NodeToChunkMergerStatus_, nodeId, EChunkMergerStatus::InMergePipeline);
+    EmplaceOrCrash(RunningSessions_, nodeId, TChunkMergerSession({
+        .Result = EMergeSessionResult::PermanentFailure,
+        .AccountId = accountId,
+        .SessionCreationTime = TInstant::Now(),
+    }));
 }
 
 void TChunkMerger::FinalizeJob(
@@ -1367,11 +1394,12 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
         .AccountId = session.AccountId,
         .SessionCreationTime = session.SessionCreationTime,
     });
-    EraseOrCrash(RunningSessions_, nodeId);
 }
 
 void TChunkMerger::FinalizeSessions()
 {
+    YT_VERIFY(IsLeader());
+
     if (SessionsAwaitingFinalization_.empty()) {
         return;
     }
@@ -1389,10 +1417,11 @@ void TChunkMerger::FinalizeSessions()
         }
         req->set_job_count(sessionResult.JobCount);
         auto sessionLifetimeDuration = TInstant::Now() - sessionResult.SessionCreationTime;
-        YT_LOG_DEBUG("Finalized merge session (NodeId: %v, MergeSessionDuration: %v, AccountId: %v)",
+        YT_LOG_DEBUG("Finalized merge session (NodeId: %v, MergeSessionDuration: %v, AccountId: %v, Result: %v)",
             sessionResult.NodeId,
             sessionLifetimeDuration,
-            sessionResult.AccountId);
+            sessionResult.AccountId,
+            sessionResult.Result);
 
         AccountIdToNodeMergeDurations_[sessionResult.AccountId].push_back(sessionLifetimeDuration);
         SessionsAwaitingFinalization_.pop();
@@ -1453,7 +1482,10 @@ void TChunkMerger::ProcessTouchedNodes()
 
             if (CanScheduleMerge(node)) {
                 YT_VERIFY(NodesBeingMerged_.contains(nodeId));
-                NodeToChunkMergerStatus_[nodeId] = EChunkMergerStatus::InMergePipeline;
+
+                auto it = NodeToChunkMergerStatus_.find(nodeId);
+                YT_VERIFY(it != NodeToChunkMergerStatus_.end());
+                it->second = EChunkMergerStatus::InMergePipeline;
 
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
@@ -2076,10 +2108,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     // update beforehand.
     chunkOwner->SetChunkList(newRootChunkList);
 
-    if (GetDynamicConfig()->EnableNodeStatisticsFix) {
-        chunkOwner->FixStatisticsAndAlert();
-    }
-
     auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
     ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
     chunkOwner->SnapshotStatistics() = std::move(newStatistics);
@@ -2105,7 +2133,12 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         auto accountId = GetIteratorOrCrash(NodesBeingMerged_, nodeId)->second;
         RemoveFromNodesBeingMerged(nodeId);
-        NodeToChunkMergerStatus_.erase(nodeId);
+
+        // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
+        if (IsLeader()) {
+            EraseOrCrash(RunningSessions_, nodeId);
+            EraseOrCrash(NodeToChunkMergerStatus_, nodeId);
+        }
 
         auto* chunkOwner = FindChunkOwner(nodeId);
         if (!chunkOwner) {
@@ -2183,10 +2216,6 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         newRootChunkList->AddOwningNode(chunkOwner);
         oldRootChunkList->RemoveOwningNode(chunkOwner);
 
-        if (GetDynamicConfig()->EnableNodeStatisticsFix) {
-            chunkOwner->FixStatisticsAndAlert();
-        }
-
         auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
         ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
         chunkOwner->SnapshotStatistics() = std::move(newStatistics);
@@ -2221,13 +2250,6 @@ void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
 
     if (!NodesBeingMerged_.contains(nodeId)) {
         YT_LOG_INFO("Node was removed from persistent merge state before merge was rescheduled (NodeId: %v, AccountId: %v)",
-            nodeId,
-            accountId);
-        return;
-    }
-
-    if (RunningSessions_.contains(nodeId)) {
-        YT_LOG_INFO("Node already has running merge session (NodeId: %v, AccountId: %v)",
             nodeId,
             accountId);
         return;

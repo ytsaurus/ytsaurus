@@ -102,15 +102,19 @@ private:
         const auto& chunkSchema = chunk->Schema();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnapprovedSequoiaReplicas)
-            .SetPresent(!isForeign));
+            .SetPresent(!isForeign)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Movable)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
@@ -1040,17 +1044,17 @@ private:
                 return AllSet(requestAttributeFromAllPeers("/@local_scan_flags"))
                     .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
                         auto builder = BuildYsonStringFluently().BeginMap();
-                        THashSet<TString> seenScanKinds;
+                        THashSet<EChunkScanKind> seenScanKinds;
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
                                 YT_LOG_DEBUG(rspOrError, "Failed to request chunk scan flags from peer");
                                 continue;
                             }
 
-                            auto chunkScanFlags = ConvertTo<IMapNodePtr>(TYsonString{rspOrError.Value()->value()});
-                            for (const auto& [scanKind, flag] : chunkScanFlags->GetChildren()) {
+                            auto chunkScanFlags = ConvertTo<THashMap<EChunkScanKind, bool>>(TYsonString{rspOrError.Value()->value()});
+                            for (auto [scanKind, flag] : chunkScanFlags) {
                                 if (seenScanKinds.insert(scanKind).second) {
-                                    builder.Item(scanKind).Value(flag);
+                                    builder.Item(FormatEnum(scanKind)).Value(flag);
                                 }
                             }
                         }

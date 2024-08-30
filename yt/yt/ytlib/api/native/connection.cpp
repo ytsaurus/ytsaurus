@@ -394,7 +394,7 @@ public:
         return ClusterId_;
     }
 
-    const std::optional<TString>& GetClusterName() const override
+    const std::optional<std::string>& GetClusterName() const override
     {
         return StaticConfig_->ClusterName;
     }
@@ -728,7 +728,7 @@ public:
             options);
     }
 
-    std::vector<TString> GetDiscoveryServerAddresses() const override
+    std::vector<std::string> GetDiscoveryServerAddresses() const override
     {
         if (!DiscoveryServerAddressPool_) {
             THROW_ERROR_EXCEPTION("Missing discovery server address pool");
@@ -850,6 +850,9 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
+        if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
+            ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
+        }
 
         Config_.Store(dynamicConfig);
     }
@@ -1111,7 +1114,7 @@ private:
             tvmService->AddDestinationServiceIds({*config->TvmId});
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
+            BIND_NO_PROPAGATE([tvmService] (const std::string& name, INodePtr nativeConnectionConfig) {
                 static constexpr auto& Logger = TvmSynchronizerLogger;
 
                 NNative::TConnectionDynamicConfigPtr config;
@@ -1131,9 +1134,13 @@ private:
 
     std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
     {
-        auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
+        auto findStage = [&stage, this] (const std::string& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
-            YT_VERIFY(clusterConnection);
+            if (!clusterConnection) {
+                // NB(apachee): Between GetClusterNames and FindRemoteConnection cluster directory synced
+                // and lost one of the clusters, so this cluster should just be ignored.
+                return {nullptr, nullptr};
+            }
 
             auto config = clusterConnection->GetConfig();
             const auto& stages = config->QueryTracker->Stages;
@@ -1283,14 +1290,14 @@ std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& 
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const TString& clusterName)
+    const std::string& clusterName)
 {
     return connection->GetClusterDirectory()->FindConnection(clusterName);
 }
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
-    const std::optional<TString>& clusterName)
+    const std::optional<std::string>& clusterName)
 {
     if (clusterName) {
         if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(*clusterName)) {
@@ -1302,7 +1309,7 @@ IConnectionPtr FindRemoteConnection(
 
 IConnectionPtr GetRemoteConnectionOrThrow(
     const IConnectionPtr& connection,
-    const TString& clusterName,
+    const std::string& clusterName,
     bool syncOnFailure)
 {
     for (int retry = 0; retry < 2; ++retry) {

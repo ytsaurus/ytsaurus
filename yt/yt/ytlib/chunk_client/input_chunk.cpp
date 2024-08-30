@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -210,8 +212,8 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
     Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
 
-    // COMPAT(achulkov2): This is ESnpashotVersion::ChunkSliceStatistics.
-    if (context.GetVersion() >= 301507) {
+    // COMPAT(achulkov2)
+    if (context.GetVersion() >= static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics)) {
         Persist(context, BlockSelectivityFactor_);
     }
 }

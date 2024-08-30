@@ -163,6 +163,12 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         DriverVersionString_ = StaticConfig_->DriverVersion.value_or(GetDummyGpuDriverVersionString());
     }
 
+    if (DriverVersionString_ != GetDummyGpuDriverVersionString()) {
+        GpuManagerProfiler()
+            .WithRequiredTag("version", DriverVersionString_)
+            .AddFuncGauge("/driver_version", MakeStrong(this), [] { return 1.0; });
+    };
+
     if (StaticConfig_->DriverLayerDirectoryPath) {
         DriverLayerPath_ = *StaticConfig_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 

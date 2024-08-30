@@ -32,6 +32,8 @@ message TReqModifyReplicas
     repeated NYT.NProto.TGuid location_directory = 4; // TChunkLocationDirectory
 
     repeated NYT.NProto.TGuid dead_chunk_ids = 5;
+
+    required bool caused_by_node_disposal = 6 [default = false];
 }
 
 message TRspModifyReplicas

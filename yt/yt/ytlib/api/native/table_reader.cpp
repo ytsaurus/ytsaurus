@@ -44,12 +44,12 @@
 
 namespace NYT::NApi::NNative {
 
-using namespace NTransactionClient;
-using namespace NTableClient;
 using namespace NChunkClient;
-using namespace NYPath;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
+using namespace NTransactionClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +63,9 @@ public:
         TTableReaderOptions options,
         IClientPtr client,
         NApi::ITransactionPtr transaction,
-        const TRichYPath& richPath,
+        TRichYPath richPath,
         TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter,
+        TColumnFilter columnFilter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IMemoryUsageTrackerPtr readTableMemoryTracker)
@@ -73,9 +73,9 @@ public:
         , Options_(std::move(options))
         , Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , RichPath_(richPath)
+        , RichPath_(std::move(richPath))
         , NameTable_(std::move(nameTable))
-        , ColumnFilter_(columnFilter)
+        , ColumnFilter_(std::move(columnFilter))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
@@ -103,7 +103,7 @@ public:
         return Reader_->Read(options);
     }
 
-    TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() const override
     {
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return ReadyEvent_;

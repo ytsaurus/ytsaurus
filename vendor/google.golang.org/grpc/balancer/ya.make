@@ -15,6 +15,7 @@ RECURSE(
     base
     gotest
     grpclb
+    leastrequest
     rls
     roundrobin
     weightedroundrobin

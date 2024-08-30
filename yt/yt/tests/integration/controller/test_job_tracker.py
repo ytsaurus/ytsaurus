@@ -433,9 +433,14 @@ class TestJobTracker(YTEnvSetup):
 
         op = run_test_vanilla("sleep 1", job_count=1)
 
+        # NB(arkady-e1ppa): We can't simply wait for one, assert for others
+        # because counters are incremented in a certain order and thus
+        # we would have to wait for the last counter in order to assert others.
+        # counter increment order should be irrelevant and thus we would rather
+        # not rely on it here.
         wait(lambda: throttled_heartbeat_counter.get_delta() > 0)
-        assert throttled_running_job_event_counter.get_delta() > 0
-        assert throttled_operation_count.get_delta() > 0
+        wait(lambda: throttled_running_job_event_counter.get_delta() > 0)
+        wait(lambda: throttled_operation_count.get_delta() > 0)
 
         update_controller_agent_config("job_events_total_time_threshold", 1000)
 

@@ -3880,13 +3880,14 @@ TEST_P(TProtobufFormatAllFields, Writer)
 
             auto keys = otherColumnsMap->GetKeys();
             std::sort(keys.begin(), keys.end());
-            std::vector<TString> expectedKeys = {
+            std::vector<std::string> expectedKeys = {
                 "OtherInt64Column",
                 "OtherDoubleColumn",
                 "OtherStringColumn",
                 "OtherBooleanColumn",
                 "OtherAnyColumn",
-                "OtherNullColumn"};
+                "OtherNullColumn"
+            };
             std::sort(expectedKeys.begin(), expectedKeys.end());
             EXPECT_EQ(expectedKeys, keys);
         }

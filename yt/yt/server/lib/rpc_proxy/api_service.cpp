@@ -23,6 +23,7 @@
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/distributed_table_sessions.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/helpers.h>
@@ -618,6 +619,7 @@ public:
             std::move(logger),
             NullRealmId,
             std::move(authenticator))
+        , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
         , Connection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
@@ -807,6 +809,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ParticipantWriteTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
@@ -838,6 +847,7 @@ public:
     }
 
 private:
+    TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
     const NApi::NNative::IConnectionPtr Connection_;
@@ -862,7 +872,7 @@ private:
 
     struct TDetailedProfilingCountersKey
     {
-        std::optional<TString> UserTag;
+        std::optional<std::string> UserTag;
         std::optional<TYPath> TablePath;
 
         operator size_t() const
@@ -945,7 +955,8 @@ private:
 
         if (config->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                {RpcProxyUserAllocationTag, identity.User},
+                // TODO(babenko): switch to std::string
+                {RpcProxyUserAllocationTag, TString(identity.User)},
                 {RpcProxyRequestIdAllocationTag, ToString(context->GetRequestId())},
                 {RpcProxyRpcAllocationTag, TString(context->RequestHeader().method())}
             });
@@ -1201,7 +1212,8 @@ private:
                 }
                 if (key.UserTag) {
                     profiler = profiler
-                        .WithTag("user", *key.UserTag);
+                        // TODO(babenko): switch to std::string
+                        .WithTag("user", ToString(*key.UserTag));
                 }
                 return New<TDetailedProfilingCounters>(std::move(profiler));
             })
@@ -2600,6 +2612,9 @@ private:
         if (request->has_replication_card_collocation_id()) {
             options.ReplicationCardCollocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
         }
+        if (request->has_collocation_options()) {
+            options.CollocationOptions = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options()));
+        }
 
         context->SetRequestInfo("ReplicationCardId: %v",
             replicationCardId);
@@ -3425,7 +3440,7 @@ private:
 
     void ProcessLookupRowsDetailedProfilingInfo(
         TWallTimer timer,
-        const TString& userTag,
+        const std::string& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
@@ -3454,7 +3469,7 @@ private:
 
     void ProcessSelectRowsDetailedProfilingInfo(
         TWallTimer timer,
-        const TString& userTag,
+        const std::string& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
@@ -3537,6 +3552,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3606,6 +3622,7 @@ private:
                 const auto& rowset = result.Rowset;
 
                 auto* response = &context->Response();
+                ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 ProcessLookupRowsDetailedProfilingInfo(
@@ -3716,6 +3733,7 @@ private:
                     auto* subresponse = response->add_subresponses();
                     auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
                     subresponse->set_attachment_count(attachments.size());
+                    ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                     response->Attachments().insert(
                         response->Attachments().end(),
                         attachments.begin(),
@@ -4993,7 +5011,7 @@ private:
         if (request->has_user()) {
             auto user = request->user();
             requestInfo.AppendFormat(", User: ", user);
-            filter.User = std::move(user);
+            filter.User = user;
         } else if (request->mine()) {
             filter.User = TByUser::TMine{};
             requestInfo.AppendString(", Mine: true");
@@ -5567,12 +5585,26 @@ private:
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
 
-    void ValidateFormat(const TString& user, const INodePtr& formatNode)
+    void ValidateFormat(const std::string& user, const INodePtr& formatNode)
     {
         const auto& config = Config_.Acquire();
         const auto& formatConfigs = config->Formats;
         TFormatManager formatManager(formatConfigs, user);
         formatManager.ValidateAndPatchFormatNode(formatNode, "format");
+    }
+
+    std::optional<NFormats::TFormat> GetFormat(
+        const auto& context,
+        const auto& request)
+    {
+        std::optional<NFormats::TFormat> format;
+        if (request->has_format()) {
+            auto stringFormat = TYsonStringBuf(request->format());
+            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
+            format = ConvertTo<NFormats::TFormat>(stringFormat);
+        }
+
+        return format;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable)
@@ -5581,12 +5613,7 @@ private:
 
         auto path = FromProto<NYPath::TRichYPath>(request->path());
 
-        std::optional<NFormats::TFormat> format;
-        if (request->has_format()) {
-            auto stringFormat = TYsonStringBuf(request->format());
-            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
-            format = ConvertTo<NFormats::TFormat>(stringFormat);
-        }
+        auto format = GetFormat(context, request);
 
         NApi::TTableReaderOptions options;
         options.Unordered = request->unordered();
@@ -5678,38 +5705,13 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
+    void WriteTableImpl(
+        const auto& context,
+        const auto& request,
+        ITableWriterPtr tableWriter,
+        const auto& finalizer)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto path = FromProto<NYPath::TRichYPath>(request->path());
-
-        std::optional<NFormats::TFormat> format;
-        if (request->has_format()) {
-            auto stringFormat = TYsonStringBuf(request->format());
-            ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(stringFormat));
-            format = ConvertTo<NFormats::TFormat>(stringFormat);
-        }
-
-        NApi::TTableWriterOptions options;
-        if (request->has_config()) {
-            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
-        }
-        // NB: Input comes directly from user and thus requires additional validation.
-        options.ValidateAnyIsValidYson = true;
-
-        if (request->has_transactional_options()) {
-            FromProto(&options, request->transactional_options());
-        }
-
-        context->SetRequestInfo(
-            "Path: %v",
-            path);
-
-        PutMethodInfoInTraceContext("write_table");
-
-        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
-            .ValueOrThrow();
+        auto format = GetFormat(context, request);
 
         THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamDecoderPtr> parserMap;
         auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat) {
@@ -5759,8 +5761,48 @@ private:
             [&] {
                 WaitFor(tableWriter->Close())
                     .ThrowOnError();
+                finalizer();
             },
             false /*feedbackEnabled*/);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("write_table");
+
+        auto path = FromProto<TRichYPath>(request->path());
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        NApi::TTableWriterOptions options;
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
+        } else {
+            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
+        }
+
+        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
+            options.Config->EnableLargeColumnarStatistics = true;
+        }
+
+        // NB: Input comes directly from user and thus requires additional validation.
+        options.ValidateAnyIsValidYson = true;
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
+            .ValueOrThrow();
+
+        WriteTableImpl(
+            context,
+            request,
+            std::move(tableWriter),
+            [] {});
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
@@ -5802,7 +5844,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                NYT::ToProto(response->mutable_statistics(), result);
+                ToProto(response->mutable_statistics(), result);
 
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
             });
@@ -5868,6 +5910,80 @@ private:
                 ToProto(response->mutable_partitions(), result.Partitions);
 
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // DISTRIBUTED TABLE CLIENT
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto path = FromProto<TRichYPath>(request->path());
+
+        TDistributedWriteSessionStartOptions options;
+        FromProto(&options, *request);
+
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StartDistributedWriteSession(path, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response, result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto session = New<TDistributedWriteSession>();
+        FromProto(session.Get(), *request);
+
+        TDistributedWriteSessionFinishOptions options;
+        FromProto(&options, *request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->FinishDistributedWriteSession(session, options);
+            },
+            [] (const auto& /*context*/) {
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ParticipantWriteTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("participant_write_table");
+
+        auto cookie = New<TDistributedWriteCookie>();
+        FromProto(cookie.Get(), *request);
+
+        TParticipantTableWriterOptions options;
+        FromProto(&options, *request);
+
+        // NB: Input comes directly from user and thus requires additional validation.
+        options.ValidateAnyIsValidYson = true;
+
+        auto tableWriter = WaitFor(client->CreateParticipantTableWriter(cookie, options))
+            .ValueOrThrow();
+
+        WriteTableImpl(
+            context,
+            request,
+            std::move(tableWriter),
+            [&] {
+                ToProto(response, cookie);
             });
     }
 

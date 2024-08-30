@@ -3166,6 +3166,7 @@ class TestIdleSlots(YTEnvSetup):
 ##################################################################
 
 
+@pytest.skip("Test should be overwritten (YT-20666)")
 class TestCpuSet(YTEnvSetup):
     USE_PORTO = True
 

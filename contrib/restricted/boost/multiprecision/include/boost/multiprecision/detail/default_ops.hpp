@@ -3980,41 +3980,46 @@ ilogb(const detail::expression<tag, A1, A2, A3, A4>& val)
 } //namespace multiprecision
 
 namespace math {
+
+
 //
 // Overload of Boost.Math functions that find the wrong overload when used with number:
 //
 namespace detail {
+
 template <class T>
 T sinc_pi_imp(T);
-template <class T>
-T sinhc_pi_imp(T);
+template <class T, class Policy>
+T sinhc_pi_imp(T, const Policy&);
+
 } // namespace detail
+
 template <class Backend, multiprecision::expression_template_option ExpressionTemplates>
 inline multiprecision::number<Backend, ExpressionTemplates> sinc_pi(const multiprecision::number<Backend, ExpressionTemplates>& x)
 {
    boost::multiprecision::detail::scoped_default_precision<multiprecision::number<Backend, ExpressionTemplates> > precision_guard(x);
-   return std::move(detail::sinc_pi_imp(x));
+   return detail::sinc_pi_imp(x);
 }
 
 template <class Backend, multiprecision::expression_template_option ExpressionTemplates, class Policy>
 inline multiprecision::number<Backend, ExpressionTemplates> sinc_pi(const multiprecision::number<Backend, ExpressionTemplates>& x, const Policy&)
 {
    boost::multiprecision::detail::scoped_default_precision<multiprecision::number<Backend, ExpressionTemplates> > precision_guard(x);
-   return std::move(detail::sinc_pi_imp(x));
+   return detail::sinc_pi_imp(x);
 }
 
 template <class Backend, multiprecision::expression_template_option ExpressionTemplates>
 inline multiprecision::number<Backend, ExpressionTemplates> sinhc_pi(const multiprecision::number<Backend, ExpressionTemplates>& x)
 {
    boost::multiprecision::detail::scoped_default_precision<multiprecision::number<Backend, ExpressionTemplates> > precision_guard(x);
-   return std::move(detail::sinhc_pi_imp(x));
+   return detail::sinhc_pi_imp(x, boost::math::policies::policy<>());
 }
 
 template <class Backend, multiprecision::expression_template_option ExpressionTemplates, class Policy>
-inline multiprecision::number<Backend, ExpressionTemplates> sinhc_pi(const multiprecision::number<Backend, ExpressionTemplates>& x, const Policy&)
+inline multiprecision::number<Backend, ExpressionTemplates> sinhc_pi(const multiprecision::number<Backend, ExpressionTemplates>& x, const Policy& pol)
 {
-   boost::multiprecision::detail::scoped_default_precision<multiprecision::number<Backend, ExpressionTemplates> > precision_guard(x);
-   return std::move(boost::math::sinhc_pi(x));
+   boost::multiprecision::detail::scoped_default_precision<multiprecision::number<Backend, ExpressionTemplates> > precision_guard(x, pol);
+   return detail::sinhc_pi_imp(x, pol);
 }
 
 using boost::multiprecision::gcd;

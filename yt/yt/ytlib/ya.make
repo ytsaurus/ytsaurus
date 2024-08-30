@@ -21,6 +21,7 @@ SRCS(
     api/native/client_authentication_impl.cpp
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
+    api/native/client_distributed_table_impl.cpp
     api/native/client_dynamic_tables_impl.cpp
     api/native/client_file_cache_impl.cpp
     api/native/client_files_impl.cpp
@@ -61,7 +62,6 @@ SRCS(
     api/native/sync_replica_cache.cpp
     api/native/table_collocation_type_handler.cpp
     api/native/table_reader.cpp
-    api/native/table_writer.cpp
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
@@ -107,6 +107,8 @@ SRCS(
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_residency_cache.cpp
+    chaos_client/replication_cards_watcher.cpp
+    chaos_client/replication_cards_watcher_client.cpp
 
     chaos_client/proto/alien_cell.proto
     chaos_client/proto/chaos_master_service.proto
@@ -199,7 +201,9 @@ SRCS(
     chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
+    controller_agent/persistence.cpp
     controller_agent/public.cpp
+    controller_agent/serialize.cpp
 
     controller_agent/proto/controller_agent_descriptor.proto
     controller_agent/proto/controller_agent_service.proto
@@ -431,6 +435,7 @@ SRCS(
     table_client/indexed_versioned_chunk_reader.cpp
     table_client/key_filter.cpp
     table_client/key_set.cpp
+    table_client/nested_row_merger.cpp
     table_client/overlapping_reader.cpp
     table_client/partition_chunk_reader.cpp
     table_client/partition_sort_reader.cpp
@@ -608,6 +613,10 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    scheduler/records/job_trace_event.yaml
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/job_profile.yaml
 )
 
@@ -681,6 +690,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api

@@ -124,6 +124,8 @@ items:
            href: user-guide/dynamic-tables/transactions.md
          - name: Sharding
            href: user-guide/dynamic-tables/resharding.md
+         - name: Automatic sharding and dynamic table balancing
+           href: user-guide/dynamic-tables/tablet-balancing.md
          - name: Background compaction
            href: user-guide/dynamic-tables/compaction.md
          - name: Running operations on dynamic tables
@@ -254,6 +256,8 @@ items:
              items:
              - name: Executing queries
                href: user-guide/data-processing/chyt/reference/execute.md
+             - name: Selecting a coordinator
+               href: user-guide/data-processing/chyt/queries/instance-pick.md
              - name: Query settings
                href: user-guide/data-processing/chyt/reference/settings.md
              - name: Instance configuration
@@ -325,6 +329,11 @@ items:
            when: audience == "public"
            items:
             - include: { mode: link, path: yql/toc.yaml }
+       - name: Distributed locks
+         when: audience == "public"
+         items:
+         - name: Overview
+           href: user-guide/locking/cypress-as-locking-service.md
        - name: Proxy
          when: audience == "public"
          items:
@@ -356,7 +365,9 @@ items:
              href: user-guide/excel.md
        - name: Query Tracker
          when: audience == "public"
-         href: user-guide/query-tracker.md
+         items:
+           - name: Overview
+             href: user-guide/query-tracker/about.md
        - name: Jupyter Notebooks
          when: audience == "public"
          href: user-guide/jupyt.md
@@ -438,9 +449,11 @@ items:
          href: admin-guide/node-tags.md
        - name: Possible problems
          href: admin-guide/problems.md
+       - name: Cell addition
+         href: admin-guide/cell-addition.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
-   - name: Releases
+   - name: Release notes
      href: admin-guide/releases.md
    - name: FAQ
      when: audience == "public"

@@ -266,6 +266,7 @@ public:
     std::optional<bool> AlertOnSnapshotFailure;
 
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
+    std::optional<bool> EnableSnapshotNetworkThrottling;
 
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 
@@ -287,7 +288,7 @@ public:
     //! before yielding control to other callbacks.
     TDuration MaxCommitBatchDuration;
 
-    //! Interval between consequent lease lease checks.
+    //! Interval between consequent leader lease checks.
     TDuration LeaderLeaseCheckPeriod;
 
     //! Timeout after which leader lease expires.

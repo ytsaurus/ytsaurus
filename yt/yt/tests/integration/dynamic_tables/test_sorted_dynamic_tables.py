@@ -146,52 +146,52 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             time.sleep(5)
         assert resharded
 
-    def _create_partitions(self, partition_count, do_overlap=False):
+    def _create_partitions(self, partition_count, table_path="//tmp/t", do_overlap=False):
         assert partition_count > 1
         partition_count += 1 - int(do_overlap)
 
         def _force_compact_tablet(tablet_index):
-            set("//tmp/t/@forced_compaction_revision", 1)
+            set(f"{table_path}/@forced_compaction_revision", 1)
 
-            chunk_list_id = get("//tmp/t/@chunk_list_id")
-            tablet_chunk_list_id = get("#{0}/@child_ids/{1}".format(chunk_list_id, tablet_index))
-            tablet_chunk_ids = builtins.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+            chunk_list_id = get(f"{table_path}/@chunk_list_id")
+            tablet_chunk_list_id = get(f"#{chunk_list_id}/@child_ids/{tablet_index}")
+            tablet_chunk_ids = builtins.set(get(f"#{tablet_chunk_list_id}/@child_ids"))
             assert len(tablet_chunk_ids) > 0
             for id in tablet_chunk_ids:
-                type = get("#{}/@type".format(id))
+                type = get(f"#{id}/@type")
                 assert type == "chunk" or type == "chunk_view"
 
-            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table(table_path, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
 
             def _check():
-                new_tablet_chunk_ids = builtins.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+                new_tablet_chunk_ids = builtins.set(get(f"#{tablet_chunk_list_id}/@child_ids"))
                 assert len(new_tablet_chunk_ids) > 0
                 return len(new_tablet_chunk_ids.intersection(tablet_chunk_ids)) == 0
             wait(lambda: _check())
 
-            sync_unmount_table("//tmp/t")
+            sync_unmount_table(table_path)
 
         def _write_row(tablet_index, key_count=2):
-            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table(table_path, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
             rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
-            insert_rows("//tmp/t", rows)
-            sync_unmount_table("//tmp/t")
+            insert_rows(table_path, rows)
+            sync_unmount_table(table_path)
             _force_compact_tablet(tablet_index=tablet_index)
 
-        set("//tmp/t/@min_partition_data_size", 1)
+        set(f"{table_path}/@min_partition_data_size", 1)
 
         if do_overlap:
             # We write overlapping chunk to trigger creation of chunk view.
             _write_row(tablet_index=0, key_count=3)
 
         partition_boundaries = [[]] + [[2 * i] for i in range(1, partition_count)]
-        sync_reshard_table("//tmp/t", partition_boundaries)
+        sync_reshard_table(table_path, partition_boundaries)
 
         for tablet_index in range(1, partition_count):
             _write_row(tablet_index=tablet_index)
 
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        sync_reshard_table("//tmp/t", [[]])
+        set(f"{table_path}/@enable_compaction_and_partitioning", False)
+        sync_reshard_table(table_path, [[]])
 
     def _separate_tablet_and_data_nodes(self):
         self._nodes = ls("//sys/cluster_nodes")
@@ -2232,7 +2232,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         expected = gen_rows(0, 10) + [None for i in range(10, 20)] + gen_rows(20, 30)
 
-        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True)
+        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True, keep_missing_rows=True)
         assert_items_equal(actual, expected)
 
 
@@ -3067,3 +3067,127 @@ class TestDynamicTablesTtl(DynamicTablesBase):
         time.sleep(3)
         self._sync_wait_chunk_ids_to_change("//tmp/t")
         assert lookup_rows("//tmp/t", keys) == rows
+
+
+class TestDynamicNestedColumns(DynamicTablesBase):
+    def _create_table(self, path, schema):
+        create(
+            "table",
+            path,
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "mount_config": {
+                    "row_merger_type": "new"
+                },
+            },
+        )
+
+    @authors("lukyan")
+    def test_nested_columns(self):
+        sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "int64", "aggregate": "sum"},
+                {"name": "v2", "type": "int64", "aggregate": "sum"},
+                {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+                {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            ]
+        )
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200]},
+            ]
+        )
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 0, "v2": 0, "nk1": [1, 2], "nk2": [10, 20], "nv2": [1000, 2000]},
+            ],
+            aggregate=True
+        )
+
+        def _check():
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nk2": [10, 20, 30], "nv1": [100, 400, 300], "nv2": [1000, 4000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nv1": [100, 400, 300]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nv1": [100, 200]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nk1, nv1 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+            expected = [
+                {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nv1": [100, 400, 300]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nv1": [100, 200]},
+            ]
+            actual = select_rows("k1, k2, v1, v2, nv1 from [//tmp/t]")
+            assert sorted_dicts(actual) == sorted_dicts(expected)
+
+        _check()
+
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+        _check()
+
+        with pytest.raises(YtError):
+            insert_rows(
+                "//tmp/t",
+                [
+                    {"k1": 3, "k2": 10, "v1": 0, "v2": 0, "nk1": [1], "nk2": [10, 20]},
+                ],
+                aggregate=True
+            )
+
+        with pytest.raises(YtError):
+            insert_rows(
+                "//tmp/t",
+                [
+                    {"k1": 3, "k2": 10, "v1": 0, "v2": 0, "nk1": [1], "nk2": [10], "nv1": [100, 200]},
+                ],
+                aggregate=True
+            )
+
+        with pytest.raises(YtError):
+            self._create_table(
+                "//tmp/t1",
+                [
+                    {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v1", "type": "int64", "aggregate": "sum"},
+                    {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+                ]
+            )
+
+        with pytest.raises(YtError):
+            self._create_table(
+                "//tmp/t2",
+                [
+                    {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v1", "type": "int64", "aggregate": "sum"},
+                    {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+                    {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(m, sum)"},
+                ]
+            )

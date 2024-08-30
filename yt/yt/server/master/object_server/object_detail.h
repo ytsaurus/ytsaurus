@@ -69,9 +69,9 @@ protected:
         std::optional<NYTree::EPermission> Permission;
         TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
         NTransactionClient::TTransactionId ExternalTransactionId;
-        std::optional<std::vector<TString>> Columns;
+        std::optional<std::vector<std::string>> Columns;
         bool OmitInaccessibleColumns = false;
-        std::optional<std::vector<TString>> OmittedInaccessibleColumns;
+        std::optional<std::vector<std::string>> OmittedInaccessibleColumns;
         bool PopulateSecurityTags = false;
         std::optional<NSecurityServer::TSecurityTags> SecurityTags;
         NHydra::TRevision Revision = NHydra::NullRevision;
@@ -153,7 +153,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /*user*/ = {}) override;
+        const std::string& /*user*/ = {}) override;
 
     void ValidatePermission(
         TObject* object,
@@ -170,7 +170,7 @@ protected:
         void ValidatePermission(
             NYTree::EPermissionCheckScope scope,
             NYTree::EPermission permission,
-            const TString& user = {}) override
+            const std::string& user = {}) override
         {
             if (auto owner = Owner_.Lock()) {
                 owner->ValidatePermission(scope, permission, user);

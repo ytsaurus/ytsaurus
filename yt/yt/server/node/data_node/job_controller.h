@@ -42,12 +42,12 @@ struct IJobController
     //! Prepares a heartbeat request.
     virtual TFuture<void> PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TReqHeartbeatPtr& request) = 0;
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     virtual TFuture<void> ProcessHeartbeatResponse(
-        const TString& jobTrackerAddress,
+        const std::string& jobTrackerAddress,
         const TRspHeartbeatPtr& response) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;

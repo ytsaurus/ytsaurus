@@ -250,30 +250,27 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ExecuteQuery)
     {
-        const auto& user = context->GetAuthenticationIdentity().User;
-        auto queryId = request->has_query_id()
-            ? FromProto<TQueryId>(request->query_id())
-            : TQueryId::Create();
-        ToProto(response->mutable_query_id(), queryId);
+        // TODO(babenko): switch to std::string
+        auto user = TString(context->GetAuthenticationIdentity().User);
+        auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("RPC request received (QueryId: %v, User: %v, Query: %v, RowCountLimit: %v)",
+        context->SetRequestInfo("QueryId: %v, Query: %v, RowCountLimit: %v",
             queryId,
-            user,
             request->chyt_request().query(),
             request->row_count_limit());
 
-        context->SetRequestInfo("Starting to execute query (QueryId: %v)", queryId);
+        ToProto(response->mutable_query_id(), queryId);
 
         TExecuteQueryCall call(request, user, queryId, Host_);
         auto rowsetOrError = call.Execute();
 
         if (rowsetOrError.IsOK()) {
-            context->SetRequestInfo("Query execution finished successfully (QueryId: %v, RowCount: %v)",
+            context->SetResponseInfo("QueryId: %v, ResultRowCount: %v",
                 queryId,
                 rowsetOrError.Value().TotalRowCount);
             response->Attachments() = {std::move(rowsetOrError.Value().Rowset)};
         } else {
-            context->SetRequestInfo("Query execution finished with error (QueryId: %v, Error: %v)",
+            context->SetResponseInfo("QueryId: %v, Error: %v",
                 queryId,
                 rowsetOrError);
             ToProto(response->mutable_error(), rowsetOrError);

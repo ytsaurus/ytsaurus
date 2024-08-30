@@ -355,9 +355,9 @@ TTableReplicaInfoPtrList OnTabletInfosReceived(
 
 TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
     const IConnectionPtr& connection,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TTabletReadOptions& options,
-    THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>> cellIdToTabletIds)
+    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds)
 {
     const auto& Logger = connection->GetLogger();
 

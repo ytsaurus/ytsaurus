@@ -118,7 +118,7 @@ struct IObjectTypeHandler
 
     //! Returns the full set of columns (entities referenced by columnar ACEs)
     //! for this object, or null if this type of object has no columns.
-    virtual std::optional<std::vector<TString>> ListColumns(TObject* object) = 0;
+    virtual std::optional<std::vector<std::string>> ListColumns(TObject* object) = 0;
 
     //! Returns the object containing parent ACL.
     virtual TObject* GetParent(TObject* object) = 0;

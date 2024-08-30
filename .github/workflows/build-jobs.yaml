@@ -31,6 +31,10 @@ on:
         required: false
         type: boolean
 
+    secrets:
+      YA_YT_TOKEN:
+        required: true
+
 jobs:
   venv:
     runs-on: ${{ inputs.runs-on-value }}
@@ -190,6 +194,8 @@ jobs:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
+    env:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
@@ -198,7 +204,7 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-put"
           STRIP_VALUE=no
           BUILD_TYPE=profile
           if [ "${{ matrix.build-type }}" == "release" ]
@@ -261,7 +267,7 @@ jobs:
 
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS}  --ignore-recurses --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
 
           for path in "ydb/library/yql/tools/mrjob" \
                       "ydb/library/yql/yt/dynamic" \

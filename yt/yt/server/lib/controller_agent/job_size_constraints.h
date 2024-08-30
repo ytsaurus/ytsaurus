@@ -1,6 +1,8 @@
 #pragma once
 
-#include "persistence.h"
+#include "public.h"
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 namespace NYT::NControllerAgent {
 

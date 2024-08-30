@@ -124,7 +124,7 @@ public:
         THROW_ERROR_EXCEPTION("Access control object child cannot be removed");
     }
 
-    bool RemoveChild(const TString& key) override
+    bool RemoveChild(const std::string& key) override
     {
         auto child = FindChild(key);
 
@@ -139,28 +139,28 @@ public:
         return true;
     }
 
-    std::vector<std::pair<TString, INodePtr>> GetChildren() const override
+    std::vector<std::pair<std::string, INodePtr>> GetChildren() const override
     {
         auto childNode = FindChild(ChildKey);
         return {{ChildKey, std::move(childNode)}};
     }
 
-    std::vector<TString> GetKeys() const override
+    std::vector<std::string> GetKeys() const override
     {
         return {ChildKey};
     }
 
-    bool AddChild(const TString& /*key*/, const INodePtr& /*child*/) override
+    bool AddChild(const std::string& /*key*/, const INodePtr& /*child*/) override
     {
         THROW_ERROR_EXCEPTION("Access control object children are pre-defined and cannot be added directly");
     }
 
-    std::optional<TString> FindChildKey(const IConstNodePtr& /*child*/) override
+    std::optional<std::string> FindChildKey(const IConstNodePtr& /*child*/) override
     {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
 
-    INodePtr FindChild(const TString& key) const override;
+    INodePtr FindChild(const std::string& key) const override;
 
     void Clear() override
     {
@@ -171,7 +171,7 @@ private:
     friend class TAccessControlObjectNamespaceProxy;
     friend class TAccessControlPrincipalProxy;
 
-    static const inline TString ChildKey{"principal"};
+    static const inline std::string ChildKey{"principal"};
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
@@ -293,7 +293,7 @@ private:
         return false;
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }
@@ -324,7 +324,7 @@ IObjectProxyPtr CreateAccessControlObjectProxy(
     return New<TAccessControlObjectProxy>(bootstrap, metadata, accessControlObject);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TAccessControlPrincipalProxy
     : public virtual TNodeBase
@@ -570,7 +570,7 @@ DEFINE_YPATH_SERVICE_METHOD(TAccessControlPrincipalProxy, CheckPermission)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr TAccessControlObjectProxy::FindChild(const TString& key) const
+INodePtr TAccessControlObjectProxy::FindChild(const std::string& key) const
 {
     if (key != ChildKey) {
         return nullptr;
@@ -636,12 +636,12 @@ public:
         THROW_ERROR_EXCEPTION("RemoveChild() method is not supported for access control object namespaces");
     }
 
-    bool RemoveChild(const TString& /*key*/) override
+    bool RemoveChild(const std::string& /*key*/) override
     {
         THROW_ERROR_EXCEPTION("RemoveChild() method is not supported for access control object namespaces");
     }
 
-    std::vector<std::pair<TString, INodePtr>> GetChildren() const override
+    std::vector<std::pair<std::string, INodePtr>> GetChildren() const override
     {
         const auto* thisImpl = GetThisImpl();
         const auto& children = thisImpl->Members();
@@ -649,7 +649,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& childHandler = objectManager->GetHandler(EObjectType::AccessControlObject);
 
-        std::vector<std::pair<TString, INodePtr>> result;
+        std::vector<std::pair<std::string, INodePtr>> result;
         result.reserve(ssize(children));
         std::transform(
             children.begin(),
@@ -664,12 +664,12 @@ public:
         return result;
     }
 
-    std::vector<TString> GetKeys() const override
+    std::vector<std::string> GetKeys() const override
     {
         const auto* thisImpl = GetThisImpl();
         const auto& children = thisImpl->Members();
 
-        std::vector<TString> result;
+        std::vector<std::string> result;
         result.reserve(ssize(children));
         std::transform(
             children.begin(),
@@ -681,12 +681,12 @@ public:
         return result;
     }
 
-    bool AddChild(const TString& /*key*/, const INodePtr& /*child*/) override
+    bool AddChild(const std::string& /*key*/, const INodePtr& /*child*/) override
     {
         THROW_ERROR_EXCEPTION("Access control object namespace children cannot be added directly; consider creating an access control object instead");
     }
 
-    std::optional<TString> FindChildKey(const IConstNodePtr& child) override
+    std::optional<std::string> FindChildKey(const IConstNodePtr& child) override
     {
         auto throwNotChild = [] {
             THROW_ERROR_EXCEPTION("Node is not a child");
@@ -707,11 +707,12 @@ public:
         return accessControlObject->GetName();
     }
 
-    INodePtr FindChild(const TString& key) const override
+    INodePtr FindChild(const std::string& key) const override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto* thisImpl = GetThisImpl();
-        auto* child = thisImpl->FindMember(key);
+        // TODO(babenko): migrate to std::string
+        auto* child = thisImpl->FindMember(TString(key));
 
         if (!child) {
             return nullptr;
@@ -814,7 +815,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const std::string& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }

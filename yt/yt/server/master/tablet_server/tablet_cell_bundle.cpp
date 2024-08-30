@@ -101,17 +101,17 @@ void TTabletCellBundle::RecomputeClusterResourceUsage()
     }
 }
 
-TString TTabletCellBundle::GetLowercaseObjectName() const
+std::string TTabletCellBundle::GetLowercaseObjectName() const
 {
     return Format("tablet cell bundle %Qv", GetName());
 }
 
-TString TTabletCellBundle::GetCapitalizedObjectName() const
+std::string TTabletCellBundle::GetCapitalizedObjectName() const
 {
     return Format("Tablet cell bundle %Qv", GetName());
 }
 
-TString TTabletCellBundle::GetObjectPath() const
+TYPath TTabletCellBundle::GetObjectPath() const
 {
     return Format("//sys/tablet_cell_bundles/%v", GetName());
 }

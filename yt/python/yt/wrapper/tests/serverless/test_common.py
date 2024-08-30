@@ -6,10 +6,12 @@ from yt.wrapper.errors import create_http_response_error, YtRpcUnavailable
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
-                               escape_c, utcnow)
+                               escape_c, utcnow, HAS_SNOOPER, hide_auth_headers, hide_arguments,
+                               hide_secure_vault, hide_fields)
 
 import yt.wrapper as yt
 
+from copy import deepcopy
 from datetime import datetime, timedelta
 from flaky import flaky
 import pickle
@@ -181,3 +183,52 @@ def test_escape_c():
     assert escape_c("There are questions ??") == "There are questions \\x3F?"
     assert escape_c(bytearray("\0\1What about some bytes?", "utf-8")) == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
     assert escape_c(b"\0\1What about some bytes?") == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
+
+
+@authors("denvr")
+def test_hide_params():
+    headers = {
+        "Authorization": "sec",
+        "X-Ya-Service-Ticket": "sec",
+        "X-Ya-User-Ticket": "sec",
+        "Any": "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo",
+        "Other": "any",
+    }
+    new_headers = hide_auth_headers(headers)
+    assert new_headers["Other"] == "any"
+    assert new_headers["Authorization"] == "x" * 32
+    assert new_headers["X-Ya-Service-Ticket"] == "x" * 32
+    assert new_headers["X-Ya-User-Ticket"] == "x" * 32
+    if HAS_SNOOPER:
+        assert new_headers["Any"] == "AQAD-qJSJhenAAsOMeXXXXXXXXXXXXXXXXXXXXX"
+    else:
+        assert new_headers["Any"] == "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo"
+    assert headers["Authorization"] == "sec"
+
+    args = ["Any", "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo"]
+    new_args = hide_arguments(args)
+    assert new_args[0] == "Any"
+    assert new_args[1] == "hidden"
+    new_args2 = deepcopy(args)
+    hide_fields(new_args2, fields=())
+    assert new_args2[0] == "Any"
+    if HAS_SNOOPER:
+        assert new_args2[1] == "AQAD-qJSJhenAAsOMeXXXXXXXXXXXXXXXXXXXXX"
+    else:
+        assert new_args2[1] == "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo"
+
+    params = {
+        "Other": "any",
+        "secure_vault": "sec",
+        "Any": "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo",
+    }
+    new_params = hide_secure_vault(params)
+    assert new_params["Other"] == "any"
+    assert new_params["secure_vault"] == "hidden"
+    assert new_params["Any"] == "hidden"
+    new_params2 = deepcopy(params)
+    hide_fields(new_params2, fields=())
+    if HAS_SNOOPER:
+        assert new_args2[1] == "AQAD-qJSJhenAAsOMeXXXXXXXXXXXXXXXXXXXXX"
+    else:
+        assert new_args2[1] == "AQAD-qJSJhenAAsOMeToKeNs-OmeToKeNsOmeTo"

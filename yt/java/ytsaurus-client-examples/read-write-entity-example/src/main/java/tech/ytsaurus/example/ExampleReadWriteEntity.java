@@ -1,8 +1,8 @@
 package tech.ytsaurus.example;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 
 import javax.persistence.Entity;
@@ -10,13 +10,9 @@ import javax.persistence.Entity;
 import tech.ytsaurus.client.AsyncReader;
 import tech.ytsaurus.client.AsyncWriter;
 import tech.ytsaurus.client.YTsaurusClient;
-import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
-import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.core.tables.ColumnValueType;
-import tech.ytsaurus.core.tables.TableSchema;
 
 public class ExampleReadWriteEntity {
     private ExampleReadWriteEntity() {
@@ -26,6 +22,9 @@ public class ExampleReadWriteEntity {
     static class TableRow {
         private String english;
         private String russian;
+
+        TableRow() {
+        }
 
         TableRow(String english, String russian) {
             this.english = english;
@@ -55,24 +54,10 @@ public class ExampleReadWriteEntity {
             // so that they use different output tables.
             YPath table = YPath.simple("//tmp/" + System.getProperty("user.name") + "-read-write");
 
-            // Create table
-
-            TableSchema tableSchema = TableSchema.builder()
-                    .addValue("english", ColumnValueType.STRING)
-                    .addValue("russian", ColumnValueType.STRING)
-                    .build().toWrite();
-
-            client.createNode(CreateNode.builder()
-                    .setPath(table)
-                    .setType(CypressNodeType.TABLE)
-                    .setAttributes(Map.of("schema", tableSchema.toYTree()))
-                    .setIgnoreExisting(true)
-                    .build()
-            ).join();
-
             // Write a table.
 
             // Create the writer.
+            // The table with the inferred from TableRow schema will be created by writeTableV2.
             AsyncWriter<TableRow> writer = client.writeTableV2(new WriteTable<>(table, TableRow.class)).join();
 
             writer.write(List.of(
@@ -85,15 +70,19 @@ public class ExampleReadWriteEntity {
             // Read a table.
 
             // Create the reader.
-            AsyncReader<TableRow> reader = client.readTableV2(new ReadTable<>(table, TableRow.class)).join();
+            try (AsyncReader<TableRow> reader = client.readTableV2(new ReadTable<>(table, TableRow.class)).join()) {
+                List<TableRow> rows = new ArrayList<>();
+                var executor = Executors.newSingleThreadExecutor();
+                // Read all rows asynchronously.
+                reader.acceptAllAsync(rows::add, executor).join();
 
-            List<TableRow> rows = new ArrayList<>();
-            var executor = Executors.newSingleThreadExecutor();
-            // Read all rows asynchronously.
-            reader.acceptAllAsync(rows::add, executor).join();
+                for (TableRow row : rows) {
+                    System.out.println("russian: " + row.russian + "; english: " + row.english);
+                }
 
-            for (TableRow row : rows) {
-                System.out.println("russian: " + row.russian + "; english: " + row.english);
+                executor.shutdown();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
     }

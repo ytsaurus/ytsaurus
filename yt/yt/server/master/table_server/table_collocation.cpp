@@ -11,12 +11,12 @@ using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TTableCollocation::GetLowercaseObjectName() const
+std::string TTableCollocation::GetLowercaseObjectName() const
 {
     return Format("table collocation %v", GetId());
 }
 
-TString TTableCollocation::GetCapitalizedObjectName() const
+std::string TTableCollocation::GetCapitalizedObjectName() const
 {
     return Format("Table collocation %v", GetId());
 }
@@ -29,6 +29,7 @@ void TTableCollocation::Save(TSaveContext& context) const
     Save(context, ExternalCellTag_);
     Save(context, Tables_);
     Save(context, Type_);
+    Save(context, *ReplicationCollocationOptions_);
 }
 
 void TTableCollocation::Load(TLoadContext& context)
@@ -39,6 +40,14 @@ void TTableCollocation::Load(TLoadContext& context)
     Load(context, ExternalCellTag_);
     Load(context, Tables_);
     Load(context, Type_);
+
+    // COMPAT(akozhikhov)
+    if ((context.GetVersion() >= EMasterReign::ReplicationCollocationOptions_24_1 &&
+        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
+        context.GetVersion() >= EMasterReign::ReplicationCollocationOptions)
+    {
+        Load(context, *ReplicationCollocationOptions_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

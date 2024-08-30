@@ -8,7 +8,7 @@
 
 namespace NYT::NHydraStressTest {
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderSwitcher
     : public TRefCounted
@@ -17,7 +17,7 @@ public:
     TLeaderSwitcher(
         TConfigPtr config,
         TLivenessCheckerPtr livenessChecker,
-        std::vector<TString> addresses,
+        std::vector<std::string> addresses,
         std::vector<NRpc::IChannelPtr> peerChannels,
         NRpc::IChannelPtr leaderChannel);
 
@@ -26,7 +26,7 @@ public:
 private:
     const TConfigPtr Config_;
     const TLivenessCheckerPtr LivenessChecker_;
-    const std::vector<TString> Addresses_;
+    const std::vector<std::string> Addresses_;
     const std::vector<NRpc::IChannelPtr> PeerChannels_;
     const NRpc::IChannelPtr LeaderChannel_;
 
@@ -35,7 +35,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLeaderSwitcher)
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
     : public TRefCounted
@@ -61,7 +61,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPersistenceDestroyer
     : public TRefCounted
@@ -89,7 +89,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TPersistenceDestroyer)
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TNetworkDisruptor
     : public TRefCounted
@@ -117,6 +117,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TNetworkDisruptor)
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydraStressTest

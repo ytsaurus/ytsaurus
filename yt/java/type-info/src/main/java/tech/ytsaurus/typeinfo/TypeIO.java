@@ -589,6 +589,14 @@ class TypeYsonConsumer implements YsonConsumer {
                     return TiType.tzTimestamp();
                 case Interval:
                     return TiType.interval();
+                case Date32:
+                    return TiType.date32();
+                case Datetime64:
+                    return TiType.datetime64();
+                case Timestamp64:
+                    return TiType.timestamp64();
+                case Interval64:
+                    return TiType.interval64();
                 case Json:
                     return TiType.json();
                 case Yson:

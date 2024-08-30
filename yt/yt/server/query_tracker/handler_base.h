@@ -16,7 +16,7 @@ namespace NYT::NQueryTracker {
 
 using namespace NYson;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TWireRowset
 {
@@ -30,7 +30,7 @@ struct TRowset
     bool IsTruncated = false;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TQueryHandlerBase
     : public IQueryHandler
@@ -45,7 +45,7 @@ public:
 
     //! Starts a transaction and validates that by the moment of its start timestamp,
     //! incarnation of a query is still the same. Context switch happens inside.
-    NApi::ITransactionPtr StartIncarnationTransaction() const;
+    NApi::ITransactionPtr StartIncarnationTransaction(EQueryState previousState = EQueryState::Running) const;
 
 protected:
     const NApi::IClientPtr StateClient_;
@@ -73,14 +73,16 @@ protected:
 
     void OnProgress(TYsonString progress);
 
+    void OnQueryStarted();
+    void OnQueryThrottled();
     void OnQueryFailed(const TError& error);
     void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
     void OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
     void TryWriteProgress();
-    bool TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
+    bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryTracker

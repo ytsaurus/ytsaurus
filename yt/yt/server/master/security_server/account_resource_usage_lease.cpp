@@ -12,6 +12,7 @@ namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,17 +25,17 @@ TAccountResourceUsageLease::TAccountResourceUsageLease(
     , Account_(account)
 { }
 
-TString TAccountResourceUsageLease::GetLowercaseObjectName() const
+std::string TAccountResourceUsageLease::GetLowercaseObjectName() const
 {
     return Format("account resource usage lease %v", GetId());
 }
 
-TString TAccountResourceUsageLease::GetCapitalizedObjectName() const
+std::string TAccountResourceUsageLease::GetCapitalizedObjectName() const
 {
     return Format("Account usage lease %v", GetId());
 }
 
-TString TAccountResourceUsageLease::GetObjectPath() const
+TYPath TAccountResourceUsageLease::GetObjectPath() const
 {
     return Format("//sys/account_resource_usage_leases/%v", GetId());
 }

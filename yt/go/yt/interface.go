@@ -1175,6 +1175,14 @@ type Tx interface {
 	BeginTx(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 }
 
+type AttachTxOptions struct {
+	// AutoPingable determine whether the library should ping the transaction.
+	//
+	// When set to true library creates a goroutine that pings transaction.
+	// When set to false library doesn't ping transaction, and it's user responsibility to ping it.
+	AutoPingable bool
+}
+
 type LookupRowsOptions struct {
 	// KeepMissingRows changes handling of missing rows.
 	//
@@ -1696,6 +1704,12 @@ type Client interface {
 	// Active transaction consumes resources, client must finish transaction by calling Commit(), Abort()
 	// or canceling ctx passed to BeginTabletTx.
 	BeginTabletTx(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
+
+	// AttachTx attaches to an existing tx.
+	//
+	// If AttachTxOptions.AutoPingable set to true, Tx lifetime is bound to ctx.
+	// In this case, Tx is automatically aborted when ctx is canceled.
+	AttachTx(ctx context.Context, txID TxID, options *AttachTxOptions) (tx Tx, err error)
 
 	TabletClient
 	MountClient

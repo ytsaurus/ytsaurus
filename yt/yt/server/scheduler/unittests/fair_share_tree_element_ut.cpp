@@ -106,7 +106,7 @@ public:
         TJobResources result;
         for (const auto& execNode : ExecNodes_) {
             if (execNode->CanSchedule(filter)) {
-                result += execNode->GetResourceLimits();
+                result += execNode->ResourceLimits();
             }
         }
         return result;
@@ -141,7 +141,7 @@ public:
         TMemoryDistribution result;
         for (const auto& execNode : ExecNodes_)
             if (execNode->CanSchedule(filter)) {
-                ++result[execNode->GetResourceLimits().GetMemory()];
+                ++result[execNode->ResourceLimits().GetMemory()];
             }
         return result;
     }
@@ -164,7 +164,7 @@ public:
     void ValidatePoolPermission(
         NObjectClient::TObjectId /*poolObjectId*/,
         const TString& /*poolName*/,
-        const TString& /*user*/,
+        const std::string& /*user*/,
         NYTree::EPermission /*permission*/) const override
     { }
 
@@ -237,11 +237,6 @@ public:
     {
         static THashMap<TString, TString> stub;
         return stub;
-    }
-
-    bool IsFairSharePreUpdateOffloadingEnabled() const override
-    {
-        return true;
     }
 
 private:
@@ -610,8 +605,8 @@ protected:
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
         auto execNode = New<TExecNode>(nodeId, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
-        execNode->SetResourceLimits(nodeResources.ToJobResources());
-        execNode->SetDiskResources(std::move(diskResources));
+        execNode->ResourceLimits() = nodeResources.ToJobResources();
+        execNode->DiskResources() = std::move(diskResources);
 
         execNode->SetTags(std::move(tags));
 
@@ -670,11 +665,9 @@ protected:
             .TreeConfig = TreeConfig_,
         };
 
-        rootElement->InitializeFairShareUpdate(now, context);
+        rootElement->InitializeFairShareUpdate(now);
 
-        if (strategyHost->IsFairSharePreUpdateOffloadingEnabled()) {
-            rootElement->PreUpdate(&preUpdateContext);
-        }
+        rootElement->PreUpdate(&preUpdateContext);
 
         NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
         updateExecutor.Run();

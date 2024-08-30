@@ -102,6 +102,12 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
+        if (node->Flavors().contains(ENodeFlavor::Data)) {
+            YT_LOG_ALERT("Data node is being disposed completely (NodeId: %v)", node->GetId());
+        }
+
+        YT_LOG_INFO("Disposing node completely (NodeId: %v)", node->GetId());
+
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
@@ -122,18 +128,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        buffer->AddGauge("/nodes_being_disposed", NodesBeingDisposed_.size());
-        buffer->AddGauge("/nodes_awaiting_for_being_disposed", NodesAwaitingForBeingDisposed_.size());
+        buffer->AddGauge("/data_nodes_being_disposed", DataNodesBeingDisposed_.size());
+        buffer->AddGauge("/data_nodes_awaiting_for_being_disposed", DataNodesAwaitingForBeingDisposed_.size());
     }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // This is still shared between all nodes.
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
     TPeriodicExecutorPtr NodeDisposalExecutor_;
-    THashSet<TNodeId> NodesBeingDisposed_;
-    std::deque<TNodeId> NodesAwaitingForBeingDisposed_;
+    THashSet<TNodeId> DataNodesBeingDisposed_;
+    std::deque<TNodeId> DataNodesAwaitingForBeingDisposed_;
 
     void OnLeaderActive() override
     {
@@ -160,7 +167,7 @@ private:
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto nodeId : NodesBeingDisposed_) {
+        for (auto nodeId : DataNodesBeingDisposed_) {
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
@@ -174,9 +181,9 @@ private:
     {
         using NYT::Load;
 
-        Load(context, NodesBeingDisposed_);
+        Load(context, DataNodesBeingDisposed_);
         if (context.GetVersion() >= EMasterReign::DisposalNodesLimit) {
-            Load(context, NodesAwaitingForBeingDisposed_);
+            Load(context, DataNodesAwaitingForBeingDisposed_);
         }
     }
 
@@ -184,8 +191,8 @@ private:
     {
         using NYT::Save;
 
-        Save(context, NodesBeingDisposed_);
-        Save(context, NodesAwaitingForBeingDisposed_);
+        Save(context, DataNodesBeingDisposed_);
+        Save(context, DataNodesAwaitingForBeingDisposed_);
     }
 
     void Clear() override
@@ -194,8 +201,8 @@ private:
 
         TMasterAutomatonPart::Clear();
 
-        NodesBeingDisposed_.clear();
-        NodesAwaitingForBeingDisposed_.clear();
+        DataNodesBeingDisposed_.clear();
+        DataNodesAwaitingForBeingDisposed_.clear();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
@@ -244,7 +251,7 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& config = GetDynamicConfig();
 
-        for (auto nodeId : NodesBeingDisposed_) {
+        for (auto nodeId : DataNodesBeingDisposed_) {
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 // TODO(aleksandra-zh): ensure there are no replicas left.
@@ -300,6 +307,7 @@ private:
         auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
         TChunkLocationDirectory locationDirectory;
         sequoiaRequest->set_node_id(ToProto<ui32>(node->GetId()));
+        sequoiaRequest->set_caused_by_node_disposal(true);
         for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
 
@@ -388,17 +396,17 @@ private:
 
     void TopUpNodesBeingDisposed()
     {
-        while (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
-            !NodesAwaitingForBeingDisposed_.empty())
+        while (std::ssize(DataNodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
+            !DataNodesAwaitingForBeingDisposed_.empty())
         {
-            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
-            NodesAwaitingForBeingDisposed_.pop_front();
+            InsertOrCrash(DataNodesBeingDisposed_, DataNodesAwaitingForBeingDisposed_.front());
+            DataNodesAwaitingForBeingDisposed_.pop_front();
         }
     }
 
     void EraseFromDisposalQueue(TNodeId nodeId)
     {
-        EraseOrCrash(NodesBeingDisposed_, nodeId);
+        EraseOrCrash(DataNodesBeingDisposed_, nodeId);
         TopUpNodesBeingDisposed();
     }
 
@@ -416,14 +424,19 @@ private:
             return;
         }
 
-        DoStartNodeDisposal(node);
-        nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
-        node->SetNextDisposedLocationIndex(0);
+        const auto& config = GetDynamicConfig();
+        if (node->Flavors().contains(ENodeFlavor::Data) || !config->ImmediatelyDisposeNondataNodes) {
+            DoStartNodeDisposal(node);
+            nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
+            node->SetNextDisposedLocationIndex(0);
 
-        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed) {
-            InsertOrCrash(NodesBeingDisposed_, node->GetId());
+            if (std::ssize(DataNodesBeingDisposed_) < config->MaxNodesBeingDisposed) {
+                InsertOrCrash(DataNodesBeingDisposed_, node->GetId());
+            } else {
+                DataNodesAwaitingForBeingDisposed_.push_back(node->GetId());
+            }
         } else {
-            NodesAwaitingForBeingDisposed_.push_back(node->GetId());
+            DisposeNodeCompletely(node);
         }
     }
 
@@ -440,7 +453,7 @@ private:
 
             node->SetDisposalTickScheduled(false);
 
-            if (!NodesBeingDisposed_.contains(nodeId)) {
+            if (!DataNodesBeingDisposed_.contains(nodeId)) {
                 YT_VERIFY(node->GetLocalState() != ENodeState::BeingDisposed);
                 return;
             }
@@ -471,7 +484,7 @@ private:
     {
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto finalyGuard = Finally([&] {
-            if (NodesBeingDisposed_.contains(nodeId)) {
+            if (DataNodesBeingDisposed_.contains(nodeId)) {
                 EraseFromDisposalQueue(nodeId);
             }
         });

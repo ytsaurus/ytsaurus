@@ -167,6 +167,9 @@ TJobPtr MummifyJob(const TJobPtr& job);
 // Removes potential users data from error.
 TError SanitizeError(TError error);
 
+void ValidateMediumName(const std::string& name);
+void ValidateMediumPriority(int priority);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

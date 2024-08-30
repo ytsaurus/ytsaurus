@@ -54,6 +54,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -83,6 +84,8 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/bus/tcp/client.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/net/address.h>
@@ -91,6 +94,11 @@
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <yt/yt/core/rpc/bus/channel.h>
+
+#include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -1253,6 +1261,74 @@ TBriefJobInfo TJob::GetBriefInfo() const
         ExecAttributes_);
 }
 
+NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto jobInfoOrError = WaitFor(BIND_NO_PROPAGATE(
+            &TJob::GetBriefInfo,
+            MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run());
+
+        YT_LOG_FATAL_UNLESS(
+            jobInfoOrError.IsOK(),
+            jobInfoOrError,
+            "Failed to get brief job info for static orchid");
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Do(std::bind(
+                &TBriefJobInfo::BuildOrchid,
+                std::move(jobInfoOrError).Value(),
+                std::placeholders::_1))
+        .EndMap();
+    });
+
+    return NYTree::IYPathService::FromProducer(std::move(producer));
+}
+
+NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    try {
+        ValidateJobRunning();
+
+        if (!JobProxyChannel_) {
+            auto client = CreateBusClient(GetUserSlot()->GetBusClientConfig());
+            JobProxyChannel_ = NRpc::NBus::CreateBusChannel(std::move(client));
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to create job proxy orchid service");
+        return nullptr;
+    }
+
+    return NOrchid::CreateOrchidYPathService({
+        .Channel = JobProxyChannel_,
+        .RemoteRoot = "//job_proxy",
+    });
+}
+
+NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return New<NYTree::TCompositeMapService>()
+        ->AddChild("job_proxy", CreateJobProxyOrchidService());
+}
+
+IYPathServicePtr TJob::GetOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return New<TServiceCombiner>(
+        std::vector{
+            CreateStaticOrchidService(),
+            CreateDynamicOrchidService()
+        });
+}
+
 std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1851,7 +1927,8 @@ void TJob::DoSetResult(
     if (CommonConfig_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
-                error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
+                error
+                    <<= TError("Test error %v", index);
             }
             YT_LOG_DEBUG(error, "TestJobErrorTruncation");
         }
@@ -2707,7 +2784,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
         auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-        if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+        if (writerConfig->Type != NLogging::TFileLogWriterConfig::WriterType) {
             return writerConfigNode;
         }
 
@@ -2723,7 +2800,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 NFS::JoinPaths(ToString(GetId()), "job_proxy.log"));
         }
 
-        return writerConfig->BuildFullConfig(fileLogWriterConfig);
+        return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
     });
 
     if (proxyConfig->StderrPath) {
@@ -2818,6 +2895,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
         proxyConfig->RetryingChannelConfig = proxyDynamicConfig->RetryingChannelConfig;
+        proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
+
+        proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
+        proxyConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
@@ -2832,6 +2913,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
+
+    proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     return proxyConfig;
 }
@@ -3431,7 +3514,8 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
                     },
                     /*tags*/ {
                         {FormatIOTag(EAggregateIOTag::Direction), direction},
-                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        // TODO(babenko): switch to std::string
+                        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                         {FormatIOTag(EAggregateIOTag::JobIoKind), "user_job"},
                     });
             }
@@ -3522,8 +3606,13 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (JobSpecExt_->has_probing_job_competition_id()) {
         report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_->probing_job_competition_id()));
     }
-    if (JobSpecExt_ && JobSpecExt_->has_task_name()) {
+    if (JobSpecExt_->has_task_name()) {
         report.SetTaskName(JobSpecExt_->task_name());
+    }
+    if (UserJobSpec_ &&
+        UserJobSpec_->has_archive_ttl())
+    {
+        report.SetTtl(FromProto<TDuration>(UserJobSpec_->archive_ttl()));
     }
 
     return report;

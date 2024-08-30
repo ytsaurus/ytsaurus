@@ -819,6 +819,10 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
+    if (userJobSpec) {
+        joblet->ArchiveTtl = userJobSpec->ArchiveTtl;
+    }
+
     joblet->EnabledJobProfiler = SelectProfiler();
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {
@@ -1973,7 +1977,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_task_name(GetVertexDescriptor());
     jobSpecExt->set_tree_id(joblet->TreeId);
-    jobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
+    jobSpecExt->set_authenticated_user(ToProto<TProtobufString>(TaskHost_->GetAuthenticatedUser()));
 
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {
@@ -1987,6 +1991,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     ToProto(jobSpecExt->mutable_io_tags(), *ioTags);
 
     jobSpecExt->set_interruptible(joblet->JobInterruptible);
+
+    jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYtVariablesInShellEnvironment);
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
@@ -2121,7 +2127,7 @@ void TTask::RegisterStripe(
                 TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
                     TError("Restarted job produced dissimilar output; "
                            "this may lead to inconsistent operation results; "
-                           "consider setting enable_intermediate_output_recalculation=%false.")
+                           "consider setting enable_intermediate_output_recalculation=%%false.")
                         << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor())
                         << TErrorAttribute("job_id", joblet->JobId));
             }

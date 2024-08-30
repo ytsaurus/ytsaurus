@@ -21,7 +21,6 @@
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/master_connector.h>
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
@@ -42,6 +41,8 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
@@ -415,7 +416,7 @@ public:
     EOperationType GetOperationType() const override;
     TInstant GetStartTime() const override;
 
-    const TString& GetAuthenticatedUser() const override;
+    const std::string& GetAuthenticatedUser() const override;
 
     const TOutputTablePtr& StderrTable() const override;
     const TOutputTablePtr& CoreTable() const override;
@@ -533,7 +534,7 @@ protected:
 
     const EOperationType OperationType;
     const TInstant StartTime_;
-    const TString AuthenticatedUser;
+    const std::string AuthenticatedUser;
     const NYTree::IMapNodePtr SecureVault;
     const NTransactionClient::TTransactionId UserTransactionId;
 
@@ -746,7 +747,7 @@ protected:
     virtual void LockInputs();
     void InitUnrecognizedSpec();
     void FillInitializeResult(TOperationControllerInitializeResult* result);
-    void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
+    void ValidateIntermediateDataAccess(const std::string& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
     virtual void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;

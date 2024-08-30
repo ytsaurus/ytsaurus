@@ -60,7 +60,7 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NYTree::IAttributeDictionary* inheritedAttributes) override;
 
-    std::optional<std::vector<TString>> DoListColumns(TImpl* node) const override;
+    std::optional<std::vector<std::string>> DoListColumns(TImpl* node) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

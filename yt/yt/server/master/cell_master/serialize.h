@@ -197,38 +197,46 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnique_24_1)                                    (2591))  // sabdenovch
     ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
     ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
+    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
+    ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
+    ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
     // 24.2 starts here.
-    ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
-    ((ErasureHunkStorage)                                           (2601))  // akozhikhov
-    ((YsonDeserializeMicroseconds)                                  (2602))  // dgolear
-    ((RemoveEnableSharedWriteLocksFlag)                             (2603))  // ponasenko-rs
-    ((AdminsGroup)                                                  (2604))  // aleksandr.gaev
-    ((FixAlterTableReplicaWithRTT)                                  (2605))  // ngc224
-    ((AddTtlSystemColumn)                                           (2606))  // alexelexa
-    ((RemoveChaosIndependentPeersAssumption)                        (2607))  // ponasenko-rs
-    ((SecondaryIndexUser)                                           (2608))  // sabdenovch
-    ((RemoveEnableSharedWriteLocksFlagLeftovers)                    (2609))  // ponasenko-rs
-    ((AccountProfilingIncumbency)                                   (2610))  // h0pless
-    ((RemoveParameterizedBalancingMetricSetting)                    (2611))  // alexelexa
-    ((RipAevum)                                                     (2612))  // babenko
-    ((SecondaryIndexSchemaValidation)                               (2613))  // sabdenovch
-    ((ErasureChunksCanBeNonVital)                                   (2614))  // achulkov2
-    ((MissingRackAttribute)                                         (2615))  // danilalexeev
-    ((SecondaryIndexPredicate)                                      (2616))  // sabdenovch
-    ((AddTableNodeCustomRuntimeData)                                (2617))  // gryzlov-ad
-    ((IncreasedMaxKeyColumnInDynamicTableTo128)                     (2618))  // sabdenovch
-    ((FixCypressTransactionMirroring)                               (2619))  // kvk1920
-    ((QueueProducers)                                               (2620))  // apachee
-    ((AddForbiddenErasureCodecsOption)                              (2621))  // abogutskiy
-    ((InheritChunkMergerModeWhenCopy)                               (2622))  // cherepashka
-    ((ForbiddenCompressionCodecsOptionRefactoring)                  (2623))  // abogutskiy
-    ((MultipleTableUpdateQueues)                                    (2624))  // babenko
-    ((RefactorCrossCellCopyInPreparationForSequoia)                 (2625))  // h0pless
-    ((CypressNodeReachability)                                      (2626))  // danilalexeev
-    ((SecondaryIndexPerUserValidation)                              (2627))  // sabdenovch
-    ((SecondaryIndexUnique)                                         (2628))  // sabdenovch
-    ((DropImaginaryChunkLocations)                                  (2629))  // kvk1920
-    ((RackDataCenter)                                               (2630))  // proller
+    ((Start_24_2)                                                   (2700))  //
+    ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
+    ((ErasureHunkStorage)                                           (2702))  // akozhikhov
+    ((YsonDeserializeMicroseconds)                                  (2703))  // dgolear
+    ((RemoveEnableSharedWriteLocksFlag)                             (2704))  // ponasenko-rs
+    ((AdminsGroup)                                                  (2705))  // aleksandr.gaev
+    ((FixAlterTableReplicaWithRTT)                                  (2706))  // ngc224
+    ((AddTtlSystemColumn)                                           (2707))  // alexelexa
+    ((RemoveChaosIndependentPeersAssumption)                        (2708))  // ponasenko-rs
+    ((SecondaryIndexUser)                                           (2709))  // sabdenovch
+    ((RemoveEnableSharedWriteLocksFlagLeftovers)                    (2710))  // ponasenko-rs
+    ((AccountProfilingIncumbency)                                   (2711))  // h0pless
+    ((RemoveParameterizedBalancingMetricSetting)                    (2712))  // alexelexa
+    ((RipAevum)                                                     (2713))  // babenko
+    ((SecondaryIndexSchemaValidation)                               (2714))  // sabdenovch
+    ((ErasureChunksCanBeNonVital)                                   (2715))  // achulkov2
+    ((MissingRackAttribute)                                         (2716))  // danilalexeev
+    ((SecondaryIndexPredicate)                                      (2717))  // sabdenovch
+    ((AddTableNodeCustomRuntimeData)                                (2718))  // gryzlov-ad
+    ((IncreasedMaxKeyColumnInDynamicTableTo128)                     (2719))  // sabdenovch
+    ((FixCypressTransactionMirroring)                               (2720))  // kvk1920
+    ((QueueProducers)                                               (2721))  // apachee
+    ((AddForbiddenErasureCodecsOption)                              (2722))  // abogutskiy
+    ((InheritChunkMergerModeWhenCopy)                               (2723))  // cherepashka
+    ((ForbiddenCompressionCodecsOptionRefactoring)                  (2724))  // abogutskiy
+    ((MultipleTableUpdateQueues)                                    (2725))  // babenko
+    ((RefactorCrossCellCopyInPreparationForSequoia)                 (2726))  // h0pless
+    ((CypressNodeReachability)                                      (2727))  // danilalexeev
+    ((SecondaryIndexPerUserValidation)                              (2728))  // sabdenovch
+    ((SecondaryIndexUnique)                                         (2729))  // sabdenovch
+    ((DropImaginaryChunkLocations)                                  (2730))  // kvk1920
+    ((RackDataCenter)                                               (2731))  // proller
+    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate)        (2732))  // babenko
+    ((SecondaryIndexExternalCellTag)                                (2733))  // sabdenovch
+    ((ReplicationCollocationOptions)                                (2734))  // akozhikhov
+    ((NestedAggregateColumns)                                       (2735))  // lukyan
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

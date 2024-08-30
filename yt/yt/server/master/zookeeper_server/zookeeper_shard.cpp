@@ -6,6 +6,7 @@ namespace NYT::NZookeeperServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,17 +15,17 @@ TZookeeperShard::TZookeeperShard(TZookeeperShardId id)
     , NZookeeperMaster::TZookeeperShard(id)
 { }
 
-TString TZookeeperShard::GetLowercaseObjectName() const
+std::string TZookeeperShard::GetLowercaseObjectName() const
 {
     return Format("zookeeper shard %v", GetId());
 }
 
-TString TZookeeperShard::GetCapitalizedObjectName() const
+std::string TZookeeperShard::GetCapitalizedObjectName() const
 {
     return Format("Zookeeper shard %v", GetId());
 }
 
-TString TZookeeperShard::GetObjectPath() const
+TYPath TZookeeperShard::GetObjectPath() const
 {
     return Format("//sys/zookeeper_shards/%v", GetId());
 }

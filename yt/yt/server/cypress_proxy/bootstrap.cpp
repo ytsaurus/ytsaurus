@@ -30,6 +30,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
@@ -201,6 +203,8 @@ private:
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
+
         SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger());
 
         // If Sequoia is local it's safe to create the client right now.
@@ -265,7 +269,7 @@ private:
     {
         if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
             NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-                BIND_NO_PROPAGATE([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+                BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
                     if (clusterName == *groundClusterName) {
                         auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
                         auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});

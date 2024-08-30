@@ -38,24 +38,24 @@ public:
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
-    NApi::NNative::IConnectionPtr FindConnection(const TString& clusterName) const;
+    NApi::NNative::IConnectionPtr FindConnection(const std::string& clusterName) const;
     //! Same as #FindConnection but throws if no connection is found.
-    NApi::NNative::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
+    NApi::NNative::IConnectionPtr GetConnectionOrThrow(const std::string& clusterName) const;
     //! Same as #FindConnection but crashes if no connection is found.
-    NApi::NNative::IConnectionPtr GetConnection(const TString& clusterName) const;
+    NApi::NNative::IConnectionPtr GetConnection(const std::string& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
-    std::vector<TString> GetClusterNames() const;
+    std::vector<std::string> GetClusterNames() const;
 
     //! Removes the cluster of a given #name.
     //! Does nothing if no such cluster is registered.
-    void RemoveCluster(const TString& name);
+    void RemoveCluster(const std::string& name);
 
     //! Drops all directory entries.
     void Clear();
 
     //! Updates the configuration of a cluster with a given #name, recreates the connection.
-    void UpdateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig);
+    void UpdateCluster(const std::string& name, NYTree::INodePtr nativeConnectionConfig);
 
     //! Updates configuration of all clusters given in #protoDirectory.
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
@@ -64,12 +64,12 @@ public:
     //! Returns true if there is a cluster with corresponding TVM id in the directory.
     bool HasTvmId(NAuth::TTvmId tvmId) const;
 
-    DEFINE_SIGNAL(void(const TString&, NYTree::INodePtr), OnClusterUpdated);
+    DEFINE_SIGNAL(void(const std::string&, NYTree::INodePtr), OnClusterUpdated);
 
 private:
     struct TCluster
     {
-        TString Name;
+        std::string Name;
         NYTree::INodePtr NativeConnectionConfig;
         NApi::NNative::IConnectionPtr Connection;
     };
@@ -78,10 +78,10 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<NApi::TClusterTag, TCluster> ClusterTagToCluster_;
-    THashMap<TString, TCluster> NameToCluster_;
+    THashMap<std::string, TCluster> NameToCluster_;
     THashMultiSet<NAuth::TTvmId> ClusterTvmIds_;
 
-    TCluster CreateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig);
+    TCluster CreateCluster(const std::string& name, NYTree::INodePtr nativeConnectionConfig);
     static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
 };
 
@@ -102,10 +102,10 @@ public:
     //! Returns the client to the cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found in the underlying cluster
     //! directory.
-    NApi::NNative::IClientPtr FindClient(const TString& clusterName) const;
+    NApi::NNative::IClientPtr FindClient(const std::string& clusterName) const;
     //! Same as #FindClient but throws if no connection is found in the
     //! underlying cluster directory.
-    NApi::NNative::IClientPtr GetClientOrThrow(const TString& clusterName) const;
+    NApi::NNative::IClientPtr GetClientOrThrow(const std::string& clusterName) const;
 
 private:
     TClusterDirectoryPtr ClusterDirectory_;

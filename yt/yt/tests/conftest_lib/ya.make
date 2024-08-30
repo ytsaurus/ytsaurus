@@ -9,4 +9,8 @@ PY_SRCS(
     conftest_queries.py
 )
 
+PEERDIR(
+    yt/python/yt/environment/components/query_tracker
+)
+
 END()

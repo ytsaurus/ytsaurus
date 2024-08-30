@@ -211,11 +211,11 @@ public:
     bool IsNative() const;
 
     //! Builds a human-readable string for diagnostics.
-    virtual TString GetLowercaseObjectName() const;
-    virtual TString GetCapitalizedObjectName() const;
+    virtual std::string GetLowercaseObjectName() const;
+    virtual std::string GetCapitalizedObjectName() const;
 
     //! Builds a human-readable path for diagnostics.
-    virtual TString GetObjectPath() const;
+    virtual NYPath::TYPath GetObjectPath() const;
 
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;

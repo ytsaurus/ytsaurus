@@ -50,7 +50,7 @@ TString GetPodIdForInstance(const TString& name)
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetInstancePodIdTemplate(
-    const TString& cluster,
+    const std::string& cluster,
     const TString& bundleName,
     const TString& instanceType,
     int index)
@@ -60,7 +60,7 @@ TString GetInstancePodIdTemplate(
 
 std::optional<int> GetIndexFromPodId(
     const TString& podId,
-    const TString& cluster,
+    const std::string& cluster,
     const TString& instanceType)
 {
     TStringBuf buffer = podId;
@@ -82,7 +82,7 @@ std::optional<int> GetIndexFromPodId(
 
 int FindNextInstanceId(
     const std::vector<TString>& instanceNames,
-    const TString& cluster,
+    const std::string& cluster,
     const TString& instanceType)
 {
     std::vector<int> existingIds;

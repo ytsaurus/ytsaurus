@@ -1,8 +1,6 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -11,6 +9,8 @@
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -236,7 +236,7 @@ void BuildFileSpecs(
 
 TString GetIntermediatePath(int streamIndex)
 {
-    return Format("<intermediate_%d>", streamIndex);
+    return Format("<intermediate-%v>", streamIndex);
 }
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
@@ -310,6 +310,8 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     auto comparator = uploadSchema->ToComparator();
 
+    auto sampleRowBuffer = New<TRowBuffer>();
+
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
 
     YT_VERIFY(partitionCount > 0);
@@ -334,9 +336,9 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
             columnEvaluators.push_back([
                 evaluator = evaluatorCache->Find(*parsedSource, sampleSchema),
-                rowBuffer
+                sampleRowBuffer
             ] (TUnversionedRow sampleRow) {
-                return evaluator->Evaluate(sampleRow, rowBuffer);
+                return evaluator->Evaluate(sampleRow, sampleRowBuffer);
             });
         } else {
             int sampleColumn = sampleSchema->GetColumnIndex(column.Name());
@@ -350,7 +352,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     std::vector<TComparableSample> comparableSamples;
     comparableSamples.reserve(samples.size());
     for (const auto& sample : samples) {
-        auto key = rowBuffer->AllocateUnversioned(uploadSchema->GetKeyColumnCount());
+        auto key = sampleRowBuffer->AllocateUnversioned(uploadSchema->GetKeyColumnCount());
         for (int index = 0; index < uploadSchema->GetKeyColumnCount(); ++index) {
             key[index] = columnEvaluators[index](sample.Key);
         }

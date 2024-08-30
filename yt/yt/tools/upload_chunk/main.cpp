@@ -25,7 +25,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UploadChunk(const TString& chunkId, const TString& chunkPath, const TString& nodeAddress)
+void UploadChunk(const TString& chunkId, const TString& chunkPath, const std::string& nodeAddress)
 {
     auto client = CreateBusClient(TBusClientConfig::CreateTcp(nodeAddress));
     auto bus = CreateBusChannel(client);

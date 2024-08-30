@@ -39,15 +39,21 @@ TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::Address(std::optional<TString> address)
+TControllerJobReport TControllerJobReport::Address(std::optional<std::string> address)
 {
-    Address_ = std::move(address);
+    Address_ = address;
     return std::move(*this);
 }
 
 TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerState)
 {
     ControllerState_ = FormatEnum(controllerState);
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::Ttl(std::optional<TDuration> ttl)
+{
+    Ttl_ = ttl;
     return std::move(*this);
 }
 

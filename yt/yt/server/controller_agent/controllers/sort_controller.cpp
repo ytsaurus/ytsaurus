@@ -58,6 +58,8 @@
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <cmath>
 #include <algorithm>
 
@@ -3151,6 +3153,8 @@ protected:
     virtual void CreateSortedMergeTask() = 0;
 
     virtual TSortColumns GetSortedMergeSortColumns() const = 0;
+
+    PHOENIX_DECLARE_FRIEND();
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -3363,6 +3367,8 @@ private:
                         Logger);
                 }
             }
+            // After partition keys are built, row buffer used by samples fetcher can be disposed.
+            SamplesRowBuffer_.Reset();
         } else {
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }

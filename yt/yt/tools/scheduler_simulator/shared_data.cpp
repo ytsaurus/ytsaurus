@@ -325,7 +325,7 @@ TSharedSchedulerStrategy::TSharedSchedulerStrategy(
 
 INodeHeartbeatStrategyProxyPtr TSharedSchedulerStrategy::CreateNodeHeartbeatStrategyProxy(
     TNodeId nodeId,
-    const TString& address,
+    const std::string& address,
     const TBooleanFormulaTags& tags,
     TMatchingTreeCookie cookie) const
 {
@@ -356,7 +356,7 @@ void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationSt
 
 void TSharedSchedulerStrategy::BuildSchedulingAttributesForNode(
     TNodeId nodeId,
-    const TString& nodeAddress,
+    const std::string& nodeAddress,
     const TBooleanFormulaTags& nodeTags,
     TFluentMap fluent) const
 {

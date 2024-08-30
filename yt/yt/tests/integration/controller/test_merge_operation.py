@@ -6,7 +6,7 @@ from yt_commands import (
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
     get_operation, get_singular_chunk_id, get_chunk_replication_factor,
-    create_dynamic_table, get_driver, alter_table)
+    create_dynamic_table, get_driver, alter_table, get_table_columnar_statistics)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
@@ -123,7 +123,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("single_chunk_teleport_strategy", ["disabled", "enabled"])
     @pytest.mark.parametrize("force_transform", [False, True])
     def test_unordered_merge_teleport_single_input_chunk(self, single_chunk_teleport_strategy, force_transform):
-        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2) or self.Env.get_component_version('ytserver-node').abi <= (23, 2):
             pytest.skip()
 
         t_in = "//tmp/t_in"
@@ -131,7 +131,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         key_values = [{"key" + str(i): "value" + str(i)} for i in range(1)]
         for kv in key_values:
-            write_table("<append=true>" + t_in, kv)
+            write_table("<append=%true>" + t_in, kv)
+
+        in_statistics = get_table_columnar_statistics("[\"" + t_in + "{key0,value0}\"]", fetcher_mode="from_nodes")
+        assert in_statistics[0]['column_estimated_unique_counts'] == {'key0': 1, 'value0': 0}
 
         t_out = "//tmp/t_out"
         create("table", t_out)
@@ -148,6 +151,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
 
         op.track()
+
+        out_statistics = get_table_columnar_statistics("[\"//tmp/t_out{key0,value0}\"]")
+        assert out_statistics[0]['column_estimated_unique_counts'] == {'key0': 1, 'value0': 0}
 
         data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
         directions = {

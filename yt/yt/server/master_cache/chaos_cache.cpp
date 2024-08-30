@@ -81,7 +81,7 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
     TDuration successExpirationTime,
     TDuration failureExpirationTime,
     TReplicationEra refreshEra,
-    const TString& user)
+    const std::string& user)
 {
     auto entry = Find(key);
     bool cacheHit = false;
@@ -145,7 +145,7 @@ void TChaosCache::EndLookup(
     cookie.EndInsert(entry);
 }
 
-TCacheProfilingCountersPtr TChaosCache::GetProfilingCounters(const TString& user)
+TCacheProfilingCountersPtr TChaosCache::GetProfilingCounters(const std::string& user)
 {
     {
         auto guard = ReaderGuard(Lock_);
@@ -155,7 +155,8 @@ TCacheProfilingCountersPtr TChaosCache::GetProfilingCounters(const TString& user
     }
 
     auto counters = New<TCacheProfilingCounters>(Profiler_
-        .WithTag("user", user));
+        // TODO(babenko): switch to std::string
+        .WithTag("user", TString(user)));
 
     {
         auto guard = WriterGuard(Lock_);

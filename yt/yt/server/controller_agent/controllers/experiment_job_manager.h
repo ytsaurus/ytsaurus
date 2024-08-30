@@ -5,7 +5,6 @@
 
 #include <yt/yt/server/controller_agent/helpers.h>
 
-#include <yt/yt/server/lib/controller_agent/persistence.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -14,6 +13,8 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -94,7 +95,7 @@ public:
 
     TMtnJobExperiment(
         const NApi::NNative::IClientPtr& client,
-        TString authenticatedUser,
+        const std::string& authenticatedUser,
         TString networkProject,
         NLogging::TLogger logger);
 

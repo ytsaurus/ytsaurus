@@ -10,7 +10,7 @@ class TNoopAccessChecker
     : public IAccessChecker
 {
 public:
-    TError CheckAccess(const TString& /*user*/) const override
+    TError CheckAccess(const std::string& /*user*/) const override
     {
         return {};
     }

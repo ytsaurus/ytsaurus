@@ -29,7 +29,7 @@ const TSelf* TNonversionedMapObjectBase<TSelf>::GetSelf() const
 }
 
 template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::AttachChild(const TString& key, TSelf* child) noexcept
+void TNonversionedMapObjectBase<TSelf>::AttachChild(const std::string& key, TSelf* child) noexcept
 {
     YT_VERIFY(child);
     YT_VERIFY(!child->GetParent());
@@ -57,7 +57,7 @@ void TNonversionedMapObjectBase<TSelf>::DetachChild(TSelf* child) noexcept
 }
 
 template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const TString& newKey) noexcept
+void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const std::string& newKey) noexcept
 {
     YT_VERIFY(child->GetParent() == this);
     auto key = GetChildKey(child);
@@ -74,7 +74,7 @@ void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const TString&
 }
 
 template <class TSelf>
-TSelf* TNonversionedMapObjectBase<TSelf>::FindChild(const TString& key) const
+TSelf* TNonversionedMapObjectBase<TSelf>::FindChild(const std::string& key) const
 {
     auto it = KeyToChild().find(key);
     return it == KeyToChild().end()
@@ -83,7 +83,7 @@ TSelf* TNonversionedMapObjectBase<TSelf>::FindChild(const TString& key) const
 }
 
 template <class TSelf>
-TSelf* TNonversionedMapObjectBase<TSelf>::GetChild(const TString& key) const noexcept
+TSelf* TNonversionedMapObjectBase<TSelf>::GetChild(const std::string& key) const noexcept
 {
     auto* child = FindChild(key);
     YT_VERIFY(child);
@@ -91,7 +91,7 @@ TSelf* TNonversionedMapObjectBase<TSelf>::GetChild(const TString& key) const noe
 }
 
 template <class TSelf>
-std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSelf* child) const noexcept
+std::optional<std::string> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSelf* child) const noexcept
 {
     auto it = ChildToKey().find(child);
     return it == ChildToKey().end()
@@ -100,7 +100,7 @@ std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSe
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const noexcept
+std::string TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const noexcept
 {
     auto optionalKey = FindChildKey(child);
     YT_VERIFY(optionalKey);
@@ -108,16 +108,16 @@ TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetName() const
+std::string TNonversionedMapObjectBase<TSelf>::GetName() const
 {
     if (Parent_) {
         return Parent_->GetChildKey(GetSelf());
     }
-    return IsRoot() ? GetRootName() : NObjectClient::FromObjectId(GetId());
+    return IsRoot() ? GetRootName() : std::string(NObjectClient::FromObjectId(GetId()));
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetRootName() const
+std::string TNonversionedMapObjectBase<TSelf>::GetRootName() const
 {
     YT_VERIFY(IsRoot());
     return NObjectClient::FromObjectId(GetId());

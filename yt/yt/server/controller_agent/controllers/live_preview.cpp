@@ -1,8 +1,8 @@
 #include "live_preview.h"
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

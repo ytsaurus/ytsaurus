@@ -326,8 +326,7 @@ public:
     //! Sets state for the given cell.
     void SetState(
         NObjectClient::TCellTag cellTag,
-        ENodeState state,
-        bool redundant);
+        ENodeState state);
     //! Sets statistics for the given cell.
     void SetStatistics(
         NObjectClient::TCellTag cellTag,
@@ -346,9 +345,9 @@ public:
 
     DEFINE_SIGNAL(void(TNode* node), AggregatedStateChanged);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

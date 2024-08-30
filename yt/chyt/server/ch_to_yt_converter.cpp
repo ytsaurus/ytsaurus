@@ -33,6 +33,7 @@
 #include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypeIPv4andIPv6.h>
 #include <DataTypes/DataTypeLowCardinality.h>
+#include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
@@ -89,9 +90,9 @@ struct IConverter
 
 using IConverterPtr = std::unique_ptr<IConverter>;
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-//! Value TypeId == Nothing is a special value that corresponds to YtBoolean.
+//! Value TypeId == Nothing is a special value that corresponds to Bool.
 template <DB::TypeIndex TypeId>
 class TSimpleValueConverter
     : public IConverter
@@ -290,7 +291,7 @@ private:
     const IConverterPtr UnderlyingConverter_;
 };
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TArrayConverter
     : public IConverter
@@ -350,6 +351,49 @@ private:
     const DB::ColumnArray::Offsets* Offsets_ = nullptr;
     i64 CurrentValueIndex_ = 0;
     const IConverterPtr UnderlyingConverter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapConverter
+    : public IConverter
+{
+public:
+    explicit TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
+        : KeyConverter_(std::move(keyConverter))
+        , ValueConverter_(std::move(valueConverter))
+        , NestedConverter_(std::move(nestedConverter))
+    {
+        YT_VERIFY(NestedConverter_);
+    }
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        auto* columnMap = DB::checkAndGetColumn<DB::ColumnMap>(column);
+        YT_VERIFY(columnMap);
+        NestedConverter_->InitColumn(columnMap->getNestedColumnPtr().get());
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
+    {
+        // We should not get here.
+        YT_ABORT();
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        NestedConverter_->ExtractNextValueYson(writer);
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        return DictLogicalType(KeyConverter_->GetLogicalType(), ValueConverter_->GetLogicalType());
+    }
+
+private:
+    const IConverterPtr KeyConverter_;
+    const IConverterPtr ValueConverter_;
+    const IConverterPtr NestedConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -886,8 +930,8 @@ private:
             XX(Interval, Interval)
 
             case DB::TypeIndex::UInt8:
-                if (dataType->getCustomName() && dataType->getCustomName()->getName() == "YtBoolean") {
-                    // Nothing is a special value standing for YT boolean for simplicity.
+                if (DB::isBool(dataType)) {
+                    // Nothing is a special value standing for boolean for simplicity.
                     return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing>>(
                         dataType,
                         ESimpleLogicalValueType::Boolean);
@@ -996,6 +1040,16 @@ private:
         return std::make_unique<TLowCardinalityConverter>(std::move(underlyingConverter));
     }
 
+    IConverterPtr CreateMapConverter(const DB::DataTypePtr& dataType)
+    {
+        auto dataTypeMap = dynamic_pointer_cast<const DB::DataTypeMap>(dataType);
+        YT_VERIFY(dataTypeMap);
+        auto keyConverter = CreateConverter(dataTypeMap->getKeyType());
+        auto valueConverter = CreateConverter(dataTypeMap->getValueType());
+        auto nestedConverter = CreateArrayConverter(dataTypeMap->getNestedType());
+        return std::make_unique<TMapConverter>(std::move(keyConverter), std::move(valueConverter), std::move(nestedConverter));
+    }
+
     IConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType)
     {
         return std::make_unique<TUnsupportedTypesToStringConverter>(dataType);
@@ -1038,6 +1092,8 @@ private:
                 return CreateIPAddressConverter(dataType);
             case DB::TypeIndex::LowCardinality:
                 return CreateLowCardinalityConverter(dataType);
+            case DB::TypeIndex::Map:
+                return CreateMapConverter(dataType);
             default:
                 if (Settings_->ConvertUnsupportedTypesToString) {
                     return CreateUnsupportedTypesToStringConverter(dataType);

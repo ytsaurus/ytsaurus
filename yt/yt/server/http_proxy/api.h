@@ -19,7 +19,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUserCommandPair = std::pair<TString, TString>;
+using TUserCommandPair = std::pair<std::string, TString>;
 
 class TSemaphoreGuard
 {
@@ -61,16 +61,16 @@ public:
     TApiDynamicConfigPtr GetDynamicConfig() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
 
-    bool IsUserBannedInCache(const TString& user);
-    void PutUserIntoBanCache(const TString& user);
+    bool IsUserBannedInCache(const std::string& user);
+    void PutUserIntoBanCache(const std::string& user);
 
-    TError CheckAccess(const TString& user);
+    TError CheckAccess(const std::string& user);
 
-    std::optional<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
+    std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
     void IncrementProfilingCounters(
-        const TString& user,
+        const std::string& user,
         const TString& command,
         std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
@@ -143,7 +143,7 @@ private:
     NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> OutputCompressionBytes_;
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
-    NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
+    NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
     NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);

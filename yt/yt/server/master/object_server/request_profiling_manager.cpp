@@ -26,7 +26,7 @@ class TRequestProfilingManager
     : public IRequestProfilingManager
 {
 public:
-    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method) override
+    TRequestProfilingCountersPtr GetCounters(const std::string& user, const std::string& method) override
     {
         auto key = std::tuple(user, method);
         return *KeyToCounters_.FindOrInsert(key, [&] {
@@ -34,14 +34,16 @@ public:
                 ObjectServerProfiler
                     .WithHot()
                     .WithSparse()
-                    .WithTag("user", user)
-                    .WithTag("method", method));
+                    // TODO(babenko): switch to std::string
+                    .WithTag("user", TString(user))
+                    // TODO(babenko): switch to std::string
+                    .WithTag("method", TString(method)));
         }).first;
     }
 
 private:
     // (user, method)
-    using TKey = std::tuple<TString, TString>;
+    using TKey = std::tuple<std::string, std::string>;
     NConcurrency::TSyncMap<TKey, TRequestProfilingCountersPtr> KeyToCounters_;
 };
 

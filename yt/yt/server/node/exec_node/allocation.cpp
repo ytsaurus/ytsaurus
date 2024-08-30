@@ -157,6 +157,9 @@ void TAllocation::Start()
         PrepareAllocationFromAttributes(*Attributes_);
     }
 
+    // NB(eshcherbin): Do not propagate scheduler heartbeat's trace context to SettleJob.
+    NTracing::TNullTraceContextGuard guard;
+
     SettleJob();
 }
 

@@ -61,9 +61,9 @@ public:
 
     TChunkListDynamicData* GetDynamicData() const;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 

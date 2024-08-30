@@ -7,10 +7,10 @@ from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_c
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
-    is_port_opened, push_front_env_path)
+    is_port_opened, push_front_env_path, wait_for_dynamic_config_update)
 from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
-from .init_cluster import BatchProcessor, _initialize_world_for_local_cluster
+from .init_cluster import _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
 from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config
 
@@ -61,6 +61,8 @@ logging.getLogger("library.python.filelock").setLevel(logging.INFO)
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
+BinaryInfo = namedtuple("BinaryInfo", ["name", "path"])
+
 _environment_driver_logging_config = None
 
 
@@ -93,19 +95,45 @@ def _get_yt_binary_path(binary, custom_paths):
     return None
 
 
-def _get_yt_versions(custom_paths):
+def _do_get_yt_binary_versions(binary_infos):
     result = OrderedDict()
+
+    # It is important to run processes simultaneously to reduce delay when reading output.
+    processes = []
+    for binary_info in binary_infos:
+        assert binary_info.path
+
+        process = subprocess.Popen([binary_info.path, "--version"], stdout=subprocess.PIPE)
+        processes.append((binary_info.name, process))
+
+    for name, process in processes:
+        stdout, _ = process.communicate()
+        assert name not in result
+        result[name] = _parse_version(to_native_str(stdout))
+
+    return result
+
+
+def get_yt_binary_versions(named_paths):
+    binary_infos = [
+        BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=[custom_path]))
+        for name, custom_path in named_paths
+    ]
+    return _do_get_yt_binary_versions(binary_infos)
+
+
+def _get_yt_versions(custom_paths):
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent"]
 
-    binary_paths = [(name, _get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
+    binary_infos = [BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
     path_dir_to_binaries = defaultdict(list)
     missing_binaries = []
-    for name, path in binary_paths:
+    for name, path in binary_infos:
         if path is None:
             missing_binaries.append(name)
         else:
@@ -117,16 +145,9 @@ def _get_yt_versions(custom_paths):
     for path_dir, binaries in iteritems(path_dir_to_binaries):
         logger.debug("Binaries %s found at directory %s", binaries, path_dir)
 
-    # It is important to run processes simultaneously to reduce delay when reading output.
-    processes = [(name, subprocess.Popen([path, "--version"], stdout=subprocess.PIPE)) for
-                 name, path in binary_paths if path is not None]
+    filtered_binary_infos = [binary_info for binary_info in binary_infos if binary_info.path is not None]
 
-    for name, process in processes:
-        stdout, stderr = process.communicate()
-        process.poll()
-        result[name] = _parse_version(to_native_str(stdout))
-
-    return result
+    return _do_get_yt_binary_versions(filtered_binary_infos)
 
 
 def _configure_logger(path):
@@ -171,6 +192,8 @@ class YTInstance(object):
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
 
+        self.id = yt_config.cluster_name
+
         if yt_config.master_count == 0:
             raise YtError("Can't start local YT without master")
         if yt_config.scheduler_count == 0 and yt_config.controller_agent_count != 0:
@@ -198,21 +221,24 @@ class YTInstance(object):
             else:
                 self._load_existing_environment = True
 
+        self.ytserver_all_path = ytserver_all_path
+        if self.ytserver_all_path is None:
+            self.ytserver_all_path = os.environ.get("YTSERVER_ALL_PATH")
+        if self.ytserver_all_path is not None:
+            # Replace path with realpath in order to support specifying a relative path.
+            self.ytserver_all_path = os.path.realpath(self.ytserver_all_path)
+
         if not self._load_existing_environment:
-            if ytserver_all_path is None:
-                ytserver_all_path = os.environ.get("YTSERVER_ALL_PATH")
-            if ytserver_all_path is not None:
-                # Replace path with realpath in order to support specifying a relative path.
-                ytserver_all_path = os.path.realpath(ytserver_all_path)
-                if not os.path.exists(ytserver_all_path):
-                    raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
+            if self.ytserver_all_path is not None:
+                if not os.path.exists(self.ytserver_all_path):
+                    raise YtError("ytserver-all binary is missing at path " + self.ytserver_all_path)
                 makedirp(self.bin_path)
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
                             "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy"]
                 for program in programs:
-                    os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
+                    os.symlink(os.path.abspath(self.ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
         if os.path.exists(self.bin_path):
             self.custom_paths = [self.bin_path]
@@ -277,7 +303,7 @@ class YTInstance(object):
             "is_local_mode": True,
             "pickling": {
                 "enable_local_files_usage_in_job": True,
-            }
+            },
         }
 
         if open_port_iterator is not None:
@@ -350,6 +376,12 @@ class YTInstance(object):
             external_marker = ""
 
         logger.info("  {} {}{}{}".format(name.ljust(20), count.ljust(15), version, external_marker))
+
+    def get_ytserver_all_path(self):
+        return self.ytserver_all_path
+
+    def get_bin_path(self):
+        return self.bin_path
 
     def prepare_external_component(self, binary, lowercase_with_underscores_name, human_readable_name, configs, force_overwrite=False):
         self._log_component_line(binary, human_readable_name, len(configs), is_external=True)
@@ -1189,10 +1221,10 @@ class YTInstance(object):
                     pids.append(run_result.pid)
         return pids
 
-    def _run_builtin_yt_component(self, component, name=None, config_option=None):
+    def _run_builtin_yt_component(self, component, name=None, config_option=None, custom_paths=None):
         if name is None:
             name = component
-        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option)
+        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option, custom_paths=custom_paths)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1660,7 +1692,7 @@ class YTInstance(object):
             self.config_paths["controller_agent"].append(config_path)
             self._service_processes["controller_agent"].append(None)
 
-    def start_schedulers(self, sync=True):
+    def start_schedulers(self, sync=True, custom_paths=None):
         self._remove_scheduler_lock()
 
         client = self._create_cluster_client()
@@ -1685,7 +1717,7 @@ class YTInstance(object):
         if not client.exists("//sys/pools"):
             client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 
-        self._run_builtin_yt_component("scheduler")
+        self._run_builtin_yt_component("scheduler", custom_paths=custom_paths)
 
         def schedulers_ready():
             def check_node_state(node):
@@ -1755,8 +1787,8 @@ class YTInstance(object):
 
         self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
 
-    def start_controller_agents(self, sync=True):
-        self._run_builtin_yt_component("controller-agent", name="controller_agent")
+    def start_controller_agents(self, sync=True, custom_paths=None):
+        self._run_builtin_yt_component("controller-agent", name="controller_agent", custom_paths=custom_paths)
 
         def controller_agents_ready():
             self._validate_processes_are_running("controller_agent")
@@ -2232,36 +2264,4 @@ class YTInstance(object):
         if not self.yt_config.wait_for_dynamic_config:
             return
 
-        nodes = client.list("//sys/{0}".format(instance_type))
-
-        if not nodes:
-            return
-
-        def check():
-            batch_processor = BatchProcessor(client)
-
-            # COMPAT(gryzlov-ad): Remove this when bundle_dynamic_config_manager is in cluster_node orchid
-            if instance_type == "cluster_nodes" and config_node_name == "bundle_dynamic_config_manager":
-                if not client.exists("//sys/{0}/{1}/orchid/{2}".format(instance_type, nodes[0], config_node_name)):
-                    return True
-
-            responses = [
-                batch_processor.get("//sys/{0}/{1}/orchid/{2}".format(instance_type, node, config_node_name))
-                for node in nodes
-            ]
-
-            while batch_processor.has_requests():
-                batch_processor.execute()
-
-            for response in responses:
-                if not response.is_ok():
-                    raise YtResponseError(response.get_error())
-
-                output = response.get_result()
-
-                if expected_config != output.get("applied_config"):
-                    return False
-
-            return True
-
-        wait(check, error_message="Dynamic config from master didn't reach nodes in time", ignore_exceptions=True)
+        return wait_for_dynamic_config_update(client, expected_config, instances_path="//sys/{0}".format(instance_type), config_node_name=config_node_name)

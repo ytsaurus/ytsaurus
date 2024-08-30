@@ -30,7 +30,7 @@ You can use one of the following two methods to specify a type in a table schema
 
 The `type` key always expects a string.
 The `type_v3` key expects either a string for primitive types or a YSON dictionary.
-A yson dict always has the `type_name` key that stores the type name.
+A YSON dict always has the `type_name` key that stores the type name.
 The remaining keys depend on the specific type and are described below.
 
 ## Describing types in a schema { #schema }
@@ -58,14 +58,18 @@ The table lists the supported types and their representation in the `type`/`type
 | an integer belonging to the range `[0, 2^8-1]` | `uint8` | `uint8` |
 | an 8-byte real number | `double` | `double` |
 | a 4-byte real number | `float` | `float` |
-| a standard `true/false` boolean | `boolean` | `bool` (different from `type`) |
+| Standard `true/false` boolean | `boolean` | `bool` (different from `type`) |
 | a random sequence of bytes | `string` | `string` |
 | a proper UTF8 sequence | `utf8` | `utf8` |
+| a string that contains a valid [JSON](https://en.wikipedia.org/wiki/JSON) | `json` | `json` |
+| [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier), a random 16-byte sequence (stored in binary representation) | `uuid` | `uuid` |
 | an integer in the range `[0, 49673 - 1]` <br> represents the number of days from the Unix epoch; <br> is the represented data range: `[1970-01-01, 2105-12-31]` | `date` | `date` |
 | an integer in the range `[0, 49673 * 86400 - 1]`, <br> represents the number of seconds since the Unix epoch; <br> is the represented time interval: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59Z]` | `datetime` | `datetime` |
 | an integer in the range `[0, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds since the Unix epoch; <br> is the represented time interval: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59.999999Z]` | `timestamp` | `timestamp` |
 | an integer in the range `[- 49673 * 86400 * 10^6 + 1, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds between two timestamps | `interval` | `interval` |
 | a random YSON structure, <br> is physically represented by a byte sequence, <br> cannot have `required=%true` | `any` | `yson` (different from `type`) |
+| a system singular type that can only contain `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `null` | `null` |
+| a singular type that can only contain `null`; this type is different from `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `void` | `void` |
 
 Schema example:
 
@@ -85,9 +89,9 @@ The values of type `decimal(p, s)` are real numbers with the specified precision
 
 To define this type in a schema, specify the following keys:
 
-- `type_name`: value of `decimal`.
-- `precision`: total number of decimal digits in the representation of a number, `precision` must be in the range `[1, 35]`.
-- `scale`: number of digits to the right of the decimal point in the representation of a number, `scale` must be in the range `[0, precision]`.
+  - `type_name`: value of `decimal`.
+  - `precision`: total number of decimal digits in a numeric value, `precision` must be in the range `[1, 35]`.
+  - `scale`: number of digits to the right of the decimal point in a numeric value, `scale` must be in the range `[0, precision]`.
 
 Schema example:
 
@@ -105,8 +109,8 @@ The type supports a number of special values, such as `nan`, `+inf`, `-inf`.
 
 #### Description of binary representation { #schema_decimal_binary }
 
-There is a special binary representation of `decimal` numbers,
-that many formats like `yson` use by default.
+`Decimal` numbers have a unique binary representation
+that is the default in many data formats, including `yson`.
 
 For the purposes of this representation, the values of `decimal(p, s)` types are maintained as binary strings. Binary string length
 depends on `precision`.
@@ -118,9 +122,9 @@ depends on `precision`.
 | 19-35 | 128 | 16 |
 
 You need to perform the following steps to obtain a binary representation of a `decimal` number. These steps will be illustrated with the values `3.1415`, `-2.7182` of type `decimal(5, 4)`.
-1. Take an integer made up of the value's digits. The number of bits is taken from `precision` in the table above. In this example, 32-bit numbers `31415`, `-27182`.
-2. Write the number as a big-endian sequence. In this example, the strings are `\x00\x00\x7A\xB7`, `\xFF\xFF\x95\xD2`.
-3. Invert the most significant bit. In this example, the strings are `\x80\x00\7A\xB7`, `\x7F\xFF\x95\xD2`.
+  1. Take an integer made up of the value's digits. The number of bits is taken from `precision` in the table above. In this example, 32-bit numbers `31415`, `-27182`.
+  2. Write the number as a big-endian sequence. In this example, the strings are `\x00\x00\x7A\xB7`, `\xFF\xFF\x95\xD2`.
+  3. Invert the most significant bit. In this example, the strings are `\x80\x00\7A\xB7`, `\x7F\xFF\x95\xD2`.
 
 The integer representations of the special values of `nan`, `+inf`, `-inf` for the first step are shown in the table below:
 | **Special value** | **Integer representation** |
@@ -225,7 +229,7 @@ type_v3={
         type_name=optional;
         item=string;
       }
-    };   
+    };
   ]
 }
 ```
@@ -268,11 +272,11 @@ To define this type, specify the following keys in a schema:
 
 - `type_name`: value of `variant`.
 - `elements` or `members` (not both): the keys have the same structure similar as these keys in `tuple` / `struct`:
-* `elements`: for the option with unnamed elements with the key itself containing a list of dictionaries with keys:
-   - `type`: element type.
-* `members`: for the option with named elements with the key itself containing a list of dictionaries with keys:
-   - `name`: element name, must be a non-empty utf8 string.
-   - `type`: description of element type.
+  * `elements`: for the option with unnamed elements with the key itself containing a list of dictionaries with keys:
+    - `type`: element type.
+  * `members`: for the option with named elements with the key itself containing a list of dictionaries with keys:
+    - `name`: element name, must be a non-empty utf8 string.
+    - `type`: description of element type.
 
 Schema example:
 
@@ -343,8 +347,8 @@ To define this type, specify the following keys in a schema:
 - `type_name`: value of `tagged`.
 - `tag`: tag name, must be a non-empty utf8 string.
 - `item`: element type description.
-   —
-   Schema example:
+—
+Schema example:
 
 ```
 type_v3={
@@ -368,12 +372,14 @@ while the alternative representation yields better storage and processing perfor
 You can switch between the representations by using the `complex_type_mode` flag. Legal values: `named` / `positional`.
 Type representation descriptions are provided below. Unless otherwise specified, a type representation does not depend on the `complex_type_mode` setting.
 
+There are two representations for `dict` type with string keys: by default, the `positional` representation in the form of a list is used (since the data is stored in {{product-name}}). For convenience, you can enable the `named` mode using the `string_keyed_dict_mode` flag.
+
 #### Primitive types { #yson_primitive }
 
 Primitive types have a linear representation as a single YSON value.
 The table shows a mapping between the primitive and the YSON types.
 
-| **`type` / `type_v3`** | **Yson representation** |
+| **`type` / `type_v3`** | **YSON representation** |
 |------------------------|--------------------------|
 | `int64` | signed number |
 | `int32` | signed number |
@@ -387,16 +393,32 @@ The table shows a mapping between the primitive and the YSON types.
 | `boolean` / `bool` | boolean value |
 | `string` | string |
 | `utf8` | string |
-| `date` | unsigned number |
-| `datetime` | unsigned number |
-| `timestamp` | unsigned number |
+| `date` | unsigned number, see below |
+| `datetime` | unsigned number, see below |
+| `timestamp` | unsigned number, see below |
 | `interval` | signed number |
+| `uuid` | string with binary data, see below |
 | `any` / `yson` | value-dependent |
+| `null` | `#` |
+| `void` | `#` |
 
+
+##### Time types { #yson_time_mode }
+The YSON format has a `time_mode` option that determines how the `date`, `datetime`, and `timestamp` types are displayed. Its possible values are:
+  - `binary` (default) represents the value as an unsigned integer indicating the number of days/seconds/milliseconds that have passed since the beginning of the Unix epoch.
+  - `text` represents values as strings; examples of `date`, `datetime`, and `timestamp` representations are as follows:
+    `2022-01-02`, `2022-01-02T03:04:05Z`, and `2022-01-02T03:04:05.123456Z`.
+
+##### UUID { #yson_uuid_mode }
+The YSON format has a `uuid_mode` option that determines how the `uuid` type is displayed. Its possible values are:
+  - `binary` (default) uses a 16-byte binary representation.
+  - `text_yt` uses a string representation in the {{product-name}} format with 4 groups. For example: `61626364-65666768-696a6b6c-6d6e6f70`.
+  - `text_yql` uses a string representation in the YQL format with 5 groups, which resembles the RFC representation. For example: `64636261-6665-6867-696a-6b6c6d6e6f70`.
 
 #### Decimal { #yson_decimal }
-
-Type `decimal(p, s)` is encoded as a YSON string with a [binary representation](#schema_decimal_binary) of the `decimal` number.
+The YSON format has a `decimal_mode` option that determines how the `decimal` type is displayed. Its possible values are:
+  - `binary` (default) is encoded as a binary string with a [binary representation](#schema_decimal_binary) of the `decimal` number.
+  - `text` uses a text representation of the `decimal` number.
 
 #### Optional { #yson_optional }
 The representation of type `optional` depends on its inner type.
@@ -409,7 +431,7 @@ If `T` is an arbitrary type that is not `optional`, `optional<T>` is represented
 If `T` is an arbitrary type that is `optional`, `optional<T>` is represented as follows:
 
 - The `Null` value of the outer `optional` is represented as `#`.
-- Otherwise, the `[ v ]` representation is used (yson list of length 1), where `v` is the YSON representation of type `T`.
+- Otherwise, the `[ v ]` representation is used (YSON list of length 1), where `v` is the YSON representation of type `T`.
 
 Example values, type `optional<int64>`:
 
@@ -509,7 +531,7 @@ Example values, type `tuple<int64;optional<utf8>>`:
 The unnamed option is represented by a YSON list of length 2 that includes the following elements:
 
 - Alternative number (indexed at 0).
-- An encoded value of the relevant alternative.
+- An encoded value for the relevant alternative.
 
 Example values, type `variant<int64;optional<utf8>>`:
 
@@ -529,8 +551,7 @@ Example values, type `variant<int64;optional<utf8>>`:
 
 ###### Named representation (default) { #yson_variant_struct_named }
 
-The representation being described applies to the situation
-when the YSON option of format `complex_type_mode` is not set or is set to `complex_type_mode=named`.
+This representation applies when the YSON option `complex_type_mode` isn't specified or is set to `complex_type_mode=named`.
 
 The named option is represented by a YSON list of length 2 that includes the following elements:
 
@@ -576,7 +597,7 @@ Example values, type `variant<Foo:int64;Bar:optional<utf8>>`:
 
 #### Dict { #yson_dict }
 
-Type `dict` is represented as a YSON list with each element being a YSON list of 2 elements: a key and a value.
+The `dict` type is represented by default as a YSON list, where each element is a YSON list of two elements: key and value.
 
 Example values of type `dict<int32;string>`:
 
@@ -588,6 +609,34 @@ Example values of type `dict<int32;string>`:
 ```
 
 A `dict` may be represented as a YSON dictionary; however, a YSON dictionary only supports strings as keys whereas `dict` also supports other keys.
+
+##### Dict with string keys { #yson_string_keyed_dict}
+
+The representation of a dictionary with string keys depends on the value of the `string_keyed_dict_mode` flag.
+
+###### Positional representation (default) { #yson_string_keyed_dict_positional }
+
+This representation applies when the YSON option `string_keyed_dict_mode` isn't specified or is set to `string_keyed_dict_mode=positional`.
+
+See [above](#yson_dict)
+
+Examples of the `dict<string;int32>` values:
+
+```
+[["one";1];["four";4]]
+```
+
+###### Named representation { #yson_string_keyed_dict_named }
+
+Where the `string_keyed_dict_mode=named` option is set for the YSON format, a different representation is used.
+
+`dict` is encoded as a YSON dictionary.
+
+Examples of the `dict<string;int32>` values:
+
+```
+{one=1; four=4}
+```
 
 #### Tagged { #yson_tagged }
 

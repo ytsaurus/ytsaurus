@@ -211,7 +211,7 @@ bool TContext::TryParseUser()
 
     if (Api_->IsUserBannedInCache(authenticatedUser)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError{Format("User %Qv is banned", authenticatedUser)});
+        ReplyError(TError("User %Qv is banned", authenticatedUser));
         return false;
     }
 
@@ -219,7 +219,7 @@ bool TContext::TryParseUser()
         YT_LOG_DEBUG(error);
         Response_->SetStatus(EStatusCode::Forbidden);
         auto proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
-        ReplyError(TError{Format("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole)});
+        ReplyError(TError("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole));
         return false;
     }
 
@@ -708,7 +708,8 @@ void TContext::SetupTracing()
 
         if (Api_->GetDynamicConfig()->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                {HttpProxyUserAllocationTag, DriverRequest_.AuthenticatedUser},
+                // TODO(babenko): switch to std::string
+                {HttpProxyUserAllocationTag, TString(DriverRequest_.AuthenticatedUser)},
                 {HttpProxyRequestIdAllocationTag, ToString(Request_->GetRequestId())},
                 {HttpProxyCommandAllocationTag, DriverRequest_.CommandName}
             });
@@ -963,7 +964,7 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
-    ReplyError(TError{message});
+    ReplyError(TError{TRuntimeFormat(message)});
 }
 
 void TContext::DispatchUnavailable(const TError& error)
@@ -977,7 +978,7 @@ void TContext::DispatchUnavailable(const TError& error)
 void TContext::DispatchNotFound(const TString& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
-    ReplyError(TError{message});
+    ReplyError(TError(TRuntimeFormat(message)));
 }
 
 void TContext::ReplyError(const TError& error)

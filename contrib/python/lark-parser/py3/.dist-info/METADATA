@@ -18,9 +18,9 @@ Classifier: Topic :: Text Processing :: General
 Classifier: Topic :: Text Processing :: Linguistic
 Classifier: License :: OSI Approved :: MIT License
 Provides-Extra: nearley
-Requires-Dist: js2py ; extra == 'nearley'
+Requires-Dist: js2py; extra == "nearley"
 Provides-Extra: regex
-Requires-Dist: regex ; extra == 'regex'
+Requires-Dist: regex; extra == "regex"
 
 
 Lark is a modern general-purpose parsing library for Python.

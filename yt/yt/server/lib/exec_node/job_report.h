@@ -32,7 +32,7 @@ public:
     TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
     TNodeJobReport TreeId(TString treeId);
     TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);
-    TNodeJobReport Address(std::optional<TString> address);
+    TNodeJobReport Address(std::optional<std::string> address);
     TNodeJobReport ArchiveFeatures(const NYson::TYsonString& archiveFeatures);
 
     void SetStatistics(const NYson::TYsonString& statistics);
@@ -41,6 +41,7 @@ public:
     void SetJobCompetitionId(TJobId jobCompetitionId);
     void SetProbingJobCompetitionId(TJobId CompetitionId);
     void SetTaskName(const TString& taskName);
+    void SetTtl(TDuration ttl);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,8 @@
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/orchid/orchid_service.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
@@ -76,6 +78,8 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -108,6 +112,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -147,6 +152,9 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -165,7 +173,7 @@ void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,7 +213,8 @@ TString TJobProxy::GetSlotPath() const
 
 TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
-    return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
+    // TODO(babenko): migrate to std::string
+    return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -643,6 +652,26 @@ TString TJobProxy::AdjustPath(const TString& path) const
     return adjustedPath;
 }
 
+NYTree::IYPathServicePtr TJobProxy::CreateOrchidService()
+{
+    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto info = GetJobOrThrow()->GetOrchidInfo();
+        info.BuildOrchid(BuildYsonFluently(consumer));
+    });
+
+    return NYTree::IYPathService::FromProducer(std::move(producer));
+}
+
+void TJobProxy::InitializeOrchid()
+{
+    OrchidRoot_ = NYTree::CreateEphemeralNodeFactory(/*shouldHideAttributes*/true)->CreateMap();
+
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/job_proxy",
+        CreateVirtualNode(CreateOrchidService()));
+}
+
 void TJobProxy::UpdateCumulativeMemoryUsage(i64 memoryUsage)
 {
     auto now = Now();
@@ -698,7 +727,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
-    auto ApiService_ = CreateApiService(
+    auto apiService = CreateApiService(
         Config_->ApiService,
         GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
@@ -710,7 +739,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         proxyLogger,
         TProfiler());
-    GetRpcServer()->RegisterService(ApiService_);
+    GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }
 
@@ -755,8 +784,15 @@ TJobResult TJobProxy::RunJob()
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
 
+        InitializeOrchid();
+
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
+        RpcServer_->RegisterService(NOrchid::CreateOrchidService(
+            OrchidRoot_,
+            GetControlInvoker(),
+            /*authenticator*/ nullptr));
+
         RpcServer_->Start();
 
         if (TvmBridge_) {
@@ -799,6 +835,8 @@ TJobResult TJobProxy::RunJob()
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
         clusterConnection->GetMasterCellDirectorySynchronizer()->Start();
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
 

@@ -262,9 +262,9 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
     TTraceContextPtr requestTraceContext;
 
     if (currentConfig->EnableTracing) {
-        requestTraceContext = TTraceContext::NewRoot("AgentHeartbeatRequest");
+        requestTraceContext = TTraceContext::NewRoot("ControllerAgentHeartbeat");
         requestTraceContext->SetRecorded();
-        requestTraceContext->AddTag("node_id", ToString(nodeId));
+        requestTraceContext->AddTag("node_id", nodeId);
 
         static const TString ControllerAgentConnectorTracingUserName = "controller_agent_connector";
         ControllerAgentConnectorPool_->TracingSampler_->SampleTraceContext(ControllerAgentConnectorTracingUserName, requestTraceContext);
@@ -464,7 +464,9 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     IBootstrap* const bootstrap)
     : DynamicConfig_(New<TControllerAgentConnectorDynamicConfig>())
     , Bootstrap_(bootstrap)
-    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
+    , TracingSampler_(New<TSampler>(
+        DynamicConfig_.Acquire()->TracingSampler,
+        ControllerAgentConnectorProfiler().WithPrefix("/tracing")))
 { }
 
 void TControllerAgentConnectorPool::Initialize()

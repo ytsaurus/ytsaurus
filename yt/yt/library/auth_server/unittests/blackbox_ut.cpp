@@ -10,6 +10,7 @@
 #include <yt/yt/library/tvm/service/mock/mock_tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NAuth {
@@ -168,7 +169,7 @@ TEST_F(TBlackboxTest, Success)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
-        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+        auto header = request->Input().Headers().FindHeader(NHttp::NHeaders::ServiceTicketHeaderName);
         EXPECT_NE(nullptr, header);
         EXPECT_EQ("blackbox_ticket", header->Value());
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
@@ -183,7 +184,7 @@ TEST_F(TBlackboxTest, NoTvmService)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox"));
-        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+        auto header = request->Input().Headers().FindHeader(NHttp::NHeaders::ServiceTicketHeaderName);
         EXPECT_EQ(nullptr, header);
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });

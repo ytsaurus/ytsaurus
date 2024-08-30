@@ -16,11 +16,12 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashMap<TString, TCypressNode*>& GetMapNodeChildMap(
+using TKeyToCypressNode = THashMap<std::string, TCypressNode*, THash<std::string_view>, TEqualTo<std::string_view>>;
+const TKeyToCypressNode& GetMapNodeChildMap(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction,
-    THashMap<TString, TCypressNode*>* storage);
+    TKeyToCypressNode* storage);
 
 std::vector<TCypressNode*> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
@@ -89,7 +90,7 @@ void DetachChildFromNode(
 
 void AttachChildToSequoiaNodeOrThrow(
     TCypressNode* trunkParent,
-    const TString& childKey,
+    const std::string& childKey,
     TNodeId childId);
 
 void MaybeSetUnreachable(
@@ -97,7 +98,7 @@ void MaybeSetUnreachable(
     TCypressNode* node);
 
 bool NodeHasKey(const TCypressNode* node);
-std::optional<TString> FindNodeKey(
+std::optional<std::string> FindNodeKey(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);

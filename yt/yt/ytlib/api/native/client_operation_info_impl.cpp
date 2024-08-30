@@ -733,7 +733,7 @@ TOperation TClient::DoGetOperation(
             if (!options.IncludeRuntime) {
                 THROW_ERROR_EXCEPTION(
                     "Operation alias cannot be resolved without using runtime information; "
-                    "consider setting include_runtime = %true");
+                    "consider setting include_runtime = %%true");
             }
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
@@ -1130,7 +1130,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
             auto countingFilterAttributes = TCountingFilterAttributes{
                 .PoolTreeToPool = std::move(poolTreeToPool),
                 .Pools = std::move(pools),
-                .User = std::move(user),
+                .User = user,
                 .State = state,
                 .Type = type,
                 .HasFailedJobs = hasFailedJobs,

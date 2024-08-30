@@ -77,7 +77,8 @@ TVersionedColumnTestBase::TVersionedColumnTestBase(TColumnSchema columnSchema)
 void TVersionedColumnTestBase::SetUp()
 {
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateColumnWriter(&blockWriter);
+    MemoryTracker_ = New<TTestNodeMemoryTracker>(std::numeric_limits<i64>::max());
+    auto columnWriter = CreateColumnWriter(&blockWriter, MemoryTracker_);
 
     Write(columnWriter.get());
 

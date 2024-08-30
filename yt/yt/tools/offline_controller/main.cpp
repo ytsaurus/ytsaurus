@@ -294,7 +294,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void ValidateOperationAccess(const TString&, NYTree::EPermission) override
+    void ValidateOperationAccess(const std::string&, NYTree::EPermission) override
     {
         YT_UNIMPLEMENTED();
     }

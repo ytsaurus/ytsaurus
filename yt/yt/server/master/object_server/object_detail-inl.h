@@ -35,7 +35,8 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto* user = securityManager->GetAuthenticatedUser();
-    batchReq->SetUser(user->GetName());
+    // TODO(babenko): switch to std::string
+    batchReq->SetUser(TString(user->GetName()));
 
     auto req = NYTree::TYPathProxy::Get(path);
     batchReq->AddRequest(req);
@@ -76,7 +77,8 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
             cellTag,
             /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetUser(user->GetName());
+        // TODO(babenko): switch to std::string
+        batchReq->SetUser(TString(user->GetName()));
 
         auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
@@ -122,7 +124,7 @@ template <class T>
 
     NSecurityServer::TPermissionCheckOptions checkOptions;
     if (request->has_columns()) {
-        checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        checkOptions.Columns = FromProto<std::vector<std::string>>(request->columns().items());
     }
     if (request->has_vital()) {
         checkOptions.Vital = request->vital();
@@ -151,15 +153,15 @@ template <class T>
     const auto& objectManager = bootstrap->GetObjectManager();
 
     auto fillResult = [&] (auto* protoResult, const auto& result) {
-        protoResult->set_action(static_cast<int>(result.Action));
+        protoResult->set_action(ToProto<int>(result.Action));
         if (result.Object) {
             ToProto(protoResult->mutable_object_id(), result.Object->GetId());
             const auto& handler = objectManager->GetHandler(result.Object);
-            protoResult->set_object_name(handler->GetName(result.Object));
+            protoResult->set_object_name(ToProto<TProtobufString>(handler->GetName(result.Object)));
         }
         if (result.Subject) {
             ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
-            protoResult->set_subject_name(result.Subject->GetName());
+            protoResult->set_subject_name(ToProto<TProtobufString>(result.Subject->GetName()));
         }
     };
 

@@ -1,5 +1,7 @@
 PY2_PROGRAM(bro)
 
+VERSION(1.0.1)
+
 LICENSE(MIT)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)

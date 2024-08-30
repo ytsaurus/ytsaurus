@@ -81,7 +81,7 @@ void ToProto(
     ToProto(protoReplicaData->mutable_replica_id(), replicaData.Id);
     protoReplicaData->set_mode(ToProto<int>(replicaData.Mode));
     protoReplicaData->set_enabled(replicaData.Enabled);
-    protoReplicaData->set_cluster_name(replicaData.ClusterName);
+    protoReplicaData->set_cluster_name(ToProto<TProtobufString>(replicaData.ClusterName));
     protoReplicaData->set_table_path(replicaData.TablePath);
     protoReplicaData->set_tracking_enabled(replicaData.TrackingEnabled);
     protoReplicaData->set_content_type(ToProto<int>(replicaData.ContentType));
@@ -109,6 +109,7 @@ void ToProto(
     for (auto tableId : collocationData.TableIds) {
         ToProto(protoCollocationData->add_table_ids(), tableId);
     }
+    protoCollocationData->set_options(ConvertToYsonString(collocationData.Options).ToString());
 }
 
 void FromProto(
@@ -119,6 +120,10 @@ void FromProto(
     collocationData->TableIds.reserve(protoCollocationData.table_ids_size());
     for (auto protoTableId : protoCollocationData.table_ids()) {
         collocationData->TableIds.push_back(FromProto<TTableId>(protoTableId));
+    }
+    // COMPAT(akozhikhov).
+    if (protoCollocationData.has_options()) {
+        collocationData->Options = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(protoCollocationData.options()));
     }
 }
 
@@ -987,23 +992,31 @@ public:
             return Options_;
         }
 
-        bool HasPreferredSyncReplicaClusters() const
-        {
-            return !TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters.empty() ||
-                Options_->PreferredSyncReplicaClusters;
-        }
-
         THashSet<TString> GetPreferredSyncReplicaClusters() const
         {
-            const auto& globalPreferredSyncReplicaClusters =
+            // Priority from highest to lowest: global cluster option, collocation option, table option.
+
+            const auto& globalPreferredClusters =
                 TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters;
-            if (!globalPreferredSyncReplicaClusters.empty()) {
-                return globalPreferredSyncReplicaClusters;
-            } else if (Options_->PreferredSyncReplicaClusters) {
+            if (!globalPreferredClusters.empty()) {
+                return globalPreferredClusters;
+            }
+
+            if (CollocationId_ != NullObjectId) {
+                const auto& collocation = GetOrCrash(TableTracker_->IdToCollocation_, CollocationId_);
+                if (const auto& collocationPreferredClusters = collocation.Options->PreferredSyncReplicaClusters) {
+                    return THashSet<TString>(
+                        collocationPreferredClusters->begin(),
+                        collocationPreferredClusters->end());
+                }
+            }
+
+            if (Options_->PreferredSyncReplicaClusters) {
                 return THashSet<TString>(
                     Options_->PreferredSyncReplicaClusters->begin(),
                     Options_->PreferredSyncReplicaClusters->end());
             }
+
             return {};
         }
 
@@ -1150,6 +1163,7 @@ private:
     struct TTableCollocation
     {
         THashSet<TTableId> TableIds;
+        TReplicationCollocationOptionsPtr Options;
     };
 
     THashMap<TTableId, TReplicatedTable> IdToTable_;
@@ -1437,13 +1451,9 @@ private:
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
 
-            std::optional<THashSet<TString>> preferredReplicas;
+            auto preferredReplicas = table.GetPreferredSyncReplicaClusters();
+
             THashMap<TString, int> goodReplicaPriorities;
-
-            if (table.HasPreferredSyncReplicaClusters()) {
-                preferredReplicas = table.GetPreferredSyncReplicaClusters();
-            }
-
             if (table.GetCollocationId() == NullObjectId) {
                 for (auto* replica : replicasByState[EReplicaState::GoodAsync]) {
                     goodReplicaPriorities[replica->GetClusterName()] = 1;
@@ -1464,10 +1474,11 @@ private:
 
             YT_LOG_DEBUG_IF(!tableCommands.empty(),
                 "Generated replica mode change commands "
-                "(TableId: %v, ContentType: %v, CollocationId: %v, Commands: %v)",
+                "(TableId: %v, ContentType: %v, CollocationId: %v, PreferredReplicas: %v, Commands: %v)",
                 replicaFamily.TableId,
                 replicaFamily.ContentType,
                 table.GetCollocationId(),
+                preferredReplicas,
                 tableCommands);
 
             std::move(tableCommands.begin(), tableCommands.end(), std::back_inserter(commands));
@@ -1508,7 +1519,7 @@ private:
 
     std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
         TReplicasByState* replicasByState,
-        const std::optional<THashSet<TString>>& preferredReplicas,
+        const THashSet<TString>& preferredReplicas,
         const THashMap<TString, int>& goodReplicaPriorities)
     {
         auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
@@ -1528,7 +1539,7 @@ private:
                 auto it = goodReplicaPriorities.find(replica->GetClusterName());
                 if (it != goodReplicaPriorities.end()) {
                     result += it->second;
-                    if (preferredReplicas && preferredReplicas->contains(replica->GetClusterName())) {
+                    if (preferredReplicas.contains(replica->GetClusterName())) {
                         result += 2;
                     }
                 }
@@ -1787,9 +1798,11 @@ private:
 
     void OnReplicationCollocationCreated(TTableCollocationData data)
     {
-        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] {
-            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v)",
-                data.Id);
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] () mutable {
+            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v, TableIds: %v, Options: %v)",
+                data.Id,
+                data.TableIds,
+                ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
             YT_VERIFY(IsCollocationType(TypeFromId(data.Id)));
 
@@ -1808,6 +1821,9 @@ private:
                     table->SetCollocationId(data.Id);
                 }
             }
+
+            YT_VERIFY(data.Options);
+            it->second.Options = std::move(data.Options);
         }));
     }
 
@@ -1885,7 +1901,7 @@ private:
             EmplaceOrCrash(*table->GetReplicaIds(), replicaId);
         }
 
-        for (const auto& collocationData : snapshot.Collocations) {
+        for (auto& collocationData : snapshot.Collocations) {
             auto collocationId = collocationData.Id;
             YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
@@ -1896,6 +1912,8 @@ private:
                     table->SetCollocationId(collocationId);
                 }
             }
+            YT_VERIFY(collocationData.Options);
+            it->second.Options = std::move(collocationData.Options);
         }
     }
 

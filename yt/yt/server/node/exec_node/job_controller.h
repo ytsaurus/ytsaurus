@@ -82,7 +82,7 @@ struct IJobController
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 
-    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 
@@ -100,6 +100,8 @@ struct IJobController
     virtual void OnJobProxyProcessFinished(const TError& error, std::optional<TDuration> delay) = 0;
 
     virtual IJobProxyLogManagerPtr GetJobProxyLogManager() const = 0;
+
+    virtual std::optional<int> GetOperationsArchiveVersion() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);

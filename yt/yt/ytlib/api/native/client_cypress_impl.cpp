@@ -297,7 +297,7 @@ protected:
 
             if (rsp->has_version()) {
                 // EMasterReign::RefactorCrossCellCopyInPreparationForSequoia.
-                YT_VERIFY(rsp->version() >= 2622);
+                YT_VERIFY(rsp->version() >= 2726);
                 UseNewerCrossCellCopyProtocol_ = true;
             }
 
@@ -923,7 +923,7 @@ void TClient::DoMultisetAttributesNode(
     auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;
     for (const auto& [attribute, value] : children) {
         auto* protoSubrequest = req->add_subrequests();
-        protoSubrequest->set_attribute(attribute);
+        protoSubrequest->set_attribute(ToProto<TProtobufString>(attribute));
         auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
         protoSubrequest->set_value(binarizedValue.ToString());
     }

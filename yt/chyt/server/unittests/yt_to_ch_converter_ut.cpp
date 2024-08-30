@@ -34,6 +34,7 @@
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeMap.h>
 #include <Columns/IColumn.h>
 #include <Columns/ColumnsNumber.h>
 #include <Core/Field.h>
@@ -67,7 +68,7 @@ void ValidateTypeEquality(const DB::DataTypePtr& actualType, const DB::DataTypeP
     ASSERT_TRUE(actualType->equals(*expectedType));
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Empty string stands for ConsumeNulls(1) call.
 using TYsonStringBufs = std::vector<TYsonStringBuf>;
@@ -107,7 +108,7 @@ void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFiel
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TYTToCHConversionTest
     : public ::testing::Test
@@ -143,7 +144,7 @@ protected:
     }
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TYsonStringBufs ToYsonStringBufs(std::vector<TString>& ysonStrings)
 {
@@ -194,7 +195,8 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     auto writer = CreateUnversionedColumnWriter(
         /*columnIndex*/ 0,
         columnSchema,
-        &blockWriter);
+        &blockWriter,
+        GetNullMemoryUsageTracker());
 
     for (const auto& value : values) {
         TUnversionedRowBuilder builder;
@@ -235,7 +237,7 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     return {ytColumn, owner};
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
 {
@@ -255,7 +257,7 @@ bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
     return true;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TYTToCHConversionTest, AnyPassthrough)
 {
@@ -686,18 +688,17 @@ TEST_F(TYTToCHConversionTest, DictIntString)
     auto ysonsDictIntString = ToYsonStringBufs(ysonStringsDictIntString);
 
     auto logicalType = DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String));
-    auto expectedDataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeTuple>(
-        std::vector<DB::DataTypePtr>{std::make_shared<DB::DataTypeNumber<i32>>(), std::make_shared<DB::DataTypeString>()},
-        std::vector<std::string>{"key", "value"}
-    ));
+    auto expectedDataType = std::make_shared<DB::DataTypeMap>(
+        std::make_shared<DB::DataTypeInt32>(), std::make_shared<DB::DataTypeString>()
+    );
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     ExpectTypeConversion(descriptor, expectedDataType);
 
     std::vector<DB::Field> expectedFields{
-        DB::Array{DB::Tuple{DB::Field(42), DB::Field("foo")}, DB::Tuple{DB::Field(27), DB::Field("bar")}},
-        DB::Array{},
-        DB::Array{DB::Tuple{DB::Field(-1), DB::Field("")}},
+        DB::Map{DB::Tuple{DB::Field(42), DB::Field("foo")}, DB::Tuple{DB::Field(27), DB::Field("bar")}},
+        DB::Map{},
+        DB::Map{DB::Tuple{DB::Field(-1), DB::Field("")}},
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsDictIntString);
@@ -1064,9 +1065,6 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
         TColumnSchema(
             /*name*/ "",
             OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint8)))),
-        TColumnSchema(
-            /*name*/ "",
-            DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String))),
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);

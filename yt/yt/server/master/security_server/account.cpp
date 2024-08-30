@@ -227,22 +227,22 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     , ChunkMergerNodeTraversals_(id)
 { }
 
-TString TAccount::GetLowercaseObjectName() const
+std::string TAccount::GetLowercaseObjectName() const
 {
     return Format("account %Qv", GetName());
 }
 
-TString TAccount::GetCapitalizedObjectName() const
+std::string TAccount::GetCapitalizedObjectName() const
 {
     return Format("Account %Qv", GetName());
 }
 
-TString TAccount::GetObjectPath() const
+TYPath TAccount::GetObjectPath() const
 {
     return Format("//sys/accounts/%v", GetName());
 }
 
-TString TAccount::GetRootName() const
+std::string TAccount::GetRootName() const
 {
     YT_VERIFY(IsRoot());
     return NSecurityClient::RootAccountName;
@@ -392,7 +392,7 @@ void TAccount::RecomputeClusterStatistics()
     }
 }
 
-void TAccount::AttachChild(const TString& key, TAccount* child) noexcept
+void TAccount::AttachChild(const std::string& key, TAccount* child) noexcept
 {
     TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
 

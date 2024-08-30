@@ -2,6 +2,7 @@
 
 #include "../fns.h"
 
+#include "fn_attributes_ops.h"
 #include "raw_data_flow.h"
 #include "raw_transform.h"
 #include "row_vtable.h"
@@ -19,28 +20,28 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TFunction>
+template <typename T>
+concept CDoFn = std::default_initializable<T> && std::derived_from<T, IDoFn<typename T::TInputRow, typename T::TOutputRow>>;
+
+template <CDoFn TFunction>
 class TRawParDo
     : public IRawParDo
 {
 public:
-    using TInputRow = typename TFunction::TInputRow;
+    using TInputRow = std::decay_t<typename TFunction::TInputRow>;
     using TOutputRow = typename TFunction::TOutputRow;
-
-    static_assert(
-        std::is_convertible_v<TFunction*, IDoFn<TInputRow, TOutputRow>*>,
-        "Argument must be subclass of IDoFn");
-    static_assert(std::is_default_constructible_v<TFunction>, "ParDo class must have default constructor");
+    static constexpr bool IsMove = CMoveRow<typename TFunction::TInputRow>;
 
 public:
     TRawParDo() = default;
 
-    TRawParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
+    TRawParDo(TIntrusivePtr<TFunction> func)
         : Func_(std::move(func))
-        , InputTag_("par-do-input", inputVtable)
-        , OutputTags_(std::move(outputTags))
-        , FnAttributes_(std::move(fnAttributes))
+        , InputTag_(TTypeTag<TInputRow>("par-do-input"))
+        , OutputTags_(Func_->GetOutputTags())
+        , FnAttributes_(Func_->GetDefaultAttributes())
     {
+        TFnAttributesOps::SetIsMove(FnAttributes_, IsMove);
         if constexpr (std::is_same_v<TOutputRow, void>) {
             Y_ABORT_UNLESS(OutputTags_.size() == 0);
         } else if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
@@ -65,17 +66,28 @@ public:
         Func_->Start(GetOutput());
     }
 
-    void Do(const void* row, int count) override
+    void Do(const void* rows, int count) override
     {
-        const TInputRow* current = static_cast<const typename TFunction::TInputRow*>(row);
+        const TInputRow* current = static_cast<const TInputRow*>(rows);
         const TInputRow* end = current + count;
 
-        if constexpr (std::is_base_of_v<IDoFn<TInputRow, TOutputRow>, TFunction>) {
-            for (; current < end; ++current) {
+        for (; current < end; ++current) {
+            if constexpr (IsMove) {
+                TInputRow copy(*current);
+                Func_->Do(std::move(copy), GetOutput());
+            } else {
                 Func_->Do(*current, GetOutput());
             }
-        } else {
-            static_assert(TDependentFalse<TFunction>);
+        }
+    }
+
+    void MoveDo(void* rows, int count) override
+    {
+        TInputRow* current = static_cast<TInputRow*>(rows);
+        TInputRow* end = current + count;
+
+        for (; current < end; ++current) {
+            Func_->Do(std::move(*current), GetOutput());
         }
     }
 
@@ -145,227 +157,201 @@ private:
     TFnAttributes FnAttributes_;
 };
 
-class TLambda1RawParDo
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+concept CLambdaState = std::default_initializable<T>
+    && requires (
+        const T& state,
+        std::span<const typename T::TInputRow> rows,
+        std::span<typename T::TInputRow> movedRows,
+        TOutput<typename T::TOutputRow>& output,
+        IExecutionContext* executionContext
+    ) {
+        { state.Do(rows, output, executionContext) } -> std::same_as<void>;
+        { state.MoveDo(movedRows, output, executionContext) } -> std::same_as<void>;
+        { T::IsMove } -> std::convertible_to<bool>;
+    };
+
+template <CLambdaState TLambdaState>
+class TLambdaRawParDo
     : public IRawParDo
 {
 public:
-    enum class EWrapperType : ui8 {
-        ReturnOutputWrapper,
-        ArgumentOutputWrapper,
-        ParDoArgsWrapper,
-        MultiOutputWrapper,
-    };
+    using TInputRow = typename TLambdaState::TInputRow;
+    using TOutputRow = typename TLambdaState::TOutputRow;
 
-    using TWrapperFunctionPtr = void (*)(TLambda1RawParDo*, const void*, int);
-
-    template <typename TInputRow, typename TOutputRow>
-    using TReturnOutputFunction = TOutputRow (*)(const TInputRow&);
-
-    template <typename TInputRow, typename TOutputRow>
-    using TArgumentOutputFunction = void (*)(const TInputRow&, TOutput<TOutputRow>&);
-
-    template <CParDoArgs TParDoArgs>
-    using TParDoArgsFunction = void (*)(TParDoArgs args);
-
-public:
-    TLambda1RawParDo() = default;
-    TLambda1RawParDo(
-        TWrapperFunctionPtr wrapperFunction,
-        EWrapperType wrapperType,
-        void* function,
-        const TRowVtable& rowVtable,
-        std::vector<TDynamicTypeTag> tags,
-        TFnAttributes fnAttributes);
-
-    template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TReturnOutputFunction<TInput, TOutput> function, TFnAttributes fnAttributes)
+    TLambdaRawParDo() = default;
+    TLambdaRawParDo(TLambdaState state, TFnAttributes fnAttributes)
+        : State_(std::move(state))
+        , FnAttributes_(std::move(fnAttributes))
     {
-        fnAttributes.SetIsPure();
-        return ::MakeIntrusive<TLambda1RawParDo>(
-            &RawWrapper1Func<TInput, TOutput>,
-            EWrapperType::ReturnOutputWrapper,
-            reinterpret_cast<void*>(function),
-            MakeRowVtable<TInput>(),
-            MakeTags<TOutput>(),
-            std::move(fnAttributes)
-        );
+        FnAttributes_.SetIsPure();
+        TFnAttributesOps::SetIsMove(FnAttributes_, TLambdaState::IsMove);
     }
 
-    template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TArgumentOutputFunction<TInput, TOutput> function, TFnAttributes fnAttributes)
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        fnAttributes.SetIsPure();
-        return ::MakeIntrusive<TLambda1RawParDo>(
-            &RawWrapper2Func<TInput, TOutput>,
-            EWrapperType::ArgumentOutputWrapper,
-            reinterpret_cast<void*>(function),
-            MakeRowVtable<TInput>(),
-            MakeTags<TOutput>(),
-            std::move(fnAttributes)
-        );
+        ExecutionContext_ = context;
+        if constexpr (!std::same_as<TOutputRow, void>) {
+            Y_ABORT_UNLESS(outputs.size() == 1);
+            Output_ = outputs[0];
+        }
     }
 
-    template <CParDoArgs TParDoArgs>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TParDoArgsFunction<TParDoArgs> function, TFnAttributes fnAttributes)
+    void Do(const void* rows, int count) override
     {
-        using TInput = typename TParDoArgs::TInputRow;
-        using TOutput = typename TParDoArgs::TOutputRow;
-        fnAttributes.SetIsPure();
-        return ::MakeIntrusive<TLambda1RawParDo>(
-            &RawWrapper3Func<TParDoArgs>,
-            EWrapperType::ParDoArgsWrapper,
-            reinterpret_cast<void*>(function),
-            MakeRowVtable<TInput>(),
-            MakeTags<TOutput>(),
-            std::move(fnAttributes)
-        );
+        const TInputRow* begin = static_cast<const TInputRow*>(rows);
+        const TInputRow* end = begin + count;
+        State_.Do(std::span(begin, end), GetOutput(), ExecutionContext_.Get());
     }
 
-    template <typename TInput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(
-        TArgumentOutputFunction<TInput, TMultiRow> function,
-        std::vector<TDynamicTypeTag> tags,
-        TFnAttributes fnAttributes)
+    void MoveDo(void* rows, int count) override
     {
-        return ::MakeIntrusive<TLambda1RawParDo>(
-            &RawWrapperMultiOutputFunc<TInput>,
-            EWrapperType::MultiOutputWrapper,
-            reinterpret_cast<void*>(function),
-            MakeRowVtable<TInput>(),
-            std::move(tags),
-            std::move(fnAttributes)
-        );
+        TInputRow* begin = static_cast<TInputRow*>(rows);
+        TInputRow* end = begin + count;
+        State_.MoveDo(std::span(begin, end), GetOutput(), ExecutionContext_.Get());
     }
 
-    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override;
-    void Do(const void* row, int count) override;
-    void Finish() override;
+    void Finish() override
+    {
+        Output_ = nullptr;
+    }
 
-    [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override;
+    [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TLambdaRawParDo>();
+        };
+    }
 
-    [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override;
-    [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override;
-    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override;
+    [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TTypeTag<TInputRow>("lambda-par-do-input")};
+    }
+
+    [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        if constexpr (std::same_as<TOutputRow, void>) {
+            return {};
+        } else {
+            return {TTypeTag<TOutputRow>("lambda-par-do-output")};
+        }
+    }
+
+    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
+    }
 
 private:
-    template <typename TInputRow, typename TOutputRow>
-    static void RawWrapper1Func(TLambda1RawParDo* pThis, const void* rows, int count)
+    auto& GetOutput()
     {
-        auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        auto underlyingFunction = reinterpret_cast<TReturnOutputFunction<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
+        if constexpr (std::same_as<TOutputRow, void>) {
+            return VoidOutput;
+        } else {
+            return *Output_->Upcast<TOutputRow>();
+        }
+    }
 
-        for (const auto& row : span) {
-            if constexpr (std::is_same_v<TOutputRow, void>) {
-                underlyingFunction(row);
+    TLambdaState State_;
+    TFnAttributes FnAttributes_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(
+        State_,
+        FnAttributes_
+    );
+
+    IExecutionContextPtr ExecutionContext_;
+    IRawOutputPtr Output_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TInputRow_, typename TOutputRow_, typename... TArgs>
+class TLambdaState
+{
+public:
+    using TInputRow = std::decay_t<TInputRow_>;
+    using TOutputRow = TOutputRow_;
+    using TCallback = void(*)(TInputRow_, NRoren::TOutput<TOutputRow>&, IExecutionContext*, TArgs...);
+
+    static constexpr bool IsMove = CMoveRow<TInputRow_>;
+
+public:
+    TLambdaState() = default;
+
+    TLambdaState(TCallback callback, std::decay_t<TArgs>... args)
+        : Args_{TDummy{}, std::move(args)...}
+        , Callback_(std::move(callback))
+    { }
+
+    void Do(std::span<const TInputRow> rows, NRoren::TOutput<TOutputRow>& output, IExecutionContext* ctx) const
+    {
+        for (const auto& row : rows) {
+            if constexpr (IsMove) {
+                auto copy = row;
+                RunCallback(std::move(copy), output, ctx);
             } else {
-                *static_cast<TOutputRow*>(pThis->RowHolder_.GetData()) = underlyingFunction(row);
-                pThis->SingleOutput_->AddRaw(pThis->RowHolder_.GetData(), 1);
+                RunCallback(row, output, ctx);
             }
         }
     }
 
-    template <typename TInputRow, typename TOutputRow>
-    static void RawWrapper2Func(TLambda1RawParDo* pThis, const void* rows, int count)
+    void MoveDo(std::span<TInputRow> rows, NRoren::TOutput<TOutputRow>& output, IExecutionContext* ctx) const
     {
-        auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        TOutput<TOutputRow>* upcastedOutput;
-        if constexpr (std::is_same_v<TOutputRow, void>) {
-            upcastedOutput = &VoidOutput;
-        } else {
-            upcastedOutput = pThis->SingleOutput_->Upcast<TOutputRow>();
-        }
-        auto underlyingFunction = reinterpret_cast<TArgumentOutputFunction<TInputRow, TOutputRow>>(pThis->UnderlyingFunction_);
-
-        for (const auto& row : span) {
-            underlyingFunction(row, *upcastedOutput);
+        for (auto& row : rows) {
+            RunCallback(std::move(row), output, ctx);
         }
     }
 
-    template <CParDoArgs TParDoArgs>
-    static void RawWrapper3Func(TLambda1RawParDo* pThis, const void* rows, int count)
-    {
-        using TInputRow = typename TParDoArgs::TInputRow;
-        using TOutputRow = typename TParDoArgs::TOutputRow;
-        auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        TOutput<TOutputRow>* upcastedOutput;
-        if constexpr (std::is_same_v<TOutputRow, void>) {
-            upcastedOutput = &VoidOutput;
-        } else {
-            upcastedOutput = pThis->SingleOutput_->Upcast<TOutputRow>();
-        }
-        auto underlyingFunction = reinterpret_cast<TParDoArgsFunction<TParDoArgs>>(pThis->UnderlyingFunction_);
-
-        for (const auto& row : span) {
-            underlyingFunction(TParDoArgs(row, *upcastedOutput, *pThis->ExecutionContext_));
-        }
-    }
-
-    template <typename TInputRow>
-    static void RawWrapperMultiOutputFunc(TLambda1RawParDo* pThis, const void* rows, int count)
-    {
-        auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        auto underlyingFunction = reinterpret_cast<TArgumentOutputFunction<TInputRow, TMultiRow>>(pThis->UnderlyingFunction_);
-
-        for (const auto& row : span) {
-            underlyingFunction(row, *pThis->MultiOutput_);
-        }
-    }
-
-    template <typename TOutput>
-    static std::vector<TDynamicTypeTag> MakeTags()
-    {
-        if constexpr (std::is_same_v<TOutput, void>) {
-            return {};
-        } else {
-            static_assert(!CMultiRow<TOutput>);
-            return std::vector<TDynamicTypeTag>{TTypeTag<TOutput>("map-output")};
-        }
-    }
+    Y_SAVELOAD_DEFINE(Args_, NPrivate::SaveLoadablePointer(Callback_));
 
 private:
-    TWrapperFunctionPtr WrapperFunction_ = nullptr;
-    EWrapperType WrapperType_;
-    void* UnderlyingFunction_ = nullptr;
-    TDynamicTypeTag InputTag_;
-    std::vector<TDynamicTypeTag> OutputTags_;
-    TFnAttributes FnAttributes_;
-    IExecutionContextPtr ExecutionContext_;
+    void RunCallback(TInputRow_ row, NRoren::TOutput<TOutputRow_>& output, IExecutionContext* ctx) const
+    {
+        std::apply(
+            [&] (TDummy, TArgs... args) {
+                Callback_(std::forward<TInputRow_>(row), output, ctx, std::forward<TArgs>(args)...);
+            },
+            Args_);
+    }
 
-    Y_SAVELOAD_DEFINE_OVERRIDE(
-        SaveLoadablePointer(WrapperFunction_),
-        WrapperType_,
-        SaveLoadablePointer(UnderlyingFunction_),
-        InputTag_,
-        OutputTags_,
-        FnAttributes_
-    );
+    struct TDummy {
+        void Save(IOutputStream*) const {}
+        void Load(IInputStream*) {}
+    };
 
-    // Initialization of fields depends on the WrapperType_:
-    // * MultiOutput_ is initialized for MultiOutputWrapper;
-    // * SingleOutput_ is initialized for ReturnOutputWrapper and ArgumentOutputWrapper;
-    // * RowHolder_ is initialized for ReturnOutputWrapper;
-    std::optional<TMultiOutput> MultiOutput_;
-    IRawOutputPtr SingleOutput_;
-    TRawRowHolder RowHolder_;
+    std::tuple<TDummy, std::decay_t<TArgs>...> Args_;
+    TCallback Callback_;
 };
 
-template <typename TDoFn>
-IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn, const TRowVtable& inputVtable = MakeRowVtable<typename TDoFn::TInputRow>())
+////////////////////////////////////////////////////////////////////////////////
+
+template <CDoFn TDoFn>
+IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn)
 {
-    return MakeIntrusive<TRawParDo<TDoFn>>(doFn, inputVtable, doFn->GetOutputTags(), doFn->GetDefaultAttributes());
+    return MakeIntrusive<TRawParDo<TDoFn>>(doFn);
 }
 
-template <typename TDoFn>
-IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn, const TRowVtable& inputVtable, TFnAttributes fnAttributes)
+template <CLambdaState TLambdaState>
+IRawParDoPtr MakeRawParDo(TLambdaState lambdaState, TFnAttributes fnAttributes = {})
 {
-    return MakeIntrusive<TRawParDo<TDoFn>>(doFn, inputVtable, doFn->GetOutputTags(), std::move(fnAttributes));
+    return MakeIntrusive<TLambdaRawParDo<TLambdaState>>(std::move(lambdaState), std::move(fnAttributes));
 }
 
-template <typename TInput, typename TOutput, typename F>
-IRawParDoPtr MakeRawParDo(F&& doFn, TFnAttributes fnAttributes = {})
-    requires(std::is_convertible_v<F, TOutput(*)(const TInput&)>)
+// For test purposes only
+template <typename TInputRow, typename TOutputRow>
+IRawParDoPtr MakeRawParDo(void(*doFn)(TInputRow, NRoren::TOutput<TOutputRow>&), TFnAttributes fnAttributes = {})
 {
-    return TLambda1RawParDo::MakeIntrusive<TInput, TOutput>(doFn, std::move(fnAttributes));
+    auto casted = SaveLoadablePointer(doFn);
+    return NPrivate::MakeRawParDo(
+        TLambdaState(
+            +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
+                callback.Value(std::forward<TInputRow>(input), output);
+            },
+            casted),
+        std::move(fnAttributes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

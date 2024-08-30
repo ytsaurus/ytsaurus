@@ -4,11 +4,14 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     config.cpp
-    cypress_file_block_device.cpp
     dynamic_table_block_device.cpp
+    file_system_block_device.cpp
+    image_reader.cpp
     memory_block_device.cpp
     profiler.cpp
+    random_access_file_reader.cpp
     server.cpp
+    squash_fs_image_builder.cpp
 )
 
 PEERDIR(

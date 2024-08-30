@@ -24,9 +24,9 @@ public:
     explicit TZookeeperShard(TZookeeperShardId id);
 
     // Logging stuff.
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
-    TString GetObjectPath() const override;
+    std::string GetLowercaseObjectName() const override;
+    std::string GetCapitalizedObjectName() const override;
+    NYPath::TYPath GetObjectPath() const override;
 
     // Persistence.
     void Save(NCellMaster::TSaveContext& context) const;

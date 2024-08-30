@@ -358,10 +358,11 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
             SessionId_));
     }
 
-    if (*blockCount != BlockCount_) {
+    auto currentBlockCount = BlockCount_.load();
+    if (*blockCount != currentBlockCount) {
         return MakeFuture<TChunkInfo>(TError("Block count mismatch in blob session %v: expected %v, got %v",
             SessionId_,
-            BlockCount_,
+            currentBlockCount,
             *blockCount));
     }
 
@@ -382,6 +383,21 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
     return Pipeline_->Close(chunkMeta)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
             .AsyncVia(SessionInvoker_));
+}
+
+i64 TBlobSession::GetMemoryUsage() const
+{
+    return MemoryUsage_.load();
+}
+
+i64 TBlobSession::GetTotalSize() const
+{
+    return Size_.load();
+}
+
+i64 TBlobSession::GetBlockCount() const
+{
+    return BlockCount_.load();
 }
 
 TChunkInfo TBlobSession::OnFinished(const TError& error)
@@ -468,6 +484,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             Options_.WorkloadDescriptor,
             block.Size()));
         block.Data = TrackMemory(memoryTracker, std::move(block.Data));
+        MemoryUsage_.fetch_add(block.Size());
     }
 
     // Work around possible livelock. We might consume all memory allocated for blob sessions. That would block
@@ -546,7 +563,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
                 << TErrorAttribute("window_start", WindowStartBlockIndex_);
         }
 
-        ++BlockCount_;
+        BlockCount_.fetch_add(1);
 
         slot.State = ESlotState::Received;
         slot.Block = block;
@@ -561,7 +578,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     }
 
     auto totalSize = GetByteSize(blocks);
-    Size_ += totalSize;
+    Size_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
         receivedBlockIndexes,
@@ -674,11 +691,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
             // Checking for a state is necessary because the subscriber may trigger after calling slot.WrittenPromise.TrySet().
             if (Options_.DisableSendBlocks && slot.State == ESlotState::Written) {
                 YT_VERIFY(slot.MemoryUsageGuard.GetSize() == 0);
-
-                slot.State = ESlotState::Released;
-                slot.Block = {};
-                slot.LocationMemoryGuard.Release();
-                slot.MemoryUsageGuard.Release();
+                ReleaseBlockSlot(slot);
             }
         }
     }
@@ -794,6 +807,17 @@ void TBlobSession::OnAborted(const TError& error)
     }
 }
 
+void TBlobSession::ReleaseBlockSlot(TSlot& slot)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    MemoryUsage_.fetch_sub(slot.Block.Size());
+    slot.Block = {};
+    slot.MemoryUsageGuard.Release();
+    slot.LocationMemoryGuard.Release();
+    slot.State = EBlobSessionSlotState::Released;
+}
+
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -817,13 +841,11 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
                 })
                 .AsyncVia(GetCurrentInvoker())
                 .Run(std::move(slot.Block)));
-            } else {
-                slot.Block = {};
-                slot.MemoryUsageGuard.Release();
-                slot.LocationMemoryGuard.Release();
-            }
 
-            slot.State = EBlobSessionSlotState::Released;
+                slot.State = EBlobSessionSlotState::Released;
+            } else {
+                ReleaseBlockSlot(slot);
+            }
         }
 
         slot.PendingIOGuard.Release();
@@ -921,7 +943,7 @@ void TBlobSession::ReleaseSpace()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    Location_->UpdateUsedSpace(-Size_);
+    Location_->UpdateUsedSpace(-Size_.load());
 }
 
 void TBlobSession::SetFailed(const TError& error, bool fatal)

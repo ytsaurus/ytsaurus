@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
@@ -109,7 +110,7 @@ private:
 
         auto httpHeaders = New<THeaders>();
         if (TvmService_) {
-            httpHeaders->Add("X-Ya-Service-Ticket",
+            httpHeaders->Add(NHeaders::ServiceTicketHeaderName,
                 TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
         }
 
@@ -157,7 +158,7 @@ private:
                 auto errorNode = result->AsMap()->FindChild("error");
                 auto blackboxError =
                     errorNode && errorNode->GetType() == ENodeType::String
-                    ? TError(errorNode->GetValue<TString>())
+                    ? TError(errorNode->GetValue<TString>(), TError::DisableFormat)
                     : TError("Blackbox did not provide any human-readable error details");
 
                 switch (static_cast<EBlackboxException>(exceptionIdNode->GetValue<i64>())) {

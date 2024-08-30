@@ -571,11 +571,6 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
 
-            if (GetDynamicConfig()->CellHydraPersistenceSynchronizer->UseHydraPersistenceDirectory) {
-                CellCreated_.Fire(cell);
-                return cell;
-            }
-
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
                 auto createAttributes = [&] (const auto& acl) {
@@ -801,7 +796,7 @@ public:
         }
     }
 
-    const TCellSet* FindAssignedCells(const TString& address) const override
+    const TCellSet* FindAssignedCells(const std::string& address) const override
     {
         auto it = AddressToCell_.find(address);
         return it != AddressToCell_.end()
@@ -2585,7 +2580,7 @@ private:
                 : nullptr;
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING(ex,
+                YT_LOG_DEBUG(ex,
                     "Cell Cypress map node is missing (CellId: %v)",
                     cellId);
                 return nullptr;

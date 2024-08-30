@@ -268,6 +268,8 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
         .Optional();
+    registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

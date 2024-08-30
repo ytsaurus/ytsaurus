@@ -121,7 +121,8 @@ THashMap<TString, TString> MakeWriteIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
         {FormatIOTag(EAggregateIOTag::Direction), "write"},
         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
     };
@@ -140,7 +141,8 @@ THashMap<TString, TString> MakeReadIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        // TODO(babenko): switch to std::string
+        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
     };
     if (chunkId) {
@@ -169,7 +171,7 @@ public:
             DataNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
-        , Config_(config)
+        , Config_(std::move(config))
         , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
         , Bootstrap_(bootstrap)
     {
@@ -287,15 +289,9 @@ private:
         return GetDynamicConfig()->FallbackTimeoutFraction;
     }
 
-    void SetSessionIdAllocationTag(TTraceContextPtr context, TString sessionId)
-    {
-        context->SetAllocationTags({{SessionIdAllocationTag, sessionId}});
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("StartChunk"), ToString(sessionId));
 
         TSessionOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -323,8 +319,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("FinishChunk"), ToString(sessionId));
-
         auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
@@ -373,9 +367,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("CancelChunk"), ToString(sessionId));
+        const auto& config = GetDynamicConfig()->TestingOptions;
+        if (config->ChunkCancellationDelay) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+        }
 
+        auto sessionId = FromProto<TSessionId>(request->session_id());
         bool waitForCancelation = request->wait_for_cancelation();
 
         context->SetRequestInfo("ChunkId: %v",
@@ -400,8 +397,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("PingSession"), ToString(sessionId));
-
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
@@ -419,8 +414,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("PutBlocks"), ToString(sessionId));
-
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -500,8 +493,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("SendBlocks"), ToString(sessionId));
-
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -535,8 +526,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("FlushBlocks"), ToString(sessionId));
-
         int blockIndex = request->block_index();
 
         context->SetRequestInfo("BlockId: %v:%v",
@@ -570,8 +559,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
     {
         auto sessionId = FromProto<TGuid>(request->session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("UpdateP2PBlocks"), ToString(sessionId));
-
         context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v",
             sessionId,
             request->iteration(),
@@ -972,12 +959,9 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
-        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         bool populateCache = request->populate_cache();
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
-
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockSet"), ToString(readSessionId));
 
         context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
@@ -1107,10 +1091,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockRange"), ToString(readSessionId));
-
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
@@ -1187,8 +1167,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
     {
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("GetChunkFragmentSet"), ToString(readSessionId));
-
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto useDirectIO = request->use_direct_io();
 
@@ -1436,8 +1414,6 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        SetSessionIdAllocationTag(GetOrCreateTraceContext("LookupRows"), ToString(readSessionId));
-
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
         auto enableHashChunkIndex = request->enable_hash_chunk_index();
@@ -2286,6 +2262,7 @@ private:
                     "Columnar statistics chunk meta extension missing");
             }
             const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
+            auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
 
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;
@@ -2299,9 +2276,19 @@ private:
             TColumnarStatistics columnarStatistics;
             i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
 
-            FromProto(&columnarStatistics, columnarStatisticsExt, chunkRowCount);
+            FromProto(
+                &columnarStatistics,
+                columnarStatisticsExt,
+                largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
+                chunkRowCount);
+            auto selectedStatistics = columnarStatistics.SelectByColumnNames(nameTable, columnStableNames);
             ToProto(subresponse->mutable_columnar_statistics(),
-                columnarStatistics.SelectByColumnNames(nameTable, columnStableNames));
+                selectedStatistics);
+
+            const auto& largeStatistics = selectedStatistics.LargeStatistics;
+            if (!largeStatistics.Empty()) {
+                ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
+            }
 
             // COMPAT(denvid): legacy response fields. Remove once all clusters are 23.2+.
 

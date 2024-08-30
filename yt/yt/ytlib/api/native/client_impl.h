@@ -461,26 +461,26 @@ public: \
         (paths, options))
 
     IMPLEMENT_METHOD(TDisableChunkLocationsResult, DisableChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TDestroyChunkLocationsResult, DestroyChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         bool recoverUnlinkedDisks,
         const std::vector<TGuid>& locationUuids,
         const TDestroyChunkLocationsOptions& options),
         (nodeAddress, recoverUnlinkedDisks, locationUuids, options))
 
     IMPLEMENT_METHOD(TResurrectChunkLocationsResult, ResurrectChunkLocations, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TRequestRestartResult, RequestRestart, (
-        const TString& nodeAddress,
+        const std::string& nodeAddress,
         const TRequestRestartOptions& options),
         (nodeAddress, options))
 
@@ -517,13 +517,13 @@ public: \
         const TRemoveMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
-        const TString& user,
+        const std::string& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
     IMPLEMENT_METHOD(TCheckPermissionByAclResult, CheckPermissionByAcl, (
-        const std::optional<TString>& user,
+        const std::optional<std::string>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options),
@@ -666,7 +666,7 @@ public: \
         (cellId, options))
     IMPLEMENT_METHOD(void, SwitchLeader, (
         NObjectClient::TCellId cellId,
-        const TString& newLeaderAddress,
+        const std::string& newLeaderAddress,
         const TSwitchLeaderOptions& options),
         (cellId, newLeaderAddress, options))
     IMPLEMENT_METHOD(void, ResetStateHash, (
@@ -677,15 +677,15 @@ public: \
         const TGCCollectOptions& options),
         (options))
     IMPLEMENT_METHOD(void, KillProcess, (
-        const TString& address,
+        const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteCoreDump, (
-        const TString& address,
+        const std::string& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TGuid, WriteLogBarrier, (
-        const TString& address,
+        const std::string& address,
         const TWriteLogBarrierOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
@@ -693,7 +693,7 @@ public: \
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
     IMPLEMENT_METHOD(void, HealExecNode, (
-        const TString& address,
+        const std::string& address,
         const THealExecNodeOptions& options),
         (address, options))
     IMPLEMENT_METHOD(void, SuspendCoordinator, (
@@ -726,14 +726,14 @@ public: \
         (cellIds, options))
     IMPLEMENT_METHOD(TMaintenanceIdPerTarget, AddMaintenance, (
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
     IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
         EMaintenanceComponent component,
-        const TString& address,
+        const std::string& address,
         const TMaintenanceFilter& target,
         const TRemoveMaintenanceOptions& options),
         (component, address, target, options))
@@ -800,40 +800,40 @@ public: \
         (cellId, leaseId, persistent, options))
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
-        const TString& user,
+        const std::string& user,
         const TString& currentPasswordSha256,
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, token, attributes, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, attributes, options))
     IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const TRefreshTemporaryTokenOptions& options),
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TString& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
@@ -999,7 +999,7 @@ private:
     NRpc::IChannelPtr GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor);
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptorPtr GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
-    std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
+    std::vector<std::string> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
 
     NApi::IClientPtr CreateRootClient();
 
@@ -1067,7 +1067,7 @@ private:
         THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
         const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
 
-    std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
+    std::vector<TTableReplicaInfoPtrList> PrepareInSyncReplicaCandidates(
         const TTabletReadOptions& options,
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
 
@@ -1417,7 +1417,7 @@ private:
     //
 
     TIssueTokenResult DoIssueTokenImpl(
-        const TString& user,
+        const std::string& user,
         const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
@@ -1430,7 +1430,7 @@ private:
     //! Always denies execution for other users.
     void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
-        const TString& user,
+        const std::string& user,
         const TString& passwordSha256,
         const TTimeoutOptions& options);
 
@@ -1441,6 +1441,22 @@ private:
     TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
+
+    //
+    // Distributed table client
+    //
+
+    TFuture<TDistributedWriteSessionPtr> StartDistributedWriteSession(
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteSessionStartOptions& options) override;
+
+    TFuture<void> FinishDistributedWriteSession(
+        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionFinishOptions& options) override;
+
+    TFuture<ITableWriterPtr> CreateParticipantTableWriter(
+        const TDistributedWriteCookiePtr& cookie,
+        const TParticipantTableWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

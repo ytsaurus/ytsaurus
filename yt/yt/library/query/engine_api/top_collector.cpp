@@ -55,6 +55,7 @@ const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
         AccountGarbage(popped);
         OnEvict(popped);
         auto capturedRow = Capture(row, popped);
+        Heap_[0].ContextIndex = capturedRow.ContextIndex;
         AdjustHeapFront(Heap_.Begin(), Heap_.End(), MaxComparer_);
         OnInsert(capturedRow.Row);
         return capturedRow.Row;

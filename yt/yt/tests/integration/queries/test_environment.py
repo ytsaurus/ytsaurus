@@ -38,7 +38,7 @@ class TestEnvironment(YTEnvSetup):
         self._check_liveness(3)
 
     @authors("max42")
-    def test_context_manager(self, query_tracker_environment):
+    def test_context_manager(self):
         self._check_cleanliness()
         with QueryTracker(self.Env, 1):
             self._check_liveness(1)
@@ -49,7 +49,7 @@ class TestEnvironment(YTEnvSetup):
 
     @authors("mpereskokova")
     def test_alerts(self, query_tracker):
-        alerts_path = f"//sys/query_tracker/instances/{query_tracker.addresses[0]}/orchid/alerts"
+        alerts_path = f"//sys/query_tracker/instances/{query_tracker.query_tracker.addresses[0]}/orchid/alerts"
         version_path = "//sys/query_tracker/@version"
         latest_version = get_latest_version()
 
@@ -87,7 +87,7 @@ class TestMigration(YTEnvSetup):
 
         remove("//sys/query_tracker", recursive=True, force=True)
 
-        client = query_tracker.env.create_native_client()
+        client = query_tracker.query_tracker.env.create_native_client()
         create_tables_required_version(client, 7)
 
         insert_rows("//sys/query_tracker/active_queries", [{"query_id": "test_query_id", "access_control_object": "test_aco"}])
@@ -118,7 +118,7 @@ class TestMigration(YTEnvSetup):
 
         remove("//sys/query_tracker", recursive=True, force=True)
 
-        client = query_tracker.env.create_native_client()
+        client = query_tracker.query_tracker.env.create_native_client()
         create_tables_required_version(client, 8)
 
         insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"query_id": "test_query_id", "start_time": 1, "user": "user", "access_control_objects": ["aco1", "aco2"]}])

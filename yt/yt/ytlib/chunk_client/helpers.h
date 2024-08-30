@@ -106,9 +106,9 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     std::optional<int> replicationFactorOverride,
-    std::optional<TString> preferredHostName,
-    const std::vector<TString>& forbiddenAddresses,
-    const std::vector<TString>& allocatedAddresses,
+    const std::optional<std::string>& preferredHostName,
+    const std::vector<std::string>& forbiddenAddresses,
+    const std::vector<std::string>& allocatedAddresses,
     const NLogging::TLogger& logger);
 
 //! Returns the cumulative error for the whole batch.
@@ -193,10 +193,10 @@ struct TUserObject
 
     //! Constructs a path from TUserObject::ObjectId.
     //! The instance must be prepared.
-    TString GetObjectIdPath() const;
+    NYPath::TYPath GetObjectIdPath() const;
 
     //! For prepared instances, delegates to #GetObjectIdPath, otherwise returns #Path.
-    TString GetObjectIdPathIfAvailable() const;
+    NYPath::TYPath GetObjectIdPathIfAvailable() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };
@@ -246,11 +246,11 @@ void DumpCodecStatistics(
     const NYPath::TYPath& path,
     TStatistics* statistics);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-bool IsAddressLocal(const TString& address);
+bool IsAddressLocal(const std::string& address);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Helper struct useful for further joining several data sources and data slices
 //! with renumerating using #JoinDataSliceSourcePairs.
@@ -264,7 +264,7 @@ struct TDataSliceSourcePair
 //! renumerating them to keep correspondence between data slices and data sources.
 TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> pairs);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Return the list of all the supported chunk features in this binary.
 EChunkFeatures GetSupportedChunkFeatures();
@@ -277,7 +277,7 @@ void ValidateChunkFeatures(
     NChunkClient::EChunkFeatures chunkFeatures,
     NChunkClient::EChunkFeatures supportedChunkFeatures);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkWriterCounters
 {
@@ -295,7 +295,7 @@ struct TChunkWriterCounters
     NProfiling::TTimeCounter CompressionCpuTime;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TAllyReplicasInfo
 {

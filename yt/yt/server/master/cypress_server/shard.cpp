@@ -65,12 +65,12 @@ TCypressShardAccountStatistics TCypressShard::ComputeTotalAccountStatistics() co
     return result;
 }
 
-TString TCypressShard::GetLowercaseObjectName() const
+std::string TCypressShard::GetLowercaseObjectName() const
 {
     return Format("Cypress shard %v", GetId());
 }
 
-TString TCypressShard::GetCapitalizedObjectName() const
+std::string TCypressShard::GetCapitalizedObjectName() const
 {
     return Format("Cypress shard %v", GetId());
 }

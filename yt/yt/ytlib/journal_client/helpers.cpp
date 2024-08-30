@@ -66,8 +66,7 @@ void ValidateJournalAttributes(
                 codecId);
         }
         if (replicationFactor != 1) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals",
-                codec->GetGuaranteedRepairablePartCount());
+            THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals");
         }
         if (readQuorum > codec->GetTotalPartCount()) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than total part count");
@@ -572,7 +571,7 @@ private:
 
     struct TChunkMetaResult
     {
-        TString Address;
+        std::string Address;
         TMiscExt MiscExt;
         TChunkLocationUuid LocationUuid;
     };

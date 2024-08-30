@@ -142,6 +142,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/transaction_client/config.h>
@@ -424,7 +426,7 @@ public:
             : ReplaceCellTagInId(GetCellId(), cellTag);
     }
 
-    std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
+    std::vector<std::string> GetMasterAddressesOrThrow(TCellTag cellTag) const override
     {
         // TODO(babenko): handle service discovery.
         auto unwrapAddresses = [&] (const auto& optionalAddresses) {
@@ -464,7 +466,7 @@ public:
         return MasterConnector_->GetNodeId();
     }
 
-    TString GetLocalHostName() const override
+    std::string GetLocalHostName() const override
     {
         return MasterConnector_->GetLocalHostName();
     }
@@ -814,6 +816,8 @@ private:
 
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         BufferedProducer_ = New<TBufferedProducer>();
         ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
@@ -1464,7 +1468,7 @@ private:
         auto totalLimit = NodeMemoryUsageTracker_->GetTotalLimit();
 
         if (DynamicConfigManager_->GetConfig()->TotalMemoryLimitExceededThreshold * totalUsed > totalLimit) {
-            alerts->push_back(TError("Total memory limit exceeded")
+            alerts->push_back(TError(NChunkClient::EErrorCode::TotalMemoryLimitExceeded, "Total memory limit exceeded")
                 << TErrorAttribute("used", totalUsed)
                 << TErrorAttribute("limit", totalLimit));
         } else if (DynamicConfigManager_->GetConfig()->MemoryUsageIsCloseToLimitThreshold * totalUsed > totalLimit) {
@@ -1763,7 +1767,7 @@ TCellId TBootstrapBase::GetCellId(TCellTag cellTag) const
     return Bootstrap_->GetCellId(cellTag);
 }
 
-std::vector<TString> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
+std::vector<std::string> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
 {
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
@@ -1783,7 +1787,7 @@ TNodeId TBootstrapBase::GetNodeId() const
     return Bootstrap_->GetNodeId();
 }
 
-TString TBootstrapBase::GetLocalHostName() const
+std::string TBootstrapBase::GetLocalHostName() const
 {
     return Bootstrap_->GetLocalHostName();
 }

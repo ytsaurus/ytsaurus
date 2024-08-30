@@ -6,7 +6,7 @@ from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_erro
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
-                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table)
+                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table, lock)
 
 from yt.common import YtError, update_inplace
 
@@ -1294,10 +1294,10 @@ class TestMultipleAgents(TestQueueAgentBase):
         locks = get("//sys/queue_agents/leader_lock/@locks")
         assert len(locks) == 5
         tx_id = None
-        for lock in locks:
-            if lock["state"] == "acquired":
+        for ll in locks:
+            if ll["state"] == "acquired":
                 assert not tx_id
-                tx_id = lock["transaction_id"]
+                tx_id = ll["transaction_id"]
         leader_from_tx_attrs = get("#" + tx_id + "/@host")
 
         assert leader == leader_from_tx_attrs
@@ -1726,6 +1726,25 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         self._set_and_assert_revision_change("//tmp/p", "treat_as_queue_producer", True)
         self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
+
+
+class TestMasterIntegrationFixes(TestQueueAgentBase):
+    DELTA_MASTER_CONFIG = {
+        "cluster_connection": {
+            "cluster_directory_synchronizer": {
+                "sync_period": 2**60,  # Never update cluster directory
+            },
+        },
+    }
+
+    @authors("apachee")
+    def test_queue_agent_nullptr_dereference_fix_yt_22654(self):
+        create("queue_consumer", "//tmp/c")
+        self._wait_for_component_passes()
+        # NB(apachee): Since cluster directory synchronizer is not yet configured,
+        # it should not be able to resolve this stage. Previously that led to nullptr dereference.
+        with raises_yt_error("Queue agent stage \"production\" is not found"):
+            get("//tmp/c/@queue_consumer_status")
 
 
 class TestCypressSynchronizerBase(TestQueueAgentBase):
@@ -2909,6 +2928,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
+        tx_external = start_transaction()
+        lock(export_dir, mode="shared", tx=tx_external)
+
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
         self._flush_table("//tmp/q")
 
@@ -2947,6 +2969,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
+
+        tx_external = start_transaction()
+        lock(export_dir, mode="shared", tx=tx_external)
 
         insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third chunk"}] * 2)
         self._flush_table("//tmp/q")
@@ -3015,6 +3040,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._create_export_destination(export_dir_1, queue_id)
         self._create_export_destination(export_dir_2, queue_id)
         self._create_export_destination(export_dir_3, queue_id)
+
+        tx_external = start_transaction()
+        lock(export_dir_1, mode="shared", tx=tx_external)
+        lock(export_dir_2, mode="shared", tx=tx_external)
+        lock(export_dir_3, mode="shared", tx=tx_external)
 
         set(f"{queue_path}/@static_export_config", {
             "first": {
@@ -3112,6 +3142,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
+
+        tx_external = start_transaction()
+        lock(export_dir, mode="shared", tx=tx_external)
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data for export"}] * 2)
         self._flush_table("//tmp/q")

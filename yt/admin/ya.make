@@ -5,29 +5,31 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        abc_integration_client
+        acl_dumper
+        cms
         common
         core
         core3
-        cms
-        acl_dumper
+        devil-hulk
+        drive_monitor
+        gh_ci_vm_image_builder
+        hulk
+        hwinfo
+        infra_cli
+        infra_noc
+        libs
+        luigi
+        scheduler_codicils
+        sevenpct
+        shiva2
+        snapshot_processing
+        stateless-service-controller
+        timbertruck
+        trash_recovery
+        yt-tag-table
+        yt_logs
         ytcfgen
         ytdyncfgen
-        drive_monitor
-        luigi
-        infra_noc
-        infra_cli
-        scheduler_codicils
-        shiva2
-        hulk
-        snapshot_processing
-        yt-tag-table
-        trash_recovery
-        hwinfo
-        devil-hulk
-        stateless-service-controller
-        gh_ci_vm_image_builder
-        sevenpct
-        abc_integration_client
-        timbertruck
     )
 ENDIF()

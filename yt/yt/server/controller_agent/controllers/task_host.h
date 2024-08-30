@@ -10,11 +10,11 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/controller_agent/serialize.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+
+#include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
@@ -95,7 +95,7 @@ struct ITaskHost
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
 
-    virtual const TString& GetAuthenticatedUser() const = 0;
+    virtual const std::string& GetAuthenticatedUser() const = 0;
 
     virtual const TOutputTablePtr& StderrTable() const = 0;
     virtual const TOutputTablePtr& CoreTable() const = 0;

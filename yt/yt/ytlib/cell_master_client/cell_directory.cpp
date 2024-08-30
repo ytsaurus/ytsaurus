@@ -46,7 +46,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NYTree;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectory
     : public ICellDirectory
@@ -169,7 +169,7 @@ public:
         cellTagToRoles.reserve(protoDirectory.items_size());
 
         TEnumIndexedArray<EMasterCellRole, TCellTagList> roleToCellTags;
-        THashMap<TCellTag, std::vector<TString>> cellAddresses;
+        THashMap<TCellTag, std::vector<std::string>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
 
         TSecondaryMasterConnectionConfigs newSecondaryMasterConnectionConfigs;
@@ -512,7 +512,7 @@ private:
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
         const NNative::TConnectionOptions& options,
-        const std::vector<TString>& discoveredAddresses)
+        const std::vector<std::string>& discoveredAddresses)
     {
         auto peerChannelConfig = CloneYsonStruct(config);
         if (!discoveredAddresses.empty()) {

@@ -288,7 +288,10 @@ public:
     TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
     {
         if (!volumeCreationResult.IsOK()) {
-            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UserJobPortoApiError, "Creation of user job volume failed", volumeCreationResult);
+            THROW_ERROR_EXCEPTION(
+                NJobProxy::EErrorCode::UserJobPortoApiError,
+                "Creation of user job volume failed")
+                << std::move(volumeCreationResult);
         } else {
             return volumeCreationResult.Value();
         }

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "persistence.h"
+#include "public.h"
+
+#include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -8,7 +10,7 @@
 
 namespace NYT::NControllerAgent {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EProgressCategory,
     ((None)               (0))
@@ -20,7 +22,7 @@ DEFINE_ENUM(EProgressCategory,
     ((Uncategorized)      (6))
     ((Blocked)            (7)));
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract numeric progress counter for jobs, chunks, weights etc.
 //! Can be a part of counter hierarchy: change in a counter affects its parents, grandparents and so on.
@@ -158,7 +160,7 @@ private:
     void UpdateProgressCounter(i64 multiplier);
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TProgressCounterPtr NullProgressCounter;
 

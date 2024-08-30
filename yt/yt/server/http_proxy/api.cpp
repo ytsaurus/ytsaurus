@@ -115,7 +115,7 @@ const IPollerPtr& TApi::GetPoller() const
     return Poller_;
 }
 
-bool TApi::IsUserBannedInCache(const TString& user)
+bool TApi::IsUserBannedInCache(const std::string& user)
 {
     auto now = TInstant::Now();
     auto guard = ReaderGuard(BanCacheLock_);
@@ -127,13 +127,13 @@ bool TApi::IsUserBannedInCache(const TString& user)
     return false;
 }
 
-void TApi::PutUserIntoBanCache(const TString& user)
+void TApi::PutUserIntoBanCache(const std::string& user)
 {
     auto guard = WriterGuard(BanCacheLock_);
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
-TError TApi::CheckAccess(const TString& user)
+TError TApi::CheckAccess(const std::string& user)
 {
     return AccessChecker_->CheckAccess(user);
 }
@@ -143,7 +143,7 @@ int TApi::GetNumberOfConcurrentRequests()
     return GlobalSemaphore_.load();
 }
 
-std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
+std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const std::string& user, const TString& command)
 {
     auto value = GlobalSemaphore_.load();
     do {
@@ -176,7 +176,8 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 {
     return Counters_.FindOrInsert(key, [&, this] {
         auto profiler = SparseProfiler_
-            .WithTag("user", key.first)
+            // TODO(babenko): switch to std::string
+            .WithTag("user", TString(key.first))
             .WithTag("command", key.second);
 
         auto counters = std::make_unique<TProfilingCounters>();
@@ -200,7 +201,7 @@ void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
 }
 
 void TApi::IncrementProfilingCounters(
-    const TString& user,
+    const std::string& user,
     const TString& command,
     std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
@@ -233,7 +234,8 @@ void TApi::IncrementProfilingCounters(
         HttpCodesByUser_.FindOrInsert({user, *httpStatusCode}, [&, this] {
             return SparseProfiler_
                 .WithTag("http_code", ToString(static_cast<int>(*httpStatusCode)))
-                .WithTag("user", user)
+                // TODO(babenko): switch to std::string
+                .WithTag("user", TString(user))
                 .Counter("/user_http_code_count");
         }).first->Increment();
     }
@@ -241,7 +243,8 @@ void TApi::IncrementProfilingCounters(
     if (apiErrorCode) {
         counters->ApiErrors.FindOrInsert(apiErrorCode, [&, this] {
             return SparseProfiler_
-                .WithTag("user", user)
+                // TODO(babenko): switch to std::string
+                .WithTag("user", TString(user))
                 .WithTag("command", command)
                 .WithTag("error_code", ToString(static_cast<int>(apiErrorCode)))
                 .Counter("/api_error_count");
@@ -251,7 +254,8 @@ void TApi::IncrementProfilingCounters(
     auto incrementUserCounter = [&, this] (auto& counterMap, auto counterName, auto tagName, auto tagValue, auto value) {
         counterMap.FindOrInsert(std::pair(user, networkName), [&, this] {
             return SparseProfiler_
-                .WithTag("user", user)
+                // TODO(babenko): switch to std::string
+                .WithTag("user", TString(user))
                 .WithTag(tagName, tagValue)
                 .Counter(counterName);
         }).first->Increment(value);

@@ -4,8 +4,11 @@ import tempfile
 
 
 def openssl_binary():
-    from yt.environment.arcadia_interop import search_binary_path
-    return search_binary_path("openssl")
+    try:
+        from yt.environment.arcadia_interop import search_binary_path
+        return search_binary_path("openssl")
+    except ImportError:
+        return "openssl"
 
 
 def create_ca(ca_cert, ca_cert_key, subj="/CN=Fake CA", key_type="rsa:2048"):

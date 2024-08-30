@@ -24,7 +24,7 @@
 
 namespace NYT::NControllerAgent {
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 /*!
  *  \note Thread affinity: Control unless noted otherwise
@@ -183,7 +183,7 @@ public:
      *  \note Thread affinity: ControlThread
      */
     void ValidateOperationAccess(
-        const TString& user,
+        const std::string& user,
         TOperationId operationId,
         NYTree::EPermission permission);
 
@@ -228,6 +228,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

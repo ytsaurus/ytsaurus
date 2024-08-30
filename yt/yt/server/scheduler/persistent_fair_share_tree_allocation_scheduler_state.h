@@ -13,7 +13,7 @@ struct TPersistentNodeSchedulingSegmentState
     ESchedulingSegment Segment;
 
     // NB: Used only for diagnostics.
-    TString Address;
+    std::string Address;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPersistentNodeSchedulingSegmentState& state, TStringBuf /*format*/);
@@ -29,7 +29,7 @@ using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TN
 
 struct TPersistentOperationSchedulingSegmentState
 {
-    std::optional<TString> Module;
+    std::optional<std::string> Module;
 };
 
 void Serialize(const TPersistentOperationSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);

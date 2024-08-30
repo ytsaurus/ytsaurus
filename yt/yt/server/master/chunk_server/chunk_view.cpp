@@ -10,6 +10,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NCellMaster;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,17 +159,17 @@ void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
     UnderlyingTree_ = underlyingTree;
 }
 
-TString TChunkView::GetLowercaseObjectName() const
+std::string TChunkView::GetLowercaseObjectName() const
 {
     return Format("chunk view %v", GetId());
 }
 
-TString TChunkView::GetCapitalizedObjectName() const
+std::string TChunkView::GetCapitalizedObjectName() const
 {
     return Format("Chunk view %v", GetId());
 }
 
-TString TChunkView::GetObjectPath() const
+TYPath TChunkView::GetObjectPath() const
 {
     return Format("//sys/chunk_views/%v", GetId());
 }

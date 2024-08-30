@@ -599,6 +599,16 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionPtr>, StartDistributedWriteSession, (
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteSessionStartOptions& options),
+        (path, options))
+
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, FinishDistributedWriteSession, (
+        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionFinishOptions& options),
+        (std::move(session), options))
+
 #undef DELEGATE_METHOD
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
@@ -1432,7 +1442,7 @@ private:
             NSecurityClient::TPermissionKey permissionKey{
                 .Object = FromObjectId(TableInfo_->TableId),
                 .User = client->GetOptions().GetAuthenticatedUser(),
-                .Permission = NYTree::EPermission::Write
+                .Permission = NYTree::EPermission::Write,
             };
             auto future = permissionCache->Get(permissionKey);
             auto result = future.TryGet();
@@ -1519,10 +1529,13 @@ private:
                         continue;
                     }
                     if (!syncReplicaIds.contains(replicaInfo->ReplicaId)) {
-                        futures->push_back(MakeFuture(TError(
+                        auto error = TError(
                             NTabletClient::EErrorCode::SyncReplicaNotInSync,
                             "Cannot write to sync replica %v since it is not in-sync yet",
-                            replicaInfo->ReplicaId)));
+                            replicaInfo->ReplicaId)
+                            << TErrorAttribute("replica_cluster", replicaInfo->ClusterName)
+                            << TErrorAttribute("replica_path", replicaInfo->ReplicaPath);
+                        futures->push_back(MakeFuture(std::move(error)));
                         return;
                     }
                 }
@@ -2039,7 +2052,7 @@ private:
             };
 
             modificationsEnqueuedEvents.push_back(
-                modifier->OnIndexModifications([&, modifyRowsOptions=std::move(modifyRowsOptions)] (
+                modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
                     TSharedRange<TRowModification> modifications)

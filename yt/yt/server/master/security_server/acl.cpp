@@ -148,10 +148,10 @@ static void DoDeserializeAclOrThrow(
     TAccessControlList& acl,
     const INodePtr& node,
     const ISecurityManagerPtr& securityManager,
-    std::vector<TString>* missingSubjects)
+    std::vector<std::string>* missingSubjects)
 {
     auto serializableAcl = ConvertTo<TSerializableAccessControlList>(node);
-    std::vector<TString> tmpMissingSubjects;
+    std::vector<std::string> tmpMissingSubjects;
     for (const auto& serializableAce : serializableAcl.Entries) {
         TAccessControlEntry ace;
 
@@ -222,12 +222,12 @@ TAccessControlList DeserializeAclOrThrow(
     return result;
 }
 
-std::pair<TAccessControlList, std::vector<TString>>
+std::pair<TAccessControlList, std::vector<std::string>>
 DeserializeAclGatherMissingSubjectsOrThrow(
     const INodePtr& node,
     const ISecurityManagerPtr& securityManager)
 {
-    std::pair<TAccessControlList, std::vector<TString>> result;
+    std::pair<TAccessControlList, std::vector<std::string>> result;
     DoDeserializeAclOrThrow(result.first, node, securityManager, &result.second);
     return result;
 }
