@@ -3060,8 +3060,10 @@ private:
                     "aborted allocations supposed to be considered by controller agent (OperationId: %v)",
                     operation->GetId());
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Failed to wait full heartbeat from agent (OperationId: %v)", operation->GetId());
-                OnOperationAgentUnregistered(operation);
+                auto error = TError("Failed to wait full heartbeat from agent for operation %v", operation->GetId())
+                    << ex;
+                YT_LOG_WARNING(error);
+                Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
             }
         }
     }
@@ -3442,9 +3444,14 @@ private:
                 WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Failed to abort controller of operation %v, unregistering operation agent",
-                    operation->GetId());
-                OnOperationAgentUnregistered(operation);
+                auto error = TError("Failed to abort controller of operation %v", operation->GetId())
+                    << ex;
+                if (auto agent = operation->FindAgent()) {
+                    YT_LOG_WARNING(error);
+                    Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
+                } else {
+                    YT_LOG_WARNING(error, "Operation termination failed but looks like controller is already unregistered");
+                }
                 return;
             }
         }
@@ -3459,11 +3466,14 @@ private:
                 WaitFor(operation->AbortCommonTransactions())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)",
+                YT_LOG_DEBUG(
+                    ex,
+                    "Failed to abort transactions of orphaned operation (OperationId: %v)",
                     operation->GetId());
             }
         } else {
-            YT_LOG_DEBUG("Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
+            YT_LOG_DEBUG(
+                "Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
                 operation->GetId(),
                 initialState,
                 static_cast<bool>(operation->Transactions()));
