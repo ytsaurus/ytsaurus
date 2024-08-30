@@ -436,9 +436,8 @@ private:
             location->GetMediumName(),
             options.DisableSendBlocks);
 
-        if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
-        }
+        auto throttlingResult = location->CheckWriteThrottling(session->GetWorkloadDescriptor());
+        throttlingResult.Error.ThrowOnError();
 
         TWallTimer timer;
 
@@ -711,6 +710,8 @@ private:
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
+            YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
                 // COMPAT(akozhikhov): Empty revision list.
@@ -773,6 +774,8 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(
             context,
@@ -986,6 +989,8 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
             YT_LOG_WARNING("Simulating network throttling for GetBlockSet (ChunkId: %v)",
@@ -1117,6 +1122,8 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1463,6 +1470,8 @@ private:
         }
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);

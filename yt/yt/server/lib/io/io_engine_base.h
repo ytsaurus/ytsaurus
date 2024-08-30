@@ -182,8 +182,14 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads() const override;
 
-    bool IsReadInFlightRequestLimitExceeded() const override;
-    bool IsWriteInFlightRequestLimitExceeded() const override;
+    bool IsInFlightReadRequestLimitExceeded() const override;
+    bool IsInFlightWriteRequestLimitExceeded() const override;
+
+    i64 GetInFlightReadRequestCount() const override;
+    i64 GetReadRequestLimit() const override;
+
+    i64 GetInFlightWriteRequestCount() const override;
+    i64 GetWriteRequestLimit() const override;
 
 protected:
     friend class TRequestCounterGuard;
