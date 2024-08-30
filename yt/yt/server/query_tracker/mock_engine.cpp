@@ -85,8 +85,9 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, stateTimeProfilingCountersMap)
         , Settings_(ConvertTo<TMockSettingsPtr>(SettingsNode_))
     { }
 
@@ -153,14 +154,15 @@ class TMockEngine
     : public IQueryEngine
 {
 public:
-    TMockEngine(IClientPtr stateClient, TYPath stateRoot)
+    TMockEngine(IClientPtr stateClient, TYPath stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , StateTimeProfilingCountersMap_(std::move(stateTimeProfilingCountersMap))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
+        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker(), StateTimeProfilingCountersMap_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -171,12 +173,13 @@ public:
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+    const TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
     TEngineConfigBasePtr Config_;
 };
 
-IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot)
+IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
 {
-    return New<TMockEngine>(stateClient, stateRoot);
+    return New<TMockEngine>(stateClient, stateRoot, stateTimeProfilingCountersMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

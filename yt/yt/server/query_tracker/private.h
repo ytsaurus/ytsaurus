@@ -20,7 +20,6 @@ using NQueryTrackerClient::TQueryId;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueryTrackerLogger, "QueryTracker");
-inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker").WithGlobal();
 
 ////////////////////////////////////////////////////////////////////////////////
 

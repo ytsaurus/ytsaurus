@@ -146,7 +146,8 @@ TQueryHandlerBase::TQueryHandlerBase(
     const NYPath::TYPath& stateRoot,
     const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
-    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
+    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
+    const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
     , ControlInvoker_(std::move(controlInvoker))
@@ -159,6 +160,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
     , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
+    , StateTimeProfilingCountersMap_(stateTimeProfilingCountersMap)
 {
     YT_LOG_INFO("Query handler instantiated");
 }
@@ -177,7 +179,7 @@ void TQueryHandlerBase::StopProgressWriter()
     }
 }
 
-ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previousState) const
+std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTransaction(EQueryState previousState) const
 {
     YT_LOG_DEBUG("Starting incarnation transaction");
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
@@ -186,7 +188,10 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previ
     options.Timestamp = transaction->GetStartTimestamp();
     const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
     options.ColumnFilter = {
+        *idMapping.AssignedTracker,
+        *idMapping.Engine,
         *idMapping.Incarnation,
+        *idMapping.StartTime,
         *idMapping.State,
     };
     options.KeepMissingRows = true;
@@ -227,7 +232,7 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previ
             optionalRecords[0]->State);
     }
     YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
-    return transaction;
+    return {transaction, *optionalRecords[0]};
 }
 
 void TQueryHandlerBase::OnProgress(TYsonString progress)
@@ -333,7 +338,7 @@ void TQueryHandlerBase::TryWriteProgress()
 
     YT_LOG_DEBUG("Trying to save progress (Version: %v)", progressVersion);
     try {
-        auto transaction = StartIncarnationTransaction();
+        auto transaction = StartIncarnationTransaction().first;
         auto rowBuffer = New<TRowBuffer>();
         {
             TActiveQueryPartial newRecord{
@@ -369,7 +374,10 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
 {
     try {
         YT_LOG_INFO("Writing query state (State: %v, PreviousState: %v)", state, previousState);
-        auto transaction = StartIncarnationTransaction(previousState);
+        ITransactionPtr transaction;
+        TActiveQuery record;
+        std::tie(transaction, record) = StartIncarnationTransaction(previousState);
+
         auto rowBuffer = New<TRowBuffer>();
         {
             TActiveQueryPartial newRecord{
@@ -423,6 +431,31 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
         }
         WaitFor(transaction->Commit())
             .ThrowOnError();
+
+        auto now = TInstant::Now();
+        StateTimes[previousState] += now - LastStateChange_.value_or(record.StartTime);
+        LastStateChange_ = now;
+
+        if (state == EQueryState::Completing || state == EQueryState::Failing) {
+            auto guard = std::make_optional(Guard(StateTimeProfilingCountersMap_->Lock));
+
+            for (auto& [state, time] : StateTimes) {
+                // Save profile counter
+                auto tags = TProfilingTags{
+                    .State = state,
+                    .Engine = record.Engine,
+                    .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
+                };
+
+                auto& stateTimeGauge = GetOrCreateProfilingCounter(
+                    QueryTrackerProfiler,
+                    tags,
+                    StateTimeProfilingCountersMap_->Map,
+                    guard).StateTime;
+                stateTimeGauge.Update(time);
+            }
+        }
+
         YT_LOG_INFO("Query state written (State: %v)", state);
         return true;
     } catch (const std::exception& ex) {
