@@ -65,6 +65,9 @@ TTempTable& TTempTable::operator=(TTempTable&& sourceTable)
 
 void TTempTable::RemoveTable()
 {
+    if (TConfig::Get()->KeepTempTables) {
+        return;
+    }
     Client_->Remove(Name_, TRemoveOptions().Force(true));
 }
 

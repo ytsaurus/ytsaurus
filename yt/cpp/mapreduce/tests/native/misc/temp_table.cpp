@@ -4,6 +4,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
+#include <util/generic/scope.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 #include <util/random/fast.h>
@@ -97,6 +98,32 @@ TEST(TempTableTestSuite, Release)
         tmpTableName = tmpTable.Name();
         EXPECT_TRUE(client->Exists(tmpTableName));
         EXPECT_EQ(tmpTable.Release(), tmpTableName);
+    }
+    EXPECT_TRUE(client->Exists(tmpTableName));
+}
+
+TEST(TempTableTestSuite, KeepTempTables)
+{
+    // TODO(max42): uncomment this when TTempTable looks on a client's config instead of the singleton,
+    // and remove the global config patching.
+    //
+    // TConfigPtr config = MakeIntrusive<TConfig>();
+    // config->KeepTempTables = true;
+    // TTestFixture fixture(TCreateClientOptions().Config(config));
+
+    TConfig::Get()->KeepTempTables = true;
+    Y_DEFER {
+        TConfig::Get()->KeepTempTables = false;
+    };
+    TTestFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TString tmpTableName;
+    {
+        auto tmpTable = TTempTable(client, "table", workingDir + "");
+        tmpTableName = tmpTable.Name();
+        EXPECT_TRUE(client->Exists(tmpTableName));
     }
     EXPECT_TRUE(client->Exists(tmpTableName));
 }
