@@ -244,6 +244,7 @@ public:
                 ETabletNodeThrottlerKind::StoreFlushOut,
                 ETabletNodeThrottlerKind::ReplicationOut,
                 ETabletNodeThrottlerKind::DynamicStoreReadOut,
+                ETabletNodeThrottlerKind::UserBackendOut,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
             }
@@ -268,7 +269,8 @@ public:
                 ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut,
                 ETabletNodeThrottlerKind::StoreFlushOut,
                 ETabletNodeThrottlerKind::ReplicationOut,
-                ETabletNodeThrottlerKind::DynamicStoreReadOut
+                ETabletNodeThrottlerKind::DynamicStoreReadOut,
+                ETabletNodeThrottlerKind::UserBackendOut,
             };
 
             static const THashSet<ETabletNodeThrottlerKind> InStealingTabletNodeThrottlerKinds = {
@@ -518,7 +520,8 @@ public:
             {EWorkloadCategory::SystemTabletPartitioning,    ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut},
             {EWorkloadCategory::SystemTabletStoreFlush,      ETabletNodeThrottlerKind::StoreFlushOut},
             {EWorkloadCategory::SystemTabletReplication,     ETabletNodeThrottlerKind::ReplicationOut},
-            {EWorkloadCategory::UserDynamicStoreRead,        ETabletNodeThrottlerKind::DynamicStoreReadOut}
+            {EWorkloadCategory::UserDynamicStoreRead,        ETabletNodeThrottlerKind::DynamicStoreReadOut},
+            {EWorkloadCategory::UserInteractive,             ETabletNodeThrottlerKind::UserBackendOut},
         };
         auto it = WorkloadCategoryToThrottlerKind.find(category);
         return it == WorkloadCategoryToThrottlerKind.end()

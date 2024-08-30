@@ -1220,14 +1220,17 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
         SetRpcAttachedBlocks(req, Blocks_);
 
-        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
+        auto throttle = ShouldThrottle(node->GetDefaultAddress(), writer);
+
+        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v, Throttle: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
             node->GetDefaultAddress(),
-            Size_);
+            Size_,
+            throttle);
 
         TFuture<void> throttleFuture;
-        if (ShouldThrottle(node->GetDefaultAddress(), writer)) {
+        if (throttle) {
             throttleFuture = writer->Throttler_->Throttle(Size_).Apply(BIND([] (const TError& error) {
                 if (!error.IsOK()) {
                     return TError(

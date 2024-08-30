@@ -310,6 +310,10 @@ private:
         dataSink.SetObjectId(userObject.ObjectId);
         dataSink.SetAccount(writerOptions->Account);
 
+        auto throttler = Options_.Throttler
+            ? Options_.Throttler
+            : NConcurrency::GetUnlimitedThrottler();
+
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
@@ -317,7 +321,9 @@ private:
             ExternalCellTag_,
             UploadTransaction_->GetId(),
             chunkListId,
-            dataSink);
+            dataSink,
+            /*trafficMetter*/ nullptr,
+            std::move(throttler));
 
         YT_LOG_INFO("File opened");
     }

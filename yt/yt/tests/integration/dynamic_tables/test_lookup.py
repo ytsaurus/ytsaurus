@@ -1819,3 +1819,47 @@ class TestLookupRpcProxy(TestLookup):
 
         # _set_timeout_slack_options(1000)
         # assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == empty_result
+
+################################################################################
+
+
+class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "enable_fair_throttler": False,
+        "query_agent":  {
+            "account_user_backend_out_traffic": True,
+        }
+    }
+
+    @authors("capone212")
+    def test_lookup_repeated_keys(self):
+        update_nodes_dynamic_config({
+            "query_agent" : {
+                "account_user_backend_out_traffic" : True,
+            }
+        })
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        keys = [{"key": i % 2} for i in range(10)]
+        expected = [{"key": i % 2, "value": str(i % 2)} for i in range(10)]
+        assert lookup_rows("//tmp/t", keys) == expected
+
+        expected = [{"value": str(i % 2)} for i in range(10)]
+        assert lookup_rows("//tmp/t", keys, column_names=["value"]) == expected
+
+################################################################################
+
+
+class TestLookupOutThrottlingFairThrottler(TestLookupOutThrottlingLegacyThrottler):
+    DELTA_NODE_CONFIG = {
+        "enable_fair_throttler": True,
+        "query_agent":  {
+            "account_user_backend_out_traffic": True,
+        }
+    }

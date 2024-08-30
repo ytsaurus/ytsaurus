@@ -1005,6 +1005,7 @@ public:
 
     bool EnableChangelogNetworkUsageAccounting;
     bool EnableCollocatedDatNodeThrottling;
+    bool EnableSnapshotNetworkThrottling;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

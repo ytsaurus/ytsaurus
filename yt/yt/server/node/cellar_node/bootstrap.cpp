@@ -105,6 +105,11 @@ public:
         return Bootstrap_->GetChangelogOutThrottler();
     }
 
+    const IThroughputThrottlerPtr& GetSnapshotOutThrottler() const override
+    {
+        return Bootstrap_->GetSnapshotOutThrottler();
+    }
+
     DECLARE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
 
 private:
@@ -174,8 +179,11 @@ public:
         if (GetConfig()->EnableFairThrottler) {
             ChangelogOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::ChangelogOut));
+            SnapshotOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+                NTabletNode::ETabletNodeThrottlerKind::SnapshotOut));
         } else {
             ChangelogOutThrottler_ = GetUnlimitedThrottler();
+            SnapshotOutThrottler_ = GetUnlimitedThrottler();
         }
 
         auto cellarBootstrapProxy = New<TCellarBootstrapProxy>(this);
@@ -266,6 +274,11 @@ public:
         return ChangelogOutThrottler_;
     }
 
+    const IThroughputThrottlerPtr& GetSnapshotOutThrottler() const override
+    {
+        return SnapshotOutThrottler_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -280,6 +293,7 @@ private:
     ICellarOccupantPtr DryRunOccupant_;
 
     IThroughputThrottlerPtr ChangelogOutThrottler_;
+    IThroughputThrottlerPtr SnapshotOutThrottler_;
 
     void EnsureDryRunOccupantCreated()
     {
@@ -408,6 +422,8 @@ private:
                 cellarConfig->Size = slotsCount;
                 cellarConfig->HydraManager->EnableChangelogNetworkUsageAccounting =
                     newConfig->TabletNode->EnableChangelogNetworkUsageAccounting;
+                cellarConfig->HydraManager->EnableSnapshotNetworkThrottling =
+                    newConfig->TabletNode->EnableSnapshotNetworkThrottling;
                 cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
                 return cellarManagerConfig;
             }

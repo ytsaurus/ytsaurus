@@ -358,6 +358,15 @@ public:
         return Initialized_ && !Finalizing_;
     }
 
+    IThroughputThrottlerPtr GetSnapshotOutThrottler() const
+    {
+        if (EnableSnapshotNetworkThrottling_) {
+            return Bootstrap_->GetSnapshotOutThrottler();
+        }
+
+        return NConcurrency::GetUnlimitedThrottler();
+    }
+
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
         auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
@@ -374,7 +383,8 @@ public:
                     primaryStoresPath + "/snapshots",
                     secondaryStoresPath + "/snapshots",
                     snapshotClient,
-                    PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+                    PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
+                    GetSnapshotOutThrottler());
                 SnapshotStoreThunk_->SetUnderlying(snapshotStore);
                 break;
             }
@@ -708,6 +718,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         JournalWritesObserver_->Reconfigure(dynamicConfig);
+        EnableSnapshotNetworkThrottling_.store(dynamicConfig->EnableSnapshotNetworkThrottling.value_or(false));
 
         if (CanConfigure()) {
             if (const auto& hydraManager = HydraManager_.Acquire()) {
@@ -833,6 +844,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     const TIntrusivePtr<TJournalWritesObserver> JournalWritesObserver_;
+    std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
     // COMPAT(danilalexeev): 'primary'.
     TYPath GetStoresPath(bool primary)

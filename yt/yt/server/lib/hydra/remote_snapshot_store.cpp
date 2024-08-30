@@ -58,7 +58,8 @@ public:
         TYPath primaryPath,
         TYPath secondaryPath,
         IClientPtr client,
-        TTransactionId prerequisiteTransactionId)
+        TTransactionId prerequisiteTransactionId,
+        IThroughputThrottlerPtr snapshotOutThrottler)
         : Config_(config)
         , Options_(options)
         , PrimaryPath_(std::move(primaryPath))
@@ -69,6 +70,7 @@ public:
             "PrimaryPath: %v, SecondaryPath: %v",
             PrimaryPath_,
             SecondaryPath_))
+        , SnapshotOutThrottler_(std::move(snapshotOutThrottler))
     { }
 
     ISnapshotReaderPtr CreateReader(int snapshotId) override
@@ -99,6 +101,7 @@ private:
     const IClientPtr Client_;
     const TTransactionId PrerequisiteTransactionId_;
     const NLogging::TLogger Logger;
+    const IThroughputThrottlerPtr SnapshotOutThrottler_;
 
 
     class TReader
@@ -364,6 +367,7 @@ private:
                     options.Config = CloneYsonStruct(Store_->Config_->Writer);
                     options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
                     options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
+                    options.Throttler = Store_->SnapshotOutThrottler_;
 
                     Writer_ = Store_->Client_->CreateFileWriter(Path_, options);
 
@@ -478,7 +482,8 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TYPath primaryPath,
     TYPath secondaryPath,
     IClientPtr client,
-    TTransactionId prerequisiteTransactionId)
+    TTransactionId prerequisiteTransactionId,
+    IThroughputThrottlerPtr snapshotOutThrottler)
 {
     return New<TRemoteSnapshotStore>(
         storeConfig,
@@ -486,7 +491,8 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
         std::move(primaryPath),
         std::move(secondaryPath),
         client,
-        prerequisiteTransactionId);
+        prerequisiteTransactionId,
+        std::move(snapshotOutThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
