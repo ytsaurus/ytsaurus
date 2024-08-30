@@ -123,8 +123,8 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CheckPoolName(const TString& poolName, const re2::RE2& regex);
-void ValidatePoolName(const TString& poolName, const re2::RE2& regex);
+TError CheckPoolName(const std::string& poolName, const re2::RE2& regex);
+void ValidatePoolName(const std::string& poolName, const re2::RE2& regex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

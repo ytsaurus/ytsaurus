@@ -118,7 +118,7 @@ protected:
     NYPath::TYPath GetShortPath() const;
     NObjectServer::TObject* ResolvePathToNonversionedObject(const NYPath::TYPath& path) const;
 
-    virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
+    virtual TSelfPtr ResolveNameOrThrow(const std::string& name) = 0;
 
     TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
     TObject* GetParentForPermissionValidation(TObject* object) override;
@@ -131,10 +131,10 @@ protected:
     using THierarchicPermissionValidator<TObject>::ValidatePermission;
 
     virtual void ValidateBeforeAttachChild(
-        const TString& key,
+        const std::string& key,
         const TSelfPtr& childProxy);
     virtual void ValidateAfterAttachChild(
-        const TString& key,
+        const std::string& key,
         const TSelfPtr& childProxy);
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
     virtual void ValidateAttachChildSubtreeSize(const TSelfPtr& child);
@@ -164,17 +164,17 @@ protected:
     virtual void DoRemoveChild(const TSelfPtr& childProxy);
 
     //! Attaches a child object without validations.
-    void AttachChild(const TString& key, const TSelfPtr& childProxy) noexcept;
+    void AttachChild(const std::string& key, const TSelfPtr& childProxy) noexcept;
     //! Detaches a child object without removing it. It's implied that no validations are needed for this.
     void DetachChild(const TSelfPtr& childProxy) noexcept;
 
     void RemoveChildren();
 
-    void ValidateChildName(const TString& childName);
-    virtual void ValidateChildNameAvailability(const TString& childName);
+    void ValidateChildName(const std::string& childName);
+    virtual void ValidateChildNameAvailability(const std::string& childName);
 
-    void RenameSelf(const TString& newName);
-    virtual void DoRenameSelf(const TString& newName);
+    void RenameSelf(const std::string& newName);
+    virtual void DoRenameSelf(const std::string& newName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +207,7 @@ public:
     virtual void Commit();
     virtual void Rollback();
 
-    virtual void AttachChild(const TProxyPtr& parent, const TString& key, const TProxyPtr& child);
+    virtual void AttachChild(const TProxyPtr& parent, const std::string& key, const TProxyPtr& child);
     virtual void DetachChild(const TProxyPtr& parent, const TProxyPtr& child);
 
 protected:

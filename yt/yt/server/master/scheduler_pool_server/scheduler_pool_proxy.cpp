@@ -22,7 +22,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerPoolProxy::TProxyBasePtr TSchedulerPoolProxy::ResolveNameOrThrow(const TString& name)
+TSchedulerPoolProxy::TProxyBasePtr TSchedulerPoolProxy::ResolveNameOrThrow(const std::string& name)
 {
     auto poolTreeName = GetMaybePoolTreeName(GetThisImpl());
     if (!poolTreeName) {
@@ -168,7 +168,7 @@ bool TSchedulerPoolProxy::IsKnownPoolTreeAttribute(NYTree::TInternedAttributeKey
     return Bootstrap_->GetSchedulerPoolManager()->GetKnownPoolTreeAttributes().contains(key);
 }
 
-void TSchedulerPoolProxy::ValidateChildNameAvailability(const TString& newChildName)
+void TSchedulerPoolProxy::ValidateChildNameAvailability(const std::string& newChildName)
 {
     TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(newChildName);
 
@@ -186,7 +186,7 @@ void TSchedulerPoolProxy::ValidateChildNameAvailability(const TString& newChildN
     }
 }
 
-void TSchedulerPoolProxy::ValidateAfterAttachChild(const TString& key, const TProxyBasePtr& childProxy)
+void TSchedulerPoolProxy::ValidateAfterAttachChild(const std::string& key, const TProxyBasePtr& childProxy)
 {
     TNonversionedMapObjectProxyBase::ValidateAfterAttachChild(key, childProxy);
 

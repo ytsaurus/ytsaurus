@@ -820,7 +820,8 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        return IsObjectAlive(account) ? account->GetName() : Format("<%v>", accountId);
+        // TODO(babenko): switch to std::string
+        return IsObjectAlive(account) ? account->GetName() : std::string(Format("<%v>", accountId));
     };
 
     for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
