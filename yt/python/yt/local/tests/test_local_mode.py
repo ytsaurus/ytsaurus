@@ -9,7 +9,6 @@ from yt.test_helpers import get_tests_sandbox, get_build_root, wait, prepare_yt_
 import yt.subprocess_wrapper as subprocess
 
 import yt.yson as yson
-import yt.json_wrapper as json
 
 import yt.wrapper as yt
 
@@ -387,15 +386,13 @@ class TestLocalMode(object):
         try:
             with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
-            with tempfile.NamedTemporaryFile(mode="w", dir=get_tests_sandbox(), delete=False) as json_file:
-                json.dump(patch, json_file)
 
             with local_yt(id=_get_id("test_configs_patches"),
                           rpc_proxy_count=1,
                           master_config=yson_file.name,
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
-                          proxy_config=json_file.name,
+                          proxy_config=yson_file.name,
                           rpc_proxy_config=yson_file.name,
                           watcher_config=yson_file.name) as environment:
                 for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
@@ -408,7 +405,6 @@ class TestLocalMode(object):
                         assert config["test_key"] == "test_value"
         finally:
             remove_file(yson_file.name, force=True)
-            remove_file(json_file.name, force=True)
 
     def test_config_patches_value(self):
         patch = {"test_key": "test_value"}

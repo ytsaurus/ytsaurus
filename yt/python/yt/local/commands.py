@@ -7,7 +7,6 @@ from yt.common import YtError, require, is_process_alive, get_fqdn
 
 
 import yt.yson as yson
-import yt.json_wrapper as json
 
 try:
     from yt.packages.six.moves import map as imap, filter as ifilter
@@ -16,7 +15,6 @@ except ImportError:
 
 import yt.wrapper as yt
 
-import codecs
 import errno
 import importlib
 import logging
@@ -34,7 +32,7 @@ def _to_camelcase(snakecase_str):
     return "".join(x.capitalize() for x in snakecase_str.lower().split("_"))
 
 
-def _load_config(config, is_proxy_config=False):
+def _load_config(config):
     if config is None:
         return {}
 
@@ -43,10 +41,7 @@ def _load_config(config, is_proxy_config=False):
 
     path = config
     with open(path, "rb") as fin:
-        if not is_proxy_config:
-            return yson.load(fin)
-        else:
-            return json.load(codecs.getreader("utf-8")(fin))
+        return yson.load(fin)
 
 
 def get_root_path(path=None):
@@ -244,7 +239,7 @@ def start(master_count=1,
         delta_controller_agent_config=_load_config(controller_agent_config),
         delta_node_config=_load_config(node_config),
         delta_rpc_proxy_config=_load_config(rpc_proxy_config),
-        delta_http_proxy_config=_load_config(proxy_config, is_proxy_config=True),
+        delta_http_proxy_config=_load_config(proxy_config),
         delta_master_cache_config=_load_config(master_cache_config),
         delta_driver_config=_load_config(driver_config),
         delta_global_cluster_connection_config=_load_config(global_cluster_connection_config),
