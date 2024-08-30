@@ -33,8 +33,9 @@ public:
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::IClientPtr& queryClient,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, stateTimeProfilingCountersMap)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
     { }
@@ -82,10 +83,11 @@ class TQLEngine
     : public IQueryEngine
 {
 public:
-    TQLEngine(IClientPtr stateClient, TYPath stateRoot)
+    TQLEngine(IClientPtr stateClient, TYPath stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("QLEngineControl"))
+        , StateTimeProfilingCountersMap_(std::move(stateTimeProfilingCountersMap))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
@@ -94,7 +96,7 @@ public:
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
         auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
-        return New<TQLQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
+        return New<TQLQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker(), StateTimeProfilingCountersMap_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -106,13 +108,14 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
+    const TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };
 
-IQueryEnginePtr CreateQLEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateQLEngine(const IClientPtr& stateClient, const TYPath& stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
 {
-    return New<TQLEngine>(stateClient, stateRoot);
+    return New<TQLEngine>(stateClient, stateRoot, stateTimeProfilingCountersMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

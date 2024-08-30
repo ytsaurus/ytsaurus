@@ -77,8 +77,9 @@ public:
         const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::NNative::IConnectionPtr& connection,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, stateTimeProfilingCountersMap)
         , Query_(activeQuery.Query)
         , Config_(config)
         , Files_(ConvertTo<std::optional<std::vector<TQueryFilePtr>>>(activeQuery.Files).value_or(std::vector<TQueryFilePtr>()))
@@ -285,10 +286,11 @@ class TYqlEngine
     : public IQueryEngine
 {
 public:
-    TYqlEngine(IClientPtr stateClient, TYPath stateRoot)
+    TYqlEngine(IClientPtr stateClient, TYPath stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
+        , StateTimeProfilingCountersMap_(std::move(stateTimeProfilingCountersMap))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -301,7 +303,8 @@ public:
             Config_,
             activeQuery,
             DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            StateTimeProfilingCountersMap_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -315,6 +318,7 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
+    const TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
     TYqlEngineConfigPtr Config_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -322,9 +326,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
 {
-    return New<TYqlEngine>(stateClient, stateRoot);
+    return New<TYqlEngine>(stateClient, stateRoot, stateTimeProfilingCountersMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
