@@ -124,7 +124,7 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         deleteTimestampCount);
 
     auto totalSize = rowSize + blobDataSize;
-    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
+    auto cachedRow = TryNewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
     if (!cachedRow) {
         return nullptr;
     }
@@ -179,7 +179,7 @@ TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersio
 template <class TAlloc>
 TCachedRowPtr CopyCachedRow(TAlloc* allocator, const TCachedRow* source)
 {
-    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, source->Space, source->Space);
+    auto cachedRow = TryNewWithExtraSpace<TCachedRow>(allocator, source->Space, source->Space);
     if (!cachedRow) {
         return nullptr;
     }
