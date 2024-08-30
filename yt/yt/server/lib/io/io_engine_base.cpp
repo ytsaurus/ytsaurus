@@ -294,14 +294,34 @@ EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
     return Config_.Acquire()->UseDirectIOForReads;
 }
 
-bool TIOEngineBase::IsReadInFlightRequestLimitExceeded() const
+bool TIOEngineBase::IsInFlightReadRequestLimitExceeded() const
 {
     return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
 }
 
-bool TIOEngineBase::IsWriteInFlightRequestLimitExceeded() const
+i64 TIOEngineBase::GetInFlightReadRequestCount() const
+{
+    return InFlightReadRequestCount_.load(std::memory_order_relaxed);
+}
+
+i64 TIOEngineBase::GetReadRequestLimit() const
+{
+    return Config_.Acquire()->ReadRequestLimit;
+}
+
+bool TIOEngineBase::IsInFlightWriteRequestLimitExceeded() const
 {
     return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
+}
+
+i64 TIOEngineBase::GetInFlightWriteRequestCount() const
+{
+    return InFlightWriteRequestCount_.load(std::memory_order_relaxed);
+}
+
+i64 TIOEngineBase::GetWriteRequestLimit() const
+{
+    return Config_.Acquire()->WriteRequestLimit;
 }
 
 TIOEngineBase::TIOEngineBase(

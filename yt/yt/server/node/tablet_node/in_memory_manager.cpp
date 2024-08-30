@@ -181,7 +181,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
             tabletSnapshot->RowKeyComparer.UUComparer,
             memoryTracker);
         if (lookupHashTable) {
-            metaMemoryTrackerGuard.IncrementSize(lookupHashTable->GetByteSize());
+            metaMemoryTrackerGuard.IncreaseSize(lookupHashTable->GetByteSize());
         }
     }
 

@@ -405,6 +405,7 @@ public:
     {
         bool Enabled;
         i64 QueueSize;
+        TError Error;
     };
 
     //! Returns whether reads must be throttled
@@ -416,8 +417,8 @@ public:
     //! Reports throttled read.
     void ReportThrottledRead() const;
 
-    //! Returns |true| if writes must currently be throttled.
-    bool CheckWriteThrottling(
+    //! Returns whether writes must be throttled.
+    TDiskThrottlingResult CheckWriteThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool incrementCounter = true) const;
 

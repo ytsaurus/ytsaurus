@@ -303,7 +303,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        'write_memory_limit': 0,
+                        'write_memory_limit': -1,
                     }
                 }
             }
@@ -313,7 +313,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        "pending_io_write_limit": 0,
+                        "pending_io_write_limit": -1,
                     }
                 }
             }
@@ -331,7 +331,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        'read_memory_limit': 0,
+                        'read_memory_limit': -1,
                     }
                 }
             }
@@ -341,7 +341,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        'pending_io_read_limit': 0,
+                        'pending_io_read_limit': -1,
                     }
                 }
             }

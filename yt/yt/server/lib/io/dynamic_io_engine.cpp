@@ -185,14 +185,34 @@ public:
         return GetCurrentEngine()->UseDirectIOForReads();
     }
 
-    bool IsReadInFlightRequestLimitExceeded() const override
+    bool IsInFlightReadRequestLimitExceeded() const override
     {
-        return GetCurrentEngine()->IsReadInFlightRequestLimitExceeded();
+        return GetCurrentEngine()->IsInFlightReadRequestLimitExceeded();
     }
 
-    bool IsWriteInFlightRequestLimitExceeded() const override
+    bool IsInFlightWriteRequestLimitExceeded() const override
     {
-        return GetCurrentEngine()->IsWriteInFlightRequestLimitExceeded();
+        return GetCurrentEngine()->IsInFlightWriteRequestLimitExceeded();
+    }
+
+    i64 GetInFlightReadRequestCount() const override
+    {
+        return GetCurrentEngine()->GetInFlightReadRequestCount();
+    }
+
+    i64 GetReadRequestLimit() const override
+    {
+        return GetCurrentEngine()->GetReadRequestLimit();
+    }
+
+    i64 GetInFlightWriteRequestCount() const override
+    {
+        return GetCurrentEngine()->GetInFlightWriteRequestCount();
+    }
+
+    i64 GetWriteRequestLimit() const override
+    {
+        return GetCurrentEngine()->GetWriteRequestLimit();
     }
 
 private:
