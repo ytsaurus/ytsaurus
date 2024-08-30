@@ -43,7 +43,7 @@ def _load_config(config, is_proxy_config=False):
 
     path = config
     with open(path, "rb") as fin:
-        if not is_proxy_config:
+        if not is_proxy_config or os.path.splitext(path)[1] == ".yson":
             return yson.load(fin)
         else:
             return json.load(codecs.getreader("utf-8")(fin))
