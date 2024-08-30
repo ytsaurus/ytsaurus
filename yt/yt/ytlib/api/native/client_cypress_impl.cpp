@@ -297,7 +297,7 @@ protected:
 
             if (rsp->has_version()) {
                 // EMasterReign::RefactorCrossCellCopyInPreparationForSequoia.
-                YT_VERIFY(rsp->version() >= 2622);
+                YT_VERIFY(rsp->version() >= 2726);
                 UseNewerCrossCellCopyProtocol_ = true;
             }
 
