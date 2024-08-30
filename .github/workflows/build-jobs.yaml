@@ -267,7 +267,7 @@ jobs:
 
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS}  --ignore-recurses --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
 
           for path in "ydb/library/yql/tools/mrjob" \
                       "ydb/library/yql/yt/dynamic" \
