@@ -1680,6 +1680,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert "Optimized trivial count" not in clique.make_query(f'explain {query}')[-1]["explain"]
             assert clique.make_query(query) == [{"cnt": 2}]
 
+    @authors("barykinni")
+    def test_select_from_system_databases(self):
+        with Clique(1) as clique:
+            assert len(clique.make_query("SELECT * FROM system.databases WHERE database='YT'")) != 0
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

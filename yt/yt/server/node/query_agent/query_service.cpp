@@ -202,6 +202,7 @@ public:
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
         , RejectInMemoryRequestsUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
         , MaxPullQueueResponseDataWeight_(Config_->MaxPullQueueResponseDataWeight)
+        , AccountUserBackendOutTraffic_(Config_->AccountUserBackendOutTraffic)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
@@ -265,6 +266,7 @@ private:
     std::atomic<bool> RejectUponThrottlerOverdraft_;
     std::atomic<bool> RejectInMemoryRequestsUponThrottlerOverdraft_;
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
+    std::atomic<bool> AccountUserBackendOutTraffic_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
@@ -282,6 +284,36 @@ private:
             : DefaultQLExecutionPoolName;
 
         return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
+    }
+
+    static i64 GetAttachmentBytes(const auto& response)
+    {
+        return GetByteSize(response->Attachments());
+    }
+
+    const IThroughputThrottlerPtr& GetUserBackendOutThrottler() const
+    {
+        if (AccountUserBackendOutTraffic_.load(std::memory_order::relaxed)) {
+            return Bootstrap_->GetOutThrottler(EWorkloadCategory::UserInteractive);
+        }
+
+        static const IThroughputThrottlerPtr UnlimitedThrottler = GetUnlimitedThrottler();
+        return UnlimitedThrottler;
+    }
+
+    void AcquireUserBackendOutTraffic(i64 transmittedBytes) const
+    {
+        const auto& throttler = GetUserBackendOutThrottler();
+        throttler->Acquire(transmittedBytes);
+    }
+
+    bool ShouldRejectUponNodeThrottlerOverdraft(EInMemoryMode mode) const
+    {
+        if (mode == EInMemoryMode::None) {
+            return RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed);
+        }
+
+        return RejectInMemoryRequestsUponThrottlerOverdraft_.load(std::memory_order::relaxed);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
@@ -386,17 +418,10 @@ private:
 
                 response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), statistics);
+
+                AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
                 context->Reply();
             });
-    }
-
-    bool ShouldRejectUponNodeThrottlerOverdraft(EInMemoryMode mode) const
-    {
-        if (mode == EInMemoryMode::None) {
-            return RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed);
-        }
-
-        return RejectInMemoryRequestsUponThrottlerOverdraft_.load(std::memory_order::relaxed);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
@@ -508,15 +533,19 @@ private:
             auto results = std::move(maybeResult->ValueOrThrow());
             YT_VERIFY(std::ssize(results) == tabletCount);
             response->Attachments() = std::move(results);
+            AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
             context->Reply();
         } else {
+            auto throttler = GetUserBackendOutThrottler();
             context->ReplyFrom(future.ApplyUnique(BIND(
                 [
                     =,
-                    context = context
+                    context = context,
+                    throttler = std::move(throttler)
                 ] (std::vector<TSharedRef>&& results) {
                     YT_VERIFY(std::ssize(results) == tabletCount);
                     response->Attachments() = std::move(results);
+                    throttler->Acquire(GetAttachmentBytes(response));
                 })));
         }
     }
@@ -679,6 +708,7 @@ private:
 
                 ToProto(response->mutable_end_replication_progress(), endProgress);
                 response->Attachments().push_back(responseCodec->Compress(writer->Finish()));
+                AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
 
                 context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v, Progress: %v",
                     result.ResponseRowCount,
@@ -1437,6 +1467,7 @@ private:
             "RowCount: %v, DataWeight: %v",
             fetchRowsResult.RowCount,
             fetchRowsResult.DataWeight);
+        AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
         context->Reply();
     }
 
@@ -1659,6 +1690,8 @@ private:
             newConfig->QueryAgent->RejectInMemoryRequestsUponThrottlerOverdraft);
         MaxPullQueueResponseDataWeight_.store(
             newConfig->QueryAgent->MaxPullQueueResponseDataWeight.value_or(Config_->MaxPullQueueResponseDataWeight));
+        AccountUserBackendOutTraffic_.store(
+            newConfig->QueryAgent->AccountUserBackendOutTraffic.value_or(Config_->AccountUserBackendOutTraffic));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)

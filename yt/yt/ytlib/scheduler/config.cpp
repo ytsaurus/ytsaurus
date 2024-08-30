@@ -2710,6 +2710,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMandatoryUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOptionalUserJobSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaTaskSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

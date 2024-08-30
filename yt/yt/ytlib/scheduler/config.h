@@ -1191,6 +1191,7 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 class TUserJobSpec
     : public NYTree::TYsonStruct
+    , public virtual NPhoenix::TDynamicTag
 {
 public:
     TString Command;
@@ -1337,6 +1338,9 @@ public:
     REGISTER_YSON_STRUCT(TUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUserJobSpec, 0x79afb872);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
@@ -1350,6 +1354,9 @@ public:
     REGISTER_YSON_STRUCT(TMandatoryUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMandatoryUserJobSpec, 0x90adb891);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMandatoryUserJobSpec)
@@ -1365,6 +1372,9 @@ public:
     REGISTER_YSON_STRUCT(TOptionalUserJobSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOptionalUserJobSpec, 0x90adad80);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
@@ -1387,6 +1397,9 @@ public:
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
     static void Register(TRegistrar registrar);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTaskSpec, 0x2bbc0210);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)

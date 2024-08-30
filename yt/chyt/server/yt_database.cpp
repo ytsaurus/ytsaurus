@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <limits>
 
 namespace NYT::NClickHouseServer {
 
@@ -147,7 +148,14 @@ public:
 
     DB::ASTPtr getCreateDatabaseQuery() const override
     {
-        THROW_ERROR_EXCEPTION("Getting CREATE DATABASE query is not supported");
+        auto query = Format("CREATE DATABASE %v ENGINE = %v", getDatabaseName(), getEngineName());
+        DB::ParserCreateQuery parser;
+        return DB::parseQuery(parser,
+            query.data(),
+            query.data() + query.size(),
+            "",
+            0 /*maxQuerySize*/,
+            0 /*maxQueryDepth*/);
     }
 
     void dropTable(DB::ContextPtr context, const String& name, bool /*noDelay*/) override

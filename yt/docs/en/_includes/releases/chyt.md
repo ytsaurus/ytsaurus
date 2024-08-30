@@ -1,6 +1,6 @@
 ## CHYT
 
-Is published as a docker image.
+Is released as a docker image.
 
 **Current release:** {{chyt-version}} (`ytsaurus/chyt:{{chyt-version}}-relwithdebinfo`)
 

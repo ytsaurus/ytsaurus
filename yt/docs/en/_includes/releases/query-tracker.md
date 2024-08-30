@@ -1,6 +1,6 @@
 ## Query Tracker
 
-Is published as a docker image.
+Is released as a docker image.
 
 **Current release:** {{qt-version}} (`ytsaurus/query-tracker:{{qt-version}}-relwithdebinfo`)
 

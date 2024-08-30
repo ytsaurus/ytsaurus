@@ -1,6 +1,9 @@
-# Релизы (en)
+# Release notes
 
-> Thanks to multiple outside contributors for the active participation in {{product-name}} development. 🖤
+> Note: This page is only available in English.
+
+Thanks to multiple outside contributors for the active participation in {{product-name}} development. 🖤
+
 
 ## {{product-name}} Server
 

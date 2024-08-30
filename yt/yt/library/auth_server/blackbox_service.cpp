@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
@@ -109,7 +110,7 @@ private:
 
         auto httpHeaders = New<THeaders>();
         if (TvmService_) {
-            httpHeaders->Add("X-Ya-Service-Ticket",
+            httpHeaders->Add(NHeaders::ServiceTicketHeaderName,
                 TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
         }
 

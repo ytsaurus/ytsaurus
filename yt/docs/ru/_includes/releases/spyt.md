@@ -1,6 +1,6 @@
 ## SPYT
 
-Is published as a docker image.
+Is released as a docker image.
 
 **Current release:** {{spyt-version}} (`ghcr.io/ytsaurus/spyt:{{spyt-version}}`)
 

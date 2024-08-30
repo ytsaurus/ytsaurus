@@ -52,6 +52,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobDeterminismValidation)             (301512))
     ((MultipleJobsInAllocation)             (301513))
     ((OperationIncarnationInJoblet)         (301514))
+    // 24.2 starts here
+    ((BumpTo_24_2)                          (301515))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
