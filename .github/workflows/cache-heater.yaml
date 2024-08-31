@@ -1,4 +1,4 @@
-name: cache_heater
+name: Cache heater
 
 on:
   pull_request
@@ -90,11 +90,7 @@ jobs:
     needs:
       - stop-vm
     runs-on: ubuntu-latest
-<<<<<<< HEAD
-    if: ${{ failure() }}
-=======
     if: false # ${{ failure() }}
->>>>>>> cc0a2e8ffaa (add workflow dispatch)
     steps:
       - name: Send telegram message
         uses: appleboy/telegram-action@master
