@@ -45,23 +45,33 @@ jobs:
         with:
           path: ytsaurus
 
-      # - name: Checkout ydb
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: ydb-platform/ydb
-      #     ref: 6eb6b8380b3259fc57e80aa2aa94d5314b0e48b7
-      #     path: ydb
+      - name: Checkout ydb
+        uses: actions/checkout@v3
+        with:
+          repository: ydb-platform/ydb
+          ref: 6eb6b8380b3259fc57e80aa2aa94d5314b0e48b7
+          path: ydb
+
+  patch-ya-conf:
+    name: Patch ya.conf
+    needs: checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Patch ya.conf
+        run: |
+          cat ../ydb/build/internal/ya.conf | grep -v bazel > ../ydb/build/internal/ya.conf
 
   build:
     name: Build with ya-make
     needs:
       - start-vm
       - checkout
+      - patch-ya-conf
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      # build-query-tracker: true
+      build-query-tracker: true
       build-python: true
       update-remote-cache: true
     secrets:
