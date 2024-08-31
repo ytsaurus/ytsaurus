@@ -313,6 +313,13 @@ TFuture<void> TBlobSession::DoStart()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
+    PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
+
+    PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
+        EIODirection::Write,
+        Options_.WorkloadDescriptor,
+        /*delta*/ 0);
+
     Pipeline_->Open()
         .Subscribe(BIND(&TBlobSession::OnStarted, MakeStrong(this))
             .Via(SessionInvoker_));
@@ -378,6 +385,14 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
 
     if (!Error_.IsOK()) {
         return MakeFuture<TChunkInfo>(Error_);
+    }
+
+    if (PendingBlockMemoryGuard_.GetSize() > 0 || PendingBlockLocationMemoryGuard_.GetSize() > 0) {
+        YT_LOG_ALERT(
+            "Found unexpected non-empty memory guard on the successful end of the session (ChunkId: %v, Memory: %v, LocationMemory: %v)",
+            GetChunkId(),
+            PendingBlockMemoryGuard_.GetSize(),
+            PendingBlockLocationMemoryGuard_.GetSize());
     }
 
     return Pipeline_->Close(chunkMeta)
@@ -456,6 +471,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
 TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
+    i64 cumulativeBlockSize,
     bool enableCaching)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -464,31 +480,21 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         return MakeFuture<NIO::TIOCounters>({});
     }
 
-    // Make all acquisitions in advance to ensure that this error is retriable.
-    const auto& memoryTracker = Location_->GetWriteMemoryTracker();
-    std::vector<TLocationMemoryGuard> locationMemoryGuards;
-    for (auto& block : blocks) {
-        if (memoryTracker->IsExceeded()) {
-            Location_->ReportThrottledWrite();
-            return MakeFuture<NIO::TIOCounters>(
-                TError(
-                    NChunkClient::EErrorCode::WriteThrottlingActive,
-                    "Not enough memory to serve %Qlv acquisition request",
-                    EMemoryCategory::PendingDiskWrite)
-                    << TErrorAttribute("bytes_used", memoryTracker->GetUsed())
-                    << TErrorAttribute("bytes_limit", memoryTracker->GetLimit()));
-        }
+    bool useCumulativeBlockSize = (cumulativeBlockSize != 0);
 
-        locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
-            EIODirection::Write,
-            Options_.WorkloadDescriptor,
-            block.Size()));
-        block.Data = TrackMemory(memoryTracker, std::move(block.Data));
-        MemoryUsage_.fetch_add(block.Size());
+    // Updating right boundary of cumulative block sizes. A block with following number was received.
+    if (useCumulativeBlockSize && cumulativeBlockSize > MaxCumulativeBlockSize_) {
+        // Delta is new allocated memory of block's window.
+        auto deltaMaxCumulativeBlockSize = cumulativeBlockSize - MaxCumulativeBlockSize_;
+        MaxCumulativeBlockSize_ = cumulativeBlockSize;
+
+        // Add memory to guards.
+        // This guard account memory in memory tracker.
+        PendingBlockMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
+        // This guard account memory in location - without memory tracker - for per location counting.
+        PendingBlockLocationMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
     }
 
-    // Work around possible livelock. We might consume all memory allocated for blob sessions. That would block
-    // all other PutBlock requests.
     std::vector<TFuture<void>> precedingBlockReceivedFutures;
     for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {
         const auto& slot = GetSlot(precedingBlockIndex);
@@ -498,27 +504,36 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     }
 
     if (precedingBlockReceivedFutures.empty()) {
-        return DoPerformPutBlocks(startBlockIndex, std::move(blocks), std::move(locationMemoryGuards), enableCaching);
+        return DoPerformPutBlocks(
+            startBlockIndex,
+            std::move(blocks),
+            useCumulativeBlockSize,
+            enableCaching);
     }
 
-    return AllSucceeded(precedingBlockReceivedFutures)
+    auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
         .Apply(BIND([config = Config_] (const TError& error) {
             if (error.GetCode() == NYT::EErrorCode::Timeout) {
-                return TError(
+                THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::WriteThrottlingActive,
                     "Block reordering timeout")
                     << TErrorAttribute("timeout", config->SessionBlockReorderTimeout);
             }
 
-            return error;
-        }))
+            if (!error.IsOK()) {
+                THROW_ERROR(error);
+            }
+        })
+        .AsyncVia(SessionInvoker_));
+
+    return allPrecedingBlocksReceivedFuture
         .Apply(BIND(
             &TBlobSession::DoPerformPutBlocks,
             MakeStrong(this),
             startBlockIndex,
             Passed(std::move(blocks)),
-            Passed(std::move(locationMemoryGuards)),
+            useCumulativeBlockSize,
             enableCaching)
             .AsyncVia(SessionInvoker_));
 }
@@ -526,7 +541,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
-    std::vector<TLocationMemoryGuard> locationMemoryGuards,
+    bool useCumulativeBlockSize,
     bool enableCaching)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -536,10 +551,13 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
     const auto& blockCache = Bootstrap_->GetBlockCache();
 
+    const auto& memoryTracker = Location_->GetWriteMemoryTracker();
+    std::vector<TLocationMemoryGuard> locationMemoryGuards;
+
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
         int blockIndex = startBlockIndex + localIndex;
-        const auto& block = blocks[localIndex];
+        auto& block = blocks[localIndex];
         TBlockId blockId(GetChunkId(), blockIndex);
         ValidateBlockIsInWindow(blockIndex);
 
@@ -553,6 +571,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
+                locationMemoryGuards.push_back({});
                 continue;
             }
 
@@ -565,17 +584,56 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         BlockCount_.fetch_add(1);
 
-        slot.State = ESlotState::Received;
-        slot.Block = block;
-        slot.ReceivedPromise.TrySet();
+        {
+            auto blockSize = static_cast<i64>(block.Size());
 
-        if (enableCaching) {
-            blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
+            if (useCumulativeBlockSize) {
+                // Move tracking from pending guards.
+                if (PendingBlockLocationMemoryGuard_.GetSize() >= blockSize) {
+                    PendingBlockLocationMemoryGuard_.DecreaseSize(blockSize);
+                } else {
+                    YT_LOG_ALERT(
+                        "Location memory guard is smaller than the size of the incoming block (ChunkId: %v)",
+                        GetChunkId());
+                }
+
+                if (PendingBlockMemoryGuard_.GetSize() >= blockSize) {
+                    PendingBlockMemoryGuard_.DecreaseSize(blockSize);
+                } else {
+                    YT_LOG_ALERT(
+                        "Memory guard is smaller than the size of the incoming block (ChunkId: %v)",
+                        GetChunkId());
+                }
+            }
+
+            // Track memory per location - without memory tracker.
+            locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
+                EIODirection::Write,
+                Options_.WorkloadDescriptor,
+                blockSize));
+
+            // Track in memory tracker.
+            block.Data = TrackMemory(memoryTracker, std::move(block.Data));
+
+            // Counting for session manager orchid.
+            MemoryUsage_.fetch_add(blockSize);
         }
 
-        Location_->UpdateUsedSpace(block.Size());
-        receivedBlockIndexes.push_back(blockIndex);
+        {
+            slot.State = ESlotState::Received;
+            slot.Block = block;
+            slot.ReceivedPromise.TrySet();
+
+            if (enableCaching) {
+                blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
+            }
+
+            Location_->UpdateUsedSpace(block.Size());
+            receivedBlockIndexes.push_back(blockIndex);
+        }
     }
+
+    YT_VERIFY(blocks.size() == locationMemoryGuards.size());
 
     auto totalSize = GetByteSize(blocks);
     Size_.fetch_add(totalSize);
@@ -700,6 +758,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
+    i64 cumulativeBlockSize,
     const TNodeDescriptor& targetDescriptor)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -717,6 +776,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
+    req->set_cumulative_block_size(cumulativeBlockSize);
 
     i64 requestSize = 0;
 

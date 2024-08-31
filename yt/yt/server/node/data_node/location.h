@@ -117,6 +117,11 @@ public:
 
     void Release();
 
+    i64 GetSize();
+
+    void IncreaseSize(i64 delta);
+    void DecreaseSize(i64 delta);
+
     TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
 
     explicit operator bool() const;
@@ -556,6 +561,7 @@ private:
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
+    void IncreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
     void DecreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
     void UpdateUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
 
