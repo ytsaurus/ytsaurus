@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
@@ -165,6 +167,8 @@ private:
 
         auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 

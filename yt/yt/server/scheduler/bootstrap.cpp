@@ -39,6 +39,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -131,6 +133,8 @@ void TBootstrap::DoRun()
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();

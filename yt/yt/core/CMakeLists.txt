@@ -161,6 +161,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log_writer_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/file_log_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/stream_log_writer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/system_log_event_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/random_access_gzip.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/zstd_compression.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp

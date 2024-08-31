@@ -142,6 +142,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/transaction_client/config.h>
@@ -804,6 +806,8 @@ private:
             /*limits*/ {},
             Logger,
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         BufferedProducer_ = New<TBufferedProducer>();
         ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
