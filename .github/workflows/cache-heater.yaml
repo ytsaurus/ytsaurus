@@ -61,11 +61,7 @@ jobs:
     steps:
       - name: Patch ya conf
         run: |
-          ls -la ../
-          ls -la ../ydb
-          ls -ls ../ydb/build
-          ls -ls ../ydb/build/internal
-          cat ../ydb/build/internal/ya.conf | grep -v bazel > ../ydb/build/internal/ya.conf
+          cat ./ydb/build/internal/ya.conf | grep -v bazel > ./ydb/build/internal/ya.conf
 
   build:
     name: Build with ya-make
