@@ -126,6 +126,7 @@ func (p *prepare) prepare(opts []OperationOption) error {
 			p.actions = append(p.actions, opt.uploadLocalFiles)
 		case *skipSelfUploadOption:
 			skipSelfUpload = true
+		case *startOperationOptsOption:
 		default:
 			panic(fmt.Sprintf("unsupported option type %T", opt))
 		}
@@ -219,7 +220,16 @@ func (p *prepare) start(opts []OperationOption) (*operation, error) {
 		return nil, err
 	}
 
-	id, err := p.mr.operationStartClient().StartOperation(p.ctx, p.spec.Type, p.spec, nil)
+	var startOperationOptions *yt.StartOperationOptions
+	for _, opt := range opts {
+		startOperationOptsOption, ok := opt.(*startOperationOptsOption)
+		if ok {
+			startOperationOptions = startOperationOptsOption.options
+			break
+		}
+	}
+
+	id, err := p.mr.operationStartClient().StartOperation(p.ctx, p.spec.Type, p.spec, startOperationOptions)
 	if err != nil {
 		return nil, err
 	}
