@@ -295,8 +295,14 @@ $ yt --proxy {{prestable-cluster}} get //tmp/table_2/@schema
 ### Чтение схемы
 
 - CLI
-  ```
+  ```bash
   yt --proxy {{prestable-cluster}} get //home/tutorial/links_sorted_schematized/@schema
+  ```
+
+- Python
+
+  ```python
+  yt.get("//home/tutorial/links_sorted_schematized/@schema")
   ```
 
 ### Создание таблицы со схемой
