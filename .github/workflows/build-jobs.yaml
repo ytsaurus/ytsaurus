@@ -224,6 +224,7 @@ jobs:
           fi
 
           BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+
           echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
           echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
 
