@@ -1,10 +1,7 @@
-name: Cache heater
+name: cache_heater
 
 on:
   pull_request
-  # workflow_dispatch:
-  # schedule:
-  #   - cron: '0 0,3,6,9,12,15,18,21 * * *'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -64,14 +61,9 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-<<<<<<< HEAD
-      # build-query-tracker: true
-      build-python: true
-      update-remote-cache: true
-=======
       build-query-tracker: true
       build-python: true
->>>>>>> cc0a2e8ffaa (add workflow dispatch)
+      update-remote-cache: true
     secrets:
       YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     uses: ./.github/workflows/build-jobs.yaml
