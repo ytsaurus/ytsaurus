@@ -206,6 +206,29 @@ void TLocationMemoryGuard::Release()
     }
 }
 
+void TLocationMemoryGuard::IncreaseSize(i64 delta)
+{
+    YT_VERIFY(Owner_);
+
+    Size_ += delta;
+    Owner_->IncreaseUsedMemory(Direction_, Category_, delta);
+}
+
+void TLocationMemoryGuard::DecreaseSize(i64 delta)
+{
+    YT_VERIFY(Owner_);
+    YT_VERIFY(Size_ >= delta);
+
+    Size_ -= delta;
+    Owner_->DecreaseUsedMemory(Direction_, Category_, delta);
+}
+
+i64 TLocationMemoryGuard::GetSize()
+{
+    return Size_;
+
+}
+
 TLocationMemoryGuard::operator bool() const
 {
     return Owner_.operator bool();
@@ -925,6 +948,16 @@ void TChunkLocation::UpdatePendingIOSize(
         category,
         result,
         delta);
+}
+
+void TChunkLocation::IncreaseUsedMemory(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdateUsedMemory(direction, category, delta);
 }
 
 void TChunkLocation::DecreaseUsedMemory(
