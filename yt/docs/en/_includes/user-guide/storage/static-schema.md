@@ -295,12 +295,18 @@ There are a number of restrictions on changing the schema:
 ### Reading a schema
 
 - CLI
-  ```
+
+  ```bash
   yt --proxy {{prestable-cluster}} get //home/tutorial/links_sorted_schematized/@schema
   ```
 
-### Creating a table with a schema
+- Python
 
+  ```python
+  yt.get("//home/tutorial/links_sorted_schematized/@schema")
+  ```
+
+### Creating a table with a schema
 
 - CLI
 
