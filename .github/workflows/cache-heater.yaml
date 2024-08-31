@@ -75,7 +75,6 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-query-tracker: true
-      build-python: true
       update-remote-cache: true
     secrets:
       YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
