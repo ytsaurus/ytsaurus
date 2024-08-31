@@ -29,7 +29,7 @@ jobs:
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
           cores: 16
-          memory: 64GB
+          memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
           disk-size: 558GB
