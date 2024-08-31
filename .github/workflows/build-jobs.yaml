@@ -208,11 +208,11 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]
           then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-store-codec=no_data --yt-replace-result --yt-replace-result-yt-upload-only --rebuild -xx"
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-replace-result --yt-replace-result-yt-upload-only --rebuild -xx"
           fi
 
           STRIP_VALUE=no
@@ -277,6 +277,10 @@ jobs:
           ../ytsaurus/ytsaurus/ya make -T ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          # TODO(nadya73): Remove it after ya fix.
+          cat ../ytsaurus/ydb/build/internal/ya.conf | grep -v bazel > ./patched.ya.conf
+          cp ./patched.ya.conf ../ytsaurus/ydb/build/internal/ya.conf
 
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
 
