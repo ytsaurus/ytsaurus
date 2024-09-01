@@ -7,9 +7,9 @@ PEERDIR(
     yt/cpp/mapreduce/library/table_schema
 
     yt/yt/library/arrow_parquet_adapter
-
     yt/yt/library/huggingface_client
-
+    yt/yt/library/program
+    yt/yt/library/re2
     yt/yt/library/s3
 
     library/cpp/yson/node
@@ -20,6 +20,7 @@ PEERDIR(
 
 SRCS(
     import_table.cpp
+    config.cpp
 )
 
 END()
