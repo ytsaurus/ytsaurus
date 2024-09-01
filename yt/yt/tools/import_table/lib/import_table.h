@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NTools::NImporter {
@@ -12,15 +14,18 @@ void ImportParquetFilesFromS3(
     const TString& region,
     const TString& bucket,
     const TString& prefix,
-    const TString& resultTable);
+    const TString& resultTable,
+    TImportConfigPtr config = New<TImportConfig>());
 
 void ImportParquetFilesFromHuggingface(
     const TString& proxy,
     const TString& dataset,
-    const TString& config,
+    const TString& subset,
     const TString& split,
     const TString& resultTable,
-    const std::optional<TString>& urlOverride = std::nullopt);
+    // TODO(max42): introduce a derived THuggingFaceImportConfig and move next argument there.
+    const std::optional<TString>& urlOverride = std::nullopt,
+    TImportConfigPtr config = New<TImportConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 
