@@ -516,6 +516,7 @@ public:
     }
 
     void ValidatePoolPermission(
+        const TString& treeId,
         NObjectClient::TObjectId poolObjectId,
         const TString& poolName,
         const std::string& user,
@@ -527,20 +528,22 @@ public:
             ? Format("#%v", poolObjectId)
             : Config_->PoolTreesRoot;
 
-        YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v)",
+        YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v, TreeId: %v)",
             permission,
             user,
             poolName,
-            path);
+            path,
+            treeId);
 
         auto result = WaitFor(GetClient()->CheckPermission(user, path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
-                "User %Qv has been denied access to pool %Qv",
+                "User %Qv has been denied access to pool %Qv in pool tree %Qv",
                 user,
-                poolName)
+                poolName,
+                treeId)
                 << result.ToError(user, permission)
                 << TErrorAttribute("path", path);
         }
