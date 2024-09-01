@@ -16,7 +16,7 @@ public:
         NConcurrency::IPollerPtr poller,
         const std::optional<TString>& urlOverride = std::nullopt); // For tests only.
 
-    std::vector<TString> GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split);
+    std::vector<TString> GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split);
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr DownloadFile(const TString& url);
 

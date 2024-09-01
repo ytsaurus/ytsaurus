@@ -494,7 +494,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
     NTools::NImporter::ImportParquetFilesFromHuggingface(
         proxy,
         Dataset,
-        "default",
+        /*subset*/ "default",
         Split,
         resultTable,
         TestUrl);
@@ -525,7 +525,7 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
     NTools::NImporter::ImportParquetFilesFromHuggingface(
         proxy,
         Dataset,
-        "default",
+        /*subset*/ "default",
         Split,
         resultTable,
         TestUrl);

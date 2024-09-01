@@ -24,6 +24,8 @@ target_link_libraries(tools-import_table-lib PUBLIC
   mapreduce-library-table_schema
   yt-library-arrow_parquet_adapter
   yt-library-huggingface_client
+  yt-library-program
+  yt-library-re2
   yt-library-s3
   cpp-yson-node
   library-cpp-getopt
@@ -32,5 +34,6 @@ target_link_libraries(tools-import_table-lib PUBLIC
 
 target_sources(tools-import_table-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/lib/import_table.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/lib/config.cpp
 )
 

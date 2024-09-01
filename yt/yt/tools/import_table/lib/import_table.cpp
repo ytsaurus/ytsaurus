@@ -1,12 +1,19 @@
 #include "import_table.h"
 
-#include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include "config.h"
 
 #include <yt/yt/library/arrow_parquet_adapter/arrow.h>
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/library/s3/client.h>
 
 #include <yt/yt/library/huggingface_client/client.h>
+
+#include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/cpp/mapreduce/interface/client_method_options.h>
 
@@ -32,10 +39,27 @@
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
 
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
+#include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+
+#include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <util/system/execpath.h>
+
 namespace NYT::NTools::NImporter {
 
 using namespace NConcurrency;
+using namespace NRe2;
+using namespace NYson;
 using namespace NYtBlobTable;
+using namespace NYTree;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,12 +264,15 @@ class TDownloadMapper
 public:
     TDownloadMapper() = default;
 
-    explicit TDownloadMapper(TSourceConfig sourceConfig)
+    explicit TDownloadMapper(TSourceConfig sourceConfig, TString serializedSingletonsConfig)
         : SourceConfig_(std::move(sourceConfig))
+        , SerializedSingletonsConfig_(std::move(serializedSingletonsConfig))
     { }
 
     void Start(TWriter* /*writer*/) override
     {
+        auto config = ConvertTo<TSingletonsConfigPtr>(NYson::TYsonString(SerializedSingletonsConfig_));
+        ConfigureSingletons(config);
         Downloader_ = CreateDownloader(SourceConfig_);
     }
 
@@ -284,12 +311,13 @@ public:
         }
     }
 
-    Y_SAVELOAD_JOB(SourceConfig_);
+    Y_SAVELOAD_JOB(SourceConfig_, SerializedSingletonsConfig_);
 
 private:
     int FileSize_;
     IFileWriterPtr BlobTableWriter_;
     TSourceConfig SourceConfig_;
+    TString SerializedSingletonsConfig_;
     IDownloaderPtr Downloader_;
 
     // A ring buffer in which we save the current end of the file.
@@ -552,7 +580,8 @@ void ImportParquetFilesFromSource(
     const TString& proxy,
     const std::vector<TString>& fileIds,
     const TString& resultTable,
-    const TSourceConfig& sourceConfig)
+    const TSourceConfig& sourceConfig,
+    TImportConfigPtr config)
 {
     auto ytClient = NYT::CreateClient(proxy);
 
@@ -571,13 +600,19 @@ void ImportParquetFilesFromSource(
 
     auto writer = ytClient->CreateTableWriter<TNode>(metaInformationTable.Name());
     int fileIndex = 0;
+
     for (const auto& fileName : fileIds) {
-        writer->AddRow(TNode()(FileIdColumnName, fileName)(FileIndexColumnName, fileIndex));
-        ++fileIndex;
+        if (re2::RE2::PartialMatch(fileName, *config->ParquetFileRegex)) {
+            writer->AddRow(TNode()(FileIdColumnName, fileName)(FileIndexColumnName, fileIndex));
+            ++fileIndex;
+        }
     }
     writer->Finish();
 
-    YT_LOG_INFO("Create tables with data and meta Parquet information from Parquet files");
+    YT_LOG_INFO(
+        "Create tables with data and meta Parquet information from Parquet files (ParquetFileRegex: %v, FileCount: %v)",
+        config->ParquetFileRegex->pattern(),
+        fileIndex);
 
     TBlobTableSchema blobTableSchema;
     blobTableSchema.BlobIdColumns({TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64)});
@@ -612,28 +647,51 @@ void ImportParquetFilesFromSource(
     const TString dataTablePath = dataTable.Name();
     const TString metadataTablePath = metadataTable.Name();
 
-    TOperationOptions operationOptions;
-    TNode secureVault;
-
-    if (sourceConfig.S3Config) {
-        secureVault["ACCESS_KEY_ID"] = GetEnv("ACCESS_KEY_ID");
-        secureVault["SECRET_ACCESS_KEY"] = GetEnv("SECRET_ACCESS_KEY");
-    } else if (sourceConfig.HuggingfaceConfig) {
-        secureVault["HUGGINGFACE_TOKEN"] = GetEnv("HUGGINGFACE_TOKEN");
+    // If libiconv.so exists next to us, assume that we are in OSS world
+    // and it has to be attached to the user jobs.
+    auto selfDir = NFS::GetDirectoryName(GetExecPath());
+    auto supposedLibIconvPath = NFS::JoinPaths(selfDir, "libiconv.so");
+    bool attachLibIconv = NFS::Exists(supposedLibIconvPath);
+    if (attachLibIconv) {
+        YT_LOG_INFO("libiconv.so exists, it will be attached to the user jobs (Path: %v)", supposedLibIconvPath);
     } else {
-        THROW_ERROR_EXCEPTION("The importer source is not defined");
+        YT_LOG_INFO("libiconv.so does not exist, assuming static linkage (SupposedPath: %v)", supposedLibIconvPath);
     }
 
-    operationOptions.SecureVault(secureVault);
-    ytClient->Map(
-        TMapOperationSpec()
+    YT_LOG_INFO("Starting download operation of Parquet files");
+
+    {
+        TOperationOptions operationOptions;
+        TNode secureVault;
+
+        if (sourceConfig.S3Config) {
+            secureVault["ACCESS_KEY_ID"] = GetEnv("ACCESS_KEY_ID");
+            secureVault["SECRET_ACCESS_KEY"] = GetEnv("SECRET_ACCESS_KEY");
+        } else if (sourceConfig.HuggingfaceConfig) {
+            secureVault["HUGGINGFACE_TOKEN"] = GetEnv("HUGGINGFACE_TOKEN");
+        } else {
+            THROW_ERROR_EXCEPTION("The importer source is not defined");
+        }
+
+        operationOptions.SecureVault(secureVault);
+
+        auto spec = TMapOperationSpec()
             .AddInput<TNode>(metaInformationTable.Name())
             .AddOutput<TNode>(dataTablePath)
-            .AddOutput<TNode>(metadataTablePath),
-        new TDownloadMapper(sourceConfig),
-        operationOptions);
+            .AddOutput<TNode>(metadataTablePath)
+            .DataSizePerJob(1);
 
-    YT_LOG_INFO("Start sort operation of dataParquetTable and metadataOfParquetTable");
+        if (attachLibIconv) {
+            spec = spec.MapperSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+        }
+
+        ytClient->Map(
+            spec,
+            new TDownloadMapper(sourceConfig, ConvertToYsonString(config->JobSingletons).ToString()),
+            operationOptions);
+    }
+
+    YT_LOG_INFO("Starting sort operation of data and metadata blob tables");
 
     ytClient->Sort(TSortOperationSpec()
         .SortBy({FileIndexColumnName, PartIndexColumnName})
@@ -645,10 +703,13 @@ void ImportParquetFilesFromSource(
         .AddInput(metadataTablePath)
         .Output(metadataTablePath));
 
-    YT_LOG_INFO("Start reduce operation: filling rows in the result table");
+    YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the result table (MaxRowWeight: %v)", config->MaxRowWeight);
 
-    ytClient->RawReduce(
-        TRawReduceOperationSpec()
+    {
+        TOperationOptions operationOptions;
+        operationOptions.Spec(TNode()("job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))));
+
+        auto spec = TRawReduceOperationSpec()
             .ReduceBy({FileIndexColumnName})
             .SortBy({FileIndexColumnName, PartIndexColumnName})
             .AddInput(metadataTablePath)
@@ -656,10 +717,19 @@ void ImportParquetFilesFromSource(
             .AddOutput(TRichYPath(resultTable)
                 .Schema(CreateResultTableSchema(ytClient, metadataTablePath)))
             .InputFormat(TFormat(TNode("yson")))
-            .OutputFormat(TFormat(TNode("arrow"))),
-        new TParseParquetFilesReducer);
+            .OutputFormat(TFormat(TNode("arrow")));
 
-    YT_LOG_INFO("Parquet files were successfully uploaded to the table with path %v", resultTable);
+        if (attachLibIconv) {
+            spec = spec.ReducerSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+        }
+
+        ytClient->RawReduce(
+            spec,
+            new TParseParquetFilesReducer,
+            operationOptions);
+    }
+
+    YT_LOG_INFO("Parquet files were successfully uploaded (ResultTable: %v)", resultTable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -670,10 +740,13 @@ void ImportParquetFilesFromS3(
     const TString& region,
     const TString& bucket,
     const TString& prefix,
-    const TString& resultTable)
+    const TString& resultTable,
+    TImportConfigPtr config)
 {
     TString accessKeyId = GetEnv("ACCESS_KEY_ID");
     TString secretAccessKey = GetEnv("SECRET_ACCESS_KEY");
+
+    ConfigureSingletons(config->Singletons);
 
     TS3Config s3Config({
         .Url = url,
@@ -689,25 +762,28 @@ void ImportParquetFilesFromS3(
         proxy,
         fileKeys,
         resultTable,
-        TSourceConfig({ .S3Config = s3Config }));
+        TSourceConfig({ .S3Config = s3Config }),
+        std::move(config));
 }
 
 void ImportParquetFilesFromHuggingface(
     const TString& proxy,
     const TString& dataset,
-    const TString& config,
+    const TString& subset,
     const TString& split,
     const TString& resultTable,
-    const std::optional<TString>& urlOverride
-)
+    const std::optional<TString>& urlOverride,
+    TImportConfigPtr config)
 {
     YT_LOG_INFO("Start getting list of files");
     auto huggingfaceToken = GetEnvOrNull("HUGGINGFACE_TOKEN");
 
+    ConfigureSingletons(config->Singletons);
+
     auto poller = CreateThreadPoolPoller(1, "HuggingfacePoller");
     NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken, poller, urlOverride);
 
-    auto fileIds = huggingfaceClient.GetParquetFileUrls(dataset, config, split);
+    auto fileIds = huggingfaceClient.GetParquetFileUrls(dataset, subset, split);
 
     YT_LOG_INFO("Successfully received %v file names from huggingface", fileIds.size());
 
@@ -719,7 +795,8 @@ void ImportParquetFilesFromHuggingface(
             .HuggingfaceConfig = THuggingfaceConfig{
                 .UrlOverride = urlOverride
             }
-        });
+        },
+        std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
