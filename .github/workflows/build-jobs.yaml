@@ -34,6 +34,10 @@ on:
         default: false
         required: false
         type: boolean
+      skip-python-packages:
+        default: false
+        required: false
+        type: boolean
 
     secrets:
       YA_YT_TOKEN:
@@ -251,10 +255,13 @@ jobs:
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
-          cd ../ytsaurus
+          if [ "${{ inputs.skip-python-packages }}" == "false" ]
+          then
+            cd ../ytsaurus
 
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+            source ../venv/bin/activate
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+          fi
 
       - name: Build ytsaurus (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker }}
