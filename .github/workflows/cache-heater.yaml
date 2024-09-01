@@ -75,6 +75,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-python: true
+      skip-python-packages: true
       build-ytsaurus: true
       build-query-tracker: true
       update-remote-cache: true
