@@ -1,7 +1,5 @@
 package tech.ytsaurus.client;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,7 +35,7 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
     public void setup() throws IOException {
         final int proxyPort = localYTsaurus != null ? localYTsaurus.getMappedPort(80) :
                 Integer.parseInt(
-                        new BufferedReader(new FileReader("yt_proxy_port.txt")).readLine()
+                        System.getenv("YT_PROXY").split(":")[1]
                 );
 
         final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));

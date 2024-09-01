@@ -7,8 +7,9 @@ ENDIF()
 JDK_VERSION(11)
 
 IF(OS_LINUX AND NOT OPENSOURCE)
-    # Тесты -tt запускаются только под Linux-ом (только там работает YT)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_tablets.inc)
+    SET(YT_CONFIG_PATCH {wait_tablet_cell_initialization=%true;node_count=2;node_config={bus_server={bind_retry_count=1}};rpc_proxy_count=1})
+
+    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
     REQUIREMENTS(
         ram_disk:4

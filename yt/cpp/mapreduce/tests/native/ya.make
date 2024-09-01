@@ -16,7 +16,6 @@ IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
         parallel_cache_upload
         parallel_cache_upload/test_program
         remote_copy
-        remote_copy/recipe
         job_on_exit_function
         portals
         proto_lib
