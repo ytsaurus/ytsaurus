@@ -1459,14 +1459,12 @@ private:
         Reschedule();
     }
 
-    bool WaitForAndContinue(TFuture<void> result)
+    bool WaitForAndContinue(const TFuture<void>& result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (result.IsSet()) {
-            result
-                .Get()
-                .ThrowOnError();
+        if (auto optionalError = result.TryGet()) {
+            optionalError->ThrowOnError();
             return true;
         } else {
             result.Subscribe(
