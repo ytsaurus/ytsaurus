@@ -55,7 +55,7 @@ FORK_SUBTESTS()
 SPLIT_FACTOR(5)
 
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe.inc)
+    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 ENDIF()
 
 END()
