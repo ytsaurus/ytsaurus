@@ -212,7 +212,7 @@ jobs:
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]
           then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-replace-result --yt-replace-result-yt-upload-only --rebuild -xx"
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put"
           fi
 
           STRIP_VALUE=no
