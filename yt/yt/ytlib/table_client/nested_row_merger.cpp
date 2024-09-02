@@ -420,8 +420,14 @@ void TNestedTableMerger::BuildMergeScript()
 
     Heap_.clear();
 
-    for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
-        Heap_.push_back(index);
+    for (int id = 0; id < std::ssize(CurrentOffsets_); ++id) {
+        if (CurrentOffsets_[id] != EndOffsets_[id]) {
+            Heap_.push_back(id);
+        }
+    }
+
+    if (Heap_.empty()) {
+        return;
     }
 
     NYT::MakeHeap(Heap_.begin(), Heap_.end(), [&] (ui8 lhs, ui8 rhs) {
