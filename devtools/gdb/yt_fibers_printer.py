@@ -116,9 +116,9 @@ def get_registered_fiber_addresses():
         return []
     addresses = []
     for line in format_string_multiline(fibers).split('\n'):
-        if line.find('[') == -1:
+        if line.find('T_') == -1:
             continue
-        address = line.split(' ')[-1].replace(',', '')
+        address = line.split(' ')[-1]
         addresses.append(address)
     return addresses
 
