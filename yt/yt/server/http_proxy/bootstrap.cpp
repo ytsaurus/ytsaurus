@@ -288,24 +288,42 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     Api_ = New<TApi>(this);
     Config_->HttpServer->ServerName = "HttpApi";
-    ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_, Acceptor_);
+    ApiHttpServer_ = NHttp::CreateServer(
+        Config_->HttpServer,
+        Poller_,
+        Acceptor_,
+        WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
         Config_->HttpsServer->ServerName = "HttpsApi";
-        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_, GetControlInvoker());
+        ApiHttpsServer_ = NHttps::CreateServer(
+            Config_->HttpsServer,
+            Poller_,
+            Acceptor_,
+            GetControlInvoker(),
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
         RegisterRoutes(ApiHttpsServer_);
     }
 
     if (Config_->TvmOnlyHttpServer) {
         Config_->TvmOnlyHttpServer->ServerName = "TvmOnlyHttpApi";
-        TvmOnlyApiHttpServer_ = NHttp::CreateServer(Config_->TvmOnlyHttpServer, Poller_, Acceptor_);
+        TvmOnlyApiHttpServer_ = NHttp::CreateServer(
+            Config_->TvmOnlyHttpServer,
+            Poller_,
+            Acceptor_,
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
         RegisterRoutes(TvmOnlyApiHttpServer_);
     }
 
     if (Config_->TvmOnlyHttpsServer) {
         Config_->TvmOnlyHttpsServer->ServerName = "TvmOnlyHttpsApi";
-        TvmOnlyApiHttpsServer_ = NHttps::CreateServer(Config_->TvmOnlyHttpsServer, Poller_, Acceptor_, GetControlInvoker());
+        TvmOnlyApiHttpsServer_ = NHttps::CreateServer(
+            Config_->TvmOnlyHttpsServer,
+            Poller_,
+            Acceptor_,
+            GetControlInvoker(),
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
@@ -350,9 +368,7 @@ void TBootstrap::SetupClients()
 
 void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
 {
-    if (memoryLimits->Total) {
-        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
-    }
+    MemoryUsageTracker_->SetTotalLimit(memoryLimits->Total.value_or(std::numeric_limits<i64>::max()));
 }
 
 void TBootstrap::OnDynamicConfigChanged(
