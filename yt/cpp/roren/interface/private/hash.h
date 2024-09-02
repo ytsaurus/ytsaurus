@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/str_stl.h>
+#include <util/digest/multi.h>
 
 #include <type_traits>
 
@@ -12,6 +13,19 @@ template <class T>
 struct TRorenHash
     : public std::hash<T>
 {
+};
+
+template <typename... Ts>
+struct TRorenHash<std::tuple<Ts...>>
+{
+    size_t operator()(const std::tuple<Ts...>& tuple) const noexcept
+    {
+        return std::apply(
+            [] (const Ts&... args) {
+                return MultiHash(args...);
+            },
+            tuple);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
