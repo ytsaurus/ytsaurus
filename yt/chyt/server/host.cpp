@@ -3,7 +3,7 @@
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
 #include "config.h"
-#include "data_type_boolean.h"
+#include "custom_data_types.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
 #include "invoker_liveness_checker.h"
@@ -949,6 +949,7 @@ private:
             GetRootClient(),
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
+        RegisterDataTypeTimestamp();
     }
 };
 

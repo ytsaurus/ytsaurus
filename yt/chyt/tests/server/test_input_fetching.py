@@ -247,7 +247,7 @@ class TestInputFetching(ClickHouseTestBase):
                 'select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2
             )
 
-    @authors("dakovalkov")
+    @authors("dakovalkov", "buyval01")
     @pytest.mark.parametrize("required", [False, True])
     def test_key_types(self, required):
         int_types = ["uint64", "uint32", "uint16", "uint8", "int64", "int32", "int16", "int8"]
@@ -263,14 +263,17 @@ class TestInputFetching(ClickHouseTestBase):
         string_types = ["string"]
         string_values = ["{abc=2}", "{zzz=3}"]
 
-        date_types = ["date", "datetime"]  # , "timestamp"]
-        date_scales = [1, 24 * 60 * 60]  # , 24 * 60 * 60 * 10**6]
+        day_scale = 1
+        second_scale = 24 * 60 * 60
+        microsecond_scale = second_scale * 10**6
+        date_types = ["date", "date32", "datetime", "datetime64", "timestamp", "timestamp64"]
+        date_scales = [day_scale, day_scale, second_scale, second_scale, microsecond_scale, microsecond_scale]
         date_values = [i * 10 for i in range(3)]
 
-        # TODO(dakovalkov): Delete this when timestamp is represented as DateTime64.
-        int_types.append("timestamp")
-        # Interval is represented as Int64.
-        int_types.append("interval")
+        # Note: Interval data type in CH is auxiliary and is not supported for data storage,
+        # so this behavior is only appropriate for CHYT.
+        interval_types = ["interval", "interval64"]
+        interval_values = [i for i in range(3)]
 
         def create_type_table(type, values):
             path = "//tmp/t_{}".format(type)
@@ -303,6 +306,9 @@ class TestInputFetching(ClickHouseTestBase):
         for type, scale in zip(date_types, date_scales):
             create_type_table(type, [scale * value for value in date_values])
 
+        for type in interval_types:
+            create_type_table(type, interval_values)
+
         with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             query1 = 'select * from "//tmp/t_{}" where key = 2'
             query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
@@ -316,6 +322,10 @@ class TestInputFetching(ClickHouseTestBase):
 
             query = 'select * from "//tmp/t_{}" where \'1970.01.10\' < key and key < \'1970.01.12\''
             for type in date_types:
+                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+
+            query = 'select * from "//tmp/t_{}" where INTERVAL 1 Microsecond < key and key < INTERVAL 3 Microsecond'
+            for type in interval_types:
                 clique.make_query_and_validate_row_count(query.format(type), exact=1)
 
     @authors("max42")

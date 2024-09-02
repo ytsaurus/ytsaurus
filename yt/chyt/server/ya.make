@@ -54,7 +54,7 @@ SRCS(
     config_repository.cpp
     config.cpp
     conversion.cpp
-    data_type_boolean.cpp
+    custom_data_types.cpp
     dictionary_source.cpp
     format.cpp
     function_helpers.cpp

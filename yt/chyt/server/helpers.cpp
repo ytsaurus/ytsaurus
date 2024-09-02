@@ -19,6 +19,7 @@
 #include <Common/FieldVisitorToString.h>
 
 #include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeDateTime64.h>
 
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
@@ -119,11 +120,12 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::Date:
             return DB::Field(std::numeric_limits<DB::UInt16>::min());
+        case DB::TypeIndex::Date32:
+            return DB::Field(std::numeric_limits<DB::Int32>::min());
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::min());
-        // TODO(dakovalkov): Now timestamps is represented as UInt64, not DateTime64.
-        // case DB::TypeIndex::DateTime64:
-            // return DB::Field(std::numeric_limits<DB::Decimal64>::min());
+        case DB::TypeIndex::DateTime64:
+            return DB::Field(std::numeric_limits<DB::DateTime64>::min());
 
         case DB::TypeIndex::String:
             return DB::Field("");
@@ -164,11 +166,12 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::Date:
             return DB::Field(std::numeric_limits<DB::UInt16>::max());
+        case DB::TypeIndex::Date32:
+            return DB::Field(std::numeric_limits<DB::Int32>::max());
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::max());
-        // TODO(dakovalkov): Now timestamps is represented as UInt64, not DateTime64.
-        // case DB::TypeIndex::DateTime64:
-            // return DB::Field(std::numeric_limits<DB::Decimal64>::max());
+        case DB::TypeIndex::DateTime64:
+            return DB::Field(std::numeric_limits<DB::DateTime64>::max());
 
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
@@ -197,14 +200,14 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int16:
         case DB::TypeIndex::Int32:
         case DB::TypeIndex::Int64:
+        case DB::TypeIndex::Date32:
+        case DB::TypeIndex::DateTime64:
             return DB::Field(field.get<Int64>() - 1);
 
         case DB::TypeIndex::UInt8:
         case DB::TypeIndex::UInt16:
         case DB::TypeIndex::UInt32:
         case DB::TypeIndex::UInt64:
-            return DB::Field(field.get<UInt64>() - 1);
-
         case DB::TypeIndex::Date:
         case DB::TypeIndex::DateTime:
             return DB::Field(field.get<UInt64>() - 1);
@@ -250,14 +253,14 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int16:
         case DB::TypeIndex::Int32:
         case DB::TypeIndex::Int64:
+        case DB::TypeIndex::Date32:
+        case DB::TypeIndex::DateTime64:
             return DB::Field(field.get<Int64>() + 1);
 
         case DB::TypeIndex::UInt8:
         case DB::TypeIndex::UInt16:
         case DB::TypeIndex::UInt32:
         case DB::TypeIndex::UInt64:
-            return DB::Field(field.get<UInt64>() + 1);
-
         case DB::TypeIndex::Date:
         case DB::TypeIndex::DateTime:
             return DB::Field(field.get<UInt64>() + 1);

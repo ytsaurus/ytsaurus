@@ -1086,7 +1086,7 @@ public:
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
-        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /*enableReadOnlyConversions*/ false);
+        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /*isReadConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             table->Schema,

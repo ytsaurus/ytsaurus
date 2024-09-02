@@ -24,13 +24,20 @@ namespace NYT::NClickHouseServer {
 class TYTToCHConverter
 {
 public:
-    //! `enableReadOnlyConversions` option enables read-only compatibility conversion options:
+    //! `isReadConversion` is used to maintain type compatibility,
+    //! since some YT types are not represented in CH,
+    //! and some are mapped to a single type at all.
+    //!
+    //! YT Timestamp and Timestamp64 are mapped to CH DateTime64,
+    //! so when writing we need to convert Timestamp -> YtTimestamp,
+    //! which is a custom type over DateTime64.
+    //!
+    //! Example of read-only conversions:
     //! - optional<T> -> T' when Nullable(T') is not available in CH;
-    //! - dict<K,V> -> List(Tuple(K',V'));
     TYTToCHConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
         TCompositeSettingsPtr settings,
-        bool enableReadOnlyConversions = true);
+        bool isReadConversion = true);
 
     TYTToCHConverter(TYTToCHConverter&& other);
 

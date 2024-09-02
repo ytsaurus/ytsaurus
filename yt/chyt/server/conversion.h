@@ -18,12 +18,12 @@ namespace NYT::NClickHouseServer {
 DB::DataTypePtr ToDataType(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const TCompositeSettingsPtr& settings,
-    bool enableReadOnlyConversions = true);
+    bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
     const NTableClient::TTableSchema& schema,
     const TCompositeSettingsPtr& settings,
-    bool enableReadOnlyConversions = true);
+    bool isReadConversions = true);
 
 DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 

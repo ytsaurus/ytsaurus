@@ -25,20 +25,20 @@ static const TLogger Logger("Conversion");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool enableReadOnlyConversions)
+DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
-    TYTToCHConverter converter(descriptor, settings, enableReadOnlyConversions);
+    TYTToCHConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings, bool enableReadOnlyConversions)
+DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
     DB::DataTypes result;
     result.reserve(schema.GetColumnCount());
 
     for (const auto& column : schema.Columns()) {
         TComplexTypeFieldDescriptor descriptor(column);
-        result.emplace_back(ToDataType(std::move(descriptor), settings, enableReadOnlyConversions));
+        result.emplace_back(ToDataType(std::move(descriptor), settings, isReadConversions));
     }
 
     return result;
