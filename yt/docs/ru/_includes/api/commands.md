@@ -2732,6 +2732,8 @@ PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Да      |                           | Идентификатор операции. |
 | `job_id`       | Да      |                           | Идентификатор джоба.    |
+| `offset` | Нет |                            | Смещение от начала в байтах. |
+| `limit` | Нет |                            | Максимальный размер в байтах. |
 
 Входные данные:
 
@@ -2745,7 +2747,11 @@ PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1
 Пример:
 
 ```bash
-PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff }
+PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "`offset`" = 500; "`limit`" = 100 }
+OUTPUT {
+OUTPUT   "total_size" = 1000;
+OUTPUT   "end_offset" = 600;
+OUTPUT }
 ```
 
 ## Прочее
