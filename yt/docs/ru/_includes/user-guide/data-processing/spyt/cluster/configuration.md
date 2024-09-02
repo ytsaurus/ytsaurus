@@ -49,6 +49,18 @@ spark-launch-yt \
   --spark-cluster-version '1.36.0'
 ```
 
+### Spark configuration
+
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"spark_conf"={...};}`:
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
+  --spark-cluster-version '1.36.0'
+```
+
 При использовании `spark-submit-yt` для настройки задачи существует опция `spark_conf_args`:
 
 ```bash
@@ -92,4 +104,14 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 }
 ```
 
+### Настройки операций
 
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../operations/operations-options.md).
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
+  --spark-cluster-version '1.36.0'
+```
