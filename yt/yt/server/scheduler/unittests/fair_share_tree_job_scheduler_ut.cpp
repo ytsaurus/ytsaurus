@@ -174,6 +174,7 @@ public:
     }
 
     void ValidatePoolPermission(
+        const TString& /*treeId*/,
         NObjectClient::TObjectId /*poolObjectId*/,
         const TString& /*poolName*/,
         const TString& /*user*/,

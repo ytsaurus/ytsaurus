@@ -2458,6 +2458,7 @@ private:
             ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
         }
         StrategyHost_->ValidatePoolPermission(
+            TreeId_,
             pool->GetObjectId(),
             pool->GetId(),
             operation->GetAuthenticatedUser(),
