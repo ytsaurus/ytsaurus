@@ -183,7 +183,7 @@ public:
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId);
 
-    std::optional<TString> GetStderr();
+    std::optional<NApi::TGetJobStderrResponse> GetStderr(const NApi::TGetJobStderrOptions& options);
 
     std::optional<TString> GetFailContext();
 

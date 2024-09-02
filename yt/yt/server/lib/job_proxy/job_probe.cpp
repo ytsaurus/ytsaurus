@@ -71,17 +71,26 @@ public:
         };
     }
 
-    TString GetStderr() override
+    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& options) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->GetStderr();
-
+        if (options.Limit) {
+            req->set_limit(*options.Limit);
+        }
+        if (options.Offset) {
+            req->set_offset(*options.Offset);
+        }
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
         const auto& rsp = rspOrError.Value();
 
-        return rsp->stderr_data();
+        return {
+            .Data = TSharedRef::FromString(rsp->stderr_data()),
+            .TotalSize = rsp->total_size(),
+            .EndOffset = rsp->end_offset(),
+        };
     }
 
     void Interrupt() override
