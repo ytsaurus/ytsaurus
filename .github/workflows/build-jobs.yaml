@@ -286,7 +286,7 @@ jobs:
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
           # TODO(nadya73): Remove it after ya fix.
-          cat ../ytsaurus/ydb/build/internal/ya.conf | grep -v bazel > ./patched.ya.conf
+          cat ../ytsaurus/ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
           cp ./patched.ya.conf ../ytsaurus/ydb/build/internal/ya.conf
 
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
