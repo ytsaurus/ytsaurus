@@ -1,6 +1,7 @@
 RECURSE(
     dashboard_generator
     dashboards
+    timbertruck
 )
 
 IF (NOT OPENSOURCE)
@@ -25,7 +26,6 @@ IF (NOT OPENSOURCE)
         shiva2
         snapshot_processing
         stateless-service-controller
-        timbertruck
         trash_recovery
         yt-tag-table
         yt_logs
