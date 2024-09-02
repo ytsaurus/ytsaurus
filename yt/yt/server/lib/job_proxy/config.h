@@ -15,6 +15,10 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 #include <yt/yt/ytlib/job_proxy/config.h>
 
+#include <yt/yt/library/containers/config.h>
+
+#include <yt/yt/library/containers/cri/config.h>
+
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 #include <yt/yt/client/file_client/config.h>
@@ -27,6 +31,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
@@ -182,6 +187,152 @@ DEFINE_REFCOUNTED_TYPE(TJobTraceEventProcessorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobThrashingDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    TDuration CheckPeriod;
+
+    int MajorPageFaultCountLimit;
+
+    // Job will be aborted upon violating MajorPageFaultCountLimit this number of times in a row.
+    int LimitOverflowCountThresholdToAbortJob;
+
+    REGISTER_YSON_STRUCT(TJobThrashingDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobThrashingDetectorConfig)
+
+//! Describes configuration of a single environment.
+class TJobEnvironmentConfigBase
+    : public NYTree::TYsonStruct
+{
+public:
+    //! When job control is enabled, system runs user jobs under fake
+    //! uids in range [StartUid, StartUid + SlotCount - 1].
+    int StartUid;
+
+    TDuration MemoryWatchdogPeriod;
+
+    TJobThrashingDetectorConfigPtr JobThrashingDetector;
+
+    REGISTER_YSON_STRUCT(TJobEnvironmentConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobEnvironmentConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleJobEnvironmentConfig
+    : public TJobEnvironmentConfigBase
+{
+    REGISTER_YSON_STRUCT(TSimpleJobEnvironmentConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETestingJobEnvironmentScenario,
+    (None)
+    (IncreasingMajorPageFaultCount)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestingJobEnvironmentConfig
+    : public TSimpleJobEnvironmentConfig
+{
+public:
+    ETestingJobEnvironmentScenario TestingJobEnvironmentScenario;
+
+    REGISTER_YSON_STRUCT(TTestingJobEnvironmentConfig);
+
+    static void Register(TRegistrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoJobEnvironmentConfig
+    : public TJobEnvironmentConfigBase
+{
+public:
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
+
+    TDuration BlockIOWatchdogPeriod;
+
+    THashMap<TString, TString> ExternalBinds;
+
+    double JobsIOWeight;
+    double NodeDedicatedCpu;
+
+    bool UseShortContainerNames;
+
+    // COMPAT(psushin): this is compatibility option between different versions of ytcfgen and yt_node.
+    //! Used by ytcfgen, when it creates "yt_daemon" subcontainer inside iss_hook_start.
+    bool UseDaemonSubcontainer;
+
+    //! For testing purposes only.
+    bool UseExecFromLayer;
+
+    //! Backoff time between container destruction attempts.
+    TDuration ContainerDestructionBackoff;
+
+    REGISTER_YSON_STRUCT(TPortoJobEnvironmentConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriJobEnvironmentConfig
+    : public TJobEnvironmentConfigBase
+{
+public:
+    NContainers::NCri::TCriExecutorConfigPtr CriExecutor;
+
+    NContainers::NCri::TCriImageCacheConfigPtr CriImageCache;
+
+    TString JobProxyImage;
+
+    //! Bind mounts for job proxy container.
+    //! For now works as "root_fs_binds" because user job runs in the same container.
+    std::vector<NJobProxy::TBindConfigPtr> JobProxyBindMounts;
+
+    //! Do not bind mount jobproxy binary into container
+    bool UseJobProxyFromImage;
+
+    REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentType,
+    ((Base)         (TJobEnvironmentConfigBase))
+    ((Simple)     (TSimpleJobEnvironmentConfig))
+    ((Porto)       (TPortoJobEnvironmentConfig))
+    ((Testing)   (TTestingJobEnvironmentConfig))
+    ((Cri)           (TCriJobEnvironmentConfig))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyInternalConfig
     : public TNativeServerConfig
 {
@@ -226,7 +377,7 @@ public:
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
 
-    NYTree::INodePtr JobEnvironment;
+    TJobEnvironmentConfig JobEnvironment;
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
@@ -346,7 +497,7 @@ public:
     //! If set, abort user job at detecting OOM kill inside container.
     bool CheckUserJobOOMKill;
 
-    NYTree::INodePtr JobEnvironment;
+    TJobEnvironmentConfig JobEnvironment;
 
     TJobProxyTestingConfigPtr TestingConfig;
 

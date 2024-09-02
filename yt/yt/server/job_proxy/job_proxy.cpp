@@ -922,11 +922,10 @@ TJobResult TJobProxy::RunJob()
             BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
             Config_->HeartbeatPeriod);
 
-        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             JobThread_->GetInvoker(),
             BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-            jobEnvironmentConfig->MemoryWatchdogPeriod);
+            Config_->JobEnvironment->MemoryWatchdogPeriod);
 
         if (jobSpecExt.has_user_job_spec()) {
             job = CreateUserJob(

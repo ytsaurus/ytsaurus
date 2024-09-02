@@ -206,7 +206,7 @@ public:
             }))
         , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
-        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
+        , JobEnvironmentType_(Config_->JobEnvironment.GetCurrentType())
         , PipeIOPool_(CreateThreadPool(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
@@ -226,8 +226,6 @@ public:
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
-        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::BlinkInputPipe, MakeWeak(this)),
@@ -236,17 +234,17 @@ public:
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            jobEnvironmentConfig->MemoryWatchdogPeriod);
+            Config_->JobEnvironment->MemoryWatchdogPeriod);
 
         ThrashingDetector_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckThrashing, MakeWeak(this)),
-            jobEnvironmentConfig->JobThrashingDetector->CheckPeriod);
+            Config_->JobEnvironment->JobThrashingDetector->CheckPeriod);
 
         // User job usually runs by per-slot users: yt_slot_{N}.
         // Which is not available for single-user, non-privileged or testing setup.
         if (!Config_->DoNotSetUserId && JobEnvironmentType_ == EJobEnvironmentType::Porto) {
-            UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
+            UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
         }
 
         if (!Config_->BusServer->UnixDomainSocketPath) {
@@ -694,7 +692,7 @@ private:
                 break;
             }
             case EJobEnvironmentType::Porto: {
-                auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+                auto portoJobEnvironmentConfig = Config_->JobEnvironment.TryGetConcrete<EJobEnvironmentType::Porto>();
                 auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
 
                 std::vector<TString> shellEnvironment;
@@ -745,6 +743,9 @@ private:
                     UserJobEnvironment_->GetUserJobInstance());
                 break;
             }
+
+            default:
+                YT_ABORT();
         }
 #endif
     }
@@ -1774,7 +1775,7 @@ private:
 
     void HandleMajorPageFaultCountIncrease(i64 currentFaultCount)
     {
-        auto config = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->JobThrashingDetector;
+        auto config = Config_->JobEnvironment->JobThrashingDetector;
         YT_LOG_DEBUG(
             "Increased rate of major page faults in user job container detected "
             "(MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v, PageFaultLimitOverflowCount: %v)",

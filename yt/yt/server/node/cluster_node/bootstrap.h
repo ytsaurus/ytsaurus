@@ -166,7 +166,7 @@ struct IBootstrapBase
     virtual const TRestartManagerPtr& GetRestartManager() const = 0;
 
     // Job environment.
-    virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
+    virtual NJobProxy::EJobEnvironmentType GetJobEnvironmentType() const = 0;
 
     // IO tracker.
     virtual const NIO::IIOTrackerPtr& GetIOTracker() const = 0;
@@ -304,7 +304,7 @@ public:
 
     const TRestartManagerPtr& GetRestartManager() const override;
 
-    NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
+    NJobProxy::EJobEnvironmentType GetJobEnvironmentType() const override;
 
     const NIO::IIOTrackerPtr& GetIOTracker() const override;
 

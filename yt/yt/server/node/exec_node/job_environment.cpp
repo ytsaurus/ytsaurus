@@ -71,9 +71,9 @@ class TProcessJobEnvironmentBase
 {
 public:
     TProcessJobEnvironmentBase(
-        TJobEnvironmentConfigPtr config,
+        TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
-        : BasicConfig_(std::move(config))
+        : Config_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 
@@ -201,7 +201,7 @@ public:
         int /*startIndex*/) override
     {
         THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
-            BasicConfig_->Type);
+            Config_.GetCurrentType());
     }
 
     void OnDynamicConfigChanged(
@@ -238,7 +238,7 @@ protected:
         TFuture<void> Result;
     };
 
-    const TJobEnvironmentConfigPtr BasicConfig_;
+    const TJobEnvironmentConfig Config_;
     IBootstrap* const Bootstrap_;
 
     const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
@@ -264,7 +264,7 @@ protected:
             THROW_ERROR_EXCEPTION(
                 EErrorCode::JobEnvironmentDisabled,
                 "Job environment %Qlv is disabled",
-                BasicConfig_->Type);
+                Config_.GetCurrentType());
         }
     }
 
@@ -325,10 +325,9 @@ class TSimpleJobEnvironment
 {
 public:
     TSimpleJobEnvironment(
-        TSimpleJobEnvironmentConfigPtr config,
+        TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
-        , Config_(std::move(config))
     { }
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
@@ -380,8 +379,6 @@ public:
     }
 
 private:
-    const TSimpleJobEnvironmentConfigPtr Config_;
-
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
     TProcessBasePtr CreateJobProxyProcess(
@@ -401,15 +398,15 @@ class TTestingJobEnvironment
 {
 public:
     TTestingJobEnvironment(
-        TTestingJobEnvironmentConfigPtr config,
+        TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TSimpleJobEnvironment(config, bootstrap)
-        , Config_(std::move(config))
+        , ConcreteConfig_(config.TryGetConcrete<TTestingJobEnvironmentConfig>())
     { }
 
     i64 GetMajorPageFaultCount() const override
     {
-        if (Config_->TestingJobEnvironmentScenario == ETestingJobEnvironmentScenario::IncreasingMajorPageFaultCount) {
+        if (ConcreteConfig_->TestingJobEnvironmentScenario == ETestingJobEnvironmentScenario::IncreasingMajorPageFaultCount) {
             MajorPageFaultCount_ += 1000;
         }
 
@@ -417,7 +414,7 @@ public:
     }
 
 private:
-    const TTestingJobEnvironmentConfigPtr Config_;
+    const TTestingJobEnvironmentConfigPtr ConcreteConfig_;
 
     mutable i64 MajorPageFaultCount_ = 0;
 };
@@ -435,16 +432,16 @@ class TPortoJobEnvironment
 {
 public:
     TPortoJobEnvironment(
-        TPortoJobEnvironmentConfigPtr config,
+        TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
-        , Config_(std::move(config))
+        , ConcreteConfig_(config.TryGetConcrete<TPortoJobEnvironmentConfig>())
         , PortoExecutor_(CreatePortoExecutor(
-            Config_->PortoExecutor,
+            ConcreteConfig_->PortoExecutor,
             "env_spawn",
             JobEnvironmentProfiler().WithPrefix("/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
-            Config_->PortoExecutor,
+            ConcreteConfig_->PortoExecutor,
             "env_destroy",
             JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
         , ContainerDestroyFailureCounter_(JobEnvironmentProfiler().Counter("/container_destroy_failures"))
@@ -458,11 +455,9 @@ public:
         const TSlotManagerDynamicConfigPtr& oldConfig,
         const TSlotManagerDynamicConfigPtr& newConfig) override
     {
-        auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
+        auto environmentConfig = newConfig->JobEnvironment;
 
-        if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-            auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
-
+        if (auto portoConfig = environmentConfig.TryGetConcrete<EJobEnvironmentType::Porto>()) {
             if (auto executor = PortoExecutor_) {
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
@@ -470,6 +465,8 @@ public:
             if (auto executor = DestroyPortoExecutor_) {
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
+
+            ConcreteConfig_ = std::move(portoConfig);
         }
 
         ShouldCloseDescriptors_.store(newConfig->ShouldCloseDescriptors);
@@ -547,7 +544,7 @@ public:
 
     int GetUserId(int slotIndex) const override
     {
-        return Config_->StartUid + slotIndex;
+        return ConcreteConfig_->StartUid + slotIndex;
     }
 
     IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) override
@@ -631,7 +628,7 @@ private:
     static constexpr TStringBuf JobProxyContainerPrefix = "/jp";
     static constexpr TStringBuf SetupCommandContainerPrefix = "/sc";
 
-    const TPortoJobEnvironmentConfigPtr Config_;
+    TPortoJobEnvironmentConfigPtr ConcreteConfig_;
 
     //! Main Porto connection for container creation and lightweight operations.
     IPortoExecutorPtr PortoExecutor_;
@@ -695,7 +692,7 @@ private:
 
             if (!destroyed) {
                 ContainerDestroyFailureCounter_.Increment(1);
-                TDelayedExecutor::WaitForDuration(Config_->ContainerDestructionBackoff);
+                TDelayedExecutor::WaitForDuration(ConcreteConfig_->ContainerDestructionBackoff);
             }
         }
 
@@ -720,8 +717,8 @@ private:
         IdleCpuLimit_ = CalculateIdleCpuLimit();
         SlotCount_ = slotCount;
 
-        YT_VERIFY(!Config_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
-        auto baseContainer = Config_->UseDaemonSubcontainer
+        YT_VERIFY(!ConcreteConfig_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
+        auto baseContainer = ConcreteConfig_->UseDaemonSubcontainer
             ? *SelfInstance_->GetParentName()
             : SelfInstance_->GetName();
 
@@ -758,8 +755,8 @@ private:
             PortoExecutor_,
             metaIdleInstanceName);
 
-        MetaInstance_->SetIOWeight(Config_->JobsIOWeight);
-        MetaIdleInstance_->SetIOWeight(Config_->JobsIOWeight);
+        MetaInstance_->SetIOWeight(ConcreteConfig_->JobsIOWeight);
+        MetaIdleInstance_->SetIOWeight(ConcreteConfig_->JobsIOWeight);
 
         UpdateContainerCpuLimits();
     }
@@ -814,7 +811,7 @@ private:
     TString GetJobContainerName(TStringBuf prefix, TJobId jobId)
     {
         auto jobIdAsGuid = jobId.Underlying();
-        return Config_->UseShortContainerNames
+        return ConcreteConfig_->UseShortContainerNames
             ? TString(prefix)
             : Format("%v-%x-%x", prefix, jobIdAsGuid.Parts32[3], jobIdAsGuid.Parts32[2]);
     }
@@ -977,14 +974,12 @@ class TCriJobEnvironment
 {
 public:
     TCriJobEnvironment(
-        TCriJobEnvironmentConfigPtr config,
-        IBootstrap* bootstrap,
-        ICriExecutorPtr executor,
-        ICriImageCachePtr imageCache)
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
-        , Config_(std::move(config))
-        , Executor_(std::move(executor))
-        , ImageCache_(std::move(imageCache))
+        , ConcreteConfig_(config.TryGetConcrete<TCriJobEnvironmentConfig>())
+        , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
+        , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1014,7 +1009,7 @@ public:
             .ThrowOnError();
 
         WaitFor(Executor_->PullImage(TCriImageDescriptor{
-            .Image = Config_->JobProxyImage,
+            .Image = ConcreteConfig_->JobProxyImage,
         }))
             .ThrowOnError();
     }
@@ -1067,7 +1062,7 @@ public:
 
     int GetUserId(int slotIndex) const override
     {
-        return Config_->StartUid + slotIndex;
+        return ConcreteConfig_->StartUid + slotIndex;
     }
 
     IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
@@ -1087,7 +1082,7 @@ public:
 
         // Inject default docker image for job workspace.
         if (!context.DockerImage) {
-            context.DockerImage = Config_->JobProxyImage;
+            context.DockerImage = ConcreteConfig_->JobProxyImage;
         }
 
         return CreateCriJobWorkspaceBuilder(
@@ -1101,7 +1096,7 @@ private:
     static constexpr TStringBuf SlotPodPrefix = "yt_slot_";
     static constexpr TStringBuf LocalBinDir = "/usr/local/bin";
 
-    const TCriJobEnvironmentConfigPtr Config_;
+    const TCriJobEnvironmentConfigPtr ConcreteConfig_;
     const ICriExecutorPtr Executor_;
     const ICriImageCachePtr ImageCache_;
 
@@ -1128,7 +1123,7 @@ private:
 
         // Run job proxy in docker image specified for the job.
         // For now CRI job-environment does not isolate user jobs from job proxy.
-        spec->Image.Image = config->DockerImage.value_or(Config_->JobProxyImage);
+        spec->Image.Image = config->DockerImage.value_or(ConcreteConfig_->JobProxyImage);
 
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 
@@ -1196,7 +1191,7 @@ private:
             .ReadOnly = false,
         });
 
-        for (const auto& bind : Config_->JobProxyBindMounts) {
+        for (const auto& bind : ConcreteConfig_->JobProxyBindMounts) {
             spec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = bind->InternalPath,
                 .HostPath = bind->ExternalPath,
@@ -1213,7 +1208,7 @@ private:
             });
         }
 
-        if (!Config_->UseJobProxyFromImage) {
+        if (!ConcreteConfig_->UseJobProxyFromImage) {
             auto jobProxyPath = Format("%v/%v", LocalBinDir, JobProxyProgramName);
             auto execProgramPath = Format("%v/%v", LocalBinDir, ExecProgramName);
             auto toolsProgramPath = Format("%v/%v", LocalBinDir, ToolsProgramName);
@@ -1267,22 +1262,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstrap)
+IJobEnvironmentPtr CreateJobEnvironment(NJobProxy::TJobEnvironmentConfig config, IBootstrap* bootstrap)
 {
-    auto config = ConvertTo<TJobEnvironmentConfigPtr>(configNode);
-    switch (config->Type) {
+    switch (config.GetCurrentType()) {
         case EJobEnvironmentType::Simple: {
-            auto simpleConfig = ConvertTo<TSimpleJobEnvironmentConfigPtr>(configNode);
             return New<TSimpleJobEnvironment>(
-                simpleConfig,
+                std::move(config),
                 bootstrap);
         }
 
         case EJobEnvironmentType::Porto: {
 #ifdef _linux_
-            auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(configNode);
             return New<TPortoJobEnvironment>(
-                portoConfig,
+                std::move(config),
                 bootstrap);
 #else
             THROW_ERROR_EXCEPTION("Porto is not supported for this platform");
@@ -1290,21 +1282,15 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstr
         }
 
         case EJobEnvironmentType::Testing: {
-            auto simpleConfig = ConvertTo<TTestingJobEnvironmentConfigPtr>(configNode);
             return New<TTestingJobEnvironment>(
-                simpleConfig,
+                std::move(config),
                 bootstrap);
         }
 
         case EJobEnvironmentType::Cri: {
-            auto criConfig = ConvertTo<TCriJobEnvironmentConfigPtr>(configNode);
-            auto executor = CreateCriExecutor(criConfig->CriExecutor);
-            auto imageCache = CreateCriImageCache(criConfig->CriImageCache, executor);
             return New<TCriJobEnvironment>(
-                criConfig,
-                bootstrap,
-                std::move(executor),
-                std::move(imageCache));
+                std::move(config),
+                bootstrap);
         }
 
         default:
