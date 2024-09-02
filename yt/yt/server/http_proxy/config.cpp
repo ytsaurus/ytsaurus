@@ -248,11 +248,6 @@ void TProxyConfig::Register(TRegistrar registrar)
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
     });
 
-    registrar.Preprocessor([] (TThis* config) {
-        // Setting sane total memory limit for http proxy.
-        config->MemoryLimits->Total = 40_GB;
-    });
-
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {
             auto auth = New<TAuthenticationManagerConfig>();
