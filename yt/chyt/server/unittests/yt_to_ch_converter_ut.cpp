@@ -2,7 +2,7 @@
 
 #include <yt/chyt/server/config.h>
 #include <yt/chyt/server/conversion.h>
-#include <yt/chyt/server/data_type_boolean.h>
+#include <yt/chyt/server/custom_data_types.h>
 #include <yt/chyt/server/helpers.h>
 #include <yt/chyt/server/yt_to_ch_converter.h>
 
@@ -26,6 +26,7 @@
 
 #include <Core/Types.h>
 #include <DataTypes/IDataType.h>
+#include <DataTypes/DataTypeInterval.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNothing.h>
@@ -33,7 +34,9 @@
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeDate32.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeDateTime64.h>
 #include <DataTypes/DataTypeMap.h>
 #include <Columns/IColumn.h>
 #include <Columns/ColumnsNumber.h>
@@ -408,18 +411,103 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
     testAsType(ysonsInt16, ESimpleLogicalValueType::Int16, std::make_shared<DB::DataTypeNumber<i16>>(), i16(), i16());
     testAsType(ysonsInt32, ESimpleLogicalValueType::Int32, std::make_shared<DB::DataTypeNumber<i32>>(), i32(), i32());
     testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
+    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond), i64(), i64());
+    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond), i64(), i64());
     testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8());
     testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, GetDataTypeBoolean(), bool(), DB::UInt8());
     testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16());
     testAsType(ysonsUint32, ESimpleLogicalValueType::Uint32, std::make_shared<DB::DataTypeNumber<ui32>>(), ui32(), ui32());
     testAsType(ysonsUint64, ESimpleLogicalValueType::Uint64, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64());
     testAsType(ysonsUint16, ESimpleLogicalValueType::Date, std::make_shared<DB::DataTypeDate>(), ui16(), ui16());
+    testAsType(ysonsInt32, ESimpleLogicalValueType::Date32, std::make_shared<DB::DataTypeDate32>(), i32(), i32());
     testAsType(ysonsUint32, ESimpleLogicalValueType::Datetime, std::make_shared<DB::DataTypeDateTime>(), ui32(), ui32());
-    testAsType(ysonsUint64, ESimpleLogicalValueType::Timestamp, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64());
     testAsType(ysonsString, ESimpleLogicalValueType::String, std::make_shared<DB::DataTypeString>(), TString(), std::string());
     testAsType(ysonsFloat, ESimpleLogicalValueType::Float, std::make_shared<DB::DataTypeNumber<float>>(), double(), float());
     testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
+}
+
+TEST_F(TYTToCHConversionTest, DateTime64Types)
+{
+    std::vector<ui64> ysonUnsignedValues = {
+        0,
+        42,
+        1234,
+        12345,
+        654321,
+        7777777,
+    };
+    std::vector<i64> ysonSignedValues = {
+        -7777777,
+        -654321,
+        -12345,
+        -1234,
+        -42,
+        -1,
+        0,
+        42,
+        1234,
+        12345,
+        654321,
+        7777777,
+    };
+
+    std::vector<TString> ysonUnsignedStrings;
+    ysonUnsignedStrings.reserve(ysonUnsignedValues.size());
+    for (const auto& val : ysonUnsignedValues) {
+        ysonUnsignedStrings.emplace_back(ConvertToYsonString(val).ToString());
+    }
+
+    std::vector<TString> ysonSignedStrings;
+    ysonSignedStrings.reserve(ysonSignedValues.size());
+    for (const auto& val : ysonSignedValues) {
+        ysonSignedStrings.emplace_back(ToString(val));
+    }
+
+    auto ysonsUnsigned = ToYsonStringBufs(ysonUnsignedStrings);
+    auto ysonsSigned = ToYsonStringBufs(ysonSignedStrings);
+
+
+    auto testAsType = [&] (
+        ESimpleLogicalValueType simpleLogicalValueType,
+        int scale,
+        auto ysonValues,
+        TYsonStringBufs ysons)
+    {
+        DB::DataTypePtr expectedDataType = std::make_shared<DB::DataTypeDateTime64>(scale);
+        std::vector<DB::Field> expectedFields;
+        for (const auto& ytValue : ysonValues) {
+            expectedFields.emplace_back(DB::DecimalField(DB::DateTime64(ytValue), scale));
+        }
+
+        auto logicalType = SimpleLogicalType(simpleLogicalValueType);
+
+        auto [unversionedValues, _] = YsonStringBufsToVariadicUnversionedValues(ysons);
+        TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
+        TColumnSchema columnSchemaOptional(/*name*/ "", OptionalLogicalType(logicalType));
+        auto [ytColumnOptional, ytColumnOptionalOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaOptional);
+        auto [ytColumnRequired, ytColumnRequiredOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaRequired);
+
+        TComplexTypeFieldDescriptor descriptor(logicalType);
+        ExpectTypeConversion(descriptor, expectedDataType);
+        ExpectDataConversion(descriptor, ysons, expectedFields);
+        ExpectDataConversion(descriptor, unversionedValues, expectedFields);
+        ExpectDataConversion(descriptor, ytColumnOptional, expectedFields);
+        ExpectDataConversion(descriptor, ytColumnRequired, expectedFields);
+    };
+
+    testAsType(ESimpleLogicalValueType::Datetime64, 0, ysonSignedValues, ysonsSigned);
+    testAsType(ESimpleLogicalValueType::Timestamp, 6, ysonUnsignedValues, ysonsUnsigned);
+    testAsType(ESimpleLogicalValueType::Timestamp64, 6, ysonSignedValues, ysonsSigned);
+
+    {
+        auto columnSchema = TColumnSchema(
+            /*name*/ "",
+            SimpleLogicalType(ESimpleLogicalValueType::Timestamp));
+        TComplexTypeFieldDescriptor descriptor(columnSchema);
+        auto converter = TYTToCHConverter(descriptor, Settings_, /*isReadConversions*/ false);
+        auto dataType = converter.GetDataType();
+        ASSERT_EQ("YtTimestamp", dataType->getName());
+    }
 }
 
 TEST_F(TYTToCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
@@ -1068,7 +1156,7 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        EXPECT_THROW(TYTToCHConverter(descriptor, Settings_, /*enableReadOnlyConversions*/ false), std::exception)
+        EXPECT_THROW(TYTToCHConverter(descriptor, Settings_, /*isReadConversions*/ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
     }
 }

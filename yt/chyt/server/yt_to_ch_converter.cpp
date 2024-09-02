@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include "columnar_conversion.h"
-#include "data_type_boolean.h"
+#include "custom_data_types.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -27,6 +27,8 @@
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeDate32.h>
+#include <DataTypes/DataTypeInterval.h>
 #include <DataTypes/DataTypeDateTime.h>
 #include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeNothing.h>
@@ -235,9 +237,13 @@ public:
             case ESimpleLogicalValueType::Uint32:
             case ESimpleLogicalValueType::Uint64:
             case ESimpleLogicalValueType::Date:
+            case ESimpleLogicalValueType::Date32:
             case ESimpleLogicalValueType::Datetime:
+            case ESimpleLogicalValueType::Datetime64:
             case ESimpleLogicalValueType::Timestamp:
+            case ESimpleLogicalValueType::Timestamp64:
             case ESimpleLogicalValueType::Interval:
+            case ESimpleLogicalValueType::Interval64:
                 intermediateColumn = ConvertIntegerYTColumnToCHColumn(column, v1Type);
                 break;
             case ESimpleLogicalValueType::Boolean:
@@ -285,7 +291,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <ESimpleLogicalValueType LogicalType, class TCppType>
+template <ESimpleLogicalValueType LogicalType, class TColumn>
 class TSimpleValueConverter
     : public IConverter
 {
@@ -294,6 +300,7 @@ public:
         : Descriptor_(std::move(descriptor))
         , DataType_(std::move(dataType))
         , Column_(DataType_->createColumn())
+        , Data_(static_cast<TColumn*>(Column_.get()))
     { }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
@@ -305,35 +312,46 @@ public:
             LogicalType == ESimpleLogicalValueType::Int16 ||
             LogicalType == ESimpleLogicalValueType::Int32 ||
             LogicalType == ESimpleLogicalValueType::Int64 ||
-            LogicalType == ESimpleLogicalValueType::Interval)
+            LogicalType == ESimpleLogicalValueType::Interval ||
+            LogicalType == ESimpleLogicalValueType::Interval64 ||
+            LogicalType == ESimpleLogicalValueType::Date32)
         {
-            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsInt64());
+            Data_->insertValue(ysonItem.UncheckedAsInt64());
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::Timestamp)
+        {
+            ui64 ytValue = ysonItem.UncheckedAsUint64();
+            Data_->insertValue(static_cast<i64>(ytValue));
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::Datetime64 ||
+            LogicalType == ESimpleLogicalValueType::Timestamp64)
+        {
+            Data_->insertValue(ysonItem.UncheckedAsInt64());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::Uint8 ||
             LogicalType == ESimpleLogicalValueType::Uint16 ||
             LogicalType == ESimpleLogicalValueType::Uint32 ||
             LogicalType == ESimpleLogicalValueType::Uint64 ||
             LogicalType == ESimpleLogicalValueType::Date ||
-            LogicalType == ESimpleLogicalValueType::Datetime ||
-            LogicalType == ESimpleLogicalValueType::Timestamp)
+            LogicalType == ESimpleLogicalValueType::Datetime)
         {
-            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsUint64());
+            Data_->insertValue(ysonItem.UncheckedAsUint64());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::Float ||
             LogicalType == ESimpleLogicalValueType::Double)
         {
-            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsDouble());
+            Data_->insertValue(ysonItem.UncheckedAsDouble());
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
-            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsBoolean());
+            Data_->insertValue(ysonItem.UncheckedAsBoolean());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::String ||
             LogicalType == ESimpleLogicalValueType::Utf8)
         {
             auto data = ysonItem.UncheckedAsString();
-            AssumeStringColumn()->insertData(data.data(), data.size());
+            Data_->insertData(data.data(), data.size());
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             YT_VERIFY(ysonItem.GetType() == EYsonItemType::EntityValue);
-            AssumeNothingColumn()->insertDefault();
+            Data_->insertDefault();
         } else {
             YT_ABORT();
         }
@@ -354,33 +372,42 @@ public:
                     LogicalType == ESimpleLogicalValueType::Int16 ||
                     LogicalType == ESimpleLogicalValueType::Int32 ||
                     LogicalType == ESimpleLogicalValueType::Int64 ||
-                    LogicalType == ESimpleLogicalValueType::Interval)
+                    LogicalType == ESimpleLogicalValueType::Interval ||
+                    LogicalType == ESimpleLogicalValueType::Interval64 ||
+                    LogicalType == ESimpleLogicalValueType::Date32)
                 {
-                    AssumeVectorColumn()->insertValue(value.Data.Int64);
+                    Data_->insertValue(value.Data.Int64);
+                } else if constexpr (LogicalType == ESimpleLogicalValueType::Timestamp) {
+                    ui64 ytValue = value.Data.Uint64;
+                    Data_->insertValue(static_cast<i64>(ytValue));
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Datetime64 ||
+                    LogicalType == ESimpleLogicalValueType::Timestamp64)
+                {
+                    Data_->insertValue(value.Data.Int64);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::Uint8 ||
                     LogicalType == ESimpleLogicalValueType::Uint16 ||
                     LogicalType == ESimpleLogicalValueType::Uint32 ||
                     LogicalType == ESimpleLogicalValueType::Uint64 ||
                     LogicalType == ESimpleLogicalValueType::Date ||
-                    LogicalType == ESimpleLogicalValueType::Datetime ||
-                    LogicalType == ESimpleLogicalValueType::Timestamp)
+                    LogicalType == ESimpleLogicalValueType::Datetime)
                 {
-                    AssumeVectorColumn()->insertValue(value.Data.Uint64);
+                    Data_->insertValue(value.Data.Uint64);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::Float ||
                     LogicalType == ESimpleLogicalValueType::Double)
                 {
-                    AssumeVectorColumn()->insertValue(value.Data.Double);
+                    Data_->insertValue(value.Data.Double);
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
-                    AssumeVectorColumn()->insertValue(value.Data.Boolean);
+                    Data_->insertValue(value.Data.Boolean);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::String ||
                     LogicalType == ESimpleLogicalValueType::Utf8)
                 {
-                    AssumeStringColumn()->insertData(value.Data.String, value.Length);
+                    Data_->insertData(value.Data.String, value.Length);
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
-                    AssumeNothingColumn()->insertDefault();
+                    Data_->insertDefault();
                 } else {
                     YT_ABORT();
                 }
@@ -396,13 +423,17 @@ public:
             LogicalType == ESimpleLogicalValueType::Int32 ||
             LogicalType == ESimpleLogicalValueType::Int64 ||
             LogicalType == ESimpleLogicalValueType::Interval ||
+            LogicalType == ESimpleLogicalValueType::Interval64 ||
             LogicalType == ESimpleLogicalValueType::Uint8 ||
             LogicalType == ESimpleLogicalValueType::Uint16 ||
             LogicalType == ESimpleLogicalValueType::Uint32 ||
             LogicalType == ESimpleLogicalValueType::Uint64 ||
             LogicalType == ESimpleLogicalValueType::Date ||
+            LogicalType == ESimpleLogicalValueType::Date32 ||
             LogicalType == ESimpleLogicalValueType::Datetime ||
-            LogicalType == ESimpleLogicalValueType::Timestamp)
+            LogicalType == ESimpleLogicalValueType::Datetime64 ||
+            LogicalType == ESimpleLogicalValueType::Timestamp ||
+            LogicalType == ESimpleLogicalValueType::Timestamp64)
         {
             ReplaceColumnTypeChecked(Column_, ConvertIntegerYTColumnToCHColumn(column, LogicalType));
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Float) {
@@ -444,21 +475,7 @@ private:
     TComplexTypeFieldDescriptor Descriptor_;
     DB::DataTypePtr DataType_;
     DB::IColumn::MutablePtr Column_;
-
-    DB::ColumnVector<TCppType>* AssumeVectorColumn()
-    {
-        return static_cast<DB::ColumnVector<TCppType>*>(Column_.get());
-    }
-
-    DB::ColumnString* AssumeStringColumn()
-    {
-        return static_cast<DB::ColumnString*>(Column_.get());
-    }
-
-    DB::ColumnNothing* AssumeNothingColumn()
-    {
-        return static_cast<DB::ColumnNothing*>(Column_.get());
-    }
+    TColumn* Data_;
 
     void SetColumnChecked(DB::IColumn::MutablePtr column)
     {
@@ -1039,10 +1056,10 @@ private:
 class TYTToCHConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool enableReadOnlyConversions)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isReadConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
-        , EnableReadOnlyConversions_(enableReadOnlyConversions)
+        , IsReadConversions_(isReadConversions)
         , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
     { }
 
@@ -1085,13 +1102,13 @@ public:
 private:
     TComplexTypeFieldDescriptor Descriptor_;
     TCompositeSettingsPtr Settings_;
-    bool EnableReadOnlyConversions_;
+    bool IsReadConversions_;
 
     IConverterPtr RootConverter_;
 
     void ValidateReadOnly(const TComplexTypeFieldDescriptor& descriptor)
     {
-        if (!EnableReadOnlyConversions_) {
+        if (!IsReadConversions_) {
             THROW_ERROR_EXCEPTION(
                 "Field %Qv has type %Qv which is supported only for reading",
                 descriptor.GetDescription(),
@@ -1103,34 +1120,59 @@ private:
     {
         IConverterPtr converter;
         switch (valueType) {
-            #define CASE(caseValueType, TCppType, dataType)                                       \
+            #define CASE(caseValueType, TColumn, dataType)                                       \
                 case caseValueType:                                                                        \
-                    converter = std::make_unique<TSimpleValueConverter<caseValueType, TCppType>>( \
+                    converter = std::make_unique<TSimpleValueConverter<caseValueType, TColumn>>( \
                         descriptor,                                                                        \
                         dataType);                                                                         \
                     break;
 
-            #define CASE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, TCppType, std::make_shared<DB::DataTypeNumber<TCppType>>())
+            #define CASE_SIMPLE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
+            #define CASE_NUMERIC(caseValueType, TCppType, dataType) CASE(caseValueType, DB::ColumnVector<TCppType>, dataType)
 
-            CASE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
-            CASE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
-            CASE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
-            CASE_NUMERIC(ESimpleLogicalValueType::Uint64, ui64)
-            CASE_NUMERIC(ESimpleLogicalValueType::Int8, i8)
-            CASE_NUMERIC(ESimpleLogicalValueType::Int16, i16)
-            CASE_NUMERIC(ESimpleLogicalValueType::Int32, i32)
-            CASE_NUMERIC(ESimpleLogicalValueType::Int64, i64)
-            CASE_NUMERIC(ESimpleLogicalValueType::Float, float)
-            CASE_NUMERIC(ESimpleLogicalValueType::Double, double)
-            CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64)
-            CASE_NUMERIC(ESimpleLogicalValueType::Timestamp, ui64)
-            CASE(ESimpleLogicalValueType::Boolean, DB::UInt8, GetDataTypeBoolean())
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint64, ui64)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int8, i8)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int16, i16)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int32, i32)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int64, i64)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Float, float)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Double, double)
+            // YT Interval logical type stores microseconds between two timestamps
+            CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond))
+            CASE_NUMERIC(ESimpleLogicalValueType::Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond))
+            CASE_NUMERIC(ESimpleLogicalValueType::Boolean, DB::UInt8, GetDataTypeBoolean())
             // TODO(max42): specify timezone explicitly here.
-            CASE(ESimpleLogicalValueType::Date, ui16, std::make_shared<DB::DataTypeDate>())
-            CASE(ESimpleLogicalValueType::Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
-            CASE(ESimpleLogicalValueType::String, DB::UInt8 /* actually unused */, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Utf8, DB::UInt8 /* actually unused */,  std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Void, DB::UInt8 /* actually unused */,  std::make_shared<DB::DataTypeNothing>())
+            CASE_NUMERIC(ESimpleLogicalValueType::Date, ui16, std::make_shared<DB::DataTypeDate>())
+            CASE_NUMERIC(ESimpleLogicalValueType::Date32, i32, std::make_shared<DB::DataTypeDate32>())
+            CASE_NUMERIC(ESimpleLogicalValueType::Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
+            // YT DateTime64 logical type stores timestamp in seconds so scale of underlying Decimal is equal to 0
+            CASE(ESimpleLogicalValueType::Datetime64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(0))
+            // YT Timestamp64 logical type stores timestamp in microseconds so scale of underlying Decimal is equal to 6
+            CASE(ESimpleLogicalValueType::Timestamp64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(6))
+            CASE(ESimpleLogicalValueType::String, DB::ColumnString, std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Utf8, DB::ColumnString,  std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Void, DB::ColumnNothing,  std::make_shared<DB::DataTypeNothing>())
+
+            #undef CASE
+            #undef CASE_SIMPLE_NUMERIC
+            #undef CASE_NUMERIC
+
+            case ESimpleLogicalValueType::Timestamp: {
+                DB::DataTypePtr dataType;
+                if (IsReadConversions_) {
+                    // YT Timestamp logical type as well as YT Timestamp64 must have decimal scale equal to 6
+                    dataType = std::make_shared<DB::DataTypeDateTime64>(6);
+                } else {
+                    dataType = GetDataTypeTimestamp();
+                }
+                converter = std::make_unique<TSimpleValueConverter<ESimpleLogicalValueType::Timestamp, DB::ColumnDecimal<DB::DateTime64>>>(
+                    descriptor, dataType);
+                break;
+            }
+
             default:
                 ThrowConversionError(descriptor, "Converting YT simple logical value type %v to ClickHouse is not supported", valueType);
         }
@@ -1309,8 +1351,8 @@ private:
 TYTToCHConverter::TYTToCHConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings,
-    bool enableReadOnlyConversions)
-    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), enableReadOnlyConversions))
+    bool isReadConversions)
+    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
 { }
 
 void TYTToCHConverter::ConsumeUnversionedValues(TUnversionedValueRange values)

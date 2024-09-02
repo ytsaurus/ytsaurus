@@ -9,6 +9,7 @@
 
 #include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
 
+#include <Columns/ColumnDecimal.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnString.h>
@@ -88,6 +89,21 @@ DB::ColumnString::MutablePtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& c
         });
 }
 
+template <EExtendedYsonFormat ysonFormat, class F>
+DB::ColumnString::MutablePtr ConvertCHDateTime64ColumnToAnyImpl(const DB::IColumn& column, F func)
+{
+    const auto* typedColumnPtr = dynamic_cast<const DB::ColumnDecimal<DB::DateTime64>*>(&column);
+    YT_VERIFY(typedColumnPtr);
+    const auto& typedValues = typedColumnPtr->getData();
+
+    return ConvertCHColumnToAnyByIndexImpl<ysonFormat>(
+        column,
+        [&] (size_t index, auto* writer) {
+            auto value = typedValues[index];
+            func(value, writer);
+        });
+}
+
 DB::ColumnString::MutablePtr ConvertCHNothingColumnToAnyImpl(const DB::IColumn& column)
 {
     auto valueCount = column.size();
@@ -104,30 +120,25 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column,
         type);
 
     switch (type) {
-        #define XX(valueType, cppType) \
+        #define XX(valueType, cppType, method) \
             case ESimpleLogicalValueType::valueType: \
                 return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
                     column, \
-                    [] (cppType value, auto* writer) { writer->OnInt64Scalar(value); });
-        XX(Int8,      i8 )
-        XX(Int16,     i16)
-        XX(Int32,     i32)
-        XX(Int64,     i64)
-        XX(Interval,  i64)
-        #undef XX
+                    [] (cppType value, auto* writer) { writer->method(value); });
+        XX(Int8,        i8, OnInt64Scalar)
+        XX(Int16,       i16, OnInt64Scalar)
+        XX(Int32,       i32, OnInt64Scalar)
+        XX(Date32,      i32, OnInt64Scalar)
+        XX(Int64,       i64, OnInt64Scalar)
+        XX(Interval,    i64, OnInt64Scalar)
+        XX(Interval64,  i64, OnInt64Scalar)
 
-        #define XX(valueType, cppType) \
-            case ESimpleLogicalValueType::valueType: \
-                return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
-                    column, \
-                    [] (cppType value, auto* writer) { writer->OnUint64Scalar(value); });
-        XX(Uint8,     DB::UInt8)
-        XX(Uint16,    ui16)
-        XX(Uint32,    ui32)
-        XX(Uint64,    ui64)
-        XX(Date,      ui16)
-        XX(Datetime,  ui32)
-        XX(Timestamp, ui64)
+        XX(Uint8,     DB::UInt8, OnUint64Scalar)
+        XX(Uint16,    ui16, OnUint64Scalar)
+        XX(Uint32,    ui32, OnUint64Scalar)
+        XX(Uint64,    ui64, OnUint64Scalar)
+        XX(Date,      ui16, OnUint64Scalar)
+        XX(Datetime,  ui32, OnUint64Scalar)
         #undef XX
 
         #define XX(chType, cppType) \
@@ -137,6 +148,16 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column,
                     [] (cppType value, auto* writer) { writer->OnDoubleScalar(value); });
         XX(Float,  float )
         XX(Double, double)
+        #undef XX
+
+        #define XX(valueType, cppType, method) \
+            case ESimpleLogicalValueType::valueType: \
+                return ConvertCHDateTime64ColumnToAnyImpl<ysonFormat>( \
+                    column, \
+                    [] (cppType value, auto* writer) { writer->method(value); });
+        XX(Timestamp, ui64, OnUint64Scalar)
+        XX(Datetime64, i64, OnInt64Scalar)
+        XX(Timestamp64, i64, OnInt64Scalar)
         #undef XX
 
         case ESimpleLogicalValueType::Boolean:
@@ -159,14 +180,15 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column,
     }
 }
 
-template <class T>
+template <class TColumn, class... Args>
 DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
     const IUnversionedColumnarRowBatch::TColumn& ytValueColumn,
     TRange<ui32> dictionaryIndexes,
-    TRange<ui64> rleIndexes)
+    TRange<ui64> rleIndexes,
+    Args&&... args)
 {
-    auto chColumn = DB::ColumnVector<T>::create(ytColumn.ValueCount);
+    auto chColumn = TColumn::create(ytColumn.ValueCount, std::forward<Args>(args)...);
     auto* currentOutput = chColumn->getData().data();
 
     auto values = ytValueColumn.GetTypedValues<ui64>();
@@ -578,31 +600,38 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
         static_cast<bool>(dictionaryIndexes));
 
     switch (type) {
-        #define XX(ytType, chType) \
+        #define XX(ytType, columnType, ...) \
             case ESimpleLogicalValueType::ytType: { \
-                return ConvertIntegerYTColumnToCHColumnImpl<chType>( \
-                    ytColumn, \
-                    *ytValueColumn, \
-                    dictionaryIndexes, \
-                    rleIndexes); \
+                return ConvertIntegerYTColumnToCHColumnImpl<columnType>(__VA_ARGS__); \
             }
+        #define XX_ARGS ytColumn, *ytValueColumn, dictionaryIndexes, rleIndexes
+        #define XX_VECTOR_COLUMN(ytType, chType) XX(ytType, DB::ColumnVector<chType>, XX_ARGS)
+        #define XX_DATETIME_COLUMN(ytType, decimalScale) XX(ytType, DB::ColumnDecimal<DB::DateTime64>, XX_ARGS, decimalScale)
 
-        XX(Int8,      Int8)
-        XX(Int16,     Int16)
-        XX(Int32,     Int32)
-        XX(Int64,     Int64)
+        XX_VECTOR_COLUMN(Int8,        Int8)
+        XX_VECTOR_COLUMN(Int16,       Int16)
+        XX_VECTOR_COLUMN(Int32,       Int32)
+        XX_VECTOR_COLUMN(Int64,       Int64)
 
-        XX(Uint8,     UInt8)
-        XX(Uint16,    UInt16)
-        XX(Uint32,    UInt32)
-        XX(Uint64,    UInt64)
+        XX_VECTOR_COLUMN(Uint8,       UInt8)
+        XX_VECTOR_COLUMN(Uint16,      UInt16)
+        XX_VECTOR_COLUMN(Uint32,      UInt32)
+        XX_VECTOR_COLUMN(Uint64,      UInt64)
 
-        XX(Date,      UInt16)
-        XX(Datetime,  UInt32)
-        XX(Interval,  Int64)
-        XX(Timestamp, UInt64)
+        XX_VECTOR_COLUMN(Date,        UInt16)
+        XX_VECTOR_COLUMN(Date32,      Int32)
+        XX_VECTOR_COLUMN(Datetime,    UInt32)
+        XX_VECTOR_COLUMN(Interval,    Int64)
+        XX_VECTOR_COLUMN(Interval64,  Int64)
+
+        XX_DATETIME_COLUMN(Datetime64, 0)
+        XX_DATETIME_COLUMN(Timestamp, 6)
+        XX_DATETIME_COLUMN(Timestamp64, 6)
 
         #undef XX
+        #undef XX_ARGS
+        #undef XX_VECTOR_COLUMN
+        #undef XX_DATETIME_COLUMN
 
         default:
             YT_ABORT();

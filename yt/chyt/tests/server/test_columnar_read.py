@@ -121,9 +121,13 @@ class TestColumnarRead(ClickHouseTestBase):
                 {"name": "float", "type": "float"},
                 {"name": "string", "type": "string"},
                 {"name": "datetime", "type": "datetime"},
+                {"name": "datetime64", "type": "datetime64"},
                 {"name": "date", "type": "date"},
+                {"name": "date32", "type": "date32"},
                 {"name": "timestamp", "type": "timestamp"},
+                {"name": "timestamp64", "type": "timestamp64"},
                 {"name": "interval", "type": "interval"},
+                {"name": "interval64", "type": "interval64"},
                 {"name": "any", "type": "any"},
                 {"name": "null", "type": "null"},
                 {"name": "void", "type": "void"},
@@ -142,14 +146,18 @@ class TestColumnarRead(ClickHouseTestBase):
                 "float": -2.0,
                 "string": "text",
                 "datetime": 1,
+                "datetime64": -1,
                 "date": 2,
+                "date32": -2,
                 "timestamp": 3,
+                "timestamp64": -3,
                 "interval": 4,
+                "interval64": -4,
                 "any": {"hello": "world"},
                 "null": None,
                 "void": None,
             }
-            null_row = {key: None for key, value in row.items()}
+            null_row = {key: None for key in row.keys()}
             write_table("//tmp/s1", [row, null_row])
             merge(in_="//tmp/s1", out="//tmp/s2")
             fields = ""
@@ -179,7 +187,7 @@ class TestColumnarRead(ClickHouseTestBase):
             merge(in_="//tmp/s1", out="//tmp/s2")
             assert clique.make_query("select * from `//tmp/s2`")[0] == {"a": 123, "b": None}
 
-    @authors("babenko")
+    @authors("babenko", "buyval01")
     def test_date_types(self):
         create(
             "table",
@@ -187,9 +195,13 @@ class TestColumnarRead(ClickHouseTestBase):
             attributes={
                 "schema": [
                     {"name": "datetime", "type": "datetime"},
+                    {"name": "datetime64", "type": "datetime64"},
                     {"name": "date", "type": "date"},
+                    {"name": "date32", "type": "date32"},
                     {"name": "timestamp", "type": "timestamp"},
+                    {"name": "timestamp64", "type": "timestamp64"},
                     {"name": "interval_", "type": "interval"},
+                    {"name": "interval64_", "type": "interval64"},
                 ],
                 "optimize_for": "scan",
             },
@@ -199,9 +211,13 @@ class TestColumnarRead(ClickHouseTestBase):
             [
                 {
                     "datetime": 1,
+                    "datetime64": -1,
                     "date": 2,
+                    "date32": -2,
                     "timestamp": 3,
+                    "timestamp64": -3,
                     "interval_": 4,
+                    "interval64_": -4,
                 },
             ],
         )
@@ -209,13 +225,26 @@ class TestColumnarRead(ClickHouseTestBase):
             expected_result = [
                 {
                     "datetime": "1970-01-01 00:00:01",
+                    "datetime64": "1969-12-31 23:59:59",
                     "date": "1970-01-03",
-                    "timestamp": 3,
+                    "date32": "1969-12-30",
+                    "timestamp": "1970-01-01 00:00:00.000003",
+                    "timestamp64": "1969-12-31 23:59:59.999997",
                     "interval_": 4,
+                    "interval64_": -4,
                 }
             ]
             assert clique.make_query(
-                "select toTimeZone(datetime, 'UTC') as datetime, date, timestamp, interval_ from \"//tmp/t1\""
+                "select "
+                "toTimeZone(datetime, 'UTC') as datetime"
+                ", toTimeZone(datetime64, 'UTC') as datetime64"
+                ", date"
+                ", date32"
+                ", toTimeZone(timestamp, 'UTC') as timestamp"
+                ", toTimeZone(timestamp64, 'UTC') as timestamp64"
+                ", interval_"
+                ", interval64_"
+                " from \"//tmp/t1\""
             ) == expected_result
 
     @authors("babenko")
