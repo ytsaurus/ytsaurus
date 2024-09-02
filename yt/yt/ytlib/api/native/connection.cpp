@@ -1021,7 +1021,7 @@ private:
         auto channel = CreateBalancingChannel(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
         channel = CreateRetryingChannel(
             config,
@@ -1051,7 +1051,7 @@ private:
             auto channel = CreateBalancingChannel(
                 channelConfig,
                 ChannelFactory_,
-                std::move(endpointDescription),
+                endpointDescription,
                 std::move(endpointAttributes));
 
             channel = CreateRetryingChannel(channelConfig, std::move(channel));
@@ -1075,7 +1075,7 @@ private:
         return CreateBalancingChannelProvider(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
     }
 
@@ -1094,7 +1094,7 @@ private:
         auto channel = CreateBalancingChannel(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
 
         return CreateDefaultTimeoutChannel(channel, config->Timeout);

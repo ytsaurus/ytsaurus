@@ -100,7 +100,7 @@ IYPathServicePtr CreateService(
                     CreateBalancingChannel(
                         std::move(channelConfig),
                         nodeChannelFactory,
-                        std::move(endpointDescription),
+                        endpointDescription,
                         std::move(endpointAttributes)));
                 break;
             }

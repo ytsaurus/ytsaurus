@@ -65,7 +65,7 @@ public:
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -104,7 +104,7 @@ private:
     const EPeerKind PeerKind_;
     const TReplicationCardId ReplicationCardId_;
 
-    const TString EndpointDescription_;
+    const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
     const TError UnavailableError_;

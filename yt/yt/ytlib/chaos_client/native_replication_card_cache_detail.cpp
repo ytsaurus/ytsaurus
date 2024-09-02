@@ -330,7 +330,7 @@ IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(const NNative::IConne
     auto channel = CreateBalancingChannel(
         Config_,
         std::move(channelFactory),
-        std::move(endpointDescription),
+        endpointDescription,
         std::move(endpointAttributes));
     channel = CreateRetryingChannel(
         Config_,

@@ -47,7 +47,7 @@ public:
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -88,7 +88,7 @@ private:
     const TCellTag CellTag_;
     const EPeerKind PeerKind_;
     const ICellDirectoryPtr CellDirectory_;
-    const TString EndpointDescription_;
+    const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
     const NLogging::TLogger Logger;
 };
