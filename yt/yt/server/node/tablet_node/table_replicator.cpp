@@ -436,7 +436,9 @@ private:
             }
             YT_VERIFY(readerResult != EReaderTerminationReason::None);
 
-            RelativeThrottler_->OnReplicationBatchProcessed(newReplicationTimestamp);
+            RelativeThrottler_->OnReplicationBatchProcessed(
+                currentBatchFirstTimestamp,
+                newReplicationTimestamp);
 
             if (replicationRows.empty()) {
                 if (readerResult == EReaderTerminationReason::ThrottlerOverdraft) {
