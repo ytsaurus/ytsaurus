@@ -141,9 +141,7 @@ public:
     bool IsStatisticsFixNeeded() const;
 
 private:
-    TChunkOwnerDataStatisticsPtr DeltaStatistics_;
-
-private:
+    std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;

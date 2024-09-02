@@ -974,7 +974,7 @@ private:
             IncrementalHeartbeatCounters_.clear();
         }
 
-        YT_LOG_DEBUG("Dynamic config changed");
+        YT_LOG_INFO("Dynamic config changed");
     }
 
     void StartHeartbeats()

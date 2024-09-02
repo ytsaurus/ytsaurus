@@ -253,8 +253,6 @@ DEFINE_ENUM(EChunkDetachPolicy,
 
 inline static const EChunkScanKind DelegatedScanKinds = EChunkScanKind::Refresh | EChunkScanKind::RequisitionUpdate;
 
-using TChunkOwnerDataStatisticsPtr = std::unique_ptr<TChunkOwnerDataStatistics>;
-
 using TFillFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
 using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;
 

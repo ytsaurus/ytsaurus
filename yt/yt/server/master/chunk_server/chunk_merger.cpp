@@ -756,8 +756,8 @@ EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeI
     YT_VERIFY(!HasMutationContext());
     YT_VERIFY(IsLeader());
 
-    auto it = NodeToChunkMergerStatus_.find(nodeId);
-    return it == NodeToChunkMergerStatus_.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
+    auto it = NodeIdToChunkMergerStatus_.find(nodeId);
+    return it == NodeIdToChunkMergerStatus_.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
 }
 
 void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
@@ -1041,7 +1041,7 @@ void TChunkMerger::ResetTransientState()
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
     AccountIdToNodeMergeDurations_ = {};
-    NodeToChunkMergerStatus_ = {};
+    NodeIdToChunkMergerStatus_ = {};
     NodeToRescheduleCountAfterMaxBackoffDelay_ = {};
     NodeToBackoffPeriod_ = {};
     AccountIdToStuckNodes_ = {};
@@ -1186,7 +1186,7 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
         nodeId,
         account->GetName());
 
-    EmplaceOrCrash(NodeToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
+    EmplaceOrCrash(NodeIdToChunkMergerStatus_, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
     EmplaceOrCrash(RunningSessions_, nodeId, TChunkMergerSession({.AccountId = account->GetId(), .SessionCreationTime = TInstant::Now()}));
 
     auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
@@ -1209,7 +1209,7 @@ void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, T
         nodeId,
         accountId);
 
-    EmplaceOrCrash(NodeToChunkMergerStatus_, nodeId, EChunkMergerStatus::InMergePipeline);
+    EmplaceOrCrash(NodeIdToChunkMergerStatus_, nodeId, EChunkMergerStatus::InMergePipeline);
     EmplaceOrCrash(RunningSessions_, nodeId, TChunkMergerSession({
         .Result = EMergeSessionResult::PermanentFailure,
         .AccountId = accountId,
@@ -1482,8 +1482,8 @@ void TChunkMerger::ProcessTouchedNodes()
             if (CanScheduleMerge(node)) {
                 YT_VERIFY(NodesBeingMerged_.contains(nodeId));
 
-                auto it = NodeToChunkMergerStatus_.find(nodeId);
-                YT_VERIFY(it != NodeToChunkMergerStatus_.end());
+                auto it = NodeIdToChunkMergerStatus_.find(nodeId);
+                YT_VERIFY(it != NodeIdToChunkMergerStatus_.end());
                 it->second = EChunkMergerStatus::InMergePipeline;
 
                 New<TMergeChunkVisitor>(
@@ -2140,7 +2140,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
         if (IsLeader()) {
             EraseOrCrash(RunningSessions_, nodeId);
-            EraseOrCrash(NodeToChunkMergerStatus_, nodeId);
+            EraseOrCrash(NodeIdToChunkMergerStatus_, nodeId);
         }
 
         auto* chunkOwner = FindChunkOwner(nodeId);
@@ -2256,7 +2256,7 @@ void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
     auto accountId = FromProto<TAccountId>(request->account_id());
 
     if (!NodesBeingMerged_.contains(nodeId)) {
-        YT_LOG_INFO("Node was removed from persistent merge state before merge was rescheduled (NodeId: %v, AccountId: %v)",
+        YT_LOG_DEBUG("Node was removed from persistent merge state before merge was rescheduled (NodeId: %v, AccountId: %v)",
             nodeId,
             accountId);
         return;
