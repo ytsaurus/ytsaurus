@@ -172,7 +172,7 @@ private:
 
     bool Enabled_ = false;
 
-    THashMap<NCypressClient::TObjectId, EChunkMergerStatus> NodeToChunkMergerStatus_;
+    THashMap<NCypressClient::TObjectId, EChunkMergerStatus> NodeIdToChunkMergerStatus_;
 
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;
