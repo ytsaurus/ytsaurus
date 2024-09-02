@@ -4672,7 +4672,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
         jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
     }
 
-    jobSpecExt->set_allow_use_virtual_squashfs_layer(Spec_->AllowUseVirtualSquashFsLayer);
+    jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
