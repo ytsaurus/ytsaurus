@@ -134,7 +134,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
 private:
-    TChunkOwnerDataStatisticsPtr DeltaStatistics_;
+    std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;

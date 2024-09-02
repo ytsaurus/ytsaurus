@@ -6,9 +6,6 @@
 
 namespace NYT::NClusterNode {
 
-using namespace NObjectServer;
-using namespace NLogging;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TMasterConnector, class TNodeServiceProxy>
@@ -18,12 +15,12 @@ class TSingleFlavorHeartbeatCallbacks
 public:
     TSingleFlavorHeartbeatCallbacks(
         TWeakPtr<TMasterConnector> owner,
-        const TLogger& logger)
+        const NLogging::TLogger& logger)
         : Owner_(std::move(owner))
         , Logger(logger)
     { }
 
-    TFuture<void> ReportHeartbeat(TCellTag cellTag) override
+    TFuture<void> ReportHeartbeat(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -42,7 +39,7 @@ public:
         return future.AsVoid();
     }
 
-    void OnHeartbeatSucceeded(TCellTag cellTag) override
+    void OnHeartbeatSucceeded(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -58,7 +55,7 @@ public:
         owner->OnHeartbeatSucceeded(cellTag, response);
     }
 
-    void OnHeartbeatFailed(TCellTag cellTag) override
+    void OnHeartbeatFailed(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -69,7 +66,7 @@ public:
             cellTag);
     }
 
-    void Reset(TCellTag cellTag) override
+    void Reset(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -80,11 +77,11 @@ private:
     using TNodeRspHeartbeat = TNodeServiceProxy::TRspHeartbeatPtr;
 
     const TWeakPtr<TMasterConnector> Owner_;
-    THashMap<TCellTag, TFuture<TNodeRspHeartbeat>> CellTagToFuture_;
+    THashMap<NObjectClient::TCellTag, TFuture<TNodeRspHeartbeat>> CellTagToFuture_;
 
-    TLogger Logger;
+    const NLogging::TLogger Logger;
 
-    TErrorOr<TNodeRspHeartbeat> GetResponseOrError(TCellTag cellTag)
+    TErrorOr<TNodeRspHeartbeat> GetResponseOrError(NObjectClient::TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -103,7 +100,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TMasterConnector, class TNodeServiceProxy>
-IMasterHeartbeatReporterCallbacksPtr CreateSingleFlavorHeartbeatCallbacks(TWeakPtr<TMasterConnector> owner, const TLogger& logger)
+IMasterHeartbeatReporterCallbacksPtr CreateSingleFlavorHeartbeatCallbacks(
+    TWeakPtr<TMasterConnector> owner,
+    const NLogging::TLogger& logger)
 {
     return New<TSingleFlavorHeartbeatCallbacks<TMasterConnector, TNodeServiceProxy>>(
         std::move(owner),

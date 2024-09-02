@@ -197,7 +197,6 @@ public:
     int MaxAllowedBackoffReschedulingsPerSession;
 
     TDuration MinBackoffPeriod;
-
     TDuration MaxBackoffPeriod;
 
     // For testing purposes.
