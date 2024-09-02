@@ -1112,6 +1112,12 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
         rowMergerType = ERowMergerType::Legacy;
     }
 
+    auto nestedColumnsSchema = GetNestedColumnsSchema(tableSchema);
+
+    if (!nestedColumnsSchema.KeyColumns.empty() && rowMergerType != ERowMergerType::New) {
+        THROW_ERROR_EXCEPTION("Nested columns are supported only in new versioned row merger");
+    }
+
     switch (rowMergerType) {
         case ERowMergerType::Legacy:
             return CreateLegacyVersionedRowMerger(
@@ -1138,7 +1144,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 majorTimestamp,
                 columnEvaluator,
                 mergeRowsOnFlush,
-                GetNestedColumnsSchema(tableSchema));
+                std::move(nestedColumnsSchema));
 
         default:
             YT_ABORT();

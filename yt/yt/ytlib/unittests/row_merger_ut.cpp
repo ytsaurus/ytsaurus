@@ -2192,13 +2192,25 @@ TEST_F(TVersionedRowMergerTest, MergeNestedColumns1)
         /*useTtlColumn*/ false,
         /*mergeDeletionsOnFlush*/ false);
 
-    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10>1; <id=2;ts=10;aggregate=true>[1; 2]; <id=3;ts=10;aggregate=true>[10; 20]; <id=4;ts=10;aggregate=true>[a; b]"));
-    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20>2; <id=2;ts=20;aggregate=true>[2; 3]; <id=3;ts=20;aggregate=true>[20; 30]; <id=4;ts=20;aggregate=true>[c; d]"));
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20>0; <id=2;ts=20;aggregate=true>[]; <id=3;ts=20;aggregate=true>[]"));
 
-    EXPECT_EQ(
-        TIdentityComparableVersionedRow{BuildVersionedRow(
-            "<id=0> 0", "<id=1;ts=20>2;<id=2;ts=20;aggregate=true>[1; 2; 3]; <id=3;ts=20;aggregate=true>[10; 40; 30]; <id=4;ts=20;aggregate=true>[a; c; d]")},
-        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0", "<id=1;ts=20>0;<id=2;ts=20;aggregate=true>[]; <id=3;ts=20;aggregate=true>[]")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=5>0; <id=2;ts=5;aggregate=true>[]; <id=3;ts=5;aggregate=true>[]"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10>1; <id=2;ts=10;aggregate=true>[1; 2]; <id=3;ts=10;aggregate=true>[10; 20]; <id=4;ts=10;aggregate=true>[a; b]"));
+        merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=20>2; <id=2;ts=20;aggregate=true>[2; 3]; <id=3;ts=20;aggregate=true>[20; 30]; <id=4;ts=20;aggregate=true>[c; d]"));
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0", "<id=1;ts=20>2;<id=2;ts=20;aggregate=true>[1; 2; 3]; <id=3;ts=20;aggregate=true>[10; 40; 30]; <id=4;ts=20;aggregate=true>[a; c; d]")},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
 }
 
 TEST_F(TVersionedRowMergerTest, MergeNestedColumns2)
@@ -2250,7 +2262,6 @@ TEST_F(TVersionedRowMergerTest, MergeNestedColumns3)
     auto config = New<TRetentionConfig>();
     config->MinDataTtl = TDuration::Minutes(5);
     config->MinDataVersions = 1;
-
 
     TTableSchema schema({
         TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
