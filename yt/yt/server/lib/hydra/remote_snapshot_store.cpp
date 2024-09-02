@@ -20,6 +20,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -59,7 +60,7 @@ public:
         TYPath secondaryPath,
         IClientPtr client,
         TTransactionId prerequisiteTransactionId,
-        IThroughputThrottlerPtr snapshotOutThrottler)
+        TSnapshotOutThrottlerProvider snapshotOutThrottlerProvider)
         : Config_(config)
         , Options_(options)
         , PrimaryPath_(std::move(primaryPath))
@@ -70,7 +71,7 @@ public:
             "PrimaryPath: %v, SecondaryPath: %v",
             PrimaryPath_,
             SecondaryPath_))
-        , SnapshotOutThrottler_(std::move(snapshotOutThrottler))
+        , SnapshotOutThrottlerProvider_(std::move(snapshotOutThrottlerProvider))
     { }
 
     ISnapshotReaderPtr CreateReader(int snapshotId) override
@@ -101,7 +102,7 @@ private:
     const IClientPtr Client_;
     const TTransactionId PrerequisiteTransactionId_;
     const NLogging::TLogger Logger;
-    const IThroughputThrottlerPtr SnapshotOutThrottler_;
+    const TSnapshotOutThrottlerProvider SnapshotOutThrottlerProvider_;
 
 
     class TReader
@@ -367,7 +368,7 @@ private:
                     options.Config = CloneYsonStruct(Store_->Config_->Writer);
                     options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
                     options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
-                    options.Throttler = Store_->SnapshotOutThrottler_;
+                    options.Throttler = Store_->GetSnapshotOutThrottler();
 
                     Writer_ = Store_->Client_->CreateFileWriter(Path_, options);
 
@@ -472,6 +473,15 @@ private:
             .ValueOrThrow();
         return exists ? PrimaryPath_ : SecondaryPath_;
     }
+
+    IThroughputThrottlerPtr GetSnapshotOutThrottler() const
+    {
+        if (SnapshotOutThrottlerProvider_) {
+            return SnapshotOutThrottlerProvider_();
+        }
+
+        return GetUnlimitedThrottler();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStore)
@@ -483,7 +493,7 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TYPath secondaryPath,
     IClientPtr client,
     TTransactionId prerequisiteTransactionId,
-    IThroughputThrottlerPtr snapshotOutThrottler)
+    TSnapshotOutThrottlerProvider snapshotOutThrottlerProvider)
 {
     return New<TRemoteSnapshotStore>(
         storeConfig,
@@ -492,7 +502,7 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
         std::move(secondaryPath),
         client,
         prerequisiteTransactionId,
-        std::move(snapshotOutThrottler));
+        std::move(snapshotOutThrottlerProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
