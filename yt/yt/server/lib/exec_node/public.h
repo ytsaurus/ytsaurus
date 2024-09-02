@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/job_proxy/public.h>
+
 #include <yt/yt/ytlib/exec_node/public.h>
 
 #include <yt/yt/core/misc/error_code.h>
@@ -31,13 +33,6 @@ DEFINE_ENUM(ESandboxKind,
     (Logs)
 );
 
-DEFINE_ENUM(EJobEnvironmentType,
-    (Simple)
-    (Porto)
-    (Testing)
-    (Cri)
-);
-
 DEFINE_ENUM(EUserJobSensorSource,
     (Gpu)
     (Statistics)
@@ -55,12 +50,6 @@ extern const TString EmptyCpuSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TJobThrashingDetectorConfig)
-DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TTestingJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TCriJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TNumaNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerTestingConfig)

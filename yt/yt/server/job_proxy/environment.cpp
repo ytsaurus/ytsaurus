@@ -1101,27 +1101,26 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config)
 {
-    auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
-    switch (environmentConfig->Type) {
+    switch (config.GetCurrentType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config));
+            return New<TPortoJobProxyEnvironment>(config.TryGetConcrete<TPortoJobEnvironmentConfig>());
 #endif
 
         case EJobEnvironmentType::Simple:
             return New<TSimpleJobProxyEnvironment>();
 
         case EJobEnvironmentType::Testing:
-            return New<TTestingJobProxyEnvironment>(ConvertTo<TTestingJobEnvironmentConfigPtr>(config));
+            return New<TTestingJobProxyEnvironment>(config.TryGetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
-            return New<TCriJobProxyEnvironment>(ConvertTo<TCriJobEnvironmentConfigPtr>(config));
+            return New<TCriJobProxyEnvironment>(config.TryGetConcrete<TCriJobEnvironmentConfig>());
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
-                environmentConfig->Type);
+                config.GetCurrentType());
     }
 }
 

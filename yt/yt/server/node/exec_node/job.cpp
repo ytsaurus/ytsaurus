@@ -2887,8 +2887,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
         proxyConfig->CheckUserJobOOMKill = proxyDynamicConfig->CheckUserJobOOMKill;
-        if (proxyDynamicConfig->JobEnvironment) {
-            proxyConfig->JobEnvironment = PatchNode(proxyConfig->JobEnvironment, proxyDynamicConfig->JobEnvironment);
+        if (auto nodeConfig = ConvertToNode(proxyDynamicConfig->JobEnvironment)) {
+            proxyConfig->JobEnvironment = ConvertTo<TJobEnvironmentConfig>(PatchNode(ConvertToNode(proxyConfig->JobEnvironment), nodeConfig));
         }
 
         proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;

@@ -170,9 +170,7 @@ void TSlotManager::Initialize()
         BIND_NO_PROPAGATE(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
             .Via(Bootstrap_->GetJobInvoker()));
 
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
-
-    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+    if (StaticConfig_->JobEnvironment.GetCurrentType() == NJobProxy::EJobEnvironmentType::Porto) {
         PortoHealthChecker_->SubscribeSuccess(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->SubscribeFailed(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
@@ -186,9 +184,7 @@ void TSlotManager::Start()
         VERIFY_THREAD_AFFINITY(JobThread);
 
         InitializeEnvironment().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
-            auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
-
-            if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+            if (StaticConfig_->JobEnvironment.GetCurrentType() == NJobProxy::EJobEnvironmentType::Porto) {
                 PortoHealthChecker_->Start();
             }
         }));
@@ -297,11 +293,8 @@ void TSlotManager::OnDynamicConfigChanged(
 
     DynamicConfig_.Store(newConfig);
 
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
-
-    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        auto portoEnvironmentConfig = NYTree::ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->JobEnvironment);
-        PortoHealthChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
+    if (auto portoConfig = newConfig->JobEnvironment.TryGetConcrete<NJobProxy::EJobEnvironmentType::Porto>()) {
+        PortoHealthChecker_->OnDynamicConfigChanged(portoConfig->PortoExecutor);
     }
 
     {
@@ -539,7 +532,7 @@ bool TSlotManager::IsEnabled() const
 
     auto volumeManager = RootVolumeManager_.Acquire();
     auto isVolumeManagerEnabled =
-        JobEnvironmentType_ && JobEnvironmentType_ != EJobEnvironmentType::Porto ||
+        JobEnvironmentType_ && JobEnvironmentType_ != NJobProxy::EJobEnvironmentType::Porto ||
         volumeManager && volumeManager->IsEnabled();
 
     return
@@ -1101,7 +1094,7 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
     }
 }
 
-NYTree::INodePtr TSlotManager::GetJobEnvironmentConfig() const
+NJobProxy::TJobEnvironmentConfig TSlotManager::GetJobEnvironmentConfig() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1165,9 +1158,8 @@ void TSlotManager::AsyncInitialize()
 
     // To this moment all old processed must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
-    JobEnvironmentType_ = environmentConfig->Type;
-    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+    JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
+    if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
         auto volumeManager = WaitFor(CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode,
             Bootstrap_->GetDynamicConfigManager(),

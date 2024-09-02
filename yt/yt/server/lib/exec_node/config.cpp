@@ -14,101 +14,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
-    registrar.Parameter("check_period", &TThis::CheckPeriod)
-        .Default(TDuration::Seconds(60));
-    registrar.Parameter("major_page_fault_count_threshold", &TThis::MajorPageFaultCountLimit)
-        .Default(500);
-    registrar.Parameter("limit_overflow_count_threshold_to_abort_job", &TThis::LimitOverflowCountThresholdToAbortJob)
-        .Default(5);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TJobEnvironmentConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("type", &TThis::Type)
-        .Default(EJobEnvironmentType::Simple);
-
-    registrar.Parameter("start_uid", &TThis::StartUid)
-        .Default(10000);
-
-    registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
-        .Default(TDuration::Seconds(1));
-
-    registrar.Parameter("job_thrashing_detector", &TThis::JobThrashingDetector)
-        .DefaultNew();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSimpleJobEnvironmentConfig::Register(TRegistrar)
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TTestingJobEnvironmentConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("testing_job_environment_scenario", &TThis::TestingJobEnvironmentScenario)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
-        .DefaultNew();
-
-    registrar.Parameter("block_io_watchdog_period", &TThis::BlockIOWatchdogPeriod)
-        .Default(TDuration::Seconds(60));
-
-    registrar.Parameter("external_binds", &TThis::ExternalBinds)
-        .Default();
-
-    registrar.Parameter("jobs_io_weight", &TThis::JobsIOWeight)
-        .Default(0.05);
-    registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
-        .GreaterThanOrEqual(0)
-        .Default(2);
-
-    registrar.Parameter("use_short_container_names", &TThis::UseShortContainerNames)
-        .Default(false);
-
-    registrar.Parameter("use_daemon_subcontainer", &TThis::UseDaemonSubcontainer)
-        .Default(false);
-
-    registrar.Parameter("use_exec_from_layer", &TThis::UseExecFromLayer)
-        .Default(false);
-
-    registrar.Parameter("container_destruction_backoff", &TThis::ContainerDestructionBackoff)
-        .Default(TDuration::Seconds(60));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("cri_executor", &TThis::CriExecutor)
-        .DefaultNew();
-
-    registrar.Parameter("cri_image_cache", &TThis::CriImageCache)
-        .DefaultNew();
-
-    registrar.Parameter("job_proxy_image", &TThis::JobProxyImage)
-        .NonEmpty();
-
-    registrar.Parameter("job_proxy_bind_mounts", &TThis::JobProxyBindMounts)
-        .Default();
-
-    registrar.Parameter("use_job_proxy_from_image", &TThis::UseJobProxyFromImage);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TSlotLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_quota", &TThis::DiskQuota)
@@ -159,7 +64,9 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
-        .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
+        .DefaultCtor([] {
+            return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
+        });
 
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
@@ -255,8 +162,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
-        .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
-}
+        .DefaultCtor([] {
+            return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
+        });}
 
 ////////////////////////////////////////////////////////////////////////////////
 
