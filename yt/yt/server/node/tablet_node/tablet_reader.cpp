@@ -1093,7 +1093,8 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     int minConcurrency,
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     IThroughputThrottlerPtr perTabletThrottler,
-    std::optional<EWorkloadCategory> workloadCategory)
+    std::optional<EWorkloadCategory> workloadCategory,
+    IMemoryUsageTrackerPtr rowMergerMemoryTracker)
 {
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -1147,7 +1148,9 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
         /*mergeRowsOnFlush*/ false,
-        /*useTtlColumn*/ true);
+        /*useTtlColumn*/ true,
+        /*mergeDeletionsOnFlush*/ false,
+        std::move(rowMergerMemoryTracker));
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());

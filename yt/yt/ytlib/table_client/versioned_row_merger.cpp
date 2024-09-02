@@ -21,6 +21,18 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class T>
+static i64 GetVectorBytesCapacity(const std::vector<T>& vector)
+{
+    return vector.capacity() * sizeof(T);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLegacyVersionedRowMerger
     : public IVersionedRowMerger
 {
@@ -36,7 +48,8 @@ public:
         TColumnEvaluatorPtr columnEvaluator,
         bool mergeRowsOnFlush,
         std::optional<int> ttlColumnIndex,
-        bool mergeDeletionsOnFlush)
+        bool mergeDeletionsOnFlush,
+        IMemoryUsageTrackerPtr memoryTracker)
         : RowBuffer_(std::move(rowBuffer))
         , KeyColumnCount_(keyColumnCount)
         , Config_(std::move(config))
@@ -47,6 +60,7 @@ public:
         , MergeRowsOnFlush_(mergeRowsOnFlush)
         , MergeDeletionsOnFlush_(mergeDeletionsOnFlush)
         , TtlColumnIndex_(ttlColumnIndex)
+        , MemoryTrackerGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryTracker)))
     {
         int mergedKeyColumnCount = 0;
         if (columnFilter.IsUniversal()) {
@@ -109,6 +123,8 @@ public:
                 DeleteTimestamps_.push_back(timestamp);
             }
         }
+
+        RecalculateMemoryUsage();
     }
 
     TMutableVersionedRow BuildMergedRow(bool produceEmptyRow) override
@@ -376,6 +392,8 @@ public:
     {
         YT_ASSERT(!Started_);
         RowBuffer_->Clear();
+
+        RecalculateMemoryUsage();
     }
 
 
@@ -390,6 +408,8 @@ private:
     const bool MergeRowsOnFlush_;
     const bool MergeDeletionsOnFlush_;
     const std::optional<int> TtlColumnIndex_;
+
+    TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
     bool Started_ = false;
 
@@ -414,6 +434,8 @@ private:
         DeleteTimestamps_.clear();
 
         Started_ = false;
+
+        RecalculateMemoryUsage();
     }
 
     std::optional<TDuration> ComputeRowMaxDataTtl() const
@@ -437,6 +459,21 @@ private:
 
         return Config_->MaxDataTtl;
     }
+
+    void RecalculateMemoryUsage()
+    {
+        if (MemoryTrackerGuard_) {
+            i64 memoryUsage = RowBuffer_->GetCapacity() +
+                GetVectorBytesCapacity(PartialValues_) +
+                GetVectorBytesCapacity(ColumnValues_) +
+                GetVectorBytesCapacity(MergedValues_) +
+                GetVectorBytesCapacity(WriteTimestamps_) +
+                GetVectorBytesCapacity(DeleteTimestamps_);
+
+            MemoryTrackerGuard_.TrySetSize(memoryUsage)
+                .ThrowOnError();
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -452,7 +489,8 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     std::optional<int> ttlColumnIndex,
-    bool mergeDeletionsOnFlush)
+    bool mergeDeletionsOnFlush,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     return std::make_unique<TLegacyVersionedRowMerger>(
         rowBuffer,
@@ -465,7 +503,8 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
         columnEvaluator,
         mergeRowsOnFlush,
         ttlColumnIndex,
-        mergeDeletionsOnFlush);
+        mergeDeletionsOnFlush,
+        std::move(memoryTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1106,7 +1145,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     bool useTtlColumn,
-    bool mergeDeletionsOnFlush)
+    bool mergeDeletionsOnFlush,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     if (useTtlColumn && tableSchema->GetTtlColumnIndex()) {
         rowMergerType = ERowMergerType::Legacy;
@@ -1131,7 +1171,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 std::move(columnEvaluator),
                 mergeRowsOnFlush,
                 useTtlColumn ? tableSchema->GetTtlColumnIndex() : std::nullopt,
-                mergeDeletionsOnFlush);
+                mergeDeletionsOnFlush,
+                std::move(memoryTracker));
 
         case ERowMergerType::New:
             return CreateNewVersionedRowMerger(

@@ -37,7 +37,8 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     std::optional<int> ttlColumnIndex = std::nullopt,
-    bool mergeDeletionsOnFlush = false);
+    bool mergeDeletionsOnFlush = false,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +53,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     bool useTtlColumn = false,
-    bool mergeDeletionsOnFlush = false);
+    bool mergeDeletionsOnFlush = false,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
