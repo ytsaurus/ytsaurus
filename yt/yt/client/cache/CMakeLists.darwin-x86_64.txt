@@ -22,12 +22,12 @@ target_link_libraries(yt-client-cache PUBLIC
   yutil
   yt-yt-core
   yt-yt-client
-  yt-client-cache-proto
 )
 
 target_sources(yt-client-cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/cache_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/rpc.cpp
 )
 

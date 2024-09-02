@@ -1,6 +1,7 @@
 RECURSE(
     api
-    cache
+    # XXX: remove
+    # cache
     chaos_client
     chunk_client
     discovery_client

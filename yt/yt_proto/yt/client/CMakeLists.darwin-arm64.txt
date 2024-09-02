@@ -26,9 +26,6 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_subdirectory(cache)
-add_subdirectory(hedging)
-
 add_library(yt_proto-yt-client)
 
 

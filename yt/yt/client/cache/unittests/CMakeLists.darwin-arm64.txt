@@ -43,7 +43,6 @@ target_link_options(yt-yt-client-cache-unittests PRIVATE
 target_sources(yt-yt-client-cache-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/options_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/rpc_ut.cpp
 )
 
 
