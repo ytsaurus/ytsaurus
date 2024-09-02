@@ -51,7 +51,7 @@ public:
         , Logger(std::move(logger))
     { }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -96,7 +96,7 @@ private:
     const std::string Address_;
     const std::string Cluster_;
     const TClusterDirectoryPtr ClusterDirectory_;
-    const TString EndpointDescription_;
+    const std::string EndpointDescription_;
     const TLogger Logger;
 };
 

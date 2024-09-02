@@ -16,7 +16,7 @@ class TPeerChannel
     : public NRpc::IChannel
 {
 public:
-    const TString& GetEndpointDescription() const override;
+    const std::string& GetEndpointDescription() const override;
 
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 

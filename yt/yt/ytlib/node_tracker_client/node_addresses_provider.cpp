@@ -84,7 +84,7 @@ public:
         , NullChannel_(ChannelBuilder_({}))
     { }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return TryGetChannel()->GetEndpointDescription();
     }

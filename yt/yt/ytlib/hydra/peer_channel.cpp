@@ -36,7 +36,7 @@ IChannelPtr CreatePeerChannel(
     return CreateBalancingChannel(
         std::move(config),
         std::move(realmChannelFactory),
-        std::move(endpointDescription),
+        endpointDescription,
         std::move(endpointAttributes),
         CreateDefaultPeerDiscovery(checkPeerState
             ? CreateHydraDiscoverRequestHook(kind)
