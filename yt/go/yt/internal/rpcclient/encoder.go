@@ -627,6 +627,9 @@ func (e *Encoder) PushQueueProducerBatch(
 	call := e.newCall(MethodPushQueueProducer, NewPushQueueProducerRequest(req), b.attachments)
 	var rsp rpc_proxy.TRspPushQueueProducer
 	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
 
 	result = &yt.PushQueueProducerResult{
 		LastSequenceNumber: *rsp.LastSequenceNumber,
