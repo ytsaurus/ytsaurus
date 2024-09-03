@@ -1,9 +1,11 @@
 #pragma once
-#ifndef HELPERS_INL_H_
+#ifndef NON_NULL_PTR_H_
 #error "Direct inclusion of this file is not allowed, include helpers.h"
 // For the sake of sane code completion.
-#include "helpers.h"
+#include "non_null_ptr.h"
 #endif
+
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT {
 
