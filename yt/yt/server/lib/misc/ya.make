@@ -11,6 +11,7 @@ SRCS(
     disk_change_checker.cpp
     fork_executor.cpp
     format_manager.cpp
+    estimate_size_helpers.cpp
     job_table_schema.cpp
     private.cpp
     profiling_helpers.cpp

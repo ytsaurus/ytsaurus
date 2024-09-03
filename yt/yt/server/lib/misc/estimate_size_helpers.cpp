@@ -3,7 +3,7 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/yson/string.h>
 
-namespace NYT::NJobAgent {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,4 +34,4 @@ size_t EstimateSize(TInstant /*value*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT
