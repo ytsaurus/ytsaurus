@@ -67,6 +67,9 @@ using namespace NProfiling;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "OperationsCleaner");
 
+// TODO(eshcherbin): It should be nested within SchedulerProfiler.
+YT_DEFINE_GLOBAL(const TProfiler, Profiler, TProfiler("/operations_cleaner").WithGlobal());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrderedByIdTag
@@ -682,19 +685,19 @@ public:
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     {
-        Profiler.WithTag("locked", "true").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+        Profiler().WithTag("locked", "true").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
             return RemovePendingLocked_.load();
         });
-        Profiler.WithTag("locked", "false").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+        Profiler().WithTag("locked", "false").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
             return RemovePending_.load() - RemovePendingLocked_.load();
         });
-        Profiler.AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
+        Profiler().AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
             return ArchivePending_.load();
         });
-        Profiler.AddFuncGauge("/submitted", MakeStrong(this), [this] {
+        Profiler().AddFuncGauge("/submitted", MakeStrong(this), [this] {
             return Submitted_.load();
         });
-        Profiler.AddFuncGauge("/alert_events/enqueued", MakeStrong(this), [this] {
+        Profiler().AddFuncGauge("/alert_events/enqueued", MakeStrong(this), [this] {
             return EnqueuedAlertEvents_.load();
         });
     }
@@ -849,22 +852,21 @@ private:
 
     NNative::IClientPtr Client_;
 
-    TProfiler Profiler{"/operations_cleaner"};
     std::atomic<i64> RemovePending_{0};
     std::atomic<i64> ArchivePending_{0};
     std::atomic<i64> Submitted_{0};
     std::atomic<i64> EnqueuedAlertEvents_{0};
     std::atomic<i64> RemovePendingLocked_{0};
 
-    TCounter ArchivedOperationCounter_ = Profiler.Counter("/archived");
-    TCounter RemovedOperationCounter_ = Profiler.Counter("/removed");
-    TCounter CommittedDataWeightCounter_ = Profiler.Counter("/committed_data_weight");
-    TCounter ArchiveErrorCounter_ = Profiler.Counter("/archive_errors");
-    TCounter RemoveOperationErrorCounter_ = Profiler.Counter("/remove_errors");
-    TCounter ArchivedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/archived");
-    TCounter DroppedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/dropped");
-    TEventTimer AnalyzeOperationsTimer_ = Profiler.Timer("/analyze_operations_time");
-    TEventTimer OperationsRowsPreparationTimer_ = Profiler.Timer("/operations_rows_preparation_time");
+    TCounter ArchivedOperationCounter_ = Profiler().Counter("/archived");
+    TCounter RemovedOperationCounter_ = Profiler().Counter("/removed");
+    TCounter CommittedDataWeightCounter_ = Profiler().Counter("/committed_data_weight");
+    TCounter ArchiveErrorCounter_ = Profiler().Counter("/archive_errors");
+    TCounter RemoveOperationErrorCounter_ = Profiler().Counter("/remove_errors");
+    TCounter ArchivedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/archived");
+    TCounter DroppedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/dropped");
+    TEventTimer AnalyzeOperationsTimer_ = Profiler().Timer("/analyze_operations_time");
+    TEventTimer OperationsRowsPreparationTimer_ = Profiler().Timer("/operations_rows_preparation_time");
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
