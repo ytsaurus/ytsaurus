@@ -107,6 +107,8 @@ SRCS(
     virtual_column.cpp
     yt_to_ch_converter.cpp
     yt_database.cpp
+    yt_database_base.cpp
+    yt_directory_database.cpp
 )
 
 END()

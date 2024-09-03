@@ -235,6 +235,8 @@ public:
 
     TQueryCacheConfigPtr QueryCache;
 
+    TString DefaultDatabase;
+
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 
     static void Register(TRegistrar registrar);

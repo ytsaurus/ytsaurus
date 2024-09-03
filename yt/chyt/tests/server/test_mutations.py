@@ -765,3 +765,34 @@ class TestMutations(ClickHouseTestBase):
                 group by a'''
             clique.make_query(group_by_with_join_query, settings=get_settings('complete'))
             check_output_table(expected_distinct_rows, 2)
+
+    @authors("barykinni")
+    def test_directory_database_modification(self):
+        root = "//tmp/root"
+        create("map_node", root)
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            clique.make_query("CREATE TABLE my_db.my_table(str String) ENGINE YtTable()")
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+            clique.make_query("INSERT INTO my_db.my_table VALUES ('privet')")
+            assert clique.make_query("SELECT str FROM my_db.my_table") == [{"str": "privet"}]
+
+            clique.make_query("RENAME TABLE my_db.my_table TO my_db.my_table_renamed")
+            assert clique.make_query("SELECT str FROM my_db.my_table_renamed") == [{"str": "privet"}]
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table_renamed"}]
+
+            clique.make_query("CREATE TABLE my_db.other_table(i64 Int64) ENGINE YtTable()")
+            clique.make_query("EXCHANGE TABLES my_db.my_table_renamed AND my_db.other_table")
+            assert clique.make_query("SELECT str FROM my_db.other_table") == [{"str": "privet"}]
+
+            clique.make_query("TRUNCATE TABLE my_db.other_table")
+            assert clique.make_query("SELECT count(*) FROM my_db.other_table") == [{"count()": 0}]
+
+            clique.make_query("DROP TABLE IF EXISTS my_db.unknown_table")
+
+            clique.make_query("DROP TABLE my_db.my_table_renamed")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("DROP TABLE my_db.my_table_renamed")
+
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "other_table"}]

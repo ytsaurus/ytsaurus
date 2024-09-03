@@ -680,6 +680,8 @@ public:
 
     THealthCheckerConfigPtr HealthChecker;
 
+    THashMap<TString, TString> DatabaseDirectories;
+
     TShowTablesConfigPtr ShowTables;
 
     TDuration TotalMemoryTrackerUpdatePeriod;

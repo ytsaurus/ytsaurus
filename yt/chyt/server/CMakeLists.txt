@@ -123,6 +123,8 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_directory_database.cpp
 )
 
 

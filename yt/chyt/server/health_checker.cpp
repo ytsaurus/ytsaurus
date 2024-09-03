@@ -106,6 +106,7 @@ THealthChecker::THealthChecker(
     RegisterNewUser(
         getContext()->getAccessControl(),
         DatabaseUser_,
+        Host_->GetUserDefinedDatabaseNames(),
         Host_->HasUserDefinedSqlObjectStorage());
 
     for (int i = 0; i < std::ssize(Config_->Queries); ++i) {

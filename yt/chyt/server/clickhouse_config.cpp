@@ -263,6 +263,9 @@ void TClickHouseConfig::Register(TRegistrar registrar)
         }
     });
 
+    registrar.Parameter("default_database", &TThis::DefaultDatabase)
+        .Default("YT");
+
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 }
 

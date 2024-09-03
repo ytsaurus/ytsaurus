@@ -1075,9 +1075,7 @@ IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::ASTTableExpression* 
         DB::StorageID storageId(tableExpression->database_and_table_name);
         // Resolve database name if it's not specified explicitly.
         storageId = getContext()->resolveStorageID(std::move(storageId));
-        if (storageId.database_name == "YT") {
-            storage = DB::DatabaseCatalog::instance().getTable(storageId, getContext());
-        }
+        storage = DB::DatabaseCatalog::instance().getTable(storageId, getContext());
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);

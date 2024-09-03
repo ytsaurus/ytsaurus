@@ -171,7 +171,8 @@ private:
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        return CreateStorageDistributor(context, std::move(tables));
+        DB::StorageID storageId{"YT", BuildStorageName(tables)};
+        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
     }
 
     std::vector<TRichYPath> tablePaths;
@@ -294,7 +295,8 @@ private:
             return lhs->Path.GetPath() < rhs->Path.GetPath();
         });
 
-        return CreateStorageDistributor(context, std::move(tables));
+        DB::StorageID storageId{"YT", BuildStorageName(tables)};
+        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
     }
 
     TRichYPath Directory_;

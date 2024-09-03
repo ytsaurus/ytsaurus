@@ -122,6 +122,7 @@ private:
         RegisterNewUser(
             Host_->GetContext()->getAccessControl(),
             User_,
+            Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.

@@ -139,6 +139,7 @@ public:
         RegisterNewUser(
             Server_.context()->getAccessControl(),
             TString(userName),
+            Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
         YT_LOG_DEBUG("User registered");
 

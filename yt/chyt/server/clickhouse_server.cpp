@@ -261,8 +261,13 @@ private:
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
-        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYtDatabase());
-        ServerContext_->setCurrentDatabase("YT");
+        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYTDatabase());
+
+        for (const auto& databasePtr : Host_->CreateUserDefinedDatabases()) {
+            DB::DatabaseCatalog::instance().attachDatabase(databasePtr->getDatabaseName(), databasePtr);
+        }
+
+        ServerContext_->setCurrentDatabase(Config_->DefaultDatabase);
 
         auto DatabaseForTemporaryAndExternalTables = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::TEMPORARY_DATABASE, ServerContext_);
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::TEMPORARY_DATABASE, DatabaseForTemporaryAndExternalTables);
@@ -291,7 +296,7 @@ private:
 
         accessControl.addStorage(std::move(accessStorage));
 
-        RegisterNewUser(accessControl, InternalRemoteUserName);
+        RegisterNewUser(accessControl, InternalRemoteUserName, Host_->GetUserDefinedDatabaseNames());
 
         YT_LOG_DEBUG("Adding external dictionaries from config");
 
