@@ -26,8 +26,8 @@ static constexpr auto TestUpdatePeriod = TDuration::MilliSeconds(10);
 class TPortoTrackerTest
     : public ::testing::Test
 {
-public:
-    IPortoExecutorPtr Executor;
+protected:
+    IPortoExecutorPtr Executor_;
 
     void SetUp() override
     {
@@ -35,7 +35,7 @@ public:
             GTEST_SKIP();
         }
 
-        Executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "default");
+        Executor_ = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "default");
     }
 };
 
@@ -72,8 +72,9 @@ TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, c
             .WithTag("container_category", "yt_daemon"));
 }
 
-void AssertGauges(const std::vector<std::tuple<TString, TTagList, double>>& gauges) {
-    THashSet<TString> sensors{
+void AssertGauges(const std::vector<std::tuple<std::string, TTagList, double>>& gauges)
+{
+    static const THashSet<std::string> sensors{
         "/cpu/burst",
         "/cpu/user",
         "/cpu/total",
@@ -112,10 +113,10 @@ void AssertGauges(const std::vector<std::tuple<TString, TTagList, double>>& gaug
         "/network/tx_bytes",
         "/network/tx_drops",
         "/network/tx_packets",
-        "/network/tx_limit"
+        "/network/tx_limit",
     };
 
-    THashSet<TString> mayBeEmpty{
+    static const THashSet<std::string> mayBeEmpty{
         "/cpu/burst",
         "/cpu/wait",
         "/cpu/throttled",
@@ -140,7 +141,7 @@ void AssertGauges(const std::vector<std::tuple<TString, TTagList, double>>& gaug
     };
 
     for (const auto& [name, tags, value] : gauges) {
-        EXPECT_TRUE(value >= 0 && sensors.find(name) || mayBeEmpty.find(name));
+        EXPECT_TRUE(value >= 0 && sensors.contains(name) || mayBeEmpty.contains(name));
     }
 }
 
@@ -148,31 +149,31 @@ TEST_F(TPortoTrackerTest, ValidateSummaryPortoTracker)
 {
     auto name = GetUniqueName();
 
-    WaitFor(Executor->CreateContainer(
+    WaitFor(Executor_->CreateContainer(
         TRunnableContainerSpec {
             .Name = name,
             .Command = "sleep .1",
         }, true))
         .ThrowOnError();
 
-    auto tracker = CreateSumPortoTracker(Executor, name);
+    auto tracker = CreateSumPortoTracker(Executor_, name);
 
     auto firstStatistics = tracker->GetTotalStatistics();
 
-    WaitFor(Executor->StopContainer(name))
+    WaitFor(Executor_->StopContainer(name))
         .ThrowOnError();
-    WaitFor(Executor->SetContainerProperty(
+    WaitFor(Executor_->SetContainerProperty(
         name,
         "command",
         "find /"))
         .ThrowOnError();
-    WaitFor(Executor->StartContainer(name))
+    WaitFor(Executor_->StartContainer(name))
         .ThrowOnError();
     Sleep(TDuration::MilliSeconds(500));
 
     auto secondStatistics = tracker->GetTotalStatistics();
 
-    WaitFor(Executor->DestroyContainer(name))
+    WaitFor(Executor_->DestroyContainer(name))
         .ThrowOnError();
 }
 
@@ -180,24 +181,24 @@ TEST_F(TPortoTrackerTest, ValidateDeltaPortoTracker)
 {
     auto name = GetUniqueName();
 
-    auto spec = TRunnableContainerSpec {
+    auto spec = TRunnableContainerSpec{
         .Name = name,
         .Command = "sleep .1",
     };
 
-    WaitFor(Executor->CreateContainer(spec, true))
+    WaitFor(Executor_->CreateContainer(spec, true))
         .ThrowOnError();
 
-    auto profiler = CreateDeltaPortoProfiler(Executor, name);
+    auto profiler = CreateDeltaPortoProfiler(Executor_, name);
 
-    WaitFor(Executor->StopContainer(name))
+    WaitFor(Executor_->StopContainer(name))
         .ThrowOnError();
-    WaitFor(Executor->SetContainerProperty(
+    WaitFor(Executor_->SetContainerProperty(
         name,
         "command",
         "find /"))
         .ThrowOnError();
-    WaitFor(Executor->StartContainer(name))
+    WaitFor(Executor_->StartContainer(name))
         .ThrowOnError();
 
     Sleep(TDuration::MilliSeconds(500));
@@ -206,7 +207,7 @@ TEST_F(TPortoTrackerTest, ValidateDeltaPortoTracker)
     profiler->CollectSensors(buffer.Get());
     AssertGauges(buffer->GetGauges());
 
-    WaitFor(Executor->DestroyContainer(name))
+    WaitFor(Executor_->DestroyContainer(name))
         .ThrowOnError();
 }
 
@@ -214,28 +215,28 @@ TEST_F(TPortoTrackerTest, ValidateDeltaRootPortoTracker)
 {
     auto name = GetUniqueName();
 
-    auto spec = TRunnableContainerSpec {
+    auto spec = TRunnableContainerSpec{
         .Name = name,
         .Command = "sleep .1",
     };
 
-    WaitFor(Executor->CreateContainer(spec, true))
+    WaitFor(Executor_->CreateContainer(spec, true))
         .ThrowOnError();
 
     auto profiler = CreateDeltaPortoProfiler(
-        Executor,
+        Executor_,
         GetPortoInstance(
-            Executor,
-            *GetPortoInstance(Executor, name)->GetRootName())->GetName());
+            Executor_,
+            *GetPortoInstance(Executor_, name)->GetRootName())->GetName());
 
-    WaitFor(Executor->StopContainer(name))
+    WaitFor(Executor_->StopContainer(name))
         .ThrowOnError();
-    WaitFor(Executor->SetContainerProperty(
+    WaitFor(Executor_->SetContainerProperty(
         name,
         "command",
         "find /"))
         .ThrowOnError();
-    WaitFor(Executor->StartContainer(name))
+    WaitFor(Executor_->StartContainer(name))
         .ThrowOnError();
 
     Sleep(TDuration::MilliSeconds(500));
@@ -244,7 +245,7 @@ TEST_F(TPortoTrackerTest, ValidateDeltaRootPortoTracker)
     profiler->CollectSensors(buffer.Get());
     AssertGauges(buffer->GetGauges());
 
-    WaitFor(Executor->DestroyContainer(name))
+    WaitFor(Executor_->DestroyContainer(name))
         .ThrowOnError();
 }
 
