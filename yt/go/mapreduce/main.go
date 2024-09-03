@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -59,19 +60,50 @@ func JobMain() int {
 		return 7
 	}
 
-	if err = ctx.initPipes(state, args.nOutputPipes); err != nil {
+	if err = ctx.initPipes(args.nOutputPipes); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 3
 	}
 
-	if err := state.Job.Do(&ctx, ctx.in, ctx.writers()); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+	outs := make([]io.Closer, args.nOutputPipes)
+
+	switch job := state.Job.(type) {
+	case Job:
+		reader, err := ctx.createReader(state)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+			return 3
+		}
+		writers := ctx.createWriters()
+		for i, w := range writers {
+			outs[i] = w
+		}
+		if err := job.Do(&ctx, reader, writers); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+			return 1
+		}
+		if err := reader.Err(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job input reader error: %+v\n", err)
+			return 4
+		}
+	case RawJob:
+		for i, out := range ctx.out {
+			outs[i] = out
+		}
+		if err := job.Do(&ctx, ctx.in, ctx.out); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+			return 1
+		}
+	default:
+		_, _ = fmt.Fprintf(os.Stderr, "unsupported job type: %T\n", job)
 		return 1
 	}
 
-	if err := ctx.finish(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
-		return 4
+	for _, out := range outs {
+		if err := out.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job output writer error: %+v\n", err)
+			return 4
+		}
 	}
 
 	return 0

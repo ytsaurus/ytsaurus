@@ -19,7 +19,7 @@ var registry = map[string]reflect.Type{}
 //	func init() {
 //	    mapreduce.Register(&MyJob{})
 //	}
-func Register(job Job) {
+func Register(job any) {
 	gob.Register(job)
 	t := reflect.TypeOf(job)
 	if t.Kind() == reflect.Ptr {
@@ -35,7 +35,7 @@ func Register(job Job) {
 }
 
 // RegisterName registers job type with overridden name.
-func RegisterName(name string, job Job) {
+func RegisterName(name string, job any) {
 	gob.RegisterName(name, job)
 	t := reflect.TypeOf(job)
 	if t.Kind() == reflect.Ptr {
@@ -55,16 +55,7 @@ func RegisterJobPart(state any) {
 	gob.Register(state)
 }
 
-func NewJob(name string) Job {
-	typ, ok := registry[name]
-	if !ok {
-		return nil
-	}
-
-	return reflect.New(typ).Interface().(Job)
-}
-
-func jobName(o Job) string {
+func jobName(o any) string {
 	t := reflect.TypeOf(o)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
