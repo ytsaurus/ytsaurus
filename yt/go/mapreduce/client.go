@@ -21,6 +21,8 @@ import (
 type Client interface {
 	Map(mapper Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
+	RawMap(mapper RawJob, spec *spec.Spec, opts ...OperationOption) (Operation, error)
+
 	Reduce(reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
 	JoinReduce(reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)

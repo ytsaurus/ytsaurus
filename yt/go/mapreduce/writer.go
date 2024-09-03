@@ -16,6 +16,9 @@ type Writer interface {
 
 	// MustWrite works like Write, terminates current process in case of an error.
 	MustWrite(value any)
+
+	// Close closes writer.
+	Close() error
 }
 
 type writer struct {

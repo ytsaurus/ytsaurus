@@ -1,5 +1,7 @@
 package mapreduce
 
+import "os"
+
 type JobContext interface {
 	LookupVault(name string) (value string, ok bool)
 	JobCookie() int
@@ -17,6 +19,10 @@ type Job interface {
 	//
 	// Each element describing type of corresponding output table.
 	OutputTypes() []any
+}
+
+type RawJob interface {
+	Do(ctx JobContext, in *os.File, out []*os.File) error
 }
 
 // Untyped is empty struct useful for embedding inside user job type, it provides default implementation of

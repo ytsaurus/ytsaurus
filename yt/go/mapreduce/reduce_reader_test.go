@@ -53,6 +53,10 @@ func (r *fakeReader) Next() bool {
 	return true
 }
 
+func (*fakeReader) Err() error {
+	return nil
+}
+
 func TestGroupKeys(t *testing.T) {
 	r := fakeReader{
 		{},

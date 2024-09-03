@@ -83,7 +83,7 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 	}
 }
 
-func (p *prepare) addJobCommand(job Job, userScript **spec.UserScript, state *jobState, tableCount int) {
+func (p *prepare) addJobCommand(job any, userScript **spec.UserScript, state *jobState, tableCount int) {
 	if *userScript == nil {
 		*userScript = &spec.UserScript{}
 	}
