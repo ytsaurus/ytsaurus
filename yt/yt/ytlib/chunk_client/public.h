@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
@@ -50,6 +52,10 @@ class TChunkReplicaAnnouncementRequest;
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using NTableClient::TLoadContext;
+using NTableClient::TSaveContext;
+using NTableClient::TPersistenceContext;
 
 constexpr int MaxMasterChunkMetaExtensions = 6;
 

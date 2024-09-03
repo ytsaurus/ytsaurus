@@ -16,6 +16,7 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
 
@@ -33,18 +34,18 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
+void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, MaxTotalSliceCount);
-    Persist(context, MinTeleportChunkSize);
-    Persist(context, JobSizeConstraints);
-    Persist(context, SupportLocality);
-    Persist(context, EnablePeriodicYielder);
-    Persist(context, ShouldSliceByRowIndices);
-    Persist(context, Logger);
+    registrar.template Field<1, &TThis::MaxTotalSliceCount>("max_total_slice_count")();
+    registrar.template Field<2, &TThis::MinTeleportChunkSize>("min_teleport_chunk_size")();
+    registrar.template Field<3, &TThis::JobSizeConstraints>("job_size_constraints")();
+    registrar.template Field<4, &TThis::SupportLocality>("support_locality")();
+    registrar.template Field<5, &TThis::EnablePeriodicYielder>("enable_periodic_yielder")();
+    registrar.template Field<6, &TThis::ShouldSliceByRowIndices>("should_slice_by_row_indices")();
+    registrar.template Field<7, &TThis::Logger>("logger")();
 }
+
+PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +55,6 @@ class TOrderedChunkPool
     , public IPersistentChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -178,38 +178,7 @@ public:
         return OutputOrder_;
     }
 
-    void Persist(const TPersistenceContext& context) final
-    {
-        TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputWithJobManagerBase::Persist(context);
-        TJobSplittingBase::Persist(context);
-        // TLoggerOwner is persisted by TJobSplittingBase.
-
-        using NYT::Persist;
-
-        Persist(context, InputStreamDirectory_);
-        Persist(context, MinTeleportChunkSize_);
-        Persist(context, Stripes_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, Sampler_);
-        Persist(context, SupportLocality_);
-        Persist(context, MaxTotalSliceCount_);
-        Persist(context, ShouldSliceByRowIndices_);
-        Persist(context, EnablePeriodicYielder_);
-        Persist(context, OutputOrder_);
-        Persist(context, JobIndex_);
-        Persist(context, BuiltJobCount_);
-        Persist(context, SingleJob_);
-        Persist(context, IsCompleted_);
-
-        if (context.IsLoad()) {
-            ValidateLogger(Logger);
-        }
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedChunkPool, 0xffe92abc);
-
     //! Information about input sources (e.g. input tables for sorted reduce operation).
     TInputStreamDirectory InputStreamDirectory_;
 
@@ -639,9 +608,38 @@ private:
 
         IsCompleted_ = completed;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedChunkPool, 0xffe92abc);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedChunkPool);
+void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+    registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
+    registrar.template BaseType<TJobSplittingBase>();
+    // TLoggerOwner is persisted by TJobSplittingBase.
+
+    registrar.template Field<1, &TThis::InputStreamDirectory_>("input_stream_directory")();
+    registrar.template Field<2, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
+    registrar.template Field<3, &TThis::Stripes_>("stripes")();
+    registrar.template Field<4, &TThis::JobSizeConstraints_>("job_size_constraints")();
+    registrar.template Field<5, &TThis::Sampler_>("sampler")();
+    registrar.template Field<6, &TThis::SupportLocality_>("support_locality")();
+    registrar.template Field<7, &TThis::MaxTotalSliceCount_>("max_total_slice_count")();
+    registrar.template Field<8, &TThis::ShouldSliceByRowIndices_>("should_slice_by_row_indices")();
+    registrar.template Field<9, &TThis::EnablePeriodicYielder_>("enable_periodic_yielder")();
+    registrar.template Field<10, &TThis::OutputOrder_>("output_order")();
+    registrar.template Field<11, &TThis::JobIndex_>("job_index")();
+    registrar.template Field<12, &TThis::BuiltJobCount_>("built_job_count")();
+    registrar.template Field<13, &TThis::SingleJob_>("single_job")();
+    registrar.template Field<14, &TThis::IsCompleted_>("is_completed")();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        ValidateLogger(this_->Logger);
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TOrderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

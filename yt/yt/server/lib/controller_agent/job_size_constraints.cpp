@@ -4,6 +4,13 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void IJobSizeConstraints::RegisterMetadata(auto&& /*registrar*/)
+{ }
+
+PHOENIX_DEFINE_TYPE(IJobSizeConstraints);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExplicitJobSizeConstraints
     : public IJobSizeConstraints
 {
@@ -159,51 +166,7 @@ public:
         // Do nothing. Explicit job size constraints do not care about primary input data weight.
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-        Persist(context, CanAdjustDataWeightPerJob_);
-        Persist(context, IsExplicitJobCount_);
-        Persist(context, JobCount_);
-        Persist(context, DataWeightPerJob_);
-        Persist(context, PrimaryDataWeightPerJob_);
-        Persist(context, MaxDataSlicesPerJob_);
-        Persist(context, MaxDataWeightPerJob_);
-        Persist(context, MaxPrimaryDataWeightPerJob_);
-        Persist(context, InputSliceDataWeight_);
-        Persist(context, InputSliceRowCount_);
-        // NB: ESnapshotVersion::BumpTo_24_1 is the first 24.1 snapshot version.
-        if ((context.GetVersion() >= ESnapshotVersion::BatchRowCount_23_2 && context.GetVersion() < ESnapshotVersion::BumpTo_24_1) ||
-            context.GetVersion() >= ESnapshotVersion::BatchRowCount_24_1)
-        {
-            Persist(context, BatchRowCount_);
-        }
-        Persist(context, ForeignSliceDataWeight_);
-        Persist(context, SamplingRate_);
-        Persist(context, SamplingDataWeightPerJob_);
-        Persist(context, SamplingPrimaryDataWeightPerJob_);
-        Persist(context, MaxBuildRetryCount_);
-        Persist(context, DataWeightPerJobRetryFactor_);
-
-        // COMPAT(galtsev)
-        if (context.GetVersion() >= ESnapshotVersion::ForceAllowJobInterruption) {
-            Persist(context, ForceAllowJobInterruption_);
-        } else {
-            ForceAllowJobInterruption_ = false;
-        }
-
-        // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
-        // input somewhere in controller).
-        if (context.IsLoad()) {
-            MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);
-            DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
-            PrimaryDataWeightPerJob_ = std::max<i64>(1, PrimaryDataWeightPerJob_);
-        }
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
-
     bool CanAdjustDataWeightPerJob_;
     bool ForceAllowJobInterruption_;
     bool IsExplicitJobCount_;
@@ -222,9 +185,53 @@ private:
     i64 SamplingPrimaryDataWeightPerJob_;
     i64 MaxBuildRetryCount_;
     double DataWeightPerJobRetryFactor_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
+void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::CanAdjustDataWeightPerJob_>("can_adjust_data_weight_per_job")();
+    registrar.template Field<2, &TThis::IsExplicitJobCount_>("is_explicit_job_count")();
+    registrar.template Field<3, &TThis::JobCount_>("job_count")();
+    registrar.template Field<4, &TThis::DataWeightPerJob_>("data_weight_per_job")();
+    registrar.template Field<5, &TThis::PrimaryDataWeightPerJob_>("primary_data_weight_per_job")();
+    registrar.template Field<6, &TThis::MaxDataSlicesPerJob_>("max_data_slices_per_job")();
+    registrar.template Field<7, &TThis::MaxDataWeightPerJob_>("max_data_weight_per_job")();
+    registrar.template Field<8, &TThis::MaxPrimaryDataWeightPerJob_>("max_primary_data_weight_per_job")();
+    registrar.template Field<9, &TThis::InputSliceDataWeight_>("input_slice_data_weight")();
+    registrar.template Field<10, &TThis::InputSliceRowCount_>("input_slice_row_count")();
+    // NB: ESnapshotVersion::BumpTo_24_1 is the first 24.1 snapshot version.
+    registrar.template Field<11, &TThis::BatchRowCount_>("batch_row_count")
+        .InVersions([] (ESnapshotVersion version) {
+            return ((version >= ESnapshotVersion::BatchRowCount_23_2 && version < ESnapshotVersion::BumpTo_24_1) ||
+                version >= ESnapshotVersion::BatchRowCount_24_1);
+        })();
+    registrar.template Field<12, &TThis::ForeignSliceDataWeight_>("foreign_slice_data_weight")();
+    registrar.template Field<13, &TThis::SamplingRate_>("sampling_rate")();
+    registrar.template Field<14, &TThis::SamplingDataWeightPerJob_>("sampling_data_weight_per_job")();
+    registrar.template Field<15, &TThis::SamplingPrimaryDataWeightPerJob_>("sampling_primary_data_weight_per_job")();
+    registrar.template Field<16, &TThis::MaxBuildRetryCount_>("max_build_retry_count")();
+    registrar.template Field<17, &TThis::DataWeightPerJobRetryFactor_>("data_weight_per_job_retry_factor")();
+
+    // COMPAT(galtsev)
+    registrar.template Field<18, &TThis::ForceAllowJobInterruption_>("force_allow_job_interruption")
+        .SinceVersion(ESnapshotVersion::ForceAllowJobInterruption)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->ForceAllowJobInterruption_ = false;
+        })();
+
+    // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
+    // input somewhere in controller).
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->MaxDataWeightPerJob_ = std::max<i64>(1, this_->MaxDataWeightPerJob_);
+        this_->DataWeightPerJob_ = std::max<i64>(1, this_->DataWeightPerJob_);
+        this_->PrimaryDataWeightPerJob_ = std::max<i64>(1, this_->PrimaryDataWeightPerJob_);
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TExplicitJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////

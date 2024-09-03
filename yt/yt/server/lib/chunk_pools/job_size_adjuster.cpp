@@ -10,7 +10,6 @@ using namespace NControllerAgent;
 
 class TJobSizeAdjuster
     : public IJobSizeAdjuster
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TJobSizeAdjuster() = default;
@@ -57,16 +56,6 @@ public:
         return static_cast<i64>(DataWeightPerJob_);
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-        Persist(context, DataWeightPerJob_);
-        Persist(context, MinJobTime_);
-        Persist(context, MaxJobTime_);
-        Persist(context, ExecToPrepareTimeRatio_);
-        Persist(context, Statistics_);
-    }
-
 private:
     class TStatistics
     {
@@ -101,25 +90,15 @@ private:
             return Count_ == 0;
         }
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, Count_);
-            Persist(context, TotalPrepareTime_);
-            Persist(context, TotalExecTime_);
-            Persist(context, TotalDataWeight_);
-            Persist(context, MaxDataWeight_);
-        }
-
     private:
         int Count_ = 0;
         double TotalPrepareTime_ = 0.0;
         double TotalExecTime_ = 0.0;
         double TotalDataWeight_ = 0.0;
         double MaxDataWeight_ = 0.0;
-    };
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster, 0xf8338721);
+        PHOENIX_DECLARE_TYPE(TStatistics, 0xab66ec65);
+    };
 
     double DataWeightPerJob_ = 0.0;
     double MinJobTime_ = 0.0;
@@ -127,9 +106,34 @@ private:
     double ExecToPrepareTimeRatio_ = 0.0;
 
     TStatistics Statistics_;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster);
+void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::DataWeightPerJob_>("data_weight_per_job")();
+    registrar.template Field<2, &TThis::MinJobTime_>("min_job_time")();
+    registrar.template Field<3, &TThis::MaxJobTime_>("max_job_time")();
+    registrar.template Field<4, &TThis::ExecToPrepareTimeRatio_>("exec_to_prepare_time_ratio")();
+    registrar.template Field<5, &TThis::Statistics_>("statistics")();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobSizeAdjuster::TStatistics::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::Count_>("count")();
+    registrar.template Field<2, &TThis::TotalPrepareTime_>("total_prepare_time")();
+    registrar.template Field<3, &TThis::TotalExecTime_>("total_exec_time")();
+    registrar.template Field<4, &TThis::TotalDataWeight_>("total_data_weight")();
+    registrar.template Field<5, &TThis::MaxDataWeight_>("max_data_weight")();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSizeAdjuster::TStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

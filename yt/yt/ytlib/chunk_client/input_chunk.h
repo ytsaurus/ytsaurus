@@ -19,6 +19,8 @@
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <array>
 
 namespace NYT::NChunkClient {
@@ -125,8 +127,6 @@ public:
         const NProto::TChunkSpec& chunkSpec,
         std::optional<int> keyColumnCount = std::nullopt);
 
-    void Persist(const TStreamPersistenceContext& context);
-
     size_t SpaceUsed() const;
 
     //! Returns |false| iff the chunk has nontrivial limits.
@@ -168,6 +168,8 @@ public:
 
 private:
     i64 ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelectivityToNonColumnarFormats) const;
+
+    PHOENIX_DECLARE_TYPE(TInputChunk, 0x7502ed18);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunk)

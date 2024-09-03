@@ -13,8 +13,10 @@ namespace NYT {
 class TBernoulliSampler
 {
 public:
+    TBernoulliSampler() = default;
+
     explicit TBernoulliSampler(
-        std::optional<double> samplingRate = std::nullopt,
+        std::optional<double> samplingRate,
         std::optional<ui64> seed = std::nullopt);
 
     bool Sample();

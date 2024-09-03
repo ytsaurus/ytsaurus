@@ -16,7 +16,6 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
-#include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NControllerAgent {
@@ -32,8 +31,6 @@ struct TJobSummary
     explicit TJobSummary(NProto::TJobStatus* status);
 
     virtual ~TJobSummary() = default;
-
-    void Persist(const TPersistenceContext& context);
 
     //! Crashes if job result is not combined yet.
     NProto::TJobResult& GetJobResult();
@@ -85,6 +82,8 @@ struct TJobSummary
     TInstant StatusTimestamp;
     bool JobExecutionCompleted = false;
     bool FinishedOnNode = false;
+
+    PHOENIX_DECLARE_TYPE(TJobSummary, 0x583efb2c);
 };
 
 struct TCompletedJobSummary
@@ -92,8 +91,6 @@ struct TCompletedJobSummary
 {
     TCompletedJobSummary() = default;
     explicit TCompletedJobSummary(NProto::TJobStatus* status);
-
-    void Persist(const TPersistenceContext& context);
 
     bool Abandoned = false;
 
@@ -103,6 +100,8 @@ struct TCompletedJobSummary
     int SplitJobCount = 1;
 
     inline static constexpr EJobState ExpectedState = EJobState::Completed;
+
+    PHOENIX_DECLARE_TYPE(TCompletedJobSummary, 0x78811781);
 };
 
 std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId);

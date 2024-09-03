@@ -22,17 +22,18 @@ public:
         const NChunkClient::TLegacyDataSlicePtr& dataSlice,
         const NTableClient::TComparator& comparator) const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     struct TInputReadRange
     {
         NTableClient::TKeyBound LowerBound;
         NTableClient::TKeyBound UpperBound;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TInputReadRange, 0xb40a7395);
     };
     std::vector<TInputReadRange> Ranges_;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TReadRangeRegistry, 0x343abac7);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -92,12 +92,12 @@ void TChunkTree::CheckInvariants(TBootstrap* bootstrap) const
     TStagedObject::CheckInvariants(bootstrap);
 }
 
-void TChunkTree::Save(TSaveContext& context) const
+void TChunkTree::Save(NCellMaster::TSaveContext& context) const
 {
     TStagedObject::Save(context);
 }
 
-void TChunkTree::Load(TLoadContext& context)
+void TChunkTree::Load(NCellMaster::TLoadContext& context)
 {
     TStagedObject::Load(context);
 }

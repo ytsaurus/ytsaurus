@@ -58,8 +58,6 @@ public:
     //! cookie and remap all the remaining stripes.
     void Reset(NChunkPools::IChunkPoolInput::TCookie, const NChunkPools::TChunkStripePtr& newStripe);
 
-    void Persist(const TPersistenceContext& context);
-
     // TODO(max42): rename this method and the corresponding method of IChunkPollInput.
     void Add(NChunkPools::IChunkPoolInput::TCookie cookie, const NChunkPools::TChunkStripePtr& stripe);
 
@@ -75,6 +73,8 @@ private:
     static void ValidateSortedChunkConsistency(
         const NChunkClient::TInputChunkPtr& oldChunk,
         const NChunkClient::TInputChunkPtr& newChunk);
+
+    PHOENIX_DECLARE_TYPE(TInputChunkMapping, 0xd27567b8);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunkMapping)

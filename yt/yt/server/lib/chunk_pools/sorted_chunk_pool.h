@@ -5,9 +5,9 @@
 #include "private.h"
 #include "sorted_job_builder.h"
 
-#include <yt/yt/ytlib/table_client/public.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
+
+#include <yt/yt/ytlib/table_client/public.h>
 
 namespace NYT::NChunkPools {
 
@@ -51,7 +51,7 @@ struct IChunkSliceFetcherFactory
 {
     virtual NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() = 0;
 
-    void Persist(const TPersistenceContext& context) override = 0;
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(IChunkSliceFetcherFactory, 0xce7382c1);
 };
 
 IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(

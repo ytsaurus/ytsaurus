@@ -1,5 +1,7 @@
 #include "structs.h"
 
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/core/misc/statistics.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -42,6 +44,19 @@ bool TTimeStatistics::IsEmpty() const
         !ArtifactsDownloadDuration &&
         !PrepareRootFSDuration &&
         !GpuCheckDuration;
+}
+
+// TODO(pogorelov): Move TTimeStatistics to NControllerAgent.
+void TTimeStatistics::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::PrepareDuration>("prepare_duration")();
+    registrar.template Field<2, &TThis::ArtifactsDownloadDuration>("artifacts_download_duration")();
+    registrar.template Field<3, &TThis::PrepareRootFSDuration>("prepare_root_fs_duration")();
+    registrar.template Field<4, &TThis::ExecDuration>("exec_duration")();
+    registrar.template Field<5, &TThis::GpuCheckDuration>("gpu_check_duration")();
+
+    registrar.template Field<6, &TThis::WaitingForResourcesDuration>("waiting_for_resources_duration")
+        .SinceVersion(NControllerAgent::ESnapshotVersion::WaitingForResourcesDuration)();
 }
 
 void ToProto(
@@ -116,6 +131,8 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             })
         .EndMap();
 }
+
+PHOENIX_DEFINE_TYPE(TTimeStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

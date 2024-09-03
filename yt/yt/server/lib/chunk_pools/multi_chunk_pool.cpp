@@ -99,18 +99,7 @@ public:
         return IsFinished_;
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using ::NYT::Persist;
-
-        Persist(context, UnderlyingPools_);
-        Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
-        Persist(context, IsFinished_);
-    }
-
 protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolInput, 0xe712ad5b);
-
     std::vector<IPersistentChunkPoolInputPtr> UnderlyingPools_;
 
     //! Mapping external_cookie -> cookie_descriptor.
@@ -151,9 +140,19 @@ protected:
         YT_VERIFY(!UnderlyingPools_[poolIndex]);
         UnderlyingPools_[poolIndex] = std::move(pool);
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMultiChunkPoolInput, 0xe712ad5b);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolInput);
+void TMultiChunkPoolInput::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::UnderlyingPools_>("underlying_pools")();
+    registrar.template Field<2, &TThis::Cookies_>("cookies")
+        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
+    registrar.template Field<3, &TThis::IsFinished_>("is_finished")();
+}
+
+PHOENIX_DEFINE_TYPE(TMultiChunkPoolInput);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,39 +366,7 @@ public:
         OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using ::NYT::Persist;
-
-        Persist(context, UnderlyingPools_);
-        Persist(context, ActivePoolCount_);
-        Persist(context, JobCounter_);
-        Persist(context, DataWeightCounter_);
-        Persist(context, RowCounter_);
-        Persist(context, DataSliceCounter_);
-        Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
-        Persist<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>(context, CookieDescriptorToExternalCookie_);
-        Persist(context, BlockedPools_);
-        Persist(context, Finalized_);
-        Persist(context, IsCompleted_);
-
-        if (context.IsLoad()) {
-            // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics
-            // and restore them from scratch here using underlying pools statistics.
-            PendingPoolIterators_ = std::vector<std::list<int>::iterator>(UnderlyingPools_.size(), PendingPools_.end());
-            for (int poolIndex = static_cast<int>(UnderlyingPools_.size()) - 1; poolIndex >= 0; --poolIndex) {
-                if (Pool(poolIndex)) {
-                    SetupCallbacks(poolIndex);
-                    OnUnderlyingPoolPendingJobCountChanged(poolIndex);
-                    OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
-                }
-            }
-        }
-    }
-
 protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolOutput, 0x135ffa20);
-
     std::vector<IPersistentChunkPoolOutputPtr> UnderlyingPools_;
 
     //! Number of uncompleted pools.
@@ -531,9 +498,41 @@ protected:
             BlockedPools_.erase(poolIndex);
         }
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMultiChunkPoolOutput, 0x135ffa20);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolOutput);
+void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::UnderlyingPools_>("underlying_pools")();
+    registrar.template Field<2, &TThis::ActivePoolCount_>("active_pool_count")();
+    registrar.template Field<3, &TThis::JobCounter_>("job_counter")();
+    registrar.template Field<4, &TThis::DataWeightCounter_>("data_weight_counter")();
+    registrar.template Field<5, &TThis::RowCounter_>("row_counter")();
+    registrar.template Field<6, &TThis::DataSliceCounter_>("data_slice_counter")();
+    registrar.template Field<7, &TThis::Cookies_>("cookies")
+        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
+    registrar.template Field<8, &TThis::CookieDescriptorToExternalCookie_>("cookie_descriptor_to_external_cookie")
+        .template Serializer<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>()();
+    registrar.template Field<9, &TThis::BlockedPools_>("blocked_pools")();
+    registrar.template Field<10, &TThis::Finalized_>("finalized")();
+    registrar.template Field<11, &TThis::IsCompleted_>("is_completed")();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics
+        // and restore them from scratch here using underlying pools statistics.
+        this_->PendingPoolIterators_ = std::vector<std::list<int>::iterator>(this_->UnderlyingPools_.size(), this_->PendingPools_.end());
+        for (int poolIndex = static_cast<int>(this_->UnderlyingPools_.size()) - 1; poolIndex >= 0; --poolIndex) {
+            if (this_->Pool(poolIndex)) {
+                this_->SetupCallbacks(poolIndex);
+                this_->OnUnderlyingPoolPendingJobCountChanged(poolIndex);
+                this_->OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
+            }
+        }
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TMultiChunkPoolOutput);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -561,17 +560,16 @@ public:
         AddPoolOutput(std::move(pool), poolIndex);
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TMultiChunkPoolInput::Persist(context);
-        TMultiChunkPoolOutput::Persist(context);
-    }
-
-protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool, 0xf7e412a9);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMultiChunkPool, 0xf7e412a9);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool);
+void TMultiChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TMultiChunkPoolInput>();
+    registrar.template BaseType<TMultiChunkPoolOutput>();
+}
+
+PHOENIX_DEFINE_TYPE(TMultiChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

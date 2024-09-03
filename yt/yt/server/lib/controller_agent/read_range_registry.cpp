@@ -36,20 +36,19 @@ void TReadRangeRegistry::ApplyReadRange(const TLegacyDataSlicePtr& dataSlice, co
     }
 }
 
-void TReadRangeRegistry::Persist(const TPersistenceContext& context)
+void TReadRangeRegistry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Ranges_);
+    registrar.template Field<1, &TThis::Ranges_>("ranges")();
 }
 
-void TReadRangeRegistry::TInputReadRange::Persist(const TPersistenceContext& context)
+void TReadRangeRegistry::TInputReadRange::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UpperBound);
-    Persist(context, LowerBound);
+    registrar.template Field<1, &TThis::UpperBound>("upper_bound")();
+    registrar.template Field<2, &TThis::LowerBound>("lower_bound")();
 }
+
+PHOENIX_DEFINE_TYPE(TReadRangeRegistry);
+PHOENIX_DEFINE_TYPE(TReadRangeRegistry::TInputReadRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

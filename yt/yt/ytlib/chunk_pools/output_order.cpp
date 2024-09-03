@@ -40,17 +40,17 @@ TOutputOrder::TEntry::TEntry()
     : Content_(-1)
 { }
 
-void TOutputOrder::TEntry::Persist(const NTableClient::TPersistenceContext& context)
+void TOutputOrder::TEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Content_);
+    registrar.template Field<1, &TThis::Content_>("content")();
 }
 
 bool TOutputOrder::TEntry::operator ==(const TOutputOrder::TEntry& other) const
 {
     return Content_ == other.Content_;
 }
+
+PHOENIX_DEFINE_TYPE(TOutputOrder::TEntry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,16 +133,17 @@ std::vector<TOutputOrder::TEntry> TOutputOrder::ToEntryVector() const
     return entries;
 }
 
-void TOutputOrder::Persist(const NTableClient::TPersistenceContext& context)
+void TOutputOrder::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, TeleportChunkToPosition_);
-    Persist(context, CookieToPosition_);
-    Persist(context, Pool_);
-    Persist(context, NextPosition_);
-    Persist(context, CurrentPosition_);
+    registrar.template Field<1, &TThis::TeleportChunkToPosition_>("teleport_chunk_to_position")
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
+    registrar.template Field<2, &TThis::CookieToPosition_>("cookie_to_position")();
+    registrar.template Field<3, &TThis::Pool_>("pool")();
+    registrar.template Field<4, &TThis::NextPosition_>("next_position")();
+    registrar.template Field<5, &TThis::CurrentPosition_>("current_position")();
 }
+
+PHOENIX_DEFINE_TYPE(TOutputOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

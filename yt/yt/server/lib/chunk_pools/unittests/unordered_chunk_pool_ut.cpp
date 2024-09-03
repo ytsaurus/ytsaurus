@@ -18,7 +18,6 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/phoenix.h>
 
 #include <util/generic/cast.h>
 

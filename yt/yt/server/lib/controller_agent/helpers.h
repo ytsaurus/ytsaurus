@@ -8,7 +8,12 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/controller_agent/persistence.h>
+
 #include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/core/tracing/public.h>
 
@@ -34,7 +39,7 @@ struct TReleaseJobFlags
     bool IsNonTrivial() const;
     bool IsTrivial() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TReleaseJobFlags, 0xb71fbb3f);
 };
 
 struct TJobToRelease

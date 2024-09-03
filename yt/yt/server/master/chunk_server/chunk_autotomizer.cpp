@@ -206,7 +206,7 @@ struct TChunkAutotomyState
     //! Last time we scheduled some job.
     TInstant LastJobScheduleTime = TInstant::Zero();
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const NCellMaster::TPersistenceContext& context)
     {
         using NYT::Persist;
 

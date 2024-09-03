@@ -23,12 +23,12 @@ public:
     bool IsVersioned() const;
     bool IsUnversioned() const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     bool IsTeleportable_;
     bool IsPrimary_;
     bool IsVersioned_;
+
+    PHOENIX_DECLARE_TYPE(TInputStreamDescriptor, 0x4b4fdaca);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf spec);
@@ -56,13 +56,13 @@ public:
     //! Recover input stream index by the pair of table index and range index.
     int GetInputStreamIndex(int tableIndex, int rangeIndex) const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     std::vector<TInputStreamDescriptor> Descriptors_;
     TInputStreamDescriptor DefaultDescriptor_;
 
     THashMap<std::pair<int, int>, int> TableAndRangeIndicesToInputStreamIndex_;
+
+    PHOENIX_DECLARE_TYPE(TInputStreamDirectory, 0xb509d600);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

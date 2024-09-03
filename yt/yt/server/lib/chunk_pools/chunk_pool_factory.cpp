@@ -142,24 +142,23 @@ public:
     void UpdatePrimaryInputDataWeight(i64 /*inputDataWeight*/) override
     { }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-
-        Persist(context, InputDataWeight_);
-        Persist(context, DataWeightPerPartition_);
-        Persist(context, MaxPartitionCount_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTablesJobSizeConstraints, 0x25335b8e);
-
     i64 InputDataWeight_ = 0;
     i64 DataWeightPerPartition_;
     std::optional<int> MaxPartitionCount_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionTablesJobSizeConstraints, 0x25335b8e);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TPartitionTablesJobSizeConstraints);
+void TPartitionTablesJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::InputDataWeight_>("input_data_weight")();
+    registrar.template Field<2, &TThis::DataWeightPerPartition_>("data_weight_per_partition")();
+    registrar.template Field<3, &TThis::MaxPartitionCount_>("max_partition_count")();
+}
+
+PHOENIX_DEFINE_TYPE(TPartitionTablesJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TPartitionTablesJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////

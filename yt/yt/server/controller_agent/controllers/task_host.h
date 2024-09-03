@@ -29,7 +29,7 @@ namespace NYT::NControllerAgent::NControllers {
 //! Interface defining the interaction between task and controller.
 struct ITaskHost
     : public virtual TRefCounted
-    , public IPersistent
+    , public virtual IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;

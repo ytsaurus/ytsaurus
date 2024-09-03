@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkClient {
@@ -98,21 +100,20 @@ i64 TLegacyDataSlice::GetMaxBlockSize() const
     return result;
 }
 
-void TLegacyDataSlice::Persist(const NTableClient::TPersistenceContext& context)
+void TLegacyDataSlice::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, IsLegacy);
-    Persist(context, LegacyLowerLimit_);
-    Persist(context, LegacyUpperLimit_);
-    Persist(context, LowerLimit_);
-    Persist(context, UpperLimit_);
-    Persist(context, ChunkSlices);
-    Persist(context, Type);
-    Persist(context, Tag);
-    Persist(context, InputStreamIndex_);
-    Persist(context, VirtualRowIndex);
-    Persist(context, ReadRangeIndex);
-    Persist(context, IsTeleportable);
+    registrar.template Field<1, &TThis::IsLegacy>("is_legacy")();
+    registrar.template Field<2, &TThis::LegacyLowerLimit_>("legacy_lower_limit")();
+    registrar.template Field<3, &TThis::LegacyUpperLimit_>("legacy_upper_limit")();
+    registrar.template Field<4, &TThis::LowerLimit_>("lower_limit")();
+    registrar.template Field<5, &TThis::UpperLimit_>("upper_limit")();
+    registrar.template Field<6, &TThis::ChunkSlices>("chunk_slices")();
+    registrar.template Field<7, &TThis::Type>("type")();
+    registrar.template Field<8, &TThis::Tag>("tag")();
+    registrar.template Field<9, &TThis::InputStreamIndex_>("input_stream_index")();
+    registrar.template Field<10, &TThis::VirtualRowIndex>("virtual_row_index")();
+    registrar.template Field<11, &TThis::ReadRangeIndex>("read_range_index")();
+    registrar.template Field<12, &TThis::IsTeleportable>("is_teleportable")();
 }
 
 int TLegacyDataSlice::GetTableIndex() const
@@ -282,6 +283,8 @@ void TLegacyDataSlice::SetInputStreamIndex(int inputStreamIndex)
 {
     InputStreamIndex_ = inputStreamIndex;
 }
+
+PHOENIX_DEFINE_TYPE(TLegacyDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

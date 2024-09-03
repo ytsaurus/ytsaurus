@@ -13,7 +13,7 @@ namespace NYT::NChunkPools {
 struct TDummyPersistent
     : public virtual IPersistent
 {
-    void Persist(const TPersistenceContext& /*context*/) override;
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TDummyPersistent, 0x3e595863);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +30,8 @@ public:
     MOCK_METHOD(void, Reset, (TCookie, TChunkStripePtr, TInputChunkMappingPtr), (override));
     MOCK_METHOD(void, Finish, (), (override));
     MOCK_METHOD(bool, IsFinished, (), (const, override));
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolInputMock, 0x0fd0d4a0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPoolInputMock)

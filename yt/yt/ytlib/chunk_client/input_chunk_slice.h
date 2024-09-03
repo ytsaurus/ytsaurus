@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/memory/new.h>
 
 #include <optional>
@@ -43,7 +45,7 @@ struct TLegacyInputSliceLimit
     void MergeLowerLimit(const TLegacyInputSliceLimit& limit);
     void MergeUpperLimit(const TLegacyInputSliceLimit& limit);
 
-    void Persist(const NTableClient::TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TLegacyInputSliceLimit, 0xde2a20a0);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf spec);
@@ -78,7 +80,7 @@ struct TInputSliceLimit
     std::optional<i64> RowIndex;
     NTableClient::TKeyBound KeyBound;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TInputSliceLimit, 0x8d271cad);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf spec);
@@ -185,8 +187,6 @@ public:
 
     i64 GetLocality(int replicaIndex) const;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
     void OverrideSize(i64 rowCount, i64 dataWeight);
 
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
@@ -203,6 +203,8 @@ private:
     bool SizeOverridden_ = false;
     i64 DataWeight_ = 0;
     i64 RowCount_ = 0;
+
+    PHOENIX_DECLARE_TYPE(TInputChunkSlice, 0xe177a42);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunkSlice)
