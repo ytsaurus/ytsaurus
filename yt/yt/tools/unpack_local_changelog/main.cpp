@@ -38,11 +38,19 @@ public:
             .AddLongOption("output", "path to output changelog file")
             .StoreResult(&OutputFile_)
             .Required();
+        Opts_
+            .AddLongOption("from", "first record index")
+            .StoreResult(&FirstRecordIndex_);
+        Opts_
+            .AddLongOption("to", "last record index")
+            .StoreResult(&LastRecordIndex_);
     }
 
 private:
     TString InputFile_;
     TString OutputFile_;
+    std::optional<int> FirstRecordIndex_;
+    std::optional<int> LastRecordIndex_;
 
 
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
@@ -69,20 +77,28 @@ private:
         TFileOutput fileOutput(OutputFile_);
         TYsonWriter ysonWriter(&fileOutput, EYsonFormat::Binary, EYsonType::ListFragment);
 
-        int recordIndex = 0;
+        int recordIndex = FirstRecordIndex_.value_or(0);
         while (recordIndex < changelog->GetRecordCount()) {
             constexpr i64 MaxBytesPerRead = 16_MBs;
             auto records = WaitFor(changelog->Read(recordIndex, std::numeric_limits<int>::max(), MaxBytesPerRead))
                 .ValueOrThrow();
 
             for (const auto& record : records) {
+                if (LastRecordIndex_ && recordIndex > *LastRecordIndex_) {
+                    break;
+                }
+
+                ++recordIndex;
+
                 BuildYsonListFragmentFluently(&ysonWriter)
                     .Item().BeginMap()
                         .Item(NApi::JournalPayloadKey).Value(record.ToStringBuf())
                     .EndMap();
             }
 
-            recordIndex += std::ssize(records);
+            if (LastRecordIndex_ && recordIndex > *LastRecordIndex_) {
+                break;
+            }
         }
 
         ysonWriter.Flush();

@@ -1,5 +1,7 @@
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
+
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/library/program/program.h>
@@ -12,6 +14,8 @@
 #include <yt/yt/core/rpc/public.h>
 
 #include <util/stream/file.h>
+
+#include <util/string/vector.h>
 
 namespace NYT::NTools::NDumpChangelog {
 
@@ -78,19 +82,48 @@ private:
                 Cout << Format("  SequenceNumber: %v", mutationHeader.sequence_number()) << Endl;
                 Cout << Format("  Term:           %v", mutationHeader.term()) << Endl;
 
-                if (const auto* descriptor = google::protobuf::DescriptorPool::generated_pool()->FindMessageTypeByName(mutationHeader.mutation_type())) {
-                    const auto* prototype = google::protobuf::MessageFactory::generated_factory()->GetPrototype(descriptor);
-                    std::unique_ptr<google::protobuf::Message> message(prototype->New());
-                    DeserializeProtoWithEnvelope(message.get(), mutationData);
-                    Cout << message->DebugString() << Endl;
-                } else {
-                    Cout << "<Unknown protobuf type>" << Endl;
-                }
+                PrintMutationContent(mutationHeader.mutation_type(), mutationData);
 
                 Cout << Endl;
 
                 ++index;
             });
+        }
+    }
+
+    template <class TMutation>
+    void PrintHiveMutation(const TMutation& mutation)
+    {
+        Cout << "  Messages:" << Endl;
+        for (const auto& message : mutation.messages()) {
+            Cout << "    Type: " << message.type() << Endl;
+            PrintMutationContent(message.type(), TSharedRef::FromString(message.data()), /*offset*/ 4);
+            Cout << "    --------------------" << Endl;
+            Cout << Endl;
+        }
+    }
+
+    void PrintMutationContent(TString type, TSharedRef data, int offset = 2)
+    {
+        TString offsetPrefix(offset, ' ');
+
+        if (const auto* descriptor = google::protobuf::DescriptorPool::generated_pool()->FindMessageTypeByName(type)) {
+            const auto* prototype = google::protobuf::MessageFactory::generated_factory()->GetPrototype(descriptor);
+            std::unique_ptr<google::protobuf::Message> message(prototype->New());
+            DeserializeProtoWithEnvelope(message.get(), data);
+
+            if (type == "NYT.NHiveClient.NProto.TReqPostMessages") {
+                PrintHiveMutation(static_cast<NHiveClient::NProto::TReqPostMessages&>(*message));
+            } else if (type == "NYT.NHiveClient.NProto.TReqSendMessages") {
+                PrintHiveMutation(static_cast<NHiveClient::NProto::TReqPostMessages&>(*message));
+            }
+
+            auto parts = SplitString(message->DebugString(), "\n");
+            for (const auto& part : parts) {
+                Cout << offsetPrefix << part << "\n";
+            }
+        } else {
+            Cout << offsetPrefix << "<Unknown protobuf type>" << Endl;
         }
     }
 };
@@ -101,5 +134,9 @@ private:
 
 int main(int argc, const char** argv)
 {
+    // Proto messages must be instantiated to be pretty-printed.
+    Y_UNUSED(NYT::NHiveClient::NProto::TReqSendMessages{});
+    Y_UNUSED(NYT::NHiveClient::NProto::TReqPostMessages{});
+
     return NYT::NTools::NDumpChangelog::TProgram().Run(argc, argv);
 }
