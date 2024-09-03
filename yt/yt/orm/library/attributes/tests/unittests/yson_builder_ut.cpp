@@ -17,7 +17,7 @@ TEST(TYsonStringBuilderTest, Simple)
     ASSERT_TRUE(builder.IsEmpty());
 }
 
-TEST(TYsonStringBuilderTest, Recycling)
+TEST(TYsonStringBuilderTest, Reusing)
 {
     NAttributes::TYsonStringBuilder builder;
     builder->OnStringScalar("some_scalar1");
