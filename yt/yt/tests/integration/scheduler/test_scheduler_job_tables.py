@@ -1593,13 +1593,14 @@ class TestJobTraceEvents(YTEnvSetup):
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def _start_vanilla_operation(self, profile, should_sleep=True):
+    def _start_vanilla_operation(self, profile, should_sleep=True, write_count=2):
+        write = f"printf '{profile}' > $YT_CUDA_PROFILER_PATH;\n" * write_count
         command = f"""
-            if [[ "$CUDA_INJECTION64_PATH" != "/opt/some/path" ]];
-            then exit 0;
+            if [[ "$CUDA_INJECTION64_PATH" != "/opt/some/path" ]]; then
+                exit 0;
             fi
-            if [[ "$YT_JOB_PROFILER_SPEC" == *"cuda"* ]];
-            then printf '{profile}' > $YT_CUDA_PROFILER_PATH && printf '{profile}' > $YT_CUDA_PROFILER_PATH
+            if [[ "$YT_JOB_PROFILER_SPEC" == *"cuda"* ]]; then
+                {write}
             fi
         """
         if should_sleep:
@@ -1643,7 +1644,7 @@ class TestJobTraceEvents(YTEnvSetup):
         ]
 
         for profile in profiles:
-            op = self._start_vanilla_operation(profile, should_sleep=False)
+            op = self._start_vanilla_operation(profile, should_sleep=False, write_count=1)
             op.wait_for_state("completed")
 
         events = select_rows("* from [//sys/operations_archive/job_trace_events]")
