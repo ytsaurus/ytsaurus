@@ -107,7 +107,7 @@ func NewDatastore(fileName string) (db *Datastore, err error) {
 	}
 
 	db = &Datastore{sqlite}
-	err = db.updateSchema()
+	err = db.updateSchema(fileName + ".bak")
 
 	if err != nil {
 		return
@@ -371,18 +371,47 @@ func (ds *Datastore) UpdateEndPosition(stagedPath string, pos pipelines.FilePosi
 	return checkSingleRowAffected(execResult)
 }
 
-func (ds *Datastore) updateSchema() (err error) {
-	schemaVersion := -1
-	err = ds.sqlite.QueryRow("PRAGMA schema_version;").Scan(&schemaVersion)
+func (ds *Datastore) withTransaction(fn func(*sql.Tx) error) (err error) {
+	tx, err := ds.sqlite.Begin()
 	if err != nil {
 		return
 	}
+	defer tx.Rollback()
 
-	switch schemaVersion {
-	case 0:
-		_, err = ds.sqlite.Exec(`
-			BEGIN;
+	err = fn(tx)
+	if err != nil {
+		return
+	}
+	err = tx.Commit()
+	return
+}
 
+func (ds *Datastore) updateSchema(backupFile string) (err error) {
+	schemaVersion := -1
+	err = ds.sqlite.QueryRow("PRAGMA schema_version;").Scan(&schemaVersion)
+	if err != nil {
+		err = fmt.Errorf("cannot get schema_version: %w", err)
+		return
+	}
+
+	userVersion := -1
+	err = ds.sqlite.QueryRow("PRAGMA user_version;").Scan(&userVersion)
+	if err != nil {
+		err = fmt.Errorf("cannot get user_version: %w", err)
+		return
+	}
+
+	backup := func() (err error) {
+		_, err = ds.sqlite.Exec("VACUUM INTO ?;", backupFile)
+		if err != nil {
+			err = fmt.Errorf("cannot create backup into %s: %w", backupFile, err)
+			return
+		}
+		return
+	}
+
+	createTable := func(tx *sql.Tx) (err error) {
+		_, err = tx.Exec(`
 			CREATE TABLE Tasks (
 				TaskId INTEGER PRIMARY KEY,
 
@@ -400,25 +429,62 @@ func (ds *Datastore) updateSchema() (err error) {
 
 				Peeked INTEGER NOT NULL DEFAULT 0,
 
-				UNIQUE (StagedPath),
-				UNIQUE (Inode)
+				UNIQUE (StagedPath)
 			);
 			CREATE INDEX Tasks__Path ON Tasks (StagedPath);
 			CREATE INDEX Tasks__StreamName_CreateTime ON Tasks (StreamName, CreationTime);
 			CREATE INDEX Tasks__CompletionTime ON Tasks (CompletionTime);
 			CREATE INDEX Tasks__Inode ON Tasks (Inode);
 
-			PRAGMA schema_version = 1;
+			PRAGMA user_version = 2;
+		`)
+		return
+	}
 
-			COMMIT;
-		`, schemaVersion)
-		if err != nil {
-			err = fmt.Errorf("cannot update table schema: %w", err)
-		}
+	if userVersion == 0 && schemaVersion > 0 {
+		// First version of our schema had a bug when we tried to update schema_version instead of user_version.
+		userVersion = 1
+	}
+
+	switch userVersion {
+	case 0:
+		err = ds.withTransaction(createTable)
 	case 1:
+		err = backup()
+		if err != nil {
+			return
+		}
+		err = ds.withTransaction(func(tx *sql.Tx) error {
+			_, err = tx.Exec(`
+				ALTER TABLE Tasks RENAME TO TasksOld;
+				DROP INDEX Tasks__Path;
+				DROP INDEX Tasks__StreamName_CreateTime;
+				DROP INDEX Tasks__CompletionTime;
+				DROP INDEX Tasks__Inode;
+			`)
+			if err != nil {
+				return err
+			}
+
+			err = createTable(tx)
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.Exec(`
+				INSERT INTO Tasks SELECT * FROM TasksOld;
+				DROP TABLE TasksOld;
+			`)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+	case 2:
 		// Current schema version, do nothing
 	default:
-		err = fmt.Errorf("unknown schema_version: %v", schemaVersion)
+		err = fmt.Errorf("unknown schema_version: %v", userVersion)
 	}
 
 	return
