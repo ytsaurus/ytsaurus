@@ -1,6 +1,6 @@
 #include "job_report.h"
 
-#include <yt/yt/server/lib/job_agent/estimate_size_helpers.h>
+#include "estimate_size_helpers.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -68,7 +68,7 @@ void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsume
 
 size_t TJobReport::EstimateSize() const
 {
-    return NJobAgent::EstimateSizes(
+    return ::NYT::EstimateSizes(
         OperationId_.Underlying(),
         JobId_.Underlying(),
         Type_,

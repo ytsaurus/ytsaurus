@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-namespace NYT::NJobAgent {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ size_t EstimateSizes(Ts&&...values);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT
 
 #define ESTIMATE_SIZE_HELPERS_INL_H_
 #include "estimate_size_helpers-inl.h"

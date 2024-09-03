@@ -34,7 +34,6 @@ target_link_libraries(server-lib-job_agent PUBLIC
 
 target_sources(server-lib-job_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
 )
 

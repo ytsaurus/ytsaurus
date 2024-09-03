@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/server/lib/job_agent/estimate_size_helpers.h>
+#include <yt/yt/server/lib/misc/estimate_size_helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -36,7 +36,7 @@ TJobTraceEventRowlet::TJobTraceEventRowlet(TJobTraceEventReport&& report)
 
 size_t TJobTraceEventRowlet::EstimateSize() const
 {
-    return NJobAgent::EstimateSizes(
+    return ::NYT::EstimateSizes(
         Report_.OperationId.Underlying(),
         Report_.JobId.Underlying(),
         Report_.TraceId.Underlying(),

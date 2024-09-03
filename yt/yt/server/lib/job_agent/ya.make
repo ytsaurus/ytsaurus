@@ -6,7 +6,6 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     config.cpp
-    estimate_size_helpers.cpp
     structs.cpp
 )
 
