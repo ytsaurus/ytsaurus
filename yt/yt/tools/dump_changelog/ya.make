@@ -12,8 +12,8 @@ PEERDIR(
     yt/yt/core
     yt/yt/library/program
     yt/yt/server/lib
-    yt/yt/server/lib/tablet_node
     yt/yt/server/lib/hydra
+    yt/yt/ytlib
     library/cpp/getopt/small
 )
 
