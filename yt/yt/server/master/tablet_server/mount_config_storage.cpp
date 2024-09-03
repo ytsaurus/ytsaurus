@@ -47,7 +47,8 @@ void DropUnrecognizedRecursively(IMapNodePtr node, IMapNodePtr unrecognized)
 
 void TMountConfigStorage::Set(const TString& key, const TYsonString& value)
 {
-    // TODO: add validation specific for mount config.
+    ValidateKey(key);
+
     TAttributeSet::Set(key, value);
 }
 
@@ -60,6 +61,12 @@ bool TMountConfigStorage::Remove(const TString& key)
 void TMountConfigStorage::SetSelf(const NYson::TYsonString& value)
 {
     auto node = ConvertToNode(value);
+    auto mapNode = node->AsMap();
+
+    for (const auto& key : mapNode->GetKeys()) {
+        ValidateKey(key);
+    }
+
     Deserialize(*this, node);
 }
 
@@ -95,6 +102,20 @@ std::pair<IMapNodePtr, IMapNodePtr> TMountConfigStorage::GetRecognizedConfig() c
     NDetail::DropUnrecognizedRecursively(providedConfig, unrecognizedConfig);
 
     return {std::move(providedConfig), std::move(unrecognizedConfig)};
+}
+
+void TMountConfigStorage::ValidateKey(const std::string& key) const
+{
+    static THashSet<std::string> forbiddenKeySet(
+        TBuiltinTableMountConfig::NonDynamicallyModifiableFields.begin(),
+        TBuiltinTableMountConfig::NonDynamicallyModifiableFields.end());
+
+    if (forbiddenKeySet.contains(key)) {
+        THROW_ERROR_EXCEPTION("Field %Qlv cannot be set to \"mount_config\" attribute, "
+            "it should be set at root as \"@%v\"",
+            key,
+            key);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

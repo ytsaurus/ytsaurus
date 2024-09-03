@@ -1,7 +1,7 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, get, set, remount_table,
+    authors, create, wait, get, set, remount_table,
     sync_create_cells, sync_mount_table, raises_yt_error,
     create_tablet_cell_bundle,
 )
@@ -346,9 +346,9 @@ class TestMountConfig(DynamicTablesBase):
         assert get("//tmp/t/@user_attributes") == {"foobar": "bazqux"}
 
     @authors("dave11ar")
-    def test_forbidden_fields_change_in_experiments(self):
+    def test_forbidden_fields_in_custom_config(self):
         def _try_change_mount_config(path, field, value):
-            basic_error_message = "Forbidden to change field \"{}\" in experiments, fix your {}"
+            basic_error_message = "Field \"{}\" cannot be set in the experiment, fix your {}"
             with raises_yt_error(basic_error_message.format(field, "template patch")):
                 set(f"{path}/mount_config_template_patch/{field}", value)
             with raises_yt_error(basic_error_message.format(field, "patch")):
@@ -366,7 +366,7 @@ class TestMountConfig(DynamicTablesBase):
             ("enable_detailed_profiling", True),
         ]
 
-        for (field, value) in field_values:
+        for field, value in field_values:
             _try_change_mount_config(tablet_manager_path, field, value)
 
         experiment_path = f"{tablet_manager_path}/table_config_experiments/foo"
@@ -377,6 +377,15 @@ class TestMountConfig(DynamicTablesBase):
 
         for (field, value) in field_values:
             _try_change_mount_config(f"{experiment_path}/patch", field, value)
+
+        self._create_sorted_table("//tmp/t")
+
+        for field, value in field_values:
+            error = f'Field "{field}" cannot be set to "mount_config" attribute'
+            with raises_yt_error(error):
+                set(f"//tmp/t/@mount_config/{field}", value)
+            with raises_yt_error(error):
+                create("table", "//tmp/q", attributes={"mount_config": {field: value}})
 
 ##################################################################
 

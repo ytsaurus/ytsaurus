@@ -36,6 +36,8 @@ public:
 private:
     // Unwanted base class method intentionally shadowed.
     void TryInsert(const TString& key, const NYson::TYsonString& value);
+
+    void ValidateKey(const std::string& key) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMountConfigStorage)
