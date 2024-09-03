@@ -93,7 +93,7 @@ def run_check_impl(
             logger.info("Query %s failed", query_id)
         else:
             logger.info("Query %s finished in %d seconds", query_id, query_execution_time)
-            result_bytes = query_tracker_client.read_query_result(query_id, 0, stage=stage).read()
+            result_bytes = query_tracker_client.read_query_result(query_id, 0, stage=stage, raw=True, format="yson").read()
             result = list(yson.loads(result_bytes, yson_type="list_fragment"))
 
             if result != data.result_data:
