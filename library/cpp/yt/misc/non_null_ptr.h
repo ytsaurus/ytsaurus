@@ -71,6 +71,6 @@ public:
 
 } // namespace NYT
 
-#define HELPERS_INL_H_
-#include "helpers-inl.h"
-#undef HELPERS_INL_H_
+#define NON_NULL_PTR_H_
+#include "non_null_ptr-inl.h"
+#undef NON_NULL_PTR_H_
