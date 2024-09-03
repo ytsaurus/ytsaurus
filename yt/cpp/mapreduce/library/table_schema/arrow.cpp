@@ -35,10 +35,18 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
         case arrow::Type::type::INT16:
             return NTi::Int16();
         case arrow::Type::type::DATE32:
+            return NTi::Date();
         case arrow::Type::type::TIME32:
         case arrow::Type::type::INT32:
             return NTi::Int32();
         case arrow::Type::type::DATE64:
+            // Date64 is an incredibly odd type - according to spec, it should be storing
+            // a time since epoch in milliseconds only for days, e.g. its values should always
+            // be divisible by 86400000. We do not have anything similar in our type system,
+            // so just treat it as int64.
+            // See also:
+            // * https://github.com/apache/arrow-rs/issues/5288
+            // * https://lists.apache.org/thread/q036r1q3cw5ysn3zkpvljx3s9ho18419
         case arrow::Type::type::TIMESTAMP:
         case arrow::Type::type::INT64:
         case arrow::Type::type::TIME64:

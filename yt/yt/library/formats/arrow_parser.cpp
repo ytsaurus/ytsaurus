@@ -660,12 +660,20 @@ void CheckMatchingArrowTypes(
                 });
             break;
 
+        case ESimpleLogicalValueType::Date:
+            CheckArrowType(
+                columnType,
+                column->type(),
+                {
+                    arrow::Type::DATE32,
+                    arrow::Type::DICTIONARY,
+                });
+            break;
+
         case ESimpleLogicalValueType::Uint8:
         case ESimpleLogicalValueType::Uint16:
         case ESimpleLogicalValueType::Uint32:
         case ESimpleLogicalValueType::Uint64:
-
-        case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:
         case ESimpleLogicalValueType::Timestamp:
             CheckArrowType(
