@@ -237,6 +237,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexExternalCellTag)                                (2733))  // sabdenovch
     ((ReplicationCollocationOptions)                                (2734))  // akozhikhov
     ((NestedAggregateColumns)                                       (2735))  // lukyan
+    ((ForbiddenFieldsInMountConfig)                                 (2736))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
