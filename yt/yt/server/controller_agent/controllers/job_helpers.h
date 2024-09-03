@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/moving_average.h>
 
+#include <yt/yt/core/misc/phoenix.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////

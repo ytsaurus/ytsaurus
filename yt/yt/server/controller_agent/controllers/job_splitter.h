@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
+#include <yt/yt/core/misc/phoenix.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent::NControllers {

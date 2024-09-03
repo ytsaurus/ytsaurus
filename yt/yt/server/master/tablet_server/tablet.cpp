@@ -146,7 +146,7 @@ TYPath TTablet::GetObjectPath() const
     return Format("//sys/tablets/%v", GetId());
 }
 
-void TTablet::Save(TSaveContext& context) const
+void TTablet::Save(NCellMaster::TSaveContext& context) const
 {
     TTabletBase::Save(context);
 
@@ -166,7 +166,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, ReplicationProgress_);
 }
 
-void TTablet::Load(TLoadContext& context)
+void TTablet::Load(NCellMaster::TLoadContext& context)
 {
     TTabletBase::Load(context);
 

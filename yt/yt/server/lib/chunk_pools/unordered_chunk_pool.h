@@ -32,7 +32,7 @@ struct TUnorderedChunkPoolOptions
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TUnorderedChunkPoolOptions, 0x6c20b2f2);
 };
 
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(

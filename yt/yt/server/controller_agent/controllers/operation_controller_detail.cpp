@@ -1302,6 +1302,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
 void TOperationControllerBase::SaveSnapshot(IZeroCopyOutput* output)
 {
+    using NYT::Save;
+
     VERIFY_THREAD_AFFINITY_ANY();
 
     TSaveContext context(output);

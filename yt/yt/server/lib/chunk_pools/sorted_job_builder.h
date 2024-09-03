@@ -36,7 +36,7 @@ struct TSortedJobOptions
 
     TJobSizeTrackerOptions JobSizeTrackerOptions;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TSortedJobOptions, 0x54c67649);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

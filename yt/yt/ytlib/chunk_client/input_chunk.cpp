@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NTableClient;
@@ -201,21 +203,28 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
     }
 }
 
-void TInputChunk::Persist(const TStreamPersistenceContext& context)
+void TInputChunk::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    registrar.template VirtualField<1>("input_chunk_base", [] (TThis* this_, auto& context) {
+        NYT::Load<TInputChunkBase>(context, *static_cast<TInputChunkBase*>(this_));
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, *static_cast<const TInputChunkBase*>(this_));
+    })();
 
-    Persist(context, static_cast<TInputChunkBase&>(*this));
-    Persist<TUniquePtrSerializer<>>(context, LowerLimit_);
-    Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
-    Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
-    Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
-    Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
+    registrar.template Field<2, &TThis::LowerLimit_>("lower_limit")
+        .template Serializer<TUniquePtrSerializer<>>()();
+    registrar.template Field<3, &TThis::UpperLimit_>("upper_limit")
+        .template Serializer<TUniquePtrSerializer<>>()();
+    registrar.template Field<4, &TThis::BoundaryKeys_>("boundary_keys")
+        .template Serializer<TUniquePtrSerializer<>>()();
+    registrar.template Field<5, &TThis::PartitionsExt_>("partitions_ext")
+        .template Serializer<TUniquePtrSerializer<>>()();
+    registrar.template Field<6, &TThis::HeavyColumnarStatisticsExt_>("heavy_columnar_statistics_ext")
+        .template Serializer<TUniquePtrSerializer<>>()();
 
     // COMPAT(achulkov2)
-    if (context.GetVersion() >= static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics)) {
-        Persist(context, BlockSelectivityFactor_);
-    }
+    registrar.template Field<7, &TThis::BlockSelectivityFactor_>("block_selectivity_factor")
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics))();
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -331,6 +340,8 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelecti
 
     return std::max<i64>({result, rowCount, 1});
 }
+
+PHOENIX_DEFINE_TYPE(TInputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 

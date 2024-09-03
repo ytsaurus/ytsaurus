@@ -9,6 +9,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void IChunkSliceFetcherFactory::RegisterMetadata(auto&& /*registrar*/)
+{ }
+
+PHOENIX_DEFINE_TYPE(IChunkSliceFetcherFactory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCallbackChunkSliceFetcherFactory
     : public IChunkSliceFetcherFactory
 {
@@ -22,15 +29,18 @@ public:
         return FactoryCallback_();
     }
 
-    void Persist(const TPersistenceContext& /*context*/) override
-    {
-        // This implementation is not persistable.
-        Y_UNREACHABLE();
-    }
-
 private:
     TCallback<IChunkSliceFetcherPtr()> FactoryCallback_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TCallbackChunkSliceFetcherFactory, 0x994c8d2d);
 };
+
+void TCallbackChunkSliceFetcherFactory::RegisterMetadata(auto&& /*registrar*/)
+{
+    // This implementation is not persistable.
+}
+
+PHOENIX_DEFINE_TYPE(TCallbackChunkSliceFetcherFactory);
 
 IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
 {

@@ -42,7 +42,6 @@ class TUnorderedChunkPool
     , public IPersistentChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -422,49 +421,7 @@ public:
         CheckCompleted();
     }
 
-    // IPersistent implementation.
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputWithCountersBase::Persist(context);
-        TLoggerOwner::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, InputCookieToInternalCookies_);
-        Persist(context, Stripes_);
-        Persist(context, InputCookieIsSuspended_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, Sampler_);
-        Persist(context, JobSizeAdjuster_);
-        Persist(context, FreeStripes_);
-        Persist(context, ExtractedStripes_);
-        Persist(context, MaxBlockSize_);
-        Persist(context, NodeIdToEntry_);
-        Persist(context, OutputCookieGenerator_);
-        Persist(context, Mode_);
-        Persist(context, MinTeleportChunkSize_);
-        Persist(context, MinTeleportChunkDataWeight_);
-        Persist(context, SliceErasureChunksByParts_);
-        Persist(context, InputStreamDirectory_);
-        Persist(context, JobManager_);
-        Persist(context, FreeJobCounter_);
-        Persist(context, FreeDataWeightCounter_);
-        Persist(context, FreeRowCounter_);
-        Persist(context, IsCompleted_);
-
-        if (context.GetVersion() >= ESnapshotVersion::SingleChunkTeleportStrategy) {
-            Persist(context, SingleChunkTeleportStrategy_);
-        }
-
-        if (context.IsLoad()) {
-            ValidateLogger(Logger);
-        }
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool, 0xbacd26ad);
-
     //! A mapping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
     std::vector<std::vector<int>> InputCookieToInternalCookies_;
@@ -495,12 +452,7 @@ private:
         //! Indexes in #Stripes.
         THashSet<int> StripeIndexes;
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, Locality);
-            Persist(context, StripeIndexes);
-        }
+        PHOENIX_DECLARE_TYPE(TLocalityEntry, 0xe973566a);
     };
 
     THashMap<TNodeId, TLocalityEntry> NodeIdToEntry_;
@@ -890,28 +842,76 @@ private:
 
         IsCompleted_ = completed;
     }
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedChunkPool, 0xbacd26ad);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
+void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+    registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
+    registrar.template BaseType<TLoggerOwner>();
+
+    registrar.template Field<1, &TThis::InputCookieToInternalCookies_>("input_cookie_to_internal_cookies")();
+    registrar.template Field<2, &TThis::Stripes_>("stripes")();
+    registrar.template Field<3, &TThis::InputCookieIsSuspended_>("input_cookie_is_suspended")();
+    registrar.template Field<4, &TThis::JobSizeConstraints_>("job_size_constraints")();
+    registrar.template Field<5, &TThis::Sampler_>("sampler")();
+    registrar.template Field<6, &TThis::JobSizeAdjuster_>("job_size_adjuster")();
+    registrar.template Field<7, &TThis::FreeStripes_>("free_stripes")();
+    registrar.template Field<8, &TThis::ExtractedStripes_>("extracted_stripes")();
+    registrar.template Field<9, &TThis::MaxBlockSize_>("max_block_size")();
+    registrar.template Field<10, &TThis::NodeIdToEntry_>("node_id_to_entry")();
+    registrar.template Field<11, &TThis::OutputCookieGenerator_>("output_cookie_generator")();
+    registrar.template Field<12, &TThis::Mode_>("mode")();
+    registrar.template Field<13, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
+    registrar.template Field<14, &TThis::MinTeleportChunkDataWeight_>("min_teleport_chunk_data_weight")();
+    registrar.template Field<15, &TThis::SliceErasureChunksByParts_>("slice_erasure_chunks_by_parts")();
+    registrar.template Field<16, &TThis::InputStreamDirectory_>("input_stream_directory")();
+    registrar.template Field<17, &TThis::JobManager_>("job_manager")();
+    registrar.template Field<18, &TThis::FreeJobCounter_>("free_job_counter")();
+    registrar.template Field<19, &TThis::FreeDataWeightCounter_>("free_data_weight_counter")();
+    registrar.template Field<20, &TThis::FreeRowCounter_>("free_row_counter")();
+    registrar.template Field<21, &TThis::IsCompleted_>("is_completed")();
+
+    registrar.template Field<22, &TThis::SingleChunkTeleportStrategy_>("single_chunk_teleport_strategy")
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        ValidateLogger(this_->Logger);
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
+void TUnorderedChunkPool::TLocalityEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Mode);
-    Persist(context, JobSizeAdjusterConfig);
-    Persist(context, JobSizeConstraints);
-    Persist(context, MinTeleportChunkSize);
-    Persist(context, MinTeleportChunkDataWeight);
-    Persist(context, SliceErasureChunksByParts);
-    Persist(context, Logger);
-
-    if (context.GetVersion() >= ESnapshotVersion::SingleChunkTeleportStrategy) {
-        Persist(context, SingleChunkTeleportStrategy);
-    }
+    registrar.template Field<1, &TThis::Locality>("locality")();
+    registrar.template Field<2, &TThis::StripeIndexes>("stripe_indexes")();
 }
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
+{
+    registrar.template Field<1, &TThis::Mode>("mode")();
+    registrar.template Field<2, &TThis::JobSizeAdjusterConfig>("job_size_adjuster_config")();
+    registrar.template Field<3, &TThis::JobSizeConstraints>("job_size_constraints")();
+    registrar.template Field<4, &TThis::MinTeleportChunkSize>("min_teleport_chunk_size")();
+    registrar.template Field<5, &TThis::MinTeleportChunkDataWeight>("min_teleport_chunk_data_weight")();
+    registrar.template Field<6, &TThis::SliceErasureChunksByParts>("slice_erasure_chunks_by_parts")();
+    registrar.template Field<7, &TThis::Logger>("logger")();
+
+    registrar.template Field<8, &TThis::SingleChunkTeleportStrategy>("single_chunk_teleport_strategy")
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPoolOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

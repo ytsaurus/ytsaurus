@@ -116,7 +116,7 @@ TYPath TTabletCellBundle::GetObjectPath() const
     return Format("//sys/tablet_cell_bundles/%v", GetName());
 }
 
-void TTabletCellBundle::Save(TSaveContext& context) const
+void TTabletCellBundle::Save(NCellMaster::TSaveContext& context) const
 {
     TCellBundle::Save(context);
 
@@ -132,7 +132,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, BundleControllerTargetConfig_);
 }
 
-void TTabletCellBundle::Load(TLoadContext& context)
+void TTabletCellBundle::Load(NCellMaster::TLoadContext& context)
 {
     TCellBundle::Load(context);
 

@@ -22,6 +22,7 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
 #include <yt/yt/core/logging/serializable_logger.h>
@@ -46,7 +47,6 @@ class TNewSortedChunkPool
     , public ISortedChunkPool
     , public virtual TLoggerOwner
     , public TJobSplittingBase
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -212,47 +212,12 @@ public:
         CheckCompleted();
     }
 
-    void Persist(const TPersistenceContext& context) final
-    {
-        TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputWithJobManagerBase::Persist(context);
-        TJobSplittingBase::Persist(context);
-        // TLoggerOwner is persisted by TJobSplittingBase.
-
-        using NYT::Persist;
-        Persist(context, SortedJobOptions_);
-        Persist(context, PrimaryComparator_);
-        Persist(context, ForeignComparator_);
-        Persist(context, ChunkSliceFetcherFactory_);
-        Persist(context, EnableKeyGuarantee_);
-        Persist(context, InputStreamDirectory_);
-        Persist(context, PrimaryPrefixLength_);
-        Persist(context, ForeignPrefixLength_);
-        Persist(context, ShouldSlicePrimaryTableByKeys_);
-        Persist(context, SliceForeignChunks_);
-        Persist(context, MinTeleportChunkSize_);
-        Persist(context, Stripes_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, TeleportChunkSampler_);
-        Persist(context, SupportLocality_);
-        Persist(context, TeleportChunks_);
-        Persist(context, IsCompleted_);
-        Persist(context, StructuredLogger);
-
-        if (context.IsLoad()) {
-            ValidateLogger(Logger);
-            RowBuffer_ = New<TRowBuffer>();
-        }
-    }
-
     std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie cookie) const override
     {
         return JobManager_->GetBounds(cookie);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TNewSortedChunkPool, 0x8ff1db04);
-
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
 
@@ -809,9 +774,43 @@ private:
 
         IsCompleted_ = completed;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TNewSortedChunkPool, 0x8ff1db04);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TNewSortedChunkPool);
+void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+    registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
+    registrar.template BaseType<TJobSplittingBase>();
+    // TLoggerOwner is persisted by TJobSplittingBase.
+
+    registrar.template Field<1, &TThis::SortedJobOptions_>("sorted_job_options")();
+    registrar.template Field<2, &TThis::PrimaryComparator_>("primary_comparator")();
+    registrar.template Field<3, &TThis::ForeignComparator_>("foreign_comparator")();
+    registrar.template Field<4, &TThis::ChunkSliceFetcherFactory_>("chunk_slice_fetcher_factory")();
+    registrar.template Field<5, &TThis::EnableKeyGuarantee_>("enable_key_guarantee")();
+    registrar.template Field<6, &TThis::InputStreamDirectory_>("input_stream_directory")();
+    registrar.template Field<7, &TThis::PrimaryPrefixLength_>("primary_prefix_length")();
+    registrar.template Field<8, &TThis::ForeignPrefixLength_>("foreign_prefix_length")();
+    registrar.template Field<9, &TThis::ShouldSlicePrimaryTableByKeys_>("should_slice_primary_table_by_keys")();
+    registrar.template Field<10, &TThis::SliceForeignChunks_>("slice_foreign_chunks")();
+    registrar.template Field<11, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
+    registrar.template Field<12, &TThis::Stripes_>("stripes")();
+    registrar.template Field<13, &TThis::JobSizeConstraints_>("job_size_constraints")();
+    registrar.template Field<14, &TThis::TeleportChunkSampler_>("teleport_chunk_sampler")();
+    registrar.template Field<15, &TThis::SupportLocality_>("support_locality")();
+    registrar.template Field<16, &TThis::TeleportChunks_>("teleport_chunks")();
+    registrar.template Field<17, &TThis::IsCompleted_>("is_completed")();
+    registrar.template Field<18, &TThis::StructuredLogger>("structured_logger")();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        ValidateLogger(this_->Logger);
+        this_->RowBuffer_ = New<TRowBuffer>();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TNewSortedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -76,17 +76,18 @@ int TChunkStripe::GetInputStreamIndex() const
     return DataSlices.front()->GetInputStreamIndex();
 }
 
-void TChunkStripe::Persist(const NTableClient::TPersistenceContext& context)
+void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, DataSlices);
-    Persist(context, WaitingChunkCount);
-    Persist(context, Foreign);
-    Persist(context, Solid);
-    Persist(context, ChunkListId);
-    Persist(context, BoundaryKeys);
-    Persist(context, PartitionTag);
+    registrar.template Field<1, &TThis::DataSlices>("data_slices")();
+    registrar.template Field<2, &TThis::WaitingChunkCount>("waiting_chunk_count")();
+    registrar.template Field<3, &TThis::Foreign>("foreign")();
+    registrar.template Field<4, &TThis::Solid>("solid")();
+    registrar.template Field<5, &TThis::ChunkListId>("chunk_list_id")();
+    registrar.template Field<6, &TThis::BoundaryKeys>("boundary_keys")();
+    registrar.template Field<7, &TThis::PartitionTag>("partition_tag")();
 }
+
+PHOENIX_DEFINE_TYPE(TChunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,21 +131,22 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     Stripes.emplace_back(std::move(stripe));
 }
 
-void TChunkStripeList::Persist(const NTableClient::TPersistenceContext& context)
+void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Stripes);
-    Persist(context, PartitionTag);
-    Persist(context, IsApproximate);
-    Persist(context, TotalDataWeight);
-    Persist(context, LocalDataWeight);
-    Persist(context, TotalRowCount);
-    Persist(context, TotalValueCount);
-    Persist(context, TotalChunkCount);
-    Persist(context, LocalChunkCount);
+    registrar.template Field<1, &TThis::Stripes>("stripes")();
+    registrar.template Field<2, &TThis::PartitionTag>("partition_tag")();
+    registrar.template Field<3, &TThis::IsApproximate>("is_approximate")();
+    registrar.template Field<4, &TThis::TotalDataWeight>("total_data_weight")();
+    registrar.template Field<5, &TThis::LocalDataWeight>("local_data_weight")();
+    registrar.template Field<6, &TThis::TotalRowCount>("total_row_count")();
+    registrar.template Field<7, &TThis::TotalValueCount>("total_value_count")();
+    registrar.template Field<8, &TThis::TotalChunkCount>("total_chunk_count")();
+    registrar.template Field<9, &TThis::LocalChunkCount>("local_chunk_count")();
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
+
+PHOENIX_DEFINE_TYPE(TChunkStripeList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

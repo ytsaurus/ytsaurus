@@ -12,6 +12,7 @@
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/phoenix/type_def.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <cmath>
@@ -103,12 +104,10 @@ void TLegacyInputSliceLimit::MergeUpperLimit(const TLegacyInputSliceLimit& limit
     }
 }
 
-void TLegacyInputSliceLimit::Persist(const TPersistenceContext& context)
+void TLegacyInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, RowIndex);
-    Persist(context, Key);
+    registrar.template Field<1, &TThis::RowIndex>("row_index")();
+    registrar.template Field<2, &TThis::Key>("key")();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*spec*/)
@@ -137,6 +136,8 @@ void ToProto(NProto::TReadLimit* protoLimit, const TLegacyInputSliceLimit& limit
         protoLimit->clear_legacy_key();
     }
 }
+
+PHOENIX_DEFINE_TYPE(TLegacyInputSliceLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,12 +218,10 @@ bool TInputSliceLimit::IsTrivial() const
     return (!KeyBound || KeyBound.IsUniversal()) && !RowIndex;
 }
 
-void TInputSliceLimit::Persist(const TPersistenceContext& context)
+void TInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, RowIndex);
-    Persist(context, KeyBound);
+    registrar.template Field<1, &TThis::RowIndex>("row_index")();
+    registrar.template Field<2, &TThis::KeyBound>("key_bound")();
 }
 
 void Serialize(const TInputSliceLimit& limit, IYsonConsumer* consumer)
@@ -277,6 +276,8 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
         ToProto(protoLimit->mutable_key_bound_prefix(), limit.KeyBound.Prefix);
     }
 }
+
+PHOENIX_DEFINE_TYPE(TInputSliceLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -715,21 +716,22 @@ void TInputChunkSlice::TransformToNewKeyless()
     IsLegacy = false;
 }
 
-void TInputChunkSlice::Persist(const TPersistenceContext& context)
+void TInputChunkSlice::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, InputChunk_);
-    Persist(context, LegacyLowerLimit_);
-    Persist(context, LegacyUpperLimit_);
-    Persist(context, LowerLimit_);
-    Persist(context, UpperLimit_);
-    Persist(context, IsLegacy);
-    Persist(context, PartIndex_);
-    Persist(context, SizeOverridden_);
-    Persist(context, RowCount_);
-    Persist(context, DataWeight_);
-    Persist(context, SliceIndex_);
+    registrar.template Field<1, &TThis::InputChunk_>("input_chunk")();
+    registrar.template Field<2, &TThis::LegacyLowerLimit_>("legacy_lower_limit")();
+    registrar.template Field<3, &TThis::LegacyUpperLimit_>("legacy_upper_limit")();
+    registrar.template Field<4, &TThis::LowerLimit_>("lower_limit")();
+    registrar.template Field<5, &TThis::UpperLimit_>("upper_limit")();
+    registrar.template Field<6, &TThis::IsLegacy>("is_legacy")();
+    registrar.template Field<7, &TThis::PartIndex_>("part_index")();
+    registrar.template Field<8, &TThis::SizeOverridden_>("size_overridden")();
+    registrar.template Field<9, &TThis::RowCount_>("row_count")();
+    registrar.template Field<10, &TThis::DataWeight_>("data_weight")();
+    registrar.template Field<11, &TThis::SliceIndex_>("slice_index")();
 }
+
+PHOENIX_DEFINE_TYPE(TInputChunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

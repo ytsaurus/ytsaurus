@@ -2,11 +2,21 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/controller_agent/persistence.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 namespace NYT::NJobAgent {
+
+using NPhoenix2::TLoadContext;
+using NPhoenix2::TSaveContext;
+using NPhoenix2::TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +41,12 @@ struct TTimeStatistics
     void AddSamplesTo(TStatistics* statistics) const;
 
     bool IsEmpty() const;
+
+    using TLoadContext = NControllerAgent::TLoadContext;
+    using TSaveContext = NControllerAgent::TSaveContext;
+    using TPersistenceContext = NControllerAgent::TPersistenceContext;
+
+    PHOENIX_DECLARE_TYPE(TTimeStatistics, 0x14ce2d22);
 };
 
 void ToProto(

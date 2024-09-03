@@ -198,7 +198,7 @@ struct TUserObject
     //! For prepared instances, delegates to #GetObjectIdPath, otherwise returns #Path.
     NYPath::TYPath GetObjectIdPathIfAvailable() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TUserObject, 0x6f4fe9dc);
 };
 
 struct TGetUserObjectBasicAttributesOptions

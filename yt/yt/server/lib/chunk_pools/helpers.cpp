@@ -118,14 +118,15 @@ void TSuspendableStripe::Reset(TChunkStripePtr stripe)
     Stripe_ = stripe;
 }
 
-void TSuspendableStripe::Persist(const TPersistenceContext& context)
+void TSuspendableStripe::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Stripe_);
-    Persist(context, Teleport_);
-    Persist(context, SuspendedStripeCount_);
-    Persist(context, Statistics_);
+    registrar.template Field<1, &TThis::Stripe_>("stripe")();
+    registrar.template Field<2, &TThis::Teleport_>("teleport")();
+    registrar.template Field<3, &TThis::SuspendedStripeCount_>("suspended_stripe_count")();
+    registrar.template Field<4, &TThis::Statistics_>("statistics")();
 }
+
+PHOENIX_DEFINE_TYPE(TSuspendableStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 

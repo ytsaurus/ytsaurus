@@ -19,7 +19,6 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/phoenix.h>
 
 #include <library/cpp/iterator/zip.h>
 

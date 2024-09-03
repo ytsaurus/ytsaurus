@@ -782,7 +782,7 @@ TChunk::TPerCellExportData::~TPerCellExportData()
     }
 }
 
-void TChunk::TPerCellExportData::Load(TLoadContext& context)
+void TChunk::TPerCellExportData::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
@@ -812,7 +812,7 @@ void TChunk::TPerCellExportData::Load(TLoadContext& context)
     }
 }
 
-void TChunk::TPerCellExportData::Save(TSaveContext& context) const
+void TChunk::TPerCellExportData::Save(NCellMaster::TSaveContext& context) const
 {
     std::unique_ptr<TCellTagToChunkExportData> uniquePtr(Get());
     TUniquePtrSerializer<>::Save(context, uniquePtr);
@@ -928,7 +928,7 @@ TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeen
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(TLoadContext& context)
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
@@ -939,7 +939,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(TSaveContext& context) const
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 

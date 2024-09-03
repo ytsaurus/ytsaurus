@@ -224,20 +224,19 @@ bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
     return true;
 }
 
-void TProgressCounter::Persist(const TPersistenceContext& context)
+void TProgressCounter::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Running_);
-    Persist(context, Completed_);
-    Persist(context, Failed_);
-    Persist(context, Pending_);
-    Persist(context, Suspended_);
-    Persist(context, Aborted_);
-    Persist(context, Lost_);
-    Persist(context, Invalidated_);
-    Persist(context, Uncategorized_);
-    Persist(context, Blocked_);
-    Persist(context, Parents_);
+    registrar.template Field<1, &TThis::Running_>("running")();
+    registrar.template Field<2, &TThis::Completed_>("completed")();
+    registrar.template Field<3, &TThis::Failed_>("failed")();
+    registrar.template Field<4, &TThis::Pending_>("pending")();
+    registrar.template Field<5, &TThis::Suspended_>("suspended")();
+    registrar.template Field<6, &TThis::Aborted_>("aborted")();
+    registrar.template Field<7, &TThis::Lost_>("lost")();
+    registrar.template Field<8, &TThis::Invalidated_>("invalidated")();
+    registrar.template Field<9, &TThis::Uncategorized_>("uncategorized")();
+    registrar.template Field<10, &TThis::Blocked_>("blocked")();
+    registrar.template Field<11, &TThis::Parents_>("parents")();
 }
 
 void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
@@ -257,6 +256,8 @@ void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
     parent->AddUncategorized(Uncategorized_ * multiplier);
     parent->AddBlocked(Blocked_ * multiplier);
 }
+
+PHOENIX_DEFINE_TYPE(TProgressCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,13 +396,12 @@ void TProgressCounterGuard::OnLost()
     ProgressCounter_->AddLost(+1);
 }
 
-void TProgressCounterGuard::Persist(const TPersistenceContext& context)
+void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, ProgressCounter_);
-    Persist(context, Value_);
-    Persist(context, Category_);
-    Persist(context, InterruptReason_);
+    registrar.template Field<1, &TThis::ProgressCounter_>("progress_counter")();
+    registrar.template Field<2, &TThis::Value_>("value")();
+    registrar.template Field<3, &TThis::Category_>("category")();
+    registrar.template Field<4, &TThis::InterruptReason_>("interrupt_reason")();
 }
 
 void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
@@ -436,6 +436,8 @@ void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
             YT_ABORT();
     }
 }
+
+PHOENIX_DEFINE_TYPE(TProgressCounterGuard);
 
 ////////////////////////////////////////////////////////////////////////////////
 

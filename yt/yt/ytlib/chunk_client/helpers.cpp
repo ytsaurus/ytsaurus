@@ -58,6 +58,8 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 #include <util/generic/cast.h>
@@ -872,20 +874,21 @@ TString TUserObject::GetObjectIdPathIfAvailable() const
     return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }
 
-void TUserObject::Persist(const TStreamPersistenceContext& context)
+void TUserObject::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Path);
-    Persist(context, ObjectId);
-    Persist(context, ExternalCellTag);
-    Persist(context, ExternalTransactionId);
-    Persist(context, Type);
-    Persist(context, TransactionId);
-    Persist(context, OmittedInaccessibleColumns);
-    Persist(context, SecurityTags);
-    Persist(context, ChunkCount);
-    Persist(context, Account);
+    registrar.template Field<1, &TThis::Path>("path")();
+    registrar.template Field<2, &TThis::ObjectId>("object_id")();
+    registrar.template Field<3, &TThis::ExternalCellTag>("external_cell_tag")();
+    registrar.template Field<4, &TThis::ExternalTransactionId>("external_transaction_id")();
+    registrar.template Field<5, &TThis::Type>("type")();
+    registrar.template Field<6, &TThis::TransactionId>("transaction_id")();
+    registrar.template Field<7, &TThis::OmittedInaccessibleColumns>("omitted_inaccessible_columns")();
+    registrar.template Field<8, &TThis::SecurityTags>("security_tags")();
+    registrar.template Field<9, &TThis::ChunkCount>("chunk_count")();
+    registrar.template Field<10, &TThis::Account>("account")();
 }
+
+PHOENIX_DEFINE_TYPE(TUserObject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

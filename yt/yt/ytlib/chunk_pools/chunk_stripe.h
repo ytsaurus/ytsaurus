@@ -26,8 +26,6 @@ struct TChunkStripe
 
     int GetInputStreamIndex() const;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
     TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
@@ -39,6 +37,8 @@ struct TChunkStripe
     //! This field represents correspondence of chunk stripe to chunk pool in multi chunk pool.
     //! For example, it may represent partition index in intermediate sort or output table index in sink.
     std::optional<int> PartitionTag = std::nullopt;
+
+    PHOENIX_DECLARE_TYPE(TChunkStripe, 0x20bf907f);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripe)
@@ -56,8 +56,6 @@ struct TChunkStripeList
 
     void AddStripe(TChunkStripePtr stripe);
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
     std::vector<TChunkStripePtr> Stripes;
 
     std::optional<int> PartitionTag;
@@ -73,6 +71,8 @@ struct TChunkStripeList
 
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
+
+    PHOENIX_DECLARE_TYPE(TChunkStripeList, 0x85f55d0b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)

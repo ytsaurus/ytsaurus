@@ -4,8 +4,6 @@
 #include "data_source.h"
 #include "input_chunk_slice.h"
 
-#include <yt/yt/core/misc/phoenix.h>
-
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <optional>
@@ -54,8 +52,6 @@ public:
 
     int GetTableIndex() const;
     int GetRangeIndex() const;
-
-    void Persist(const NTableClient::TPersistenceContext& context);
 
     //! Check that data slice is an old single-chunk slice. Used for compatibility.
     bool IsTrivial() const;
@@ -115,6 +111,8 @@ private:
     //! An index of an input stream this data slice corresponds to. If this is a data
     //! slice of some input table, it should normally be equal to `GetTableIndex()`.
     std::optional<int> InputStreamIndex_;
+
+    PHOENIX_DECLARE_TYPE(TLegacyDataSlice, 0x1e21b076);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLegacyDataSlice)

@@ -24,7 +24,7 @@ void TChaosCellBundle::RemoveMetadataCell(TChaosCell* cell)
     std::erase(MetadataCells_, cell);
 }
 
-void TChaosCellBundle::Save(TSaveContext& context) const
+void TChaosCellBundle::Save(NCellMaster::TSaveContext& context) const
 {
     TCellBundle::Save(context);
 
@@ -33,7 +33,7 @@ void TChaosCellBundle::Save(TSaveContext& context) const
     Save(context, MetadataCells_);
 }
 
-void TChaosCellBundle::Load(TLoadContext& context)
+void TChaosCellBundle::Load(NCellMaster::TLoadContext& context)
 {
     TCellBundle::Load(context);
 

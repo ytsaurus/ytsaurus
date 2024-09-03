@@ -240,32 +240,31 @@ bool TNewJobManager::TJob::IsInvalidated() const
     return Invalidated_;
 }
 
-void TNewJobManager::TJob::Persist(const TPersistenceContext& context)
+void TNewJobManager::TJob::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, State_);
-    Persist(context, IsBarrier_);
-    Persist(context, DataWeight_);
-    Persist(context, RowCount_);
-    Persist(context, LowerBound_);
-    Persist(context, UpperBound_);
-    Persist(context, StripeList_);
-    Persist(context, InputCookies_);
-    Persist(context, Owner_);
-    Persist(context, SuspendedStripeCount_);
-    Persist(context, Cookie_);
-    Persist(context, Invalidated_);
-    Persist(context, Removed_);
-    Persist(context, DataWeightProgressCounterGuard_);
-    Persist(context, RowProgressCounterGuard_);
-    Persist(context, JobProgressCounterGuard_);
-    Persist(context, InterruptReason_);
+    registrar.template Field<1, &TThis::State_>("state")();
+    registrar.template Field<2, &TThis::IsBarrier_>("is_barrier")();
+    registrar.template Field<3, &TThis::DataWeight_>("data_weight")();
+    registrar.template Field<4, &TThis::RowCount_>("row_count")();
+    registrar.template Field<5, &TThis::LowerBound_>("lower_bound")();
+    registrar.template Field<6, &TThis::UpperBound_>("upper_bound")();
+    registrar.template Field<7, &TThis::StripeList_>("stripe_list")();
+    registrar.template Field<8, &TThis::InputCookies_>("input_cookies")();
+    registrar.template Field<9, &TThis::Owner_>("owner")();
+    registrar.template Field<10, &TThis::SuspendedStripeCount_>("suspended_stripe_count")();
+    registrar.template Field<11, &TThis::Cookie_>("cookie")();
+    registrar.template Field<12, &TThis::Invalidated_>("invalidated")();
+    registrar.template Field<13, &TThis::Removed_>("removed")();
+    registrar.template Field<14, &TThis::DataWeightProgressCounterGuard_>("data_weight_progress_counter_guard")();
+    registrar.template Field<15, &TThis::RowProgressCounterGuard_>("row_progress_counter_guard")();
+    registrar.template Field<16, &TThis::JobProgressCounterGuard_>("job_progress_counter_guard")();
+    registrar.template Field<17, &TThis::InterruptReason_>("interrupt_reason")();
 
-    if (context.IsLoad()) {
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // We must add ourselves to the job pool.
-        CookiePoolIterator_ = Owner_->CookiePool_->end();
-        UpdateSelf();
-    }
+        this_->CookiePoolIterator_ = this_->Owner_->CookiePool_->end();
+        this_->UpdateSelf();
+    });
 }
 
 void TNewJobManager::TJob::UpdateSelf()
@@ -344,6 +343,8 @@ void TNewJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard
     (RowProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
     (JobProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
 }
+
+PHOENIX_DEFINE_TYPE(TNewJobManager::TJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -536,22 +537,17 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
     return foreignSlices;
 }
 
-void TNewJobManager::Persist(const TPersistenceContext& context)
+void TNewJobManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    if (context.IsLoad()) {
-        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /*owner*/));
-    }
-
-    Persist(context, DataWeightCounter_);
-    Persist(context, RowCounter_);
-    Persist(context, JobCounter_);
-    Persist(context, DataSliceCounter_);
-    Persist(context, InputCookieToAffectedOutputCookies_);
-    Persist(context, FirstValidJobIndex_);
-    Persist(context, SuspendedInputCookies_);
-    Persist(context, Jobs_);
-    Persist(context, Logger);
+    registrar.template Field<1, &TThis::DataWeightCounter_>("data_weight_counter")();
+    registrar.template Field<2, &TThis::RowCounter_>("row_counter")();
+    registrar.template Field<3, &TThis::JobCounter_>("job_counter")();
+    registrar.template Field<4, &TThis::DataSliceCounter_>("data_slice_counter")();
+    registrar.template Field<5, &TThis::InputCookieToAffectedOutputCookies_>("input_cookie_to_affected_output_cookies")();
+    registrar.template Field<6, &TThis::FirstValidJobIndex_>("first_valid_job_index")();
+    registrar.template Field<7, &TThis::SuspendedInputCookies_>("suspended_input_cookies")();
+    registrar.template Field<8, &TThis::Jobs_>("jobs")();
+    registrar.template Field<9, &TThis::Logger>("logger")();
 }
 
 TChunkStripeStatisticsVector TNewJobManager::GetApproximateStripeStatistics() const
@@ -689,6 +685,8 @@ std::pair<TKeyBound, TKeyBound> TNewJobManager::GetBounds(IChunkPoolOutput::TCoo
     const auto& job = Jobs_[cookie];
     return {job.GetLowerBound(), job.GetUpperBound()};
 }
+
+PHOENIX_DEFINE_TYPE(TNewJobManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

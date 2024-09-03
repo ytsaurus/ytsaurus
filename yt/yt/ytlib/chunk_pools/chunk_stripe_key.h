@@ -14,11 +14,11 @@ struct TBoundaryKeys
     NTableClient::TKey MinKey;
     NTableClient::TKey MaxKey;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
     bool operator ==(const TBoundaryKeys& other) const;
 
     explicit operator bool() const;
+
+    PHOENIX_DECLARE_TYPE(TBoundaryKeys, 0x36ad5371);
 };
 
 //! A generic key that allows us to sort chunk stripes.
@@ -46,12 +46,12 @@ public:
     NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry();
     const NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry() const;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
     bool operator ==(const TChunkStripeKey& other) const;
 
 private:
     std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
+
+    PHOENIX_DECLARE_TYPE(TChunkStripeKey, 0x60a2ecee);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf spec);

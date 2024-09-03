@@ -4,6 +4,11 @@
 
 #include <yt/yt/client/table_client/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/public.h>
+#include <yt/yt/core/phoenix/context.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +39,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, ESnapshotVersion>;
-using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
+using IPersistent = NPhoenix2::ICustomPersistent<TSaveContext, TLoadContext, TPersistenceContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
