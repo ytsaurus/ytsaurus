@@ -676,9 +676,11 @@ class YTInstance(object):
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
+            self.pids_file.close()
             logger.exception("Failed to start environment")
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
+        self.pids_file.close()
 
     def stop(self, force=False):
         if not self._started and not force:
@@ -707,7 +709,6 @@ class YTInstance(object):
             if name not in killed_services:
                 self.kill_service(name)
 
-        self.pids_file.close()
         remove_file(self.pids_filename, force=True)
 
         if self._open_port_iterator is not None:
