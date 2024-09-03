@@ -86,6 +86,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             RegisterNewUser(
                 context->getAccessControl(),
                 TString(user),
+                Host_->GetUserDefinedDatabaseNames(),
                 Host_->HasUserDefinedSqlObjectStorage());
             YT_LOG_DEBUG("User registered");
 

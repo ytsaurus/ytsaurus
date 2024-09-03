@@ -2,6 +2,7 @@
 
 #include "conversion.h"
 #include "config.h"
+#include "table.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -67,11 +68,15 @@ TGuid ToGuid(DB::UUID uuid)
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     TString userName,
+    const std::vector<TString>& userDefinedDatabaseNames,
     bool allowSqlUdfManagement)
 {
     auto user = std::make_unique<DB::User>();
     user->setName(userName);
-    user->access.grant(DB::AccessFlags::allFlags(), /*database*/ "YT");
+    user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ "YT");
+    for (const auto& databaseName : userDefinedDatabaseNames) {
+        user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ databaseName);
+    }
     user->access.grant(DB::AccessType::SHOW, /*database*/ "system");
     user->access.grant(DB::AccessType::SELECT, /*database*/ "system");
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
@@ -497,6 +502,18 @@ void HandleBreakpoint(
         }
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(300));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+String BuildStorageName(const std::vector<TTablePtr>& tables)
+{
+    TStringBuilder builder;
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder, ";");
+    for (const auto& table : tables) {
+        delimitedBuilder->AppendString(table->Path.GetPath());
+    }
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

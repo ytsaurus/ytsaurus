@@ -1821,8 +1821,78 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("barykinni")
     def test_select_from_system_databases(self):
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
             assert len(clique.make_query("SELECT * FROM system.databases WHERE database='YT'")) != 0
+            assert len(clique.make_query("SELECT * FROM system.databases WHERE database='my_db'")) != 0
+
+    @authors("barykinni")
+    def test_yt_directory_database_common(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        # Things we don't want to know about when working with "my_db" ("//tmp/root").
+        create("map_node", "//tmp/uninteresting_root")
+        create("table", "//tmp/uninteresting_root/uninteresting_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            clique.make_query("INSERT INTO my_db.my_table VALUES ('abracadabra')")
+
+            assert clique.make_query("SELECT a FROM my_db.my_table") == [{"a": "abracadabra"}]
+
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_default_database(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            # We didn't specify target table in the patch ({"yt": {"show_tables": {...}}})
+            # therefore we expect an empty list from 'SHOW TABLES FROM YT'.
+            assert clique.make_query("SHOW TABLES") == []
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}, "clickhouse": {"default_database": "my_db"}}) as clique:
+            # Now default database is my_db instead of YT.
+            assert clique.make_query("SHOW TABLES") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_database_drop(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            with raises_yt_error("Not enough privileges"):
+                clique.make_query("DROP DATABASE my_db")
+
+            with raises_yt_error("Not enough privileges"):
+                clique.make_query("DETACH DATABASE my_db")
+
+            # Check that the table hasn't disappeared.
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_show_columns(self):
+        create("table", "//tmp/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}, "show_tables": {"roots": ["//tmp"]}}}) as clique:
+            assert clique.make_query('SHOW COLUMNS FROM my_db.my_table')[0]["field"] == "a"
+            assert clique.make_query('SHOW COLUMNS FROM "//tmp/my_table"')[0]["field"] == "a"
+
+    @authors("barykinni")
+    def test_yt_directory_database_tables_visibility(self):
+        create("map_node", "//tmp/subdir")
+        create("table", "//tmp/table1", attributes={"schema": [{"name": "a", "type": "string"}]})
+        create("table", "//tmp/subdir/table2", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
+            # Table2 should be invisible.
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "table1"}]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

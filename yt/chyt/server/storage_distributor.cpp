@@ -324,16 +324,6 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
     return candidates;
 }
 
-String BuildStorageName(const std::vector<TTablePtr>& tables)
-{
-    TStringBuilder builder;
-    TDelimitedStringBuilderWrapper delimitedBuilder(&builder, ";");
-    for (const auto& table : tables) {
-        delimitedBuilder->AppendString(table->Path.GetPath());
-    }
-    return builder.Flush();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class is extracted for better encapsulation of distributed query call context.
@@ -823,8 +813,9 @@ public:
     TStorageDistributor(
         DB::ContextPtr context,
         std::vector<TTablePtr> tables,
-        TTableSchemaPtr schema)
-        : TYtStorageBase({"YT", BuildStorageName(tables)})
+        TTableSchemaPtr schema,
+        DB::StorageID storageId)
+        : TYtStorageBase(std::move(storageId))
         , WeakContext_(context)
         , QueryContext_(GetQueryContext(context))
         , Tables_(std::move(tables))
@@ -1453,7 +1444,8 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         }
     }
 
-    auto path = TRichYPath::Parse(TString(args.table_id.table_name));
+    TRichYPath path = TRichYPath::Parse(TString(args.relative_data_path));
+
     YT_LOG_INFO("Creating table from CH engine (Path: %v, Columns: %v, KeyColumns: %v)",
         path,
         args.columns.toString(),
@@ -1513,24 +1505,26 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     // Delete such entry in order to avoid mistakenly treating newly created table as missing in subsequent queries.
     queryContext->DeleteObjectAttributesFromSnapshot({path.GetPath()});
 
-    auto table = FetchTables(
+    auto tables = FetchTables(
         queryContext,
-        {path},
+        {std::move(path)},
         /*skipUnsuitableNodes*/ false,
         queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
         queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(
         args.getLocalContext(),
-        std::vector{table},
-        schema);
+        std::move(tables),
+        schema,
+        args.table_id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageDistributor(
     DB::ContextPtr context,
-    std::vector<TTablePtr> tables)
+    std::vector<TTablePtr> tables,
+    DB::StorageID storageId)
 {
     if (tables.empty()) {
         THROW_ERROR_EXCEPTION("No tables to read from");
@@ -1551,7 +1545,8 @@ DB::StoragePtr CreateStorageDistributor(
     auto storage = std::make_shared<TStorageDistributor>(
         context,
         std::move(tables),
-        std::move(commonSchema));
+        std::move(commonSchema),
+        std::move(storageId));
 
     storage->startup();
 

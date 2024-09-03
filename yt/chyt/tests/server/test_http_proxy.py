@@ -739,6 +739,14 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # QueryStickyGroupSize is greater than a number of instances but that's ok.
             assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"chyt.query_sticky_group_size": "2"}) == [{"a": 1}]
 
+    @authors("barykinni")
+    def test_passing_database_parameter(self):
+        create("table", "//tmp/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
+            clique.make_query_via_proxy("INSERT INTO my_table VALUES ('aboba')", settings={"database": "my_db"})
+            assert clique.make_query_via_proxy("SELECT a FROM my_table", settings={"database": "my_db"}) == [{"a": "aboba"}]
+
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     DELTA_PROXY_CONFIG = {
