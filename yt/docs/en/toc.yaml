@@ -445,6 +445,8 @@ items:
          href: admin-guide/update-ytsaurus.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
+       - name: Node administration
+         href: admin-guide/node-maintenance.md
        - name: Tagging cluster nodes
          href: admin-guide/node-tags.md
        - name: Possible problems
