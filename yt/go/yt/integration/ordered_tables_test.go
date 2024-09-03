@@ -242,6 +242,13 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 		checkQueue(ctx, t, yc, queuePath, 7+(i*10))
 		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 6, 0, expectedUserMeta)
 
+		require.NoError(t, migrate.UnmountAndWait(ctx, yc, queuePath))
+		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 6)
+		require.Error(t, err)
+		require.NoError(t, migrate.MountAndWait(ctx, yc, queuePath))
+		checkQueue(ctx, t, yc, queuePath, 7+(i*10))
+		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 6, 0, expectedUserMeta)
+
 		createSessionResult, err = yc.CreateQueueProducerSession(
 			ctx,
 			producerPath,
