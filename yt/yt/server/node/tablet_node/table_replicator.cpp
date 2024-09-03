@@ -668,7 +668,9 @@ private:
 
                     if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
+                        TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second >
+                            mountConfig->MaxReplicationBatchSpan)
                     {
                         result = EReaderTerminationReason::SaturatedBatch;
                         break;

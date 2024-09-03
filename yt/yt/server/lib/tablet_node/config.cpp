@@ -237,6 +237,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(90000);
     registrar.Parameter("max_data_weight_per_replication_commit", &TThis::MaxDataWeightPerReplicationCommit)
         .Default(128_MB);
+    registrar.Parameter("max_replication_batch_span", &TThis::MaxReplicationBatchSpan)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("replication_throttler", &TThis::ReplicationThrottler)
         .DefaultNew();
     registrar.Parameter("relative_replication_throttler", &TThis::RelativeReplicationThrottler)
