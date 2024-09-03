@@ -100,6 +100,23 @@ public:
         QueueSnapshot_->Row = Row_;
         QueueSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
+        if (QueueSnapshot_->Row.QueueAgentBanned.value_or(false)) {
+            QueueSnapshot_->Banned = true;
+
+            // NB(apachee): Instead of relying on invariant that BannedSince is present when Banned is true
+            // check BannedSince directly to avoid the hassle of guaranteeing said invariant.
+            if (PreviousQueueSnapshot_->BannedSince) {
+                QueueSnapshot_->BannedSince = PreviousQueueSnapshot_->BannedSince;
+            } else {
+                QueueSnapshot_->BannedSince = QueueSnapshot_->PassInstant;
+            }
+
+            QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
+                QueueSnapshot_->BannedSince);
+
+            return QueueSnapshot_;
+        }
+
         try {
             GuardedBuild();
         } catch (const std::exception& ex) {
@@ -473,16 +490,6 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
-        if (auto queueRow = QueueRow_.Load(); queueRow.QueueAgentBanned.value_or(false)) {
-            YT_LOG_INFO("Skipping queue controller pass because queue is banned by @queue_agent_banned attribute");
-            auto queueSnapshot = New<TQueueSnapshot>();
-            queueSnapshot->Row = std::move(queueRow);
-            queueSnapshot->ReplicatedTableMappingRow = std::move(ReplicatedTableMappingRow_.Load());
-            queueSnapshot->Error = TError("Queue is banned");
-            QueueSnapshot_.Exchange(queueSnapshot);
-            return;
-        }
-
         YT_LOG_INFO("Queue controller pass started");
 
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
@@ -507,6 +514,22 @@ private:
 
         YT_LOG_INFO("Queue snapshot updated");
 
+        auto finalizePass = Finally([&] {
+            YT_LOG_INFO("Queue controller pass finished");
+        });
+
+        if (nextQueueSnapshot->Banned) {
+            YT_LOG_INFO(nextQueueSnapshot->Error, "Skipping queue controller leading logic because queue is banned");
+
+            // Disable exports.
+            // XXX(apachee): Generate export and trim alert to explicity show that those are disabled?
+            auto guard = WriterGuard(QueueExportsLock_);
+            QueueExports_ = TError("Exports are disabled, since this queue is banned")
+                << nextQueueSnapshot->Error;
+
+            return;
+        }
+
         if (Leading_) {
             YT_LOG_DEBUG("Queue controller is leading, performing mutating operations");
 
@@ -519,7 +542,6 @@ private:
             }
         }
 
-        YT_LOG_INFO("Queue controller pass finished");
     }
 
     void UpdateExports(const TQueueSnapshotPtr& nextQueueSnapshot)

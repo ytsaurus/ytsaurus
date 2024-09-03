@@ -143,6 +143,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
         .TreatAsQueueConsumer = record.TreatAsQueueConsumer,
         .Schema = std::move(schema),
         .QueueAgentStage = record.QueueAgentStage,
+        .QueueAgentBanned = record.QueueAgentBanned,
         .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
     };
 }
@@ -172,6 +173,7 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
         .Schema = schema,
         .QueueAgentStage = row.QueueAgentStage,
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
+        .QueueAgentBanned = row.QueueAgentBanned,
     };
 }
 
@@ -434,6 +436,7 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
         "treat_as_queue_consumer",
         "schema",
         "queue_agent_stage",
+        "queue_agent_banned",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
@@ -454,6 +457,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .TreatAsQueueConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
+        .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .SynchronizationError = TError(),
     };
 }
@@ -469,6 +473,7 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("treat_as_queue_consumer").Value(row.TreatAsQueueConsumer)
             .Item("schema").Value(row.Schema)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
+            .Item("queue_agent_banned").Value(row.QueueAgentBanned)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }

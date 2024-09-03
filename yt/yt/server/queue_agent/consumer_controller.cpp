@@ -73,6 +73,23 @@ public:
         ConsumerSnapshot_->Row = Row_;
         ConsumerSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
+        if (ConsumerSnapshot_->Row.QueueAgentBanned.value_or(false)) {
+            ConsumerSnapshot_->Banned = true;
+
+            // NB(apachee): Instead of relying on invariant that BannedSince is present when Banned is true
+            // check BannedSince directly to avoid the hassle of guaranteeing said invariant.
+            if (PreviousConsumerSnapshot_->BannedSince) {
+                ConsumerSnapshot_->BannedSince = PreviousConsumerSnapshot_->BannedSince;
+            } else {
+                ConsumerSnapshot_->BannedSince = ConsumerSnapshot_->PassInstant;
+            }
+
+            ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
+                ConsumerSnapshot_->BannedSince);
+
+            return ConsumerSnapshot_;
+        }
+
         try {
             GuardedBuild();
         } catch (const std::exception& ex) {
@@ -566,13 +583,21 @@ private:
 
         YT_LOG_INFO("Consumer snapshot updated");
 
+        auto finalizePass = Finally([&] {
+            YT_LOG_INFO("Consumer controller pass finished");
+        });
+
+        if (nextConsumerSnapshot->Banned) {
+            YT_LOG_INFO(nextConsumerSnapshot->Error, "Skipping consumer controller leading logic because consumer is banned");
+
+            return;
+        }
+
         if (Leading_) {
             YT_LOG_DEBUG("Consumer controller is leading, performing mutating operations");
 
             ProfileManager_->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
         }
-
-        YT_LOG_INFO("Consumer controller pass finished");
     }
 };
 

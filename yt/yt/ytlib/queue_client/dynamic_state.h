@@ -113,6 +113,7 @@ struct TConsumerTableRow
     std::optional<bool> TreatAsQueueConsumer;
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<TString> QueueAgentStage;
+    std::optional<bool> QueueAgentBanned;
 
     std::optional<TError> SynchronizationError;
 
