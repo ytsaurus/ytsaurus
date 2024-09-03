@@ -40,14 +40,12 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
-	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
-	// strawberry attributes.
-
 	cmd := "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
 	jupyterEnv := map[string]string{
-		"NB_GID":  "0",
-		"NB_UID":  "0",
-		"NB_USER": "root",
+		"NB_GID":        "0",
+		"NB_UID":        "0",
+		"NB_USER":       "root",
+		"YT_BASE_LAYER": speclet.JupyterDockerImage,
 	}
 	for key, value := range c.config.ExtraEnvVars {
 		jupyterEnv[key] = value
