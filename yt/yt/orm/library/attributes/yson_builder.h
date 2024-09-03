@@ -21,7 +21,7 @@ struct IYsonBuilder
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYsonStringBuilder
+class TYsonStringBuilder
     : public IYsonBuilder
 {
 public:
@@ -65,8 +65,8 @@ public:
 
 private:
     const EYsonBuilderForwardingPolicy Policy_;
-    IYsonBuilder* Underlying_;
-    NYson::IYsonConsumer* Consumer_;
+    IYsonBuilder* const Underlying_;
+    NYson::IYsonConsumer* const Consumer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
