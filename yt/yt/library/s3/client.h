@@ -117,6 +117,8 @@ struct TUploadPartRequest
 
     TSharedRef Data;
 
+    std::optional<TString> ContentMd5;
+
     void Serialize(THttpRequest* request) const;
 };
 
@@ -133,6 +135,7 @@ struct TGetObjectRequest
 {
     TString Bucket;
     TString Key;
+    std::optional<TString> Range;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -150,6 +153,7 @@ struct TGetObjectStreamRequest
 {
     TString Bucket;
     TString Key;
+    std::optional<TString> Range;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -165,6 +169,7 @@ struct TGetObjectStreamResponse
 
 struct TDeleteObjectsRequest
 {
+    TString Bucket;
     std::vector<TString> Objects;
 
     void Serialize(THttpRequest* request) const;
@@ -241,6 +246,25 @@ struct TCompleteMultipartUploadResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THeadObjectRequest
+{
+    TString Bucket;
+    TString Key;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct THeadObjectResponse
+{
+    TInstant LastModified;
+    TString ETag;
+    i64 Size;
+
+    void Deserialize(const NHttp::IResponsePtr& response);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IClient
     : public TRefCounted
 {
@@ -261,6 +285,7 @@ struct IClient
     DEFINE_COMMAND(CreateMultipartUpload)
     DEFINE_COMMAND(AbortMultipartUpload)
     DEFINE_COMMAND(CompleteMultipartUpload)
+    DEFINE_COMMAND(HeadObject)
 #undef DEFINE_COMMAND
 };
 

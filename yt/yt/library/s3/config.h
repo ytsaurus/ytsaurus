@@ -29,6 +29,9 @@ public:
     TString AccessKeyId;
     TString SecretAccessKey;
 
+    //! Url for S3 proxy server. If empty, Url will be used.
+    std::optional<TString> ProxyUrl;
+
     REGISTER_YSON_STRUCT(TS3ConnectionConfig);
 
     static void Register(TRegistrar registrar);
