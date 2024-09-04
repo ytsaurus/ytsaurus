@@ -429,6 +429,7 @@ func (ds *Datastore) updateSchema(backupFile string) (err error) {
 
 				Peeked INTEGER NOT NULL DEFAULT 0,
 
+				UNIQUE (Inode, StreamName),
 				UNIQUE (StagedPath)
 			);
 			CREATE INDEX Tasks__Path ON Tasks (StagedPath);
