@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 
+#include <yt/yt/server/lib/discovery_server/config.h>
+
 namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,15 @@ struct TGossipMemberInfo
 
 void ToProto(NProto::TGossipMemberInfo* protoMemberInfo, const TGossipMemberInfo& MemberInfo);
 void FromProto(TGossipMemberInfo* memberInfo, const NProto::TGossipMemberInfo& protoMemberInfo);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGroupManagerInfo
+{
+    const TDiscoveryServerConfigPtr Config;
+    int GroupTreeSize = 0;
+    int GroupCount = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

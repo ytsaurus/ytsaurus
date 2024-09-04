@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 
+#include <yt/yt/server/lib/discovery_server/helpers.h>
+
 namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +27,11 @@ public:
     const TGroupId& GetId();
     int GetMemberCount();
 
-    TMemberPtr AddOrUpdateMember(const NDiscoveryClient::TMemberInfo& memberInfo, TDuration leaseTimeout);
+    TMemberPtr AddOrUpdateMember(
+        const NDiscoveryClient::TMemberInfo& memberInfo,
+        const TGroupManagerInfo& groupManagerInfo,
+        TDuration leaseTimeout,
+        bool respectLimits);
     std::vector<TMemberPtr> ListMembers(std::optional<int> limit = std::nullopt);
     bool HasMember(const TMemberId& memberId);
     TMemberPtr FindMember(const TMemberId& memberId);

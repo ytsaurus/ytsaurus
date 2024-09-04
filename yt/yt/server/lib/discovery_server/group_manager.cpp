@@ -6,6 +6,7 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/server/lib/discovery_server/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -16,15 +17,17 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGroupManager::TGroupManager(
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    TDiscoveryServerConfigPtr config)
     : Logger(logger)
     , GroupTree_(New<TGroupTree>(Logger))
     , YPathService_(CreateDiscoveryYPathService(GroupTree_))
+    , GroupManagerInfo_{std::move(config)}
 { }
 
-THashMap<TGroupId, TGroupPtr> TGroupManager::GetOrCreateGroups(const std::vector<TGroupId>& groupIds)
+THashMap<TGroupId, TGroupPtr> TGroupManager::GetOrCreateGroups(const std::vector<TGroupId>& groupIds, bool respectLimits)
 {
-    return GroupTree_->GetOrCreateGroups(groupIds);
+    return GroupTree_->GetOrCreateGroups(groupIds, GroupManagerInfo_, respectLimits);
 }
 
 void TGroupManager::ProcessGossip(const std::vector<TGossipMemberInfo>& membersBatch)
@@ -37,11 +40,15 @@ void TGroupManager::ProcessGossip(const std::vector<TGossipMemberInfo>& membersB
         groupIds.push_back(member.GroupId);
     }
 
-    auto groups = GetOrCreateGroups(groupIds);
+    auto groups = GetOrCreateGroups(groupIds, /*respectLimits*/ false);
     for (const auto& member : membersBatch) {
         // All group ids in gossip should be correct.
         auto group = GetOrCrash(groups, member.GroupId);
-        group->AddOrUpdateMember(member.MemberInfo, member.LeaseDeadline - TInstant::Now());
+        group->AddOrUpdateMember(
+            member.MemberInfo,
+            GroupManagerInfo_,
+            member.LeaseDeadline - TInstant::Now(),
+            /*respectLimits*/ false);
     }
 }
 
@@ -59,7 +66,7 @@ void TGroupManager::ProcessHeartbeat(
             "Member id should not be empty");
     }
 
-    auto groups = GetOrCreateGroups({groupId});
+    auto groups = GetOrCreateGroups({groupId}, /*respectLimits*/ true);
     // If groupId is incorrect, GetOrCreateGroups will omit it in result groups.
     if (groups.empty()) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidGroupId,
@@ -68,7 +75,7 @@ void TGroupManager::ProcessHeartbeat(
     }
 
     auto group = GetOrCrash(groups, groupId);
-    auto member = group->AddOrUpdateMember(memberInfo, leaseTimeout);
+    auto member = group->AddOrUpdateMember(memberInfo, GroupManagerInfo_, leaseTimeout, /*respectLimits*/ true);
 
     {
         auto guard = Guard(ModifiedMembersLock_);
@@ -121,6 +128,11 @@ THashSet<TMemberPtr> TGroupManager::GetModifiedMembers()
 NYTree::IYPathServicePtr TGroupManager::GetYPathService()
 {
     return YPathService_;
+}
+
+TDiscoveryServerConfigPtr TGroupManager::GetConfig()
+{
+    return GroupManagerInfo_.Config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -13,6 +14,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <yt/yt/ytlib/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryClient {
 
@@ -200,9 +203,7 @@ private:
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Error reporting heartbeat (Revision: %v)", Revision_);
 
-            if (rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidGroupId) ||
-                rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId))
-            {
+            if (IsRetriableDiscoveryServerError(rspOrError)) {
                 FirstSuccessPromise_.TrySet(rspOrError);
             } else if (!FirstSuccessPromise_.IsSet() && Revision_ > ClientConfig_->MaxFailedHeartbeatsOnStartup) {
                 FirstSuccessPromise_.TrySet(

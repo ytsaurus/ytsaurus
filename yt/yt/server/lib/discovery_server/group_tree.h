@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 
+#include <yt/yt/server/lib/discovery_server/helpers.h>
+
 namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,10 @@ public:
     TGroupPtr FindGroup(const NYPath::TYPath& path);
 
     TListGroupsResult ListGroups(const NYPath::TYPath& path, const NDiscoveryClient::TListGroupsOptions& options);
-    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);
+    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(
+        const std::vector<TGroupId>& groupIds,
+        TGroupManagerInfo& groupManagerInfo,
+        bool respectLimits);
 
 private:
     class TImpl;

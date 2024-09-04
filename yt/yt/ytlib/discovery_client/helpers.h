@@ -47,6 +47,10 @@ struct TGroupMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableDiscoveryServerError(const TError& error);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TMemberInfo* protoMemberInfo, const TMemberInfo& MemberInfo);
 void FromProto(TMemberInfo* memberInfo, const NProto::TMemberInfo& protoMemberInfo);
 

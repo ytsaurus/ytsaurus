@@ -21,7 +21,7 @@ class TGroupManager
     : public TRefCounted
 {
 public:
-    explicit TGroupManager(const NLogging::TLogger& logger);
+    TGroupManager(const NLogging::TLogger& logger, TDiscoveryServerConfigPtr config);
 
     void ProcessGossip(const std::vector<TGossipMemberInfo>& membersBatch);
     void ProcessHeartbeat(
@@ -41,12 +41,15 @@ private:
     const TGroupTreePtr GroupTree_;
     const NYTree::IYPathServicePtr YPathService_;
 
+    TGroupManagerInfo GroupManagerInfo_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModifiedMembersLock_);
     THashSet<TMemberPtr> ModifiedMembers_;
 
-    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);
+    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds, bool respectLimits);
     TGroupPtr FindGroup(const TGroupId& id);
     TListGroupsResult ListGroups(const TGroupId& prefix, const NDiscoveryClient::TListGroupsOptions& options);
+    TDiscoveryServerConfigPtr GetConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupManager)
