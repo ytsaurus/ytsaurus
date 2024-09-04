@@ -1756,7 +1756,8 @@ private:
                 auto traceContext = TTraceContext::NewChildFromRpc(
                     protoRequest->tracing_ext(),
                     /*spanName*/ "ScheduleAllocation",
-                    requestId);
+                    requestId,
+                    /*forceTracing*/ true);
                 traceContext->AddTag("operation_id", operationId);
                 traceContext->AddTag("allocation_id", allocationId);
 
