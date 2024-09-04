@@ -2747,7 +2747,7 @@ PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1
 Пример:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "`offset`" = 500; "`limit`" = 100 }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "offset" = 500; "limit" = 100 }
 OUTPUT {
 OUTPUT   "total_size" = 1000;
 OUTPUT   "end_offset" = 600;
