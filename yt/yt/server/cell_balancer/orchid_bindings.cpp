@@ -217,11 +217,13 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         }
 
         if (auto it = state.ZoneToSpareProxies.find(bundleInfo->Zone); it != state.ZoneToSpareProxies.end()) {
-            PopulateInstanciesPerBundle(
-                bundleName,
-                it->second.UsedByBundle,
-                state.RpcProxies,
-                bundleOrchidInfo->AssignedSpareRpcProxies);
+            for (const auto& [_, spareInfo] : it->second) {
+                PopulateInstanciesPerBundle(
+                    bundleName,
+                    spareInfo.UsedByBundle,
+                    state.RpcProxies,
+                    bundleOrchidInfo->AssignedSpareRpcProxies);
+            }
         }
 
         if (bundleInfo->ResourceQuota) {

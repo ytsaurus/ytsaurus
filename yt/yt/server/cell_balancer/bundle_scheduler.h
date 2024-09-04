@@ -32,6 +32,8 @@ struct TSpareProxiesInfo
     THashMap<TString, std::vector<TString>> UsedByBundle;
 };
 
+using TPerDataCenterSpareProxiesInfo = THashMap<TString, TSpareProxiesInfo>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInstanceRackInfo
@@ -110,7 +112,7 @@ struct TSchedulerInputState
 
     THashMap<TString, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
 
-    THashMap<TString, TSpareProxiesInfo> ZoneToSpareProxies;
+    THashMap<TString, TPerDataCenterSpareProxiesInfo> ZoneToSpareProxies;
 
     THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAlive;
     THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAllocated;
@@ -227,6 +229,7 @@ THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TStrin
 std::vector<TString> FlattenBundleInstancies(const THashMap<TString,std::vector<TString>>& instancies);
 
 TString GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName);
+TString GetReleasedProxyRole(const TString& rpcProxyRole);
 
 ////////////////////////////////////////////////////////////////////////////////
 

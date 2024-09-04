@@ -331,7 +331,8 @@ THashSet<TString> GenerateProxiesForBundle(
     const TString& bundleName,
     int proxyCount,
     bool setRole = false,
-    TString dataCenterName = "default")
+    TString dataCenterName = "default",
+    std::optional<TString> customProxyRole = {})
 {
     THashSet<TString> result;
 
@@ -360,7 +361,7 @@ THashSet<TString> GenerateProxiesForBundle(
         if (setRole) {
             auto& bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
             TString role = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
-            proxyInfo->Role = role;
+            proxyInfo->Role = customProxyRole.value_or(role);
         }
 
         inputState.RpcProxies[proxyName] = std::move(proxyInfo);
@@ -560,12 +561,17 @@ protected:
 
     int GetActiveDataCenterCount()
     {
+        return GetDataCenterCount() - GetRedundantDataCenterCount();
+    }
+
+    int GetRedundantDataCenterCount()
+    {
         auto setup = std::get<0>(GetParam());
 
         if (setup == EZoneSetup::Simple) {
-            return GetDataCenterCount();
+            return 0;
         } else {
-            return GetDataCenterCount() - 1;
+            return 1;
         }
     }
 
@@ -3094,24 +3100,38 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsRemoveMultiPeer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
-{
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+// TODO: rename just to TProxyRoleManagement
+class TProxyRoleManagement
+    : public TBundleSchedulerTest
+{ };
 
-    GenerateProxiesForBundle(input, "bigd", 2);
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
+{
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    auto dataCenters = GetDataCenters(input);
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
 
-    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
+    THashMap<TString, THashSet<TString>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        ASSERT_EQ(role, "bigd");
+        roleToProxies[role].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
     }
+
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(roleToProxies["bigd"]));
+    EXPECT_EQ(2 * GetRedundantDataCenterCount(), std::ssize(roleToProxies[GetReleasedProxyRole("bigd")]));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3122,25 +3142,32 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
+TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
 {
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
     input.Bundles["bigd"]->RpcProxyRole = "custom-role";
+    auto dataCenters = GetDataCenters(input);
 
-    GenerateProxiesForBundle(input, "bigd", 2);
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
 
-    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
+    THashMap<TString, THashSet<TString>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        ASSERT_EQ(role, "custom-role");
+        roleToProxies[role].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
     }
+
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(roleToProxies["custom-role"]));
+    EXPECT_EQ(2 * GetRedundantDataCenterCount(), std::ssize(roleToProxies[GetReleasedProxyRole("custom-role")]));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3151,25 +3178,38 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST(TProxyRoleManagement, TestBundleProxyBanned)
+TEST_P(TProxyRoleManagement, TestBundleProxyBanned)
 {
-    const bool SetProxyRole = true;
-
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    auto dataCenters = GetDataCenters(input);
 
-    auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 3, SetProxyRole);
+    THashSet<TString> bundleProxies;
+    int dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto dcProxies = GenerateProxiesForBundle(input, "bigd", 3, true, dataCenter, customRole);
+        if (dcIndex <= GetActiveDataCenterCount()) {
+            bundleProxies.insert(dcProxies.begin(), dcProxies.end());
+        }
+    }
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
+
+    THashSet<TString> spareProxies;
+    for (const auto& dataCenter : dataCenters) {
+        auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
+        spareProxies.insert(dcProxies.begin(), dcProxies.end());
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(0, std::ssize(mutations.RemovedProxyRole));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     // Ban bundle proxy
@@ -3191,25 +3231,36 @@ TEST(TProxyRoleManagement, TestBundleProxyBanned)
     }
 }
 
-TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
+TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
 {
-    const bool SetProxyRole = true;
-
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    auto dataCenters = GetDataCenters(input);
 
-    GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);
+    THashSet<TString> bundleProxies;
+    int dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
+        if (dcIndex <= GetActiveDataCenterCount()) {
+            bundleProxies.insert(dcProxies.begin(), dcProxies.end());
+        }
+    }
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
+    THashSet<TString> spareProxies;
+    for (const auto& dataCenter : dataCenters) {
+        auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
+        spareProxies.insert(dcProxies.begin(), dcProxies.end());
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
-    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
     THashSet<TString> usedSpare;
 
@@ -3221,7 +3272,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
         input.RpcProxies[proxyName]->Role = role;
     }
 
-    EXPECT_EQ(2, std::ssize(usedSpare));
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(usedSpare));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3230,7 +3281,11 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 
     // Add new proxies to bundle
-    auto newProxies = GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);;
+    dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
+    }
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3241,7 +3296,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
         EXPECT_TRUE(usedSpare.count(proxyName) != 0);
         input.RpcProxies[proxyName]->Role = role;
     }
-    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.RemovedProxyRole));
 
     // Check no more changes
     mutations = TSchedulerMutations{};
@@ -3251,21 +3306,33 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
+TEST_P(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
 {
-    const bool SetProxyRole = true;
     const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
 
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    auto dataCenters = GetDataCenters(input);
 
-    auto proxies = GenerateProxiesForBundle(input, "bigd", 2, SetProxyRole);
+    THashSet<TString> bundleProxies;
+    int dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto dcProxies = GenerateProxiesForBundle(input, "bigd", 2, true, dataCenter, customRole);
+        if (dcIndex <= GetActiveDataCenterCount()) {
+            bundleProxies.insert(dcProxies.begin(), dcProxies.end());
+        }
+    }
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
+    THashSet<TString> spareProxies;
+    for (const auto& dataCenter : dataCenters) {
+        auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
+        spareProxies.insert(dcProxies.begin(), dcProxies.end());
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -3273,7 +3340,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 
-    for (const auto& proxyName : proxies) {
+    for (const auto& proxyName : bundleProxies) {
         auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod / 2;
         proxyInfo->Alive.Reset();
@@ -3283,29 +3350,40 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
-    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
+TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
 {
-    const bool SetProxyRole = true;
-
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 3 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
     input.Bundles["bigd"]->RpcProxyRole = "custom-role";
+    auto dataCenters = GetDataCenters(input);
 
-    GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);
+    THashSet<TString> bundleProxies;
+    int dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : TString("custom-role");
+        auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
+        if (dcIndex <= GetActiveDataCenterCount()) {
+            bundleProxies.insert(dcProxies.begin(), dcProxies.end());
+        }
+    }
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
+    THashSet<TString> spareProxies;
+    for (const auto& dataCenter : dataCenters) {
+        auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
+        spareProxies.insert(dcProxies.begin(), dcProxies.end());
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
-    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
     THashSet<TString> usedSpare;
 
@@ -3317,7 +3395,7 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
         input.RpcProxies[proxyName]->Role = role;
     }
 
-    EXPECT_EQ(2, std::ssize(usedSpare));
+    EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(usedSpare));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3326,19 +3404,19 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 
     // Add new proxies to bundle
-    auto newProxies = GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);;
+    dcIndex = 0;
+    for (const auto& dataCenter : dataCenters) {
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : TString("custom-role");
+        auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
+    }
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
 
-    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        EXPECT_TRUE(usedSpare.count(proxyName) != 0);
-        EXPECT_EQ(role, "");
-        input.RpcProxies[proxyName]->Role = role;
-    }
-    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.RemovedProxyRole));
 
     // Check no more changes
     mutations = TSchedulerMutations{};
@@ -3348,22 +3426,28 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
-TEST(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
+TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
 {
-    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 4);
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 4 * GetDataCenterCount());
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    auto dataCenters = GetDataCenters(input);
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
-    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
+
+    THashSet<TString> spareProxies;
+    for (const auto& dataCenter : dataCenters) {
+        auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
+        spareProxies.insert(dcProxies.begin(), dcProxies.end());
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
 
-    EXPECT_EQ(3, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(3 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
         ASSERT_EQ(role, "bigd");
@@ -3373,7 +3457,7 @@ TEST(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_proxies");
 }
 
@@ -4915,6 +4999,14 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(EZoneSetup::MultiCluster, 3))
 );
 
+INSTANTIATE_TEST_SUITE_P(
+    TProxyRoleManagement,
+    TProxyRoleManagement,
+    ::testing::Values(
+        std::tuple(EZoneSetup::Simple, 1),
+        std::tuple(EZoneSetup::MultiCluster, 3))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TDataCentersPriority, AlphaNumDC)
@@ -5061,9 +5153,6 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
-    // Generate Spare nodes
-    auto zoneInfo = input.Zones["default-zone"];
-
     // Add new node to bundle
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
@@ -5073,7 +5162,6 @@ TEST(TDataCentersPriority, PerBundleForbidden)
         auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
         GenerateNodesForBundle(input, "bigd", 3, flags);
     }
-
 
     GenerateTabletCellsForBundle(input, "bigd", SlotCount * 6);
 
@@ -5258,6 +5346,210 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
 
     ApplyChangedStates(&input, mutations);
     ScheduleBundles(input, &mutations);
+}
+
+TEST(TDataCentersProxyPriority, AlphaNumDC)
+{
+    constexpr int PerDataCenterCount = 3;
+    auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 5 * dataCenters.size();
+
+    // Add new node to bundle
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", PerDataCenterCount, false, dataCenter);
+        GenerateProxiesForBundle(input, "spare", 5, false, dataCenter);
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    const auto& assignments = mutations.ChangedProxyRole;
+    EXPECT_EQ(9, std::ssize(assignments));
+
+    THashSet<TString> assigningDC;
+    for (const auto& [proxyName, role] : assignments) {
+        if (role != "bigd") {
+            continue;
+        }
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+    }
+
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    EXPECT_EQ(assigningDC, THashSet<TString>({"dc-1", "dc-2"}));
+}
+
+TEST(TDataCentersProxyPriority, Feasibility)
+{
+    constexpr int PerDataCenterCount = 3;
+
+    auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 5 * dataCenters.size();
+
+    // Add new node to bundle
+    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter);
+        auto spareProxies = GenerateProxiesForBundle(input, "spare", 5, false, dataCenter);
+
+        if (dataCenter != offlineDC) {
+            continue;
+        }
+
+        for (auto& nodeName : spareProxies) {
+            auto& proxyInfo = GetOrCrash(input.RpcProxies, nodeName);
+            proxyInfo->Alive.Reset();
+        }
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+    const auto& assignments = mutations.ChangedProxyRole;
+
+    THashSet<TString> assigningDC;
+    for (const auto& [proxyName, role] : assignments) {
+        if (role != "bigd") {
+            continue;
+        }
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+    }
+
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    dataCenters.erase(offlineDC);
+    EXPECT_EQ(assigningDC, dataCenters);
+}
+
+TEST(TDataCentersProxyPriority, Forbidden)
+{
+    constexpr int PerDataCenterCount = 3;
+    auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+
+    // Add new node to bundle
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", PerDataCenterCount, false, dataCenter);
+    }
+
+    auto offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    zoneInfo->DataCenters[offlineDC]->Forbidden = true;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    const auto& assignments = mutations.ChangedProxyRole;
+
+    THashSet<TString> assigningDC;
+    for (const auto& [proxyName, role] : assignments) {
+        if (role != "bigd") {
+            continue;
+        }
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+    }
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    dataCenters.erase(offlineDC);
+    EXPECT_EQ(assigningDC, dataCenters);
+}
+
+TEST(TDataCentersProxyPriority, PerBundleForbidden)
+{
+    constexpr int PerDataCenterCount = 3;
+    auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    // Add new node to bundle
+    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    input.Bundles["bigd"]->TargetConfig->ForbiddenDataCenters = { offlineDC };
+
+    // Add new node to bundle
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", PerDataCenterCount, false, dataCenter);
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    const auto& assignments = mutations.ChangedProxyRole;
+
+    THashSet<TString> assigningDC;
+    for (const auto& [proxyName, role] : assignments) {
+        if (role != "bigd") {
+            continue;
+        }
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+    }
+
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    dataCenters.erase(offlineDC);
+    EXPECT_EQ(assigningDC, dataCenters);
+}
+
+TEST(TDataCentersProxyPriority, DisruptionMinimizing)
+{
+    constexpr int PerDataCenterCount = 3;
+    auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    // Add new node to bundle
+    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+
+    for (const auto& dataCenter : dataCenters) {
+        auto proxies = GenerateProxiesForBundle(input, "bigd", PerDataCenterCount, false, dataCenter);
+
+        if (dataCenter == offlineDC) {
+            continue;
+        }
+
+        for (auto& proxy : GetRandomElements(proxies, 2)) {
+            auto& proxyInfo = GetOrCrash(input.RpcProxies, proxy);
+            proxyInfo->Role = "bigd";
+        }
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    const auto& assignments = mutations.ChangedProxyRole;
+
+    THashSet<TString> assigningDC;
+    for (const auto& [proxyName, role] : assignments) {
+        if (role != "bigd") {
+            continue;
+        }
+        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+    }
+
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(2, std::ssize(assigningDC));
+    dataCenters.erase(offlineDC);
+    EXPECT_EQ(assigningDC, dataCenters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

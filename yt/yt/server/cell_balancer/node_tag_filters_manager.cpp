@@ -15,7 +15,7 @@ static constexpr bool DoNotLeaveNodesDecommissioned = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCeiledShare(int totalAmount, int partCount)
+static int GetCeiledShare(int totalAmount, int partCount)
 {
     YT_VERIFY(partCount > 0);
 
