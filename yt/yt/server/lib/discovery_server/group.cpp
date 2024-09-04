@@ -20,7 +20,11 @@ TGroup::TGroup(
     , Logger(Logger().WithTag("GroupId: %v", Id_))
 { }
 
-TMemberPtr TGroup::AddOrUpdateMember(const TMemberInfo& memberInfo, TDuration leaseTimeout)
+TMemberPtr TGroup::AddOrUpdateMember(
+    const TMemberInfo& memberInfo,
+    const TGroupManagerInfo& groupManagerInfo,
+    TDuration leaseTimeout,
+    bool respectLimits)
 {
     YT_LOG_DEBUG("Updating member (MemberId: %v, LeaseTimeout: %v)",
         memberInfo.Id,
@@ -35,6 +39,20 @@ TMemberPtr TGroup::AddOrUpdateMember(const TMemberInfo& memberInfo, TDuration le
             const auto& member = it->second;
             UpdateMemberInfo(member, memberInfo, leaseTimeout);
             return member;
+        }
+
+        auto exceedsLimit = [&] (int value, std::optional<int> max_value) {
+            return respectLimits && max_value && value >= *max_value;
+        };
+
+        if (exceedsLimit(std::ssize(Members_), groupManagerInfo.Config->MaxMembersPerGroup)) {
+            THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::MemberLimitExceeded,
+                "Cannot add member %v to group %v: member limit exceeded",
+                memberInfo.Id,
+                Id_)
+                << TErrorAttribute("group", memberInfo.Id)
+                << TErrorAttribute("member_count", std::ssize(Members_))
+                << TErrorAttribute("max_members_per_group", groupManagerInfo.Config->MaxMembersPerGroup);
         }
     }
 

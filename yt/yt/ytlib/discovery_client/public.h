@@ -51,10 +51,14 @@ static const TString LastAttributesUpdateTimeAttribute = "last_attributes_update
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(
-    ((NoSuchGroup)     (2300))
-    ((NoSuchMember)    (2301))
-    ((InvalidGroupId)  (2302))
-    ((InvalidMemberId) (2303))
+    ((NoSuchGroup)         (2300))
+    ((NoSuchMember)        (2301))
+    ((InvalidGroupId)      (2302))
+    ((InvalidMemberId)     (2303))
+    ((NodeLimitExceeded)   (2304))
+    ((GroupLimitExceeded)  (2305))
+    ((DepthLimitExceeded)  (2306))
+    ((MemberLimitExceeded) (2307))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

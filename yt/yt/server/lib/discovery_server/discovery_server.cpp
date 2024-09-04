@@ -242,7 +242,7 @@ public:
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
         , Logger(DiscoveryServerLogger().WithTag("SelfAddress: %v", SelfAddress_))
-        , GroupManager_(New<TGroupManager>(Logger))
+        , GroupManager_(New<TGroupManager>(Logger, Config_))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),
             BIND(&TDiscoveryServer::SendGossip, MakeWeak(this)),
