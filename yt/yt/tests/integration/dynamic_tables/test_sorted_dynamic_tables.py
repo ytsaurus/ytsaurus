@@ -497,6 +497,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         value2 = {"key": [1, []], "value": "insert"}
         insert_rows("//tmp/t", [value2])
 
+        assert_items_equal(read_table("//tmp/t"), [value2, value1])
+
+        sync_compact_table("//tmp/t")
+
+        assert_items_equal(read_table("//tmp/t"), [value2, value1])
+
         with raises_yt_error(yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, {}], "value": "wrong"}
             insert_rows("//tmp/t", [wrong_value])
@@ -527,6 +533,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t2", [value3])
         value4 = {"key": ["a", "123"], "value": "insert"}
         insert_rows("//tmp/t2", [value4])
+
+        assert_items_equal(read_table("//tmp/t1"), [value2, value1])
+        assert_items_equal(read_table("//tmp/t2"), [value4, value3])
+
+        sync_unmount_table("//tmp/t1")
+        sync_mount_table("//tmp/t1")
+        sync_compact_table("//tmp/t2")
+
+        assert_items_equal(read_table("//tmp/t1"), [value2, value1])
+        assert_items_equal(read_table("//tmp/t2"), [value4, value3])
 
         with raises_yt_error(yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, []], "value": "wrong"}
