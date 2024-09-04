@@ -128,6 +128,9 @@ void TUploadPartRequest::Serialize(THttpRequest* request) const
     request->Path = Format("/%v/%v", Bucket, Key);
     request->Query["partNumber"] = ToString(PartIndex);
     request->Query["uploadId"] = UploadId;
+    if (ContentMd5) {
+        request->Headers["content-md5"] = *ContentMd5;
+    }
     request->Payload = Data;
 }
 
@@ -142,6 +145,9 @@ void TGetObjectRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Get;
     request->Path = Format("/%v/%v", Bucket, Key);
+    if (Range) {
+        request->Headers["range"] = *Range;
+    }
 }
 
 void TGetObjectResponse::Deserialize(const NHttp::IResponsePtr& response)
@@ -155,6 +161,9 @@ void TGetObjectStreamRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Get;
     request->Path = Format("/%v/%v", Bucket, Key);
+    if (Range) {
+        request->Headers["range"] = *Range;
+    }
 }
 
 void TGetObjectStreamResponse::Deserialize(const NHttp::IResponsePtr& response)
@@ -167,7 +176,7 @@ void TGetObjectStreamResponse::Deserialize(const NHttp::IResponsePtr& response)
 void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Post;
-    request->Path = "/";
+    request->Path = Format("/%v", Bucket);
     request->Query["delete"] = "";
     TStringStream bodyStream;
     bodyStream << R"(<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">)";
@@ -262,6 +271,21 @@ void TCompleteMultipartUploadResponse::Deserialize(const NHttp::IResponsePtr& re
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeadObjectRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Head;
+    request->Path = Format("/%v/%v", Bucket, Key);
+}
+
+void THeadObjectResponse::Deserialize(const NHttp::IResponsePtr& response)
+{
+    LastModified = TInstant::ParseRfc822(response->GetHeaders()->GetOrThrow("Last-Modified"));
+    ETag = response->GetHeaders()->GetOrThrow("ETag");
+    Size = FromString<ui64>(response->GetHeaders()->GetOrThrow("Content-Length"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClient
     : public IClient
 {
@@ -278,15 +302,21 @@ public:
     TFuture<void> Start() override
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
+        BaseHttpRequest_ = THttpRequest{
+            .Protocol = TString{urlRef.Protocol},
+            .Host = TString{urlRef.Host},
+            .Port = urlRef.Port,
+            .Region = Config_->Region,
+            .Service = "s3",
+        };
+
+        // If working with S3 proxy, THttpRequest must be filled using Config_->Url. But the connection is established with Config_->ProxyUrl.
+        if (Config_->ProxyUrl) {
+            urlRef = NHttp::ParseUrl(*Config_->ProxyUrl);
+        }
+
         auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
-            BaseHttpRequest_ = THttpRequest{
-                .Protocol = TString{urlRef.Protocol},
-                .Host = TString{urlRef.Host},
-                .Port = urlRef.Port,
-                .Region = Config_->Region,
-                .Service = "s3",
-            };
 
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
@@ -320,6 +350,7 @@ public:
     DEFINE_STRUCTURED_COMMAND(CreateMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(AbortMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(CompleteMultipartUpload)
+    DEFINE_STRUCTURED_COMMAND(HeadObject)
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
