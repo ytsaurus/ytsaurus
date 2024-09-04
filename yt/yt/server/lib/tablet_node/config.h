@@ -200,6 +200,7 @@ public:
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
+    TDuration MaxReplicationBatchSpan;
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationThrottler;
     TRelativeReplicationThrottlerConfigPtr RelativeReplicationThrottler;
     bool EnableReplicationLogging;

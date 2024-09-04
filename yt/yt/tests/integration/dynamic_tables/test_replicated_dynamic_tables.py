@@ -860,6 +860,34 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if inserted == inserter.counter:
                 break
 
+    @authors("ifsmirnov")
+    def test_max_replication_batch_span(self):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t",
+            mount_config={
+                "max_replication_batch_span": 1000,
+                "replication_tick_period": 5000,
+            })
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "foo"}], require_sync_replica=False)
+        sleep(3.0)
+        insert_rows("//tmp/t", [{"key": 2, "value1": "foo"}], require_sync_replica=False)
+
+        sync_enable_table_replica(replica_id)
+
+        def _read_from_replica():
+            return [
+                r["key"]
+                for r
+                in select_rows("key from [//tmp/r] order by key limit 10", driver=self.replica_driver)
+            ]
+
+        wait(lambda: _read_from_replica() == [1])
+        wait(lambda: _read_from_replica() == [1, 2])
+
     @authors("babenko")
     def test_sync_replication_sorted(self):
         self._create_cells()
