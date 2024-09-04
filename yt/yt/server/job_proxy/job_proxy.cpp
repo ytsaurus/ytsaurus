@@ -764,7 +764,7 @@ TJobResult TJobProxy::RunJob()
 
             if (Config_->UseRetryingChannels) {
                 tvmBridgeChannel = CreateRetryingChannel(
-                    Config_->RetryingChannelConfig,
+                    Config_->RetryingChannel,
                     std::move(tvmBridgeChannel));
             }
 
@@ -815,7 +815,7 @@ TJobResult TJobProxy::RunJob()
 
         if (Config_->UseRetryingChannels) {
             supervisorChannel = CreateRetryingChannel(
-                Config_->RetryingChannelConfig,
+                Config_->RetryingChannel,
                 std::move(supervisorChannel));
         }
 

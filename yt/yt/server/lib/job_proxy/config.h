@@ -460,7 +460,7 @@ public:
 
     bool UseRetryingChannels;
 
-    NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
+    NRpc::TRetryingChannelConfigPtr RetryingChannel;
 
     bool EnableCudaProfileEventStreaming;
 
@@ -503,7 +503,7 @@ public:
 
     bool UseRetryingChannels;
 
-    NRpc::TRetryingChannelConfigPtr RetryingChannelConfig;
+    NRpc::TRetryingChannelConfigPtr RetryingChannel;
 
     TDuration PipeReaderTimeoutThreshold;
 

@@ -366,7 +366,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
         .Default(false);
 
-    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+    registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultNew();
 
     registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
@@ -428,7 +428,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
         .DefaultNew();
 
-    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+    registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultCtor([] {
             auto config = New<NRpc::TRetryingChannelConfig>();
             config->RetryBackoffTime = TDuration::Seconds(1);
