@@ -898,19 +898,23 @@ private:
                 zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
                 for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                    // TODO: make per dc bundle sensors here
                     auto bundleSensors = GetBundleSensors(bundleName);
                     bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
                 }
             }
         }
 
-        for (const auto& [zoneName, spareInfo] : input.ZoneToSpareProxies) {
-            auto zoneSensor = GetZoneSensors(zoneName, {});
-            zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+        for (const auto& [zoneName, perDCSpareInfo] : input.ZoneToSpareProxies) {
+            for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
+                auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
+                zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
 
-            for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
-                auto bundleSensors = GetBundleSensors(bundleName);
-                bundleSensors->UsingSpareProxyCount.Update(std::ssize(instancies));
+                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                    // TODO: make per dc bundle sensors here
+                    auto bundleSensors = GetBundleSensors(bundleName);
+                    bundleSensors->UsingSpareProxyCount.Update(std::ssize(instancies));
+                }
             }
         }
 

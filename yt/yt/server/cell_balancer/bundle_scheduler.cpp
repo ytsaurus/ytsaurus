@@ -1158,7 +1158,6 @@ THashMap<TString, THashSet<TString>> GetAliveProxies(
     EGracePeriodBehaviour gracePeriodBehaviour)
 {
     THashMap<TString, THashSet<TString>> aliveProxies;
-
     auto now = TInstant::Now();
 
     for (const auto& [dataCenterName, dataCenterProxies] : bundleProxies) {
