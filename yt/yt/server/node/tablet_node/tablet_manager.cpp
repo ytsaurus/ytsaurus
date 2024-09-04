@@ -4530,6 +4530,32 @@ private:
             ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
             : nullptr;
 
+        // COMPAT(ifsmirnov)
+        if (auto* context = TryGetCurrentMutationContext()) {
+            auto reign = static_cast<ETabletReign>(context->Request().Reign);
+            if (reign >= ETabletReign::DropBuiltinAttrsFromMountConfig) {
+                if (extraMountConfigAttributes) {
+                    for (auto key : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
+                        if (extraMountConfigAttributes->RemoveChild(key)) {
+                            YT_LOG_DEBUG("Removed invalid builtin key from extra mount config "
+                                "(TabletId: %v, Key: %v)",
+                                tabletId,
+                                key);
+                        }
+                    }
+                }
+            } else {
+                // Drop enable_dynamic_store_read even in replay mode
+                // because it would've crashed the node anyway.
+                if (extraMountConfigAttributes && extraMountConfigAttributes->FindChild("enable_dynamic_store_read")) {
+                    YT_LOG_ALERT("Found enable_dynamic_store_read in extra mount config attributes, will drop "
+                        "(TabletId: %v)",
+                        tabletId);
+                    extraMountConfigAttributes->RemoveChild("enable_dynamic_store_read");
+                }
+            }
+        }
+
         TRawTableSettings settings{
             .Provided = {
                 .MountConfigNode = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
