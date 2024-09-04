@@ -1469,6 +1469,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     }
 
     return TGetQueryTrackerInfoResult{
+        .QueryTrackerStage = options.QueryTrackerStage,
         .ClusterName = std::move(clusterName),
         .SupportedFeatures = std::move(supportedFeatures),
         .AccessControlObjects = std::move(accessControlObjects),

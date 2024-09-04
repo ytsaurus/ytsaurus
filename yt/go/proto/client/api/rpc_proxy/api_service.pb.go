@@ -22386,6 +22386,7 @@ type TRspGetQueryTrackerInfo struct {
 	ClusterName          *string  `protobuf:"bytes,1,req,name=cluster_name,json=clusterName" json:"cluster_name,omitempty"`
 	SupportedFeatures    []byte   `protobuf:"bytes,2,req,name=supported_features,json=supportedFeatures" json:"supported_features,omitempty"` // YSON
 	AccessControlObjects []string `protobuf:"bytes,3,rep,name=access_control_objects,json=accessControlObjects" json:"access_control_objects,omitempty"`
+	QueryTrackerStage    *string  `protobuf:"bytes,4,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
 }
 
 func (x *TRspGetQueryTrackerInfo) Reset() {
@@ -22418,6 +22419,13 @@ func (x *TRspGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
 // Deprecated: Use TRspGetQueryTrackerInfo.ProtoReflect.Descriptor instead.
 func (*TRspGetQueryTrackerInfo) Descriptor() ([]byte, []int) {
 	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{304}
+}
+
+func (x *TRspGetQueryTrackerInfo) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
 }
 
 func (x *TRspGetQueryTrackerInfo) GetClusterName() string {
