@@ -42,9 +42,12 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
 	cmd := "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
 	jupyterEnv := map[string]string{
-		"NB_GID":        "0",
-		"NB_UID":        "0",
-		"NB_USER":       "root",
+		"NB_GID":  "0",
+		"NB_UID":  "0",
+		"NB_USER": "root",
+		// Force ytsaurus-client to use the Docker image from this Jupyter kernel as the default Docker image for all operations.
+		// ytsaurus-client uses pickle, which works reliably only when pickle and unpickle are performed on identical systems
+		// (like the same docker image).
 		"YT_BASE_LAYER": speclet.JupyterDockerImage,
 	}
 	for key, value := range c.config.ExtraEnvVars {
