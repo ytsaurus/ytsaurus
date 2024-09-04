@@ -921,9 +921,8 @@ void TLeaderCommitter::OnSnapshotsComplete()
 
     if (checksumMismatch) {
         for (auto id = 0; id < std::ssize(LastSnapshotInfo_->Checksums); ++id) {
-            auto checksum = LastSnapshotInfo_->Checksums[id];
-            if (checksum) {
-                YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %x)",
+            if (auto checksum = LastSnapshotInfo_->Checksums[id]) {
+                YT_LOG_ALERT("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %x)",
                     LastSnapshotInfo_->SnapshotId,
                     id,
                     *checksum);
