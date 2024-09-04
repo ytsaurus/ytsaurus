@@ -27,6 +27,6 @@ target_link_libraries(backtrace-cursors-interop PUBLIC
 )
 
 target_sources(backtrace-cursors-interop PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/interop/interop.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/interop/interop_dummy.cpp
 )
 
