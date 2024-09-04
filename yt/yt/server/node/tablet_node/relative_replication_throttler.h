@@ -11,7 +11,9 @@ namespace NYT::NTabletNode {
 struct IRelativeReplicationThrottler
     : public TRefCounted
 {
-    virtual void OnReplicationBatchProcessed(NTransactionClient::TTimestamp recordTimestamp) = 0;
+    virtual void OnReplicationBatchProcessed(
+        NTransactionClient::TTimestamp firstRecordTimestamp,
+        NTransactionClient::TTimestamp lastRecordTimestamp) = 0;
 
     virtual TFuture<void> Throttle() const = 0;
 };

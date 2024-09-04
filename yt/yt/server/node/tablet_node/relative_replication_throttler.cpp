@@ -21,35 +21,38 @@ public:
         : Config_(std::move(config))
     { }
 
-    void OnReplicationBatchProcessed(TTimestamp recordTimestamp) override
+    void OnReplicationBatchProcessed(
+        TTimestamp firstRecordTimestamp,
+        TTimestamp lastRecordTimestamp) override
     {
         if (!Config_->Enable) {
             return;
         }
 
-        auto recordTime = TimestampToInstant(recordTimestamp).second;
+        auto firstRecordTime = TimestampToInstant(firstRecordTimestamp).second;
+        auto lastRecordTime = TimestampToInstant(lastRecordTimestamp).second;
         auto now = TInstant::Now();
 
         if (Queue_.empty()) {
-            Queue_.push({recordTime, now});
+            Queue_.push({lastRecordTime, now});
             AllowedTime_ = TInstant::Zero();
             return;
         }
 
-        if (recordTime - Queue_.back().LogRowRecordTime > Config_->ActivationThreshold) {
+        if (firstRecordTime - Queue_.back().LogRowRecordTime > Config_->ActivationThreshold) {
             Queue_.clear();
-            Queue_.push({recordTime, now});
+            Queue_.push({lastRecordTime, now});
             AllowedTime_ = TInstant::Zero();
             return;
         }
 
-        auto recordDelta = recordTime - Queue_.front().LogRowRecordTime;
+        auto recordDelta = lastRecordTime - Queue_.front().LogRowRecordTime;
         double correction = 1.0 * (std::ssize(Queue_) + 1) / std::ssize(Queue_);
         AllowedTime_ = std::max(
             AllowedTime_,
             Queue_.front().ReplicationTime + recordDelta / Config_->Ratio * correction);
 
-        Queue_.push({recordTime, now});
+        Queue_.push({lastRecordTime, now});
 
         while (std::ssize(Queue_) > Config_->MaxTimestampsToKeep) {
             Queue_.pop();
