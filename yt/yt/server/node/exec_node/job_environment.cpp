@@ -642,7 +642,7 @@ private:
     IInstancePtr MetaInstance_;
     IInstancePtr MetaIdleInstance_;
 
-    std::atomic_bool ShouldCloseDescriptors_;
+    std::atomic<bool> ShouldCloseDescriptors_;
 
     double CpuLimit_;
     double IdleCpuLimit_;

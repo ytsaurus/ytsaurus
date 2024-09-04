@@ -351,7 +351,7 @@ private:
     std::vector<TFuture<void>> SortErrors_;
 
     TError MergeError_;
-    std::atomic_bool MergeFinished_ = false;
+    std::atomic<bool> MergeFinished_ = false;
 
     void DoOpen()
     {
