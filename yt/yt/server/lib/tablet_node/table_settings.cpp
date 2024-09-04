@@ -66,19 +66,7 @@ namespace {
 
 void ValidateNoForbiddenKeysInPatch(const NYTree::IMapNodePtr& keys, TStringBuf patchKind)
 {
-    static constexpr std::array ExperimentModificationForbidden{
-        "tablet_cell_bundle",
-        "in_memory_mode",
-        "profiling_mode",
-        "profiling_tag",
-        "enable_dynamic_store_read",
-        "enable_consistent_chunk_replica_placement",
-        "enable_detailed_profiling",
-    };
-    static_assert(ExperimentModificationForbidden.size() == 7,
-        "Consider promoting master reign");
-
-    for (auto forbiddenKey : ExperimentModificationForbidden) {
+    for (auto forbiddenKey : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
         if (keys->FindChild(forbiddenKey)) {
             THROW_ERROR_EXCEPTION("Forbidden to change field %Qlv in experiments, fix your %v",
                 forbiddenKey,
