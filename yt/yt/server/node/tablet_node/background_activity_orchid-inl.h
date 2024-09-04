@@ -5,6 +5,7 @@
 #endif
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -32,28 +33,43 @@ void TBackgroundActivityOrchid<TTaskInfo>::Reconfigure(
 }
 
 template <class TTaskInfo>
-void TBackgroundActivityOrchid<TTaskInfo>::ResetPendingTasks(TTaskMap pendingTasks)
+void TBackgroundActivityOrchid<TTaskInfo>::AddPendingTasks(std::vector<TTaskInfoPtr>&& tasks)
 {
     auto guard = Guard(SpinLock_);
-    PendingTasks_ = std::move(pendingTasks);
+    for (auto&& task : tasks) {
+        PendingTasks_.emplace(task->TaskId, std::move(task));
+    }
 }
 
 template <class TTaskInfo>
-void TBackgroundActivityOrchid<TTaskInfo>::ClearPendingTasks()
+void TBackgroundActivityOrchid<TTaskInfo>::OnTaskAborted(TGuid taskId)
 {
     auto guard = Guard(SpinLock_);
-    PendingTasks_.clear();
+    if (!PendingTasks_.erase(taskId)) {
+        YT_LOG_ALERT("Attempted to abort tablet background activity task which is not pending, ignored (TaskId: %v)",
+            taskId);
+    }
 }
 
 template <class TTaskInfo>
 void TBackgroundActivityOrchid<TTaskInfo>::OnTaskStarted(TGuid taskId)
 {
     auto guard = Guard(SpinLock_);
-    if (auto it = PendingTasks_.find(taskId); it != PendingTasks_.end()) {
-        it->second.StartTime = Now();
 
-        RunningTasks_.emplace(taskId, std::move(it->second));
+    if (auto it = PendingTasks_.find(taskId); it != PendingTasks_.end()) {
+        auto&& task = it->second;
+
+        {
+            auto taskGuard = Guard(task->RuntimeData.SpinLock);
+            task->RuntimeData.StartTime = Now();
+            task->RuntimeData.ShowStatistics = true;
+        }
+
+        RunningTasks_.emplace(taskId, std::move(task));
         PendingTasks_.erase(it);
+    } else {
+        YT_LOG_ALERT("Attempted to start tablet background activity task which is not pending, ignored (TaskId: %v)",
+            taskId);
     }
 }
 
@@ -77,22 +93,24 @@ void TBackgroundActivityOrchid<TTaskInfo>::Serialize(NYson::IYsonConsumer* consu
     auto guard = Guard(SpinLock_);
     auto pendingTasks = GetFromHashMap(PendingTasks_);
     auto runningTasks = GetFromHashMap(RunningTasks_);
-    std::vector<TTaskInfo> failedTasks(FailedTasks_.begin(), FailedTasks_.end());
-    std::vector<TTaskInfo> completedTasks(CompletedTasks_.begin(), CompletedTasks_.end());
+    std::vector<TTaskInfoPtr> failedTasks(FailedTasks_.begin(), FailedTasks_.end());
+    std::vector<TTaskInfoPtr> completedTasks(CompletedTasks_.begin(), CompletedTasks_.end());
     guard.Release();
 
     std::stable_sort(
         pendingTasks.begin(),
         pendingTasks.end(),
-        [] (const TTaskInfo& lhs, const TTaskInfo& rhs) {
-            return lhs.ComparePendingTasks(rhs);
+        [] (const TTaskInfoPtr& lhs, const TTaskInfoPtr& rhs) {
+            return lhs->ComparePendingTasks(*rhs);
         });
 
     std::stable_sort(
         runningTasks.begin(),
         runningTasks.end(),
-        [] (const TTaskInfo& lhs, const TTaskInfo& rhs) {
-            return lhs.StartTime < rhs.StartTime;
+        [] (const TTaskInfoPtr& lhs, const TTaskInfoPtr& rhs) {
+            // NB: We can read StartTime without lock since StartTime task will
+            // not be changed and we have happens before because of SpinLock_.
+            return lhs->RuntimeData.StartTime < rhs->RuntimeData.StartTime;
         });
 
     #define ITERATE_TASK_VECTORS(XX) XX(pending) XX(running) XX(failed) XX(completed)
@@ -111,8 +129,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::Serialize(NYson::IYsonConsumer* consu
 template <class TTaskInfo>
 void TBackgroundActivityOrchid<TTaskInfo>::OnTaskFinished(
     TGuid taskId,
-    std::deque<TTaskInfo>* deque,
-    i64 maxTaskCount)
+    std::deque<TTaskInfoPtr>* deque,
+    int maxTaskCount)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -121,16 +139,24 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskFinished(
             deque->pop_front();
         }
 
-        it->second.FinishTime = Now();
-        deque->push_back(std::move(it->second));
+        auto&& task = it->second;
+        {
+            auto taskGuard = Guard(task->RuntimeData.SpinLock);
+            task->RuntimeData.FinishTime = Now();
+        }
+
+        deque->push_back(std::move(task));
         RunningTasks_.erase(it);
+    } else {
+        YT_LOG_ALERT("Attempted to finish tablet background activity task which is not running, ignored (TaskId: %v)",
+            taskId);
     }
 }
 
 template <class TTaskInfo>
 void TBackgroundActivityOrchid<TTaskInfo>::ShrinkDeque(
-    std::deque<TTaskInfo>* deque,
-    i64 targetSize)
+    std::deque<TTaskInfoPtr>* deque,
+    int targetSize)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -140,18 +166,86 @@ void TBackgroundActivityOrchid<TTaskInfo>::ShrinkDeque(
 }
 
 template <class TTaskInfo>
-std::vector<TTaskInfo> TBackgroundActivityOrchid<TTaskInfo>::GetFromHashMap(
+std::vector<typename TBackgroundActivityOrchid<TTaskInfo>::TTaskInfoPtr>
+TBackgroundActivityOrchid<TTaskInfo>::GetFromHashMap(
     const TTaskMap& source) const
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    std::vector<TTaskInfo> output;
+    std::vector<TTaskInfoPtr> output;
     output.reserve(source.size());
     for (const auto& [taskId, task] : source) {
         output.push_back(task);
     }
 
     return output;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TStorePtr>
+TBackgroundActivityTaskInfoBase::TReaderStatistics::TReaderStatistics(const std::vector<TStorePtr>& stores)
+{
+    for (const auto& store : stores) {
+        ++ChunkCount;
+        UncompressedDataSize += store->GetUncompressedDataSize();
+        CompressedDataSize += store->GetCompressedDataSize();
+        UnmergedRowCount += store->GetRowCount();
+        UnmergedDataWeight += store->GetDataWeight();
+    }
+}
+
+template <class TTaskInfo>
+TGuardedTaskInfo<TTaskInfo>::TGuardedTaskInfo(
+    TIntrusivePtr<TTaskInfo> info,
+    TIntrusivePtr<TBackgroundActivityOrchid<TTaskInfo>> orchid)
+    : Info(std::move(info))
+    , Orchid_(std::move(orchid))
+{ }
+
+template <class TTaskInfo>
+TGuardedTaskInfo<TTaskInfo>::~TGuardedTaskInfo()
+{
+    switch (FinishStatus_) {
+        case EBackgroundActivityTaskFinishStatus::Aborted:
+            Orchid_->OnTaskAborted(Info->TaskId);
+            break;
+        case EBackgroundActivityTaskFinishStatus::Failed:
+            Orchid_->OnTaskFailed(Info->TaskId);
+            break;
+        case EBackgroundActivityTaskFinishStatus::Completed:
+            Orchid_->OnTaskCompleted(Info->TaskId);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+template <class TTaskInfo>
+TTaskInfo* TGuardedTaskInfo<TTaskInfo>::operator->()
+{
+    return Info.Get();
+}
+
+template <class TTaskInfo>
+void TGuardedTaskInfo<TTaskInfo>::OnStarted()
+{
+    FinishStatus_ = EBackgroundActivityTaskFinishStatus::Completed;
+    Orchid_->OnTaskStarted(Info->TaskId);
+}
+
+template <class TTaskInfo>
+void TGuardedTaskInfo<TTaskInfo>::OnFailed(TError error)
+{
+    FinishStatus_ = EBackgroundActivityTaskFinishStatus::Failed;
+    auto taskGuard = Guard(Info->RuntimeData.SpinLock);
+    Info->RuntimeData.Error = std::move(error);
+}
+
+template <class TTaskInfo>
+bool TGuardedTaskInfo<TTaskInfo>::IsFailed() const
+{
+    return FinishStatus_ == EBackgroundActivityTaskFinishStatus::Failed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
