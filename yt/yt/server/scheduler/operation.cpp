@@ -677,7 +677,7 @@ IMapNodePtr ConvertSpecStringToNode(
 
     IMapNodePtr specNode;
     try {
-        specNode = ConvertToNode(specString, GetEphemeralNodeFactory(), treeSizeLimit)->AsMap();
+        specNode = ConvertToNode(specString, treeSizeLimit)->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec string")
             << ex;
