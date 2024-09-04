@@ -1332,7 +1332,7 @@ private:
     TMpscShardedQueue<TUringRequestPtr> OffloadedRequests_;
     TActionQueuePtr OffloadActionQueue_;
     IInvokerPtr OffloadInvoker_;
-    std::atomic_bool OffloadScheduled_;
+    std::atomic<bool> OffloadScheduled_;
 
     void NotifyIfNeeded(TQueueShard& shard)
     {

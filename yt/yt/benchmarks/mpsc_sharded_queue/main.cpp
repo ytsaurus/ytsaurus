@@ -125,7 +125,7 @@ void Bench(const std::string& queueName, int producersCount)
         }));
     }
 
-    std::atomic_bool stopped = false;
+    std::atomic<bool> stopped = false;
     i64 totalDequeued = 0;
 
     std::thread consumer([&] {

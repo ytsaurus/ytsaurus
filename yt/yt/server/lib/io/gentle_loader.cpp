@@ -883,7 +883,7 @@ private:
     ILoadAdjusterPtr LoadAdjuster_;
     TRequestSamplerPtr ReadRequestSampler_;
     TRequestSamplerPtr WriteRequestSampler_;
-    std::atomic_bool Started_;
+    std::atomic<bool> Started_;
     std::vector<TFuture<TDuration>> Results_;
     TInstant YieldTimeCounter_;
 
