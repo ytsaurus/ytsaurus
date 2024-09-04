@@ -328,8 +328,8 @@ private:
 
         YT_VERIFY(!std::exchange(Finished_, true));
 
-        auto availableIndicies = GetAvailableIndices(/*desiredRowCount*/ 0);
-        auto erasedIndices = GetErasedIndices(availableIndicies);
+        auto availableIndices = GetAvailableIndices(/*desiredRowCount*/ 0);
+        auto erasedIndices = GetErasedIndices(availableIndices);
 
         auto error = TError("Erasure journal chunk cannot be read")
             << TErrorAttribute("chunk_id", Reader_->ChunkId_)
