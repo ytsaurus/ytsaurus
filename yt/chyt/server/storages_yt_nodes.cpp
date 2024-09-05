@@ -416,7 +416,7 @@ private:
         "acl",
         "effective_acl",
         "user_attribute_keys",
-        "opaque_attribute_keys"
+        "opaque_attribute_keys",
         "user_attributes",
         "estimated_creation_time",
         "locks",
