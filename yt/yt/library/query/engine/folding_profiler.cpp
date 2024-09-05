@@ -1240,6 +1240,232 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGroupByStreamManager
+{
+public:
+    TGroupByStreamManager(
+        bool finalMode,
+        bool mergeMode,
+        TCodegenSource* codegenSource,
+        const TConstBaseQueryPtr& query,
+        size_t* slotCount,
+        size_t dummy,
+        const std::vector<TCodegenAggregate>& codegenAggregates,
+        const std::vector<EValueType>& keyTypes,
+        const std::vector<EValueType>& stateTypes,
+        const TCodegenFragmentInfosPtr& havingFragmentsInfos,
+        size_t havingPredicateId,
+        TCGVariables* variables)
+        : FinalMode_(finalMode)
+        , MergeMode_(mergeMode)
+        , CodegenSource_(codegenSource)
+        , Query_(query)
+        , GroupClause_(query->GroupClause)
+        , SlotCount_(slotCount)
+        , Dummy_(dummy)
+        , AddHaving_(query->HavingClause && !IsTrue(query->HavingClause))
+        , CodegenAggregates_(codegenAggregates)
+        , KeyTypes_(keyTypes)
+        , StateTypes_(stateTypes)
+        , HavingFragmentsInfos_(havingFragmentsInfos)
+        , HavingPredicateId_(havingPredicateId)
+        , Variables_(variables)
+    { }
+
+    void Process(size_t* intermediate, size_t* aggregated, size_t* delta, size_t* totals)
+    {
+        ConvertIntermediateToDelta(intermediate, delta);
+        AccountTotals(ETotalsMode::BeforeHaving, aggregated, delta, totals);
+        FilterHaving(delta);
+        AccountTotals(ETotalsMode::AfterHaving, aggregated, delta, totals);
+        AddDeltaToAggregated(delta, aggregated);
+        FinalizeAggregatedIfNeeded(aggregated);
+    }
+
+private:
+    const bool FinalMode_;
+    const bool MergeMode_;
+
+    TCodegenSource* CodegenSource_;
+
+    const TConstBaseQueryPtr& Query_;
+    const TConstGroupClausePtr& GroupClause_;
+
+    size_t* SlotCount_;
+    const size_t Dummy_;
+
+    const bool AddHaving_;
+
+    const std::vector<TCodegenAggregate>& CodegenAggregates_;
+    const std::vector<EValueType>& KeyTypes_;
+    const std::vector<EValueType>& StateTypes_;
+
+    const TCodegenFragmentInfosPtr& HavingFragmentsInfos_;
+    const size_t HavingPredicateId_;
+
+    TCGVariables* const Variables_;
+
+    // If the query uses `WITH TOTALS` together with `LIMIT`, but without `ORDER BY`,
+    // we should account totals on the query coordinator side,
+    // since the coordinator decides which rows will be included into the response.
+    // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
+    bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
+    {
+        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered();
+    }
+
+    // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
+    // We can also convert intermediate to deltas if the query is disjoint (when the grouping key and the primary key are identical).
+    void ConvertIntermediateToDelta(size_t* intermediate, size_t* delta) const
+    {
+        bool boundarySegmentsAreAlsoFinal = Query_->UseDisjointGroupBy;
+
+        if (boundarySegmentsAreAlsoFinal || FinalMode_) {
+            *delta = MakeCodegenMergeOp(CodegenSource_, SlotCount_, *intermediate, *delta);
+            *intermediate = Dummy_;
+        }
+    }
+
+    void AddToTotals(size_t* stream, size_t* totals) const
+    {
+        size_t duplicate;
+        std::tie(duplicate, *stream) = MakeCodegenDuplicateOp(
+            CodegenSource_,
+            SlotCount_,
+            *stream);
+
+        if (MergeMode_) {
+            *totals = MakeCodegenMergeOp(CodegenSource_, SlotCount_, *totals, duplicate);
+        } else {
+            *totals = duplicate; // Here we have nothing to merge.
+        }
+    }
+
+    void GroupTotals(size_t* totals) const
+    {
+        *totals = MakeCodegenGroupTotalsOp(
+            CodegenSource_,
+            SlotCount_,
+            *totals,
+            CodegenAggregates_,
+            KeyTypes_,
+            StateTypes_);
+    }
+
+    void FinalizeTotals(size_t* totals) const
+    {
+        *totals = MakeCodegenFinalizeOp(
+            CodegenSource_,
+            SlotCount_,
+            *totals,
+            GroupClause_->GroupItems.size(),
+            CodegenAggregates_,
+            StateTypes_);
+    }
+
+    void LimitTotalsInput(size_t* totals) const
+    {
+        bool considerLimit = Query_->IsOrdered() && Query_->IsFinal;
+
+        if (considerLimit) {
+            int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
+            int limitId = Variables_->AddOpaque<size_t>(Query_->Limit);
+            *totals = MakeCodegenOffsetLimiterOp(CodegenSource_, SlotCount_, *totals, offsetId, limitId);
+        }
+    }
+
+    void AccountTotals(ETotalsMode currentTotalsMode, size_t* aggregated, size_t* delta, size_t* totals) const
+    {
+        if (currentTotalsMode != GroupClause_->TotalsMode) {
+            return;
+        }
+
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+            if (!FinalMode_) {
+                // Do nothing.
+            } else {
+                AddToTotals(aggregated, totals);
+                AddToTotals(delta, totals);
+
+                // This relates to the final stage of the query execution only if the totals stream was not calculated at the previous levels.
+                // In this case, we should apply a limit. This will be equivalent to applying a limit to an aggregated stream.
+                // That is, all rows from the aggregated result would be taken into account in totals.
+                LimitTotalsInput(totals);
+
+                GroupTotals(totals);
+                FinalizeTotals(totals);
+            }
+        } else {
+            if (!FinalMode_) {
+                AddToTotals(delta, totals);
+                GroupTotals(totals);
+            } else {
+                AddToTotals(delta, totals);
+                GroupTotals(totals);
+                FinalizeTotals(totals);
+            }
+        }
+    }
+
+    void FilterHaving(size_t* delta) const
+    {
+        if (!AddHaving_) {
+            return;
+        }
+
+        auto types = std::vector<EValueType>();
+        for (auto& it : GroupClause_->GroupItems) {
+            types.push_back(it.Expression->GetWireType());
+        }
+
+        *delta = MakeCodegenFilterFinalizedOp(
+            CodegenSource_,
+            SlotCount_,
+            *delta,
+            HavingFragmentsInfos_,
+            HavingPredicateId_,
+            types,
+            CodegenAggregates_,
+            StateTypes_);
+    }
+
+    void AddDeltaToAggregated(size_t* delta, size_t* aggregated) const
+    {
+        if (!ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+            *delta = MakeCodegenFinalizeOp(
+                CodegenSource_,
+                SlotCount_,
+                *delta,
+                GroupClause_->GroupItems.size(),
+                CodegenAggregates_,
+                StateTypes_);
+        }
+
+        if (MergeMode_) {
+            *aggregated = MakeCodegenMergeOp(CodegenSource_, SlotCount_, *aggregated, *delta);
+        } else {
+            *aggregated = *delta; // Here we have nothing to merge.
+        }
+    }
+
+    void FinalizeAggregatedIfNeeded(size_t* aggregated) const
+    {
+        if (!FinalMode_) {
+            return;
+        }
+
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+            *aggregated = MakeCodegenFinalizeOp(
+                CodegenSource_,
+                SlotCount_,
+                *aggregated,
+                GroupClause_->GroupItems.size(),
+                CodegenAggregates_,
+                StateTypes_);
+        }
+    }
+};
+
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstBaseQueryPtr& query,
@@ -1364,20 +1590,18 @@ void TQueryProfiler::Profile(
             !mergeMode || query->IsOrdered() ? groupClause->CommonPrefixWithPrimaryKey : 0,
             ComparerManager_);
 
-        intermediateSlot = fragmentSlots.Intermediate;
-        aggregatedSlot = fragmentSlots.Aggregated;
-        size_t deltaSlot = fragmentSlots.Delta;
-        totalsSlot = fragmentSlots.Totals;
+        schema = groupClause->GetTableSchema(query->IsFinal);
+
+        size_t havingPredicateId = 0;
+        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
+
+        Fold(EFoldingObjectType::HavingOp);
+        Fold(addHaving);
 
         Fold(EFoldingObjectType::TotalsMode);
         Fold(groupClause->TotalsMode);
 
-        schema = groupClause->GetTableSchema(query->IsFinal);
-
         TCodegenFragmentInfosPtr havingFragmentsInfos;
-
-        size_t havingPredicateId = 0;
-        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
 
         if (addHaving) {
             TExpressionFragments havingExprFragments;
@@ -1386,6 +1610,35 @@ void TQueryProfiler::Profile(
             havingFragmentsInfos = havingExprFragments.ToFragmentInfos("havingExpression");
             havingExprFragments.DumpArgs(std::vector<size_t>{havingPredicateId});
         }
+
+        size_t newIntermediateSlot = fragmentSlots.Intermediate;
+        size_t newAggregatedSlot = fragmentSlots.Aggregated;
+        size_t newDeltaSlot = fragmentSlots.Delta;
+        size_t newTotalsSlot = fragmentSlots.Totals;
+
+        intermediateSlot = fragmentSlots.CompatIntermediate;
+        aggregatedSlot = fragmentSlots.CompatAggregated;
+        size_t deltaSlot = fragmentSlots.CompatDelta;
+        totalsSlot = fragmentSlots.CompatTotals;
+
+        auto manager = TGroupByStreamManager(
+            finalMode,
+            mergeMode,
+            codegenSource,
+            query,
+            slotCount,
+            dummySlot,
+            codegenAggregates,
+            keyTypes,
+            stateTypes,
+            havingFragmentsInfos,
+            havingPredicateId,
+            Variables_);
+
+        manager.Process(&newIntermediateSlot, &newAggregatedSlot, &newDeltaSlot, &newTotalsSlot);
+
+        // COMPAT(dtorilov): Remove after 24.1 is everywhere.
+        // COMPAT begin {
 
         // COMPAT(lukyan)
         if (finalMode || query->UseDisjointGroupBy) {
@@ -1414,6 +1667,11 @@ void TQueryProfiler::Profile(
             if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
                 Fold(EFoldingObjectType::HavingOp);
 
+                auto types = std::vector<EValueType>();
+                for (auto& it : groupClause->GroupItems) {
+                    types.push_back(it.Expression->GetWireType());
+                }
+
                 // Finalizes row to evaluate predicate and filters source values.
                 deltaSlot = MakeCodegenFilterFinalizedOp(
                     codegenSource,
@@ -1421,7 +1679,7 @@ void TQueryProfiler::Profile(
                     deltaSlot,
                     havingFragmentsInfos,
                     havingPredicateId,
-                    keySize,
+                    types,
                     codegenAggregates,
                     stateTypes);
             }
@@ -1492,6 +1750,13 @@ void TQueryProfiler::Profile(
                     stateTypes);
             }
         }
+
+        intermediateSlot = MakeCodegenMergeOp(codegenSource, slotCount, newIntermediateSlot, intermediateSlot);
+        aggregatedSlot = MakeCodegenMergeOp(codegenSource, slotCount, newAggregatedSlot, aggregatedSlot);
+        deltaSlot = MakeCodegenMergeOp(codegenSource, slotCount, newDeltaSlot, deltaSlot);
+        totalsSlot = MakeCodegenMergeOp(codegenSource, slotCount, newTotalsSlot, totalsSlot);
+
+        // COMPAT end }
 
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         if (havingFragmentsInfos) {
@@ -1570,10 +1835,10 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
-    bool considerLimit = query->IsOrdered() && !query->GroupClause;
+    bool considerLimit = query->IsOrdered() && (!query->GroupClause || query->IsFinal);
     Fold(considerLimit);
     if (considerLimit) {
-        // TODO(dtorilov): Since we have already applied filters to queries with `having` at this stage,
+        // Since we have already applied filters to queries with `having` at this stage,
         // it is safe to apply `limit` to the finalSlot of grouping queries.
 
         int offsetId = Variables_->AddOpaque<size_t>(query->Offset);

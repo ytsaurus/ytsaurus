@@ -1954,8 +1954,8 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();
-
-            resultMatcher(resultRowset->GetRows(), *primaryQuery->GetTableSchema());
+            auto rows = resultRowset->GetRows();
+            resultMatcher(rows, *primaryQuery->GetTableSchema());
 
             return std::pair(primaryQuery, resultStatistics);
         };
@@ -3502,6 +3502,355 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithAggregates)
     }
 }
 
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates1)
+{
+    auto split = MakeSplit({
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {
+            "k1=0;k2=0;v=0",
+            "k1=1;k2=0;v=1",
+            "k1=2;k2=0;v=2",
+            "k1=3;k2=0;v=3",
+        },
+        {
+            "k1=3;k2=1;v=4",
+            "k1=4;k2=0;v=5",
+        },
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"sv", EValueType::Int64}});
+        auto result = YsonToRows({
+            "k1=1;sv=1",
+            "k1=2;sv=2",
+            "k1=3;sv=7",
+            "k1=4;sv=5",
+        }, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(v) as sv from [//t] group by k1 offset 1 limit 5", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates2)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v2", EValueType::Int64},
+        {"v3", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {
+            "k0=1;k1=1;v2=1;v3=42",
+            "k0=1;k1=2;v2=2;v3=1",
+        },
+
+        {
+            "k0=1;k1=3;v2=2;v3=1",
+            "k0=1;k1=4;v2=1;v3=0",
+        },
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"k0", EValueType::Int64},
+            {"v2", EValueType::Int64},
+            {"mv", EValueType::Int64},
+        });
+        auto result = YsonToRows({
+            "k0=1;v2=1;mv=0",
+        }, resultSplit);
+        EvaluateCoordinatedGroupBy(
+            "select k0, v2, min(v3) as mv from [//t] group by k0, v2 limit 1", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates3)
+{
+    auto split = MakeSplit({
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+        {"v1", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{};
+    for (int i = 0; i < 100; ++i) {
+        if (i == 0 || i == 30 || i == 60) {
+            sources.emplace_back();
+        }
+
+        sources.back().push_back(Format("k1=%v;k2=%v;v1=%v", i / 10, i % 10, i));
+    }
+
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=0;s=45"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 limit 1", split, sources, ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=0;s=45", "k1=1;s=145"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 limit 2", split, sources, ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({"k1=1;s=145"}, resultSplit);
+        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 offset 1 limit 1", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates4)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"k2", EValueType::Int64, ESortOrder::Ascending},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {
+            "k0=#;k1=1;k2=9",
+            "k0=#;k1=2;k2=8",
+            "k0=#;k1=3;k2=7",
+            "k0=#;k1=4;k2=6",
+        },
+        {
+            "k0=#;k1=5;k2=5",
+            "k0=#;k1=6;k2=4",
+            "k0=#;k1=7;k2=3",
+        },
+        {
+            "k0=#;k1=8;k2=2",
+            "k0=#;k1=9;k2=1",
+
+            "k0=0;k1=0;k2=0",
+            "k0=0;k1=1;k2=5",
+        },
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"k0", EValueType::Int64},
+            {"k2", EValueType::Int64},
+        });
+        auto result = YsonToRows({
+            "k0=#;k2=1",
+            "k0=0;k2=0",
+        },
+        resultSplit);
+
+        for (int i = 0; i < 10; ++i) {
+            EvaluateCoordinatedGroupBy("select k0, min(k2) as mk from [//t] group by k0", split, sources, ResultMatcher(result));
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitNoPrimaryKeyInGroupKey)
+{
+    auto split = MakeSplit({
+        {"pk", EValueType::Int64, ESortOrder::Ascending},
+        {"gk", EValueType::Int64},
+        {"v", EValueType::Int64},
+    });
+
+    for (int iteration = 0; iteration < 10; ++iteration) {
+        auto sources = std::vector<std::vector<TString>>();
+        auto expected = THashMap<std::optional<i64>, i64>();
+
+        for (i64 pk = 0; pk < 100; ++pk) {
+            i64 gk = std::rand() % 20;
+            i64 v = std::rand() % 100;
+
+            expected[gk] += v;
+            expected[std::nullopt] += v;
+
+            bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+
+            if (shouldMakeNewPartition || sources.empty()) {
+                sources.emplace_back();
+            }
+
+            sources.back().emplace_back(Format("pk=%v;gk=%v;v=%v", pk, gk, v));
+        }
+
+        EvaluateCoordinatedGroupBy(
+            "gk, sum(v) as v from [//t] group by gk with totals",
+            split,
+            sources,
+            [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+                auto expectedCopy = expected;
+                EXPECT_EQ(actual.size(), expectedCopy.size());
+                for (const auto& row : actual) {
+                    auto key = (row[0].Type == EValueType::Null) ? std::nullopt : std::optional(row[0].Data.Int64);
+                    i64 value = row[1].Data.Int64;
+                    EXPECT_EQ(value, expectedCopy[key]);
+                    expectedCopy.erase(key);
+                }
+                ASSERT_TRUE(expectedCopy.empty());
+            });
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitPrimaryKeyPrefixInGroupKey)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    for (int iteration = 0; iteration < 10; ++iteration) {
+        auto sources = std::vector<std::vector<TString>>();
+        auto expected = THashMap<std::optional<i64>, i64>();
+
+        for (i64 i = 0; i < 100; ++i) {
+            i64 k0 = i / 10;
+            i64 k1 = i % 10;
+
+            i64 v = std::rand() % 100;
+
+            expected[k0] += v;
+            expected[std::nullopt] += v;
+
+            bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+
+            if (shouldMakeNewPartition || sources.empty()) {
+                sources.emplace_back();
+            }
+
+            sources.back().emplace_back(Format("k0=%v;k1=%v;v=%v", k0, k1, v));
+        }
+
+        EvaluateCoordinatedGroupBy(
+            "k0, sum(v) as v from [//t] group by k0 with totals",
+            split,
+            sources,
+            [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+                auto expectedCopy = expected;
+                EXPECT_EQ(actual.size(), expectedCopy.size());
+                for (const auto& row : actual) {
+                    auto key = (row[0].Type == EValueType::Null) ? std::nullopt : std::optional(row[0].Data.Int64);
+                    i64 value = row[1].Data.Int64;
+                    EXPECT_EQ(value, expectedCopy[key]);
+                    expectedCopy.erase(key);
+                }
+                ASSERT_TRUE(expectedCopy.empty());
+            });
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsWithLimitNoPrimaryKeyInGroupKey)
+{
+    auto split = MakeSplit({
+        {"pk", EValueType::Int64, ESortOrder::Ascending},
+        {"gk", EValueType::Int64},
+        {"v", EValueType::Int64},
+    });
+
+    for (int iteration = 0; iteration < 1; ++iteration) {
+        for (i64 limit = 1; limit < 100; ++limit) {
+            auto sources = std::vector<std::vector<TString>>();
+            auto expected = THashMap<std::optional<i64>, i64>();
+
+            for (i64 pk = 0; pk < 100; ++pk) {
+                i64 gk = std::rand() % 20;
+                i64 v = std::rand() % 100;
+
+                if (std::ssize(expected) <= limit || expected.contains(gk)) {
+                    expected[gk] += v;
+                    expected[std::nullopt] += v;
+                }
+
+                bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+
+                if (shouldMakeNewPartition || sources.empty()) {
+                    sources.emplace_back();
+                }
+
+                sources.back().emplace_back(Format("pk=%v;gk=%v;v=%v", pk, gk, v));
+            }
+
+            EvaluateCoordinatedGroupBy(
+                Format("gk, sum(v) as v from [//t] group by gk with totals limit %v", limit),
+                split,
+                sources,
+                [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+                    EXPECT_EQ(std::ssize(actual), std::ssize(expected));
+                    for (const auto& row : actual) {
+                        auto key = (row[0].Type == EValueType::Null) ? std::nullopt : std::optional(row[0].Data.Int64);
+                        i64 value = row[1].Data.Int64;
+                        EXPECT_EQ(value, expected[key]);
+                    }
+                });
+        }
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsWithLimitPrimaryKeyPrefixInGroupKey)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    for (int iteration = 0; iteration < 10; ++iteration) {
+        auto sources = std::vector<std::vector<TString>>();
+
+        auto expectedList = std::vector<THashMap<std::optional<i64>, i64>>();
+
+        expectedList.emplace_back();
+        expectedList.back()[std::nullopt] = 0;
+
+        for (i64 i = 0; i < 100; ++i) {
+            i64 k0 = i / 10;
+            i64 k1 = i % 10;
+
+            if (k1 == 0) {
+                expectedList.emplace_back(expectedList.back());
+            }
+
+            i64 v = std::rand() % 100;
+
+            expectedList.back()[k0] += v;
+            expectedList.back()[std::nullopt] += v;
+
+            bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+
+            if (shouldMakeNewPartition || sources.empty()) {
+                sources.emplace_back();
+            }
+
+            sources.back().emplace_back(Format("k0=%v;k1=%v;v=%v", k0, k1, v));
+        }
+
+        for (int limit = 1; limit <= 10; ++limit) {
+            EvaluateCoordinatedGroupBy(
+                Format("k0, sum(v) as v from [//t] group by k0 with totals limit %v", limit),
+                split,
+                sources,
+                [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+                    auto expected = expectedList[limit];
+                    EXPECT_EQ(actual.size(), expected.size());
+                    for (const auto& row : actual) {
+                        auto key = (row[0].Type == EValueType::Null) ? std::nullopt : std::optional(row[0].Data.Int64);
+                        i64 value = row[1].Data.Int64;
+                        EXPECT_EQ(value, expected[key]);
+                        expected.erase(key);
+                    }
+                    ASSERT_TRUE(expected.empty());
+                });
+        }
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
 {
     auto split = MakeSplit({
@@ -3587,8 +3936,6 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
         EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, ResultMatcher(result));
     }
 }
-
-// TODO(dtorilov): Coordinated tests for totals.
 
 TEST_F(TQueryEvaluateTest, GroupByAlias)
 {
@@ -3976,7 +4323,45 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit)
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=1",
+        "a=2;b=1",
+        "a=2;b=1",
+        "a=3;b=1",
+        "a=3;b=1",
+        "a=3;b=1",
+        "a=4;b=1",
+        "a=4;b=1",
+        "a=4;b=1",
+        "a=4;b=1",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=1;y=1",
+        "x=2;y=2",
+        "x=3;y=3",
+        "x=#;y=6",
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as y FROM [//t] group by a as x with totals limit 3",
+        split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit2)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},

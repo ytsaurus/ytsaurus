@@ -1062,21 +1062,20 @@ public:
 
     // If the common prefix of primary key and group key has changed,
     // no new lines can be added to the grouping. Thus, we can flush.
-    Y_FORCE_INLINE void FlushIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row);
+    Y_FORCE_INLINE void FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row);
 
     // If the request exceeds the given memory limit, we interrupt processing.
     // NB: We do not guarantee the correctness of the result.
     Y_FORCE_INLINE void ValidateGroupedRowCount(i64 groupRowLimit) const;
 
-    // Early query execution finish if input is ordered and we reached `limit` + `offset` rows.
-    Y_FORCE_INLINE bool IsUserRowLimitReached(const TExecutionContext* context) const;
+    // True when the common prefix of the grouping key and the primary key has changed.
+    Y_FORCE_INLINE bool IsCurrentGroupSetFinished(TPIValue* row) const;
 
-    // If all aggregate functions are `first()`, we can stop the query execution when the limit is reached.
+    // If current group set is finished and, we can stop the query execution when the row limit is reached.
+    Y_FORCE_INLINE bool CanEarlyStopProcessing(const TExecutionContext* context, TPIValue* row) const;
+
+    // If all aggregate functions are `first()`, we can stop the query execution when the row limit is reached.
     Y_FORCE_INLINE bool AreAllAggregatesFirst() const;
-
-    // If row's group key exists in the lookup table, the row should be grouped.
-    // Returns grouped row in the lookup table.
-    Y_FORCE_INLINE const TPIValue* InsertIfRowBelongsToExistingGroup(const TExecutionContext* context, TPIValue* row);
 
     // Returns grouped row in the lookup table.
     Y_FORCE_INLINE const TPIValue* InsertIntermediate(const TExecutionContext* context, TPIValue* row);
@@ -1237,10 +1236,10 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
     }
 }
 
-void TGroupByClosure::FlushIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
+void TGroupByClosure::FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
 {
     // NB: if !context->Ordered then PrefixEqComparer_ never lets flush.
-    if (LastKey_ && !PrefixEqComparer_(row, LastKey_)) {
+    if (IsCurrentGroupSetFinished(row)) {
         Flush(context, EStreamTag::Intermediate);
     }
 }
@@ -1252,30 +1251,27 @@ void TGroupByClosure::ValidateGroupedRowCount(i64 groupRowLimit) const
     }
 }
 
-bool TGroupByClosure::IsUserRowLimitReached(const TExecutionContext* context) const
+bool TGroupByClosure::IsCurrentGroupSetFinished(TPIValue* row) const
+{
+    return LastKey_ && !PrefixEqComparer_(row, LastKey_);
+}
+
+bool TGroupByClosure::CanEarlyStopProcessing(const TExecutionContext* context, TPIValue* row) const
 {
     // NB: We do not support `having` with `limit` yet.
     // If query uses `having`, skipping rows here is incorrect because `having` filters rows.
 
     // NB: Our semantics of `totals` operation allows to stop grouping when the limit is reached.
 
-    return context->Ordered &&
-        GroupedRowCount_ >= context->Offset + context->Limit;
+    return
+        context->Ordered &&
+        (GroupedRowCount_ >= context->Offset + context->Limit) &&
+        (IsCurrentGroupSetFinished(row) || AllAggregatesAreFirst_);
 }
 
 bool TGroupByClosure::AreAllAggregatesFirst() const
 {
     return AllAggregatesAreFirst_;
-}
-
-const TPIValue* TGroupByClosure::InsertIfRowBelongsToExistingGroup(const TExecutionContext* context, TPIValue* row)
-{
-    YT_VERIFY(GroupedRowCount_ == context->Offset + context->Limit);
-    auto it = GroupedIntermediateRows_.find(row);
-    if (it != GroupedIntermediateRows_.end()) {
-        return *it;
-    }
-    return nullptr;
 }
 
 const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* context, TPIValue* row)
@@ -1420,7 +1416,7 @@ bool TGroupByClosure::IsFlushed() const
 
 template <typename TFlushFunction>
 void TGroupByClosure::FlushWithBatching(
-    const TExecutionContext* context,
+    const TExecutionContext* /*context*/,
     const TPIValue** begin,
     const TPIValue** end,
     const TFlushFunction& flush)
@@ -1435,16 +1431,10 @@ void TGroupByClosure::FlushWithBatching(
 
     bool finished = false;
 
-    // FIXME(dtorilov): We cannot skip intermediate rows for ordered queries
+    // We cannot skip intermediate rows for ordered queries
     // (when the grouping key is a prefix of primary key),
     // since intermediate rows from the beginning of the processed range
     // can be grouped with rows of the previous range.
-
-    if (context->Ordered && ProcessedRows_ < context->Offset) {
-        i64 skip = std::min(context->Offset - ProcessedRows_, end - begin);
-        ProcessedRows_ += skip;
-        begin += skip;
-    }
 
     while (!finished && begin < end) {
         i64 size = std::min(begin + RowsetProcessingBatchSize, end) - begin;
@@ -1512,7 +1502,7 @@ const TPIValue* InsertGroupRow(
 
     switch (rowTag) {
         case EStreamTag::Aggregated: {
-            if (closure->IsUserRowLimitReached(context)) {
+            if (closure->CanEarlyStopProcessing(context, row)) {
                 return nullptr;
             }
 
@@ -1521,16 +1511,12 @@ const TPIValue* InsertGroupRow(
         }
 
         case EStreamTag::Intermediate: {
-            closure->FlushIfCurrentGroupSetIsFinished(context, row);
+            closure->FlushIntermediatesIfCurrentGroupSetIsFinished(context, row);
 
             closure->ValidateGroupedRowCount(context->GroupRowLimit);
 
-            if (closure->IsUserRowLimitReached(context)) {
-                if (closure->AreAllAggregatesFirst()) {
-                    return nullptr;
-                }
-
-                return closure->InsertIfRowBelongsToExistingGroup(context, row);
+            if (closure->CanEarlyStopProcessing(context, row)) {
+                return nullptr;
             }
 
             closure->ValidateGroupKeyIsNotNull(row);
@@ -1569,18 +1555,35 @@ void GroupOpHelper(
     void** consumeDeltaClosure,
     TRowsConsumer consumeDeltaFunction,
     void** consumeTotalsClosure,
-    TRowsConsumer consumeTotalsFunction)
+    TRowsConsumer consumeTotalsFunction,
+    void** compatConsumeIntermediateClosure,
+    TRowsConsumer compatConsumeIntermediateFunction,
+    void** compatConsumeAggregatedClosure,
+    TRowsConsumer compatConsumeAggregatedFunction,
+    void** compatConsumeDeltaClosure,
+    TRowsConsumer compatConsumeDeltaFunction,
+    void** compatConsumeTotalsClosure,
+    TRowsConsumer compatConsumeTotalsFunction)
 {
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto prefixEqComparer = PrepareFunction(prefixEqComparerFunction);
     auto groupHasher = PrepareFunction(groupHasherFunction);
     auto groupComparer = PrepareFunction(groupComparerFunction);
+
     auto consumeIntermediate = PrepareFunction(consumeIntermediateFunction);
     auto consumeAggregated = PrepareFunction(consumeAggregatedFunction);
     auto consumeDelta = PrepareFunction(consumeDeltaFunction);
     auto consumeTotals = PrepareFunction(consumeTotalsFunction);
 
-    TGroupByClosure closure(
+    auto compatConsumeIntermediate = PrepareFunction(compatConsumeIntermediateFunction);
+    auto compatConsumeAggregated = PrepareFunction(compatConsumeAggregatedFunction);
+    auto compatConsumeDelta = PrepareFunction(compatConsumeDeltaFunction);
+    auto compatConsumeTotals = PrepareFunction(compatConsumeTotalsFunction);
+
+    bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
+        (!context->ResponseFeatureFlags.Get().ValueOrThrow().WithTotalsFinalizesAggregatedOnCoordinator);
+
+    auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
         prefixEqComparer,
         groupHasher,
@@ -1589,14 +1592,14 @@ void GroupOpHelper(
         keySize + valuesCount,
         shouldCheckForNullGroupKey,
         allAggregatesAreFirst,
-        consumeIntermediateClosure,
-        consumeIntermediate,
-        consumeAggregatedClosure,
-        consumeAggregated,
-        consumeDeltaClosure,
-        consumeDelta,
-        consumeTotalsClosure,
-        consumeTotals);
+        groupByInCompatMode ? compatConsumeIntermediateClosure : consumeIntermediateClosure,
+        groupByInCompatMode ? compatConsumeIntermediate : consumeIntermediate,
+        groupByInCompatMode ? compatConsumeAggregatedClosure : consumeAggregatedClosure,
+        groupByInCompatMode ? compatConsumeAggregated : consumeAggregated,
+        groupByInCompatMode ? compatConsumeDeltaClosure : consumeDeltaClosure,
+        groupByInCompatMode ? compatConsumeDelta : consumeDelta,
+        groupByInCompatMode ? compatConsumeTotalsClosure : consumeTotalsClosure,
+        groupByInCompatMode ? compatConsumeTotals : consumeTotals);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());

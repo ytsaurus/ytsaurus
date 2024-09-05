@@ -2833,7 +2833,7 @@ size_t MakeCodegenFilterFinalizedOp(
     size_t producerSlot,
     TCodegenFragmentInfosPtr fragmentInfos,
     size_t predicateId,
-    size_t keySize,
+    std::vector<EValueType> keyTypes,
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> stateTypes)
 {
@@ -2854,17 +2854,17 @@ size_t MakeCodegenFilterFinalizedOp(
             nullptr,
             "expressionClosurePtr");
 
-        Value* finalizedValues = CodegenAllocateValues(builder, keySize + codegenAggregates.size());
+        Value* finalizedValues = CodegenAllocateValues(builder, keyTypes.size() + codegenAggregates.size());
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             Value* finalizedValuesRef = builder->ViaClosure(finalizedValues);
 
-            for (size_t index = 0; index < keySize; index++) {
+            for (int index = 0; index < std::ssize(keyTypes); index++) {
                 auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,
                     index,
-                    stateTypes[index]);
+                    keyTypes[index]);
 
                 value.StoreToValues(builder, finalizedValuesRef, index);
             }
@@ -2873,10 +2873,11 @@ size_t MakeCodegenFilterFinalizedOp(
                 auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,
-                    keySize + index,
+                    std::ssize(keyTypes) + index,
                     stateTypes[index]);
+
                 codegenAggregates[index].Finalize(builder, builder.Buffer, value)
-                    .StoreToValues(builder, finalizedValuesRef, keySize + index);
+                    .StoreToValues(builder, finalizedValuesRef, std::ssize(keyTypes) + index);
             }
 
             auto rowBuilder = TCGExprContext::Make(
@@ -3208,6 +3209,11 @@ TGroupOpSlots MakeCodegenGroupOp(
     size_t deltaSlot = (*slotCount)++;
     size_t totalsSlot = (*slotCount)++;
 
+    size_t compatIntermediateSlot = (*slotCount)++;
+    size_t compatAggregatedSlot = (*slotCount)++;
+    size_t compatDeltaSlot = (*slotCount)++;
+    size_t compatTotalsSlot = (*slotCount)++;
+
     *codegenSource = [
         =,
         codegenSource = std::move(*codegenSource),
@@ -3347,10 +3353,10 @@ TGroupOpSlots MakeCodegenGroupOp(
                 // Here *newRowPtrRef != groupRow.
 
                 // Rows over limit are skipped
-                auto notSkip = builder->CreateIsNotNull(groupValues);
+                auto shouldSkip = builder->CreateIsNull(groupValues);
 
                 CodegenIf<TCGContext>(builder, builder->CreateNot(streamTagIsAggregated), [&] (TCGContext& builder) {
-                    CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
+                    CodegenIf<TCGContext>(builder, builder->CreateNot(shouldSkip), [&] (TCGContext& builder) {
                         for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                             auto aggState = TCGValue::LoadFromRowValues(
                                 builder,
@@ -3378,7 +3384,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     });
                 });
 
-                return allAggregatesFirst ? builder->CreateIsNull(groupValues) : builder->getFalse();
+                return shouldSkip;
             };
 
             codegenSource(builder);
@@ -3391,10 +3397,18 @@ TGroupOpSlots MakeCodegenGroupOp(
         auto consumeDelta = MakeConsumer(builder, "ConsumeGroupedDeltaRows", deltaSlot);
         auto consumeTotals = TLlvmClosure();
 
+        auto compatConsumeIntermediate = MakeConsumer(builder, "CompatConsumeGroupedIntermediateRows", compatIntermediateSlot);
+        auto compatConsumeAggregated = TLlvmClosure();
+        auto compatConsumeDelta = MakeConsumer(builder, "CompatConsumeGroupedDeltaRows", compatDeltaSlot);
+        auto compatConsumeTotals = TLlvmClosure();
+
         if (isMerge) {
             // Totals and final streams do not appear in inputs of NodeTread and Non-Coordinated queries.
             consumeAggregated = MakeConsumer(builder, "ConsumeGroupedAggregatedRows", aggregatedSlot);
             consumeTotals = MakeConsumer(builder, "ConsumeGroupedTotalsRows", totalsSlot);
+
+            compatConsumeAggregated = MakeConsumer(builder, "CompatConsumeGroupedAggregatedRows", compatAggregatedSlot);
+            compatConsumeTotals = MakeConsumer(builder, "CompatConsumeGroupedTotalsRows", compatTotalsSlot);
         }
 
         builder->CreateCall(
@@ -3426,10 +3440,22 @@ TGroupOpSlots MakeCodegenGroupOp(
 
                 isMerge ? consumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
                 isMerge ? consumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
+
+                compatConsumeIntermediate.ClosurePtr,
+                compatConsumeIntermediate.Function,
+
+                isMerge ? compatConsumeAggregated.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? compatConsumeAggregated.Function : ConstantInt::getNullValue(builder->getPtrTy()),
+
+                compatConsumeDelta.ClosurePtr,
+                compatConsumeDelta.Function,
+
+                isMerge ? compatConsumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? compatConsumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
             });
     };
 
-    return {intermediateSlot, aggregatedSlot, deltaSlot, totalsSlot};
+    return {intermediateSlot, aggregatedSlot, deltaSlot, totalsSlot, compatIntermediateSlot, compatAggregatedSlot, compatDeltaSlot, compatTotalsSlot};
 }
 
 size_t MakeCodegenGroupTotalsOp(
