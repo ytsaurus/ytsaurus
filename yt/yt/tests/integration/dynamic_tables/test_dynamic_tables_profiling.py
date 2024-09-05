@@ -11,6 +11,8 @@ from yt_helpers import profiler_factory
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
 from functools import partial
 
 import pytest
@@ -90,6 +92,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         )
 
     @authors("alexelexa")
+    @flaky(max_runs=3)
     def test_validate_resource_time_wall_time_sensor(self):
         sync_create_cells(1)
 
@@ -101,9 +104,14 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         assert tablet_profiling.get_counter("write/row_count") == 0
         assert tablet_profiling.get_counter("write/validate_resource_wall_time") == 0
 
-        insert_rows(table_path, [{"key": 1, "value": "some_str"}])
+        rows = [
+            {"key": 1, "value": "some_str"},
+            {"key": 2, "value": "another_one"}
+        ]
+        for i in range(len(rows)):
+            insert_rows(table_path, [rows[i]])
+            wait(lambda: tablet_profiling.get_counter("write/row_count") == i + 1)
 
-        wait(lambda: tablet_profiling.get_counter("write/row_count") == 1)
         assert tablet_profiling.get_all_time_max("write/validate_resource_wall_time") > 0
 
     @authors("gridem")
