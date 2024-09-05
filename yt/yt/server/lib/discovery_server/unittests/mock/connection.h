@@ -211,6 +211,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override
     {
         YT_UNIMPLEMENTED();

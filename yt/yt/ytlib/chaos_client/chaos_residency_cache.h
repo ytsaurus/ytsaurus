@@ -12,20 +12,20 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IReplicationCardResidencyCache
+struct IChaosResidencyCache
     : public virtual TRefCounted
 {
-    virtual TFuture<NObjectClient::TCellTag> GetReplicationCardResidency(TReplicationCardId replicationCardId) = 0;
-    virtual void ForceRefresh(TReplicationCardId replicationCardId, NObjectClient::TCellTag cellTag) = 0;
+    virtual TFuture<NObjectClient::TCellTag> GetChaosResidency(NObjectClient::TObjectId objectId) = 0;
+    virtual void ForceRefresh(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) = 0;
     virtual void Clear() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IReplicationCardResidencyCache)
+DEFINE_REFCOUNTED_TYPE(IChaosResidencyCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicationCardResidencyCachePtr CreateReplicationCardResidencyCache(
-    TReplicationCardResidencyCacheConfigPtr config,
+IChaosResidencyCachePtr CreateChaosResidencyCache(
+    TChaosResidencyCacheConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
     const NLogging::TLogger& logger);
 

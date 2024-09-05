@@ -16,7 +16,7 @@
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -299,12 +299,14 @@ public:
             ChaosCellDirectorySynchronizer_->Start();
         }
 
+        ChaosResidencyCache_ = CreateChaosResidencyCache(
+            config->ReplicationCardResidencyCache,
+            this,
+            Logger);
+
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
             CellDirectory_,
-            CreateReplicationCardResidencyCache(
-                config->ReplicationCardResidencyCache,
-                this,
-                Logger),
+            ChaosResidencyCache_,
             ChaosCellDirectorySynchronizer_,
             config->ChaosCellChannel);
 
@@ -455,6 +457,11 @@ public:
     const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() override
     {
         return BannedReplicaTrackerCache_;
+    }
+
+    const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
+    {
+        return ChaosResidencyCache_;
     }
 
     IInvokerPtr GetInvoker() override
@@ -931,6 +938,7 @@ private:
 
     IThreadPoolPtr ConnectionThreadPool_;
 
+    IChaosResidencyCachePtr ChaosResidencyCache_;
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 

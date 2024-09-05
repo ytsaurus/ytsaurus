@@ -48,6 +48,16 @@ class TestChaos(ChaosTestBase):
     NUM_TEST_PARTITIONS = 20
     NUM_SCHEDULERS = 1
 
+    DELTA_DRIVER_CONFIG = {
+        "enable_distributed_replication_collocation_attachment": True
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "enable_distributed_replication_collocation_attachment": True
+        }
+    }
+
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
 
@@ -3220,7 +3230,7 @@ class TestChaos(ChaosTestBase):
         assert all(cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids)
 
         wait(lambda: get("#{0}/@mode".format(replica_ids[3])) == "sync")
-        self._sync_replication_era(card_id)
+        self._sync_replication_era(card_id, replicas)
 
         with self.CellsDisabled(clusters=["primary"], tablet_bundles=["default"]):
             wait(lambda: get("#{0}/@mode".format(replica_ids[0])) == "async")
@@ -3347,28 +3357,7 @@ class TestChaos(ChaosTestBase):
         }
 
         def _create_supertable(prefix, clusters, sync_cluster):
-            crt = "{0}-crt".format(prefix)
-            create("chaos_replicated_table", crt, attributes={
-                "chaos_cell_bundle": "c",
-                "replicated_table_options": replicated_table_options
-            })
-            card_id = get("{0}/@replication_card_id".format(crt))
-
-            replicas = [
-                {
-                    "cluster_name": cluster,
-                    "content_type": content_type,
-                    "mode": "sync" if cluster == sync_cluster else "async",
-                    "enabled": True,
-                    "replica_path": "{0}-{1}-{2}".format(prefix, cluster, content_type),
-                }
-                for content_type in ["data", "queue"]
-                for cluster in clusters
-            ]
-            replica_ids = self._create_chaos_table_replicas(replicas, table_path=crt)
-            self._create_replica_tables(replicas, replica_ids)
-            self._sync_replication_era(card_id, replicas)
-            return crt, card_id, replicas, replica_ids
+            return self._create_chaos_supertable(prefix, clusters, sync_cluster, "c", replicated_table_options)
 
         clusters = self.get_cluster_names()
         crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
@@ -3467,6 +3456,67 @@ class TestChaos(ChaosTestBase):
             with self.CellsDisabled(clusters=[sync_clusters[0]], tablet_bundles=["default"]):
                 wait(lambda: _get_sync_replica_clusters(crt1, content_type) != sync_clusters)
                 wait(lambda: _check(content_type))
+
+    @authors("savrus")
+    def test_alter_replication_card_collocation(self):
+        self._init_replicated_table_tracker()
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": False,
+            "min_sync_replica_count": 1,
+            "max_sync_replica_count": 1,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+
+        def _create_supertable(prefix, clusters, sync_cluster):
+            return self._create_chaos_supertable(prefix, clusters, sync_cluster, "c", replicated_table_options)
+
+        clusters = self.get_cluster_names()
+        crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
+        crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
+
+        collocation_options = {
+            "preferred_sync_replica_clusters": [clusters[0]]
+        }
+
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [crt1],
+            "options": collocation_options
+        })
+
+        dst_cell_id = self._sync_create_chaos_cell()
+        self._sync_migrate_replication_cards(cell_id, [card1], dst_cell_id)
+
+        address = get("#{0}/@peers/0/address".format(dst_cell_id))
+        collocation_path = "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/replication_card_collocations/{2}".format(address, dst_cell_id, collocation_id)
+        collocation = get(collocation_path)
+        assert_items_equal(collocation["options"], collocation_options)
+
+        alter_replication_card(card2, replication_card_collocation_id=collocation_id)
+        assert get(f"#{card2}/@replication_card_collocation_id") == collocation_id
+        wait(lambda: card2 in get(f"#{collocation_id}/@replication_card_ids"))
+
+        collocation = get(collocation_path)
+        assert collocation["state"] == "normal"
+        assert collocation["size"] == 2
+        assert card1 in collocation["replication_card_ids"]
+        assert card2 in collocation["replication_card_ids"]
+
+        # Workaround for YT-22791.
+        alter_replication_card(card1, enable_replicated_table_tracker=True)
+        alter_replication_card(card2, enable_replicated_table_tracker=True)
+
+        def _get_sync_replica_clusters(crt):
+            def valid(replica):
+                return replica["mode"] == "sync" and replica["content_type"] == "data"
+            return list(builtins.set(replica["cluster_name"] for replica in get("{0}/@replicas".format(crt)).values() if valid(replica)))
+
+        wait(lambda: _get_sync_replica_clusters("//tmp/a-crt") == _get_sync_replica_clusters("//tmp/b-crt"))
+        assert _get_sync_replica_clusters("//tmp/b-crt") == [clusters[0]]
 
     @authors("savrus")
     @pytest.mark.parametrize("method", ["alter", "remove"])

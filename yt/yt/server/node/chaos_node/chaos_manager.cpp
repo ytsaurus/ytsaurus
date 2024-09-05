@@ -158,6 +158,11 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this)),
         });
+        transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqAttachReplicationCardToRemoteCollocation>({
+            .Prepare = BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareAttachReplicationCardToRemoteCollocation, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TChaosManager::HydraCommitAttachReplicationCardToRemoteCollocation, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TChaosManager::HydraAbortAttachReplicationCardToRemoteCollocation, Unretained(this)),
+        });
     }
 
     IYPathServicePtr GetOrchidService() const override
@@ -288,13 +293,6 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
-    std::vector<TReplicationCardId> GetReplicationCardCollocationCardsIds(
-        const TReplicationCardCollocationId& replicationCardCollocationId) override
-    {
-        const auto* collocation = GetReplicationCardCollocationOrThrow(replicationCardCollocationId);
-        return collocation->GetReplicationCardIds();
-    }
-
     const std::vector<TCellId>& CoordinatorCellIds() override
     {
         return CoordinatorCellIds_;
@@ -331,6 +329,17 @@ public:
         }
 
         return replicationCard;
+    }
+
+    TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId collocationId) override
+    {
+        auto* collocation = FindReplicationCardCollocation(collocationId);
+        if (!collocation) {
+            THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown, "No such replication card collocation")
+                << TErrorAttribute("replication_card_collocation_id", collocationId);
+        }
+
+        return collocation;
     }
 
 private:
@@ -407,16 +416,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId collocationId)
-    {
-        auto* collocation = FindReplicationCardCollocation(collocationId);
-        if (!collocation) {
-            THROW_ERROR_EXCEPTION("No such replication card collocation")
-                << TErrorAttribute("replication_card_collocation_id", collocationId);
-        }
-        return collocation;
-    }
 
     void SaveKeys(TSaveContext& context) const
     {
@@ -700,7 +699,12 @@ private:
         replicationCard->ValidateCollocationNotMigrating();
 
         if (collocationId && *collocationId) {
-            auto* collocation = GetReplicationCardCollocationOrThrow(*collocationId);
+            auto* collocation = FindReplicationCardCollocation(*collocationId);
+            if (!collocation) {
+                THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCollocationNotKnown,
+                    "No such replication card collocation")
+                    << TErrorAttribute("collocation_id", *collocationId);
+            }
             collocation->ValidateNotMigrating();
         } else if (collocationOptions && !replicationCard->GetCollocation()) {
             THROW_ERROR_EXCEPTION("Replication card %v is not a member of any collocation",
@@ -745,6 +749,113 @@ private:
         }
     }
 
+    void HydraPrepareAttachReplicationCardToRemoteCollocation(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqAttachReplicationCardToRemoteCollocation* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto collocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
+        auto replicationCardCellId = FromProto<TCellId>(request->replication_card_cell_id());
+        auto collocationCellId = FromProto<TCellId>(request->replication_card_collocation_cell_id());
+
+        if (Suspended_) {
+            THROW_ERROR_EXCEPTION("Chaos cell is suspended")
+                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId());
+        }
+
+        if (Slot_->GetCellId() == replicationCardCellId) {
+            auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
+
+            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+                THROW_ERROR_EXCEPTION("Trying to attach replication card to remote collocation while it is in %Qlv state",
+                    replicationCard->GetState())
+                    << TErrorAttribute("replication_card_id", replicationCardId);
+            }
+
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::RemoteCollocationAttachPrepared);
+
+        } else if (Slot_->GetCellId() == collocationCellId) {
+            auto* collocation = GetReplicationCardCollocationOrThrow(collocationId);
+
+            if (collocation->GetState() != EReplicationCardCollocationState::Normal &&
+                collocation->GetState() != EReplicationCardCollocationState::Immigrating)
+            {
+                THROW_ERROR_EXCEPTION("Replication card collocation is in %Qlv state",
+                    collocation->GetState())
+                    << TErrorAttribute("replication_collocation_id", collocationId);
+            }
+
+            collocation->SetState(EReplicationCardCollocationState::Immigrating);
+            collocation->SetSize(collocation->GetSize() + 1);
+            UnbindReplicationCardCollocationFromRTT(collocation);
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected chaos cell: neigther replication card nor collocation")
+                << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
+                << TErrorAttribute("replication_card_collocation_cell_id", collocationCellId)
+                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId());
+        }
+
+        YT_LOG_DEBUG("Prepared distributed replication card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
+            replicationCardId,
+            collocationId);
+    }
+
+    void HydraCommitAttachReplicationCardToRemoteCollocation(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqAttachReplicationCardToRemoteCollocation* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto collocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
+        auto replicationCardCellId = FromProto<TCellId>(request->replication_card_cell_id());
+        auto collocationCellId = FromProto<TCellId>(request->replication_card_collocation_cell_id());
+
+        if (Slot_->GetCellId() == replicationCardCellId) {
+            auto* replicationCard = GetReplicationCard(replicationCardId);
+            YT_VERIFY(replicationCard->GetState() == EReplicationCardState::RemoteCollocationAttachPrepared);
+
+            replicationCard->SetState(EReplicationCardState::Normal);
+            replicationCard->Migration().ImmigratedToCellId = collocationCellId;
+            replicationCard->SetAwaitingCollocationId(collocationId);
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForMigration);
+        }
+
+        YT_LOG_DEBUG("Committed distributed replicatoin card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
+            replicationCardId,
+            collocationId);
+    }
+
+    void HydraAbortAttachReplicationCardToRemoteCollocation(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqAttachReplicationCardToRemoteCollocation* request,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto collocationId = FromProto<TReplicationCardCollocationId>(request->replication_card_collocation_id());
+        auto replicationCardCellId = FromProto<TCellId>(request->replication_card_cell_id());
+        auto collocationCellId = FromProto<TCellId>(request->replication_card_collocation_cell_id());
+
+        if (Slot_->GetCellId() == replicationCardCellId) {
+            auto* replicationCard = GetReplicationCard(replicationCardId);
+            YT_VERIFY(replicationCard->GetState() == EReplicationCardState::RemoteCollocationAttachPrepared);
+            UpdateReplicationCardState(replicationCard, EReplicationCardState::Normal);
+        } else if (Slot_->GetCellId() == collocationCellId) {
+            auto* collocation = GetReplicationCardCollocation(collocationId);
+            collocation->SetSize(collocation->GetSize() - 1);
+
+            YT_VERIFY(collocation->GetState() == EReplicationCardCollocationState::Immigrating);
+            if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
+                collocation->SetState(EReplicationCardCollocationState::Normal);
+                BindReplicationCardCollocationToRTT(collocation);
+            }
+        }
+
+        YT_LOG_DEBUG("Aborted distributed replication card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
+            replicationCardId,
+            collocationId);
+    }
+
     void HydraRemoveReplicationCard(
         const TCtxRemoveReplicationCardPtr& /*context*/,
         NChaosClient::NProto::TReqRemoveReplicationCard* request,
@@ -758,6 +869,12 @@ private:
             YT_VERIFY(isHiveMutation);
             MigratedReplicationCardRemover_->EnqueueRemoval(replicationCardId);
             return;
+        }
+
+        if (replicationCard->GetState() == EReplicationCardState::RemoteCollocationAttachPrepared) {
+            // TODO(savrus) Allow replication card removal during this process
+            THROW_ERROR_EXCEPTION("Failed to remove replication card since it is in locked by alter process")
+                << TErrorAttribute("replication_card_id", replicationCardId);
         }
 
         replicationCard->ValidateCollocationNotMigrating();
@@ -1424,20 +1541,29 @@ private:
 
             auto collocationId = FromProto<TReplicationCardCollocationId>(
                 protoReplicationCard.replication_card_collocation_id());
-            auto collocationSize = protoMigrationCard.replication_card_collocation_size();
             auto* collocation = FindReplicationCardCollocation(collocationId);
+            auto collocationSize = protoMigrationCard.replication_card_collocation_size();
 
-            YT_LOG_ALERT_IF(collocation && collocation->GetSize() != collocationSize,
+            YT_LOG_ALERT_IF(collocation && collocation->GetSize() != collocationSize && collocationSize != 0,
                 "Replication collocation size differ (CollocationId: %v, ExpectedSize: %v, ActualSize: %v)",
                 collocationId,
                 collocation->GetSize(),
                 collocationSize);
 
             if (!collocation && collocationId) {
+                YT_LOG_ALERT_IF(collocationSize == 0,
+                    "Creating replication card colocation with zero size (CollocationId: %v)",
+                        collocationId);
+
+                auto collocationOptions = protoMigrationCard.has_replication_card_collocation_options()
+                    ? ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(protoMigrationCard.replication_card_collocation_options()))
+                    : New<TReplicationCollocationOptions>();
+
                 collocation = CreateReplicationCardCollocation(
                     collocationId,
                     EReplicationCardCollocationState::Immigrating,
-                    collocationSize);
+                    collocationSize,
+                    std::move(collocationOptions));
             }
 
             auto replicationCardId = FromProto<TReplicationCardId>(protoMigrationCard.replication_card_id());
@@ -1470,6 +1596,7 @@ private:
             replicationCard->SetTableClusterName(protoReplicationCard.table_cluster_name());
             replicationCard->SetEra(protoReplicationCard.era());
             replicationCard->SetReplicatedTableOptions(std::move(options));
+            replicationCard->SetAwaitingCollocationId(TReplicationCardCollocationId());
 
             YT_VERIFY(replicationCard->Coordinators().empty());
 
@@ -1492,9 +1619,10 @@ private:
 
             replicationCard->SetState(EReplicationCardState::GeneratingTimestampForNewEra);
 
-            YT_LOG_DEBUG("Replication card migration started (ReplicationCardId: %v, Domestic: %v, ReplicationCard: %v)",
+            YT_LOG_DEBUG("Replication card migration started (ReplicationCardId: %v, Domestic: %v, CollocationId: %v, ReplicationCard: %v)",
                 replicationCardId,
                 IsDomesticReplicationCard(replicationCardId),
+                collocationId,
                 *replicationCard);
 
             UpdateReplicationCardCollocation(
@@ -1562,10 +1690,13 @@ private:
 
         auto replicationCardId = replicationCard->GetId();
         YT_LOG_DEBUG("Migrating replication card to different cell "
-            "(ReplicationCardId: %v, ImmigratedToCellId: %v, Domestic: %v)",
+            "(ReplicationCardId: %v, ImmigratedToCellId: %v, Domestic: %v, CollocationId: %v)",
             replicationCardId,
             immigratedToCellId,
-            IsDomesticReplicationCard(replicationCardId));
+            IsDomesticReplicationCard(replicationCardId),
+            replicationCard->GetCollocation()
+                ? replicationCard->GetCollocation()->GetId()
+                : replicationCard->GetAwaitingCollocationId());
 
         NChaosNode::NProto::TReqMigrateReplicationCards req;
         ToProto(req.mutable_emigrated_from_cell_id(), Slot_->GetCellId());
@@ -1587,6 +1718,10 @@ private:
         if (auto* collocation = replicationCard->GetCollocation()) {
             ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());
             protoMigrationCard->set_replication_card_collocation_size(collocation->GetSize());
+            protoMigrationCard->set_replication_card_collocation_options(
+                ConvertToYsonString(collocation->Options()).ToString());
+        } else if (replicationCard->GetAwaitingCollocationId()) {
+            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard->GetAwaitingCollocationId());
         }
 
         TReplicationCardFetchOptions fetchOptions{
@@ -1760,6 +1895,11 @@ private:
                         replicationCard->GetState(),
                         newState);
                 }
+                break;
+
+            case EReplicationCardState::RemoteCollocationAttachPrepared:
+                YT_VERIFY(replicationCard->GetState() == EReplicationCardState::Normal);
+                replicationCard->SetState(EReplicationCardState::RemoteCollocationAttachPrepared);
                 break;
 
             default:
@@ -2198,16 +2338,17 @@ private:
             }
         }
 
+        auto collocationCards = TReplicationCardCollocation::TReplicationCards(
+            replicationCards.begin(),
+            replicationCards.end());
+
         auto* collocation = CreateReplicationCardCollocation(
             MakeReplicationCardCollocationId(Slot_->GenerateId(EObjectType::ReplicationCardCollocation)),
             EReplicationCardCollocationState::Normal,
-            /*size*/ 0);
+            std::ssize(collocationCards),
+            std::move(collocationOptions));
 
-        collocation->ReplicationCards() = TReplicationCardCollocation::TReplicationCards(
-            replicationCards.begin(),
-            replicationCards.end());
-        collocation->SetSize(collocation->ReplicationCards().size());
-        collocation->Options() = std::move(collocationOptions);
+        collocation->ReplicationCards() = std::move(collocationCards);
 
         for (auto replicationCard : replicationCards) {
             replicationCard->SetCollocation(collocation);
@@ -2261,6 +2402,11 @@ private:
                 oldCollocation->GetState());
         }
 
+        YT_LOG_DEBUG("Updating replication card collocation (ReplicationCardId: %v, OldCollocationId: %v, NewCollocationId: %v)",
+            replicationCard->GetId(),
+            oldCollocation ? oldCollocation->GetId() : TGuid(),
+            collocation ? collocation->GetId() : TGuid());
+
         if (oldCollocation) {
             EraseOrCrash(oldCollocation->ReplicationCards(), replicationCard);
             if (!migration) {
@@ -2279,6 +2425,7 @@ private:
 
         if (collocation) {
             EmplaceOrCrash(collocation->ReplicationCards(), replicationCard);
+
             if (!migration) {
                 collocation->SetSize(collocation->GetSize() + 1);
                 FireReplicationCardCollocationUpdated(collocation);
@@ -2286,6 +2433,15 @@ private:
                 collocation->SetState(EReplicationCardCollocationState::Normal);
                 BindReplicationCardCollocationToRTT(collocation);
             }
+
+            YT_LOG_DEBUG("Updated replication card collocation (Migration: %v, ReplicationCardId: %v,"
+                " CollocationId: %v, CollocationSize: %v, CollocationActualSize: %v, CollocationState: %v)",
+                migration,
+                replicationCard->GetId(),
+                collocation->GetId(),
+                collocation->GetSize(),
+                std::size(collocation->ReplicationCards()),
+                collocation->GetState());
         }
 
         replicationCard->SetCollocation(collocation);
@@ -2294,13 +2450,21 @@ private:
     TReplicationCardCollocation* CreateReplicationCardCollocation(
         TReplicationCardCollocationId collocationId,
         EReplicationCardCollocationState state,
-        int size)
+        int size,
+        TReplicationCollocationOptionsPtr options)
     {
+        YT_LOG_DEBUG("Create replication card collocation (CollocationId: %v, State: %v, Size: %v, Options: %v)",
+            collocationId,
+            state,
+            size,
+            ConvertToYsonString(options, EYsonFormat::Text).ToString());
+
         auto collocationHolder = std::make_unique<TReplicationCardCollocation>(collocationId);
         auto* collocation = collocationHolder.get();
         CollocationMap_.Insert(collocationId, std::move(collocationHolder));
         collocation->SetState(state);
         collocation->SetSize(size);
+        collocation->Options() = std::move(options);
         return collocation;
     }
 
@@ -2340,6 +2504,15 @@ private:
         FireReplicationCardCollocationUpdated(collocation);
     }
 
+    void UnbindReplicationCardCollocationFromRTT(TReplicationCardCollocation* collocation)
+    {
+        for (auto* replicationCard : collocation->ReplicationCards()) {
+            UnbindReplicationCardFromRTT(replicationCard);
+        }
+
+        ReplicationCollocationDestroyed_.Fire(collocation->GetId());
+    }
+
     void BindReplicationCardToRTT(TReplicationCard* replicationCard)
     {
         ReplicatedTableCreated_.Fire(TReplicatedTableData{
@@ -2366,6 +2539,16 @@ private:
         TEnumIndexedArray<EReplicationCardState, int> counts;
         for (const auto& [_, replicationCard] : ReplicationCardMap_) {
             counts[replicationCard->GetState()]++;
+        }
+
+        return counts;
+    }
+
+    TEnumIndexedArray<EReplicationCardCollocationState, int> CountReplicationCardCollocationStates() const
+    {
+        TEnumIndexedArray<EReplicationCardCollocationState, int> counts;
+        for (const auto& [_, collocation] : CollocationMap_) {
+            counts[collocation->GetState()]++;
         }
 
         return counts;
@@ -2403,18 +2586,27 @@ private:
     {
         // NB: Transactions account for both 2pc replication card creation and coordinator transactions.
         const auto& transactionManager = Slot_->GetTransactionManager();
-
         auto replicationCardStateCounts = CountReplicationCardStates();
+        auto collocationStateCounts = CountReplicationCardCollocationStates();
+
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("suspended").Value(Suspended_
                     && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
-                    && transactionManager->Transactions().empty())
+                    && transactionManager->Transactions().empty()
+                    && CollocationMap_.empty())
                 .Item("replication_card_states").DoMapFor(
                     TEnumTraits<EReplicationCardState>::GetDomainValues(),
                     [&] (TFluentMap fluent, const auto& state) {
                         fluent
                             .Item(CamelCaseToUnderscoreCase(ToString(state))).Value(replicationCardStateCounts[state]);
+                    })
+                .Item("active_transactions_count").Value(transactionManager->Transactions().GetSize())
+                .Item("colocation_states").DoMapFor(
+                    TEnumTraits<EReplicationCardCollocationState>::GetDomainValues(),
+                    [&] (TFluentMap fluent, const auto& state) {
+                        fluent
+                            .Item(CamelCaseToUnderscoreCase(ToString(state))).Value(collocationStateCounts[state]);
                     })
             .EndMap();
     }
@@ -2478,6 +2670,10 @@ private:
                 .Item("replicas_lag").DoMapFor(lagTimes, [] (TFluentMap fluent, const auto& lagTimePair) {
                     fluent.Item(ToString(lagTimePair.first)).Value(lagTimePair.second);
                 })
+                .Item("replication_card_collocation_id").Value(card->GetCollocation()
+                    ? card->GetCollocation()->GetId()
+                    : TReplicationCardCollocationId())
+                .Item("awaiting_replication_card_collocation_id").Value(card->GetAwaitingCollocationId())
             .EndMap();
     }
 
@@ -2499,6 +2695,7 @@ private:
                                     fluent
                                         .Item().Value(ToString(replicationCard->GetId()));
                                 })
+                            .Item("options").Value(collocation->Options())
                         .EndMap();
                 });
     }

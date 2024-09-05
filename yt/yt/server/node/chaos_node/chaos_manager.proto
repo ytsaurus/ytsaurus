@@ -83,6 +83,7 @@ message TReqMigrateReplicationCards
         required NYT.NProto.TGuid replication_card_id = 2;
         required NYT.NChaosClient.NProto.TReplicationCard replication_card = 3;
         optional int32 replication_card_collocation_size = 4;
+        optional string replication_card_collocation_options = 5;
     }
 
     required NYT.NProto.TGuid emigrated_from_cell_id = 1;

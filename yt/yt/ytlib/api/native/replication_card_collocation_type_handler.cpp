@@ -2,8 +2,12 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -44,7 +48,7 @@ private:
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id", TCellId());
         auto tablePaths = attributes->Get<std::vector<TYPath>>("table_paths");
         auto type = attributes->Get<NTableClient::ETableCollocationType>("type");
-        auto maybeCollocationOptions = attributes->Find<TString>("options");
+        auto maybeCollocationOptions = attributes->Find<TReplicatedTableOptionsPtr>("options");
 
         if (type != ETableCollocationType::Replication) {
             THROW_ERROR_EXCEPTION("Unknown collocation type: %v",
@@ -55,15 +59,17 @@ private:
             THROW_ERROR_EXCEPTION("Cannot create empty replication card collocation");
         }
 
-        if (maybeCollocationOptions) {
-            Y_UNUSED(ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(*maybeCollocationOptions)));
-        }
+        auto replicationCardIds = GetReplicationCardIds(tablePaths);
 
         if (!chaosCellId) {
-            chaosCellId = GetChaosCellId(tablePaths[0]);
+            // COMPAT(savrus)
+            if (Client_->GetNativeConnection()->GetConfig()->EnableDistributedReplicationCollocationAttachment) {
+                chaosCellId = GetChaosCellId(replicationCardIds[0]);
+            } else {
+                chaosCellId = GetChaosCellId(tablePaths[0]);
+            }
         }
 
-        auto replicationCardIds = GetReplicationCardIds(tablePaths);
         auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
@@ -71,7 +77,7 @@ private:
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_ids(), replicationCardIds);
         if (maybeCollocationOptions) {
-            req->set_options(*maybeCollocationOptions);
+            req->set_options(ConvertToYsonString(*maybeCollocationOptions).ToString());
         }
 
         auto rsp = WaitFor(req->Invoke())
@@ -118,6 +124,23 @@ private:
         return ConvertTo<TString>(yson);
     }
 
+    TCellId GetChaosCellId(TGuid objectId)
+    {
+        const auto& residencyCache = Client_->GetNativeConnection()->GetChaosResidencyCache();
+        auto cellTag = WaitFor(residencyCache->GetChaosResidency(objectId))
+            .ValueOrThrow();
+
+        const auto& cellDirectory = Client_->GetNativeConnection()->GetCellDirectory();
+        auto descriptor = cellDirectory->FindDescriptorByCellTag(cellTag);
+        if (!descriptor) {
+            THROW_ERROR_EXCEPTION("Chaos cell for %v %v is absent from cell directory",
+                CamelCaseToUnderscoreCase(ToString(TypeFromId(objectId))),
+                objectId);
+        }
+
+        return descriptor->CellId;
+    }
+
     TCellId GetChaosCellId(TYPath path)
     {
         auto yson = WaitFor(Client_->GetNode(Format("//sys/chaos_cell_bundles/%v/@metadata_cell_id", GetChaosCellBundle(path)), TGetNodeOptions{}))
@@ -125,9 +148,32 @@ private:
         return ConvertTo<TCellId>(yson);
     }
 
-    TYsonString GetObjectYson(TReplicationCardCollocationId /*replicationCardCollocationId*/) override
+    TYsonString GetObjectYson(TReplicationCardCollocationId replicationCardCollocationId) override
     {
-        THROW_ERROR_EXCEPTION("Method is not implemented");
+        auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(replicationCardCollocationId));
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
+        auto req = proxy.GetReplicationCardCollocation();
+        ToProto(req->mutable_replication_card_collocation_id(), replicationCardCollocationId);
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        auto options = rsp->has_options()
+            ? ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(rsp->options()))
+            : New<TReplicationCollocationOptions>();
+        auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(rsp->replication_card_ids());
+
+        return BuildYsonStringFluently()
+            .BeginAttributes()
+                .Item("id").Value(replicationCardCollocationId)
+                .Item("type").Value(EObjectType::ReplicationCardCollocation)
+                .Item("options").Value(options)
+                .Item("replication_card_ids").DoListFor(replicationCardIds, [&] (TFluentList fluent, auto replicationCardId) {
+                    fluent
+                        .Item().Value(replicationCardId);
+                })
+            .EndAttributes()
+            .Entity();
     }
 
     void DoRemoveObject(
