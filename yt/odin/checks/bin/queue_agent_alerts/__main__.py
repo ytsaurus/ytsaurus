@@ -100,8 +100,6 @@ def run_check(secrets, yt_client, logger, options, states):
         elif failed_instance_count > 0:
             description = str(YtError(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances",
                                       inner_errors=instances_errors))
-            # Log description in logs, since description isn't shown in UI.
-            logger.error("%s", description)
             return states.PARTIALLY_AVAILABLE_STATE, description
         else:
             logger.info(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances")
