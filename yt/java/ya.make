@@ -4,6 +4,7 @@ RECURSE(
     type-info
     yson
     yson-tree
+    yson-json-converter
     ytsaurus-client
     ytsaurus-client-core
     ytsaurus-client-examples
@@ -18,7 +19,6 @@ IF (NOT OPENSOURCE)
         canonize-schema
         jdbc
         jdbc/ub
-        yson-json-converter
         ytclient
         ytclient/tutorial
     )
