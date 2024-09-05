@@ -590,6 +590,7 @@ public:
             ? NullTransactionId
             : cypressTransaction.AncestorIds.back());
         subrequest->set_upload(false);
+        subrequest->set_enable_native_tx_externalization(true);
 
         const auto& attributes = cypressTransaction.Attributes;
 

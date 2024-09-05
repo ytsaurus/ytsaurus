@@ -86,6 +86,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,6 +95,10 @@ public:
     // COMPAT(h0pless): Remove this when all issues with system transaction types will be ironed out.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
 
+    // COMPAT(kvk1920)
+    // NB: meaningful only for Cypress tx.
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(NativeTxExternalizationEnabled);
+
     DEFINE_BYREF_RW_PROPERTY(THashSet<NHydra::TCellId>, LeaseCellIds);
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, LeasesRevokedPromise);

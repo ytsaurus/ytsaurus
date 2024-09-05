@@ -30,6 +30,10 @@ message TReqStartForeignTransaction
     optional string operation_title = 7;
 
     optional string user = 8;
+
+
+    // COMPAT(kvk1920): remove after 24.2.
+    optional bool enable_native_tx_externalization = 9 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

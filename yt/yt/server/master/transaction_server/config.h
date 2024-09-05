@@ -70,6 +70,10 @@ public:
     // COMPAT(kvk1920): Remove after enabling on every cluster.
     bool ForbidTransactionActionsForCypressTransactions;
 
+    // COMPAT(kvk1920)
+    // Allows to use native transaction ID instead of externalized one and vice versa.
+    bool EnableNonStrictExternalizedTransactionUsage;
+
     // Testing option.
     bool ThrowOnLeaseRevocation;
 

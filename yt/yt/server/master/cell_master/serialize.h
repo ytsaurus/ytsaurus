@@ -238,6 +238,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicationCollocationOptions)                                (2734))  // akozhikhov
     ((NestedAggregateColumns)                                       (2735))  // lukyan
     ((ForbiddenFieldsInMountConfig)                                 (2736))  // ifsmirnov
+    ((NativeTransactionExternalization)                             (2737))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

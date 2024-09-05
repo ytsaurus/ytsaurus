@@ -8,7 +8,7 @@ from yt_commands import (
     insert_rows, select_rows, alter_table,
     read_table, write_table, generate_timestamp, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table,
-    sync_compact_table, get_driver)
+    sync_compact_table, get_driver, make_externalized_tx_id, print_debug)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -82,12 +82,19 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
         def _multicell_lock(table, *args, **kwargs):
             lock(table, *args, **kwargs)
+            if "tx" in kwargs:
+                expected_tx = kwargs["tx"]
+                if get(f"#{table_id}/@foreign", driver=driver):
+                    expected_tx = make_externalized_tx_id(expected_tx, get(f"#{table_id}/@native_cell_tag"))
+                    print_debug("expected transaction_id:", expected_tx)
+            else:
+                expected_tx = None
 
             def _check():
                 locks = get("#{0}/@locks".format(table_id), driver=driver)
-                if "tx" in kwargs:
+                if expected_tx is not None:
                     for item in locks:
-                        if item["transaction_id"] == kwargs["tx"]:
+                        if item["transaction_id"] == expected_tx:
                             return True
                     return False
                 else:

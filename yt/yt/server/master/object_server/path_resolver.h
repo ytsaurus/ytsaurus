@@ -92,6 +92,10 @@ private:
 
     NTransactionServer::TTransaction* GetTransaction();
     TResolvePayload ResolveRoot();
+
+    // COMPAT(kvk1920): remove after 24.2.
+    bool IsBackupMethod() noexcept;
+    void MaybeApplyNativeTransactionExternalizationCompat(TObjectId objectId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
