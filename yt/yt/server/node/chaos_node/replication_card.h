@@ -20,12 +20,13 @@ DEFINE_ENUM(EShortcutState,
 );
 
 DEFINE_ENUM(EReplicationCardState,
-    ((Normal)                        (0))
-    ((RevokingShortcutsForAlter)     (1))
-    ((GeneratingTimestampForNewEra)  (2))
-    ((RevokingShortcutsForMigration) (3))
-    ((Migrated)                      (4))
-    ((AwaitingMigrationConfirmation) (5))
+    ((Normal)                           (0))
+    ((RevokingShortcutsForAlter)        (1))
+    ((GeneratingTimestampForNewEra)     (2))
+    ((RevokingShortcutsForMigration)    (3))
+    ((Migrated)                         (4))
+    ((AwaitingMigrationConfirmation)    (5))
+    ((RemoteCollocationAttachPrepared)  (6))
 );
 
 struct TCoordinatorInfo
@@ -71,6 +72,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, MigrationToken);
 
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocation*, Collocation);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocationId, AwaitingCollocationId);
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);

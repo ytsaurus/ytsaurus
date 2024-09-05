@@ -25,10 +25,11 @@
 
 namespace NYT::NChaosNode {
 
-using namespace NRpc;
 using namespace NChaosClient;
-using namespace NHydra;
 using namespace NClusterNode;
+using namespace NHydra;
+using namespace NObjectClient;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYson;
@@ -127,6 +128,8 @@ private:
 
         if (auto* collocation = replicationCard->GetCollocation()) {
             ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());
+        } else if (replicationCard->GetAwaitingCollocationId()) {
+            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard->GetAwaitingCollocationId());
         }
 
         std::vector<TCellId> coordinators;
@@ -161,14 +164,29 @@ private:
     {
         SyncWithUpstream();
 
-        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        auto objectId = FromProto<TObjectId>(request->replication_card_id());
 
-        context->SetRequestInfo("ReplicationCardId: %v",
-            replicationCardId);
+        context->SetRequestInfo("ObjectId: %v, Type: %v",
+            objectId,
+            TypeFromId(objectId));
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
-        Y_UNUSED(replicationCard);
+
+        switch (TypeFromId(objectId)) {
+            case EObjectType::ReplicationCard: {
+                auto* replicationCard = chaosManager->GetReplicationCardOrThrow(objectId);
+                Y_UNUSED(replicationCard);
+                break;
+            }
+            case EObjectType::ReplicationCardCollocation: {
+                auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(objectId);
+                Y_UNUSED(collocation);
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported object type: %v",
+                    TypeFromId(objectId));
+        }
 
         context->Reply();
     }
@@ -297,12 +315,14 @@ private:
         context->SetRequestInfo("ReplicationCardCollocationId: %v", replicationCardCollocationId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto cardIds = chaosManager->GetReplicationCardCollocationCardsIds(replicationCardCollocationId);
+        auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(replicationCardCollocationId);
+        auto replicationCardIds = collocation->GetReplicationCardIds();
 
         context->SetResponseInfo("ReplicationCardCollocationId: %v, ReplicationCardIds: %v",
             replicationCardCollocationId,
-            cardIds);
-        ToProto(response->mutable_collocation_replication_card_ids(), cardIds);
+            replicationCardIds);
+        ToProto(response->mutable_replication_card_ids(), replicationCardIds);
+        response->set_options(ConvertToYsonString(collocation->Options()).ToString());
         context->Reply();
     }
 
