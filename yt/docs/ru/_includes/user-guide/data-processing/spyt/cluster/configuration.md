@@ -46,7 +46,19 @@ spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
   --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}' \
-  --spark-cluster-version '1.36.0'
+  --spyt-version '2.2.0'
+```
+
+### Spark configuration
+
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"spark_conf"={...};}`:
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
+  --spyt-version '2.2.0'
 ```
 
 При использовании `spark-submit-yt` для настройки задачи существует опция `spark_conf_args`:
@@ -92,4 +104,15 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 }
 ```
 
+### Настройки операций
 
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../operations/operations-options.md).
+Это будет полезно, если необходимо изменить стандартные настройки операции например для увеличения количество failed джобов, после которого операция считается failed.
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
+  --spyt-version '2.2.0'
+```
