@@ -1297,7 +1297,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
 
         create_table_backup(
             self._make_backup_manifest(2),
-            checkpoint_timestamp_delay=3000)
+            checkpoint_timestamp_delay=4000)
         restore_table_backup(
             self._make_restore_manifest(2),
             mount=True,
