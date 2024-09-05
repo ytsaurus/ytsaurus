@@ -2147,11 +2147,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        class TActiveJobService
+        class TActiveJobsService
             : public TVirtualMapBase
         {
         public:
-            explicit TActiveJobService(TIntrusivePtr<TJobController> jobController)
+            explicit TActiveJobsService(TIntrusivePtr<TJobController> jobController)
                 : JobController_(std::move(jobController))
             {
                 SetOpaque(false);
@@ -2194,7 +2194,61 @@ private:
             const TIntrusivePtr<TJobController> JobController_;
         };
 
-        return New<TActiveJobService>(MakeStrong(this))->Via(Bootstrap_->GetJobInvoker());
+        return New<TActiveJobsService>(MakeStrong(this))->Via(Bootstrap_->GetJobInvoker());
+    }
+
+    IYPathServicePtr CreateAllocationsService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        class TAllocationsService
+            : public TVirtualMapBase
+        {
+        public:
+            explicit TAllocationsService(TIntrusivePtr<TJobController> jobController)
+                : JobController_(std::move(jobController))
+            {
+                SetOpaque(false);
+            }
+
+            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            {
+                std::vector<TString> keys;
+                keys.reserve(std::min<i64>(GetSize(), limit));
+
+                for (const auto& [id, _] : JobController_->IdToAllocations_) {
+                    if (std::ssize(keys) == limit) {
+                        break;
+                    }
+
+                    keys.push_back(NYT::ToString(id));
+                }
+
+                return keys;
+            }
+
+            i64 GetSize() const
+            {
+                return std::ssize(JobController_->IdToAllocations_);
+            }
+
+            IYPathServicePtr FindItemService(TStringBuf key) const
+            {
+                // NB: There is no guarantee that obtained key is
+                // still valid due to potential context switches
+                // during which IdToAllocations_ could be mutated.
+                if (auto allocation = JobController_->FindAllocation(TAllocationId(TGuid::FromString(key)))) {
+                    return allocation->GetOrchidService();
+                }
+
+                return nullptr;
+            }
+
+        private:
+            const TIntrusivePtr<TJobController> JobController_;
+        };
+
+        return New<TAllocationsService>(MakeStrong(this))->Via(Bootstrap_->GetJobInvoker());
     }
 
     IYPathServicePtr GetDynamicOrchidService()
@@ -2204,7 +2258,10 @@ private:
         return New<TCompositeMapService>()
             ->AddChild(
                 "active_jobs",
-                CreateActiveJobsService());
+                CreateActiveJobsService())
+            ->AddChild(
+                "allocations",
+                CreateAllocationsService());
     }
 
     IYPathServicePtr DoGetOrchidService()

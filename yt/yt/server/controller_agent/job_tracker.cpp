@@ -1056,6 +1056,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     // NB(pogorelov): Allocation may finish concurrently.
     allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
     if (!allocationInfo) {
+        // Means that allocation has finished concurrently. Such a job will be aborted in controller.
         YT_LOG_INFO("Allocation is unknown; skip settle job request");
 
         THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
@@ -1633,7 +1634,17 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                 });
 
                 allocation.EraseRunningJobOrCrash();
-                addAllocationToTryToErase(allocationIt,context.OperationInfo);
+
+                if (allocation.GetPostponedEvent()) {
+                    context.AddAllocationEvent(allocation.ConsumePostponedEventOrCrash());
+                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
+                } else {
+                    YT_LOG_WARNING(
+                        "Allocation without postponed event has disapeared from node, looks like heartbeats to scheduler are too slow (JobId: %v, AllocationId: %v, OperationId: %v)",
+                        jobInfo.JobId,
+                        allocationId,
+                        allocation.OperationId);
+                }
             }();
         }
 

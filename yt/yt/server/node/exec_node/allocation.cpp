@@ -7,8 +7,11 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 namespace NYT::NExecNode {
 
+using namespace NYTree;
 using namespace NClusterNode;
 using namespace NJobAgent;
 using namespace NScheduler;
@@ -481,6 +484,19 @@ const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noex
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_;
+}
+
+NYTree::IYPathServicePtr TAllocation::GetOrchidService()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto service =  New<TCompositeMapService>();
+
+    if (Job_) {
+        service->AddChild("job", Job_->GetOrchidService());
+    }
+
+    return service;
 }
 
 void TAllocation::OnAllocationFinished()
