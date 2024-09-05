@@ -185,7 +185,7 @@ size_t MakeCodegenFilterFinalizedOp(
     size_t slot,
     TCodegenFragmentInfosPtr fragmentInfos,
     size_t predicateId,
-    size_t keySize,
+    std::vector<EValueType> keyTypes,
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> stateTypes);
 
@@ -222,6 +222,12 @@ struct TGroupOpSlots
     size_t Aggregated;
     size_t Delta;
     size_t Totals;
+
+    // COMPAT(dtorilov): Remove after 24.1 is everywhere.
+    size_t CompatIntermediate;
+    size_t CompatAggregated;
+    size_t CompatDelta;
+    size_t CompatTotals;
 };
 
 TGroupOpSlots MakeCodegenGroupOp(
