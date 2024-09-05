@@ -746,8 +746,6 @@ void ImportParquetFilesFromS3(
     TString accessKeyId = GetEnv("ACCESS_KEY_ID");
     TString secretAccessKey = GetEnv("SECRET_ACCESS_KEY");
 
-    ConfigureSingletons(config->Singletons);
-
     TS3Config s3Config({
         .Url = url,
         .Region = region,
@@ -777,8 +775,6 @@ void ImportParquetFilesFromHuggingface(
 {
     YT_LOG_INFO("Start getting list of files");
     auto huggingfaceToken = GetEnvOrNull("HUGGINGFACE_TOKEN");
-
-    ConfigureSingletons(config->Singletons);
 
     auto poller = CreateThreadPoolPoller(1, "HuggingfacePoller");
     NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken, poller, urlOverride);

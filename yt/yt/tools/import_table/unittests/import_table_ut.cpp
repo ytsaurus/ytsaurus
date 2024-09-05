@@ -219,7 +219,7 @@ public:
     {
         std::vector<TString> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
-            fileNames.emplace_back(ToString(fileIndex) + ".par");
+            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
@@ -277,7 +277,7 @@ public:
     {
         std::vector<TString> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
-            fileNames.emplace_back(ToString(fileIndex) + ".par");
+            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
@@ -334,7 +334,7 @@ public:
 
     std::vector<TString> GenerateFileNames() override
     {
-        return {"0.par"};
+        return {"0.parquet"};
     }
 
     std::vector<TString> GenerateParquetData() override
