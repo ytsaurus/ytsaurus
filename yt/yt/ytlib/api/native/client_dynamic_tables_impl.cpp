@@ -3565,6 +3565,9 @@ void TClient::DoAlterReplicationCard(
     if (options.ReplicationCardCollocationId) {
         ToProto(req->mutable_replication_card_collocation_id(), *options.ReplicationCardCollocationId);
     }
+    if (options.CollocationOptions) {
+        req->set_collocation_options(ConvertToYsonString(options.CollocationOptions).ToString());
+    }
 
     WaitFor(req->Invoke())
         .ThrowOnError();

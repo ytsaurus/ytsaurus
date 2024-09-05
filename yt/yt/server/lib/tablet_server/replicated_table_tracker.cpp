@@ -994,12 +994,6 @@ public:
             return Options_;
         }
 
-        bool HasPreferredSyncReplicaClusters() const
-        {
-            return !TableTracker_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters.empty() ||
-                Options_->PreferredSyncReplicaClusters;
-        }
-
         THashSet<TString> GetPreferredSyncReplicaClusters() const
         {
             // Priority from highest to lowest: global cluster option, collocation option, table option.
@@ -1459,13 +1453,9 @@ private:
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
 
-            std::optional<THashSet<TString>> preferredReplicas;
+            auto preferredReplicas = table.GetPreferredSyncReplicaClusters();
+
             THashMap<TString, int> goodReplicaPriorities;
-
-            if (table.HasPreferredSyncReplicaClusters()) {
-                preferredReplicas = table.GetPreferredSyncReplicaClusters();
-            }
-
             if (table.GetCollocationId() == NullObjectId) {
                 for (auto* replica : replicasByState[EReplicaState::GoodAsync]) {
                     goodReplicaPriorities[replica->GetClusterName()] = 1;
@@ -1486,10 +1476,11 @@ private:
 
             YT_LOG_DEBUG_IF(!tableCommands.empty(),
                 "Generated replica mode change commands "
-                "(TableId: %v, ContentType: %v, CollocationId: %v, Commands: %v)",
+                "(TableId: %v, ContentType: %v, CollocationId: %v, PreferredReplicas: %v, Commands: %v)",
                 replicaFamily.TableId,
                 replicaFamily.ContentType,
                 table.GetCollocationId(),
+                preferredReplicas,
                 tableCommands);
 
             std::move(tableCommands.begin(), tableCommands.end(), std::back_inserter(commands));
@@ -1530,7 +1521,7 @@ private:
 
     std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
         TReplicasByState* replicasByState,
-        const std::optional<THashSet<TString>>& preferredReplicas,
+        const THashSet<TString>& preferredReplicas,
         const THashMap<TString, int>& goodReplicaPriorities)
     {
         auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
@@ -1550,7 +1541,7 @@ private:
                 auto it = goodReplicaPriorities.find(replica->GetClusterName());
                 if (it != goodReplicaPriorities.end()) {
                     result += it->second;
-                    if (preferredReplicas && preferredReplicas->contains(replica->GetClusterName())) {
+                    if (preferredReplicas.contains(replica->GetClusterName())) {
                         result += 2;
                     }
                 }
@@ -1810,8 +1801,10 @@ private:
     void OnReplicationCollocationCreated(TTableCollocationData data)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] () mutable {
-            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v)",
-                data.Id);
+            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v, TableIds: %v, Options: %v)",
+                data.Id,
+                data.TableIds,
+                ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
             YT_VERIFY(IsCollocationType(TypeFromId(data.Id)));
 

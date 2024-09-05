@@ -29,6 +29,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Size);
     DEFINE_BYVAL_RW_PROPERTY(EReplicationCardCollocationState, State);
 
+    DEFINE_BYREF_RW_PROPERTY(
+        NTabletClient::TReplicationCollocationOptionsPtr,
+        Options,
+        New<NTabletClient::TReplicationCollocationOptions>());
+
 public:
     using TObjectBase::TObjectBase;
 
@@ -44,4 +49,3 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosNode
-

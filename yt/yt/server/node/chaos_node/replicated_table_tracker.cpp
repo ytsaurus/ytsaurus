@@ -79,6 +79,7 @@ public:
                 snapshot.Collocations.push_back(TTableCollocationData{
                     .Id = collocation->GetId(),
                     .TableIds = collocation->GetReplicationCardIds(),
+                    .Options = collocation->Options(),
                 });
             }
 
