@@ -288,6 +288,27 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }
 
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    TFinishedAllocationSummary&& /*eventSummary*/)
+{
+    TAbortedJobSummary summary{jobId, EAbortReason::AllocationFinished};
+
+    summary.FinishTime = TInstant::Now();
+
+    auto error = TError("Allocation finished concurrently with settling job")
+        << TErrorAttribute("abort_reason", EAbortReason::AllocationFinished);
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        error);
+    summary.Error = std::move(error);
+
+    summary.Scheduled = true;
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFailedJobSummary::TFailedJobSummary(NProto::TJobStatus* status)

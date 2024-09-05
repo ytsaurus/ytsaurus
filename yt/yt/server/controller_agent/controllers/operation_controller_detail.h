@@ -1498,6 +1498,9 @@ private:
     void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
 
     void ClearEmptyAllocationsInRevive();
+
+    template <class TAllocationEvent>
+    void ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
