@@ -46,7 +46,19 @@ spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
   --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}' \
-  --spark-cluster-version '1.36.0'
+  --spyt-version '2.2.0'
+```
+
+### Spark configuration
+
+When using `spark-launch-yt` to configure a cluster, `--params '{"spark_conf"={...};}` is available as an option:
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
+  --spyt-version '2.2.0'
 ```
 
 When using `spark-submit-yt` to configure a task, `spark_conf_args` is available as an option:
@@ -92,4 +104,15 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 }
 ```
 
+### Operation options
 
+When using `spark-launch-yt` to configure a cluster, `--params '{"operation_spec"={...};}` is available as an option. [List of all operations options](../../operations/operations-options.md).
+It will be useful if you need to change the standard operation settings, for example, to increase the number of failed jobs past which the operation is considered failed.
+
+```bash
+spark-launch-yt \
+  --proxy <cluster-name> \
+  --discovery-path my_discovery_path \
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
+  --spyt-version '2.2.0'
+```
