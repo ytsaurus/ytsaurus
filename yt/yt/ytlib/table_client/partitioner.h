@@ -14,8 +14,8 @@ namespace NYT::NTableClient {
 struct IPartitioner
     : public virtual TRefCounted
 {
-    virtual int GetPartitionCount() = 0;
-    virtual int GetPartitionIndex(TUnversionedRow row) = 0;
+    virtual int GetPartitionCount() const = 0;
+    virtual int GetPartitionIndex(TUnversionedRow row) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPartitioner)
@@ -32,6 +32,12 @@ IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKeyBound> partitionL
 ////////////////////////////////////////////////////////////////////////////////
 
 IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, TFingerprint salt);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Create a partitioner that extracts the partition ID from the specified column in the row.
+//! NB(apollo1321): This partitioner will be used in the shuffle service.
+IPartitionerPtr CreateColumnBasedPartitioner(int partitionCount, int partitionColumnId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

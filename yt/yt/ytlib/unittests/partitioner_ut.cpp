@@ -65,6 +65,63 @@ TEST(TPartitionerTest, Hash)
     EXPECT_EQ(1, partitioner42->GetPartitionIndex(MakeRow({39})));
 }
 
+TEST(TPartitionerTest, ColumnBased)
+{
+    auto partitioner = CreateColumnBasedPartitioner(/*partitionCount*/ 4, /*partitionIndexColumn*/ 2);
+
+    EXPECT_EQ(4, partitioner->GetPartitionCount());
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(/*value*/ 2, /*id*/ 0));
+        builder.AddValue(MakeUnversionedInt64Value(/*value*/ 1, /*id*/ 2));
+        builder.AddValue(MakeUnversionedStringValue(/*value*/ "Some string", /*id*/ 1));
+
+        EXPECT_EQ(1, partitioner->GetPartitionIndex(builder.FinishRow()));
+    }
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue(/*value*/ "Some string", /*id*/ 2));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            partitioner->GetPartitionIndex(builder.FinishRow()),
+            std::exception,
+            "Invalid partition column value type");
+    }
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue(/*value*/ "Some string", /*id*/ 1));
+        builder.AddValue(MakeUnversionedInt64Value(/*value*/ 1, /*id*/ 3));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            partitioner->GetPartitionIndex(builder.FinishRow()),
+            std::exception,
+            "Row does not contain partition column");
+    }
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedInt64Value(/*value*/ 10, /*id*/ 2));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            partitioner->GetPartitionIndex(builder.FinishRow()),
+            std::exception,
+            "Partition index is out of bounds");
+    }
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedInt64Value(/*value*/ -1, /*id*/ 2));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            partitioner->GetPartitionIndex(builder.FinishRow()),
+            std::exception,
+            "Received negative partition index");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
