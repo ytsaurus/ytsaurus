@@ -52,15 +52,15 @@ public:
         TRowBuffer* rowBuffer);
 
 private:
-    std::vector<ui8> Counts_;
-    std::vector<ui8> Ids_;
+    std::vector<int> Counts_;
+    std::vector<int> Ids_;
 
     std::vector<int> Offsets_;
     std::vector<TTimestamp> Timestamps_;
 
     std::vector<std::vector<TUnversionedValue>> UnpackedKeys_;
 
-    std::vector<ui8> Heap_;
+    std::vector<int> Heap_;
     std::vector<int> CurrentOffsets_;
     // TODO(lukyan): Keep end offsets instead of offsets and evaluate start offsets each time.
     std::vector<int> EndOffsets_;
@@ -69,14 +69,14 @@ private:
     std::vector<TUnversionedValue> ResultValues_;
 
     TUnversionedValue BuildMergedKeyColumns(
-        TRange<ui8> counts,
-        TRange<ui8> ids,
+        TRange<int> counts,
+        TRange<int> ids,
         TRange<TUnversionedValue> unpackedKeys,
         TRowBuffer* rowBuffer);
 
     TVersionedValue ApplyMergeScript(
-        TRange<ui8> counts,
-        TRange<ui8> ids,
+        TRange<int> counts,
+        TRange<int> ids,
         TRange<TTimestamp> timestamps,
         TRange<TVersionedValue> values,
         EValueType elementType,
