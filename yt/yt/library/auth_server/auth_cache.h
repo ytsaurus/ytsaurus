@@ -10,28 +10,23 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class TContext>
+template <class TKey, class TValue>
 class TAuthCache
     : public virtual TRefCounted
 {
 public:
     TAuthCache(
         TAuthCacheConfigPtr config,
-        NProfiling::TProfiler profiler = {})
-        : Config_(std::move(config))
-        , Profiler_(std::move(profiler))
-    { }
+        NProfiling::TProfiler profiler = {});
 
-    TFuture<TValue> Get(const TKey& key, const TContext& context);
+    TFuture<TValue> Get(const TKey& key);
 
 private:
-    struct TEntry
-        : public TRefCounted
+    struct TEntry final
     {
         const TKey Key;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
-        TContext Context;
         TFuture<TValue> Future;
         TPromise<TValue> Promise;
 
@@ -44,12 +39,7 @@ private:
         bool IsOutdated(TDuration ttl, TDuration errorTtl);
         bool IsExpired(TDuration ttl);
 
-        TEntry(const TKey& key, const TContext& context)
-            : Key(key)
-            , Context(context)
-            , LastAccessTime(GetCpuInstant())
-            , LastUpdateTime(GetCpuInstant())
-        { }
+        explicit TEntry(const TKey& key);
     };
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
@@ -59,7 +49,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Cache_;
 
-    virtual TFuture<TValue> DoGet(const TKey& key, const TContext& context) noexcept = 0;
+    virtual TFuture<TValue> DoGet(const TKey& key) noexcept = 0;
     void TryErase(const TWeakPtr<TEntry>& weakEntry);
 };
 

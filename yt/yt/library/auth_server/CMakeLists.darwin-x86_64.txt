@@ -39,6 +39,7 @@ target_sources(yt-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_cookie_authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/caching_secret_vault_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/cookie_authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/credentials.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/default_secret_vault_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/dummy_secret_vault_service.cpp

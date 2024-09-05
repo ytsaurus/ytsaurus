@@ -25,6 +25,7 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
+#include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
 #include <yt/yt/core/actions/future.h>

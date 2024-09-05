@@ -4,13 +4,17 @@
 #include <yt/yt/library/auth_server/blackbox_service.h>
 #include <yt/yt/library/auth_server/cookie_authenticator.h>
 #include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/ticket_authenticator.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
+
 #include <yt/yt/library/tvm/service/mock/mock_tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/yt/core/http/helpers.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NAuth {
