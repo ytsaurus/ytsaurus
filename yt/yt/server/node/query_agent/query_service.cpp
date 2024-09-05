@@ -354,6 +354,14 @@ private:
         queryOptions.InputRowLimit = request->query().input_row_limit();
         queryOptions.OutputRowLimit = request->query().output_row_limit();
 
+        auto requestFeatureFlags = MostFreshFeatureFlags();
+
+        if (request->has_feature_flags()) {
+            FromProto(&requestFeatureFlags, request->feature_flags());
+            YT_LOG_DEBUG("Got request feature flags (Flags: %v)",
+                ToString(requestFeatureFlags));
+        }
+
         auto memoryChunkProvider = MemoryProvider_->GetProvider(
             ToString(queryOptions.ReadSessionId),
             queryOptions.MemoryLimitPerNode,
@@ -416,12 +424,16 @@ private:
                     memoryChunkProvider,
                     invoker,
                     queryOptions,
+                    requestFeatureFlags,
                     profilerGuard);
 
                 statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
 
                 YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
                     statistics.MemoryUsage);
+
+                auto responseFeatureFlags = MostFreshFeatureFlags();
+                ToProto(response->mutable_feature_flags(), responseFeatureFlags);
 
                 response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), statistics);

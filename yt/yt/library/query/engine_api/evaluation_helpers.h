@@ -207,8 +207,6 @@ struct TWriteOpClosure
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
-#define CHECK_STACK() (void) 0;
-
 struct TExecutionContext
 {
     ISchemafulUnversionedReaderPtr Reader;
@@ -232,12 +230,9 @@ struct TExecutionContext
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
 
-    TExecutionContext()
-    {
-        auto context = this;
-        Y_UNUSED(context);
-        CHECK_STACK();
-    }
+    const TFeatureFlags* const RequestFeatureFlags;
+    // NB: It is safe to read value of this future only after subquery requests are sent.
+    TFuture<TFeatureFlags> ResponseFeatureFlags;
 };
 
 struct TRowSchemaInformation

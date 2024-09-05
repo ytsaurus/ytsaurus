@@ -44,8 +44,8 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     bool /*ordered*/,
     bool /*prefetch*/,
     int /*splitCount*/,
-    std::function<TEvaluateResult()> /*evaluateSubQuery*/,
-    std::function<TQueryStatistics(const ISchemafulUnversionedReaderPtr&)> /*evaluateTopQuery*/)
+    TSubQueryEvaluator /*evaluateSubQuery*/,
+    TTopQueryEvaluator /*evaluateTopQuery*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
     YT_ABORT();

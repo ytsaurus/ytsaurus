@@ -150,8 +150,6 @@ using TUnversionedRowsConsumer = bool (*)(void** closure, TExpressionContext*, c
 
 bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
 {
-    CHECK_STACK();
-
     auto* statistics = context->Statistics;
 
     if (statistics->RowsWritten >= context->OutputRowLimit) {
@@ -216,7 +214,7 @@ void ScanOpHelper(
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
-    auto finalLogger = Finally([&] () {
+    auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing scan helper");
     });
     if (context->Limit == 0) {
@@ -1640,8 +1638,6 @@ void AllocatePermanentRow(
     int valueCount,
     TValue** row)
 {
-    CHECK_STACK();
-
     // TODO(dtorilov): Use AllocateUnversioned.
     auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
     *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);

@@ -174,6 +174,18 @@ struct TQueryOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFeatureFlags
+{
+    bool WithTotalsFinalizesAggregatedOnCoordinator = false;
+};
+
+TFeatureFlags MostFreshFeatureFlags();
+TFeatureFlags MostArchaicFeatureFlags();
+
+TString ToString(const TFeatureFlags& featureFlags);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TShuffleNavigator
 {
     THashMap<TString, TSharedRange<TKeyRange>> DestinationMap;

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/query/base/query_common.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -33,16 +35,25 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options);
 
-using TEvaluateResult = std::pair<
-    ISchemafulUnversionedReaderPtr,
-    TFuture<TQueryStatistics>>;
+struct TEvaluateResult
+{
+    ISchemafulUnversionedReaderPtr Reader;
+    TFuture<TQueryStatistics> Statistics;
+    TFuture<TFeatureFlags> ResponseFeatureFlags;
+};
+
+using TSubQueryEvaluator = std::function<TEvaluateResult()>;
+
+using TTopQueryEvaluator = std::function<TQueryStatistics(
+    const ISchemafulUnversionedReaderPtr& /*reader*/,
+    TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
 
 TQueryStatistics CoordinateAndExecute(
     bool ordered,
     bool prefetch,
     int splitCount,
-    std::function<TEvaluateResult()> evaluateSubQuery,
-    std::function<TQueryStatistics(const ISchemafulUnversionedReaderPtr&)> evaluateTopQuery);
+    TSubQueryEvaluator evaluateSubQuery,
+    TTopQueryEvaluator evaluateTopQuery);
 
 ////////////////////////////////////////////////////////////////////////////////
 

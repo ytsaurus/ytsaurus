@@ -131,22 +131,31 @@ TQueryStatistics CoordinateAndExecute(
     bool ordered,
     bool prefetch,
     int splitCount,
-    std::function<TEvaluateResult()> evaluateSubQuery,
-    std::function<TQueryStatistics(const ISchemafulUnversionedReaderPtr&)> evaluateTopQuery)
+    TSubQueryEvaluator evaluateSubQuery,
+    TTopQueryEvaluator evaluateTopQuery)
 {
     std::vector<ISchemafulUnversionedReaderPtr> splitReaders;
 
     // Use TFutureHolder to prevent leaking subqueries.
     std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
+    auto responseFeatureFlags = NewPromise<TFeatureFlags>();
+
+    if (splitCount == 0) {
+        // If the filtering predicate is false, we will not send subplans to nodes.
+        // Therefore, we will not create any reader, so we can choose any kind of feature flags here.
+        responseFeatureFlags.Set(MostFreshFeatureFlags());
+    }
+
     auto subqueryReaderCreator = [&] () mutable -> ISchemafulUnversionedReaderPtr {
-        ISchemafulUnversionedReaderPtr reader;
-        TFuture<TQueryStatistics> statistics;
-        std::tie(reader, statistics) = evaluateSubQuery();
-        if (reader) {
-            subqueryHolders.push_back(statistics);
+        auto evaluateResult = evaluateSubQuery();
+        if (evaluateResult.Reader) {
+            subqueryHolders.push_back(evaluateResult.Statistics);
+
+            // One single feature flags response is enough, ignore others.
+            responseFeatureFlags.TrySetFrom(evaluateResult.ResponseFeatureFlags);
         }
-        return reader;
+        return evaluateResult.Reader;
     };
 
     // TODO: Use separate condition for prefetch after protocol update
@@ -156,7 +165,7 @@ TQueryStatistics CoordinateAndExecute(
             : CreateOrderedSchemafulReader(std::move(subqueryReaderCreator)))
         : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
 
-    auto queryStatistics = evaluateTopQuery(std::move(topReader));
+    auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
 
     for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
         auto subqueryStatisticsOrError = WaitForFast(subqueryHolders[index].Get());

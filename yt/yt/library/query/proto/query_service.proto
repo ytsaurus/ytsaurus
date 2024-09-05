@@ -37,12 +37,16 @@ message TReqExecute
     required int32 response_codec = 4; // ECodec
 
     reserved 7;
+
+    optional TFeatureFlags feature_flags = 8;
 }
 
 message TRspExecute
 {
     required TQueryStatistics query_statistics = 1;
     // Attachments contain wire-encoded data.
+
+    optional TFeatureFlags feature_flags = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

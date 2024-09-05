@@ -33,6 +33,7 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
     NQueryClient::TQueryOptions queryOptions,
+    NQueryClient::TFeatureFlags requestFeatureFlags,
     TServiceProfilerGuard& profilerGuard);
 
 ////////////////////////////////////////////////////////////////////////////////
