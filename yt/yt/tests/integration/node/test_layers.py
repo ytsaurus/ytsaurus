@@ -680,12 +680,14 @@ class TestCriDockerImage(TestLayersBase):
     @authors("khlebnikov")
     @pytest.mark.timeout(180)
     def test_environment_variables(self):
+        docker_image = self.Env.yt_config.default_docker_image
         self.create_tables()
         map(
             in_=self.INPUT_TABLE,
             out=self.OUTPUT_TABLE,
             spec={
                 "mapper": {
+                    "docker_image": docker_image,
                     "command": 'printenv | sed -E \'s#"#\\\\"#g;s#([^=]*)=(.*)#{name="\\1"; value="\\2";};#\'',
                     "environment": {
                         "MY_VARIABLE_A": "MY_VALUE_A",
@@ -726,6 +728,7 @@ class TestCriDockerImage(TestLayersBase):
             "YT_JOB_INDEX": lambda x: x == "0",
             "YT_TASK_JOB_INDEX": lambda x: x == "0",
             "YT_JOB_COOKIE": lambda x: x == "0",
+            "YT_JOB_DOCKER_IMAGE": lambda x: x == docker_image,
             # set by operation spec
             "MY_VARIABLE_A": lambda x: x == "MY_VALUE_A",
             "MY_VARIABLE_B": lambda x: x == "MY_VALUE_B",
