@@ -12,49 +12,58 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-client-cache-unittests)
+find_package(linux-headers-generic REQUIRED)
+
+add_executable(yt-yt-client-api-unittests)
 
 
-target_compile_options(yt-yt-client-cache-unittests PRIVATE
+target_compile_options(yt-yt-client-api-unittests PRIVATE
   -Wdeprecated-this-capture
 )
 
-target_link_libraries(yt-yt-client-cache-unittests PUBLIC
+target_link_libraries(yt-yt-client-api-unittests PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   cpp-testing-common
-  yt-client-cache
+  yt-yt-client
 )
 
-target_allocator(yt-yt-client-cache-unittests
-  system_allocator
+target_allocator(yt-yt-client-api-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-client-cache-unittests PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+target_link_options(yt-yt-client-api-unittests PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lpthread
+  -lrt
+  -ldl
+  -lutil
 )
 
-target_sources(yt-yt-client-cache-unittests PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/cache_ut.cpp
+target_sources(yt-yt-client-api-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/unittests/options_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-client-cache-unittests
+  yt-yt-client-api-unittests
   COMMAND
-  yt-yt-client-cache-unittests
+  yt-yt-client-api-unittests
 )
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  yt-yt-client-api-unittests
   PROPERTY
   LABELS
   SMALL
@@ -62,16 +71,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  yt-yt-client-api-unittests
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-client-cache-unittests)
+vcs_info(yt-yt-client-api-unittests)
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  yt-yt-client-api-unittests
   PROPERTY
   PROCESSORS
   1
