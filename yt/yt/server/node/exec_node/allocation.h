@@ -67,6 +67,8 @@ public:
 
     const NJobAgent::TResourceHolderPtr& GetResourceHolder() const noexcept;
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

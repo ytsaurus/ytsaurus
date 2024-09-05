@@ -126,6 +126,10 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     TJobId jobId,
     TAbortedAllocationSummary&& eventSummary);
 
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    TFinishedAllocationSummary&& eventSummary);
+
 struct TFailedJobSummary
     : public TJobSummary
 {

@@ -13,6 +13,7 @@ from yt_commands import (
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
     update_scheduler_config, get_allocation_id_from_job_id,
+    create_pool,
 )
 from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler, profiler_factory
 
@@ -445,5 +446,60 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_events_total_time_threshold", 1000)
 
         op.track()
+
+
+class TestJobTrackerRaces(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    @authors("pogorelov")
+    def test_concurrent_settle_job_request_and_allocation_finish(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
+
+        op1 = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "sync",
+                    },
+                },
+                "pool": "fake_pool",
+            },
+        )
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        (node_address, ) = ls("//sys/cluster_nodes")
+
+        wait(lambda: len(ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")) == 1)
+
+        (allocation1, ) = ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")
+
+        # We start new opertion for scheduler to preempt allocation of op1.
+        op2 = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+
+                "pool": "test_pool",
+            },
+        )
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+
+        wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
+
+        op2.track()
+
+        op1.track()
+
 
 ##################################################################

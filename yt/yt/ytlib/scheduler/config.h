@@ -633,7 +633,7 @@ public:
 
     std::optional<ECancelationStage> CancelationStage;
 
-    std::optional<TDuration> SettleJobDelay;
+    TDelayConfigPtr SettleJobDelay;
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
