@@ -3433,7 +3433,6 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", aggregatedGpuStatistics.CumulativeUtilizationGpu);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", aggregatedGpuStatistics.CumulativeUtilizationMemory);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_power", aggregatedGpuStatistics.CumulativeUtilizationPower);
-    statistics->AddSample("/user_job/gpu/cumulative_memory", aggregatedGpuStatistics.CumulativeMemory);
     statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", aggregatedGpuStatistics.CumulativeMemoryMBSec);
     statistics->AddSample("/user_job/gpu/cumulative_power", aggregatedGpuStatistics.CumulativePower);
     statistics->AddSample("/user_job/gpu/cumulative_load", aggregatedGpuStatistics.CumulativeLoad);
