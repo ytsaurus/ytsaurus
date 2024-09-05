@@ -24,6 +24,9 @@ RESOURCE_FILES(
     yt/yt/ytlib/sequoia_client/records/transactions.yaml
     yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
     yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
+    yt/yt/ytlib/sequoia_client/records/node_forks.yaml
+    yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
+    yt/yt/ytlib/sequoia_client/records/path_forks.yaml
 )
 
 END()

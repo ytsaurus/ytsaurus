@@ -25,6 +25,9 @@ DEFINE_ENUM(ESequoiaTable,
     (TransactionDescendants)
     (TransactionReplicas)
     (DependentTransactions)
+    (NodeForks)
+    (NodeSnapshots)
+    (PathForks)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,
@@ -45,6 +48,10 @@ struct TTransaction;
 struct TTransactionDescendant;
 struct TTransactionReplica;
 struct TDependentTransaction;
+
+struct TNodeFork;
+struct TPathFork;
+struct TNodeSnapshot;
 
 } // namespace NRecords
 
@@ -75,6 +82,14 @@ using TAbsoluteYPathBuf = TBasicYPathBuf<true>;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSequoiaTransactionSequencingOptions;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_STRING_SERIALIZABLE_ENUM(EForkKind,
+    ((Regular)      (0))
+    ((Tombstone)    (1))
+    ((Snapshot)     (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

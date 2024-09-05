@@ -186,7 +186,7 @@ void TSequoiaSession::ClearSubtree(const TSubtree& subtree)
 void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
 {
     auto future = NCypressProxy::SelectSubtree(path, SequoiaTransaction_)
-        .Apply(BIND([this, strongThis = MakeStrong(this)] (
+        .Apply(BIND([this, this_ = MakeStrong(this)] (
             const std::vector<NRecords::TPathToNodeId>& records
         ) {
             MaybeLockNodeInSequoiaTable(records.front().NodeId, ELockType::SharedStrong);
