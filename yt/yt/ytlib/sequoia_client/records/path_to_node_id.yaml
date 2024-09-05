@@ -11,6 +11,12 @@ types:
         column_type: String
         sort_order: Ascending
 
+      - cpp_name: TransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: transaction_id
+        column_type: String
+        sort_order: Ascending
+
       - cpp_name: NodeId
         cpp_type: NCypressClient::TNodeId
         column_name: node_id

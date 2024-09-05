@@ -1,4 +1,6 @@
-from yt_commands import lookup_rows, select_rows, get_driver, get, delete_rows
+from yt_commands import (
+    get_driver, get,
+    lookup_rows, select_rows, delete_rows, insert_rows)
 
 from yt.yson import YsonMap
 
@@ -48,6 +50,16 @@ def select_rows_from_ground(query, **kwargs):
     _use_ground_driver(kwargs)
     updated_query = _add_limit_to_request(query, kwargs)
     return select_rows(updated_query, **kwargs)
+
+
+def delete_rows_from_ground(descriptor: TableDescriptor, rows, **kwargs):
+    _use_ground_driver(kwargs)
+    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+
+
+def insert_rows_to_ground(descriptor: TableDescriptor, rows, **kwargs):
+    _use_ground_driver(kwargs)
+    insert_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
 def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):

@@ -11,6 +11,12 @@ types:
         column_type: String
         sort_order: Ascending
 
+      - cpp_name: TransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: transaction_id
+        column_type: String
+        sort_order: Ascending
+
       - cpp_name: Path
         cpp_type: NYPath::TYPath
         column_name: path
@@ -19,6 +25,11 @@ types:
       - cpp_name: TargetPath
         cpp_type: NYPath::TYPath
         column_name: target_path
+        column_type: String
+
+      - cpp_name: ForkKind
+        cpp_type: EForkKind
+        column_name: fork_kind
         column_type: String
 
     verbatim: |
