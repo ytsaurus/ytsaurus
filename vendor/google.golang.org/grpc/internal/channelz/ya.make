@@ -3,32 +3,33 @@ GO_LIBRARY()
 LICENSE(Apache-2.0)
 
 SRCS(
+    channel.go
+    channelmap.go
     funcs.go
-    id.go
     logging.go
-    types.go
+    server.go
+    socket.go
+    subchannel.go
+    trace.go
 )
 
 IF (OS_LINUX)
     SRCS(
-        types_linux.go
-        util_linux.go
+        syscall_linux.go
     )
 
-    GO_XTEST_SRCS(util_test.go)
+    GO_XTEST_SRCS(syscall_test.go)
 ENDIF()
 
 IF (OS_DARWIN)
     SRCS(
-        types_nonlinux.go
-        util_nonlinux.go
+        syscall_nonlinux.go
     )
 ENDIF()
 
 IF (OS_WINDOWS)
     SRCS(
-        types_nonlinux.go
-        util_nonlinux.go
+        syscall_nonlinux.go
     )
 ENDIF()
 
