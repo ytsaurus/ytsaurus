@@ -99,6 +99,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DREQUIRED_LLVM_TOOLING_VERSION=16 \
+            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
             ../ytsaurus/ytsaurus
 
           ccache --set-config base_dir="$(realpath ..)"
