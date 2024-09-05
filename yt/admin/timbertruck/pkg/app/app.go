@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,10 +30,14 @@ import (
 	"runtime/pprof"
 	"slices"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 
+	"go.ytsaurus.tech/library/go/core/metrics"
+	"go.ytsaurus.tech/library/go/core/metrics/nop"
+	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/timbertruck"
@@ -50,6 +55,8 @@ type Config struct {
 	// Hostname, determined automatically if not set.
 	// Used to generate sessionId, so it must be unique inside cluster.
 	Hostname string `yaml:"hostname"`
+
+	AdminPanel *AdminPanelConfig `yaml:"admin_panel"`
 }
 
 type App interface {
@@ -58,17 +65,13 @@ type App interface {
 	Logger() *slog.Logger
 	Fatalf(format string, a ...any)
 
+	Metrics() metrics.Registry
+
 	Run() error
 	Close() error
 }
 
-var argv0Stripped = path.Base(os.Args[0])
-var argv0Prefix = argv0Stripped + ":"
-
-func usageError(format string, a ...any) error {
-	format = "%v: " + format
-	return fmt.Errorf(format, argv0Stripped, a)
-}
+var argv0Prefix = path.Base(os.Args[0]) + ":"
 
 func MustNewApp[UserConfigType any]() (app App, userConfig *UserConfigType) {
 	app, userConfig, err := NewApp[UserConfigType]()
@@ -86,20 +89,20 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 	flag.Parse()
 
 	if configPath != "" && oneShotConfigPath != "" {
-		err = usageError("-config and -task-config are mutually exclusive")
+		err = errors.New("-config and -task-config are mutually exclusive")
 		return
 	}
 
 	readConfiguration := func(configPath string, config *UserConfigType) (err error) {
 		configBytes, err := os.ReadFile(configPath)
 		if err != nil {
-			err = usageError("cannot read configuration: %w", err)
+			err = fmt.Errorf("cannot read configuration: %w", err)
 			return
 		}
 
 		err = yaml.Unmarshal(configBytes, config)
 		if err != nil {
-			err = usageError("cannot parse configuration: %w", err)
+			err = fmt.Errorf("cannot parse configuration: %w", err)
 			return
 		}
 		return
@@ -124,7 +127,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 		}
 		app, err = newOneShotApp()
 	} else {
-		err = usageError("-config or -task-config must be specified")
+		err = errors.New("-config or -task-config must be specified")
 		return
 	}
 
@@ -136,12 +139,17 @@ type daemonApp struct {
 
 	logger *slog.Logger
 
+	metrics *solomon.Registry
+
 	ctx        context.Context
 	cancelFunc context.CancelFunc
+
+	errorExitDetectorClose func()
 
 	closePid func()
 
 	timberTruck *timbertruck.TimberTruck
+	adminPanel  *adminPanel
 }
 
 func newDaemonApp(config Config) (app *daemonApp, err error) {
@@ -183,12 +191,37 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 	}
 	app.logger = slog.New(slog.NewJSONHandler(logFile, nil))
 
+	app.metrics = solomon.NewRegistry(nil)
+
+	var prevExitIsClean bool
+	prevExitIsClean, app.errorExitDetectorClose, err = errorExitDetector(app.logger, config.WorkDir)
+	if err != nil {
+		return
+	}
+	errorExitMetrics := app.metrics.IntGauge("error_exit")
+	if prevExitIsClean {
+		errorExitMetrics.Set(0)
+	} else {
+		errorExitMetrics.Set(1)
+		time.AfterFunc(5*time.Minute, func() {
+			errorExitMetrics.Set(0)
+		})
+	}
+
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
 	cancelOnSignals(app.cancelFunc)
 
 	app.timberTruck, err = timbertruck.NewTimberTruck(config.Config, app.logger)
 	if err != nil {
 		return
+	}
+
+	if config.AdminPanel != nil {
+		app.adminPanel, err = newAdminPanel(app.logger, app.metrics, *config.AdminPanel)
+		if err != nil {
+			err = fmt.Errorf("cannot create admin panel: %w", err)
+			return
+		}
 	}
 
 	return
@@ -203,6 +236,10 @@ func (app *daemonApp) Close() error {
 		app.closePid()
 		app.closePid = nil
 	}
+	if app.errorExitDetectorClose != nil {
+		app.errorExitDetectorClose()
+		app.errorExitDetectorClose = nil
+	}
 	return nil
 }
 
@@ -211,8 +248,15 @@ func (app *daemonApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbe
 }
 
 func (app *daemonApp) Run() error {
+	defer app.Close()
 	stopF := startProfiling(app.logger)
 	defer stopF()
+
+	if app.adminPanel != nil {
+		go func() {
+			_ = app.adminPanel.Run(app.ctx)
+		}()
+	}
 
 	return app.timberTruck.Serve(app.ctx)
 }
@@ -223,6 +267,10 @@ func (app *daemonApp) Logger() *slog.Logger {
 
 func (app *daemonApp) Fatalf(format string, a ...any) {
 	fatalFImpl(app.logger, format, a...)
+}
+
+func (app *daemonApp) Metrics() metrics.Registry {
+	return app.metrics
 }
 
 func createPidFile(path string) (close func(), err error) {
@@ -349,6 +397,10 @@ func (app *oneShotApp) Logger() *slog.Logger {
 
 func (app *oneShotApp) Fatalf(format string, a ...any) {
 	fatalFImpl(app.logger, format, a...)
+}
+
+func (app *oneShotApp) Metrics() metrics.Registry {
+	return nop.Registry{}
 }
 
 func (app *oneShotApp) Run() error {
