@@ -14,7 +14,8 @@ from yt_commands import (
     run_test_vanilla,
     get_applied_node_dynamic_config,
     sync_create_cells,
-    wait_for_node_alive_object_counts
+    wait_for_node_alive_object_counts,
+    update_controller_agent_config,
 )
 
 from yt_helpers import profiler_factory
@@ -329,6 +330,9 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     @authors("gritukan")
     def test_no_config_node(self):
+        # To prevent node disconnection (default heartbeat period is too long).
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 10000)
+
         create("table", "//tmp/r")
         create("table", "//tmp/w")
 
