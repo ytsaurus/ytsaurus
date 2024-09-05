@@ -181,6 +181,10 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+
+    if (IsCypressTransactionType(GetType())) {
+        Save(context, NativeTxExternalizationEnabled_);
+    }
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -242,6 +246,15 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     {
         Load(context, AuthenticationIdentity_.User);
         Load(context, AuthenticationIdentity_.UserTag);
+    }
+
+    if (IsCypressTransactionType(GetType())) {
+        // COMPAT(kvk1920)
+        if (context.GetVersion() >= EMasterReign::NativeTransactionExternalization) {
+            Load(context, NativeTxExternalizationEnabled_);
+        } else {
+            NativeTxExternalizationEnabled_ = false;
+        }
     }
 }
 

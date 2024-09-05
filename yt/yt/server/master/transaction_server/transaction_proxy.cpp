@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -24,14 +26,15 @@
 
 namespace NYT::NTransactionServer {
 
-using namespace NYTree;
-using namespace NYson;
-using namespace NObjectServer;
+using namespace NConcurrency;
 using namespace NCypressServer;
-using namespace NSecurityServer;
 using namespace NHydra;
 using namespace NObjectClient;
-using namespace NConcurrency;
+using namespace NObjectServer;
+using namespace NSecurityServer;
+using namespace NTransactionClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,9 +389,14 @@ private:
         std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         asyncResults.push_back(GetLocalResourcesMap(multicellManager->GetCellTag()));
-        if (transaction->IsNative()) {
-            for (auto cellTag : transaction->ReplicatedToCellTags()) {
-                asyncResults.push_back(GetRemoteResourcesMap(cellTag));
+        if (!transaction->IsExternalized()) {
+            if (transaction->IsNative()) {
+                for (auto cellTag : transaction->ReplicatedToCellTags()) {
+                    asyncResults.push_back(GetRemoteResourcesMap(cellTag, ERemoteTransactionType::Replicated));
+                }
+            }
+            for (auto cellTag : transaction->ExternalizedToCellTags()) {
+                asyncResults.push_back(GetRemoteResourcesMap(cellTag, ERemoteTransactionType::Externalized));
             }
         }
 
@@ -405,9 +413,9 @@ private:
     {
         return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellMap) {
             TAccountResourcesMap aggregatedMap;
-            for (const auto& cellTagAndUsageMap : multicellMap) {
-                for (const auto& nameAndUsage : cellTagAndUsageMap.second) {
-                    aggregatedMap[nameAndUsage.first] += nameAndUsage.second;
+            for (const auto& [cellTag, usageMap] : multicellMap) {
+                for (const auto& [name, usage] : usageMap) {
+                    aggregatedMap[name] += usage;
                 }
             }
             return aggregatedMap;
@@ -424,7 +432,15 @@ private:
         return MakeFuture(std::pair(cellTag, result));
     }
 
-    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
+    enum class ERemoteTransactionType
+    {
+        Replicated,
+        Externalized,
+    };
+
+    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(
+        TCellTag cellTag,
+        ERemoteTransactionType remoteTransactionType)
     {
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetRootClient(),
@@ -433,6 +449,11 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = GetId();
+
+        if (remoteTransactionType == ERemoteTransactionType::Externalized) {
+            transactionId = MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag());
+        }
+
         auto req = TYPathProxy::Get("&" + FromObjectId(transactionId) + "/@resource_usage");
         batchReq->AddRequest(req);
 
@@ -443,7 +464,8 @@ private:
                     return std::pair(cellTag, TAccountResourcesMap());
                 }
 
-                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching resource usage of transaction %v from cell %v",
+                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching resource usage of %vtransaction %v from cell %v",
+                    remoteTransactionType == ERemoteTransactionType::Replicated ? "" : "externalized ",
                     transactionId,
                     cellTag);
 

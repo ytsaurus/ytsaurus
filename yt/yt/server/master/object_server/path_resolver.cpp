@@ -2,6 +2,8 @@
 #include "object_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
@@ -11,7 +13,11 @@
 #include <yt/yt/server/master/cypress_server/rootstock_node.h>
 #include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
+#include <yt/yt/server/master/transaction_server/config.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -25,6 +31,9 @@ using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;
+
+using NTransactionClient::MakeExternalizedTransactionId;
+using NTransactionClient::OriginalFromExternalizedTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,6 +305,19 @@ TTransaction* TPathResolver::GetTransaction()
     return *Transaction_;
 }
 
+bool TPathResolver::IsBackupMethod() noexcept
+{
+    static THashSet<TStringBuf> BackupMethods = {
+        "StartBackup",
+        "CheckBackup",
+        "StartRestore",
+        "FinishBackup",
+        "FinishRestore",
+    };
+
+    return BackupMethods.contains(Method_);
+}
+
 TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
 {
     Tokenizer_.Advance();
@@ -309,7 +331,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             Tokenizer_.Advance();
             return TLocalObjectPayload{
                 Bootstrap_->GetCypressManager()->GetRootNode(),
-                GetTransaction()
+                GetTransaction(),
             };
         }
 
@@ -358,6 +380,8 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
                 return TRemoteObjectPayload{objectId};
             }
 
+            MaybeApplyNativeTransactionExternalizationCompat(objectId);
+
             auto* transaction = GetTransaction();
             if (transaction && transaction->GetState(/*persistent*/ true) != ETransactionState::Active) {
                 transaction->ThrowInvalidState();
@@ -370,7 +394,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             if (IsObjectAlive(root)) {
                 return TLocalObjectPayload{
                     root,
-                    GetTransaction()
+                    GetTransaction(),
                 };
             } else {
                 return TMissingObjectPayload{};
@@ -380,6 +404,51 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
         default:
             Tokenizer_.ThrowUnexpected();
             YT_ABORT();
+    }
+}
+
+void TPathResolver::MaybeApplyNativeTransactionExternalizationCompat(TObjectId objectId)
+{
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    TObject* root = nullptr;
+
+    // COMPAT(kvk1920): remove after 24.2.
+    if (TransactionId_ &&
+        IsBackupMethod() &&
+        IsTableType(TypeFromId(objectId)) &&
+        CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
+        config->TransactionManager->EnableNonStrictExternalizedTransactionUsage &&
+        (root = objectManager->FindObject(objectId)))
+    {
+        YT_VERIFY(root->IsForeign());
+
+        TTransaction* replicatedTransaction = nullptr;
+        TTransaction* externalizedTransaction = nullptr;
+
+        auto specifiedTransactionType = TypeFromId(TransactionId_);
+        if (IsExternalizedTransactionType(specifiedTransactionType)) {
+            externalizedTransaction = transactionManager->FindTransaction(TransactionId_);
+            replicatedTransaction = transactionManager->FindTransaction(
+                OriginalFromExternalizedTransactionId(TransactionId_));
+        } else if (IsCypressTransactionType(specifiedTransactionType)) {
+            replicatedTransaction = transactionManager->FindTransaction(TransactionId_);
+            externalizedTransaction = transactionManager->FindTransaction(
+                MakeExternalizedTransactionId(TransactionId_, root->GetNativeCellTag()));
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        if (externalizedTransaction &&
+            cypressManager->FindNode({objectId, externalizedTransaction->GetId()}))
+        {
+            Transaction_ = externalizedTransaction;
+        }
+        if (replicatedTransaction &&
+            cypressManager->FindNode({objectId, replicatedTransaction->GetId()}))
+        {
+            Transaction_ = replicatedTransaction;
+        }
     }
 }
 
