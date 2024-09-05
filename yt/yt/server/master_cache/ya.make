@@ -26,6 +26,7 @@ PEERDIR(
 
     yt/yt/server/lib
     yt/yt/server/lib/chaos_cache
+    yt/yt/server/lib/chaos_node
     yt/yt/server/lib/cypress_registrar
 )
 
