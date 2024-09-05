@@ -188,7 +188,6 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banPenalty = Duration.ofMillis(1);
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
-        MultiExecutorMonitoring executorMonitoring = new NoopMultiExecutorMonitoring();
         Duration preferredAllowance = Duration.ofMillis(100);
         Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
                 YTsaurusClient::builder;
@@ -307,16 +306,6 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             return this;
         }
 
-        /**
-         * Set executor callback to monitor hedging request execution.
-         *
-         * @return self
-         */
-        public Builder setExecutorMonitoring(MultiExecutorMonitoring executorMonitoring) {
-            this.executorMonitoring = executorMonitoring;
-            return this;
-        }
-
         @Override
         protected Builder self() {
             return this;
@@ -330,7 +319,6 @@ class MultiExecutor implements Closeable {
     final Duration banPenalty;
     final Duration banDuration;
     final PenaltyProvider penaltyProvider;
-    final MultiExecutorMonitoring executorMonitoring;
     final List<YTsaurusClientEntry> clients;
 
     static final CancellationException CANCELLATION_EXCEPTION = new CancellationException();
@@ -348,7 +336,6 @@ class MultiExecutor implements Closeable {
         this.banPenalty = builder.banPenalty;
         this.banDuration = builder.banDuration;
         this.penaltyProvider = builder.penaltyProvider;
-        this.executorMonitoring = builder.executorMonitoring;
 
         this.clients = new ArrayList<>();
 
@@ -474,8 +461,8 @@ class MultiExecutor implements Closeable {
     }
 
     <R> CompletableFuture<R> execute(Function<BaseYTsaurusClient, CompletableFuture<R>> callback) {
-        Instant executionStartTime = Instant.now();
-        List<YTsaurusClientEntry> currentClients = updateAdaptivePenalty(executionStartTime);
+        Instant now = Instant.now();
+        List<YTsaurusClientEntry> currentClients = updateAdaptivePenalty(now);
         Duration minPenalty = getMinPenalty(currentClients);
         List<DelayedTask<R>> delayedTasks = new ArrayList<>();
         CompletableFuture<R> result = new CompletableFuture<>();
@@ -492,37 +479,25 @@ class MultiExecutor implements Closeable {
             } else {
                 future = new CompletableFuture<>();
                 ScheduledFuture<?> task = client.client.getExecutor().schedule(
-                        () -> {
-                            Instant requestStartTime = Instant.now();
-                            return callback.apply(client.client)
-                                    .handle((value, ex) -> {
-                                        if (ex == null) {
-                                            future.complete(value);
-                                        } else {
-                                            Duration completionTime = Duration.between(requestStartTime, Instant.now());
-                                            executorMonitoring.reportRequestHedgingFailure(client.getClusterName(),
-                                                    completionTime);
-                                            future.completeExceptionally(ex);
-                                        }
-                                        return null;
-                                    });
-                        },
+                        () -> callback.apply(client.client)
+                                .handle((value, ex) -> {
+                                    if (ex == null) {
+                                        future.complete(value);
+                                    } else {
+                                        future.completeExceptionally(ex);
+                                    }
+                                    return null;
+                                }),
                         effectivePenalty.toMillis(),
                         TimeUnit.MILLISECONDS);
-                delayedTasks.add(
-                        new DelayedTask<>(task, future, clientId, effectivePenalty, client, executionStartTime)
-                );
+                delayedTasks.add(new DelayedTask<>(task, future, clientId, effectivePenalty, client, now));
             }
 
             int copyClientId = clientId;
             future.whenComplete((value, error) -> {
-                Duration completionTime = Duration.between(executionStartTime, Instant.now());
-
                 if (error == null) {
-                    executorMonitoring.reportRequestSuccess(client.getClusterName(), completionTime);
                     result.complete(value);
                 } else if (finishedClientsCount.incrementAndGet() == currentClients.size()) {
-                    executorMonitoring.reportRequestFailure(completionTime);
                     result.completeExceptionally(error);
                 }
 
