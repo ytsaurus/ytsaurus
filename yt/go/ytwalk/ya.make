@@ -6,8 +6,10 @@ SRCS(walk.go)
 
 GO_XTEST_SRCS(walk_test.go)
 
+IF (OPENSOURCE)
+    GO_XTEST_SRCS(main_test.go)
+ENDIF()
+
 END()
 
-IF (NOT OPENSOURCE)
-    RECURSE(gotest)
-ENDIF()
+RECURSE(gotest)
