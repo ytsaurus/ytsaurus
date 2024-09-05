@@ -13,8 +13,25 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class TContext>
-TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const TContext& context)
+template <class TKey, class TValue>
+TAuthCache<TKey, TValue>::TEntry::TEntry(const TKey& key)
+    : Key(key)
+    , LastAccessTime(GetCpuInstant())
+    , LastUpdateTime(GetCpuInstant())
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue>
+TAuthCache<TKey, TValue>::TAuthCache(
+    TAuthCacheConfigPtr config,
+    NProfiling::TProfiler profiler)
+    : Config_(std::move(config))
+    , Profiler_(std::move(profiler))
+{ }
+
+template <class TKey, class TValue>
+TFuture<TValue> TAuthCache<TKey, TValue>::Get(const TKey& key)
 {
     TEntryPtr entry;
     {
@@ -31,17 +48,15 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
         auto guard = Guard(entry->Lock);
         auto future = entry->Future;
 
-        entry->Context = context;
         entry->LastAccessTime = now;
 
         if (entry->IsOutdated(Config_->CacheTtl, Config_->ErrorTtl) && !entry->Updating) {
             entry->LastUpdateTime = now;
             entry->Updating = true;
 
-            auto context = entry->Context;
             guard.Release();
 
-            DoGet(entry->Key, context)
+            DoGet(entry->Key)
                 .Subscribe(BIND([entry] (const TErrorOr<TValue>& value) {
                     auto transientError = !value.IsOK() && !value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
 
@@ -61,7 +76,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
         return future;
     }
 
-    entry = New<TEntry>(key, context);
+    entry = New<TEntry>(key);
     entry->Promise = NewPromise<TValue>();
     entry->Future = entry->Promise.ToFuture();
     entry->LastUpdateTime = now;
@@ -84,15 +99,15 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
             BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
             Config_->OptimisticCacheTtl);
 
-        entry->Promise.SetFrom(DoGet(entry->Key, entry->Context).ToUncancelable());
+        entry->Promise.SetFrom(DoGet(entry->Key).ToUncancelable());
     }
 
     auto guard = Guard(entry->Lock);
     return entry->Future;
 }
 
-template <class TKey, class TValue, class TContext>
-void TAuthCache<TKey, TValue, TContext>::TryErase(const TWeakPtr<TEntry>& weakEntry)
+template <class TKey, class TValue>
+void TAuthCache<TKey, TValue>::TryErase(const TWeakPtr<TEntry>& weakEntry)
 {
     auto entry = weakEntry.Lock();
     if (!entry) {
@@ -115,8 +130,8 @@ void TAuthCache<TKey, TValue, TContext>::TryErase(const TWeakPtr<TEntry>& weakEn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class TContext>
-bool TAuthCache<TKey, TValue, TContext>::TEntry::IsOutdated(TDuration ttl, TDuration errorTtl)
+template <class TKey, class TValue>
+bool TAuthCache<TKey, TValue>::TEntry::IsOutdated(TDuration ttl, TDuration errorTtl)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -128,8 +143,8 @@ bool TAuthCache<TKey, TValue, TContext>::TEntry::IsOutdated(TDuration ttl, TDura
     }
 }
 
-template<class TKey, class TValue, class TContext>
-bool TAuthCache<TKey, TValue, TContext>::TEntry::IsExpired(TDuration ttl)
+template<class TKey, class TValue>
+bool TAuthCache<TKey, TValue>::TEntry::IsExpired(TDuration ttl)
 {
     auto now = NProfiling::GetCpuInstant();
     return now > LastAccessTime + NProfiling::DurationToCpuDuration(ttl);
