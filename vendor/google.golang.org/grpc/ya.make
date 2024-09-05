@@ -21,6 +21,7 @@ SRCS(
     shared_buffer_pool.go
     stream.go
     trace.go
+    trace_withtrace.go
     version.go
 )
 
