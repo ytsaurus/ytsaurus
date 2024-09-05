@@ -513,6 +513,7 @@ class TestGetJob(_TestGetJobCommon):
             assert job_info.get("is_stale")
 
     @authors("omgronny")
+    @pytest.mark.skip(reason="$ttl column hasn't been added to the operation archive in 24.1")
     def test_job_archive_ttl(self):
         set("//sys/operations_archive/jobs/@max_data_ttl", 3000)
         update_controller_agent_config("enable_job_archive_ttl", True)
