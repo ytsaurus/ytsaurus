@@ -329,7 +329,7 @@ public:
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
     std::optional<NAuth::TTvmId> TvmId;
 
-    NChaosClient::TReplicationCardResidencyCacheConfigPtr ReplicationCardResidencyCache;
+    NChaosClient::TChaosResidencyCacheConfigPtr ReplicationCardResidencyCache;
 
     TDuration ObjectLifeStageCheckPeriod;
     int ObjectLifeStageCheckRetryCount;
@@ -348,6 +348,8 @@ public:
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadArchiveStateFrom;
+
+    bool EnableDistributedReplicationCollocationAttachment;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

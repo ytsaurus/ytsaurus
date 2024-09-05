@@ -1,4 +1,4 @@
-#include "replication_card_residency_cache.h"
+#include "chaos_residency_cache.h"
 
 #include "chaos_node_service_proxy.h"
 #include "chaos_cell_directory_synchronizer.h"
@@ -8,6 +8,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -33,60 +35,62 @@ using NNative::IConnectionPtr;
 
 using NYT::FromProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardResidencyCache
-    : public IReplicationCardResidencyCache
-    , public TAsyncExpiringCache<TReplicationCardId, TCellTag>
+class TChaosResidencyCache
+    : public IChaosResidencyCache
+    , public TAsyncExpiringCache<TObjectId, TCellTag>
 {
 public:
-    TReplicationCardResidencyCache(
-        TReplicationCardResidencyCacheConfigPtr config,
+    TChaosResidencyCache(
+        TChaosResidencyCacheConfigPtr config,
         IConnectionPtr connection,
         const NLogging::TLogger& logger);
 
-    TFuture<TCellTag> GetReplicationCardResidency(TReplicationCardId replicationCardId) override;
-    void ForceRefresh(TReplicationCardId replicationCardId, TCellTag cellTag) override;
+    TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
+    void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
     void Clear() override;
 
 protected:
     class TGetSession;
 
-    const TReplicationCardResidencyCacheConfigPtr Config_;
+    const TChaosResidencyCacheConfigPtr Config_;
     const TWeakPtr<NNative::IConnection> Connection_;
     const NLogging::TLogger Logger;
 
     TFuture<TCellTag> DoGet(
-        const TReplicationCardId& replicationCardId,
+        const TObjectId& objectId,
         const TErrorOr<TCellTag>* oldValue,
         EUpdateReason updateReason) noexcept override;
 
     TFuture<TCellTag> DoGet(
-        const TReplicationCardId& replicationCardId,
+        const TObjectId& objectId,
         bool isPeriodicUpdate) noexcept override;
 
     TFuture<TCellTag> DoGet(
-        const TReplicationCardId& replicationCardId,
+        const TObjectId& objectId,
         const TErrorOr<TCellTag>* oldValue);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardResidencyCache::TGetSession
+class TChaosResidencyCache::TGetSession
     : public TRefCounted
 {
 public:
     TGetSession(
-        TReplicationCardResidencyCache* owner,
-        TReplicationCardId replicationCardId,
+        TChaosResidencyCache* owner,
+        TObjectId objectId,
         TCellTag cellTag,
         const NLogging::TLogger& logger)
         : Owner_(owner)
-        , ReplicationCardId_(replicationCardId)
+        , ObjectId_(objectId)
+        , Type_(ToString(TypeFromId(objectId)))
         , CellTag_(cellTag)
         , Logger(logger
-            .WithTag("ReplicationCardId: %v, CacheSessionId: %v",
-                ReplicationCardId_,
+            .WithTag("ObjectId: %v, Type: %v, CacheSessionId: %v",
+                ObjectId_,
+                Type_,
                 TGuid::Create()))
     { }
 
@@ -94,7 +98,9 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate replication card: connection terminated");
+            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+                Type_,
+                ObjectId_);
         }
 
         const auto& cellDirectory = connection->GetCellDirectory();
@@ -108,7 +114,7 @@ public:
         if (auto channel = cellDirectory->FindChannelByCellTag(CellTag_)) {
             auto proxy = TChaosNodeServiceProxy(channel);
             auto req = proxy.FindReplicationCard();
-            ToProto(req->mutable_replication_card_id(), ReplicationCardId_);
+            ToProto(req->mutable_replication_card_id(), ObjectId_);
 
             auto rspOrError = WaitFor(req->Invoke());
 
@@ -130,13 +136,14 @@ public:
 
             auto proxy = TChaosNodeServiceProxy(channel);
             auto req = proxy.FindReplicationCard();
-            ToProto(req->mutable_replication_card_id(), ReplicationCardId_);
+            ToProto(req->mutable_replication_card_id(), ObjectId_);
 
             futureFoundReplicationCards.push_back(req->Invoke());
             futureCellTags.push_back(cellTag);
         }
 
-        YT_LOG_DEBUG("Looking for replication card on chaos cells (ChaosCellTags: %v)",
+        YT_LOG_DEBUG("Looking for %v on chaos cells (ChaosCellTags: %v)",
+            Type_,
             futureCellTags);
 
         auto resultOrError = WaitFor(AnyNSucceeded(futureFoundReplicationCards, 1));
@@ -145,8 +152,9 @@ public:
                 THROW_ERROR *resolveError;
             }
 
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate replication card %v",
-                ReplicationCardId_)
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                Type_,
+                ObjectId_)
                 << resultOrError;
         }
 
@@ -164,8 +172,9 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TReplicationCardResidencyCache> Owner_;
-    const TReplicationCardId ReplicationCardId_;
+    const TIntrusivePtr<TChaosResidencyCache> Owner_;
+    const TObjectId ObjectId_;
+    const TString Type_;
     const TCellTag CellTag_;
 
     const NLogging::TLogger Logger;
@@ -188,8 +197,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationCardResidencyCache::TReplicationCardResidencyCache(
-    TReplicationCardResidencyCacheConfigPtr config,
+TChaosResidencyCache::TChaosResidencyCache(
+    TChaosResidencyCacheConfigPtr config,
     NNative::IConnectionPtr connection,
     const NLogging::TLogger& logger)
     : TAsyncExpiringCache(config)
@@ -198,67 +207,68 @@ TReplicationCardResidencyCache::TReplicationCardResidencyCache(
     , Logger(logger)
 { }
 
-TFuture<TCellTag> TReplicationCardResidencyCache::GetReplicationCardResidency(TReplicationCardId key)
+TFuture<TCellTag> TChaosResidencyCache::GetChaosResidency(TObjectId key)
 {
     return TAsyncExpiringCache::Get(key);
 }
 
-TFuture<TCellTag> TReplicationCardResidencyCache::DoGet(
-    const TReplicationCardId& replicationCardId,
+TFuture<TCellTag> TChaosResidencyCache::DoGet(
+    const TObjectId& objectId,
     const TErrorOr<TCellTag>* oldValue,
     EUpdateReason /*updateReason*/) noexcept
 {
-    return DoGet(replicationCardId, oldValue);
+    return DoGet(objectId, oldValue);
 }
 
-TFuture<TCellTag> TReplicationCardResidencyCache::DoGet(
-    const TReplicationCardId& replicationCardId,
+TFuture<TCellTag> TChaosResidencyCache::DoGet(
+    const TObjectId& objectId,
     bool /*isPeriodicUpdate*/) noexcept
 {
-    return DoGet(replicationCardId, nullptr);
+    return DoGet(objectId, nullptr);
 }
 
-TFuture<TCellTag> TReplicationCardResidencyCache::DoGet(
-    const TReplicationCardId& replicationCardId,
+TFuture<TCellTag> TChaosResidencyCache::DoGet(
+    const TObjectId& objectId,
     const TErrorOr<TCellTag>* oldValue)
 {
     auto cellTag = oldValue && oldValue->IsOK()
         ? oldValue->Value()
-        : CellTagFromId(replicationCardId);
+        : CellTagFromId(objectId);
 
     auto connection = Connection_.Lock();
     if (!connection) {
         return MakeFuture<TCellTag>(
-            TError("Unable to locate replication card: connection terminated")
-                << TErrorAttribute("replication_card_id", replicationCardId));
+            TError("Unable to locate %v: connection terminated",
+                TypeFromId(objectId))
+                << TErrorAttribute("object_id", objectId));
     }
 
     auto invoker = connection->GetInvoker();
-    auto session = New<TGetSession>(this, replicationCardId, cellTag, Logger);
+    auto session = New<TGetSession>(this, objectId, cellTag, Logger);
 
     return BIND(&TGetSession::Run, std::move(session))
         .AsyncVia(std::move(invoker))
         .Run();
 }
 
-void TReplicationCardResidencyCache::ForceRefresh(TReplicationCardId replicationCardId, TCellTag cellTag)
+void TChaosResidencyCache::ForceRefresh(TObjectId objectId, TCellTag cellTag)
 {
-    TAsyncExpiringCache::ForceRefresh(replicationCardId, cellTag);
+    TAsyncExpiringCache::ForceRefresh(objectId, cellTag);
 }
 
-void TReplicationCardResidencyCache::Clear()
+void TChaosResidencyCache::Clear()
 {
     TAsyncExpiringCache::Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicationCardResidencyCachePtr CreateReplicationCardResidencyCache(
-    TReplicationCardResidencyCacheConfigPtr config,
+IChaosResidencyCachePtr CreateChaosResidencyCache(
+    TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
 {
-    return New<TReplicationCardResidencyCache>(
+    return New<TChaosResidencyCache>(
         std::move(config),
         std::move(connection),
         logger);

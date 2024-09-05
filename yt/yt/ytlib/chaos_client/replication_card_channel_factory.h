@@ -22,7 +22,7 @@ DEFINE_REFCOUNTED_TYPE(IReplicationCardChannelFactory)
 
 IReplicationCardChannelFactoryPtr CreateReplicationCardChannelFactory(
     NHiveClient::ICellDirectoryPtr cellDirectory,
-    IReplicationCardResidencyCachePtr residencyCache,
+    IChaosResidencyCachePtr residencyCache,
     IChaosCellDirectorySynchronizerPtr synchronizer,
     TReplicationCardChannelConfigPtr config);
 

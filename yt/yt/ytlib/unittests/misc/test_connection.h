@@ -9,7 +9,7 @@
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -171,6 +171,7 @@ public:
     MOCK_METHOD(NRpc::IRoamingChannelProviderPtr, GetYqlAgentChannelProviderOrThrow, (const TString&), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
+    MOCK_METHOD(const NChaosClient::IChaosResidencyCachePtr&, GetChaosResidencyCache, (), (override));
     MOCK_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, (), (override));
     MOCK_METHOD(const NJobProberClient::TJobShellDescriptorCachePtr&, GetJobShellDescriptorCache, (), (override));
     MOCK_METHOD(const NSecurityClient::TPermissionCachePtr&, GetPermissionCache, (), (override));

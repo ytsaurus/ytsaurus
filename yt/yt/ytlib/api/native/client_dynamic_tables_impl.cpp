@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
@@ -3569,8 +3570,106 @@ void TClient::DoAlterReplicationCard(
         req->set_collocation_options(ConvertToYsonString(options.CollocationOptions).ToString());
     }
 
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto result = WaitFor(req->Invoke());
+
+    if (!result.IsOK() &&
+        result.FindMatching(NChaosClient::EErrorCode::ReplicationCollocationNotKnown) &&
+        Connection_->GetConfig()->EnableDistributedReplicationCollocationAttachment)
+    {
+        YT_VERIFY(options.ReplicationCardCollocationId);
+        auto collocationId = *options.ReplicationCardCollocationId;
+
+        YT_LOG_DEBUG("Failed to attach replication card to collocation in local mode, trying distributed mode"
+            " (ReplicationCardId: %v, CollocationId: %v)",
+            replicationCardId,
+            collocationId);
+
+        if (options.ReplicatedTableOptions || options.EnableReplicatedTableTracker || options.CollocationOptions) {
+            THROW_ERROR_EXCEPTION("Could not alter replication card since it requires forced migration and too many options are set")
+                << TErrorAttribute("replicated_table_options", options.ReplicatedTableOptions)
+                << TErrorAttribute("enable_replicated_table_tracker", options.EnableReplicatedTableTracker)
+                << TErrorAttribute("collocation_options", options.CollocationOptions);
+        }
+
+        const auto& residencyCache = Connection_->GetChaosResidencyCache();
+        auto cellTags = WaitFor(AllSucceeded(std::vector<TFuture<TCellTag>>{
+            residencyCache->GetChaosResidency(replicationCardId),
+            residencyCache->GetChaosResidency(collocationId)
+        }))
+            .ValueOrThrow();
+        auto replicationCardCellTag = cellTags[0];
+        auto collocationCellTag = cellTags[1];
+
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto getCellId = [&] (auto cellTag, TStringBuf description) {
+            auto descriptor = cellDirectory->FindDescriptorByCellTag(cellTag);
+            if (!descriptor) {
+                THROW_ERROR_EXCEPTION("Chaos cell for %v is absent from cell directory",
+                    description)
+                    << TErrorAttribute("cell_tag", cellTag);
+            }
+
+            return descriptor->CellId;
+        };
+
+        auto replicationCardCellId = getCellId(replicationCardCellTag, "replication card");
+        auto collocationCellId = getCellId(collocationCellTag, "replication card collocation");
+
+        if (replicationCardCellId == collocationCellId) {
+            THROW_ERROR_EXCEPTION("Failed to attach replication card to collocation in distributed mode:"
+                " they are located on the same chaos cell")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("replication_card_collocation_id", collocationId)
+                << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
+                << TErrorAttribute("replication_card_collocation_cell_id", collocationCellId);
+        }
+
+        YT_LOG_DEBUG("Attaching replication card to collocation in distributed mode"
+            " (ReplicationCardId: %v, ReplicationCardCellId: %v, CollocationId: %v, CollocationCellId: %v)",
+            replicationCardId,
+            replicationCardCellId,
+            collocationId,
+            collocationCellId);
+
+        auto transaction = WaitFor(StartNativeTransaction(ETransactionType::Tablet, {}))
+            .ValueOrThrow();
+
+        {
+            NChaosClient::NProto::TReqAttachReplicationCardToRemoteCollocation req;
+            ToProto(req.mutable_replication_card_id(), replicationCardId);
+            ToProto(req.mutable_replication_card_collocation_id(), collocationId);
+            ToProto(req.mutable_replication_card_cell_id(), replicationCardCellId);
+            ToProto(req.mutable_replication_card_collocation_cell_id(), collocationCellId);
+            auto actionData = MakeTransactionActionData(req);
+            transaction->AddAction(replicationCardCellId, actionData);
+            transaction->AddAction(collocationCellId, actionData);
+        }
+
+        // NB: Make replication card cell lazy coordinator to avoid race between collocation commit and hive message
+        TTransactionCommitOptions commitOptions;
+        commitOptions.CoordinatorCellId = replicationCardCellId;
+        commitOptions.Force2PC = true;
+        commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+        auto result = WaitFor(transaction->Commit(commitOptions));
+
+        if (!result.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to attach replication card to collocation in distributed mode")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("replication_card_collocation_id", options.ReplicationCardCollocationId)
+                << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
+                << TErrorAttribute("replication_card_collocation_cell_id", collocationCellId)
+                << result;
+        }
+
+        YT_LOG_DEBUG("Attached replication card to collocation in distributed mode"
+            " (ReplicationCardId: %v, ReplicationCardCellId: %v, CollocationId: %v, CollocationCellId: %v)",
+            replicationCardId,
+            replicationCardCellId,
+            collocationId,
+            collocationCellId);
+    } else {
+        result.ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

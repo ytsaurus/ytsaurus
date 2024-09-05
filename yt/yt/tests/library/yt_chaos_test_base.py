@@ -388,3 +388,29 @@ class ChaosTestBase(DynamicTablesBase):
             ],
         }
         return [schemas[name] for name in schema_names]
+
+    def _create_chaos_supertable(self, prefix, clusters, sync_cluster, chaos_cell_bundle=None, replicated_table_options=None):
+        crt = "{0}-crt".format(prefix)
+        attributes = {}
+        if chaos_cell_bundle:
+            attributes["chaos_cell_bundle"] = chaos_cell_bundle
+        if replicated_table_options:
+            attributes["replicated_table_options"] = replicated_table_options
+        create("chaos_replicated_table", crt, attributes=attributes)
+        card_id = get("{0}/@replication_card_id".format(crt))
+
+        replicas = [
+            {
+                "cluster_name": cluster,
+                "content_type": content_type,
+                "mode": "sync" if cluster == sync_cluster else "async",
+                "enabled": True,
+                "replica_path": "{0}-{1}-{2}".format(prefix, cluster, content_type),
+            }
+            for content_type in ["data", "queue"]
+            for cluster in clusters
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path=crt)
+        self._create_replica_tables(replicas, replica_ids)
+        self._sync_replication_era(card_id, replicas)
+        return crt, card_id, replicas, replica_ids

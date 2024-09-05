@@ -182,7 +182,18 @@ message TReqGetReplicationCardCollocation
 
 message TRspGetReplicationCardCollocation
 {
-    repeated NYT.NProto.TGuid collocation_replication_card_ids = 1;
+    repeated NYT.NProto.TGuid replication_card_ids = 1;
+    optional bytes options = 2; // YSON-serialized
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAttachReplicationCardToRemoteCollocation
+{
+    required NYT.NProto.TGuid replication_card_id = 1;
+    required NYT.NProto.TGuid replication_card_cell_id = 2;
+    required NYT.NProto.TGuid replication_card_collocation_id = 3;
+    required NYT.NProto.TGuid replication_card_collocation_cell_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
