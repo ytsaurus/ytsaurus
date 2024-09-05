@@ -2254,6 +2254,7 @@
   "yt/java/type-info/src/test/resources/README.txt":"library/cpp/type_info/ut/test-data/README.txt",
   "yt/java/type-info/src/test/resources/bad-types.txt":"library/cpp/type_info/ut/test-data/bad-types.txt",
   "yt/java/type-info/src/test/resources/good-types.txt":"library/cpp/type_info/ut/test-data/good-types.txt",
+  "yt/java/yson-json-converter/build.gradle.kts":"",
   "yt/java/yson-tree/build.gradle.kts":"",
   "yt/java/yson/build.gradle.kts":"",
   "yt/java/ytsaurus-client-core/build.gradle.kts":"",
