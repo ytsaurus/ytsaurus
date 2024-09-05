@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/library/program/helpers.h>
+
 #include <yt/cpp/mapreduce/interface/init.h>
 
 #include <library/cpp/getopt/last_getopt.h>
@@ -100,9 +102,11 @@ struct TOptsS3
 
 TImportConfigPtr LoadConfig(const std::optional<TString>& configPath)
 {
-    return !configPath
+    auto config = !configPath
         ? New<TImportConfig>()
         : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(*configPath).ReadAll()));
+    ConfigureSingletons(config->Singletons);
+    return config;
 }
 
 int ImportFilesFromS3(int argc, const char** argv)
