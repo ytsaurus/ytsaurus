@@ -6,17 +6,17 @@ namespace NYT::NChunkPools {
 
 void TSortedJobOptions::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::EnableKeyGuarantee>("enable_key_guarantee")();
-    registrar.template Field<2, &TThis::PrimaryPrefixLength>("primary_prefix_length")();
-    registrar.template Field<3, &TThis::ForeignPrefixLength>("foreign_prefix_length")();
-    registrar.template Field<4, &TThis::PrimaryComparator>("primary_comparator")();
-    registrar.template Field<5, &TThis::ForeignComparator>("foreign_comparator")();
-    registrar.template Field<6, &TThis::MaxTotalSliceCount>("max_total_slice_count")();
-    registrar.template Field<7, &TThis::EnablePeriodicYielder>("enable_periodic_yielder")();
-    registrar.template Field<8, &TThis::ConsiderOnlyPrimarySize>("consider_only_primary_size")();
-    registrar.template Field<9, &TThis::PivotKeys>("pivot_keys")();
-    registrar.template Field<10, &TThis::ShouldSlicePrimaryTableByKeys>("should_slice_primary_table_by_keys")();
-    registrar.template Field<11, &TThis::ValidateOrder>("validate_order")();
+    PHOENIX_REGISTER_FIELD(1, EnableKeyGuarantee)();
+    PHOENIX_REGISTER_FIELD(2, PrimaryPrefixLength)();
+    PHOENIX_REGISTER_FIELD(3, ForeignPrefixLength)();
+    PHOENIX_REGISTER_FIELD(4, PrimaryComparator)();
+    PHOENIX_REGISTER_FIELD(5, ForeignComparator)();
+    PHOENIX_REGISTER_FIELD(6, MaxTotalSliceCount)();
+    PHOENIX_REGISTER_FIELD(7, EnablePeriodicYielder)();
+    PHOENIX_REGISTER_FIELD(8, ConsiderOnlyPrimarySize)();
+    PHOENIX_REGISTER_FIELD(9, PivotKeys)();
+    PHOENIX_REGISTER_FIELD(10, ShouldSlicePrimaryTableByKeys)();
+    PHOENIX_REGISTER_FIELD(11, ValidateOrder)();
 }
 
 PHOENIX_DEFINE_TYPE(TSortedJobOptions);

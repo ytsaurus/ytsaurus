@@ -576,12 +576,12 @@ void TShuffleChunkPool::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolInputBase>();
 
-    registrar.template Field<1, &TThis::Outputs_>("outputs")();
-    registrar.template Field<2, &TThis::InputStripes_>("input_stripes")();
-    registrar.template Field<3, &TThis::ElementaryStripes_>("elementary_stripes")();
-    registrar.template Field<4, &TThis::DataWeightThreshold_>("data_weight_threshold")();
-    registrar.template Field<5, &TThis::ChunkSliceThreshold_>("chunk_slice_threshold")();
-    registrar.template Field<6, &TThis::TotalJobCount_>("total_job_count")();
+    PHOENIX_REGISTER_FIELD(1, Outputs_)();
+    PHOENIX_REGISTER_FIELD(2, InputStripes_)();
+    PHOENIX_REGISTER_FIELD(3, ElementaryStripes_)();
+    PHOENIX_REGISTER_FIELD(4, DataWeightThreshold_)();
+    PHOENIX_REGISTER_FIELD(5, ChunkSliceThreshold_)();
+    PHOENIX_REGISTER_FIELD(6, TotalJobCount_)();
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool);
@@ -603,11 +603,11 @@ void TShuffleChunkPool::TOutput::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
 
-    registrar.template Field<1, &TThis::Owner_>("owner")();
-    registrar.template Field<2, &TThis::PartitionIndex_>("partition_index")();
-    registrar.template Field<3, &TThis::Runs_>("runs")();
-    registrar.template Field<4, &TThis::PendingRuns_>("pending_runs")();
-    registrar.template Field<5, &TThis::IsCompleted_>("is_completed")();
+    PHOENIX_REGISTER_FIELD(1, Owner_)();
+    PHOENIX_REGISTER_FIELD(2, PartitionIndex_)();
+    PHOENIX_REGISTER_FIELD(3, Runs_)();
+    PHOENIX_REGISTER_FIELD(4, PendingRuns_)();
+    PHOENIX_REGISTER_FIELD(5, IsCompleted_)();
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput);
@@ -616,16 +616,16 @@ PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput);
 
 void TShuffleChunkPool::TOutput::TRun::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::ElementaryIndexBegin>("elementary_index_begin")();
-    registrar.template Field<2, &TThis::ElementaryIndexEnd>("elementary_index_end")();
-    registrar.template Field<3, &TThis::SuspendCount>("suspend_count")();
-    registrar.template Field<4, &TThis::State>("state")();
-    registrar.template Field<5, &TThis::IsApproximate>("is_approximate")();
-    registrar.template Field<6, &TThis::RowCount>("row_count")();
-    registrar.template Field<7, &TThis::DataWeight>("data_weight")();
-    registrar.template Field<8, &TThis::DataWeightProgressCounterGuard>("data_weight_progress_counter_guard")();
-    registrar.template Field<9, &TThis::RowProgressCounterGuard>("row_progress_counter_guard")();
-    registrar.template Field<10, &TThis::JobProgressCounterGuard>("job_progress_counter_guard")();
+    PHOENIX_REGISTER_FIELD(1, ElementaryIndexBegin)();
+    PHOENIX_REGISTER_FIELD(2, ElementaryIndexEnd)();
+    PHOENIX_REGISTER_FIELD(3, SuspendCount)();
+    PHOENIX_REGISTER_FIELD(4, State)();
+    PHOENIX_REGISTER_FIELD(5, IsApproximate)();
+    PHOENIX_REGISTER_FIELD(6, RowCount)();
+    PHOENIX_REGISTER_FIELD(7, DataWeight)();
+    PHOENIX_REGISTER_FIELD(8, DataWeightProgressCounterGuard)();
+    PHOENIX_REGISTER_FIELD(9, RowProgressCounterGuard)();
+    PHOENIX_REGISTER_FIELD(10, JobProgressCounterGuard)();
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput::TRun);
@@ -634,8 +634,8 @@ PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput::TRun);
 
 void TShuffleChunkPool::TInputStripe::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::ElementaryIndexBegin>("elementary_index_begin")();
-    registrar.template Field<2, &TThis::ElementaryIndexEnd>("elementary_index_end")();
+    PHOENIX_REGISTER_FIELD(1, ElementaryIndexBegin)();
+    PHOENIX_REGISTER_FIELD(2, ElementaryIndexEnd)();
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TInputStripe);

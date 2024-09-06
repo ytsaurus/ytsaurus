@@ -146,10 +146,10 @@ protected:
 
 void TMultiChunkPoolInput::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::UnderlyingPools_>("underlying_pools")();
-    registrar.template Field<2, &TThis::Cookies_>("cookies")
+    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_)();
+    PHOENIX_REGISTER_FIELD(2, Cookies_)
         .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
-    registrar.template Field<3, &TThis::IsFinished_>("is_finished")();
+    PHOENIX_REGISTER_FIELD(3, IsFinished_)();
 }
 
 PHOENIX_DEFINE_TYPE(TMultiChunkPoolInput);
@@ -504,19 +504,19 @@ protected:
 
 void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::UnderlyingPools_>("underlying_pools")();
-    registrar.template Field<2, &TThis::ActivePoolCount_>("active_pool_count")();
-    registrar.template Field<3, &TThis::JobCounter_>("job_counter")();
-    registrar.template Field<4, &TThis::DataWeightCounter_>("data_weight_counter")();
-    registrar.template Field<5, &TThis::RowCounter_>("row_counter")();
-    registrar.template Field<6, &TThis::DataSliceCounter_>("data_slice_counter")();
-    registrar.template Field<7, &TThis::Cookies_>("cookies")
+    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_)();
+    PHOENIX_REGISTER_FIELD(2, ActivePoolCount_)();
+    PHOENIX_REGISTER_FIELD(3, JobCounter_)();
+    PHOENIX_REGISTER_FIELD(4, DataWeightCounter_)();
+    PHOENIX_REGISTER_FIELD(5, RowCounter_)();
+    PHOENIX_REGISTER_FIELD(6, DataSliceCounter_)();
+    PHOENIX_REGISTER_FIELD(7, Cookies_)
         .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
-    registrar.template Field<8, &TThis::CookieDescriptorToExternalCookie_>("cookie_descriptor_to_external_cookie")
+    PHOENIX_REGISTER_FIELD(8, CookieDescriptorToExternalCookie_)
         .template Serializer<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>()();
-    registrar.template Field<9, &TThis::BlockedPools_>("blocked_pools")();
-    registrar.template Field<10, &TThis::Finalized_>("finalized")();
-    registrar.template Field<11, &TThis::IsCompleted_>("is_completed")();
+    PHOENIX_REGISTER_FIELD(9, BlockedPools_)();
+    PHOENIX_REGISTER_FIELD(10, Finalized_)();
+    PHOENIX_REGISTER_FIELD(11, IsCompleted_)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics

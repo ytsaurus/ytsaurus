@@ -74,7 +74,7 @@ void TVanillaChunkPool::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
 
-    registrar.template Field<1, &TThis::RestartCompletedJobs_>("restart_completed_jobs")();
+    PHOENIX_REGISTER_FIELD(1, RestartCompletedJobs_)();
 }
 
 PHOENIX_DEFINE_TYPE(TVanillaChunkPool);

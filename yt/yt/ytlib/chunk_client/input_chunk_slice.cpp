@@ -106,8 +106,8 @@ void TLegacyInputSliceLimit::MergeUpperLimit(const TLegacyInputSliceLimit& limit
 
 void TLegacyInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::RowIndex>("row_index")();
-    registrar.template Field<2, &TThis::Key>("key")();
+    PHOENIX_REGISTER_FIELD(1, RowIndex)();
+    PHOENIX_REGISTER_FIELD(2, Key)();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*spec*/)
@@ -220,8 +220,8 @@ bool TInputSliceLimit::IsTrivial() const
 
 void TInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::RowIndex>("row_index")();
-    registrar.template Field<2, &TThis::KeyBound>("key_bound")();
+    PHOENIX_REGISTER_FIELD(1, RowIndex)();
+    PHOENIX_REGISTER_FIELD(2, KeyBound)();
 }
 
 void Serialize(const TInputSliceLimit& limit, IYsonConsumer* consumer)
@@ -718,17 +718,17 @@ void TInputChunkSlice::TransformToNewKeyless()
 
 void TInputChunkSlice::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::InputChunk_>("input_chunk")();
-    registrar.template Field<2, &TThis::LegacyLowerLimit_>("legacy_lower_limit")();
-    registrar.template Field<3, &TThis::LegacyUpperLimit_>("legacy_upper_limit")();
-    registrar.template Field<4, &TThis::LowerLimit_>("lower_limit")();
-    registrar.template Field<5, &TThis::UpperLimit_>("upper_limit")();
-    registrar.template Field<6, &TThis::IsLegacy>("is_legacy")();
-    registrar.template Field<7, &TThis::PartIndex_>("part_index")();
-    registrar.template Field<8, &TThis::SizeOverridden_>("size_overridden")();
-    registrar.template Field<9, &TThis::RowCount_>("row_count")();
-    registrar.template Field<10, &TThis::DataWeight_>("data_weight")();
-    registrar.template Field<11, &TThis::SliceIndex_>("slice_index")();
+    PHOENIX_REGISTER_FIELD(1, InputChunk_)();
+    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_)();
+    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_)();
+    PHOENIX_REGISTER_FIELD(4, LowerLimit_)();
+    PHOENIX_REGISTER_FIELD(5, UpperLimit_)();
+    PHOENIX_REGISTER_FIELD(6, IsLegacy)();
+    PHOENIX_REGISTER_FIELD(7, PartIndex_)();
+    PHOENIX_REGISTER_FIELD(8, SizeOverridden_)();
+    PHOENIX_REGISTER_FIELD(9, RowCount_)();
+    PHOENIX_REGISTER_FIELD(10, DataWeight_)();
+    PHOENIX_REGISTER_FIELD(11, SliceIndex_)();
 }
 
 PHOENIX_DEFINE_TYPE(TInputChunkSlice);

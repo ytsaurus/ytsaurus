@@ -78,13 +78,13 @@ int TChunkStripe::GetInputStreamIndex() const
 
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::DataSlices>("data_slices")();
-    registrar.template Field<2, &TThis::WaitingChunkCount>("waiting_chunk_count")();
-    registrar.template Field<3, &TThis::Foreign>("foreign")();
-    registrar.template Field<4, &TThis::Solid>("solid")();
-    registrar.template Field<5, &TThis::ChunkListId>("chunk_list_id")();
-    registrar.template Field<6, &TThis::BoundaryKeys>("boundary_keys")();
-    registrar.template Field<7, &TThis::PartitionTag>("partition_tag")();
+    PHOENIX_REGISTER_FIELD(1, DataSlices)();
+    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount)();
+    PHOENIX_REGISTER_FIELD(3, Foreign)();
+    PHOENIX_REGISTER_FIELD(4, Solid)();
+    PHOENIX_REGISTER_FIELD(5, ChunkListId)();
+    PHOENIX_REGISTER_FIELD(6, BoundaryKeys)();
+    PHOENIX_REGISTER_FIELD(7, PartitionTag)();
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripe);
@@ -133,15 +133,15 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
 
 void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Stripes>("stripes")();
-    registrar.template Field<2, &TThis::PartitionTag>("partition_tag")();
-    registrar.template Field<3, &TThis::IsApproximate>("is_approximate")();
-    registrar.template Field<4, &TThis::TotalDataWeight>("total_data_weight")();
-    registrar.template Field<5, &TThis::LocalDataWeight>("local_data_weight")();
-    registrar.template Field<6, &TThis::TotalRowCount>("total_row_count")();
-    registrar.template Field<7, &TThis::TotalValueCount>("total_value_count")();
-    registrar.template Field<8, &TThis::TotalChunkCount>("total_chunk_count")();
-    registrar.template Field<9, &TThis::LocalChunkCount>("local_chunk_count")();
+    PHOENIX_REGISTER_FIELD(1, Stripes)();
+    PHOENIX_REGISTER_FIELD(2, PartitionTag)();
+    PHOENIX_REGISTER_FIELD(3, IsApproximate)();
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight)();
+    PHOENIX_REGISTER_FIELD(5, LocalDataWeight)();
+    PHOENIX_REGISTER_FIELD(6, TotalRowCount)();
+    PHOENIX_REGISTER_FIELD(7, TotalValueCount)();
+    PHOENIX_REGISTER_FIELD(8, TotalChunkCount)();
+    PHOENIX_REGISTER_FIELD(9, LocalChunkCount)();
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();

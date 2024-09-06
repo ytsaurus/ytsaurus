@@ -876,16 +876,16 @@ TString TUserObject::GetObjectIdPathIfAvailable() const
 
 void TUserObject::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Path>("path")();
-    registrar.template Field<2, &TThis::ObjectId>("object_id")();
-    registrar.template Field<3, &TThis::ExternalCellTag>("external_cell_tag")();
-    registrar.template Field<4, &TThis::ExternalTransactionId>("external_transaction_id")();
-    registrar.template Field<5, &TThis::Type>("type")();
-    registrar.template Field<6, &TThis::TransactionId>("transaction_id")();
-    registrar.template Field<7, &TThis::OmittedInaccessibleColumns>("omitted_inaccessible_columns")();
-    registrar.template Field<8, &TThis::SecurityTags>("security_tags")();
-    registrar.template Field<9, &TThis::ChunkCount>("chunk_count")();
-    registrar.template Field<10, &TThis::Account>("account")();
+    PHOENIX_REGISTER_FIELD(1, Path)();
+    PHOENIX_REGISTER_FIELD(2, ObjectId)();
+    PHOENIX_REGISTER_FIELD(3, ExternalCellTag)();
+    PHOENIX_REGISTER_FIELD(4, ExternalTransactionId)();
+    PHOENIX_REGISTER_FIELD(5, Type)();
+    PHOENIX_REGISTER_FIELD(6, TransactionId)();
+    PHOENIX_REGISTER_FIELD(7, OmittedInaccessibleColumns)();
+    PHOENIX_REGISTER_FIELD(8, SecurityTags)();
+    PHOENIX_REGISTER_FIELD(9, ChunkCount)();
+    PHOENIX_REGISTER_FIELD(10, Account)();
 }
 
 PHOENIX_DEFINE_TYPE(TUserObject);
