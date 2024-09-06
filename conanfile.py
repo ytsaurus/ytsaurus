@@ -1,7 +1,10 @@
 from conan import ConanFile
 
+import os
+
 from conan.tools.files import copy
 from conan.tools.cmake import CMakeToolchain, CMakeDeps, cmake_layout
+from conan.tools.env import Environment
 
 
 class App(ConanFile):
