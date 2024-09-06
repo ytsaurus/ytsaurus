@@ -1017,6 +1017,10 @@ NClusterNode::TJobResources TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (!ResourceHolder_) {
+        THROW_ERROR_EXCEPTION("Job has already released resources");
+    }
+
     return ResourceHolder_->GetResourceUsage();
 }
 
