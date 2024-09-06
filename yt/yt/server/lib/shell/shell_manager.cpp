@@ -91,6 +91,138 @@ public:
         , Environment_(config.Environment)
     { }
 
+    virtual IShellPtr MakeShell(std::unique_ptr<TShellOptions> options, const TJobShellDescriptor& jobShellDescriptor) = 0;
+
+    TPollJobShellResponse PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& serializedParameters) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TShellParameters parameters;
+        IShellPtr shell;
+        TShellResult resultValue;
+        TYsonString loggingContext;
+
+        Deserialize(parameters, ConvertToNode(serializedParameters));
+        if (parameters.Operation != EShellOperation::Spawn) {
+            shell = GetShellOrThrow(parameters.ShellId, parameters.ShellIndex);
+        }
+        if (Terminated_) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ShellManagerShutDown,
+                "Shell manager was shut down");
+        }
+
+        switch (parameters.Operation) {
+            case EShellOperation::Spawn: {
+                auto options = std::make_unique<TShellOptions>();
+                if (parameters.Term && !parameters.Term->empty()) {
+                    options->Term = *parameters.Term;
+                }
+                options->Uid = UserId_;
+                options->Gid = GroupId_;
+                if (parameters.Height != 0) {
+                    options->Height = parameters.Height;
+                }
+                if (options->Width != 0) {
+                    options->Width = parameters.Width;
+                }
+                Environment_.insert(
+                    Environment_.end(),
+                    parameters.Environment.begin(),
+                    parameters.Environment.end());
+                options->Environment = Environment_;
+                options->PreparationDir = PreparationDir_;
+                if (parameters.Command) {
+                    options->Command = parameters.Command;
+                } else {
+                    auto bashrc = TString{Bashrc};
+                    for (const auto& variable : Environment_) {
+                        if (variable.StartsWith("PS1=")) {
+                            bashrc = Format("export %v\n%v", variable, bashrc);
+                        }
+                    }
+                    options->Bashrc = bashrc;
+                    options->MessageOfTheDay = MessageOfTheDay_;
+                    options->InactivityTimeout = parameters.InactivityTimeout;
+                }
+                options->Id = TGuid::Create();
+
+                loggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
+                    .Item("shell_id").Value(options->Id)
+                    .Finish();
+
+                options->Index = NextShellIndex_++;
+                options->WorkingDir = WorkingDir_;
+
+                shell = MakeShell(std::move(options), jobShellDescriptor);
+
+                Register(shell);
+                shell->ResizeWindow(parameters.Height, parameters.Width);
+
+                break;
+            }
+
+            case EShellOperation::Update: {
+                shell->ResizeWindow(parameters.Height, parameters.Width);
+                if (!parameters.Keys.empty()) {
+                    resultValue.ConsumedOffset = shell->SendKeys(
+                        TSharedRef::FromString(HexDecode(parameters.Keys)),
+                        *parameters.InputOffset);
+                }
+                break;
+            }
+
+            case EShellOperation::Poll: {
+                auto pollResult = WaitFor(shell->Poll());
+                if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
+                    if (shell->Terminated()) {
+                        THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                            << TErrorAttribute("shell_id", parameters.ShellId)
+                            << TErrorAttribute("shell_index", parameters.ShellIndex);
+                    }
+                    resultValue.Output = "";
+                    break;
+                }
+                if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
+                    THROW_ERROR_EXCEPTION(
+                        EErrorCode::ShellManagerShutDown,
+                        "Shell manager was shut down")
+                        << TErrorAttribute("shell_id", parameters.ShellId)
+                        << TErrorAttribute("shell_index", parameters.ShellIndex)
+                        << pollResult;
+                }
+                if (!pollResult.IsOK() || pollResult.Value().Empty()) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                        << TErrorAttribute("shell_id", parameters.ShellId)
+                        << TErrorAttribute("shell_index", parameters.ShellIndex)
+                        << pollResult;
+                }
+                resultValue.Output = ToString(pollResult.Value());
+                break;
+            }
+
+            case EShellOperation::Terminate: {
+                shell->Terminate(TError("Shell %v terminated by user request", shell->GetId()));
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION(
+                    "Unknown operation %Qlv for shell %v",
+                    parameters.Operation,
+                    parameters.ShellId);
+        }
+
+        resultValue.ShellId = shell->GetId();
+        resultValue.ShellIndex = shell->GetIndex();
+        return TPollJobShellResponse {
+            .Result = ConvertToYsonString(resultValue),
+            .LoggingContext = loggingContext,
+        };
+    }
+
     void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -112,10 +244,11 @@ public:
         YT_LOG_INFO("Shell manager is shutting down");
 
         std::vector<TFuture<void>> futures;
+        futures.reserve(IdToShell_.size());
         for (const auto& [_, shell] : IdToShell_) {
             futures.push_back(shell->Shutdown(error));
         }
-        return AllSet(futures).As<void>();
+        return AllSucceeded(futures);
     }
 
 protected:
@@ -193,160 +326,35 @@ public:
         , PortoExecutor_(std::move(portoExecutor))
     { }
 
-    TPollJobShellResponse PollJobShell(
-        const TJobShellDescriptor& jobShellDescriptor,
-        const TYsonString& serializedParameters) override
+    IShellPtr MakeShell(std::unique_ptr<TShellOptions> options, const TJobShellDescriptor& jobShellDescriptor) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        options->EnableJobShellSeccopm = EnableJobShellSeccopm;
 
-        TShellParameters parameters;
-        IShellPtr shell;
-        TShellResult resultValue;
-        TYsonString loggingContext;
-
-        Deserialize(parameters, ConvertToNode(serializedParameters));
-        if (parameters.Operation != EShellOperation::Spawn) {
-            shell = GetShellOrThrow(parameters.ShellId, parameters.ShellIndex);
-        }
-        if (Terminated_) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ShellManagerShutDown,
-                "Shell manager was shut down");
-        }
-
-        switch (parameters.Operation) {
-            case EShellOperation::Spawn: {
-                auto options = std::make_unique<TShellOptions>();
-                if (parameters.Term && !parameters.Term->empty()) {
-                    options->Term = *parameters.Term;
-                }
-                options->EnableJobShellSeccopm = EnableJobShellSeccopm;
-                options->Uid = UserId_;
-                options->Gid = GroupId_;
-                if (parameters.Height != 0) {
-                    options->Height = parameters.Height;
-                }
-                if (options->Width != 0) {
-                    options->Width = parameters.Width;
-                }
-                Environment_.insert(
-                    Environment_.end(),
-                    parameters.Environment.begin(),
-                    parameters.Environment.end());
-                options->Environment = Environment_;
-                options->PreparationDir = PreparationDir_;
-                if (parameters.Command) {
-                    options->Command = parameters.Command;
-                } else {
-                    auto bashrc = TString{Bashrc};
-                    for (const auto& variable : Environment_) {
-                        if (variable.StartsWith("PS1=")) {
-                            bashrc = Format("export %v\n%v", variable, bashrc);
-                        }
-                    }
-                    options->Bashrc = bashrc;
-                    options->MessageOfTheDay = MessageOfTheDay_;
-                    options->InactivityTimeout = parameters.InactivityTimeout;
-                }
-                options->Id = TGuid::Create();
-
-                loggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
-                    .Item("shell_id").Value(options->Id)
-                    .Finish();
-
-                options->Index = NextShellIndex_++;
-                auto subcontainerName = (RootInstance_ ? RootInstance_->GetName() : "") + jobShellDescriptor.Subcontainer;
-                options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);
+        auto subcontainerName = (RootInstance_ ? RootInstance_->GetName() : "") + jobShellDescriptor.Subcontainer;
+        options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);
 #ifdef _linux_
-                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "user"))
-                    .ValueOrThrow();
-                {
-                    auto enablePorto = WaitFor(
-                        PortoExecutor_->GetContainerProperty(
-                            subcontainerName,
-                            "enable_porto"))
-                        .ValueOrThrow();
-                    if (enablePorto && enablePorto != "none" && enablePorto != "false") {
-                        options->EnablePorto = true;
-                    }
-                }
-
-                if (!jobShellDescriptor.Subcontainer.empty()) {
-                    options->WorkingDir = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "cwd"))
-                        .ValueOrThrow();
-                } else {
-                    options->WorkingDir = WorkingDir_;
-                }
-
-                if (EnableJobShellSeccopm) {
-                    EnsureToolBinaryPath(subcontainerName);
-                }
-#endif
-                shell = CreatePortoShell(PortoExecutor_, std::move(options));
-                Register(shell);
-                shell->ResizeWindow(parameters.Height, parameters.Width);
-
-                break;
+        options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "user")).ValueOrThrow();
+        {
+            auto enablePorto = WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "enable_porto")).ValueOrThrow();
+            if (enablePorto && enablePorto != "none" && enablePorto != "false") {
+                options->EnablePorto = true;
             }
-
-            case EShellOperation::Update: {
-                shell->ResizeWindow(parameters.Height, parameters.Width);
-                if (!parameters.Keys.empty()) {
-                    resultValue.ConsumedOffset = shell->SendKeys(
-                        TSharedRef::FromString(HexDecode(parameters.Keys)),
-                        *parameters.InputOffset);
-                }
-                break;
-            }
-
-            case EShellOperation::Poll: {
-                auto pollResult = WaitFor(shell->Poll());
-                if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
-                    if (shell->Terminated()) {
-                        THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
-                            << TErrorAttribute("shell_id", parameters.ShellId)
-                            << TErrorAttribute("shell_index", parameters.ShellIndex);
-                    }
-                    resultValue.Output = "";
-                    break;
-                }
-                if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
-                    THROW_ERROR_EXCEPTION(
-                        EErrorCode::ShellManagerShutDown,
-                        "Shell manager was shut down")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
-                }
-                if (!pollResult.IsOK() || pollResult.Value().Empty()) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
-                }
-                resultValue.Output = ToString(pollResult.Value());
-                break;
-            }
-
-            case EShellOperation::Terminate: {
-                shell->Terminate(TError("Shell %v terminated by user request", shell->GetId()));
-                break;
-            }
-
-            default:
-                THROW_ERROR_EXCEPTION(
-                    "Unknown operation %Qlv for shell %v",
-                    parameters.Operation,
-                    parameters.ShellId);
         }
 
-        resultValue.ShellId = shell->GetId();
-        resultValue.ShellIndex = shell->GetIndex();
-        return TPollJobShellResponse {
-            .Result = ConvertToYsonString(resultValue),
-            .LoggingContext = loggingContext,
-        };
+        if (!jobShellDescriptor.Subcontainer.empty()) {
+            options->WorkingDir = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "cwd")).ValueOrThrow();
+        } else {
+            options->WorkingDir = WorkingDir_;
+        }
+
+        if (EnableJobShellSeccopm) {
+            EnsureToolBinaryPath(subcontainerName);
+        }
+#endif
+
+        return CreatePortoShell(PortoExecutor_, std::move(options));
     }
+
 
 private:
     const IInstancePtr RootInstance_;
@@ -409,115 +417,11 @@ public:
         Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
     }
 
-    TPollJobShellResponse PollJobShell(
-        const TJobShellDescriptor& /*jobShellDescriptor*/,
-        const TYsonString& serializedParameters) override
+    IShellPtr MakeShell(
+        std::unique_ptr<TShellOptions> options, [[maybe_unused]] const TJobShellDescriptor& jobShellDescriptor) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        TShellParameters parameters;
-        TShellResult resultValue;
-        TYsonString loggingContext;
-        IShellPtr shell;
-
-        Deserialize(parameters, ConvertToNode(serializedParameters));
-        if (parameters.Operation != EShellOperation::Spawn) {
-            shell = GetShellOrThrow(parameters.ShellId, parameters.ShellIndex);
-        }
-        if (Terminated_) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ShellManagerShutDown,
-                "Shell manager was shut down");
-        }
-
-        switch (parameters.Operation) {
-            case EShellOperation::Spawn: {
-                auto options = std::make_unique<TShellOptions>();
-                options->ExePath = ExecProgramName;
-                if (parameters.Term && !parameters.Term->empty()) {
-                    options->Term = *parameters.Term;
-                }
-                options->Uid = UserId_;
-                options->Gid = GroupId_;
-                if (parameters.Height != 0) {
-                    options->Height = parameters.Height;
-                }
-                if (options->Width != 0) {
-                    options->Width = parameters.Width;
-                }
-                Environment_.insert(
-                    Environment_.end(),
-                    parameters.Environment.begin(),
-                    parameters.Environment.end());
-                options->Environment = Environment_;
-                options->PreparationDir = PreparationDir_;
-                options->WorkingDir = WorkingDir_;
-                if (parameters.Command) {
-                    options->Command = parameters.Command;
-                } else {
-                    options->Bashrc = Bashrc;
-                    options->MessageOfTheDay = MessageOfTheDay_;
-                    options->InactivityTimeout = parameters.InactivityTimeout;
-                }
-
-                options->Id = TGuid::Create();
-
-                loggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
-                    .Item("shell_id").Value(options->Id)
-                    .Finish();
-
-                options->Index = NextShellIndex_++;
-
-                shell = CreateShell(std::move(options));
-                Register(shell);
-                shell->ResizeWindow(parameters.Height, parameters.Width);
-                break;
-            }
-
-            case EShellOperation::Update: {
-                shell->ResizeWindow(parameters.Height, parameters.Width);
-                if (!parameters.Keys.empty()) {
-                    resultValue.ConsumedOffset = shell->SendKeys(
-                        TSharedRef::FromString(HexDecode(parameters.Keys)),
-                        *parameters.InputOffset);
-                }
-                break;
-            }
-
-            case EShellOperation::Poll: {
-                auto pollResult = WaitFor(shell->Poll());
-                if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
-                    resultValue.Output = "";
-                    break;
-                }
-                if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
-                    THROW_ERROR_EXCEPTION(
-                        EErrorCode::ShellManagerShutDown,
-                        "Shell manager was shut down")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << pollResult;
-                }
-                if (!pollResult.IsOK() || pollResult.Value().Empty()) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << pollResult;
-                }
-                resultValue.Output = ToString(pollResult.Value());
-                break;
-            }
-
-            case EShellOperation::Terminate: {
-                shell->Terminate(TError("Shell %v terminated by user request", shell->GetId()));
-                break;
-            }
-        }
-
-        resultValue.ShellId = shell->GetId();
-        resultValue.ShellIndex = shell->GetIndex();
-        return TPollJobShellResponse {
-            .Result = ConvertToYsonString(resultValue),
-            .LoggingContext = loggingContext,
-        };
+        options->ExePath = ExecProgramName;
+        return CreateShell(std::move(options));
     }
 
     void Terminate(const TError& error) override
@@ -530,19 +434,6 @@ public:
             shell->Terminate(error);
         }
         IdToShell_.clear();
-    }
-
-    TFuture<void> GracefulShutdown(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO("Shell manager is shutting down");
-        std::vector<TFuture<void>> futures;
-        futures.reserve(IdToShell_.size());
-        for (auto& [_, shell] : IdToShell_) {
-            futures.push_back(shell->Shutdown(error));
-        }
-        return AllSucceeded(futures);
     }
 };
 
