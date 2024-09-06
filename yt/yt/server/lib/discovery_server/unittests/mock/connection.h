@@ -366,6 +366,16 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void StartShuffleService(const TString& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const NDiscoveryClient::TDiscoveryConnectionConfigPtr Config_;
 };
