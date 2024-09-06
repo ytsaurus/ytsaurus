@@ -246,7 +246,9 @@ private:
         YT_VERIFY(IsLeader());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& config = GetDynamicConfig();
+
+        // NB: Take a copy; context switches are possible below.
+        auto config = GetDynamicConfig();
 
         for (auto nodeId : DataNodesBeingDisposed_) {
             auto* node = nodeTracker->FindNode(nodeId);
