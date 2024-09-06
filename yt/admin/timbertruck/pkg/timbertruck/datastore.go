@@ -216,7 +216,7 @@ func (ds *Datastore) CleanupOldCompletedTasks(completionTime time.Time) error {
 	return err
 }
 
-func (ds *Datastore) ActiveTaskByIno(ino int64) (task Task, err error) {
+func (ds *Datastore) ActiveTaskByIno(ino int64, streamName string) (task Task, err error) {
 	row := ds.sqlite.QueryRow(`
 			SELECT
 				StreamName,
@@ -227,9 +227,12 @@ func (ds *Datastore) ActiveTaskByIno(ino int64) (task Task, err error) {
 				BoundTime,
 				CompletionTime
 			FROM Tasks
-			WHERE INode = ?
+			WHERE
+				INode = ?
+				AND StreamName = ?
 		`,
 		ino,
+		streamName,
 	)
 
 	err = parseTask(row, &task)

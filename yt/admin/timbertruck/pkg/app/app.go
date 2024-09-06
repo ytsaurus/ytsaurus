@@ -244,7 +244,7 @@ func (app *daemonApp) Close() error {
 }
 
 func (app *daemonApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
-	app.timberTruck.AddStream(config, newFunc)
+	app.timberTruck.AddPipeline(config, newFunc)
 }
 
 func (app *daemonApp) Run() error {

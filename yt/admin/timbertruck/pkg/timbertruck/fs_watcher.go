@@ -84,10 +84,12 @@ loop:
 				continue
 			}
 			if event.Has(fsnotify.Create) {
+				w.logger.Info("Detected event on watched file", "event", event)
 				for i := range handlers {
 					w.trySendEvent(handlers[i], FileCreateEvent, event.Name)
 				}
 			} else if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+				w.logger.Info("Detected event on watched file", "event", event)
 				for i := range handlers {
 					w.trySendEvent(handlers[i], FileRemoveOrRenameEvent, event.Name)
 				}
