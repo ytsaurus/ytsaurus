@@ -1035,7 +1035,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
+                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime)
+                << TErrorAttribute("timestamp", timestamp);
         };
 
         auto handler = GetRowBlockedHandler();
