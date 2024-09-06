@@ -739,22 +739,22 @@ void TLegacySortedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJobSplittingBase>();
     // TLoggerOwner is persisted by TJobSplittingBase.
 
-    registrar.template Field<1, &TThis::SortedJobOptions_>("sorted_job_options")();
-    registrar.template Field<2, &TThis::ChunkSliceFetcherFactory_>("chunk_slice_fetcher_factory")();
-    registrar.template Field<3, &TThis::EnableKeyGuarantee_>("enable_key_guarantee")();
-    registrar.template Field<4, &TThis::InputStreamDirectory_>("input_stream_directory")();
-    registrar.template Field<5, &TThis::PrimaryPrefixLength_>("primary_prefix_length")();
-    registrar.template Field<6, &TThis::ForeignPrefixLength_>("foreign_prefix_length")();
-    registrar.template Field<7, &TThis::ShouldSlicePrimaryTableByKeys_>("should_slice_primary_table_by_keys")();
-    registrar.template Field<8, &TThis::SliceForeignChunks_>("slice_foreign_chunks")();
-    registrar.template Field<9, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
-    registrar.template Field<10, &TThis::Stripes_>("stripes")();
-    registrar.template Field<11, &TThis::JobSizeConstraints_>("job_size_constraints")();
-    registrar.template Field<12, &TThis::TeleportChunkSampler_>("teleport_chunk_sampler")();
-    registrar.template Field<13, &TThis::SupportLocality_>("support_locality")();
-    registrar.template Field<14, &TThis::TeleportChunks_>("teleport_chunks")();
-    registrar.template Field<15, &TThis::IsCompleted_>("is_completed")();
-    registrar.template Field<16, &TThis::ReturnNewDataSlices_>("return_new_data_slices")();
+    PHOENIX_REGISTER_FIELD(1, SortedJobOptions_)();
+    PHOENIX_REGISTER_FIELD(2, ChunkSliceFetcherFactory_)();
+    PHOENIX_REGISTER_FIELD(3, EnableKeyGuarantee_)();
+    PHOENIX_REGISTER_FIELD(4, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(5, PrimaryPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(6, ForeignPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(7, ShouldSlicePrimaryTableByKeys_)();
+    PHOENIX_REGISTER_FIELD(8, SliceForeignChunks_)();
+    PHOENIX_REGISTER_FIELD(9, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(10, Stripes_)();
+    PHOENIX_REGISTER_FIELD(11, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(12, TeleportChunkSampler_)();
+    PHOENIX_REGISTER_FIELD(13, SupportLocality_)();
+    PHOENIX_REGISTER_FIELD(14, TeleportChunks_)();
+    PHOENIX_REGISTER_FIELD(15, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(16, ReturnNewDataSlices_)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // TODO(max42): Why is it here?

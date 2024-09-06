@@ -39,11 +39,11 @@ bool TInputStreamDescriptor::IsUnversioned() const
 
 void TInputStreamDescriptor::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::IsTeleportable_>("is_teleportable")();
-    registrar.template Field<2, &TThis::IsPrimary_>("is_primary")();
-    registrar.template Field<3, &TThis::IsVersioned_>("is_versioned")();
-    registrar.template Field<4, &TThis::TableIndex_>("table_index")();
-    registrar.template Field<5, &TThis::RangeIndex_>("range_index")();
+    PHOENIX_REGISTER_FIELD(1, IsTeleportable_)();
+    PHOENIX_REGISTER_FIELD(2, IsPrimary_)();
+    PHOENIX_REGISTER_FIELD(3, IsVersioned_)();
+    PHOENIX_REGISTER_FIELD(4, TableIndex_)();
+    PHOENIX_REGISTER_FIELD(5, RangeIndex_)();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf /*spec*/)
@@ -106,8 +106,8 @@ int TInputStreamDirectory::GetInputStreamIndex(int tableIndex, int rangeIndex) c
 
 void TInputStreamDirectory::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Descriptors_>("descriptors")();
-    registrar.template Field<2, &TThis::DefaultDescriptor_>("default_descriptor")();
+    PHOENIX_REGISTER_FIELD(1, Descriptors_)();
+    PHOENIX_REGISTER_FIELD(2, DefaultDescriptor_)();
 }
 
 PHOENIX_DEFINE_TYPE(TInputStreamDirectory);

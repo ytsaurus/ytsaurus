@@ -267,12 +267,12 @@ void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripe
 
 void TInputChunkMapping::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Substitutes_>("substitutes")
+    PHOENIX_REGISTER_FIELD(1, Substitutes_)
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    registrar.template Field<2, &TThis::OriginalStripes_>("original_stripes")
+    PHOENIX_REGISTER_FIELD(2, OriginalStripes_)
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    registrar.template Field<3, &TThis::Mode_>("mode")();
-    registrar.template Field<4, &TThis::Logger>("logger")
+    PHOENIX_REGISTER_FIELD(3, Mode_)();
+    PHOENIX_REGISTER_FIELD(4, Logger)
         .SinceVersion(NControllerAgent::ESnapshotVersion::PersistInputChunkMappingLogger)();
 }
 

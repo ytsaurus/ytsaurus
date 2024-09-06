@@ -113,11 +113,11 @@ private:
 
 void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::DataWeightPerJob_>("data_weight_per_job")();
-    registrar.template Field<2, &TThis::MinJobTime_>("min_job_time")();
-    registrar.template Field<3, &TThis::MaxJobTime_>("max_job_time")();
-    registrar.template Field<4, &TThis::ExecToPrepareTimeRatio_>("exec_to_prepare_time_ratio")();
-    registrar.template Field<5, &TThis::Statistics_>("statistics")();
+    PHOENIX_REGISTER_FIELD(1, DataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(2, MinJobTime_)();
+    PHOENIX_REGISTER_FIELD(3, MaxJobTime_)();
+    PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_)();
+    PHOENIX_REGISTER_FIELD(5, Statistics_)();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
@@ -126,11 +126,11 @@ PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
 
 void TJobSizeAdjuster::TStatistics::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Count_>("count")();
-    registrar.template Field<2, &TThis::TotalPrepareTime_>("total_prepare_time")();
-    registrar.template Field<3, &TThis::TotalExecTime_>("total_exec_time")();
-    registrar.template Field<4, &TThis::TotalDataWeight_>("total_data_weight")();
-    registrar.template Field<5, &TThis::MaxDataWeight_>("max_data_weight")();
+    PHOENIX_REGISTER_FIELD(1, Count_)();
+    PHOENIX_REGISTER_FIELD(2, TotalPrepareTime_)();
+    PHOENIX_REGISTER_FIELD(3, TotalExecTime_)();
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight_)();
+    PHOENIX_REGISTER_FIELD(5, MaxDataWeight_)();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster::TStatistics);

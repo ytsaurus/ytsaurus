@@ -38,13 +38,13 @@ void TReadRangeRegistry::ApplyReadRange(const TLegacyDataSlicePtr& dataSlice, co
 
 void TReadRangeRegistry::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Ranges_>("ranges")();
+    PHOENIX_REGISTER_FIELD(1, Ranges_)();
 }
 
 void TReadRangeRegistry::TInputReadRange::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::UpperBound>("upper_bound")();
-    registrar.template Field<2, &TThis::LowerBound>("lower_bound")();
+    PHOENIX_REGISTER_FIELD(1, UpperBound)();
+    PHOENIX_REGISTER_FIELD(2, LowerBound)();
 }
 
 PHOENIX_DEFINE_TYPE(TReadRangeRegistry);

@@ -55,7 +55,7 @@ void TChunkPoolInputBase::Reset(TCookie /*cookie*/, TChunkStripePtr /*stripe*/, 
 void TChunkPoolInputBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<IPersistentChunkPoolInput>();
-    registrar.template Field<1, &TThis::Finished>("finished")();
+    PHOENIX_REGISTER_FIELD(1, Finished)();
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolInputBase);
@@ -103,10 +103,10 @@ const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataSliceCounter
 
 void TChunkPoolOutputWithCountersBase::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::JobCounter>("job_counter")();
-    registrar.template Field<2, &TThis::DataWeightCounter>("data_weight_counter")();
-    registrar.template Field<3, &TThis::RowCounter>("row_counter")();
-    registrar.template Field<4, &TThis::DataSliceCounter>("data_slice_counter")();
+    PHOENIX_REGISTER_FIELD(1, JobCounter)();
+    PHOENIX_REGISTER_FIELD(2, DataWeightCounter)();
+    PHOENIX_REGISTER_FIELD(3, RowCounter)();
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter)();
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);
@@ -376,11 +376,11 @@ void TJobSplittingBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TLoggerOwner>();
 
-    registrar.template Field<1, &TThis::CookieToChildCookies_>("cookie_to_child_cookies")();
-    registrar.template Field<2, &TThis::CookieToEmptyChildCount_>("cookie_to_empty_child_count")();
-    registrar.template Field<3, &TThis::CookieToParentCookie_>("cookie_to_parent_cookie")();
-    registrar.template Field<4, &TThis::CookieIsSplittable_>("cookie_is_splittable")();
-    registrar.template Field<5, &TThis::CookieShouldBeSplitProperly_>("cookie_should_be_split_properly")();
+    PHOENIX_REGISTER_FIELD(1, CookieToChildCookies_)();
+    PHOENIX_REGISTER_FIELD(2, CookieToEmptyChildCount_)();
+    PHOENIX_REGISTER_FIELD(3, CookieToParentCookie_)();
+    PHOENIX_REGISTER_FIELD(4, CookieIsSplittable_)();
+    PHOENIX_REGISTER_FIELD(5, CookieShouldBeSplitProperly_)();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSplittingBase);

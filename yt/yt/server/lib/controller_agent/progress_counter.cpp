@@ -226,17 +226,17 @@ bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
 
 void TProgressCounter::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Running_>("running")();
-    registrar.template Field<2, &TThis::Completed_>("completed")();
-    registrar.template Field<3, &TThis::Failed_>("failed")();
-    registrar.template Field<4, &TThis::Pending_>("pending")();
-    registrar.template Field<5, &TThis::Suspended_>("suspended")();
-    registrar.template Field<6, &TThis::Aborted_>("aborted")();
-    registrar.template Field<7, &TThis::Lost_>("lost")();
-    registrar.template Field<8, &TThis::Invalidated_>("invalidated")();
-    registrar.template Field<9, &TThis::Uncategorized_>("uncategorized")();
-    registrar.template Field<10, &TThis::Blocked_>("blocked")();
-    registrar.template Field<11, &TThis::Parents_>("parents")();
+    PHOENIX_REGISTER_FIELD(1, Running_)();
+    PHOENIX_REGISTER_FIELD(2, Completed_)();
+    PHOENIX_REGISTER_FIELD(3, Failed_)();
+    PHOENIX_REGISTER_FIELD(4, Pending_)();
+    PHOENIX_REGISTER_FIELD(5, Suspended_)();
+    PHOENIX_REGISTER_FIELD(6, Aborted_)();
+    PHOENIX_REGISTER_FIELD(7, Lost_)();
+    PHOENIX_REGISTER_FIELD(8, Invalidated_)();
+    PHOENIX_REGISTER_FIELD(9, Uncategorized_)();
+    PHOENIX_REGISTER_FIELD(10, Blocked_)();
+    PHOENIX_REGISTER_FIELD(11, Parents_)();
 }
 
 void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
@@ -398,10 +398,10 @@ void TProgressCounterGuard::OnLost()
 
 void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::ProgressCounter_>("progress_counter")();
-    registrar.template Field<2, &TThis::Value_>("value")();
-    registrar.template Field<3, &TThis::Category_>("category")();
-    registrar.template Field<4, &TThis::InterruptReason_>("interrupt_reason")();
+    PHOENIX_REGISTER_FIELD(1, ProgressCounter_)();
+    PHOENIX_REGISTER_FIELD(2, Value_)();
+    PHOENIX_REGISTER_FIELD(3, Category_)();
+    PHOENIX_REGISTER_FIELD(4, InterruptReason_)();
 }
 
 void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)

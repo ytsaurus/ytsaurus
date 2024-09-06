@@ -189,7 +189,7 @@ using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase
 template <class TJobManager>
 void TChunkPoolOutputWithJobManagerBase<TJobManager>::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::JobManager_>("job_manager")();
+    PHOENIX_REGISTER_FIELD(1, JobManager_)();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

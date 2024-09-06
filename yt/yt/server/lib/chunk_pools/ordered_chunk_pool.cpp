@@ -36,13 +36,13 @@ using namespace NScheduler;
 
 void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::MaxTotalSliceCount>("max_total_slice_count")();
-    registrar.template Field<2, &TThis::MinTeleportChunkSize>("min_teleport_chunk_size")();
-    registrar.template Field<3, &TThis::JobSizeConstraints>("job_size_constraints")();
-    registrar.template Field<4, &TThis::SupportLocality>("support_locality")();
-    registrar.template Field<5, &TThis::EnablePeriodicYielder>("enable_periodic_yielder")();
-    registrar.template Field<6, &TThis::ShouldSliceByRowIndices>("should_slice_by_row_indices")();
-    registrar.template Field<7, &TThis::Logger>("logger")();
+    PHOENIX_REGISTER_FIELD(1, MaxTotalSliceCount)();
+    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize)();
+    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints)();
+    PHOENIX_REGISTER_FIELD(4, SupportLocality)();
+    PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder)();
+    PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices)();
+    PHOENIX_REGISTER_FIELD(7, Logger)();
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -619,20 +619,20 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJobSplittingBase>();
     // TLoggerOwner is persisted by TJobSplittingBase.
 
-    registrar.template Field<1, &TThis::InputStreamDirectory_>("input_stream_directory")();
-    registrar.template Field<2, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
-    registrar.template Field<3, &TThis::Stripes_>("stripes")();
-    registrar.template Field<4, &TThis::JobSizeConstraints_>("job_size_constraints")();
-    registrar.template Field<5, &TThis::Sampler_>("sampler")();
-    registrar.template Field<6, &TThis::SupportLocality_>("support_locality")();
-    registrar.template Field<7, &TThis::MaxTotalSliceCount_>("max_total_slice_count")();
-    registrar.template Field<8, &TThis::ShouldSliceByRowIndices_>("should_slice_by_row_indices")();
-    registrar.template Field<9, &TThis::EnablePeriodicYielder_>("enable_periodic_yielder")();
-    registrar.template Field<10, &TThis::OutputOrder_>("output_order")();
-    registrar.template Field<11, &TThis::JobIndex_>("job_index")();
-    registrar.template Field<12, &TThis::BuiltJobCount_>("built_job_count")();
-    registrar.template Field<13, &TThis::SingleJob_>("single_job")();
-    registrar.template Field<14, &TThis::IsCompleted_>("is_completed")();
+    PHOENIX_REGISTER_FIELD(1, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(3, Stripes_)();
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(5, Sampler_)();
+    PHOENIX_REGISTER_FIELD(6, SupportLocality_)();
+    PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_)();
+    PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_)();
+    PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_)();
+    PHOENIX_REGISTER_FIELD(10, OutputOrder_)();
+    PHOENIX_REGISTER_FIELD(11, JobIndex_)();
+    PHOENIX_REGISTER_FIELD(12, BuiltJobCount_)();
+    PHOENIX_REGISTER_FIELD(13, SingleJob_)();
+    PHOENIX_REGISTER_FIELD(14, IsCompleted_)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

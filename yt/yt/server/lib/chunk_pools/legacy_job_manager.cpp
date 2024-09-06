@@ -284,23 +284,23 @@ bool TLegacyJobManager::TJob::IsInvalidated() const
 
 void TLegacyJobManager::TJob::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::State_>("state")();
-    registrar.template Field<2, &TThis::IsBarrier_>("is_barrier")();
-    registrar.template Field<3, &TThis::DataWeight_>("data_weight")();
-    registrar.template Field<4, &TThis::RowCount_>("row_count")();
-    registrar.template Field<5, &TThis::LowerLimit_>("lower_limit")();
-    registrar.template Field<6, &TThis::UpperLimit_>("upper_limit")();
-    registrar.template Field<7, &TThis::StripeList_>("stripe_list")();
-    registrar.template Field<8, &TThis::InputCookies_>("input_cookies")();
-    registrar.template Field<9, &TThis::Owner_>("owner")();
-    registrar.template Field<10, &TThis::SuspendedStripeCount_>("suspended_stripe_count")();
-    registrar.template Field<11, &TThis::Cookie_>("cookie")();
-    registrar.template Field<12, &TThis::Invalidated_>("invalidated")();
-    registrar.template Field<13, &TThis::Removed_>("removed")();
-    registrar.template Field<14, &TThis::DataWeightProgressCounterGuard_>("data_weight_progress_counter_guard")();
-    registrar.template Field<15, &TThis::RowProgressCounterGuard_>("row_progress_counter_guard")();
-    registrar.template Field<16, &TThis::JobProgressCounterGuard_>("job_progress_counter_guard")();
-    registrar.template Field<17, &TThis::InterruptReason_>("interrupt_reason")();
+    PHOENIX_REGISTER_FIELD(1, State_)();
+    PHOENIX_REGISTER_FIELD(2, IsBarrier_)();
+    PHOENIX_REGISTER_FIELD(3, DataWeight_)();
+    PHOENIX_REGISTER_FIELD(4, RowCount_)();
+    PHOENIX_REGISTER_FIELD(5, LowerLimit_)();
+    PHOENIX_REGISTER_FIELD(6, UpperLimit_)();
+    PHOENIX_REGISTER_FIELD(7, StripeList_)();
+    PHOENIX_REGISTER_FIELD(8, InputCookies_)();
+    PHOENIX_REGISTER_FIELD(9, Owner_)();
+    PHOENIX_REGISTER_FIELD(10, SuspendedStripeCount_)();
+    PHOENIX_REGISTER_FIELD(11, Cookie_)();
+    PHOENIX_REGISTER_FIELD(12, Invalidated_)();
+    PHOENIX_REGISTER_FIELD(13, Removed_)();
+    PHOENIX_REGISTER_FIELD(14, DataWeightProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(15, RowProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(16, JobProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(17, InterruptReason_)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // We must add ourselves to the job pool.
@@ -581,15 +581,15 @@ std::vector<TLegacyDataSlicePtr> TLegacyJobManager::ReleaseForeignSlices(IChunkP
 
 void TLegacyJobManager::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::DataWeightCounter_>("data_weight_counter")();
-    registrar.template Field<2, &TThis::RowCounter_>("row_counter")();
-    registrar.template Field<3, &TThis::JobCounter_>("job_counter")();
-    registrar.template Field<4, &TThis::DataSliceCounter_>("data_slice_counter")();
-    registrar.template Field<5, &TThis::InputCookieToAffectedOutputCookies_>("input_cookie_to_affected_output_cookies")();
-    registrar.template Field<6, &TThis::FirstValidJobIndex_>("first_valid_job_index")();
-    registrar.template Field<7, &TThis::SuspendedInputCookies_>("suspended_input_cookies")();
-    registrar.template Field<8, &TThis::Jobs_>("jobs")();
-    registrar.template Field<9, &TThis::Logger>("logger")();
+    PHOENIX_REGISTER_FIELD(1, DataWeightCounter_)();
+    PHOENIX_REGISTER_FIELD(2, RowCounter_)();
+    PHOENIX_REGISTER_FIELD(3, JobCounter_)();
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter_)();
+    PHOENIX_REGISTER_FIELD(5, InputCookieToAffectedOutputCookies_)();
+    PHOENIX_REGISTER_FIELD(6, FirstValidJobIndex_)();
+    PHOENIX_REGISTER_FIELD(7, SuspendedInputCookies_)();
+    PHOENIX_REGISTER_FIELD(8, Jobs_)();
+    PHOENIX_REGISTER_FIELD(9, Logger)();
 }
 
 TChunkStripeStatisticsVector TLegacyJobManager::GetApproximateStripeStatistics() const

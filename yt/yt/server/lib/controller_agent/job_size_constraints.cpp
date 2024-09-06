@@ -191,31 +191,31 @@ private:
 
 void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::CanAdjustDataWeightPerJob_>("can_adjust_data_weight_per_job")();
-    registrar.template Field<2, &TThis::IsExplicitJobCount_>("is_explicit_job_count")();
-    registrar.template Field<3, &TThis::JobCount_>("job_count")();
-    registrar.template Field<4, &TThis::DataWeightPerJob_>("data_weight_per_job")();
-    registrar.template Field<5, &TThis::PrimaryDataWeightPerJob_>("primary_data_weight_per_job")();
-    registrar.template Field<6, &TThis::MaxDataSlicesPerJob_>("max_data_slices_per_job")();
-    registrar.template Field<7, &TThis::MaxDataWeightPerJob_>("max_data_weight_per_job")();
-    registrar.template Field<8, &TThis::MaxPrimaryDataWeightPerJob_>("max_primary_data_weight_per_job")();
-    registrar.template Field<9, &TThis::InputSliceDataWeight_>("input_slice_data_weight")();
-    registrar.template Field<10, &TThis::InputSliceRowCount_>("input_slice_row_count")();
+    PHOENIX_REGISTER_FIELD(1, CanAdjustDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(2, IsExplicitJobCount_)();
+    PHOENIX_REGISTER_FIELD(3, JobCount_)();
+    PHOENIX_REGISTER_FIELD(4, DataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(5, PrimaryDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(6, MaxDataSlicesPerJob_)();
+    PHOENIX_REGISTER_FIELD(7, MaxDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(8, MaxPrimaryDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(9, InputSliceDataWeight_)();
+    PHOENIX_REGISTER_FIELD(10, InputSliceRowCount_)();
     // NB: ESnapshotVersion::BumpTo_24_1 is the first 24.1 snapshot version.
-    registrar.template Field<11, &TThis::BatchRowCount_>("batch_row_count")
+    PHOENIX_REGISTER_FIELD(11, BatchRowCount_)
         .InVersions([] (ESnapshotVersion version) {
             return ((version >= ESnapshotVersion::BatchRowCount_23_2 && version < ESnapshotVersion::BumpTo_24_1) ||
                 version >= ESnapshotVersion::BatchRowCount_24_1);
         })();
-    registrar.template Field<12, &TThis::ForeignSliceDataWeight_>("foreign_slice_data_weight")();
-    registrar.template Field<13, &TThis::SamplingRate_>("sampling_rate")();
-    registrar.template Field<14, &TThis::SamplingDataWeightPerJob_>("sampling_data_weight_per_job")();
-    registrar.template Field<15, &TThis::SamplingPrimaryDataWeightPerJob_>("sampling_primary_data_weight_per_job")();
-    registrar.template Field<16, &TThis::MaxBuildRetryCount_>("max_build_retry_count")();
-    registrar.template Field<17, &TThis::DataWeightPerJobRetryFactor_>("data_weight_per_job_retry_factor")();
+    PHOENIX_REGISTER_FIELD(12, ForeignSliceDataWeight_)();
+    PHOENIX_REGISTER_FIELD(13, SamplingRate_)();
+    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(16, MaxBuildRetryCount_)();
+    PHOENIX_REGISTER_FIELD(17, DataWeightPerJobRetryFactor_)();
 
     // COMPAT(galtsev)
-    registrar.template Field<18, &TThis::ForceAllowJobInterruption_>("force_allow_job_interruption")
+    PHOENIX_REGISTER_FIELD(18, ForceAllowJobInterruption_)
         .SinceVersion(ESnapshotVersion::ForceAllowJobInterruption)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             this_->ForceAllowJobInterruption_ = false;
