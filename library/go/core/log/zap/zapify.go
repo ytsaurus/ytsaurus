@@ -81,6 +81,8 @@ func zapifyField(field log.Field) zap.Field {
 		return zap.Reflect(field.Key(), field.Interface())
 	case log.FieldTypeByteString:
 		return zap.ByteString(field.Key(), field.Binary())
+	case log.FieldTypeStringer:
+		return zap.Stringer(field.Key(), field.Interface().(fmt.Stringer))
 	case log.FieldTypeContext:
 		return Context(field.Interface().(context.Context))
 	case log.FieldTypeLazyCall:
