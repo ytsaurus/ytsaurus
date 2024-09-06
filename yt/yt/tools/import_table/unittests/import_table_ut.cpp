@@ -132,7 +132,7 @@ TString GenerateIntegerParquet(const std::vector<int64_t>& data)
     std::shared_ptr<arrow::Array> i64array;
     NArrow::ThrowOnError(i64builder.Finish(&i64array));
 
-    auto schema = arrow::schema({arrow::field("int64", arrow::int64())});
+    auto schema = arrow::schema({arrow::field("int64", arrow::int64(), false)});
     auto table = arrow::Table::Make(schema, {i64array});
 
     auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
@@ -498,6 +498,13 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
         Split,
         resultTable,
         TestUrl);
+
+    TTableSchema schema;
+    Deserialize(schema, client->Get(resultTable + "/@schema"));
+
+    EXPECT_EQ(schema, TTableSchema()
+        .AddColumn(TColumnSchema().Name("int").Type(NTi::Int64()))
+    );
 
     Generator->VerifyAnswer(client, resultTable);
 }

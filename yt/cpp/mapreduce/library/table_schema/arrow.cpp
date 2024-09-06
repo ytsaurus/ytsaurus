@@ -15,12 +15,21 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowType);
+
+NTi::TTypePtr MakeOptional(NTi::TTypePtr arrowType, bool isOptional)
+{
+    if (isOptional) {
+        return NTi::Optional(arrowType);
+    }
+    return arrowType;
+}
+
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 {
     switch (arrowType->id()) {
         case arrow::Type::type::BOOL:
             return NTi::Bool();
-
         case arrow::Type::type::UINT8:
             return NTi::Uint8();
         case arrow::Type::type::UINT16:
@@ -57,12 +66,12 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 
         case arrow::Type::type::LIST:
             return NTi::List(
-                GetYTType(std::reinterpret_pointer_cast<arrow::ListType>(arrowType)->value_type()));
+                GetYTType(std::reinterpret_pointer_cast<arrow::ListType>(arrowType)->value_field()));
 
         case arrow::Type::type::MAP:
             return NTi::Dict(
-                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->key_type()),
-                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->item_type()));
+                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->key_field()),
+                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->item_field()));
 
         case arrow::Type::type::STRUCT:
         {
@@ -71,29 +80,20 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
             members.reserve(structType->num_fields());
             for (auto fieldIndex = 0; fieldIndex < structType->num_fields(); ++fieldIndex) {
                 auto field = structType->field(fieldIndex);
-                members.push_back({TString(field->name()), GetYTType(field->type())});
+                members.push_back({TString(field->name()), GetYTType(field)});
             }
             return NTi::Struct(std::move(members));
         }
-        // Currently YT supports only Decimal128 with precision <= 35. Thus, we represent short enough arrow decimal types
-        // as the corresponding YT decimals, and longer arrow decimal types as strings in decimal form.
-        // The latter is subject to change whenever wider decimal types are introduced in YT.
-        case arrow::Type::type::DECIMAL128:
-        {
-            constexpr int MaximumYTDecimalPrecision = 35;
-            auto decimalType = std::reinterpret_pointer_cast<arrow::Decimal128Type>(arrowType);
-            if (decimalType->precision() <= MaximumYTDecimalPrecision) {
-                return NTi::Decimal(decimalType->precision(), decimalType->scale());
-            } else {
-                return NTi::String();
-            }
-        }
-        case arrow::Type::type::DECIMAL256:
-            return NTi::String();
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported arrow type %Qv", arrowType->ToString());
     }
+}
+
+NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowField)
+{
+    NTi::TTypePtr resultType = GetYTType(arrowField->type());
+    return MakeOptional(resultType, arrowField->nullable());
 }
 
 } // namespace
@@ -104,7 +104,7 @@ TTableSchema CreateYTTableSchemaFromArrowSchema(const std::shared_ptr<arrow::Sch
 {
     TTableSchema resultSchema;
     for (const auto& field : arrowSchema->fields()) {
-        auto ytType = NTi::Optional(GetYTType(field->type()));
+        auto ytType = GetYTType(field);
         resultSchema.AddColumn(TColumnSchema().Name(TString(field->name())).TypeV3(ytType));
     }
     return resultSchema;
