@@ -465,7 +465,7 @@ private:
                     return TErrorOr<std::vector<TReplicationCardId>>(TError(result));
                 }
                 return TErrorOr(
-                    FromProto<std::vector<TReplicationCardId>>(result.Value()->collocation_replication_card_ids()));
+                    FromProto<std::vector<TReplicationCardId>>(result.Value()->replication_card_ids()));
             }));
     }
 

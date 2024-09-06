@@ -52,3 +52,8 @@ types:
         cpp_type: std::optional<NYson::TYsonString>
         column_name: synchronization_error
         column_type: Any
+
+      - cpp_name: QueueAgentBanned
+        cpp_type: std::optional<bool>
+        column_name: queue_agent_banned
+        column_type: Boolean

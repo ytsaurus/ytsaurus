@@ -4,22 +4,22 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortedJobOptions::Persist(const TPersistenceContext& context)
+void TSortedJobOptions::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, EnableKeyGuarantee);
-    Persist(context, PrimaryPrefixLength);
-    Persist(context, ForeignPrefixLength);
-    Persist(context, PrimaryComparator);
-    Persist(context, ForeignComparator);
-    Persist(context, MaxTotalSliceCount);
-    Persist(context, EnablePeriodicYielder);
-    Persist(context, ConsiderOnlyPrimarySize);
-    Persist(context, PivotKeys);
-    Persist(context, ShouldSlicePrimaryTableByKeys);
-    Persist(context, ValidateOrder);
+    PHOENIX_REGISTER_FIELD(1, EnableKeyGuarantee)();
+    PHOENIX_REGISTER_FIELD(2, PrimaryPrefixLength)();
+    PHOENIX_REGISTER_FIELD(3, ForeignPrefixLength)();
+    PHOENIX_REGISTER_FIELD(4, PrimaryComparator)();
+    PHOENIX_REGISTER_FIELD(5, ForeignComparator)();
+    PHOENIX_REGISTER_FIELD(6, MaxTotalSliceCount)();
+    PHOENIX_REGISTER_FIELD(7, EnablePeriodicYielder)();
+    PHOENIX_REGISTER_FIELD(8, ConsiderOnlyPrimarySize)();
+    PHOENIX_REGISTER_FIELD(9, PivotKeys)();
+    PHOENIX_REGISTER_FIELD(10, ShouldSlicePrimaryTableByKeys)();
+    PHOENIX_REGISTER_FIELD(11, ValidateOrder)();
 }
+
+PHOENIX_DEFINE_TYPE(TSortedJobOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

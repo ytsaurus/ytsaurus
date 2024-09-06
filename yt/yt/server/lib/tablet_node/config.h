@@ -103,8 +103,23 @@ DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
 class TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
-    // Any fields that should not be modified in a mounted table by the experiment
-    // must be listed in ValidateNoForbiddenKeysInPatch.
+public:
+    // Any fields that should not be sent to the tablet node without master
+    // consent (by setting it under @mount_config attribute or by an experiment)
+    // must be included into the list below.
+    static constexpr std::array NonDynamicallyModifiableFields{
+        "tablet_cell_bundle",
+        "in_memory_mode",
+        "profiling_mode",
+        "profiling_tag",
+        "enable_dynamic_store_read",
+        "enable_consistent_chunk_replica_placement",
+        "enable_detailed_profiling",
+    };
+
+    static_assert(NonDynamicallyModifiableFields.size() == 7,
+        "Consider promoting master reign");
+
 public:
     TString TabletCellBundle;
 
@@ -200,6 +215,7 @@ public:
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
+    TDuration MaxReplicationBatchSpan;
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationThrottler;
     TRelativeReplicationThrottlerConfigPtr RelativeReplicationThrottler;
     bool EnableReplicationLogging;

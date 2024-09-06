@@ -76,17 +76,18 @@ int TChunkStripe::GetInputStreamIndex() const
     return DataSlices.front()->GetInputStreamIndex();
 }
 
-void TChunkStripe::Persist(const NTableClient::TPersistenceContext& context)
+void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, DataSlices);
-    Persist(context, WaitingChunkCount);
-    Persist(context, Foreign);
-    Persist(context, Solid);
-    Persist(context, ChunkListId);
-    Persist(context, BoundaryKeys);
-    Persist(context, PartitionTag);
+    PHOENIX_REGISTER_FIELD(1, DataSlices)();
+    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount)();
+    PHOENIX_REGISTER_FIELD(3, Foreign)();
+    PHOENIX_REGISTER_FIELD(4, Solid)();
+    PHOENIX_REGISTER_FIELD(5, ChunkListId)();
+    PHOENIX_REGISTER_FIELD(6, BoundaryKeys)();
+    PHOENIX_REGISTER_FIELD(7, PartitionTag)();
 }
+
+PHOENIX_DEFINE_TYPE(TChunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,21 +131,22 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     Stripes.emplace_back(std::move(stripe));
 }
 
-void TChunkStripeList::Persist(const NTableClient::TPersistenceContext& context)
+void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Stripes);
-    Persist(context, PartitionTag);
-    Persist(context, IsApproximate);
-    Persist(context, TotalDataWeight);
-    Persist(context, LocalDataWeight);
-    Persist(context, TotalRowCount);
-    Persist(context, TotalValueCount);
-    Persist(context, TotalChunkCount);
-    Persist(context, LocalChunkCount);
+    PHOENIX_REGISTER_FIELD(1, Stripes)();
+    PHOENIX_REGISTER_FIELD(2, PartitionTag)();
+    PHOENIX_REGISTER_FIELD(3, IsApproximate)();
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight)();
+    PHOENIX_REGISTER_FIELD(5, LocalDataWeight)();
+    PHOENIX_REGISTER_FIELD(6, TotalRowCount)();
+    PHOENIX_REGISTER_FIELD(7, TotalValueCount)();
+    PHOENIX_REGISTER_FIELD(8, TotalChunkCount)();
+    PHOENIX_REGISTER_FIELD(9, LocalChunkCount)();
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
+
+PHOENIX_DEFINE_TYPE(TChunkStripeList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

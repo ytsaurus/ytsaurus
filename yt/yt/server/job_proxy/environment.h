@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
 #include <yt/yt/library/containers/public.h>
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
@@ -183,7 +185,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config);
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

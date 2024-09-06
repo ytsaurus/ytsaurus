@@ -1,3 +1,5 @@
+#include <iterator>
+#include <util/generic/fwd.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -61,9 +63,10 @@ public:
         DiscoveryServers_[index]->Finalize();
     }
 
-    void RecreateDiscoveryServer(int index)
+    void RecreateDiscoveryServer(
+        int index,
+        const TDiscoveryServerConfigPtr& serverConfig = New<TDiscoveryServerConfig>())
     {
-        auto serverConfig = New<TDiscoveryServerConfig>();
         // TODO(babenko): switch to std::string
         serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
 
@@ -824,6 +827,126 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
         return SyncYPathList(ypathService, "/") == std::vector<TString>{"sample_group2"};
     };
     WaitForPredicate(checkMembers);
+}
+
+TEST_F(TDiscoveryServiceTestSuite, TestLimits)
+{
+    auto addresses = GetDiscoveryServersAddresses();
+    for (int i = 0; i < std::ssize(addresses); ++i) {
+        KillDiscoveryServer(i);
+    }
+
+    auto connectionConfig = New<TDiscoveryConnectionConfig>();
+    connectionConfig->Addresses = {addresses[0]};
+
+    {
+        auto serverConfig = New<TDiscoveryServerConfig>();
+        serverConfig->MaxGroupCount = 2;
+        RecreateDiscoveryServer(0, serverConfig);
+
+        const TString groupId1 = "/sample_group1";
+        const TString memberId1 = "sample_member1";
+
+        const TString groupId2 = "/sample_group2";
+        const TString memberId2 = "sample_member2";
+
+        const TString groupId3 = "/sample_group3";
+        const TString memberId3 = "sample_member3";
+
+        auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
+        WaitFor(memberClient1->Start())
+            .ThrowOnError();
+
+        auto memberClient2 = CreateMemberClient(groupId2, memberId2, connectionConfig);
+        WaitFor(memberClient2->Start())
+            .ThrowOnError();
+
+        auto memberClient3 = CreateMemberClient(groupId3, memberId3, connectionConfig);
+        ASSERT_THROW(WaitFor(memberClient3->Start()).ThrowOnError(), std::exception);
+
+        KillDiscoveryServer(0);
+    }
+
+    {
+        auto serverConfig = New<TDiscoveryServerConfig>();
+        serverConfig->MaxMembersPerGroup = 3;
+        RecreateDiscoveryServer(0, serverConfig);
+
+        std::vector<TString> groups = {"/group1", "/group1/group2", "/group3"};
+        std::vector<TString> members = {"x", "y", "z"};
+
+        for (const auto& groupId : groups) {
+            for (const auto& memberId : members) {
+                auto memberClient = CreateMemberClient(groupId, memberId, connectionConfig);
+                WaitFor(memberClient->Start())
+                    .ThrowOnError();
+            }
+        }
+
+        for (const auto& groupId : groups) {
+            TString memberId = "joker";
+            auto memberClient = CreateMemberClient(groupId, memberId, connectionConfig);
+            ASSERT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+        }
+
+        KillDiscoveryServer(0);
+    }
+
+    {
+        auto serverConfig = New<TDiscoveryServerConfig>();
+        serverConfig->MaxGroupTreeSize = 3;
+        RecreateDiscoveryServer(0, serverConfig);
+
+        const TString groupId1 = "/a/bob/a";
+        const TString memberId1 = "sample_member1";
+
+        const TString groupId2 = "/a/bob";
+        const TString memberId2 = "sample_member2";
+
+        const TString groupId3 = "/a/bacaba";
+        const TString memberId3 = "sample_member3";
+
+        auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
+        WaitFor(memberClient1->Start())
+            .ThrowOnError();
+
+        auto memberClient2 = CreateMemberClient(groupId2, memberId2, connectionConfig);
+        WaitFor(memberClient2->Start())
+            .ThrowOnError();
+
+        auto memberClient3 = CreateMemberClient(groupId3, memberId3, connectionConfig);
+        ASSERT_THROW(WaitFor(memberClient3->Start()).ThrowOnError(), std::exception);
+
+        KillDiscoveryServer(0);
+    }
+
+    {
+        auto serverConfig = New<TDiscoveryServerConfig>();
+        serverConfig->MaxGroupTreeDepth = 3;
+        RecreateDiscoveryServer(0, serverConfig);
+
+        const TString groupId1 = "/a/b/a/c";
+        const TString memberId1 = "sample_member1";
+
+        const TString groupId2 = "/a/d";
+        const TString memberId2 = "sample_member2";
+
+        const TString groupId3 = "/a/b/a/c/aba";
+        const TString memberId3 = "sample_member3";
+
+        auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
+        WaitFor(memberClient1->Start())
+            .ThrowOnError();
+
+        auto memberClient2 = CreateMemberClient(groupId2, memberId2, connectionConfig);
+        WaitFor(memberClient2->Start())
+            .ThrowOnError();
+
+        auto memberClient3 = CreateMemberClient(groupId3, memberId3, connectionConfig);
+        ASSERT_THROW(WaitFor(memberClient3->Start()).ThrowOnError(), std::exception);
+
+        KillDiscoveryServer(0);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

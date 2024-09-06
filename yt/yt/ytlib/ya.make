@@ -37,6 +37,7 @@ SRCS(
     api/native/client_queries_impl.cpp
     api/native/client_replicated_tables_impl.cpp
     api/native/client_security_impl.cpp
+    api/native/client_shuffle_impl.cpp
     api/native/client_static_tables_impl.cpp
     api/native/client_transactions_impl.cpp
     api/native/config.cpp
@@ -103,10 +104,10 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
-    chaos_client/replication_card_residency_cache.cpp
     chaos_client/replication_cards_watcher.cpp
     chaos_client/replication_cards_watcher_client.cpp
 
@@ -513,6 +514,10 @@ SRCS(
     yql_client/config.cpp
 
     yql_client/proto/yql_service.proto
+
+    shuffle_service/shuffle_service.cpp
+
+    shuffle_service/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(
@@ -578,6 +583,24 @@ GENERATE_YT_RECORD(
 
 GENERATE_YT_RECORD(
     sequoia_client/records/dependent_transactions.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/node_forks.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/node_snapshots.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/path_forks.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )

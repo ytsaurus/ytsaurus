@@ -35,11 +35,13 @@ public:
             ChunkServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetPooled(false));
     }
 
 private:

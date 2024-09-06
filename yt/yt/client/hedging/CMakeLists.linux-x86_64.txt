@@ -31,7 +31,6 @@ target_link_libraries(yt-client-hedging PUBLIC
   yt-yt-client
   yt-client-cache
   yt-library-profiling
-  yt-client-hedging-proto
 )
 
 target_sources(yt-client-hedging PRIVATE

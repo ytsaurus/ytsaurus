@@ -61,6 +61,9 @@ private:
         ToProto(rpcResponse->mutable_query_id(), queryId);
 
         TStartQueryOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         if (rpcRequest.has_settings()) {
             options.Settings = ConvertToNode(TYsonStringBuf(rpcRequest.settings()));
         }
@@ -106,6 +109,9 @@ private:
         auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TAbortQueryOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         options.AbortMessage = rpcRequest.has_abort_message()
             ? std::make_optional(rpcRequest.abort_message())
             : std::nullopt;
@@ -161,6 +167,9 @@ private:
         auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TReadQueryResultOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         options.LowerRowIndex = rpcRequest.has_lower_row_index()
             ? std::make_optional(rpcRequest.lower_row_index())
             : std::nullopt;
@@ -199,6 +208,9 @@ private:
         auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TGetQueryOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         options.Attributes = rpcRequest.has_attributes()
             ? FromProto<TAttributeFilter>(rpcRequest.attributes())
             : TAttributeFilter();
@@ -225,6 +237,9 @@ private:
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         TListQueriesOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         options.FromTime = rpcRequest.has_from_time()
             ? std::make_optional(TInstant::FromValue(rpcRequest.from_time()))
             : std::nullopt;
@@ -285,6 +300,9 @@ private:
         auto queryId = FromProto<TQueryId>(rpcRequest.query_id());
 
         TAlterQueryOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         options.Annotations = rpcRequest.has_annotations()
             ? ConvertToNode(TYsonStringBuf(rpcRequest.annotations()))->AsMap()
             : nullptr;
@@ -309,20 +327,23 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
         YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 2);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 4);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         TGetQueryTrackerInfoOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
         if (rpcRequest.has_attributes()) {
             options.Attributes = FromProto<TAttributeFilter>(rpcRequest.attributes());
         }
-
         context->SetRequestInfo();
 
         auto result = QueryTracker_->GetQueryTrackerInfo(options);
 
+        rpcResponse->set_query_tracker_stage(result.QueryTrackerStage);
         rpcResponse->set_cluster_name(result.ClusterName);
         rpcResponse->set_supported_features(result.SupportedFeatures.ToString());
         for (const auto& accessControlObject : result.AccessControlObjects) {

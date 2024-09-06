@@ -1342,12 +1342,12 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
     }
 }
 
-std::optional<TString> TJob::GetStderr()
+std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& options)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
-        return *Stderr_;
+        return TGetJobStderrResponse::MakeJobStderr(TSharedRef::FromString(*Stderr_), options);
     }
 
     if (!UserJobSpec_) {
@@ -1356,7 +1356,7 @@ std::optional<TString> TJob::GetStderr()
 
     if (JobPhase_ == EJobPhase::Running) {
         try {
-            return GetJobProbeOrThrow()->GetStderr();
+            return GetJobProbeOrThrow()->GetStderr(options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
@@ -1450,12 +1450,12 @@ void TJob::ReportStderr()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto maybeStderr = GetStderr();
+    auto maybeStderr = GetStderr({});
     if (!maybeStderr) {
         return;
     }
     HandleJobReport(TNodeJobReport()
-        .Stderr(std::move(*maybeStderr)));
+        .Stderr({maybeStderr->Data.data(), maybeStderr->Data.size()}));
 }
 
 void TJob::ReportFailContext()
@@ -2887,14 +2887,14 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
         proxyConfig->CheckUserJobOOMKill = proxyDynamicConfig->CheckUserJobOOMKill;
-        if (proxyDynamicConfig->JobEnvironment) {
-            proxyConfig->JobEnvironment = PatchNode(proxyConfig->JobEnvironment, proxyDynamicConfig->JobEnvironment);
+        if (auto nodeConfig = ConvertToNode(proxyDynamicConfig->JobEnvironment)) {
+            proxyConfig->JobEnvironment = ConvertTo<TJobEnvironmentConfig>(PatchNode(ConvertToNode(proxyConfig->JobEnvironment), nodeConfig));
         }
 
         proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
 
         proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
-        proxyConfig->RetryingChannelConfig = proxyDynamicConfig->RetryingChannelConfig;
+        proxyConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
 
         proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
@@ -3433,7 +3433,6 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", aggregatedGpuStatistics.CumulativeUtilizationGpu);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", aggregatedGpuStatistics.CumulativeUtilizationMemory);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_power", aggregatedGpuStatistics.CumulativeUtilizationPower);
-    statistics->AddSample("/user_job/gpu/cumulative_memory", aggregatedGpuStatistics.CumulativeMemory);
     statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", aggregatedGpuStatistics.CumulativeMemoryMBSec);
     statistics->AddSample("/user_job/gpu/cumulative_power", aggregatedGpuStatistics.CumulativePower);
     statistics->AddSample("/user_job/gpu/cumulative_load", aggregatedGpuStatistics.CumulativeLoad);

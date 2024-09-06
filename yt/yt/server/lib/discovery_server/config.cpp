@@ -16,6 +16,14 @@ void TDiscoveryServerConfig::Register(TRegistrar registrar)
         .Default(1000);
     registrar.Parameter("gossip_batch_size", &TThis::GossipBatchSize)
         .Default(100);
+    registrar.Parameter("max_members_per_group", &TThis::MaxMembersPerGroup)
+        .Default();
+    registrar.Parameter("max_group_count", &TThis::MaxGroupCount)
+        .Default();
+    registrar.Parameter("max_group_tree_size", &TThis::MaxGroupTreeSize)
+        .Default();
+    registrar.Parameter("max_group_tree_depth", &TThis::MaxGroupTreeDepth)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

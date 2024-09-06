@@ -9,10 +9,17 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDummyPersistent::Persist(const TPersistenceContext& /*context*/)
-{
-    YT_UNIMPLEMENTED();
-}
+void TDummyPersistent::RegisterMetadata(auto&& /*registrar*/)
+{ }
+
+PHOENIX_DEFINE_TYPE(TDummyPersistent);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkPoolInputMock::RegisterMetadata(auto&& /*registrar*/)
+{ }
+
+PHOENIX_DEFINE_TYPE(TChunkPoolInputMock);
 
 ////////////////////////////////////////////////////////////////////////////////
 

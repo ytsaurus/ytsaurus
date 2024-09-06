@@ -56,14 +56,14 @@ class TReplicationCacheCallbacks
 public:
     TReplicationCacheCallbacks(
         TWeakPtr<TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>> cache,
-        const NLogging::TLogger& logger)
+        NLogging::TLogger logger)
         : Cache_(std::move(cache))
-        , Logger(logger)
+        , Logger(std::move(logger))
     { }
 
     void OnReplicationCardUpdated(
-        const TReplicationCardId& replicationCardId,
-        TReplicationCardPtr replicationCard,
+        TReplicationCardId replicationCardId,
+        const TReplicationCardPtr& replicationCard,
         NTransactionClient::TTimestamp timestamp) override
     {
         YT_LOG_DEBUG("Replication card updated (ReplicationCardId: %v, Timestamp: %v, ReplicationCard: %v)",
@@ -76,7 +76,7 @@ public:
         }
     }
 
-    void OnReplicationCardDeleted(const TReplicationCardId& replicationCardId) override
+    void OnReplicationCardDeleted(TReplicationCardId replicationCardId) override
     {
         YT_LOG_DEBUG("Replication card deleted (ReplicationCardId: %v)",
             replicationCardId);
@@ -86,12 +86,12 @@ public:
         }
     }
 
-    void OnUnknownReplicationCard(const TReplicationCardId& replicationCardId) override
+    void OnUnknownReplicationCard(TReplicationCardId replicationCardId) override
     {
         OnReplicationCardDeleted(replicationCardId);
     }
 
-    void OnNothingChanged(const TReplicationCardId& replicationCardId) override
+    void OnNothingChanged(TReplicationCardId replicationCardId) override
     {
         YT_LOG_DEBUG("Nothing changed (ReplicationCardId: %v)",
             replicationCardId);
@@ -101,7 +101,7 @@ private:
     const TWeakPtr<TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>> Cache_;
     const NLogging::TLogger Logger;
 
-    static TReplicationCardCacheKey GetKey(const TReplicationCardId& replicationCardId)
+    static TReplicationCardCacheKey GetKey(TReplicationCardId replicationCardId)
     {
         return TReplicationCardCacheKey{replicationCardId, MinimalFetchOptions};
     }
@@ -330,7 +330,7 @@ IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(const NNative::IConne
     auto channel = CreateBalancingChannel(
         Config_,
         std::move(channelFactory),
-        std::move(endpointDescription),
+        endpointDescription,
         std::move(endpointAttributes));
     channel = CreateRetryingChannel(
         Config_,

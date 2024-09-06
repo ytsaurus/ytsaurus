@@ -1,6 +1,8 @@
 #include "group.h"
 #include "group_tree.h"
 
+#include <library/cpp/yt/logging/logger.h>
+#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -827,7 +829,10 @@ public:
         return DoFindGroup(path);
     }
 
-    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds)
+    THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(
+        const std::vector<TGroupId>& groupIds,
+        TGroupManagerInfo& groupManagerInfo,
+        bool respectLimits)
     {
         THashMap<TGroupId, TGroupPtr> result;
         std::vector<TGroupId> nonexistingGroupIds;
@@ -852,9 +857,15 @@ public:
         }
 
         auto createGroup = [&] (const TGroupId& id) {
+            auto exceedsLimit = [&] (int value, std::optional<int> max_value) {
+                return respectLimits && max_value && value >= *max_value;
+            };
+
             NYPath::TTokenizer tokenizer(id);
             TString key;
             auto currentNode = Root_;
+            int currentDepth = 0;
+            const auto& config = groupManagerInfo.Config;
             for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
                 if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
                     YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
@@ -871,22 +882,54 @@ public:
 
                 if (auto nextNode = currentNode->FindChild(key)) {
                     currentNode = nextNode;
+                    ++currentDepth;
                     continue;
                 }
 
                 auto currentPath = tokenizer.GetPrefixPlusToken();
+
+                if (exceedsLimit(groupManagerInfo.GroupTreeSize, config->MaxGroupTreeSize)) {
+                    THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NodeLimitExceeded,
+                        "Cannot create group %v: too many nodes in group tree",
+                        id)
+                        << TErrorAttribute("node", currentPath)
+                        << TErrorAttribute("group_tree_size", groupManagerInfo.GroupTreeSize)
+                        << TErrorAttribute("max_group_tree_size", *config->MaxGroupTreeSize);
+                }
+
+                if (exceedsLimit(currentDepth, config->MaxGroupTreeDepth)) {
+                    THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::DepthLimitExceeded,
+                        "Cannot create group %v: group tree is too deep",
+                        id)
+                        << TErrorAttribute("node", currentPath)
+                        << TErrorAttribute("group_tree_depth", currentDepth)
+                        << TErrorAttribute("max_group_tree_depth", *config->MaxGroupTreeDepth);
+                }
+
                 auto newNode = New<TGroupNode>(key, ToString(currentPath), MakeWeak(currentNode));
                 YT_VERIFY(IdToNode_.emplace(currentPath, newNode).second);
                 currentNode->AddChild(key, newNode);
                 currentNode = newNode;
+                ++groupManagerInfo.GroupTreeSize;
             }
 
             // NB: Double-check that the group is still missing.
             if (!currentNode->GetGroup()) {
+                if (exceedsLimit(groupManagerInfo.GroupCount, config->MaxGroupCount)) {
+                    THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::GroupLimitExceeded,
+                        "Cannot create group %v: too many groups already",
+                        id)
+                        << TErrorAttribute("group", id)
+                        << TErrorAttribute("group_count", groupManagerInfo.GroupCount)
+                        << TErrorAttribute("max_group_count", *config->MaxGroupCount);
+                }
+                ++groupManagerInfo.GroupCount;
+
                 auto group = New<TGroup>(
                     id,
                     BIND(&TImpl::OnGroupEmptied, MakeWeak(this), id, MakeWeak(currentNode)),
                     Logger);
+
                 currentNode->SetGroup(group);
             }
 
@@ -1025,9 +1068,12 @@ TListGroupsResult TGroupTree::ListGroups(const TYPath& path, const TListGroupsOp
     return Impl_->ListGroups(path, options);
 }
 
-THashMap<TGroupId, TGroupPtr> TGroupTree::GetOrCreateGroups(const std::vector<TGroupId>& groupIds)
+THashMap<TGroupId, TGroupPtr> TGroupTree::GetOrCreateGroups(
+    const std::vector<TGroupId>& groupIds,
+    TGroupManagerInfo& groupManagerInfo,
+    bool respectLimits)
 {
-    return Impl_->GetOrCreateGroups(groupIds);
+    return Impl_->GetOrCreateGroups(groupIds, groupManagerInfo, respectLimits);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

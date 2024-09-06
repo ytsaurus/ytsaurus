@@ -1,0 +1,5 @@
+RECURSE(
+    cmd
+    pkg
+    internal
+)

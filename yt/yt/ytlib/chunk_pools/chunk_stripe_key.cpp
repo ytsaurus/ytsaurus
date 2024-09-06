@@ -4,11 +4,10 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBoundaryKeys::Persist(const NTableClient::TPersistenceContext& context)
+void TBoundaryKeys::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, MinKey);
-    Persist(context, MaxKey);
+    PHOENIX_REGISTER_FIELD(1, MinKey)();
+    PHOENIX_REGISTER_FIELD(2, MaxKey)();
 }
 
 bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
@@ -20,6 +19,8 @@ TBoundaryKeys::operator bool() const
 {
     return static_cast<bool>(MinKey) && static_cast<bool>(MaxKey);
 }
+
+PHOENIX_DEFINE_TYPE(TBoundaryKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,16 +90,17 @@ const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
     return std::get<TOutputOrder::TEntry>(Key_);
 }
 
-void TChunkStripeKey::Persist(const NTableClient::TPersistenceContext& context)
+void TChunkStripeKey::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Key_);
+    PHOENIX_REGISTER_FIELD(1, Key_)();
 }
 
 bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
 {
     return Key_ == other.Key_;
 }
+
+PHOENIX_DEFINE_TYPE(TChunkStripeKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 

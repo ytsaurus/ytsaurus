@@ -49,6 +49,8 @@ const (
 	FieldTypeContext
 	// FieldTypeLazyCall wraps function to lazy evaluate it after log level confirm
 	FieldTypeLazyCall
+	// FieldTypeStringer is for fmt.Stringer
+	FieldTypeStringer
 
 	fieldTypeLast // service type for testing purposes
 )
@@ -166,6 +168,8 @@ func (f Field) Any() interface{} {
 		return f.Interface()
 	case FieldTypeLazyCall:
 		return f.Interface()
+	case FieldTypeStringer:
+		return f.Interface()
 	default:
 		// For when new field type is not added to this func
 		panic(fmt.Sprintf("unknown field type: %d", f.Type()))
@@ -180,6 +184,11 @@ func Nil(key string) Field {
 // String constructs field of string type
 func String(key, value string) Field {
 	return Field{key: key, ftype: FieldTypeString, string: value}
+}
+
+// Stringer constructs field from fmt.Stringer interface
+func Stringer(key string, value fmt.Stringer) Field {
+	return Field{key: key, ftype: FieldTypeStringer, iface: value}
 }
 
 // Sprintf constructs field of string type with formatting

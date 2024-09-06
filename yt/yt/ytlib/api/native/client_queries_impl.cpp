@@ -292,6 +292,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
     auto rpcResponse = rsp->rpc_proxy_response();
 
     return TGetQueryTrackerInfoResult{
+        .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
         .AccessControlObjects = FromProto<std::vector<TString>>(rpcResponse.access_control_objects()),

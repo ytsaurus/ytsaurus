@@ -50,24 +50,6 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
 
 } // namespace
 
-// TODO(pogorelov): Move TTimeStatistics to NControllerAgent.
-static void Persist(const TPersistenceContext& context, NJobAgent::TTimeStatistics& timeStatistics)
-{
-    using NYT::Persist;
-
-    Persist(context, timeStatistics.PrepareDuration);
-    Persist(context, timeStatistics.ArtifactsDownloadDuration);
-    Persist(context, timeStatistics.PrepareRootFSDuration);
-    Persist(context, timeStatistics.ExecDuration);
-    Persist(context, timeStatistics.GpuCheckDuration);
-
-    if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
-        Persist(context, timeStatistics.WaitingForResourcesDuration);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobSummary::TJobSummary(TJobId id, EJobState state)
     : Result()
     , Id(id)
@@ -118,29 +100,30 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     }
 }
 
-void TJobSummary::Persist(const TPersistenceContext& context)
+void TJobSummary::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, Result)();
+    PHOENIX_REGISTER_FIELD(2, Error)
+        .SinceVersion(ESnapshotVersion::JobErrorInJobSummary)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            if (this_->Result) {
+                this_->Error = FromProto<TError>(this_->Result->error());
+            }
+        })();
 
-    Persist(context, Result);
-    if (context.GetVersion() >= ESnapshotVersion::JobErrorInJobSummary) {
-        Persist(context, Error);
-    } else if (context.IsLoad() && Result) {
-        Error = FromProto<TError>(Result->error());
-    }
+    PHOENIX_REGISTER_FIELD(3, Id)();
+    PHOENIX_REGISTER_FIELD(4, State)();
+    PHOENIX_REGISTER_FIELD(5, FinishTime)();
+    PHOENIX_REGISTER_FIELD(6, ReleaseFlags)();
+    PHOENIX_REGISTER_FIELD(7, Phase)();
+    PHOENIX_REGISTER_FIELD(8, TimeStatistics)();
 
-    Persist(context, Id);
-    Persist(context, State);
-    Persist(context, FinishTime);
-    Persist(context, ReleaseFlags);
-    Persist(context, Phase);
-    Persist(context, TimeStatistics);
-
-    if (context.GetVersion() >= ESnapshotVersion::PersistDataStatistics) {
-        Persist(context, TotalInputDataStatistics);
-        Persist(context, OutputDataStatistics);
-        Persist(context, TotalOutputDataStatistics);
-    }
+    PHOENIX_REGISTER_FIELD(9, TotalInputDataStatistics)
+        .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
+    PHOENIX_REGISTER_FIELD(10, OutputDataStatistics)
+        .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
+    PHOENIX_REGISTER_FIELD(11, TotalOutputDataStatistics)
+        .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
 }
 
 NProto::TJobResult& TJobSummary::GetJobResult()
@@ -198,6 +181,8 @@ void TJobSummary::FillDataStatisticsFromStatistics()
     }
 }
 
+PHOENIX_DEFINE_TYPE(TJobSummary);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompletedJobSummary::TCompletedJobSummary(NControllerAgent::NProto::TJobStatus* status)
@@ -206,19 +191,20 @@ TCompletedJobSummary::TCompletedJobSummary(NControllerAgent::NProto::TJobStatus*
     YT_VERIFY(State == ExpectedState);
 }
 
-void TCompletedJobSummary::Persist(const TPersistenceContext& context)
+void TCompletedJobSummary::RegisterMetadata(auto&& registrar)
 {
-    TJobSummary::Persist(context);
+    registrar.template BaseType<TJobSummary>();
 
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, Abandoned)();
+    PHOENIX_REGISTER_FIELD(2, InterruptionReason)();
+    PHOENIX_REGISTER_FIELD(3, SplitJobCount)();
 
-    Persist(context, Abandoned);
-    Persist(context, InterruptionReason);
-    // TODO(max42): now we persist only those completed job summaries that correspond
-    // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
-    // lots of ugly template resolution errors. I wasn't able to fix it :(
-    YT_VERIFY(InterruptionReason == EInterruptReason::None);
-    Persist(context, SplitJobCount);
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // TODO(max42): now we persist only those completed job summaries that correspond
+        // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
+        // lots of ugly template resolution errors. I wasn't able to fix it :(
+        YT_VERIFY(this_->InterruptionReason == EInterruptReason::None);
+    });
 }
 
 std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId)
@@ -233,6 +219,8 @@ std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId)
 
     return std::make_unique<TCompletedJobSummary>(std::move(summary));
 }
+
+PHOENIX_DEFINE_TYPE(TCompletedJobSummary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -277,6 +265,27 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.Error = std::move(eventSummary.Error);
 
     summary.Scheduled = eventSummary.Scheduled;
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    TFinishedAllocationSummary&& /*eventSummary*/)
+{
+    TAbortedJobSummary summary{jobId, EAbortReason::AllocationFinished};
+
+    summary.FinishTime = TInstant::Now();
+
+    auto error = TError("Allocation finished concurrently with settling job")
+        << TErrorAttribute("abort_reason", EAbortReason::AllocationFinished);
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        error);
+    summary.Error = std::move(error);
+
+    summary.Scheduled = true;
 
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }

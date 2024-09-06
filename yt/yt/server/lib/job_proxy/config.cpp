@@ -114,6 +114,98 @@ void TJobTraceEventProcessorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("major_page_fault_count_threshold", &TThis::MajorPageFaultCountLimit)
+        .Default(500);
+    registrar.Parameter("limit_overflow_count_threshold_to_abort_job", &TThis::LimitOverflowCountThresholdToAbortJob)
+        .Default(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobEnvironmentConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("start_uid", &TThis::StartUid)
+        .Default(10000);
+
+    registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
+        .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("job_thrashing_detector", &TThis::JobThrashingDetector)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSimpleJobEnvironmentConfig::Register(TRegistrar)
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTestingJobEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("testing_job_environment_scenario", &TThis::TestingJobEnvironmentScenario)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+
+    registrar.Parameter("block_io_watchdog_period", &TThis::BlockIOWatchdogPeriod)
+        .Default(TDuration::Seconds(60));
+
+    registrar.Parameter("external_binds", &TThis::ExternalBinds)
+        .Default();
+
+    registrar.Parameter("jobs_io_weight", &TThis::JobsIOWeight)
+        .Default(0.05);
+    registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
+        .GreaterThanOrEqual(0)
+        .Default(2);
+
+    registrar.Parameter("use_short_container_names", &TThis::UseShortContainerNames)
+        .Default(false);
+
+    registrar.Parameter("use_daemon_subcontainer", &TThis::UseDaemonSubcontainer)
+        .Default(false);
+
+    registrar.Parameter("use_exec_from_layer", &TThis::UseExecFromLayer)
+        .Default(false);
+
+    registrar.Parameter("container_destruction_backoff", &TThis::ContainerDestructionBackoff)
+        .Default(TDuration::Seconds(60));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cri_executor", &TThis::CriExecutor)
+        .DefaultNew();
+
+    registrar.Parameter("cri_image_cache", &TThis::CriImageCache)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_image", &TThis::JobProxyImage)
+        .NonEmpty();
+
+    registrar.Parameter("job_proxy_bind_mounts", &TThis::JobProxyBindMounts)
+        .Default();
+
+    registrar.Parameter("use_job_proxy_from_image", &TThis::UseJobProxyFromImage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
@@ -274,7 +366,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
         .Default(false);
 
-    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+    registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultNew();
 
     registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
@@ -322,7 +414,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
-        .Default(nullptr);
+        .Default();
 
     registrar.Parameter("testing_config", &TThis::TestingConfig)
         .DefaultNew();
@@ -336,7 +428,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
         .DefaultNew();
 
-    registrar.Parameter("retrying_channel_config", &TThis::RetryingChannelConfig)
+    registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultCtor([] {
             auto config = New<NRpc::TRetryingChannelConfig>();
             config->RetryBackoffTime = TDuration::Seconds(1);

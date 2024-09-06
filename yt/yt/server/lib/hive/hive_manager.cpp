@@ -522,7 +522,7 @@ private:
 
     TTimeCounter SyncPostingTimeCounter_;
     TTimeCounter AsyncPostingTimeCounter_;
-    THashMap<TCellId, TTimeCounter> PerCellSyncTimeCounter_;
+    TSyncMap<TCellId, TTimeCounter> PerCellSyncTimeCounter_;
 
     std::vector<THiveEdge> FrozenEdges_;
 
@@ -1341,12 +1341,11 @@ private:
 
         NTracing::TNullTraceContextGuard guard;
 
-        auto it = PerCellSyncTimeCounter_.find(cellId);
-        if (it == PerCellSyncTimeCounter_.end()) {
+        auto* syncTimeCounter = PerCellSyncTimeCounter_.Find(cellId);
+        if (!syncTimeCounter) {
             auto profiler = Profiler_
                 .WithTag("source_cell_id", ToString(cellId));
-
-            it = EmplaceOrCrash(PerCellSyncTimeCounter_, cellId, profiler.TimeCounter("/cell_sync_time"));
+            syncTimeCounter = PerCellSyncTimeCounter_.FindOrEmplace(cellId, profiler.TimeCounter("/cell_sync_time")).first;
         }
 
         TWallTimer timer;
@@ -1366,7 +1365,7 @@ private:
             // NB: Many subscribers are typically waiting for the sync to complete.
             // Make sure the promise is set in a large thread pool.
             .Apply(
-                BIND([syncTimeCounter = it->second, timer = std::move(timer)] (const TError& error) {
+                BIND([syncTimeCounter = *syncTimeCounter, timer = std::move(timer)] (const TError& error) {
                     syncTimeCounter.Add(timer.GetElapsedTime());
                     error.ThrowOnError();
                 })

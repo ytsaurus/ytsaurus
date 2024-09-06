@@ -604,7 +604,7 @@ TYPath TNode::GetObjectPath() const
     return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
 }
 
-void TNode::Save(TSaveContext& context) const
+void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
     TMaintenanceTarget::Save(context);
@@ -647,7 +647,7 @@ namespace {
 // COMPAT(kvk1920): remove after 24.2.
 struct TRealChunkLocationPtrSerializer
 {
-    static void Load(TLoadContext& context, TChunkLocation*& locationPtr)
+    static void Load(NCellMaster::TLoadContext& context, TChunkLocation*& locationPtr)
     {
         locationPtr = TChunkLocation::LoadPtr(context);
     }
@@ -655,7 +655,7 @@ struct TRealChunkLocationPtrSerializer
 
 } // namespace
 
-void TNode::Load(TLoadContext& context)
+void TNode::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
     TMaintenanceTarget::Load(context);

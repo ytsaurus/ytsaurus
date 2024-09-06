@@ -26,6 +26,7 @@ target_link_libraries(unittester-core-concurrency PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+  cpp-json-yson
 )
 
 target_allocator(unittester-core-concurrency

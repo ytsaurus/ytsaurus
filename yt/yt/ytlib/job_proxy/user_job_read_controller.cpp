@@ -70,14 +70,14 @@ public:
                 ? threshold
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
-    {
-        YT_LOG_DEBUG("Guesser Threshold: %v, UseAdaptiveRowCount: %v", threshold, JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount);
-    }
+    { }
 
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
-        YT_LOG_DEBUG("PrepareJobInputTransfer (GuesserEnabled: %v)", Guesser_.IsEnabled());
+        YT_LOG_DEBUG(
+            "Preparing job input transfer (GuesserEnabled: %v)",
+            Guesser_.IsEnabled());
 
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -87,14 +87,8 @@ public:
         auto enableRowFilter = jobSpecExt.input_query_spec().options().enable_row_filter();
 
         if (jobSpecExt.has_input_query_spec() && enableRowFilter) {
-            YT_LOG_DEBUG("Selected PrepareInputActionsQuery");
             return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput);
         }
-
-        YT_LOG_DEBUG(
-            "Selected PrepareInputActionsPassthrough (InputQuerySpec: %v, EnableRowFilter: %v)",
-            jobSpecExt.has_input_query_spec(),
-            enableRowFilter);
 
         return PrepareInputActionsPassthrough(format, asyncOutput);
     }
@@ -281,7 +275,7 @@ private:
     {
         auto jobIOConfig = JobSpecHelper_->GetJobIOConfig();
         YT_LOG_DEBUG(
-            "IsContextSavingEnabled (PipeCapacity: %v, DeliveryFencedWriterFlag: %v, GuesserEnabled: %v)",
+            "Checking whether context saving is enabled (PipeCapacity: %v, DeliveryFencedWriterFlag: %v, GuesserEnabled: %v)",
             jobIOConfig->PipeCapacity,
             jobIOConfig->UseDeliveryFencedPipeWriter,
             Guesser_.IsEnabled());

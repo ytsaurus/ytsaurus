@@ -622,6 +622,17 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     return execute_command("get_job_stderr", kwargs)
 
 
+def get_job_stderr_paged(operation_id, job_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    output_stream = BytesIO()
+    rsp = execute_command("get_job_stderr", kwargs, return_response=True, output_stream=output_stream)
+    rsp.wait()
+    result = rsp.response_parameters()
+    result["data"] = output_stream.getvalue()
+    return result
+
+
 def get_job_fail_context(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
@@ -3630,3 +3641,22 @@ def get_flow_view(pipeline_path, view_path=None, **kwargs):
         kwargs["view_path"] = view_path
 
     return execute_command("get_flow_view", kwargs, parse_yson=True)
+
+
+def make_externalized_tx_id(tx_id, externalizing_cell_tag):
+    parts = list(builtins.map(lambda p: int(p, 16), tx_id.split("-")))
+
+    original_type = parts[2] & 0xffff
+    shifted_native_cell_tag = parts[2] & 0xffff0000
+
+    # tx: 1
+    # nested_tx: 4
+    # externalized_tx: 5
+    # externalized_nested_tx: 6
+    externalized_type = 5 if original_type == 1 else 6
+
+    return "-".join([
+        f"{parts[0]:x}",
+        f"{parts[1]:x}",
+        f"{shifted_native_cell_tag | externalized_type:x}",
+        f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])

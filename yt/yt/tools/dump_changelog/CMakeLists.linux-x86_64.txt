@@ -29,8 +29,8 @@ target_link_libraries(dump-changelog PUBLIC
   yt-yt-core
   yt-library-program
   ytserver
-  server-lib-tablet_node
   server-lib-hydra
+  yt-yt-ytlib
   cpp-getopt-small
 )
 

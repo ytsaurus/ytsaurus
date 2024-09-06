@@ -3,7 +3,7 @@
 #include "chaos_cell_directory_synchronizer.h"
 #include "config.h"
 #include "private.h"
-#include "replication_card_residency_cache.h"
+#include "chaos_residency_cache.h"
 
 #include <yt/yt/ytlib/election/alien_cell_peer_channel_factory.h>
 
@@ -41,13 +41,13 @@ public:
     TReplicationCardChannelProvider(
         TReplicationCardId replicationCardId,
         ICellDirectoryPtr cellDirectory,
-        IReplicationCardResidencyCachePtr residencyCache,
+        IChaosResidencyCachePtr residencyCache,
         IChaosCellDirectorySynchronizerPtr synchronizer,
         EPeerKind peerKind,
         TReplicationCardChannelConfigPtr config)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , ReplicationCardResidencyCache_(std::move(residencyCache))
+        , ChaosResidencyCache_(std::move(residencyCache))
         , PeerKind_(peerKind)
         , ReplicationCardId_(replicationCardId)
         , EndpointDescription_(Format("ReplicationCardId:%v", replicationCardId))
@@ -65,7 +65,7 @@ public:
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -100,11 +100,11 @@ public:
 private:
     const TReplicationCardChannelConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
-    const IReplicationCardResidencyCachePtr ReplicationCardResidencyCache_;
+    const IChaosResidencyCachePtr ChaosResidencyCache_;
     const EPeerKind PeerKind_;
     const TReplicationCardId ReplicationCardId_;
 
-    const TString EndpointDescription_;
+    const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
     const TError UnavailableError_;
@@ -129,7 +129,7 @@ private:
         }
 
         if (cellTag != InvalidCellTag) {
-            ReplicationCardResidencyCache_->ForceRefresh(ReplicationCardId_, cellTag);
+            ChaosResidencyCache_->ForceRefresh(ReplicationCardId_, cellTag);
             ChannelFuture_.Store(TFuture<IChannelPtr>());
 
             YT_LOG_DEBUG("Invalidated replication card cell tag from residency cache");
@@ -140,14 +140,14 @@ private:
     {
         YT_LOG_DEBUG("Creating new replication card channel");
 
-        auto future = ReplicationCardResidencyCache_->GetReplicationCardResidency(ReplicationCardId_)
-            .Apply(BIND(&TReplicationCardChannelProvider::OnReplicationCardResidencyFound, MakeStrong(this)));
+        auto future = ChaosResidencyCache_->GetChaosResidency(ReplicationCardId_)
+            .Apply(BIND(&TReplicationCardChannelProvider::OnChaosResidencyFound, MakeStrong(this)));
 
         ChannelFuture_.Store(future);
         return future;
     }
 
-    TFuture<IChannelPtr> OnReplicationCardResidencyFound(TCellTag cellTag)
+    TFuture<IChannelPtr> OnChaosResidencyFound(TCellTag cellTag)
     {
         YT_LOG_DEBUG("Found replication card residency (CellTag: %v)",
             cellTag);
@@ -199,12 +199,12 @@ class TReplicationCardChannelFactory
 public:
     TReplicationCardChannelFactory(
         ICellDirectoryPtr cellDirectory,
-        IReplicationCardResidencyCachePtr residencyCache,
+        IChaosResidencyCachePtr residencyCache,
         IChaosCellDirectorySynchronizerPtr synchronizer,
         TReplicationCardChannelConfigPtr config)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , ReplicationCardResidencyCache_(std::move(residencyCache))
+        , ChaosResidencyCache_(std::move(residencyCache))
         , Synchronizer_(std::move(synchronizer))
     { }
 
@@ -213,7 +213,7 @@ public:
         auto provider = New<TReplicationCardChannelProvider>(
             replicationCardId,
             CellDirectory_,
-            ReplicationCardResidencyCache_,
+            ChaosResidencyCache_,
             Synchronizer_,
             peerKind,
             Config_);
@@ -223,7 +223,7 @@ public:
 private:
     const TReplicationCardChannelConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
-    const IReplicationCardResidencyCachePtr ReplicationCardResidencyCache_;
+    const IChaosResidencyCachePtr ChaosResidencyCache_;
     const IChaosCellDirectorySynchronizerPtr Synchronizer_;
 };
 
@@ -231,7 +231,7 @@ private:
 
 IReplicationCardChannelFactoryPtr CreateReplicationCardChannelFactory(
     ICellDirectoryPtr cellDirectory,
-    IReplicationCardResidencyCachePtr residencyCache,
+    IChaosResidencyCachePtr residencyCache,
     IChaosCellDirectorySynchronizerPtr synchronizer,
     TReplicationCardChannelConfigPtr config)
 {

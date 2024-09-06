@@ -219,7 +219,7 @@ public:
     {
         std::vector<TString> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
-            fileNames.emplace_back(ToString(fileIndex) + ".par");
+            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
@@ -277,7 +277,7 @@ public:
     {
         std::vector<TString> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
-            fileNames.emplace_back(ToString(fileIndex) + ".par");
+            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
@@ -334,7 +334,7 @@ public:
 
     std::vector<TString> GenerateFileNames() override
     {
-        return {"0.par"};
+        return {"0.parquet"};
     }
 
     std::vector<TString> GenerateParquetData() override
@@ -494,7 +494,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
     NTools::NImporter::ImportParquetFilesFromHuggingface(
         proxy,
         Dataset,
-        "default",
+        /*subset*/ "default",
         Split,
         resultTable,
         TestUrl);
@@ -525,7 +525,7 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
     NTools::NImporter::ImportParquetFilesFromHuggingface(
         proxy,
         Dataset,
-        "default",
+        /*subset*/ "default",
         Split,
         resultTable,
         TestUrl);

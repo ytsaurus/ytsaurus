@@ -1,0 +1,16 @@
+#pragma once
+
+#include <yt/yt/core/rpc/service.h>
+
+namespace NYT::NShuffle {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServicePtr CreateShuffleService(
+    IInvokerPtr invoker,
+    NLogging::TLogger logger,
+    TString localServerAddress);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NShuffle

@@ -71,7 +71,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config_repository.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/conversion.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/data_type_boolean.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/custom_data_types.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/dictionary_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/format.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/function_helpers.cpp
@@ -123,6 +123,8 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_directory_database.cpp
 )
 
 

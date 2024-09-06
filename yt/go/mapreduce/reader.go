@@ -39,6 +39,9 @@ type Reader interface {
 
 	// Advances input stream to the next record.
 	Next() bool
+
+	// Err returns the error that occurred while trying to advance input stream to the next record.
+	Err() error
 }
 
 type reader struct {

@@ -10,7 +10,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 struct IAlertManagerHost
     : public virtual TRefCounted
-    , public IPersistent
+    , public virtual IPersistent
 {
     virtual const std::vector<TTaskPtr>& GetTasks() const = 0;
     virtual const TControllerAgentConfigPtr& GetConfig() const = 0;

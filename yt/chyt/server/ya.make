@@ -54,7 +54,7 @@ SRCS(
     config_repository.cpp
     config.cpp
     conversion.cpp
-    data_type_boolean.cpp
+    custom_data_types.cpp
     dictionary_source.cpp
     format.cpp
     function_helpers.cpp
@@ -107,6 +107,8 @@ SRCS(
     virtual_column.cpp
     yt_to_ch_converter.cpp
     yt_database.cpp
+    yt_database_base.cpp
+    yt_directory_database.cpp
 )
 
 END()

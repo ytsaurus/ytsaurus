@@ -411,7 +411,7 @@ void TNestedTableMerger::BuildMergeScript()
         return 0;
     };
 
-    auto skipStream = [&] (ui8 id) {
+    auto skipStream = [&] (int id) {
         auto endOffset = EndOffsets_[id];
         YT_VERIFY(CurrentOffsets_[id] != endOffset);
 
@@ -420,18 +420,24 @@ void TNestedTableMerger::BuildMergeScript()
 
     Heap_.clear();
 
-    for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
-        Heap_.push_back(index);
+    for (int id = 0; id < std::ssize(CurrentOffsets_); ++id) {
+        if (CurrentOffsets_[id] != EndOffsets_[id]) {
+            Heap_.push_back(id);
+        }
     }
 
-    NYT::MakeHeap(Heap_.begin(), Heap_.end(), [&] (ui8 lhs, ui8 rhs) {
+    if (Heap_.empty()) {
+        return;
+    }
+
+    NYT::MakeHeap(Heap_.begin(), Heap_.end(), [&] (int lhs, int rhs) {
         auto cmpResult = compareKey(CurrentOffsets_[lhs], CurrentOffsets_[rhs]);
         return cmpResult == 0 ? lhs < rhs : cmpResult < 0;
     });
 
     size_t savedIdsSize = Ids_.size();
 
-    ui8 topId = Heap_.front();
+    int topId = Heap_.front();
     auto currentItem = CurrentOffsets_[topId];
 
     while (true) {
@@ -447,7 +453,7 @@ void TNestedTableMerger::BuildMergeScript()
         }
 
         // TODO(lukyan): Can return if top changes.
-        SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin(), [&] (ui8 lhs, ui8 rhs) {
+        SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin(), [&] (int lhs, int rhs) {
             auto cmpResult = compareKey(CurrentOffsets_[lhs], CurrentOffsets_[rhs]);
             return cmpResult == 0 ? lhs < rhs : cmpResult < 0;
         });
@@ -463,8 +469,8 @@ void TNestedTableMerger::BuildMergeScript()
 }
 
 TUnversionedValue TNestedTableMerger::BuildMergedKeyColumns(
-    TRange<ui8> counts,
-    TRange<ui8> ids,
+    TRange<int> counts,
+    TRange<int> ids,
     TRange<TUnversionedValue> unpackedKeys,
     TRowBuffer* rowBuffer)
 {
@@ -487,8 +493,8 @@ TUnversionedValue TNestedTableMerger::BuildMergedKeyColumns(
 }
 
 TVersionedValue TNestedTableMerger::ApplyMergeScript(
-    TRange<ui8> counts,
-    TRange<ui8> ids,
+    TRange<int> counts,
+    TRange<int> ids,
     TRange<TTimestamp> timestamps,
     TRange<TVersionedValue> values,
     EValueType elementType,
@@ -513,7 +519,7 @@ TVersionedValue TNestedTableMerger::ApplyMergeScript(
             continue;
         }
 
-        ui8 id = timestampIt - timestamps.Begin();
+        int id = timestampIt - timestamps.Begin();
 
         CurrentOffsets_[id] = UnpackedValues_.size();
 
@@ -536,7 +542,7 @@ TVersionedValue TNestedTableMerger::ApplyMergeScript(
             mergeState = UnpackedValues_[CurrentOffsets_[id]++];
         }
 
-        for (ui8 index = 1; index < count; ++index) {
+        for (int index = 1; index < count; ++index) {
             auto id = *idPtr++;
             auto value = MakeUnversionedNullValue();
             // Do not merge if CurrentOffsets_[id] is -1 (npos).

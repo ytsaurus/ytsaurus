@@ -40,7 +40,9 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_operations_archive.inc)
+    SET(YT_CONFIG_PATCH {init_operations_archive=%true;})
+
+    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 ENDIF()
 
 REQUIREMENTS(

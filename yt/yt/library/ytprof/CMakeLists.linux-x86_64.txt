@@ -52,6 +52,6 @@ target_sources(yt-library-ytprof PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/profile.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/build_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/external_pprof.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/symbolize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/symbolize_linux.cpp
 )
 

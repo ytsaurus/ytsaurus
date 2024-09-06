@@ -25,16 +25,8 @@ func (r *skiffReader) MustScan(value any) {
 	}
 }
 
-func (c *jobContext) initPipes(state *jobState, nOutputPipes int) error {
-	if state.InputSkiffFormat == nil {
-		c.in = newReader(os.Stdin, c)
-	} else {
-		in, err := skiff.NewDecoder(os.Stdin, *state.InputSkiffFormat)
-		if err != nil {
-			return err
-		}
-		c.in = &skiffReader{Decoder: in, ctx: c}
-	}
+func (c *jobContext) initPipes(nOutputPipes int) error {
+	c.in = os.Stdin
 
 	// Hide stdin from user code, just in case.
 	os.Stdin = nil
@@ -57,15 +49,34 @@ func (c *jobContext) initPipes(state *jobState, nOutputPipes int) error {
 			pipe = os.NewFile(fd, fmt.Sprintf("yt-output-pipe-%d", i))
 		}
 
-		c.out = append(c.out, &writer{
-			out: pipe,
-			ctx: c,
-			writer: yson.NewWriterConfig(pipe, yson.WriterConfig{
-				Format: yson.FormatBinary,
-				Kind:   yson.StreamListFragment,
-			}),
-		})
+		c.out = append(c.out, pipe)
 	}
 
 	return nil
+}
+
+func (c *jobContext) createReader(state *jobState) (Reader, error) {
+	if state.InputSkiffFormat == nil {
+		return newReader(c.in, c), nil
+	}
+	in, err := skiff.NewDecoder(c.in, *state.InputSkiffFormat)
+	if err != nil {
+		return nil, err
+	}
+	return &skiffReader{Decoder: in, ctx: c}, nil
+}
+
+func (c *jobContext) createWriters() []Writer {
+	writers := make([]Writer, len(c.out))
+	for i, file := range c.out {
+		writers[i] = &writer{
+			out: file,
+			ctx: c,
+			writer: yson.NewWriterConfig(file, yson.WriterConfig{
+				Format: yson.FormatBinary,
+				Kind:   yson.StreamListFragment,
+			}),
+		}
+	}
+	return writers
 }

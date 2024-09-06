@@ -1,0 +1,34 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/client/chaos_client/public.h>
+
+#include <yt/yt/core/logging/public.h>
+
+namespace NYT::NChaosClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChaosResidencyCache
+    : public virtual TRefCounted
+{
+    virtual TFuture<NObjectClient::TCellTag> GetChaosResidency(NObjectClient::TObjectId objectId) = 0;
+    virtual void ForceRefresh(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) = 0;
+    virtual void Clear() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChaosResidencyCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChaosResidencyCachePtr CreateChaosResidencyCache(
+    TChaosResidencyCacheConfigPtr config,
+    NApi::NNative::IConnectionPtr connection,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChaosClient

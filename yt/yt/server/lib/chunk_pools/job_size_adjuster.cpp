@@ -10,7 +10,6 @@ using namespace NControllerAgent;
 
 class TJobSizeAdjuster
     : public IJobSizeAdjuster
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TJobSizeAdjuster() = default;
@@ -57,16 +56,6 @@ public:
         return static_cast<i64>(DataWeightPerJob_);
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-        Persist(context, DataWeightPerJob_);
-        Persist(context, MinJobTime_);
-        Persist(context, MaxJobTime_);
-        Persist(context, ExecToPrepareTimeRatio_);
-        Persist(context, Statistics_);
-    }
-
 private:
     class TStatistics
     {
@@ -101,25 +90,15 @@ private:
             return Count_ == 0;
         }
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, Count_);
-            Persist(context, TotalPrepareTime_);
-            Persist(context, TotalExecTime_);
-            Persist(context, TotalDataWeight_);
-            Persist(context, MaxDataWeight_);
-        }
-
     private:
         int Count_ = 0;
         double TotalPrepareTime_ = 0.0;
         double TotalExecTime_ = 0.0;
         double TotalDataWeight_ = 0.0;
         double MaxDataWeight_ = 0.0;
-    };
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster, 0xf8338721);
+        PHOENIX_DECLARE_TYPE(TStatistics, 0xab66ec65);
+    };
 
     double DataWeightPerJob_ = 0.0;
     double MinJobTime_ = 0.0;
@@ -127,9 +106,34 @@ private:
     double ExecToPrepareTimeRatio_ = 0.0;
 
     TStatistics Statistics_;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster);
+void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, DataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(2, MinJobTime_)();
+    PHOENIX_REGISTER_FIELD(3, MaxJobTime_)();
+    PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_)();
+    PHOENIX_REGISTER_FIELD(5, Statistics_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobSizeAdjuster::TStatistics::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Count_)();
+    PHOENIX_REGISTER_FIELD(2, TotalPrepareTime_)();
+    PHOENIX_REGISTER_FIELD(3, TotalExecTime_)();
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight_)();
+    PHOENIX_REGISTER_FIELD(5, MaxDataWeight_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSizeAdjuster::TStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -147,24 +147,34 @@ void FromProto(TControllerTransactionIds* transactionIds, const NControllerAgent
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationTransactions AttachControllerTransactions(
-    TAttachTransactionFn attachTransaction,
-    TControllerTransactionIds&& transactionIds)
+    TAttachTransactionCallback attachTransaction,
+    TControllerTransactionIds transactionIds)
 {
     TOperationTransactions transactions;
     // NB: For both InputTransactions and NestedInputTransactions.
     THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
 
-    auto attachIfNotAttached = [&] (TTransactionId transactionId, TString name) {
+    // NB(coteeq): This could've been a bare noexcept in callback signature,
+    // but neither std::function, nor TCallback offer an noexcept'able overload.
+    auto attachTransactionNoexcept = [&] (TTransactionId transactionId, const TString& name) {
+        try {
+            return attachTransaction(transactionId, name);
+        } catch (const std::exception& ex) {
+            YT_ABORT();
+        }
+    };
+
+    auto attachIfNotAttached = [&] (TTransactionId transactionId, const TString& name) {
         auto it = transactionIdToTransaction.find(transactionId);
         if (it != transactionIdToTransaction.end()) {
             return it->second;
         }
-        auto transaction = attachTransaction(transactionId, name);
+        auto transaction = attachTransactionNoexcept(transactionId, name);
         YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
         return transaction;
     };
 
-    transactions.AsyncTransaction = attachTransaction(
+    transactions.AsyncTransaction = attachIfNotAttached(
         transactionIds.AsyncId,
         "async");
     transactions.InputTransaction = attachIfNotAttached(
@@ -177,16 +187,16 @@ TOperationTransactions AttachControllerTransactions(
         transactions.NestedInputTransactions.push_back(
             attachIfNotAttached(transactionId, "nested input transaction"));
     }
-    transactions.OutputTransaction = attachTransaction(
+    transactions.OutputTransaction = attachIfNotAttached(
         transactionIds.OutputId,
         "output");
-    transactions.OutputCompletionTransaction = attachTransaction(
+    transactions.OutputCompletionTransaction = attachIfNotAttached(
         transactionIds.OutputCompletionId,
         "output completion");
-    transactions.DebugTransaction = attachTransaction(
+    transactions.DebugTransaction = attachIfNotAttached(
         transactionIds.DebugId,
         "debug");
-    transactions.DebugCompletionTransaction = attachTransaction(
+    transactions.DebugCompletionTransaction = attachIfNotAttached(
         transactionIds.DebugCompletionId,
         "debug completion");
 
@@ -202,39 +212,6 @@ void ToProto(
     const TOperationTransactions& transactions)
 {
     ToProto(transactionIdsProto, transactions.ControllerTransactionIds);
-}
-
-void FromProto(
-    TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NNative::IClientPtr(TCellTag)> getClient,
-    TDuration pingPeriod)
-{
-    THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
-    auto attachTransaction = [&] (TTransactionId transactionId, TString /* name */) -> ITransactionPtr {
-        if (!transactionId) {
-            return nullptr;
-        }
-
-        auto it = transactionIdToTransaction.find(transactionId);
-        if (it == transactionIdToTransaction.end()) {
-            auto client = getClient(CellTagFromId(transactionId));
-
-            TTransactionAttachOptions options;
-            options.Ping = true;
-            options.PingAncestors = false;
-            options.PingPeriod = pingPeriod;
-
-            auto transaction = client->AttachTransaction(transactionId, options);
-            YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
-            return transaction;
-        } else {
-            return it->second;
-        }
-    };
-
-    auto transactionIds = FromProto<TControllerTransactionIds>(transactionIdsProto);
-    *transactions = AttachControllerTransactions(attachTransaction, std::move(transactionIds));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

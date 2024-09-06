@@ -33,7 +33,6 @@ DEFINE_ENUM(EShuffleChunkPoolRunState,
 class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -164,21 +163,6 @@ public:
         }
     }
 
-    // IPersistent implementation.
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolInputBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Outputs_);
-        Persist(context, InputStripes_);
-        Persist(context, ElementaryStripes_);
-        Persist(context, DataWeightThreshold_);
-        Persist(context, ChunkSliceThreshold_);
-        Persist(context, TotalJobCount_);
-    }
-
     i64 GetTotalDataSliceCount() const override
     {
         return ElementaryStripes_.size();
@@ -192,15 +176,12 @@ public:
 private:
     using ERunState = EShuffleChunkPoolRunState;
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool, 0xbacd518a);
-
     // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
     static const i64 RowCountThreshold_ = std::numeric_limits<i32>::max();
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
         , public TJobSplittingBase
-        , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
         DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -402,20 +383,6 @@ private:
             CheckCompleted();
         }
 
-        // IPersistent implementation.
-
-        void Persist(const TPersistenceContext& context) override
-        {
-            TChunkPoolOutputWithCountersBase::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Owner_);
-            Persist(context, PartitionIndex_);
-            Persist(context, Runs_);
-            Persist(context, PendingRuns_);
-            Persist(context, IsCompleted_);
-        }
-
         void UpdateDataSliceCount()
         {
             // Pretend that each output pool has it's own fraction
@@ -438,8 +405,6 @@ private:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput, 0xba17acf7);
-
         friend class TShuffleChunkPool;
 
         TShuffleChunkPool* Owner_ = nullptr;
@@ -460,21 +425,6 @@ private:
             TProgressCounterGuard DataWeightProgressCounterGuard;
             TProgressCounterGuard RowProgressCounterGuard;
             TProgressCounterGuard JobProgressCounterGuard;
-
-            void Persist(const TPersistenceContext& context)
-            {
-                using NYT::Persist;
-                Persist(context, ElementaryIndexBegin);
-                Persist(context, ElementaryIndexEnd);
-                Persist(context, SuspendCount);
-                Persist(context, State);
-                Persist(context, IsApproximate);
-                Persist(context, RowCount);
-                Persist(context, DataWeight);
-                Persist(context, DataWeightProgressCounterGuard);
-                Persist(context, RowProgressCounterGuard);
-                Persist(context, JobProgressCounterGuard);
-            }
 
             template <class... TArgs>
             void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
@@ -525,6 +475,8 @@ private:
 
                 CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, newProgressCategory);
             }
+
+            PHOENIX_DECLARE_TYPE(TRun, 0x9e82f050);
         };
 
         std::vector<TRun> Runs_;
@@ -594,6 +546,9 @@ private:
 
             UpdateRun(&run);
         }
+
+        PHOENIX_DECLARE_FRIEND();
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOutput, 0xba17acf7);
     };
 
     std::vector<TIntrusivePtr<TOutput>> Outputs_;
@@ -603,12 +558,7 @@ private:
         int ElementaryIndexBegin;
         int ElementaryIndexEnd;
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, ElementaryIndexBegin);
-            Persist(context, ElementaryIndexEnd);
-        }
+        PHOENIX_DECLARE_TYPE(TInputStripe, 0xbde9be7a);
     };
 
     std::vector<TInputStripe> InputStripes_;
@@ -617,10 +567,24 @@ private:
     i64 DataWeightThreshold_ = -1;
     i64 ChunkSliceThreshold_ = -1;
     i64 TotalJobCount_ = 0;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TShuffleChunkPool, 0xbacd518a);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
+void TShuffleChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Outputs_)();
+    PHOENIX_REGISTER_FIELD(2, InputStripes_)();
+    PHOENIX_REGISTER_FIELD(3, ElementaryStripes_)();
+    PHOENIX_REGISTER_FIELD(4, DataWeightThreshold_)();
+    PHOENIX_REGISTER_FIELD(5, ChunkSliceThreshold_)();
+    PHOENIX_REGISTER_FIELD(6, TotalJobCount_)();
+}
+
+PHOENIX_DEFINE_TYPE(TShuffleChunkPool);
 
 IShuffleChunkPoolPtr CreateShuffleChunkPool(
     int partitionCount,
@@ -632,6 +596,49 @@ IShuffleChunkPoolPtr CreateShuffleChunkPool(
         dataWeightThreshold,
         chunkSliceThreshold);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TShuffleChunkPool::TOutput::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Owner_)();
+    PHOENIX_REGISTER_FIELD(2, PartitionIndex_)();
+    PHOENIX_REGISTER_FIELD(3, Runs_)();
+    PHOENIX_REGISTER_FIELD(4, PendingRuns_)();
+    PHOENIX_REGISTER_FIELD(5, IsCompleted_)();
+}
+
+PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TShuffleChunkPool::TOutput::TRun::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, ElementaryIndexBegin)();
+    PHOENIX_REGISTER_FIELD(2, ElementaryIndexEnd)();
+    PHOENIX_REGISTER_FIELD(3, SuspendCount)();
+    PHOENIX_REGISTER_FIELD(4, State)();
+    PHOENIX_REGISTER_FIELD(5, IsApproximate)();
+    PHOENIX_REGISTER_FIELD(6, RowCount)();
+    PHOENIX_REGISTER_FIELD(7, DataWeight)();
+    PHOENIX_REGISTER_FIELD(8, DataWeightProgressCounterGuard)();
+    PHOENIX_REGISTER_FIELD(9, RowProgressCounterGuard)();
+    PHOENIX_REGISTER_FIELD(10, JobProgressCounterGuard)();
+}
+
+PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TOutput::TRun);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TShuffleChunkPool::TInputStripe::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, ElementaryIndexBegin)();
+    PHOENIX_REGISTER_FIELD(2, ElementaryIndexEnd)();
+}
+
+PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TInputStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,9 +28,5 @@ target_include_directories(restricted-boost-crc INTERFACE
 target_link_libraries(restricted-boost-crc INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  restricted-boost-array
-  restricted-boost-config
-  restricted-boost-integer
-  restricted-boost-type_traits
 )
 

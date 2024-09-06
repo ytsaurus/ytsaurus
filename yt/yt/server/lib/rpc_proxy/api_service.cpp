@@ -816,6 +816,15 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishShuffle));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
@@ -3202,9 +3211,11 @@ private:
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
             operationIdOrAlias,
-            jobId);
+            jobId,
+            options.Limit,
+            options.Offset);
 
         ExecuteCall(
             context,
@@ -3213,7 +3224,10 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->Attachments().push_back(std::move(result));
+                context->SetResponseInfo("Size: %v, TotalSize: %v, EndOffset: %v", result.Data.size(), result.TotalSize, result.EndOffset);
+                response->set_total_size(result.TotalSize);
+                response->set_end_offset(result.EndOffset);
+                response->Attachments().push_back(result.Data);
             });
     }
 
@@ -6324,7 +6338,7 @@ private:
         auto req = proxy.StartQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, Engine: %v",
+        context->SetRequestInfo("Stage: %v, Engine: %v",
             request->query_tracker_stage(),
             ConvertQueryEngineFromProto(request->engine()));
 
@@ -6348,7 +6362,7 @@ private:
         auto req = proxy.AbortQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
+        context->SetRequestInfo("Stage: %v, QueryId: %v",
             request->query_tracker_stage(),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
@@ -6369,7 +6383,7 @@ private:
         auto req = proxy.GetQueryResult();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+        context->SetRequestInfo("Stage: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->result_index());
@@ -6394,7 +6408,7 @@ private:
         auto req = proxy.ReadQueryResult();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+        context->SetRequestInfo("Stage: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->result_index());
@@ -6418,7 +6432,7 @@ private:
         auto req = proxy.GetQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, StartTimestamp: %v",
+        context->SetRequestInfo("Stage: %v, QueryId: %v, StartTimestamp: %v",
             request->query_tracker_stage(),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->timestamp());
@@ -6444,7 +6458,7 @@ private:
         FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo(
-            "QueryTrackerStage: %v, Limit: %v",
+            "Stage: %v, Limit: %v",
             request->query_tracker_stage(),
             request->limit());
 
@@ -6471,7 +6485,7 @@ private:
         auto req = proxy.AlterQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
+        context->SetRequestInfo("Stage: %v, QueryId: %v",
             request->query_tracker_stage(),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
@@ -6492,7 +6506,7 @@ private:
         auto req = proxy.GetQueryTrackerInfo();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v", request->query_tracker_stage());
+        context->SetRequestInfo("Stage: %v", request->query_tracker_stage());
 
         ExecuteCall(
             context,
@@ -6505,6 +6519,30 @@ private:
 
                 context->SetResponseInfo("ClusterName: %v", response->cluster_name());
             });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // Shuffle Service
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartShuffle)
+    {
+        ThrowUnimplemented("StartShuffle");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishShuffle)
+    {
+        ThrowUnimplemented("FinishShuffle");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadShuffleData)
+    {
+        ThrowUnimplemented("ReadShuffleData");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteShuffleData)
+    {
+        ThrowUnimplemented("WriteShuffleData");
     }
 
     ////////////////////////////////////////////////////////////////////////////////

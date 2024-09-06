@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/node/data_node/public.h>
@@ -186,7 +188,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    NYTree::INodePtr GetJobEnvironmentConfig() const;
+    NJobProxy::TJobEnvironmentConfig GetJobEnvironmentConfig() const;
 
     /*!
      *  \note
@@ -226,7 +228,7 @@ private:
     std::vector<TNumaNodeState> NumaNodeStates_;
 
     IJobEnvironmentPtr JobEnvironment_;
-    std::optional<EJobEnvironmentType> JobEnvironmentType_;
+    std::optional<NJobProxy::EJobEnvironmentType> JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
     // Invoker affinity: JobInvoker

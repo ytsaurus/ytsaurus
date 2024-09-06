@@ -28,7 +28,7 @@ class TOrderedPartitioner
 public:
     TOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
         : KeySetReader_(wirePivots)
-        , Comparator_(comparator)
+        , Comparator_(std::move(comparator))
     {
         PartitionLowerBounds_.push_back(TOwningKeyBound::MakeUniversal(/*isUpper*/ false));
 
@@ -45,23 +45,23 @@ public:
 
     TOrderedPartitioner(std::vector<TOwningKeyBound> partitionLowerBounds, TComparator comparator)
         : PartitionLowerBounds_(std::move(partitionLowerBounds))
-        , Comparator_(comparator)
+        , Comparator_(std::move(comparator))
     {
         ValidateKeyBounds();
     }
 
-    int GetPartitionCount() override
+    int GetPartitionCount() const override
     {
         return PartitionLowerBounds_.size();
     }
 
-    int GetPartitionIndex(TUnversionedRow row) override
+    int GetPartitionIndex(TUnversionedRow row) const override
     {
         auto key = TKey::FromRow(row, Comparator_.GetLength());
 
         // Find first partition that our key does not belong to.
         // Recall upper_bound returns first such iterator it that comp(key, *it).
-        auto partitionsIt = std::upper_bound(
+        const auto* partitionsIt = std::upper_bound(
             PartitionLowerBounds_.begin(),
             PartitionLowerBounds_.end(),
             key,
@@ -116,12 +116,12 @@ public:
         , Salt_(FarmHash(salt))
     { }
 
-    int GetPartitionCount() override
+    int GetPartitionCount() const override
     {
         return PartitionCount_;
     }
 
-    int GetPartitionIndex(TUnversionedRow row) override
+    int GetPartitionIndex(TUnversionedRow row) const override
     {
         int count = std::min(KeyColumnCount_, static_cast<int>(row.GetCount()));
         auto rowHash = GetFarmFingerprint(row.FirstNElements(count));
@@ -140,6 +140,64 @@ private:
 IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, TFingerprint salt)
 {
     return New<THashPartitioner>(partitionCount, keyColumnCount, salt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnBasedPartitioner
+    : public IPartitioner
+{
+public:
+    TColumnBasedPartitioner(int partitionCount, int partitionColumnId)
+        : PartitionCount_(partitionCount)
+        , PartitionColumnId_(partitionColumnId)
+    {
+    }
+
+    int GetPartitionCount() const override
+    {
+        return PartitionCount_;
+    }
+
+    int GetPartitionIndex(TUnversionedRow row) const override
+    {
+        for (auto value : row) {
+            if (value.Id == PartitionColumnId_) {
+                if (value.Type != EValueType::Uint64 &&
+                    value.Type != EValueType::Int64) [[unlikely]] {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid partition column value type: expected type \"int64\" or \"uint64\", actual type %Qlv",
+                        value.Type);
+                }
+
+                if (value.Type == EValueType::Int64 && value.Data.Int64 < 0) [[unlikely]] {
+                    THROW_ERROR_EXCEPTION(
+                        "Received negative partition index: %v",
+                        value.Data.Int64);
+                }
+
+                if (value.Data.Uint64 >= static_cast<ui64>(PartitionCount_)) [[unlikely]] {
+                    THROW_ERROR_EXCEPTION(
+                        "Partition index is out of bounds: %v >= %v",
+                        value.Data.Uint64,
+                        PartitionCount_);
+                }
+
+                return value.Data.Uint64;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Row does not contain partition column");
+    }
+
+private:
+    const int PartitionCount_;
+    const int PartitionColumnId_;
+};
+
+IPartitionerPtr CreateColumnBasedPartitioner(int partitionCount, int partitionColumnId)
+{
+    return New<TColumnBasedPartitioner>(partitionCount, partitionColumnId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

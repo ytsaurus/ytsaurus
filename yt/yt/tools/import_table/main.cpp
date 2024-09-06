@@ -1,6 +1,14 @@
 #include <yt/yt/tools/import_table/lib/import_table.h>
+#include <yt/yt/tools/import_table/lib/config.h>
 
 #include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/cpp/mapreduce/interface/init.h>
 
@@ -9,6 +17,9 @@
 #include <library/cpp/getopt/modchooser.h>
 
 namespace NYT::NTools::NImporter {
+
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +37,9 @@ struct TOpts
         Opts.AddLongOption("format", "Format of files")
             .DefaultValue("parquet")
             .StoreResult(&Format);
+        Opts.AddLongOption("config", "YSON file with configuration for fine-grained tuning")
+            .Optional()
+            .StoreResult(&Config);
     }
 
     NLastGetopt::TOpts Opts;
@@ -33,6 +47,7 @@ struct TOpts
     TString Proxy;
     TString ResultTable;
     TString Format;
+    std::optional<TString> Config;
 };
 
 struct TOptsHuggingface
@@ -44,16 +59,16 @@ struct TOptsHuggingface
         Opts.AddLongOption("dataset", "Name of dataset")
             .StoreResult(&Dataset)
             .Required();
-        Opts.AddLongOption("config", "Name of config")
+        Opts.AddLongOption("subset", "Name of subset")
             .DefaultValue("default")
-            .StoreResult(&Config);
+            .StoreResult(&Subset);
         Opts.AddLongOption("split", "Name of split")
             .StoreResult(&Split)
             .Required();
     }
 
     TString Dataset;
-    TString Config;
+    TString Subset;
     TString Split;
 };
 
@@ -85,9 +100,17 @@ struct TOptsS3
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TImportConfigPtr LoadConfig(const std::optional<TString>& configPath)
+{
+    auto config = !configPath
+        ? New<TImportConfig>()
+        : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(*configPath).ReadAll()));
+    ConfigureSingletons(config->Singletons);
+    return config;
+}
+
 int ImportFilesFromS3(int argc, const char** argv)
 {
-
     TOptsS3 opts;
     NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
 
@@ -98,7 +121,8 @@ int ImportFilesFromS3(int argc, const char** argv)
             opts.Region,
             opts.Bucket,
             opts.Prefix,
-            opts.ResultTable);
+            opts.ResultTable,
+            LoadConfig(opts.Config));
     } else {
         THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
     }
@@ -115,9 +139,11 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
         ImportParquetFilesFromHuggingface(
             opts.Proxy,
             opts.Dataset,
-            opts.Config,
+            opts.Subset,
             opts.Split,
-            opts.ResultTable);
+            opts.ResultTable,
+            /*urlOverride*/ std::nullopt,
+            LoadConfig(opts.Config));
     } else {
         THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
     }

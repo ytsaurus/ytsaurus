@@ -84,8 +84,6 @@ public:
     // NB: removes at most one occurrence of parent in parents list.
     bool RemoveParent(TProgressCounterPtr parent);
 
-    void Persist(const TPersistenceContext& context);
-
     //! Raises when pending counter changes.
     DEFINE_SIGNAL(void(), PendingUpdated);
 
@@ -107,6 +105,8 @@ private:
     std::vector<TProgressCounterPtr> Parents_;
 
     void Propagate(TProgressCounterPtr parent, int multiplier);
+
+    PHOENIX_DECLARE_TYPE(TProgressCounter, 0x3cc30473);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProgressCounter)
@@ -146,8 +146,6 @@ public:
 
     void Unregister();
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     TProgressCounterPtr ProgressCounter_;
 
@@ -158,6 +156,8 @@ private:
     EInterruptReason InterruptReason_ = EInterruptReason::None;
 
     void UpdateProgressCounter(i64 multiplier);
+
+    PHOENIX_DECLARE_TYPE(TProgressCounterGuard, 0x7c845603);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

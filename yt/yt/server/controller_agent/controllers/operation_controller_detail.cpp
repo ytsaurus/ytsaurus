@@ -1302,6 +1302,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
 void TOperationControllerBase::SaveSnapshot(IZeroCopyOutput* output)
 {
+    using NYT::Save;
+
     VERIFY_THREAD_AFFINITY_ANY();
 
     TSaveContext context(output);
@@ -3626,68 +3628,56 @@ void TOperationControllerBase::OnJobStartTimeReceived(
     }
 }
 
-void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
+template <class TAllocationEvent>
+void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale allocation aborted event, ignored (AllocationIdId: %v)", abortedAllocationSummary.Id);
+        YT_LOG_DEBUG("Stale allocation %v event, ignored (AllocationIdId: %v)", eventType, eventSummary.Id);
         return;
     }
 
-    auto allocationIt = AllocationMap_.find(abortedAllocationSummary.Id);
+    auto allocationIt = AllocationMap_.find(eventSummary.Id);
 
     if (allocationIt == end(AllocationMap_)) {
         YT_LOG_DEBUG(
-            "Allocation is not found, ignore aborted allocation event (AbortedAllocationEvent: %v)",
-            abortedAllocationSummary);
+            "Allocation is not found, ignore %v allocation event (EventSummary: %v)",
+            eventType,
+            eventSummary);
         return;
     }
 
     auto& allocation = allocationIt->second;
 
     YT_LOG_DEBUG(
-        "Aborted allocation event processing (AllocationId: %v, HasActiveJob: %v)",
-        abortedAllocationSummary.Id,
+        "Processing %v allocation event (AllocationId: %v, HasActiveJob: %v)",
+        eventType,
+        eventSummary.Id,
         static_cast<bool>(allocation.Joblet));
 
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
     if (allocation.Joblet) {
-        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(abortedAllocationSummary));
+        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(eventSummary));
         OnJobAborted(std::move(jobSummary));
     }
 
     AllocationMap_.erase(allocationIt);
 }
 
+void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    ProcessAllocationEvent(std::move(abortedAllocationSummary), "aborted");
+}
+
 void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSummary&& finishedAllocationSummary)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
-    if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale allocation finished event, ignored (AllocationIdId: %v)", finishedAllocationSummary.Id);
-        return;
-    }
-
-    auto allocationIt = AllocationMap_.find(finishedAllocationSummary.Id);
-
-    if (allocationIt == end(AllocationMap_)) {
-        YT_LOG_DEBUG(
-            "Allocation is not found, ignore allocation aborted event (FinishedAllocationEvent: %v)",
-            finishedAllocationSummary);
-        return;
-    }
-
-    auto& allocation = allocationIt->second;
-
-    YT_LOG_DEBUG(
-        "Allocation finished event processing (AllocationId: %v)",
-        finishedAllocationSummary.Id);
-
-    YT_VERIFY(!allocation.Joblet);
-
-    AllocationMap_.erase(allocationIt);
+    ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
 }
 
 void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -4672,7 +4662,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
         jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
     }
 
-    jobSpecExt->set_allow_use_virtual_squashfs_layer(Spec_->AllowUseVirtualSquashFsLayer);
+    jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -9075,9 +9065,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
             state);
     }
 
-    if (auto settleJobDelay = Spec_->TestingOperationOptions->SettleJobDelay) {
-        Sleep(*settleJobDelay);
-    }
+    MaybeDelay(Spec_->TestingOperationOptions->SettleJobDelay);
 
     if (Spec_->TestingOperationOptions->FailSettleJobRequests) {
         THROW_ERROR_EXCEPTION("Testing failure");

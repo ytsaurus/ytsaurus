@@ -20,7 +20,7 @@ static constexpr auto& Logger = HydraStressTestLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& TPeerChannel::GetEndpointDescription() const
+const std::string& TPeerChannel::GetEndpointDescription() const
 {
     return Underlying_->GetEndpointDescription();
 }

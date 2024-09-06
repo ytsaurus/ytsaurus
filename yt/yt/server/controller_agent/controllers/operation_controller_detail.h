@@ -1531,6 +1531,8 @@ private:
 
     bool IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept;
     TJobId GetLaterJobId(TJobId lhs, TJobId rhs) const noexcept;
+    template <class TAllocationEvent>
+    void ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -436,7 +436,9 @@ private:
             }
             YT_VERIFY(readerResult != EReaderTerminationReason::None);
 
-            RelativeThrottler_->OnReplicationBatchProcessed(newReplicationTimestamp);
+            RelativeThrottler_->OnReplicationBatchProcessed(
+                currentBatchFirstTimestamp,
+                newReplicationTimestamp);
 
             if (replicationRows.empty()) {
                 if (readerResult == EReaderTerminationReason::ThrottlerOverdraft) {
@@ -666,7 +668,9 @@ private:
 
                     if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
+                        TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second >
+                            mountConfig->MaxReplicationBatchSpan)
                     {
                         result = EReaderTerminationReason::SaturatedBatch;
                         break;

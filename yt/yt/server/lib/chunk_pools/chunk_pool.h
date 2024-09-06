@@ -10,9 +10,13 @@
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
+#include <yt/yt/ytlib/controller_agent/persistence.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
+
+#include <yt/yt/core/phoenix/type_decl.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
@@ -23,7 +27,12 @@ namespace NYT::NChunkPools {
 struct IPersistentChunkPoolInput
     : public virtual IChunkPoolInput
     , public virtual IPersistent
-{ };
+{
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(IPersistentChunkPoolInput, 0x139f1168);
+};
+
+void IPersistentChunkPoolInput::RegisterMetadata(auto&& /*registrar*/)
+{ }
 
 DEFINE_REFCOUNTED_TYPE(IPersistentChunkPoolInput)
 
@@ -59,11 +68,10 @@ public:
     //! This implementation is not ready to go that far.
     void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override;
 
-    // IPersistent implementation.
-    void Persist(const TPersistenceContext& context) override;
-
 protected:
     bool Finished = false;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolInputBase, 0x520e76b6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,8 +132,6 @@ class TChunkPoolOutputWithCountersBase
 public:
     TChunkPoolOutputWithCountersBase();
 
-    void Persist(const TPersistenceContext& context) override;
-
     const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
     const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
     const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
@@ -136,6 +142,8 @@ protected:
     NControllerAgent::TProgressCounterPtr RowCounter;
     NControllerAgent::TProgressCounterPtr JobCounter;
     NControllerAgent::TProgressCounterPtr DataSliceCounter;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolOutputWithCountersBase, 0x74763364);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,8 +172,6 @@ public:
     const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
     const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 public:
     DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
     DEFINE_SIGNAL_OVERRIDE(void(), Completed);
@@ -173,10 +179,18 @@ public:
 
 protected:
     TIntrusivePtr<TJobManager> JobManager_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
 };
 
 using TChunkPoolOutputWithLegacyJobManagerBase = TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
+
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, JobManager_)();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,8 +235,6 @@ protected:
     //! Used in tests to ensure that we do not resize vectors more than needed.
     size_t GetMaxVectorSize() const;
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
     //! List of children output cookies for split jobs. Empty list corresponds to a job that was not split.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> CookieToChildCookies_;
@@ -238,6 +250,8 @@ private:
 
     //! Mark all descendants of the cookie as unsplittable.
     void MarkDescendantsUnsplittable(TCookie cookie);
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSplittingBase, 0x9e867d80);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

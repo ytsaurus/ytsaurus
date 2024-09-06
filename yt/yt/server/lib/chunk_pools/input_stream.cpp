@@ -37,14 +37,13 @@ bool TInputStreamDescriptor::IsUnversioned() const
     return !IsVersioned_;
 }
 
-void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
+void TInputStreamDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, IsTeleportable_);
-    Persist(context, IsPrimary_);
-    Persist(context, IsVersioned_);
-    Persist(context, TableIndex_);
-    Persist(context, RangeIndex_);
+    PHOENIX_REGISTER_FIELD(1, IsTeleportable_)();
+    PHOENIX_REGISTER_FIELD(2, IsPrimary_)();
+    PHOENIX_REGISTER_FIELD(3, IsVersioned_)();
+    PHOENIX_REGISTER_FIELD(4, TableIndex_)();
+    PHOENIX_REGISTER_FIELD(5, RangeIndex_)();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf /*spec*/)
@@ -58,6 +57,8 @@ void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& desc
         descriptor.GetTableIndex(),
         descriptor.GetRangeIndex());
 }
+
+PHOENIX_DEFINE_TYPE(TInputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,12 +104,13 @@ int TInputStreamDirectory::GetInputStreamIndex(int tableIndex, int rangeIndex) c
     return it->second;
 }
 
-void TInputStreamDirectory::Persist(const TPersistenceContext& context)
+void TInputStreamDirectory::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Descriptors_);
-    Persist(context, DefaultDescriptor_);
+    PHOENIX_REGISTER_FIELD(1, Descriptors_)();
+    PHOENIX_REGISTER_FIELD(2, DefaultDescriptor_)();
 }
+
+PHOENIX_DEFINE_TYPE(TInputStreamDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

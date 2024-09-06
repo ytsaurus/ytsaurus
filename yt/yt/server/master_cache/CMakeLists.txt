@@ -35,6 +35,7 @@ target_link_libraries(yt-server-master_cache PUBLIC
   yt-yt-ytlib
   ytserver
   server-lib-chaos_cache
+  server-lib-chaos_node
   server-lib-cypress_registrar
 )
 

@@ -582,7 +582,7 @@ public:
     EJobEnvironmentType GetJobEnvironmentType() const override
     {
         const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
-        return ConvertTo<EJobEnvironmentType>(slotManagerConfig->JobEnvironment->AsMap()->FindChild("type"));
+        return slotManagerConfig->JobEnvironment.GetCurrentType();
     }
 
     const THashSet<ENodeFlavor>& GetFlavors() const override
@@ -1015,10 +1015,9 @@ private:
         RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
 
     #ifdef __linux__
-        if (GetJobEnvironmentType() == EJobEnvironmentType::Porto) {
-            auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecNode->SlotManager->JobEnvironment);
+        if (auto portoConfig = Config_->ExecNode->SlotManager->JobEnvironment.TryGetConcrete<EJobEnvironmentType::Porto>()) {
             auto portoExecutor = CreatePortoExecutor(
-                portoEnvironmentConfig->PortoExecutor,
+                portoConfig->PortoExecutor,
                 "limits_tracker");
 
             portoExecutor->SubscribeFailed(BIND([=, this] (const TError& error) {
@@ -1029,7 +1028,7 @@ private:
             auto self = GetSelfPortoInstance(portoExecutor);
             if (Config_->InstanceLimitsUpdatePeriod) {
                 auto root = GetRootPortoInstance(portoExecutor);
-                auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
+                auto instance = portoConfig->UseDaemonSubcontainer
                     ? GetPortoInstance(portoExecutor, *self->GetParentName())
                     : self;
 
@@ -1048,7 +1047,7 @@ private:
                 .Via(GetControlInvoker()));
             }
 
-            if (portoEnvironmentConfig->UseDaemonSubcontainer) {
+            if (portoConfig->UseDaemonSubcontainer) {
                 self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
 
                 if (Config_->ResourceLimits->NodeDedicatedCpu) {
@@ -1436,11 +1435,10 @@ private:
         }
 
         if (ContainerDevicesChecker_ && newConfig->ExecNode->SlotManager) {
-            auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
+            const auto& environmentConfig = newConfig->ExecNode->SlotManager->JobEnvironment;
 
-            if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-                auto portoEnvironmentConfig = NYTree::ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
-                ContainerDevicesChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
+            if (auto portoConfig = environmentConfig.TryGetConcrete<EJobEnvironmentType::Porto>()) {
+                ContainerDevicesChecker_->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
         }
     #endif

@@ -51,6 +51,42 @@ class TestMutations(ClickHouseTestBase):
             ]
             assert get("//tmp/t/@chunk_count") == 1
 
+    @authors("buyval01")
+    def test_insert_datetime_values(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "datetime", "type": "datetime"},
+                    {"name": "datetime64", "type": "datetime64"},
+                    {"name": "timestamp", "type": "timestamp"},
+                    {"name": "timestamp64", "type": "timestamp64"},
+                    {"name": "interval", "type": "interval"},
+                    {"name": "interval64", "type": "interval64"},
+                ]
+            },
+        )
+        with Clique(1) as clique:
+            clique.make_query('insert into "//tmp/t"(datetime) values (42), (12)')
+            clique.make_query('insert into "//tmp/t"(datetime64) values (-42), (100)')
+            clique.make_query('insert into "//tmp/t"(timestamp) values (52)')
+            clique.make_query('insert into "//tmp/t"(timestamp64) values (-169)')
+            clique.make_query('insert into "//tmp/t"(interval) values (13)')
+            clique.make_query('insert into "//tmp/t"(interval64) values (-13)')
+            clique.make_query('insert into "//tmp/t" values (NULL, NULL, NULL, NULL, NULL, NULL)')
+            assert read_table("//tmp/t") == [
+                {"datetime": 42, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
+                {"datetime": 12, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
+                {"datetime": None, "datetime64": -42, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
+                {"datetime": None, "datetime64": 100, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
+                {"datetime": None, "datetime64": None, "timestamp": 52, "timestamp64": None, "interval": None, "interval64": None},
+                {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": -169, "interval": None, "interval64": None},
+                {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": 13, "interval64": None},
+                {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": -13},
+                {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
+            ]
+
     @authors("max42")
     def test_insert_values_complex(self):
         create(
@@ -729,3 +765,34 @@ class TestMutations(ClickHouseTestBase):
                 group by a'''
             clique.make_query(group_by_with_join_query, settings=get_settings('complete'))
             check_output_table(expected_distinct_rows, 2)
+
+    @authors("barykinni")
+    def test_directory_database_modification(self):
+        root = "//tmp/root"
+        create("map_node", root)
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            clique.make_query("CREATE TABLE my_db.my_table(str String) ENGINE YtTable()")
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+            clique.make_query("INSERT INTO my_db.my_table VALUES ('privet')")
+            assert clique.make_query("SELECT str FROM my_db.my_table") == [{"str": "privet"}]
+
+            clique.make_query("RENAME TABLE my_db.my_table TO my_db.my_table_renamed")
+            assert clique.make_query("SELECT str FROM my_db.my_table_renamed") == [{"str": "privet"}]
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table_renamed"}]
+
+            clique.make_query("CREATE TABLE my_db.other_table(i64 Int64) ENGINE YtTable()")
+            clique.make_query("EXCHANGE TABLES my_db.my_table_renamed AND my_db.other_table")
+            assert clique.make_query("SELECT str FROM my_db.other_table") == [{"str": "privet"}]
+
+            clique.make_query("TRUNCATE TABLE my_db.other_table")
+            assert clique.make_query("SELECT count(*) FROM my_db.other_table") == [{"count()": 0}]
+
+            clique.make_query("DROP TABLE IF EXISTS my_db.unknown_table")
+
+            clique.make_query("DROP TABLE my_db.my_table_renamed")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("DROP TABLE my_db.my_table_renamed")
+
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "other_table"}]

@@ -239,14 +239,34 @@ public:
         return EDirectIOPolicy::Never;
     }
 
-    bool IsReadInFlightRequestLimitExceeded() const override
+    bool IsInFlightReadRequestLimitExceeded() const override
     {
         return false;
     }
 
-    bool IsWriteInFlightRequestLimitExceeded() const override
+    bool IsInFlightWriteRequestLimitExceeded() const override
     {
         return false;
+    }
+
+    i64 GetInFlightReadRequestCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetReadRequestLimit() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
+    i64 GetInFlightWriteRequestCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetWriteRequestLimit() const override
+    {
+        return std::numeric_limits<i64>::max();
     }
 
 private:

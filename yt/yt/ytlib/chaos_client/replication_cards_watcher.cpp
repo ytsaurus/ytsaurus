@@ -1,6 +1,6 @@
 #include "replication_cards_watcher.h"
-#include "private.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
@@ -16,19 +16,18 @@ using namespace NConcurrency;
 using namespace NThreading;
 using namespace NObjectClient;
 using namespace NTransactionClient;
-
-using TCtxReplicationCardWatchPtr = IReplicationCardsWatcher::TCtxReplicationCardWatchPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto Logger  = NLogging::TLogger("CardWatcher");
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReplicationCardWatcher
+static const auto& Logger = ReplicationCardWatcherLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicationCardWatcherEntry
 {
-    TCtxReplicationCardWatchPtr Context;
-    TInstant RequestStart;
+    IReplicationCardWatcherCallbacksPtr Callbacks;
+    TInstant RequestStartTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,47 +44,9 @@ struct TReplicationCardWatchersList
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
     TTimestamp CurrentCacheTimestamp = NullTimestamp;
     TReplicationCardPtr ReplicationCard;
-    std::vector<TReplicationCardWatcher> Watchers;
+    std::vector<TReplicationCardWatcherEntry> WatcherEntries;
     std::atomic<TInstant> LastSeenWatchers;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ReplyWithCard(
-    const TReplicationCardPtr& replicationCard,
-    TTimestamp timestamp,
-    const TCtxReplicationCardWatchPtr& context)
-{
-    auto* response = context->Response().mutable_replication_card_changed();
-    response->set_replication_card_cache_timestamp(timestamp);
-    ToProto(
-        response->mutable_replication_card(),
-        *replicationCard,
-        MinimalFetchOptions);
-    context->Reply();
-}
-
-void ReplyMigrated(const TCellId& destination, const TCtxReplicationCardWatchPtr& context)
-{
-    auto& response = context->Response();
-    auto* migrateToCellId = response.mutable_replication_card_migrated()->mutable_migrate_to_cell_id();
-    ToProto(migrateToCellId, destination);
-    context->Reply();
-}
-
-void ReplyDeleted(const TCtxReplicationCardWatchPtr& context)
-{
-    auto& response = context->Response();
-    response.mutable_replication_card_deleted();
-    context->Reply();
-}
-
-void ReplyInstanceIsNotLeader(const TCtxReplicationCardWatchPtr& context)
-{
-    auto& response = context->Response();
-    response.mutable_instance_is_not_leader();
-    context->Reply();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,16 +55,14 @@ class TReplicationCardsWatcher
 {
 public:
     TReplicationCardsWatcher(
-        TDuration expirationTime,
-        TDuration goneCardsExpirationTime,
-        TDuration expirationSweepPeriod,
+        TReplicationCardsWatcherConfigPtr config,
         IInvokerPtr invoker)
         : ExpirationExecutor_(New<TPeriodicExecutor>(
             invoker,
             BIND(&TReplicationCardsWatcher::OnExpirationSweep, MakeWeak(this)),
-            expirationSweepPeriod))
-        , ExpirationTime_(expirationTime)
-        , GoneCardsExpirationTime_(goneCardsExpirationTime)
+            config->ExpirationSweepPeriod))
+        , ExpirationTime_(config->PollExpirationTime)
+        , GoneCardsExpirationTime_(config->GoneCardsExpirationTime)
     { }
 
     void Start(const std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>>& replicationCards) override
@@ -125,21 +84,26 @@ public:
 
     void Stop() override
     {
-        auto writeGuard = WriterGuard(EntriesLock_);
-        IsRunning_.store(false);
-        for (const auto& [id, watchersList] : WatchersByCardId_) {
-            for (const auto& watcher : watchersList->Watchers) {
-                ReplyInstanceIsNotLeader(watcher.Context);
+        auto aliveWatchers = THashMap<TReplicationCardId, std::unique_ptr<TReplicationCardWatchersList>>();
+        {
+            auto writeGuard = WriterGuard(EntriesLock_);
+            IsRunning_.store(false);
+            aliveWatchers = std::move(WatchersByCardId_);
+            WatchersByCardId_.clear();
+        }
+
+        for (const auto& [id, watchersList] : aliveWatchers) {
+            for (const auto& watcher : watchersList->WatcherEntries) {
+                watcher.Callbacks->OnInstanceIsNotLeader();
             }
         }
 
-        WatchersByCardId_.clear();
-        writeGuard.Release();
-        WaitFor(ExpirationExecutor_->Stop()).ThrowOnError();
+        WaitFor(ExpirationExecutor_->Stop())
+            .ThrowOnError();
     }
 
     void RegisterReplicationCard(
-        const TReplicationCardId& replicationCardId,
+        TReplicationCardId replicationCardId,
         const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override
     {
@@ -158,13 +122,13 @@ public:
     }
 
     void OnReplcationCardUpdated(
-        const TReplicationCardId& replicationCardId,
+        TReplicationCardId replicationCardId,
         const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override
     {
         YT_LOG_DEBUG("Replication card updated in watcher (ReplicationCardId: %v, Timestamp: %v)",
-                replicationCardId,
-                timestamp);
+            replicationCardId,
+            timestamp);
 
         auto readGuard = ReaderGuard(EntriesLock_);
         auto it = WatchersByCardId_.find(replicationCardId);
@@ -174,26 +138,26 @@ public:
             return;
         }
 
-        std::vector<TReplicationCardWatcher> watchers;
+        std::vector<TReplicationCardWatcherEntry> watcherEntries;
         {
             auto& entry = it->second;
             auto entryGuard = Guard(entry->Lock);
-            watchers.swap(entry->Watchers);
+            watcherEntries.swap(entry->WatcherEntries);
             entry->CurrentCacheTimestamp = timestamp;
             entry->ReplicationCard = replicationCard;
-            if (!watchers.empty()) {
+            if (!watcherEntries.empty()) {
                 entry->LastSeenWatchers.store(TInstant::Now());
             }
         }
 
         readGuard.Release();
 
-        for (auto& watcher : watchers) {
-            ReplyWithCard(replicationCard, timestamp, watcher.Context);
+        for (const auto& watcher : watcherEntries) {
+            watcher.Callbacks->OnReplicationCardChanged(replicationCard, timestamp);
         }
     }
 
-    void OnReplicationCardRemoved(const TReplicationCardId& replicationCardId) override
+    void OnReplicationCardRemoved(TReplicationCardId replicationCardId) override
     {
         YT_LOG_DEBUG("Replication card removed from watcher (ReplicationCardId: %v)",
                 replicationCardId);
@@ -204,7 +168,7 @@ public:
             DeletedCards_.emplace(replicationCardId, now);
         }
 
-        std::vector<TReplicationCardWatcher> watchers;
+        std::vector<TReplicationCardWatcherEntry> watcherEntries;
         {
             auto writeGuard = WriterGuard(EntriesLock_);
             auto it = WatchersByCardId_.find(replicationCardId);
@@ -216,14 +180,12 @@ public:
             }
 
             auto& entry = it->second;
-            watchers = std::move(entry->Watchers);
+            watcherEntries = std::move(entry->WatcherEntries);
             WatchersByCardId_.erase(it);
         }
 
-        for (auto& watcher : watchers) {
-            auto& response = watcher.Context->Response();
-            response.mutable_replication_card_deleted();
-            watcher.Context->Reply();
+        for (const auto& watcher : watcherEntries) {
+            watcher.Callbacks->OnReplicationCardDeleted();
         }
     }
 
@@ -234,7 +196,7 @@ public:
         struct TReplicationCardMigrationDescriptor {
             TReplicationCardId ReplicationCardId;
             TCellId DestinationCellId;
-            std::vector<TReplicationCardWatcher> WatchersList;
+            std::vector<TReplicationCardWatcherEntry> WatcherEntries;
         };
 
         {
@@ -264,26 +226,26 @@ public:
                 }
 
                 auto& entry = it->second;
-                replicationCardId2Watchers.emplace_back(replicationCardId, cellId, std::move(entry->Watchers));
+                replicationCardId2Watchers.emplace_back(replicationCardId, cellId, std::move(entry->WatcherEntries));
                 WatchersByCardId_.erase(it);
             }
         }
 
         for (const auto& descriptor : replicationCardId2Watchers) {
-            for (auto& watcher : descriptor.WatchersList) {
-                ReplyMigrated(descriptor.DestinationCellId, watcher.Context);
+            for (const auto& watcher : descriptor.WatcherEntries) {
+                watcher.Callbacks->OnReplicationCardMigrated(descriptor.DestinationCellId);
             }
         }
     }
 
     EReplicationCardWatherState WatchReplicationCard(
-        const TReplicationCardId& replicationCardId,
+        TReplicationCardId replicationCardId,
         TTimestamp cacheTimestamp,
-        TCtxReplicationCardWatchPtr context,
+        IReplicationCardWatcherCallbacksPtr callbacks,
         bool allowUnregistered) override
     {
         if (!IsRunning_.load()) {
-            ReplyInstanceIsNotLeader(context);
+            callbacks->OnInstanceIsNotLeader();
             return EReplicationCardWatherState::Normal;
         }
 
@@ -294,7 +256,7 @@ public:
                 migratedCardsGuard.Release();
                 YT_LOG_DEBUG("Replication card was already migrated (ReplicationCardId: %v)",
                     replicationCardId);
-                ReplyMigrated(destination, context);
+                callbacks->OnReplicationCardMigrated(destination);
                 return EReplicationCardWatherState::Migrated;
             }
         }
@@ -305,7 +267,7 @@ public:
                 deletedCardsGuard.Release();
                 YT_LOG_DEBUG("Replication card was already deleted (ReplicationCardId: %v)",
                     replicationCardId);
-                ReplyDeleted(context);
+                callbacks->OnReplicationCardDeleted();
                 return EReplicationCardWatherState::Deleted;
             }
         }
@@ -323,15 +285,15 @@ public:
                     YT_LOG_DEBUG(
                         "Replication card updated between watches "
                         "(ReplicationCardId: %v, CurrentCacheTimestamp: %v, CacheTimestamp: %v)",
-                        replicationCardId, timestamp, cacheTimestamp);
-                    ReplyWithCard(replicationCard, timestamp, context);
+                        replicationCardId, timestamp, cacheTimestamp);\
+                    callbacks->OnReplicationCardChanged(replicationCard, timestamp);
                     return EReplicationCardWatherState::Normal;
                 }
 
                 auto entryGuard = Guard(entry->Lock);
-                entry->Watchers.push_back(TReplicationCardWatcher{
-                    .Context = std::move(context),
-                    .RequestStart = TInstant::Now()
+                entry->WatcherEntries.push_back(TReplicationCardWatcherEntry{
+                    .Callbacks = std::move(callbacks),
+                    .RequestStartTime = TInstant::Now(),
                 });
 
                 YT_LOG_DEBUG("Added request to watchers list (ReplicationCardId: %v)",
@@ -344,7 +306,7 @@ public:
         if (allowUnregistered) {
             auto writeGuard = WriterGuard(EntriesLock_);
             auto& entry = WatchersByCardId_[replicationCardId];
-            if (entry == nullptr) {
+            if (!entry) {
                 entry = std::make_unique<TReplicationCardWatchersList>(
                     NullTimestamp,
                     nullptr);
@@ -355,27 +317,25 @@ public:
                 auto replicationCard = entry->ReplicationCard;
                 auto timestamp = entry->CurrentCacheTimestamp;
                 writeGuard.Release();
-                ReplyWithCard(replicationCard, timestamp, context);
+                callbacks->OnReplicationCardChanged(replicationCard, timestamp);
                 return EReplicationCardWatherState::Normal;
             }
 
             auto entryGuard = Guard(entry->Lock);
-            entry->Watchers.push_back(TReplicationCardWatcher{
-                .Context = std::move(context),
-                .RequestStart = TInstant::Now()
+            entry->WatcherEntries.push_back(TReplicationCardWatcherEntry{
+                .Callbacks = std::move(callbacks),
+                .RequestStartTime = TInstant::Now(),
             });
             return EReplicationCardWatherState::Normal;
         }
 
         YT_LOG_WARNING("Replication card was not registered for update in watcher (ReplicationCardId: %v)",
             replicationCardId);
-        auto& response = context->Response();
-        response.mutable_unknown_replication_card();
-        context->Reply();
+        callbacks->OnUnknownReplicationCard();
         return EReplicationCardWatherState::Unknown;
     }
 
-    bool TryUnregisterReplicationCard(const TReplicationCardId& replicationCardId) override
+    bool TryUnregisterReplicationCard(TReplicationCardId replicationCardId) override
     {
         auto writeGuard = WriterGuard(EntriesLock_);
         auto it = WatchersByCardId_.find(replicationCardId);
@@ -384,7 +344,7 @@ public:
         }
 
         auto& entry = it->second;
-        if (!entry->Watchers.empty()) {
+        if (!entry->WatcherEntries.empty()) {
             entry->LastSeenWatchers.store(TInstant::Now());
             return false;
         }
@@ -393,7 +353,7 @@ public:
         return true;
     }
 
-    TInstant GetLastSeenWatchers(const TReplicationCardId& replicationCardId) override
+    TInstant GetLastSeenWatchers(TReplicationCardId replicationCardId) override
     {
         auto readGuard = ReaderGuard(EntriesLock_);
         auto it = WatchersByCardId_.find(replicationCardId);
@@ -422,43 +382,41 @@ private:
 
     std::atomic<TDuration> ExpirationTime_;
     std::atomic<TDuration> GoneCardsExpirationTime_;
-    std::atomic_bool IsRunning_ = false;
+    std::atomic<bool> IsRunning_ = false;
 
     void OnExpirationSweep()
     {
         YT_LOG_DEBUG("Started expired watchers sweep");
 
-        std::vector<TReplicationCardWatcher> expiredWatchers;
+        std::vector<TReplicationCardWatcherEntry> expiredWatcherEntries;
         {
-            TInstant deadLine = TInstant::Now() - ExpirationTime_.load();
+            auto deadLine = TInstant::Now() - ExpirationTime_.load();
             auto readGuard = ReaderGuard(EntriesLock_);
             for (auto& [replicationCardId, entry]: WatchersByCardId_) {
                 auto entryGuard = Guard(entry->Lock);
-                if (!entry->Watchers.empty()) {
+                if (!entry->WatcherEntries.empty()) {
                     entry->LastSeenWatchers.store(TInstant::Now());
                 }
 
-                auto expiredWatchersIterator = entry->Watchers.begin();
-                while (expiredWatchersIterator != entry->Watchers.end()) {
-                    if (expiredWatchersIterator->RequestStart > deadLine) {
+                auto expiredWatchersIterator = entry->WatcherEntries.begin();
+                while (expiredWatchersIterator != entry->WatcherEntries.end()) {
+                    if (expiredWatchersIterator->RequestStartTime > deadLine) {
                         break;
                     }
 
-                    expiredWatchers.push_back(std::move(*expiredWatchersIterator));
+                    expiredWatcherEntries.push_back(std::move(*expiredWatchersIterator));
                     ++expiredWatchersIterator;
                 }
 
-                entry->Watchers.erase(entry->Watchers.begin(), expiredWatchersIterator);
+                entry->WatcherEntries.erase(entry->WatcherEntries.begin(), expiredWatchersIterator);
             }
         }
 
-        for (auto& expiredWatcher : expiredWatchers) {
-            auto& response = expiredWatcher.Context->Response();
-            response.mutable_replication_card_not_changed();
-            expiredWatcher.Context->Reply();
+        for (const auto& expiredWatcherEntry : expiredWatcherEntries) {
+            expiredWatcherEntry.Callbacks->OnNothingChanged();
         }
 
-        TInstant goneCardsDeadLine = TInstant::Now() - GoneCardsExpirationTime_.load();
+        auto goneCardsDeadLine = TInstant::Now() - GoneCardsExpirationTime_.load();
         std::vector<TReplicationCardId> idsToRemove;
         {
             auto migratedCardsGuard = ReaderGuard(MigratedCardsLock_);
@@ -471,7 +429,7 @@ private:
 
         if (!idsToRemove.empty()) {
             auto migratedCardsGuard = WriterGuard(MigratedCardsLock_);
-            for (const auto& replicationCardId : idsToRemove) {
+            for (auto replicationCardId : idsToRemove) {
                 MigratedCards_.erase(replicationCardId);
             }
         }
@@ -489,7 +447,7 @@ private:
 
         if (!idsToRemove.empty()) {
             auto deletedCardsGuard = WriterGuard(DeletedCardsLock_);
-            for (const auto& replicationCardId : idsToRemove) {
+            for (auto replicationCardId : idsToRemove) {
                 DeletedCards_.erase(replicationCardId);
             }
         }
@@ -498,17 +456,14 @@ private:
 
         YT_LOG_DEBUG("Finished expired watchers sweep");
     }
-
 };
 
 IReplicationCardsWatcherPtr CreateReplicationCardsWatcher(
-    const TReplicationCardsWatcherConfigPtr& config,
+    TReplicationCardsWatcherConfigPtr config,
     IInvokerPtr invoker)
 {
     return New<TReplicationCardsWatcher>(
-        config->PollExpirationTime,
-        config->GoneCardsExpirationTime,
-        config->ExpirationSweepPeriod,
+        std::move(config),
         std::move(invoker));
 }
 

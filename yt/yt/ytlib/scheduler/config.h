@@ -633,7 +633,7 @@ public:
 
     std::optional<ECancelationStage> CancelationStage;
 
-    std::optional<TDuration> SettleJobDelay;
+    TDelayConfigPtr SettleJobDelay;
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
@@ -1123,9 +1123,9 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
-    //! Allow use of extra virtual squashfs layer.
+    //! Enable virtual sandbox.
     //! Allow access to all immutable files via NBD.
-    bool AllowUseVirtualSquashFsLayer;
+    bool EnableVirtualSandbox;
 
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 

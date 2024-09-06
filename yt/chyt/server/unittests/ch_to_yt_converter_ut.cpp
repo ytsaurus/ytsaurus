@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/chyt/server/ch_to_yt_converter.h>
-#include <yt/chyt/server/data_type_boolean.h>
+#include <yt/chyt/server/custom_data_types.h>
 #include <yt/chyt/server/config.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -17,7 +17,10 @@
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeDate32.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeDateTime64.h>
+#include <DataTypes/DataTypeInterval.h>
 #include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -218,6 +221,137 @@ TEST_F(TCHToYTConversionTest, String)
     auto actualValues = ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::String), expectedValueYsons);
     EXPECT_EQ(actualValues[0].Data.String, column->getDataAt(0).data);
     EXPECT_EQ(actualValues[1].Data.String, column->getDataAt(1).data);
+}
+
+TEST_F(TCHToYTConversionTest, Interval)
+{
+    auto dataType = std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond);
+
+    auto column = MakeColumn(dataType, {
+        DB::Int64(42),
+        DB::Int64(-17),
+        DB::Int64(123456789),
+        DB::Int64(-987654321),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "42",
+        "-17",
+        "123456789",
+        "-987654321",
+    };
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::Interval64), expectedValueYsons);
+}
+
+TEST_F(TCHToYTConversionTest, Date)
+{
+    auto dataTypeDate = std::make_shared<DB::DataTypeDate>();
+    auto columnDate = MakeColumn(dataTypeDate, {
+        DB::UInt16(0),
+        DB::UInt16(42),
+        DB::UInt16(100),
+        DB::UInt16(12345),
+    });
+
+    std::vector<TStringBuf> expectedValuesDate = {
+        "0u",
+        "42u",
+        "100u",
+        "12345u",
+    };
+
+    Converter_.emplace(dataTypeDate, Settings_);
+    ExpectConversion(columnDate, SimpleLogicalType(ESimpleLogicalValueType::Date), expectedValuesDate);
+
+    auto dataTypeDate32 = std::make_shared<DB::DataTypeDate32>();
+    auto columnDate32 = MakeColumn(dataTypeDate32, {
+        DB::Int32(0),
+        DB::Int32(42),
+        DB::Int32(100),
+        DB::Int32(-12345),
+        DB::Int32(12345),
+    });
+    std::vector<TStringBuf> expectedValuesDate32 = {
+        "0",
+        "42",
+        "100",
+        "-12345",
+        "12345",
+    };
+
+    Converter_.emplace(dataTypeDate32, Settings_);
+    ExpectConversion(columnDate32, SimpleLogicalType(ESimpleLogicalValueType::Date32), expectedValuesDate32);
+}
+
+TEST_F(TCHToYTConversionTest, DateTime64)
+{
+    std::vector<ui64> expectedUnsignedValues = {
+        0,
+        42,
+        100,
+        12345,
+        123456,
+    };
+    std::vector<i64> expectedSignedValues = {
+        -42,
+        -100,
+        -12345,
+        -123456,
+    };
+    expectedSignedValues.insert(
+        expectedSignedValues.end(),
+        expectedUnsignedValues.begin(),
+        expectedUnsignedValues.end()
+    );
+
+    std::vector<TString> ysonUnsignedStrings;
+    for (const auto& value : expectedUnsignedValues) {
+        ysonUnsignedStrings.emplace_back(ConvertToYsonString(value).ToString());
+    }
+    std::vector<TString> ysonSignedStrings;
+    for (const auto& value : expectedSignedValues) {
+        ysonSignedStrings.emplace_back(ConvertToYsonString(value).ToString());
+    }
+
+    auto expectedUnsignedYsons = ToStringBufs(ysonUnsignedStrings);
+    auto expectedSignedYsons = ToStringBufs(ysonSignedStrings);
+
+    auto testAsType = [&] (
+        int scale,
+        ESimpleLogicalValueType logicalValueType,
+        DB::DataTypePtr dataType,
+        auto expectedValues,
+        std::vector<TStringBuf> expectedYsons)
+    {
+        std::vector<DB::Field> fields;
+        for (const auto& value : expectedValues) {
+            DB::DateTime64 chValue = value;
+            fields.emplace_back(DB::DecimalField(chValue, scale));
+        }
+
+        auto column = MakeColumn(dataType, fields);
+        auto expectedLogicalType = SimpleLogicalType(logicalValueType);
+
+        Converter_.emplace(dataType, Settings_);
+        ExpectConversion(column, expectedLogicalType, expectedYsons);
+    };
+
+    testAsType(0, ESimpleLogicalValueType::Datetime64, std::make_shared<DB::DataTypeDateTime64>(0), expectedSignedValues, expectedSignedYsons);
+    testAsType(6, ESimpleLogicalValueType::Timestamp64, std::make_shared<DB::DataTypeDateTime64>(6), expectedSignedValues, expectedSignedYsons);
+    testAsType(6, ESimpleLogicalValueType::Timestamp, GetDataTypeTimestamp(), expectedUnsignedValues, expectedUnsignedYsons);
+
+    auto invalidDateTimeDataType = std::make_shared<DB::DataTypeDateTime64>(3);
+    EXPECT_THROW(Converter_.emplace(invalidDateTimeDataType, Settings_), std::exception);
+
+    {
+        auto dataType = GetDataTypeTimestamp();
+        auto column = MakeColumn(dataType, {DB::DecimalField(DB::DateTime64(-1), 6)});
+        Converter_.emplace(dataType, Settings_);
+        EXPECT_THROW(Converter_->ConvertColumnToUnversionedValues(column), std::exception);
+    }
 }
 
 TEST_F(TCHToYTConversionTest, Decimal)

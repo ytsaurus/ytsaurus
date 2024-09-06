@@ -16,6 +16,18 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableDiscoveryServerError(const TError& error) {
+    return
+        error.FindMatching(NDiscoveryClient::EErrorCode::InvalidGroupId) ||
+        error.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId) ||
+        error.FindMatching(NDiscoveryClient::EErrorCode::MemberLimitExceeded) ||
+        error.FindMatching(NDiscoveryClient::EErrorCode::GroupLimitExceeded) ||
+        error.FindMatching(NDiscoveryClient::EErrorCode::NodeLimitExceeded) ||
+        error.FindMatching(NDiscoveryClient::EErrorCode::DepthLimitExceeded);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TMemberInfo* protoMemberInfo, const TMemberInfo& memberInfo)
 {
     protoMemberInfo->set_id(memberInfo.Id);

@@ -6,7 +6,7 @@ import "go.ytsaurus.tech/yt/go/skiff"
 //
 // NOTE: all fields must be public and support gob encoding.
 type jobState struct {
-	Job Job
+	Job any
 
 	InputSkiffFormat *skiff.Format
 }

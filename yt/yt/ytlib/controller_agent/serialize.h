@@ -53,7 +53,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MultipleJobsInAllocation)             (301513))
     ((OperationIncarnationInJoblet)         (301514))
     // 24.2 starts here
-    ((BumpTo_24_2)                          (301515))
+    ((BumpTo_24_2)                          (301600))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

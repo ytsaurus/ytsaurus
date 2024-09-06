@@ -58,6 +58,8 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 #include <util/generic/cast.h>
@@ -872,20 +874,21 @@ TString TUserObject::GetObjectIdPathIfAvailable() const
     return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }
 
-void TUserObject::Persist(const TStreamPersistenceContext& context)
+void TUserObject::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Path);
-    Persist(context, ObjectId);
-    Persist(context, ExternalCellTag);
-    Persist(context, ExternalTransactionId);
-    Persist(context, Type);
-    Persist(context, TransactionId);
-    Persist(context, OmittedInaccessibleColumns);
-    Persist(context, SecurityTags);
-    Persist(context, ChunkCount);
-    Persist(context, Account);
+    PHOENIX_REGISTER_FIELD(1, Path)();
+    PHOENIX_REGISTER_FIELD(2, ObjectId)();
+    PHOENIX_REGISTER_FIELD(3, ExternalCellTag)();
+    PHOENIX_REGISTER_FIELD(4, ExternalTransactionId)();
+    PHOENIX_REGISTER_FIELD(5, Type)();
+    PHOENIX_REGISTER_FIELD(6, TransactionId)();
+    PHOENIX_REGISTER_FIELD(7, OmittedInaccessibleColumns)();
+    PHOENIX_REGISTER_FIELD(8, SecurityTags)();
+    PHOENIX_REGISTER_FIELD(9, ChunkCount)();
+    PHOENIX_REGISTER_FIELD(10, Account)();
 }
+
+PHOENIX_DEFINE_TYPE(TUserObject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

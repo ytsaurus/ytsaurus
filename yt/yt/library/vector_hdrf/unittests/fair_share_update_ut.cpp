@@ -59,6 +59,7 @@ class TElementMock
 public:
     explicit TElementMock(TString id)
         : Id_(std::move(id))
+        , Logger(FairShareLogger.WithTag("Id: %v", Id_))
     { }
 
     const TJobResources& GetResourceDemand() const override
@@ -107,7 +108,7 @@ public:
 
     const NLogging::TLogger& GetLogger() const override
     {
-        return FairShareLogger;
+        return Logger;
     }
 
     bool AreDetailedLogsEnabled() const override
@@ -140,6 +141,8 @@ public:
 protected:
     const TString Id_;
     TCompositeElement* Parent_ = nullptr;
+
+    const NLogging::TLogger Logger;
 
     TJobResources ResourceDemand_;
     TJobResources ResourceUsage_;
@@ -406,6 +409,15 @@ void TElementMock::AttachParent(TCompositeElementMock* parent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestFairShareUpdateOptions
+{
+    EJobResourceType MainResource = EJobResourceType::Cpu;
+    TInstant Now = TInstant::Now();
+    std::optional<TInstant> PreviousUpdateTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareUpdateTest
     : public testing::Test
 {
@@ -527,21 +539,20 @@ protected:
     TFairShareUpdateContext DoFairShareUpdate(
         const TJobResources& totalResourceLimits,
         const TRootElementMockPtr& rootElement,
-        TInstant now = TInstant(),
-        std::optional<TInstant> previousUpdateTime = std::nullopt)
+        const TTestFairShareUpdateOptions& testOptions = {})
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
         TFairShareUpdateContext context(
             TFairShareUpdateOptions{
-                .MainResource = EJobResourceType::Cpu,
+                .MainResource = testOptions.MainResource,
                 .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
                 .IntegralSmoothPeriod = TDuration::Minutes(1),
                 .EnableFastChildFunctionSummationInFifoPools = true,
             },
             totalResourceLimits,
-            now,
-            previousUpdateTime);
+            testOptions.Now,
+            testOptions.PreviousUpdateTime);
 
         rootElement->PreUpdate(totalResourceLimits);
 
@@ -549,6 +560,19 @@ protected:
         updateExecutor.Run();
 
         return context;
+    }
+
+    // TODO(eshcherbin): Remove this method in favour of the previous one.
+    TFairShareUpdateContext DoFairShareUpdate(
+        const TJobResources& totalResourceLimits,
+        const TRootElementMockPtr& rootElement,
+        TInstant now,
+        std::optional<TInstant> previousUpdateTime = std::nullopt)
+    {
+        return DoFairShareUpdate(totalResourceLimits, rootElement, TTestFairShareUpdateOptions{
+            .Now = now,
+            .PreviousUpdateTime = previousUpdateTime,
+        });
     }
 
 private:

@@ -15,18 +15,15 @@ struct IReplicationCardWatcherClientCallbacks
     virtual ~IReplicationCardWatcherClientCallbacks() = default;
 
     virtual void OnReplicationCardUpdated(
-        const TReplicationCardId& replicationCardId,
-        TReplicationCardPtr replicationCard,
+        TReplicationCardId replicationCardId,
+        const TReplicationCardPtr& replicationCard,
         NTransactionClient::TTimestamp timestamp) = 0;
 
-    virtual void OnReplicationCardDeleted(
-        const TReplicationCardId& replicationCardId) = 0;
+    virtual void OnReplicationCardDeleted(TReplicationCardId replicationCardId) = 0;
 
-    virtual void OnUnknownReplicationCard(
-        const TReplicationCardId& replicationCardId) = 0;
+    virtual void OnUnknownReplicationCard(TReplicationCardId replicationCardId) = 0;
 
-    virtual void OnNothingChanged(
-        const TReplicationCardId& replicationCardId) = 0;
+    virtual void OnNothingChanged(TReplicationCardId replicationCardId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,9 +31,8 @@ struct IReplicationCardWatcherClientCallbacks
 struct IReplicationCardsWatcherClient
     : public virtual TRefCounted
 {
-    virtual void WatchReplicationCard(
-        const TReplicationCardId& replicationCardId) = 0;
-    virtual void StopWatchingReplicationCard(const TReplicationCardId& replicationCardId) = 0;
+    virtual void WatchReplicationCard(TReplicationCardId replicationCardId) = 0;
+    virtual void StopWatchingReplicationCard(TReplicationCardId replicationCardId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicationCardsWatcherClient)

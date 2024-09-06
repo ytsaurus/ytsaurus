@@ -2213,7 +2213,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS {  "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
+PARAMETERS {  "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
 OUTPUT {
 OUTPUT     "state" = "running";
 OUTPUT }
@@ -2244,7 +2244,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### complete_operation
@@ -2272,7 +2272,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### suspend_operation
@@ -2302,7 +2302,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### resume_operation
@@ -2331,7 +2331,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 ```
 
 ### update_operation_parameters { #update_operation_parameters }
@@ -2432,10 +2432,10 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3"; "`job_id`" = "f11ae559-a0375703-3fe0384-8f1"}
+PARAMETERS { "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3"; "job_id" = "f11ae559-a0375703-3fe0384-8f1"}
 OUTPUT {
-OUTPUT     "`operation_id`" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
-OUTPUT     "`job_id`" = "f11ae559-a0375703-3fe0384-8f1";
+OUTPUT     "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
+OUTPUT     "job_id" = "f11ae559-a0375703-3fe0384-8f1";
 OUTPUT     "state" = "completed";
 OUTPUT     "start_time" = "2018-02-06T09:37:02.858492Z";
 OUTPUT     "finish_time" = "2018-02-06T09:42:19.185525Z";
@@ -2509,7 +2509,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
+PARAMETERS {operation_id" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
 OUTPUT {
 OUTPUT     "jobs" = [
 OUTPUT         {
@@ -2585,7 +2585,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 ### abort_job
@@ -2614,7 +2614,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 {% if audience == internal %}
@@ -2652,7 +2652,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
 {% endif %}
@@ -2683,7 +2683,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "path" = "//tmp/input_context" }
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "path" = "//tmp/input_context" }
 ```
 
 ### get_job_input { #get_job_input }
@@ -2712,7 +2712,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
+PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 ```
 
 ### get_job_fail_context { #get_job_fail_context }
@@ -2742,7 +2742,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 ```
 
 ### get_job_stderr { #job_stderr }
@@ -2759,6 +2759,8 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
+| `offset` | No |                           | Offset in bytes. |
+| `limit` | No |                           | Limit in bytes. |
 
 Input data:
 
@@ -2772,7 +2774,11 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff }
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "offset" = 500; "limit" = 100 }
+OUTPUT {
+OUTPUT   "total_size" = 1000;
+OUTPUT   "end_offset" = 600;
+OUTPUT }
 ```
 
 ## Other

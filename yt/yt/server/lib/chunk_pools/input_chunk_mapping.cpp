@@ -265,17 +265,18 @@ void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripe
     YT_VERIFY(OriginalStripes_.emplace(cookie, stripe).second);
 }
 
-void TInputChunkMapping::Persist(const TPersistenceContext& context)
+void TInputChunkMapping::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, Substitutes_);
-    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, OriginalStripes_);
-    Persist(context, Mode_);
-    if (context.GetVersion() >= NControllerAgent::ESnapshotVersion::PersistInputChunkMappingLogger) {
-        Persist(context, Logger);
-    }
+    PHOENIX_REGISTER_FIELD(1, Substitutes_)
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
+    PHOENIX_REGISTER_FIELD(2, OriginalStripes_)
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
+    PHOENIX_REGISTER_FIELD(3, Mode_)();
+    PHOENIX_REGISTER_FIELD(4, Logger)
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PersistInputChunkMappingLogger)();
 }
+
+PHOENIX_DEFINE_TYPE(TInputChunkMapping);
 
 ////////////////////////////////////////////////////////////////////////////////
 

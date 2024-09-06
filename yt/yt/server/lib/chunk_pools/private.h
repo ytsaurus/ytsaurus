@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/phoenix.h>
-
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////

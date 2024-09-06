@@ -27,8 +27,9 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -74,15 +75,13 @@ bool TReleaseJobFlags::IsTrivial() const
     return !IsNonTrivial();
 }
 
-void TReleaseJobFlags::Persist(const TStreamPersistenceContext& context)
+void TReleaseJobFlags::RegisterMetadata(auto&& registrar)
 {
     using namespace NYT::NControllerAgent;
-    using NYT::Persist;
-
-    Persist(context, ArchiveStderr);
-    Persist(context, ArchiveJobSpec);
-    Persist(context, ArchiveFailContext);
-    Persist(context, ArchiveProfile);
+    PHOENIX_REGISTER_FIELD(1, ArchiveStderr)();
+    PHOENIX_REGISTER_FIELD(2, ArchiveJobSpec)();
+    PHOENIX_REGISTER_FIELD(3, ArchiveFailContext)();
+    PHOENIX_REGISTER_FIELD(4, ArchiveProfile)();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReleaseJobFlags& releaseFlags, TStringBuf /*spec*/)
@@ -95,6 +94,8 @@ void FormatValue(TStringBuilderBase* builder, const TReleaseJobFlags& releaseFla
         releaseFlags.ArchiveFailContext,
         releaseFlags.ArchiveProfile);
 }
+
+PHOENIX_DEFINE_TYPE(TReleaseJobFlags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

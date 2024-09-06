@@ -3,7 +3,7 @@
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
 #include "config.h"
-#include "data_type_boolean.h"
+#include "custom_data_types.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
 #include "invoker_liveness_checker.h"
@@ -16,6 +16,7 @@
 #include "table_functions.h"
 #include "user_defined_sql_objects_storage.h"
 #include "yt_database.h"
+#include "yt_directory_database.h"
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
@@ -581,9 +582,29 @@ public:
             CreateStorageSystemClique(Discovery_, Config_->InstanceId));
     }
 
-    std::shared_ptr<DB::IDatabase> CreateYtDatabase() const
+    DB::DatabasePtr CreateYTDatabase() const
     {
-        return NYT::NClickHouseServer::CreateYtDatabase();
+        return NYT::NClickHouseServer::CreateYTDatabase();
+    }
+
+    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const
+    {
+        std::vector<DB::DatabasePtr> result;
+        result.reserve(Config_->DatabaseDirectories.size());
+        for (const auto& [databaseName, root] : Config_->DatabaseDirectories) {
+            result.push_back(NYT::NClickHouseServer::CreateDirectoryDatabase(databaseName, root));
+        }
+        return result;
+    }
+
+    std::vector<TString> GetUserDefinedDatabaseNames() const
+    {
+        std::vector<TString> result;
+        result.reserve(Config_->DatabaseDirectories.size());
+        for (const auto& [databaseName, _] : Config_->DatabaseDirectories) {
+            result.push_back(databaseName);
+        }
+        return result;
     }
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const
@@ -949,6 +970,7 @@ private:
             GetRootClient(),
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
+        RegisterDataTypeTimestamp();
     }
 };
 
@@ -1109,9 +1131,19 @@ void THost::PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
     return Impl_->PopulateSystemDatabase(systemDatabase);
 }
 
-std::shared_ptr<DB::IDatabase> THost::CreateYtDatabase() const
+std::shared_ptr<DB::IDatabase> THost::CreateYTDatabase() const
 {
-    return Impl_->CreateYtDatabase();
+    return Impl_->CreateYTDatabase();
+}
+
+std::vector<DB::DatabasePtr> THost::CreateUserDefinedDatabases() const
+{
+    return Impl_->CreateUserDefinedDatabases();
+}
+
+std::vector<TString> THost::GetUserDefinedDatabaseNames() const
+{
+    return Impl_->GetUserDefinedDatabaseNames();
 }
 
 void THost::SetContext(DB::ContextMutablePtr context)

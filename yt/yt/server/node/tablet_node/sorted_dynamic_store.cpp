@@ -945,6 +945,8 @@ TSortedDynamicStore::TSortedDynamicStore(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     // Reserve the vector to prevent reallocations and thus enable accessing
     // it from arbitrary threads.
     RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
@@ -1035,7 +1037,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
+                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime)
+                << TErrorAttribute("timestamp", timestamp);
         };
 
         auto handler = GetRowBlockedHandler();
@@ -1551,6 +1554,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
     TLockMask lockMask,
     TTimestamp timestamp)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
 
     lockMask.Enrich(ColumnLockCount_);
@@ -1562,7 +1566,20 @@ int TSortedDynamicStore::GetBlockingLockIndex(
     {
         auto lockType = lockMask.Get(index);
 
-        if (lockType != ELockType::None && lock->PrepareTimestamp.load() < timestamp) {
+        if (lockType == ELockType::None) {
+            continue;
+        }
+
+        // NB: SharedWrite lock implies execution in automaton thread so it is acceptable to access non-atomic fields of lock.
+        if (lockType == ELockType::SharedWrite) {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            if (lock->WriteTransactionPrepareTimestamp == NotPreparedTimestamp) {
+                // If next condition is true then already prepared transactions are also shared write and there is no need to wait for them to commit.
+                continue;
+            }
+        }
+
+        if (lock->PrepareTimestamp.load() < timestamp) {
             return index;
         }
     }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fwd.h"
+#include "private/hash.h"
 
 #include <util/stream/str.h>
 #include <util/system/byteorder.h>
@@ -34,6 +35,7 @@ private:
 public:
     using TKey = K;
     using TValue = V;
+    static_assert(!NPrivate::IsKeyHashRequired<TKey> || NPrivate::IsHashable<TKey>, "Key must be hashable.");
 
 public:
     static constexpr ssize_t KeyOffset = offsetof(TSelf, Key_);

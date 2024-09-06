@@ -419,6 +419,7 @@ private:
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
+        i64 cumulativeBlockSize = request->cumulative_block_size();
 
         ValidateOnline();
 
@@ -427,18 +428,18 @@ private:
         const auto& location = session->GetStoreLocation();
         auto options = session->GetSessionOptions();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v, CumulativeBlockSize: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
             flushBlocks,
             location->GetMediumName(),
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            cumulativeBlockSize);
 
-        if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
-        }
+        auto throttlingResult = location->CheckWriteThrottling(session->GetWorkloadDescriptor());
+        throttlingResult.Error.ThrowOnError();
 
         TWallTimer timer;
 
@@ -448,6 +449,7 @@ private:
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
+            cumulativeBlockSize,
             populateCache);
 
         // Flush blocks if needed.
@@ -496,19 +498,21 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
+        i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
+            cumulativeBlockSize,
             targetDescriptor);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
+        session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
             .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
                 if (errorOrRsp.IsOK()) {
                     response->set_close_demanded(errorOrRsp.Value()->close_demanded());
@@ -711,6 +715,8 @@ private:
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
+            YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
                 // COMPAT(akozhikhov): Empty revision list.
@@ -773,6 +779,8 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(
             context,
@@ -986,6 +994,8 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
             YT_LOG_WARNING("Simulating network throttling for GetBlockSet (ChunkId: %v)",
@@ -1117,6 +1127,8 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1463,6 +1475,8 @@ private:
         }
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);

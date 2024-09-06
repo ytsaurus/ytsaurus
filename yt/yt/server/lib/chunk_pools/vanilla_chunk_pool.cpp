@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
+#include <yt/yt/core/misc/phoenix.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <util/generic/cast.h>
@@ -20,7 +22,6 @@ using namespace NControllerAgent;
 
 class TVanillaChunkPool
     : public TChunkPoolOutputWithNewJobManagerBase
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     , public TJobSplittingBase
 {
 public:
@@ -37,14 +38,6 @@ public:
 
     //! Used only for persistence.
     TVanillaChunkPool() = default;
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolOutputWithJobManagerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, RestartCompletedJobs_);
-    }
 
     bool IsCompleted() const override
     {
@@ -72,11 +65,19 @@ public:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool, 0x42439a0a);
     bool RestartCompletedJobs_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaChunkPool, 0x42439a0a);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool);
+void TVanillaChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, RestartCompletedJobs_)();
+}
+
+PHOENIX_DEFINE_TYPE(TVanillaChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

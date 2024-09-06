@@ -17,6 +17,10 @@ struct TQueueSnapshot
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
+    // True if queue is banned, and signifies that queue controller should skip all leading logic.
+    bool Banned;
+    // Present if Banned is true, and equal to the first pass instant when the queue became banned.
+    std::optional<TInstant> BannedSince;
 
     EQueueFamily Family;
     int PartitionCount = 0;
@@ -79,6 +83,10 @@ struct TConsumerSnapshot
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
+    // True if consumer is banned, and signifies that consumer controller should skip all leading logic.
+    bool Banned;
+    // Present if Banned is true, and equal to the first pass instant when the consumer became banned.
+    std::optional<TInstant> BannedSince;
 
     i64 PassIndex = 0;
     TInstant PassInstant;

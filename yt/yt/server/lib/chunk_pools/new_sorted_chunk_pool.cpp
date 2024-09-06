@@ -22,6 +22,7 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
 #include <yt/yt/core/logging/serializable_logger.h>
@@ -46,7 +47,6 @@ class TNewSortedChunkPool
     , public ISortedChunkPool
     , public virtual TLoggerOwner
     , public TJobSplittingBase
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -212,47 +212,12 @@ public:
         CheckCompleted();
     }
 
-    void Persist(const TPersistenceContext& context) final
-    {
-        TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputWithJobManagerBase::Persist(context);
-        TJobSplittingBase::Persist(context);
-        // TLoggerOwner is persisted by TJobSplittingBase.
-
-        using NYT::Persist;
-        Persist(context, SortedJobOptions_);
-        Persist(context, PrimaryComparator_);
-        Persist(context, ForeignComparator_);
-        Persist(context, ChunkSliceFetcherFactory_);
-        Persist(context, EnableKeyGuarantee_);
-        Persist(context, InputStreamDirectory_);
-        Persist(context, PrimaryPrefixLength_);
-        Persist(context, ForeignPrefixLength_);
-        Persist(context, ShouldSlicePrimaryTableByKeys_);
-        Persist(context, SliceForeignChunks_);
-        Persist(context, MinTeleportChunkSize_);
-        Persist(context, Stripes_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, TeleportChunkSampler_);
-        Persist(context, SupportLocality_);
-        Persist(context, TeleportChunks_);
-        Persist(context, IsCompleted_);
-        Persist(context, StructuredLogger);
-
-        if (context.IsLoad()) {
-            ValidateLogger(Logger);
-            RowBuffer_ = New<TRowBuffer>();
-        }
-    }
-
     std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie cookie) const override
     {
         return JobManager_->GetBounds(cookie);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TNewSortedChunkPool, 0x8ff1db04);
-
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
 
@@ -809,9 +774,43 @@ private:
 
         IsCompleted_ = completed;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TNewSortedChunkPool, 0x8ff1db04);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TNewSortedChunkPool);
+void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+    registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
+    registrar.template BaseType<TJobSplittingBase>();
+    // TLoggerOwner is persisted by TJobSplittingBase.
+
+    PHOENIX_REGISTER_FIELD(1, SortedJobOptions_)();
+    PHOENIX_REGISTER_FIELD(2, PrimaryComparator_)();
+    PHOENIX_REGISTER_FIELD(3, ForeignComparator_)();
+    PHOENIX_REGISTER_FIELD(4, ChunkSliceFetcherFactory_)();
+    PHOENIX_REGISTER_FIELD(5, EnableKeyGuarantee_)();
+    PHOENIX_REGISTER_FIELD(6, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(7, PrimaryPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(8, ForeignPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(9, ShouldSlicePrimaryTableByKeys_)();
+    PHOENIX_REGISTER_FIELD(10, SliceForeignChunks_)();
+    PHOENIX_REGISTER_FIELD(11, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(12, Stripes_)();
+    PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_)();
+    PHOENIX_REGISTER_FIELD(15, SupportLocality_)();
+    PHOENIX_REGISTER_FIELD(16, TeleportChunks_)();
+    PHOENIX_REGISTER_FIELD(17, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(18, StructuredLogger)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        ValidateLogger(this_->Logger);
+        this_->RowBuffer_ = New<TRowBuffer>();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TNewSortedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

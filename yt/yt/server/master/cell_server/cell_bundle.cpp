@@ -47,7 +47,7 @@ std::string TCellBundle::GetCapitalizedObjectName() const
     return Format("Cell bundle %Qv", Name_);
 }
 
-void TCellBundle::Save(TSaveContext& context) const
+void TCellBundle::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -62,7 +62,7 @@ void TCellBundle::Save(TSaveContext& context) const
     Save(context, ConfigVersion_);
 }
 
-void TCellBundle::Load(TLoadContext& context)
+void TCellBundle::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
 

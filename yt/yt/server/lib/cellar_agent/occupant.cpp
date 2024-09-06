@@ -358,13 +358,15 @@ public:
         return Initialized_ && !Finalizing_;
     }
 
-    IThroughputThrottlerPtr GetSnapshotOutThrottler() const
+    TSnapshotOutThrottlerProvider GetSnapshotOutThrottlerProvider() const
     {
-        if (EnableSnapshotNetworkThrottling_) {
-            return Bootstrap_->GetSnapshotOutThrottler();
-        }
+        return [this, weakThis = MakeWeak(this)] () -> IThroughputThrottlerPtr {
+            if (auto strongThis = weakThis.Lock() && EnableSnapshotNetworkThrottling_) {
+                return Bootstrap_->GetSnapshotOutThrottler();
+            }
 
-        return NConcurrency::GetUnlimitedThrottler();
+            return NConcurrency::GetUnlimitedThrottler();
+        };
     }
 
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
@@ -384,7 +386,7 @@ public:
                     secondaryStoresPath + "/snapshots",
                     snapshotClient,
                     PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
-                    GetSnapshotOutThrottler());
+                    GetSnapshotOutThrottlerProvider());
                 SnapshotStoreThunk_->SetUnderlying(snapshotStore);
                 break;
             }

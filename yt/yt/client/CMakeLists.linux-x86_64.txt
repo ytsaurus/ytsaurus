@@ -18,6 +18,7 @@ add_subdirectory(query_tracker_client)
 add_subdirectory(logging)
 add_subdirectory(formats)
 add_subdirectory(arrow)
+add_subdirectory(api)
 add_subdirectory(table_client)
 add_subdirectory(unittests)
 add_subdirectory(cache)
@@ -89,6 +90,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/persistent_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/sticky_transaction_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/shuffle_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/address_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp

@@ -5,7 +5,6 @@ LICENSE(Apache-2.0)
 SRCS(
     experimental.go
     internal.go
-    xds_handshake_cluster.go
 )
 
 IF (OS_LINUX)

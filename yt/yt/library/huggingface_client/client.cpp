@@ -9,6 +9,8 @@
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <library/cpp/json/json_reader.h>
 
 namespace NYT::NHuggingface {
@@ -16,6 +18,8 @@ namespace NYT::NHuggingface {
 using namespace NYT::NHttp;
 
 const TString DefaultHuggingfaceUrl = "https://huggingface.co";
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,24 +47,31 @@ THuggingfaceClient::THuggingfaceClient(
     , Client_(CreateHttpClient(std::move(poller), MaxRedirectCount))
 { }
 
-std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split)
+std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split)
 {
     auto headers = New<THeaders>();
     if (Token_) {
         headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, config, split);
+    auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, subset, split);
+    YT_LOG_INFO("Getting parquet file list (Url: %v)", url);
     auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {
-        THROW_ERROR_EXCEPTION("Failed to get Parquet files list, HTTP proxy discovery request returned an error")
+        THROW_ERROR_EXCEPTION("Failed to get Parquet files list")
             << TErrorAttribute("status_code", response->GetStatusCode());
     }
 
     auto data = response->ReadAll();
-    return ParseParquetFileUrls(data.ToStringBuf());
+    auto result = ParseParquetFileUrls(data.ToStringBuf());
+    YT_LOG_INFO("Parquet file list received (Count: %v)", result.size());
+    for (const auto& url : result) {
+        YT_LOG_DEBUG("Parquet file (Url: %v)", url);
+    }
+
+    return result;
 }
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const TString& url)

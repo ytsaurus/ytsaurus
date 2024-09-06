@@ -7,7 +7,7 @@ IF (OPENSOURCE)
 ENDIF()
 
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_operations_archive.inc)
+    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
     INCLUDE(${ARCADIA_ROOT}/library/recipes/s3mds/recipe.inc)
 ENDIF()
 

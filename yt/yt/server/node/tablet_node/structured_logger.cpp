@@ -499,7 +499,7 @@ private:
     const TStructuredLoggerPtr Logger_;
     TTablet* const Tablet_;
     const TTabletId TabletId_;
-    std::atomic_bool Enabled_;
+    std::atomic<bool> Enabled_;
 
     template <class T>
     TGuid GetObjectId(const T& object)

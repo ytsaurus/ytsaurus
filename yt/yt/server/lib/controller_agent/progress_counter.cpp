@@ -224,20 +224,19 @@ bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
     return true;
 }
 
-void TProgressCounter::Persist(const TPersistenceContext& context)
+void TProgressCounter::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Running_);
-    Persist(context, Completed_);
-    Persist(context, Failed_);
-    Persist(context, Pending_);
-    Persist(context, Suspended_);
-    Persist(context, Aborted_);
-    Persist(context, Lost_);
-    Persist(context, Invalidated_);
-    Persist(context, Uncategorized_);
-    Persist(context, Blocked_);
-    Persist(context, Parents_);
+    PHOENIX_REGISTER_FIELD(1, Running_)();
+    PHOENIX_REGISTER_FIELD(2, Completed_)();
+    PHOENIX_REGISTER_FIELD(3, Failed_)();
+    PHOENIX_REGISTER_FIELD(4, Pending_)();
+    PHOENIX_REGISTER_FIELD(5, Suspended_)();
+    PHOENIX_REGISTER_FIELD(6, Aborted_)();
+    PHOENIX_REGISTER_FIELD(7, Lost_)();
+    PHOENIX_REGISTER_FIELD(8, Invalidated_)();
+    PHOENIX_REGISTER_FIELD(9, Uncategorized_)();
+    PHOENIX_REGISTER_FIELD(10, Blocked_)();
+    PHOENIX_REGISTER_FIELD(11, Parents_)();
 }
 
 void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
@@ -257,6 +256,8 @@ void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
     parent->AddUncategorized(Uncategorized_ * multiplier);
     parent->AddBlocked(Blocked_ * multiplier);
 }
+
+PHOENIX_DEFINE_TYPE(TProgressCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,13 +396,12 @@ void TProgressCounterGuard::OnLost()
     ProgressCounter_->AddLost(+1);
 }
 
-void TProgressCounterGuard::Persist(const TPersistenceContext& context)
+void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, ProgressCounter_);
-    Persist(context, Value_);
-    Persist(context, Category_);
-    Persist(context, InterruptReason_);
+    PHOENIX_REGISTER_FIELD(1, ProgressCounter_)();
+    PHOENIX_REGISTER_FIELD(2, Value_)();
+    PHOENIX_REGISTER_FIELD(3, Category_)();
+    PHOENIX_REGISTER_FIELD(4, InterruptReason_)();
 }
 
 void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
@@ -436,6 +436,8 @@ void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
             YT_ABORT();
     }
 }
+
+PHOENIX_DEFINE_TYPE(TProgressCounterGuard);
 
 ////////////////////////////////////////////////////////////////////////////////
 

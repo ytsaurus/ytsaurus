@@ -66,7 +66,7 @@ public:
             << TErrorAttribute("endpoint", EndpointDescription_))
     { }
 
-    const TString& GetEndpointDescription() const override
+    const std::string& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -125,7 +125,7 @@ private:
     const TClusterDirectoryPtr ClusterDirectory_;
     const ITvmServicePtr TvmService_;
 
-    const TString EndpointDescription_;
+    const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
     const TError UnavailableError_;

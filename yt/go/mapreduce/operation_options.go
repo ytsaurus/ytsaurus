@@ -90,3 +90,13 @@ func (l *skipSelfUploadOption) isOperationOption() {}
 func SkipSelfUpload() OperationOption {
 	return &skipSelfUploadOption{}
 }
+
+type startOperationOptsOption struct {
+	options *yt.StartOperationOptions
+}
+
+func (o *startOperationOptsOption) isOperationOption() {}
+
+func WithStartOperationOptions(options *yt.StartOperationOptions) OperationOption {
+	return &startOperationOptsOption{options: options}
+}

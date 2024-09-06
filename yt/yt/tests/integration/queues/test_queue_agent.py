@@ -1,5 +1,5 @@
 from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
-from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
+from yt_queue_agent_test_base import (OrchidWithRegularPasses, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid)
 
 from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
@@ -492,31 +492,6 @@ class TestQueueController(TestQueueAgentBase):
         partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
-
-    @authors("apachee")
-    @pytest.mark.timeout(300)
-    def test_queue_agent_banned_attribute(self):
-        orchid = QueueAgentOrchid()
-
-        self._create_queue("//tmp/q")
-        self._wait_for_component_passes()
-        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
-
-        set("//tmp/q/@queue_agent_banned", True)
-        wait(lambda: queue_orchid.get_row()["queue_agent_banned"])
-        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
-
-        set("//tmp/q/@queue_agent_banned", False)
-        queue_orchid.wait_fresh_pass()
-        assert "error" not in queue_orchid.get_status()
-
-        set("//tmp/q/@queue_agent_banned", True)
-        wait(lambda: queue_orchid.get_row()["queue_agent_banned"])
-        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
-
-        remove("//tmp/q/@queue_agent_banned")
-        queue_orchid.wait_fresh_pass()
-        assert "error" not in queue_orchid.get_status()
 
 
 class TestRates(TestQueueAgentBase):
@@ -2913,6 +2888,187 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         return next_instant
 
 
+class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "controller": {
+                "enable_queue_static_export": True,
+                "enable_automatic_trimming": True,
+            },
+        },
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "enable": True,
+        },
+    }
+
+    # Waits until updated "queue_agent_banned" attribute is handled.
+    # We need to:
+    # 1. Wait for cypress synchronizer pass.
+    # 2. Wait for queue agent sharding manager pass.
+    # 3. Wait for queue agent pass.
+    # 4. Wait for queue/consumer controller pass.
+    # Steps 1-3 are done in _wait_for_component_passes. Last step is done by us.
+    def _wait_for_banned_attribute_update(self, orchid: OrchidWithRegularPasses):
+        self._wait_for_component_passes()
+        orchid.wait_fresh_pass()
+
+    @authors("apachee")
+    def test_queue_agent_banned_attribute_for_queue(self):
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+        self._wait_for_component_passes()
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        def wait_for_banned_attribute_update():
+            self._wait_for_banned_attribute_update(queue_orchid)
+
+        set("//tmp/q/@queue_agent_banned", True)
+        wait_for_banned_attribute_update()
+        assert queue_orchid.get_row()["queue_agent_banned"]
+        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
+
+        set("//tmp/q/@queue_agent_banned", False)
+        wait_for_banned_attribute_update()
+        assert not queue_orchid.get_row()["queue_agent_banned"]
+        assert "error" not in queue_orchid.get_status()
+
+        set("//tmp/q/@queue_agent_banned", True)
+        wait_for_banned_attribute_update()
+        assert queue_orchid.get_row()["queue_agent_banned"]
+        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
+
+        remove("//tmp/q/@queue_agent_banned")
+        wait_for_banned_attribute_update()
+        assert not queue_orchid.get_row()["queue_agent_banned"]
+        assert "error" not in queue_orchid.get_status()
+
+    @authors("apachee")
+    def test_queue_agent_banned_attribute_for_consumer(self):
+        orchid = QueueAgentOrchid()
+
+        create("queue_consumer", "//tmp/c")
+        self._wait_for_component_passes()
+        consumer_orchid = orchid.get_consumer_orchid("primary://tmp/c")
+
+        def wait_for_banned_attribute_update():
+            self._wait_for_banned_attribute_update(consumer_orchid)
+
+        set("//tmp/c/@queue_agent_banned", True)
+        wait_for_banned_attribute_update()
+        assert consumer_orchid.get_row()["queue_agent_banned"]
+        assert "Consumer is banned" in consumer_orchid.get_status()["error"]["message"]
+
+        set("//tmp/c/@queue_agent_banned", False)
+        wait_for_banned_attribute_update()
+        assert not consumer_orchid.get_row()["queue_agent_banned"]
+        assert "error" not in consumer_orchid.get_status()
+
+        set("//tmp/c/@queue_agent_banned", True)
+        wait_for_banned_attribute_update()
+        assert consumer_orchid.get_row()["queue_agent_banned"]
+        assert "Consumer is banned" in consumer_orchid.get_status()["error"]["message"]
+
+        remove("//tmp/c/@queue_agent_banned")
+        wait_for_banned_attribute_update()
+        assert not consumer_orchid.get_row()["queue_agent_banned"]
+        assert "error" not in consumer_orchid.get_status()
+
+    # TODO(apachee): Implent these
+    @authors("apachee")
+    @pytest.mark.timeout(150)
+    def test_disabled_trims_for_queues(self):
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=1)
+        self._create_registered_consumer("//tmp/c", "//tmp/q", vital=True)
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+
+        self._wait_for_component_passes()
+
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+        consumer_orchid = orchid.get_consumer_orchid("primary://tmp/c")
+
+        set("//tmp/q/@queue_agent_banned", True)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
+
+        time.sleep(10)
+        assert len(select_rows("* from [//tmp/q]")) == 5
+
+        set("//tmp/q/@queue_agent_banned", False)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(10)
+        assert len(select_rows("* from [//tmp/q]")) == 4
+
+        set("//tmp/q/@queue_agent_banned", True)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(10)
+        assert len(select_rows("* from [//tmp/q]")) == 4
+
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 2)
+        consumer_orchid.wait_fresh_pass()  # Wait for consumer status update.
+        remove("//tmp/q/@queue_agent_banned")
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(10)
+        assert len(select_rows("* from [//tmp/q]")) == 3
+
+    @authors("apachee")
+    @pytest.mark.timeout(120)
+    def test_disabled_exports_for_queues(self):
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q", partition_count=1)
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        self._wait_for_component_passes()
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+            }
+        })
+        set("//tmp/q/@queue_agent_banned", True)
+
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table("//tmp/q")
+
+        time.sleep(5)
+        assert len(ls(export_dir)) == 0
+
+        set("//tmp/q/@queue_agent_banned", False)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(5)
+        assert len(ls(export_dir)) == 1
+
+        set("//tmp/q/@queue_agent_banned", True)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table("//tmp/q")
+
+        time.sleep(5)
+        assert len(ls(export_dir)) == 1
+
+        remove("//tmp/q/@queue_agent_banned")
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(5)
+        assert len(ls(export_dir)) == 2
+
+
 class TestQueueStaticExport(TestQueueStaticExportBase):
     @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
@@ -3268,7 +3424,6 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "pass_period": 75,
                 "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             },

@@ -33,7 +33,7 @@ REQUIREMENTS(
 )
 
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe.inc)
+    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)

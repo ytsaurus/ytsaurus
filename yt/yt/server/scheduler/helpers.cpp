@@ -357,7 +357,6 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_utilization_clocks_sm", "The time integral of GPU frequency relative to the maximum frequency", "ratio * ms"},
         {"user_job/gpu/cumulative_utilization_power", "Time integral of the effective power of GPU relative to the maximum power", "ratio * ms"},
         {"user_job/gpu/cumulative_load", "Time during which GPU load was non-zero", "ms"},
-        {"user_job/gpu/cumulative_memory", "Integral of GPU memory usage", "ms * bytes"},
         {"user_job/gpu/cumulative_memory_mb_sec", "Integral of GPU memory usage", "sec * MB"},
         {"user_job/gpu/cumulative_power", "Integral of GPU power usage", "ms * power"},
         {"user_job/gpu/cumulative_clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},

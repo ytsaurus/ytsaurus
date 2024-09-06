@@ -29,6 +29,7 @@ TGuid ToGuid(DB::UUID uuid);
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     TString userName,
+    const std::vector<TString>& userDefinedDatabaseNames = {},
     bool allowSqlUdfManagement = false);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +91,10 @@ DB::ASTPtr WrapTableExpressionWithSubquery(
 void HandleBreakpoint(
     const NYPath::TYPath& breakpointFilename,
     const NApi::IClientPtr& client);
+
+////////////////////////////////////////////////////////////////////////////////
+
+String BuildStorageName(const std::vector<TTablePtr>& tables);
 
 ////////////////////////////////////////////////////////////////////////////////
 

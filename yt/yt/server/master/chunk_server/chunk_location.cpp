@@ -214,7 +214,7 @@ void TChunkLocation::ResetLoadScratchData()
     LoadScratchData_.reset();
 }
 
-void TChunkLocation::Save(TSaveContext& context) const
+void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -229,7 +229,7 @@ void TChunkLocation::Save(TSaveContext& context) const
     Save(context, Statistics_);
 }
 
-void TChunkLocation::Load(TLoadContext& context)
+void TChunkLocation::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
 
@@ -261,7 +261,7 @@ void TChunkLocation::Load(TLoadContext& context)
     ResetDestroyedReplicasIterator();
 }
 
-TChunkLocation* TChunkLocation::LoadPtr(TLoadContext& context)
+TChunkLocation* TChunkLocation::LoadPtr(NCellMaster::TLoadContext& context)
 {
     TChunkLocation* ptr;
     TRawNonversionedObjectPtrSerializer::Load(context, ptr);

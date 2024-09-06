@@ -240,32 +240,31 @@ bool TNewJobManager::TJob::IsInvalidated() const
     return Invalidated_;
 }
 
-void TNewJobManager::TJob::Persist(const TPersistenceContext& context)
+void TNewJobManager::TJob::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, State_);
-    Persist(context, IsBarrier_);
-    Persist(context, DataWeight_);
-    Persist(context, RowCount_);
-    Persist(context, LowerBound_);
-    Persist(context, UpperBound_);
-    Persist(context, StripeList_);
-    Persist(context, InputCookies_);
-    Persist(context, Owner_);
-    Persist(context, SuspendedStripeCount_);
-    Persist(context, Cookie_);
-    Persist(context, Invalidated_);
-    Persist(context, Removed_);
-    Persist(context, DataWeightProgressCounterGuard_);
-    Persist(context, RowProgressCounterGuard_);
-    Persist(context, JobProgressCounterGuard_);
-    Persist(context, InterruptReason_);
+    PHOENIX_REGISTER_FIELD(1, State_)();
+    PHOENIX_REGISTER_FIELD(2, IsBarrier_)();
+    PHOENIX_REGISTER_FIELD(3, DataWeight_)();
+    PHOENIX_REGISTER_FIELD(4, RowCount_)();
+    PHOENIX_REGISTER_FIELD(5, LowerBound_)();
+    PHOENIX_REGISTER_FIELD(6, UpperBound_)();
+    PHOENIX_REGISTER_FIELD(7, StripeList_)();
+    PHOENIX_REGISTER_FIELD(8, InputCookies_)();
+    PHOENIX_REGISTER_FIELD(9, Owner_)();
+    PHOENIX_REGISTER_FIELD(10, SuspendedStripeCount_)();
+    PHOENIX_REGISTER_FIELD(11, Cookie_)();
+    PHOENIX_REGISTER_FIELD(12, Invalidated_)();
+    PHOENIX_REGISTER_FIELD(13, Removed_)();
+    PHOENIX_REGISTER_FIELD(14, DataWeightProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(15, RowProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(16, JobProgressCounterGuard_)();
+    PHOENIX_REGISTER_FIELD(17, InterruptReason_)();
 
-    if (context.IsLoad()) {
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // We must add ourselves to the job pool.
-        CookiePoolIterator_ = Owner_->CookiePool_->end();
-        UpdateSelf();
-    }
+        this_->CookiePoolIterator_ = this_->Owner_->CookiePool_->end();
+        this_->UpdateSelf();
+    });
 }
 
 void TNewJobManager::TJob::UpdateSelf()
@@ -344,6 +343,8 @@ void TNewJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard
     (RowProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
     (JobProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
 }
+
+PHOENIX_DEFINE_TYPE(TNewJobManager::TJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -536,22 +537,17 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
     return foreignSlices;
 }
 
-void TNewJobManager::Persist(const TPersistenceContext& context)
+void TNewJobManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    if (context.IsLoad()) {
-        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /*owner*/));
-    }
-
-    Persist(context, DataWeightCounter_);
-    Persist(context, RowCounter_);
-    Persist(context, JobCounter_);
-    Persist(context, DataSliceCounter_);
-    Persist(context, InputCookieToAffectedOutputCookies_);
-    Persist(context, FirstValidJobIndex_);
-    Persist(context, SuspendedInputCookies_);
-    Persist(context, Jobs_);
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(1, DataWeightCounter_)();
+    PHOENIX_REGISTER_FIELD(2, RowCounter_)();
+    PHOENIX_REGISTER_FIELD(3, JobCounter_)();
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter_)();
+    PHOENIX_REGISTER_FIELD(5, InputCookieToAffectedOutputCookies_)();
+    PHOENIX_REGISTER_FIELD(6, FirstValidJobIndex_)();
+    PHOENIX_REGISTER_FIELD(7, SuspendedInputCookies_)();
+    PHOENIX_REGISTER_FIELD(8, Jobs_)();
+    PHOENIX_REGISTER_FIELD(9, Logger)();
 }
 
 TChunkStripeStatisticsVector TNewJobManager::GetApproximateStripeStatistics() const
@@ -689,6 +685,8 @@ std::pair<TKeyBound, TKeyBound> TNewJobManager::GetBounds(IChunkPoolOutput::TCoo
     const auto& job = Jobs_[cookie];
     return {job.GetLowerBound(), job.GetUpperBound()};
 }
+
+PHOENIX_DEFINE_TYPE(TNewJobManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

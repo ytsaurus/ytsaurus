@@ -320,7 +320,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
         const auto& Logger = GetLogger();
         // NB: This should never happen because we validate the guarantees at master.
         YT_LOG_WARNING(
-            "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool"
+            "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool "
             "(EffectiveStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
             effectiveStrongGuaranteeResources,
             totalExplicitChildrenGuaranteeResources);
@@ -508,6 +508,9 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
         }
 
         auto maxAvailableStrongGuaranteeShare = Attributes().StrongGuaranteeShare - totalFixedChildrenStrongGuaranteeShare;
+        YT_VERIFY(Dominates(maxAvailableStrongGuaranteeShare + TResourceVector::SmallEpsilon(), TResourceVector::Zero()));
+        maxAvailableStrongGuaranteeShare = TResourceVector::Max(maxAvailableStrongGuaranteeShare, TResourceVector::Zero());
+
         if (!Dominates(maxAvailableStrongGuaranteeShare, currentTierTotalChildrenStrongGuaranteeShare)) {
             YT_LOG_DEBUG(
                 "Adjusting strong guarantee shares "

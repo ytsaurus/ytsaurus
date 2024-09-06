@@ -512,9 +512,12 @@ private:
     THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
+
+    // Indices of subrequests to be executed.
     int CurrentAutomatonSubrequestIndex_ = 0;
     int CurrentLocalReadSubrequestIndex_ = 0;
 
+    // Indices of last throttled subrequests.
     int ThrottledAutomatonSubrequestIndex_ = -1;
     int ThrottledLocalReadSubrequestIndex_ = -1;
 
@@ -1459,14 +1462,12 @@ private:
         Reschedule();
     }
 
-    bool WaitForAndContinue(TFuture<void> result)
+    bool WaitForAndContinue(const TFuture<void>& result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (result.IsSet()) {
-            result
-                .Get()
-                .ThrowOnError();
+        if (auto optionalError = result.TryGet()) {
+            optionalError->ThrowOnError();
             return true;
         } else {
             result.Subscribe(
@@ -1587,20 +1588,20 @@ private:
             EExecutionSessionSubrequestType subrequestType,
             EUserWorkloadType workloadType)
         {
-            while (*currentSubrequestIndex < TotalSubrequestCount_ &&
-                *currentSubrequestIndex > *throttledSubrequestIndex)
-            {
-                ++(*throttledSubrequestIndex);
-
-                auto currentSubrequestType = Subrequests_[*currentSubrequestIndex].Type;
-                if (currentSubrequestType != subrequestType) {
+            while (*throttledSubrequestIndex < *currentSubrequestIndex && *currentSubrequestIndex < TotalSubrequestCount_) {
+                auto subrequestIndex = ++(*throttledSubrequestIndex);
+                if (Subrequests_[subrequestIndex].Type != subrequestType) {
                     continue;
                 }
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
                 auto result = securityManager->ThrottleUser(User_.Get(), 1, workloadType);
-
                 if (!WaitForAndContinue(result)) {
+                    YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
+                        User_->GetName(),
+                        subrequestIndex,
+                        subrequestType,
+                        workloadType);
                     return false;
                 }
             }

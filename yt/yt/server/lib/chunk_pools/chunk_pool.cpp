@@ -10,11 +10,17 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TYPE(IPersistentChunkPoolInput);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,15 +52,15 @@ void TChunkPoolInputBase::Reset(TCookie /*cookie*/, TChunkStripePtr /*stripe*/, 
     YT_ABORT();
 }
 
-void TChunkPoolInputBase::Persist(const TPersistenceContext& context)
+void TChunkPoolInputBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Finished);
+    registrar.template BaseType<IPersistentChunkPoolInput>();
+    PHOENIX_REGISTER_FIELD(1, Finished)();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+PHOENIX_DEFINE_TYPE(TChunkPoolInputBase);
 
-// IPersistent implementation.
+////////////////////////////////////////////////////////////////////////////////
 
 TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
 {
@@ -95,14 +101,15 @@ const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataSliceCounter
     return DataSliceCounter;
 }
 
-void TChunkPoolOutputWithCountersBase::Persist(const TPersistenceContext& context)
+void TChunkPoolOutputWithCountersBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, JobCounter);
-    Persist(context, DataWeightCounter);
-    Persist(context, RowCounter);
-    Persist(context, DataSliceCounter);
+    PHOENIX_REGISTER_FIELD(1, JobCounter)();
+    PHOENIX_REGISTER_FIELD(2, DataWeightCounter)();
+    PHOENIX_REGISTER_FIELD(3, RowCounter)();
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter)();
 }
+
+PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,14 +192,9 @@ const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetD
     return JobManager_->DataSliceCounter();
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, JobManager_);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, (NPhoenix2::_));
 
 template class TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
@@ -370,18 +372,18 @@ size_t TJobSplittingBase::GetMaxVectorSize() const
     });
 }
 
-void TJobSplittingBase::Persist(const TPersistenceContext& context)
+void TJobSplittingBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    registrar.template BaseType<TLoggerOwner>();
 
-    TLoggerOwner::Persist(context);
-
-    Persist(context, CookieToChildCookies_);
-    Persist(context, CookieToEmptyChildCount_);
-    Persist(context, CookieToParentCookie_);
-    Persist(context, CookieIsSplittable_);
-    Persist(context, CookieShouldBeSplitProperly_);
+    PHOENIX_REGISTER_FIELD(1, CookieToChildCookies_)();
+    PHOENIX_REGISTER_FIELD(2, CookieToEmptyChildCount_)();
+    PHOENIX_REGISTER_FIELD(3, CookieToParentCookie_)();
+    PHOENIX_REGISTER_FIELD(4, CookieIsSplittable_)();
+    PHOENIX_REGISTER_FIELD(5, CookieShouldBeSplitProperly_)();
 }
+
+PHOENIX_DEFINE_TYPE(TJobSplittingBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,7 +2,7 @@
 
 #include "std_helpers.h"
 #include "config.h"
-#include "data_type_boolean.h"
+#include "custom_data_types.h"
 #include "format.h"
 #include "columnar_conversion.h"
 
@@ -30,6 +30,7 @@
 #include <DataTypes/DataTypeCustom.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeDateTime64.h>
 #include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypeIPv4andIPv6.h>
 #include <DataTypes/DataTypeLowCardinality.h>
@@ -100,14 +101,16 @@ class TSimpleValueConverter
 public:
     TSimpleValueConverter(DB::DataTypePtr dataType, ESimpleLogicalValueType simpleLogicalValueType)
         : DataType_(std::move(dataType))
-        , LogicalType_(SimpleLogicalType(simpleLogicalValueType))
+        , LogicalValueType_(simpleLogicalValueType)
+        , LogicalType_(SimpleLogicalType(LogicalValueType_))
     { }
 
     void InitColumn(const DB::IColumn* column) override
     {
         Column_ = column;
         Data_ = Column_->getDataAt(0).data;
-        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_);
+        ColumnString_ = DB::checkAndGetColumn<DB::ColumnString>(Column_);
+
         CurrentValueIndex_ = 0;
     }
 
@@ -134,6 +137,7 @@ public:
             XX(DB::TypeIndex::Float32, DB::Float32, EValueType::Double, Double)
             XX(DB::TypeIndex::Float64, DB::Float64, EValueType::Double, Double)
             XX(DB::TypeIndex::Date, DB::UInt16, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::Date32, DB::Int32, EValueType::Int64, Int64)
             XX(DB::TypeIndex::DateTime, DB::UInt32, EValueType::Uint64, Uint64)
             XX(DB::TypeIndex::Interval, DB::Int64, EValueType::Int64, Int64)
             /*else*/ if constexpr (TypeId == DB::TypeIndex::String) {
@@ -151,6 +155,18 @@ public:
                     THROW_ERROR_EXCEPTION("Cannot convert value %v to YT boolean", typedData[index]);
                 }
                 values[index].Data.Boolean = typedData[index];
+            } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
+                auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_);
+                if (LogicalValueType_ == ESimpleLogicalValueType::Timestamp) {
+                    if (typedData[index] < 0) {
+                        THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", typedData[index]);
+                    }
+                    values[index].Type = EValueType::Uint64;
+                    values[index].Data.Uint64 = typedData[index];
+                } else {
+                    values[index].Type = EValueType::Int64;
+                    values[index].Data.Int64 = typedData[index];
+                }
             } else {
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %Qv to YT type system is not supported",
@@ -187,6 +203,7 @@ public:
         XX(DB::TypeIndex::Float32, DB::Float32, WriteBinaryDouble)
         XX(DB::TypeIndex::Float64, DB::Float64, WriteBinaryDouble)
         XX(DB::TypeIndex::Date, DB::UInt16, WriteBinaryUint64)
+        XX(DB::TypeIndex::Date32, DB::Int32, WriteBinaryInt64)
         XX(DB::TypeIndex::DateTime, DB::UInt32, WriteBinaryUint64)
         XX(DB::TypeIndex::Interval, DB::Int64, WriteBinaryInt64)
         /*else*/ if constexpr (TypeId == DB::TypeIndex::String) {
@@ -201,6 +218,16 @@ public:
                 THROW_ERROR_EXCEPTION("Cannot convert value %v to YT boolean", typedData[CurrentValueIndex_]);
             }
             writer->WriteBinaryBoolean(typedData[CurrentValueIndex_]);
+        } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
+            auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_); \
+            if (LogicalValueType_ == ESimpleLogicalValueType::Timestamp) {
+                if (typedData[CurrentValueIndex_] < 0) {
+                    THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", typedData[CurrentValueIndex_]);
+                }
+                writer->WriteBinaryUint64(typedData[CurrentValueIndex_]);
+            } else {
+                writer->WriteBinaryInt64(typedData[CurrentValueIndex_]);
+            }
         } else {
             THROW_ERROR_EXCEPTION(
                 "Conversion of ClickHouse type %Qv to YT type system is not supported",
@@ -224,6 +251,7 @@ private:
     i64 CurrentValueIndex_ = 0;
 
     DB::DataTypePtr DataType_;
+    ESimpleLogicalValueType LogicalValueType_;
     TLogicalTypePtr LogicalType_;
 };
 
@@ -926,8 +954,9 @@ private:
             XX(Float64, Double)
             XX(String, String)
             XX(Date, Date)
+            XX(Date32, Date32)
             XX(DateTime, Datetime)
-            XX(Interval, Interval)
+            XX(Interval, Interval64)
 
             case DB::TypeIndex::UInt8:
                 if (DB::isBool(dataType)) {
@@ -940,6 +969,26 @@ private:
                         dataType,
                         ESimpleLogicalValueType::Uint8);
                 }
+            case DB::TypeIndex::DateTime64:
+            {
+                int scale = DB::getDecimalScale(*dataType);
+                if (scale != 0 && scale != 6) {
+                    THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
+                            "possible scales are 0 for YT Datetime64 and 6 for YT Timestamp64",
+                            DataType_->getName(),
+                            scale);
+                }
+
+                ESimpleLogicalValueType logicalType;
+                if (scale == 0) {
+                    logicalType = ESimpleLogicalValueType::Datetime64;
+                } else if (dataType->getName() == "YtTimestamp") {
+                    logicalType = ESimpleLogicalValueType::Timestamp;
+                } else {
+                    logicalType = ESimpleLogicalValueType::Timestamp64;
+                }
+                return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64>>(dataType, logicalType);
+            }
 
             #undef XX
 
@@ -1070,7 +1119,9 @@ private:
             case DB::TypeIndex::Float64:
             case DB::TypeIndex::String:
             case DB::TypeIndex::Date:
+            case DB::TypeIndex::Date32:
             case DB::TypeIndex::DateTime:
+            case DB::TypeIndex::DateTime64:
             case DB::TypeIndex::Interval:
                 return CreateSimpleValueConverter(dataType);
             case DB::TypeIndex::Nullable:

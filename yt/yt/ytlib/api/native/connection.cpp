@@ -16,7 +16,7 @@
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -299,12 +299,14 @@ public:
             ChaosCellDirectorySynchronizer_->Start();
         }
 
+        ChaosResidencyCache_ = CreateChaosResidencyCache(
+            config->ReplicationCardResidencyCache,
+            this,
+            Logger);
+
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
             CellDirectory_,
-            CreateReplicationCardResidencyCache(
-                config->ReplicationCardResidencyCache,
-                this,
-                Logger),
+            ChaosResidencyCache_,
             ChaosCellDirectorySynchronizer_,
             config->ChaosCellChannel);
 
@@ -455,6 +457,11 @@ public:
     const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() override
     {
         return BannedReplicaTrackerCache_;
+    }
+
+    const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
+    {
+        return ChaosResidencyCache_;
     }
 
     IInvokerPtr GetInvoker() override
@@ -931,6 +938,7 @@ private:
 
     IThreadPoolPtr ConnectionThreadPool_;
 
+    IChaosResidencyCachePtr ChaosResidencyCache_;
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 
@@ -1021,7 +1029,7 @@ private:
         auto channel = CreateBalancingChannel(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
         channel = CreateRetryingChannel(
             config,
@@ -1051,7 +1059,7 @@ private:
             auto channel = CreateBalancingChannel(
                 channelConfig,
                 ChannelFactory_,
-                std::move(endpointDescription),
+                endpointDescription,
                 std::move(endpointAttributes));
 
             channel = CreateRetryingChannel(channelConfig, std::move(channel));
@@ -1075,7 +1083,7 @@ private:
         return CreateBalancingChannelProvider(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
     }
 
@@ -1094,7 +1102,7 @@ private:
         auto channel = CreateBalancingChannel(
             config,
             ChannelFactory_,
-            std::move(endpointDescription),
+            endpointDescription,
             std::move(endpointAttributes));
 
         return CreateDefaultTimeoutChannel(channel, config->Timeout);
@@ -1197,6 +1205,16 @@ private:
                 return code == NChaosClient::EErrorCode::ReplicationCardMigrated ||
                     code == NChaosClient::EErrorCode::ReplicationCardNotKnown;
             }));
+    }
+
+    void StartShuffleService(const TString& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() override
+    {
+        YT_UNIMPLEMENTED();
     }
 };
 

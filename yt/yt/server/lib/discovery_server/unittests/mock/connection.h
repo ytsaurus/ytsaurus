@@ -211,6 +211,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override
     {
         YT_UNIMPLEMENTED();
@@ -358,6 +362,16 @@ public:
     }
 
     const NRpc::IChannelPtr& GetBundleControllerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void StartShuffleService(const TString& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() override
     {
         YT_UNIMPLEMENTED();
     }

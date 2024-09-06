@@ -13,7 +13,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
-func jobCommand(job Job, outputPipes int) string {
+func jobCommand(job any, outputPipes int) string {
 	return fmt.Sprintf("./go-binary -job %s -output-pipes %d", jobName(job), outputPipes)
 }
 
@@ -38,6 +38,13 @@ func (mr *client) prepare(spec *spec.Spec) *prepare {
 }
 
 func (mr *client) Map(mapper Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
+	p := mr.prepare(s)
+	p.mapperState = new(jobState)
+	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths))
+	return p.start(opts)
+}
+
+func (mr *client) RawMap(mapper RawJob, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.mapperState = new(jobState)
 	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths))

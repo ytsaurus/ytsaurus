@@ -1,5 +1,6 @@
 #include "replication_cards_watcher_client.h"
 #include "chaos_node_service_proxy.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -19,12 +20,13 @@ using namespace NRpc;
 using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NApi::NNative;
+using namespace NLogging;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto Logger = NLogging::TLogger("ReplicationCardWatcherClient");
+static const auto& Logger = ReplicationCardWatcherClientLogger;
 static constexpr int StickyGroupSize = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +51,7 @@ public:
         , Callbacks_(std::move(callbacks))
     { }
 
-    void WatchReplicationCard(const TReplicationCardId& replicationCardId) override
+    void WatchReplicationCard(TReplicationCardId replicationCardId) override
     {
         auto guard = Guard(Lock_);
         auto& [future, timestamp] = WatchingFutures_[replicationCardId];
@@ -60,7 +62,7 @@ public:
         future = WatchUpstream(replicationCardId, timestamp);
     }
 
-    void StopWatchingReplicationCard(const TReplicationCardId& replicationCardId) override
+    void StopWatchingReplicationCard(TReplicationCardId replicationCardId) override
     {
         TFuture<void> localFuture;
         {
@@ -85,15 +87,15 @@ private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TReplicationCardId, std::pair<TFuture<void>, TTimestamp>> WatchingFutures_;
 
-    TFuture<void> WatchUpstream(const TReplicationCardId& replicationCardId, TTimestamp timestamp)
+    TFuture<void> WatchUpstream(TReplicationCardId replicationCardId, TTimestamp timestamp)
     {
         auto connection = Connection_.Lock();
-        if (connection == nullptr) {
+        if (!connection) {
             return MakeFuture(TError("Connection is not available"));
         }
 
         auto channel = ChaosCacheChannel_;
-        if (channel == nullptr) {
+        if (!channel) {
             channel = connection->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
         }
 
@@ -118,14 +120,13 @@ private:
     }
 
     void OnReplicationCardWatchResponse(
-        const TReplicationCardId& replicationCardId,
+        TReplicationCardId replicationCardId,
         TErrorOr<TChaosNodeServiceProxy::TRspWatchReplicationCardPtr>&& response)
     {
         if (!response.IsOK()) {
             auto guard = Guard(Lock_);
             WatchingFutures_.erase(replicationCardId);
-            YT_LOG_DEBUG("Watching is not ok (Response: %v)",
-                response);
+            YT_LOG_DEBUG(response, "Error watching replication card");
             return;
         }
 
@@ -171,7 +172,7 @@ private:
         }
 
         if (value->has_replication_card_migrated()) {
-            //TODO: Hint residency cache about migration?
+            //TODO(osidorkin): Hint residency cache about migration?
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Replication card migrated (Response: %v)", response);

@@ -30,10 +30,11 @@ public:
 
         bool operator ==(const TEntry& other) const;
 
-        void Persist(const NTableClient::TPersistenceContext& context);
     private:
         using TContentType = std::variant<NChunkClient::TInputChunkPtr, int>;
         TContentType Content_;
+
+        PHOENIX_DECLARE_TYPE(TEntry, 0xf504d386);
     };
 
     TOutputOrder() = default;
@@ -48,8 +49,6 @@ public:
 
     std::vector<TOutputOrder::TEntry> ToEntryVector() const;
 
-    void Persist(const NTableClient::TPersistenceContext& context);
-
 private:
     std::vector<int> CookieToPosition_;
     THashMap<NChunkClient::TInputChunkPtr, int> TeleportChunkToPosition_;
@@ -58,6 +57,9 @@ private:
     std::vector<int> NextPosition_;
 
     int CurrentPosition_ = -1;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TOutputOrder, 0x7b6023e);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOutputOrder)

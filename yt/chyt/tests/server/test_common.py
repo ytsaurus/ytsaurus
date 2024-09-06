@@ -1110,7 +1110,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('exists table "//sys"')
 
-    @authors("dakovalkov")
+    @authors("dakovalkov", "buyval01")
     def test_date_types(self):
         create(
             "table",
@@ -1118,9 +1118,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             attributes={
                 "schema": [
                     {"name": "datetime", "type": "datetime"},
+                    {"name": "datetime64", "type": "datetime64"},
                     {"name": "date", "type": "date"},
+                    {"name": "date32", "type": "date32"},
                     {"name": "timestamp", "type": "timestamp"},
+                    {"name": "timestamp64", "type": "timestamp64"},
                     {"name": "interval_", "type": "interval"},
+                    {"name": "interval64_", "type": "interval64"},
                 ]
             },
         )
@@ -1129,41 +1133,176 @@ class TestClickHouseCommon(ClickHouseTestBase):
             [
                 {
                     "datetime": 1,
+                    "datetime64": -1,
                     "date": 2,
+                    "date32": -2,
                     "timestamp": 3,
+                    "timestamp64": -3,
                     "interval_": 4,
+                    "interval64_": -4,
                 },
             ],
         )
         with Clique(1) as clique:
             assert get_schema_from_description(clique.make_query('describe "//tmp/t1"')) == [
                 {"name": "datetime", "type": "Nullable(DateTime)"},
+                {"name": "datetime64", "type": "Nullable(DateTime64(0))"},
                 {"name": "date", "type": "Nullable(Date)"},
-                # TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
-                # {"name": "timestamp", "type": "Nullable(DateTime64)"},
-                {"name": "timestamp", "type": "Nullable(UInt64)"},
-                {"name": "interval_", "type": "Nullable(Int64)"},
+                {"name": "date32", "type": "Nullable(Date32)"},
+                {"name": "timestamp", "type": "Nullable(DateTime64(6))"},
+                {"name": "timestamp64", "type": "Nullable(DateTime64(6))"},
+                {"name": "interval_", "type": "Nullable(IntervalMicrosecond)"},
+                {"name": "interval64_", "type": "Nullable(IntervalMicrosecond)"},
             ]
             assert clique.make_query(
-                "select toTimeZone(datetime, 'UTC') as datetime, date, timestamp, interval_ from \"//tmp/t1\""
+                "select "
+                "toTimeZone(datetime, 'UTC') as datetime"
+                ", toTimeZone(datetime64, 'UTC') as datetime64"
+                ", date"
+                ", date32"
+                ", toTimeZone(timestamp, 'UTC') as timestamp"
+                ", toTimeZone(timestamp64, 'UTC') as timestamp64"
+                ", interval_"
+                ", interval64_"
+                " from \"//tmp/t1\""
             ) == [
                 {
                     "datetime": "1970-01-01 00:00:01",
+                    "datetime64": "1969-12-31 23:59:59",
                     "date": "1970-01-03",
-                    "timestamp": 3,
+                    "date32": "1969-12-30",
+                    "timestamp": "1970-01-01 00:00:00.000003",
+                    "timestamp64": "1969-12-31 23:59:59.999997",
                     "interval_": 4,
+                    "interval64_": -4,
                 }
             ]
             clique.make_query('create table "//tmp/t2" engine YtTable() as select * from "//tmp/t1"')
             assert get_schema_from_description(get("//tmp/t2/@schema")) == [
-                {"name": "datetime", "type": "datetime"},
-                {"name": "date", "type": "date"},
-                # TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
-                # {"name": "timestamp", "type": "timestamp"},
-                {"name": "timestamp", "type": "uint64"},
-                {"name": "interval_", "type": "int64"},
+                {"name": "datetime",    "type": "datetime"},
+                {"name": "datetime64",  "type": "datetime64"},
+                {"name": "date",        "type": "date"},
+                {"name": "date32",      "type": "date32"},
+                # Note: writing timestamp column back generates a column with timestamp64 type
+                {"name": "timestamp",   "type": "timestamp64"},
+                {"name": "timestamp64", "type": "timestamp64"},
+                # Note: writing interval column back generates a column with interval64 type
+                {"name": "interval_",   "type": "interval64"},
+                {"name": "interval64_", "type": "interval64"},
             ]
             assert read_table("//tmp/t1") == read_table("//tmp/t2")
+
+    @authors("buyval01")
+    def test_date_types_bounds(self):
+        types = [
+            "date",
+            "date32",
+            "datetime",
+            "datetime64",
+            "timestamp",
+            "timestamp64",
+            "interval",
+            "interval64",
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [{"name": type, "type": type} for type in types],
+            }
+        )
+
+        # Types bounds from code
+        date_max = 49673
+        datetime_max = date_max * 86400
+        timestamp_max = datetime_max * 1000000
+        interval_max = timestamp_max
+        interval_min = -timestamp_max
+        date32_max = 53375808
+        date32_min = -date32_max - 1
+        datetime64_max = date32_max * 86400
+        datetime64_min = date32_min * 86400
+        timestamp64_max = datetime64_max * 1000000
+        timestamp64_min = datetime64_min * 1000000
+        interval64_max = timestamp64_max - timestamp64_min + 1
+        interval64_min = -interval64_max
+        # correct borders according to valid rages
+        date32_min -= 1
+        datetime64_min -= 1
+        timestamp64_min -= 1
+
+        with Clique(1) as clique:
+            query = "insert into `//tmp/t`({}) values ({})"
+
+            def expect_error(type, value):
+                with raises_yt_error(QueryFailedError):
+                    clique.make_query(query.format(type, value))
+                    # auxilary asserts if something went wrong to see what was inserted
+                    rows = read_table("//tmp/t")
+                    assert len(rows) > 0
+                    assert rows[-1][type] is None
+
+            def expect_value_shrink(type, value):
+                clique.make_query(query.format(type, value))
+                rows = read_table("//tmp/t")
+                assert len(rows) == 1
+                inserted_value = rows[0][type]
+                assert abs(value) > abs(inserted_value)
+                clique.make_query('truncate table  `//tmp/t`')
+
+            # Date in CH and YT is unsigned, so it has only upper bound
+            expect_error("date", date_max)
+
+            # The CH Data32 type has narrower value bounds than YT.
+            # Anything outside these bounds is rounded up to them
+            expect_value_shrink("date32", date32_min)
+            expect_value_shrink("date32", date32_max)
+
+            # Datetime in CH and YT is unsigned, so it has only upper bound
+            expect_error("datetime", datetime_max)
+
+            expect_error("datetime64", datetime64_min)
+            expect_error("datetime64", datetime64_max)
+
+            # YT timestamp is unsigned, but corresponding CH type is signed
+            expect_error("timestamp", -1)
+            expect_error("timestamp", timestamp_max)
+
+            expect_error("timestamp64", timestamp64_min)
+            expect_error("timestamp64", timestamp64_max)
+
+            expect_error("interval", interval_min)
+            expect_error("interval", interval_max)
+
+            expect_error("interval64", interval64_min)
+            expect_error("interval64", interval64_max)
+
+            # Сheck that inserting values that satisfy the boundary does not cause errors
+            query = "insert into `//tmp/t` values ({})"
+            # min values
+            clique.make_query(query.format(', '.join(map(str, [
+                0,
+                date32_min + 1,
+                0,
+                datetime64_min + 1,
+                0,
+                timestamp64_min + 1,
+                interval_min + 1,
+                interval64_min + 1,
+            ]))))
+            # max values
+            clique.make_query(query.format(', '.join(map(str, [
+                date_max - 1,
+                date32_max - 1,
+                datetime_max - 1,
+                datetime64_max - 1,
+                timestamp_max - 1,
+                timestamp64_max - 1,
+                interval_max - 1,
+                interval64_max - 1,
+            ]))))
+            query = "select * from '//tmp/t'"
+            assert clique.make_query_and_validate_row_count(query, exact=2)
 
     @authors("dakovalkov")
     def test_yson_extract(self):
@@ -1682,8 +1821,78 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("barykinni")
     def test_select_from_system_databases(self):
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
             assert len(clique.make_query("SELECT * FROM system.databases WHERE database='YT'")) != 0
+            assert len(clique.make_query("SELECT * FROM system.databases WHERE database='my_db'")) != 0
+
+    @authors("barykinni")
+    def test_yt_directory_database_common(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        # Things we don't want to know about when working with "my_db" ("//tmp/root").
+        create("map_node", "//tmp/uninteresting_root")
+        create("table", "//tmp/uninteresting_root/uninteresting_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            clique.make_query("INSERT INTO my_db.my_table VALUES ('abracadabra')")
+
+            assert clique.make_query("SELECT a FROM my_db.my_table") == [{"a": "abracadabra"}]
+
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_default_database(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            # We didn't specify target table in the patch ({"yt": {"show_tables": {...}}})
+            # therefore we expect an empty list from 'SHOW TABLES FROM YT'.
+            assert clique.make_query("SHOW TABLES") == []
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}, "clickhouse": {"default_database": "my_db"}}) as clique:
+            # Now default database is my_db instead of YT.
+            assert clique.make_query("SHOW TABLES") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_database_drop(self):
+        root = "//tmp/root"
+        create("map_node", root)
+        create("table", root + "/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": root}}}) as clique:
+            with raises_yt_error("Not enough privileges"):
+                clique.make_query("DROP DATABASE my_db")
+
+            with raises_yt_error("Not enough privileges"):
+                clique.make_query("DETACH DATABASE my_db")
+
+            # Check that the table hasn't disappeared.
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
+
+    @authors("barykinni")
+    def test_show_columns(self):
+        create("table", "//tmp/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}, "show_tables": {"roots": ["//tmp"]}}}) as clique:
+            assert clique.make_query('SHOW COLUMNS FROM my_db.my_table')[0]["field"] == "a"
+            assert clique.make_query('SHOW COLUMNS FROM "//tmp/my_table"')[0]["field"] == "a"
+
+    @authors("barykinni")
+    def test_yt_directory_database_tables_visibility(self):
+        create("map_node", "//tmp/subdir")
+        create("table", "//tmp/table1", attributes={"schema": [{"name": "a", "type": "string"}]})
+        create("table", "//tmp/subdir/table2", attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
+            # Table2 should be invisible.
+            assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "table1"}]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

@@ -33,17 +33,17 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardResidencyCacheConfig
+class TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    REGISTER_YSON_STRUCT(TReplicationCardResidencyCacheConfig);
+    REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
 
     static void Register(TRegistrar)
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicationCardResidencyCacheConfig)
+DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

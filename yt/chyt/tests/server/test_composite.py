@@ -8,6 +8,8 @@ from yt_type_helpers import (decimal_type, optional_type, list_type, tuple_type,
 
 from decimal_helpers import encode_decimal
 
+from yt.test_helpers import assert_items_equal
+
 import yt.yson as yson
 
 import pytest
@@ -40,29 +42,29 @@ class TestComposite(ClickHouseTestBase):
                 {"a": {"k1": "v1", "k2": "v2"}}
             ]
             clique.make_query("insert into `//tmp/t`(a) values ({'k1': 'v2', 'k3': 'v3'}), (CAST((['k3', 'k4'], ['v3', 'v4']), 'Map(String, String)'))")
-            assert clique.make_query("select mapKeys(a) as keys from `//tmp/t`") == [
+            assert_items_equal(clique.make_query("select mapKeys(a) as keys from `//tmp/t`"), [
                 {"keys": []},
                 {"keys": ["k1", "k2"]},
                 {"keys": ["k1", "k3"]},
                 {"keys": ["k3", "k4"]},
-            ]
-            assert clique.make_query("select mapValues(a) as values from `//tmp/t`") == [
+            ])
+            assert_items_equal(clique.make_query("select mapValues(a) as values from `//tmp/t`"), [
                 {"values": []},
                 {"values": ["v1", "v2"]},
                 {"values": ["v2", "v3"]},
                 {"values": ["v3", "v4"]},
-            ]
-            assert clique.make_query("select a['k1'] as k1 from `//tmp/t`") == [
+            ])
+            assert_items_equal(clique.make_query("select a['k1'] as k1 from `//tmp/t`"), [
                 {"k1": ""},
                 {"k1": "v1"},
                 {"k1": "v2"},
                 {"k1": ""},
-            ]
+            ])
             clique.make_query('create table "//tmp/tt" engine YtTable() as select * from "//tmp/t"')
             assert clique.make_query("select toTypeName(a) as ta from `//tmp/tt` limit 1") == [
                 {"ta": "Map(String, String)"}
             ]
-            assert read_table("//tmp/t") == read_table("//tmp/tt")
+            assert_items_equal(read_table("//tmp/t"), read_table("//tmp/tt"))
 
     @authors("max42")
     def test_struct(self):

@@ -34,8 +34,7 @@ class TStderrWriter
     : public IOutputStream
 {
 public:
-    explicit TStderrWriter(
-        size_t sizeLimit = std::numeric_limits<size_t>::max());
+    explicit TStderrWriter(size_t sizeLimit);
 
     // COMPAT(ignat)
     NChunkClient::TChunkId GetChunkId() const;
@@ -48,16 +47,17 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler);
 
     size_t GetCurrentSize() const;
-    TString GetCurrentData() const;
+    NApi::TGetJobStderrResponse GetCurrentData(const NApi::TGetJobStderrOptions& options) const;
 
 private:
     void DoWrite(const void* buf, size_t len) override;
 
-    void SaveCurrentDataTo(IOutputStream* output) const;
+    void SaveCurrentDataTo(IOutputStream* output, bool noPrefix = false) const;
 
 private:
     // Limit for the head or for the tail part.
     const size_t PartLimit_;
+    i64 TotalSize_ = 0;
 
     TBlobOutput Head_;
     std::optional<TTailBuffer> Tail_;

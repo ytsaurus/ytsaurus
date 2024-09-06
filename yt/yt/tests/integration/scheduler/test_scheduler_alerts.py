@@ -562,8 +562,11 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo 'pass' >/dev/null",
             spec={
                 "testing": {
-                    "settle_job_delay": 3000,
-                }
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "sync",
+                    },
+                },
             },
             job_count=30,
         )

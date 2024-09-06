@@ -260,7 +260,7 @@ public:
 
     void UpdateCounters(const TUserWorkload& workloadType);
 
-    void AlertIfPendingRemoval(TStringBuf message) const;
+    void AlertIfPendingRemoval(TString message) const;
 
 protected:
     // Transient

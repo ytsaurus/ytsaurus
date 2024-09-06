@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
-    start_transaction, abort_transaction, commit_transaction, link, wait
+    start_transaction, abort_transaction, commit_transaction, link, wait,
 )
 
 from yt_sequoia_helpers import (
@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
     select_cypress_transaction_prerequisites, lookup_rows_in_ground,
-    mangle_sequoia_path
+    mangle_sequoia_path, insert_rows_to_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -22,8 +22,10 @@ import yt.yson as yson
 import pytest
 
 import builtins
+from collections import namedtuple
 from datetime import datetime, timedelta
 import functools
+from random import randint
 from time import sleep
 
 
@@ -1029,6 +1031,723 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/m1")
         assert exists("//tmp/p11/m")
         assert exists("//tmp/p13/m")
+
+
+##################################################################
+
+
+@authors("kvk1920")
+class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+
+    NUM_SECONDARY_MASTER_CELLS = 0
+
+    # COMPAT(kvk1920): remove when `use_cypress_transaction_service` become
+    # `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    def teardown_method(self, method):
+        clear_table_in_ground(DESCRIPTORS.node_id_to_path)
+        clear_table_in_ground(DESCRIPTORS.path_to_node_id)
+        clear_table_in_ground(DESCRIPTORS.child_node)
+        clear_table_in_ground(DESCRIPTORS.node_forks)
+        clear_table_in_ground(DESCRIPTORS.node_snapshots)
+        clear_table_in_ground(DESCRIPTORS.path_forks)
+
+        super(TestSequoiaNodeVersioningOnTxFinish, self).teardown_method(method)
+
+    # Object types.
+    MAP_NODE = 303
+    TABLE = 401
+    SCION = 12001
+
+    def make_id(self, object_type):
+        cell_tag = 10
+        parts = [
+            randint(0, 2**30 - 1) | (2**30),  # Sequoia bit.
+            randint(0, 2**32 - 1),
+            (cell_tag << 16) | object_type,
+            randint(0, 2**31 - 1)]
+        return "-".join(map(lambda x: hex(x)[2:], parts))
+
+    # Record helpers.
+
+    def node_id_to_path(self, node, path, tx=None, fork="regular"):
+        assert node is not None
+        return {
+            "node_id": node,
+            "transaction_id": tx,
+            "path": path,
+            "target_path": "",
+            "fork_kind": fork,
+        }
+
+    def path_to_node_id(self, path, node, tx=None):
+        return {
+            "path": mangle_sequoia_path(path),
+            "transaction_id": tx,
+            "node_id": node,
+        }
+
+    def child_node(self, parent, child_key, child, tx=None):
+        assert parent is not None
+        return {
+            "parent_id": parent,
+            "transaction_id": tx,
+            "child_key": child_key,
+            "child_id": child,
+        }
+
+    def node_snapshot(self, tx, node):
+        assert node is not None
+        assert tx is not None
+        return {"transaction_id": tx, "node_id": node, "dummy": 0}
+
+    def node_fork(self, tx, node, path, topmost_tx):
+        assert node is not None
+        assert tx is not None
+        return {
+            "transaction_id": tx,
+            "node_id": node,
+            "path": path,
+            "target_path": "",
+            "topmost_transaction_id": topmost_tx,
+        }
+
+    def path_fork(self, tx, path, node, parent_node, topmost_tx):
+        assert tx is not None
+        return {
+            "transaction_id": tx,
+            "path": mangle_sequoia_path(path),
+            "node_id": node,
+            "parent_node_id": parent_node,
+            "topmost_transaction_id": topmost_tx,
+        }
+
+    def assert_equal(self, tx_mapping, actual, expected):
+        if not actual and not expected:
+            return
+
+        if actual:
+            # `actual` has complete key list because it's the result of "select"
+            # from table.
+            keys = list(actual[0].keys())
+        else:
+            keys = list(expected[0].keys())
+            for r in expected:
+                for k in r.keys():
+                    if k not in keys:
+                        keys.append(k)
+
+        for k in keys.copy():
+            if "hash" in k:
+                keys.remove(k)
+            elif "transaction" in k:
+                keys.append(k[:-2] + "name")
+
+        if "path" in keys:
+            keys.remove("path")
+            keys = ["path"] + keys
+
+        # Dict is not comparable. Simple tuple cause weird error message in
+        # assert. Named tuple is much more readable.
+        record_type = namedtuple("record", keys, defaults=[None] * len(keys))
+
+        tx_mapping = tx_mapping | {"0-0-0-0": "trunk"}
+
+        def normalize_record(record):
+            def sanitize_none(value):
+                if value is None or type(value) is yson.YsonEntity:
+                    return "0-0-0-0"
+                return value
+
+            # Filter out "hash" columns and replace tx IDs with their names.
+            result = {k: sanitize_none(v) for k, v in record.items() if "hash" not in k}
+            for k, v in result.copy().items():
+                if "transaction" in k and v is not None:
+                    result[k[:-2] + "name"] = tx_mapping.get(v, "unknown")
+            return result
+
+        def normalize(records):
+            return sorted(record_type(**normalize_record(r)) for r in records)
+
+        actual = normalize(actual)
+        expected = normalize(expected)
+        assert actual == expected
+
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_snapshot(self, finish_tx):
+        tx0 = start_transaction(timeout=100000)
+        tx1 = start_transaction(tx=tx0, timeout=100000)
+        tx2 = start_transaction(tx=tx1, timeout=100000)
+        tx3 = start_transaction(tx=tx1, timeout=100000)
+        tx4 = start_transaction(prerequisite_transaction_ids=[tx3, tx0], timeout=100000)
+        tx5 = start_transaction(prerequisite_transaction_ids=[tx0], timeout=100000)
+
+        tx_mapping = {tx0: "tx0", tx1: "tx1", tx2: "tx2", tx3: "tx3", tx4: "tx4", tx5: "tx5"}
+
+        node_id = self.make_id(self.TABLE)
+        insert_rows_to_ground(DESCRIPTORS.node_id_to_path, rows=[
+            self.node_id_to_path(node_id, "//scion/t", tx=tx, fork="snapshot")
+            for tx in [tx0, tx1, tx2, tx3, tx4, tx5]
+        ])
+        insert_rows_to_ground(DESCRIPTORS.node_snapshots, rows=[
+            self.node_snapshot(tx, node_id)
+            for tx in [tx0, tx1, tx2, tx3, tx4, tx5]
+        ])
+
+        finish_tx(tx1)
+
+        # All snapshot branches are created under tx1, tx2 and tx3 must be
+        # removed. Snapshot branches under tx4 should be removed too because
+        # prerequisite of tx4 is finished.
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"select * from [{DESCRIPTORS.node_snapshots.get_default_path()}]"),
+            [self.node_snapshot(t, node_id) for t in (tx0, tx5)])
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"select * from [{DESCRIPTORS.node_id_to_path.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [self.node_id_to_path(node_id, "//scion/t", tx=t, fork="snapshot") for t in (tx0, tx5)])
+
+    @pytest.mark.parametrize("originator", ["trunk", "transaction"])
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_subtree_replacement(self, originator, finish_tx):
+        tx0 = start_transaction(timeout=100000)
+        tx1 = start_transaction(tx=tx0, timeout=100000)
+
+        tx_mapping = {tx0: "tx0", tx1: "tx1"}
+
+        # Originator (either trunk or tx0).
+        tx_or = None if originator == "trunk" else tx0
+
+        # //s/a/b/c/d
+        # b is replaced under tx1
+
+        a_id = self.make_id(self.MAP_NODE)
+        b_id = self.make_id(self.MAP_NODE)
+        c_id = self.make_id(self.MAP_NODE)
+        d_id = self.make_id(self.TABLE)
+        b_new_id = self.make_id(self.TABLE)
+        scion_id = self.make_id(self.SCION)
+
+        old_node_id_to_path = [
+            self.node_id_to_path(scion_id, "//s"),
+            self.node_id_to_path(a_id, "//s/a", tx=tx_or),
+            self.node_id_to_path(b_id, "//s/a/b", tx=tx_or),
+            self.node_id_to_path(c_id, "//s/a/b/c", tx=tx_or),
+            self.node_id_to_path(d_id, "//s/a/b/c/d", tx=tx_or),
+            self.node_id_to_path(b_id, "//s/a/b", tx=tx1, fork="tombstone"),
+            self.node_id_to_path(c_id, "//s/a/b/c", tx=tx1, fork="tombstone"),
+            self.node_id_to_path(d_id, "//s/a/b/c/d", tx=tx1, fork="tombstone"),
+            self.node_id_to_path(b_new_id, "//s/a/b", tx=tx1),
+        ]
+        old_path_to_node_id = [
+            self.path_to_node_id("//s", scion_id),
+            self.path_to_node_id("//s/a", a_id, tx=tx_or),
+            self.path_to_node_id("//s/a/b", b_id, tx=tx_or),
+            self.path_to_node_id("//s/a/b/c", c_id, tx=tx_or),
+            self.path_to_node_id("//s/a/b/c/d", d_id, tx=tx_or),
+            self.path_to_node_id("//s/a/b", b_new_id, tx=tx1),
+            self.path_to_node_id("//s/a/b/c", None, tx=tx1),
+            self.path_to_node_id("//s/a/b/c/d", None, tx=tx1),
+        ]
+        old_child_node = [
+            self.child_node(scion_id, "a", a_id, tx=tx_or),
+            self.child_node(a_id, "b", b_id, tx=tx_or),
+            self.child_node(b_id, "c", c_id, tx=tx_or),
+            self.child_node(c_id, "d", d_id, tx=tx_or),
+            self.child_node(a_id, "b", b_new_id, tx=tx1),
+            self.child_node(b_id, "c", None, tx=tx1),
+            self.child_node(c_id, "d", None, tx=tx1),
+        ]
+        old_node_forks = [
+            self.node_fork(tx1, b_id, "//s/a/b", tx_or),
+            self.node_fork(tx1, c_id, "//s/a/b/c", tx_or),
+            self.node_fork(tx1, d_id, "//s/a/b/c/d", tx_or),
+            self.node_fork(tx1, b_new_id, "//s/a/b", tx1),
+        ]
+        if originator == "transaction":
+            old_node_forks += [
+                self.node_fork(tx0, a_id, "//s/a", tx0),
+                self.node_fork(tx0, b_id, "//s/a/b", tx0),
+                self.node_fork(tx0, c_id, "//s/a/b/c", tx0),
+                self.node_fork(tx0, d_id, "//s/a/b/c/d", tx0),
+            ]
+        old_path_forks = [
+            self.path_fork(tx1, "//s/a/b", b_new_id, a_id, tx_or),
+            self.path_fork(tx1, "//s/a/b/c", None, b_id, tx_or),
+            self.path_fork(tx1, "//s/a/b/c/d", None, c_id, tx_or),
+        ]
+        if originator == "transaction":
+            old_path_forks += [
+                self.path_fork(tx0, "//s/a", a_id, scion_id, tx0),
+                self.path_fork(tx0, "//s/a/b", b_id, a_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c", c_id, b_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c/d", d_id, c_id, tx0),
+            ]
+
+        insert_rows_to_ground(DESCRIPTORS.node_id_to_path, old_node_id_to_path)
+        insert_rows_to_ground(DESCRIPTORS.path_to_node_id, old_path_to_node_id)
+        insert_rows_to_ground(DESCRIPTORS.child_node, old_child_node)
+        insert_rows_to_ground(DESCRIPTORS.node_forks, old_node_forks)
+        insert_rows_to_ground(DESCRIPTORS.path_forks, old_path_forks)
+
+        finish_tx(tx1)
+
+        # NB: we have to filter out symlinks which are mirrored to Sequoia.
+        new_node_id_to_path = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] "
+            "where not is_prefix('//sys', path)")
+        new_path_to_node_id = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] "
+            "where not is_prefix('//sys', path)")
+        new_child_node = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.child_node.get_default_path()}]")
+        new_node_forks = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.node_forks.get_default_path()}]")
+        new_path_forks = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.path_forks.get_default_path()}]")
+
+        if finish_tx == abort_transaction:
+            # Drop all tx1 changes.
+            def build_expected(old):
+                return [record for record in old if record.get("transaction_id", None) != tx1]
+
+            expected_node_id_to_path = build_expected(old_node_id_to_path)
+            expected_path_to_node_id = build_expected(old_path_to_node_id)
+            expected_child_node = build_expected(old_child_node)
+            expected_path_forks = build_expected(old_path_forks)
+            expected_node_forks = build_expected(old_node_forks)
+        elif originator == "trunk":
+            # Just forward delta to parent tx.
+            def build_expected(old):
+                def build_expected_record(old_record):
+                    new_record = old_record.copy()
+                    for k, v in old_record.items():
+                        if "transaction_id" in k and v == tx1:
+                            new_record[k] = tx0
+                    return new_record
+
+                return list(map(build_expected_record, old))
+
+            expected_node_id_to_path = build_expected(old_node_id_to_path)
+            expected_path_to_node_id = build_expected(old_path_to_node_id)
+            expected_child_node = build_expected(old_child_node)
+            expected_node_forks = build_expected(old_node_forks)
+            expected_path_forks = build_expected(old_path_forks)
+        else:
+            # This case has non-trivial branch merging.
+            expected_node_id_to_path = [
+                self.node_id_to_path(scion_id, "//s"),
+                self.node_id_to_path(a_id, "//s/a", tx=tx0),
+                self.node_id_to_path(b_new_id, "//s/a/b", tx=tx0),
+            ]
+            expected_path_to_node_id = [
+                self.path_to_node_id("//s", scion_id),
+                self.path_to_node_id("//s/a", a_id, tx=tx0),
+                self.path_to_node_id("//s/a/b", b_new_id, tx=tx0),
+            ]
+            expected_child_node = [
+                self.child_node(scion_id, "a", a_id, tx=tx0),
+                self.child_node(a_id, "b", b_new_id, tx=tx0),
+            ]
+            expected_node_forks = [
+                self.node_fork(tx0, a_id, "//s/a", tx0),
+                self.node_fork(tx0, b_new_id, "//s/a/b", tx0),
+            ]
+            expected_path_forks = [
+                self.path_fork(tx0, "//s/a", a_id, scion_id, tx0),
+                self.path_fork(tx0, "//s/a/b", b_new_id, a_id, tx0),
+            ]
+
+        self.assert_equal(tx_mapping, new_node_id_to_path, expected_node_id_to_path)
+        self.assert_equal(tx_mapping, new_path_to_node_id, expected_path_to_node_id)
+        self.assert_equal(tx_mapping, new_child_node, expected_child_node)
+        self.assert_equal(tx_mapping, new_node_forks, expected_node_forks)
+        self.assert_equal(tx_mapping, new_path_forks, expected_path_forks)
+
+    def test_merge_committed_changes(self):
+        tx0 = start_transaction(timeout=100000)
+        tx1 = start_transaction(tx=tx0, timeout=100000)
+        tx2 = start_transaction(tx=tx1, timeout=100000)
+
+        tx_mapping = {tx0: "tx0", tx1: "tx1", tx2: "tx2"}
+
+        scion_id = self.make_id(self.SCION)
+
+        # trunk: //s/replace
+        # tx0: no-op
+        # tx1: remove //s/replace
+        # tx2: create //s/replace
+        to_replace_id = self.make_id(self.TABLE)
+        replaced_id = self.make_id(self.TABLE)
+
+        # trunk: //s/remove
+        # tx0: remove //s/remove
+        # tx1: create //s/remove
+        # tx2: remove //s/remove
+        to_remove_id = self.make_id(self.TABLE)
+        recreated_id = self.make_id(self.TABLE)
+
+        # trunk: None
+        # tx0: create //s/create
+        # tx1: remove //s/create
+        # tx2: create //s/create
+        created_1_id = self.make_id(self.TABLE)
+        created_2_id = self.make_id(self.TABLE)
+
+        # trunk: //remove_recreate
+        # tx1: replace //remove_recreate
+        # tx2: remove //remove_recreate
+        remove_recreate_1_id = self.make_id(self.TABLE)
+        remove_recreate_2_id = self.make_id(self.TABLE)
+
+        # node_id, path, tx_id, fork_kind="regular"
+        insert_rows_to_ground(DESCRIPTORS.node_id_to_path, [
+            self.node_id_to_path(scion_id, "//s"),
+
+            self.node_id_to_path(to_replace_id, "//s/replace"),
+            self.node_id_to_path(to_replace_id, "//s/replace", tx1, "tombstone"),
+
+            self.node_id_to_path(replaced_id, "//s/replace", tx2),
+
+            self.node_id_to_path(to_remove_id, "//s/remove"),
+            self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
+
+            self.node_id_to_path(recreated_id, "//s/remove", tx1),
+            self.node_id_to_path(recreated_id, "//s/remove", tx2, "tombstone"),
+
+            self.node_id_to_path(created_1_id, "//s/create", tx0),
+            self.node_id_to_path(created_1_id, "//s/create", tx1, "tombstone"),
+
+            self.node_id_to_path(created_2_id, "//s/create", tx2),
+
+            self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate"),
+            self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate", tx1, "tombstone"),
+
+            self.node_id_to_path(remove_recreate_2_id, "//s/remove_recreate", tx1),
+            self.node_id_to_path(remove_recreate_2_id, "//s/remove_recreate", tx2, "tombstone"),
+        ])
+
+        # path, node_id, tx_id=None
+        insert_rows_to_ground(DESCRIPTORS.path_to_node_id, [
+            self.path_to_node_id("//s", scion_id),
+
+            self.path_to_node_id("//s/replace", to_replace_id),
+            self.path_to_node_id("//s/replace", None, tx1),
+            self.path_to_node_id("//s/replace", replaced_id, tx2),
+
+            self.path_to_node_id("//s/remove", to_remove_id),
+            self.path_to_node_id("//s/remove", None, tx0),
+            self.path_to_node_id("//s/remove", recreated_id, tx1),
+            self.path_to_node_id("//s/remove", None, tx2),
+
+            self.path_to_node_id("//s/create", created_1_id, tx0),
+            self.path_to_node_id("//s/create", None, tx1),
+            self.path_to_node_id("//s/create", created_2_id, tx2),
+
+            self.path_to_node_id("//s/remove_recreate", remove_recreate_1_id),
+            self.path_to_node_id("//s/remove_recreate", remove_recreate_2_id, tx1),
+            self.path_to_node_id("//s/remove_recreate", None, tx2),
+        ])
+
+        # parent_id, path, node_id, tx_id=None
+        insert_rows_to_ground(DESCRIPTORS.child_node, [
+            self.child_node(scion_id, "replace", to_replace_id),
+            self.child_node(scion_id, "replace", None, tx1),
+            self.child_node(scion_id, "replace", replaced_id, tx2),
+
+            self.child_node(scion_id, "remove", to_remove_id),
+            self.child_node(scion_id, "remove", None, tx0),
+            self.child_node(scion_id, "remove", recreated_id, tx1),
+            self.child_node(scion_id, "remove", None, tx2),
+
+            self.child_node(scion_id, "create", created_1_id, tx0),
+            self.child_node(scion_id, "create", None, tx1),
+            self.child_node(scion_id, "create", created_2_id, tx2),
+
+            self.child_node(scion_id, "remove_recreate", remove_recreate_1_id),
+            self.child_node(scion_id, "remove_recreate", remove_recreate_2_id, tx1),
+            self.child_node(scion_id, "remove_recreate", None, tx2),
+        ])
+
+        # tx_id, node_id, path, topmost_tx_id
+        insert_rows_to_ground(DESCRIPTORS.node_forks, [
+            self.node_fork(tx1, to_replace_id, "//s/replace", None),
+
+            self.node_fork(tx2, replaced_id, "//s/replace", tx2),
+
+            self.node_fork(tx0, to_remove_id, "//s/remove", None),
+
+            self.node_fork(tx1, recreated_id, "//s/remove", tx1),
+            self.node_fork(tx2, recreated_id, "//s/remove", tx1),
+
+            self.node_fork(tx0, created_1_id, "//s/create", tx0),
+            self.node_fork(tx1, created_1_id, "//s/create", tx0),
+
+            self.node_fork(tx2, created_2_id, "//s/create", tx2),
+
+            self.node_fork(tx1, remove_recreate_1_id, "//s/remove_recreate", None),
+
+            self.node_fork(tx1, remove_recreate_2_id, "//s/remove_recreate", tx1),
+            self.node_fork(tx2, remove_recreate_2_id, "//s/remove_recreate", tx1),
+        ])
+
+        # tx_id, path, node_id, parent_id, topmost_tx_id
+        insert_rows_to_ground(DESCRIPTORS.path_forks, [
+            self.path_fork(tx1, "//s/replace", None, scion_id, None),
+            self.path_fork(tx2, "//s/replace", replaced_id, scion_id, None),
+
+            self.path_fork(tx0, "//s/remove", None, scion_id, None),
+            self.path_fork(tx1, "//s/remove", recreated_id, scion_id, None),
+            self.path_fork(tx2, "//s/remove", None, scion_id, None),
+
+            self.path_fork(tx0, "//s/create", created_1_id, scion_id, tx0),
+            self.path_fork(tx1, "//s/create", None, scion_id, tx0),
+            self.path_fork(tx2, "//s/create", created_2_id, scion_id, tx0),
+
+            self.path_fork(tx1, "//s/remove_recreate", remove_recreate_2_id, scion_id, None),
+            self.path_fork(tx2, "//s/remove_recreate", None, scion_id, None),
+        ])
+
+        commit_transaction(tx2)
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.node_id_to_path(scion_id, "//s"),
+
+                self.node_id_to_path(to_replace_id, "//s/replace"),
+                self.node_id_to_path(to_replace_id, "//s/replace", tx1, "tombstone"),
+
+                self.node_id_to_path(replaced_id, "//s/replace", tx1),
+
+                self.node_id_to_path(to_remove_id, "//s/remove"),
+                self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
+
+                self.node_id_to_path(created_1_id, "//s/create", tx0),
+                self.node_id_to_path(created_1_id, "//s/create", tx1, "tombstone"),
+
+                self.node_id_to_path(created_2_id, "//s/create", tx1),
+
+                self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate"),
+                self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate", tx1, "tombstone"),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.path_to_node_id("//s", scion_id),
+
+                self.path_to_node_id("//s/replace", to_replace_id),
+                self.path_to_node_id("//s/replace", replaced_id, tx1),
+
+                self.path_to_node_id("//s/remove", to_remove_id),
+                self.path_to_node_id("//s/remove", None, tx0),
+                self.path_to_node_id("//s/remove", None, tx1),
+
+                self.path_to_node_id("//s/create", created_1_id, tx0),
+                self.path_to_node_id("//s/create", created_2_id, tx1),
+
+                self.path_to_node_id("//s/remove_recreate", remove_recreate_1_id),
+                self.path_to_node_id("//s/remove_recreate", None, tx1),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_node.get_default_path()}]"),
+            [
+                self.child_node(scion_id, "replace", to_replace_id),
+                self.child_node(scion_id, "replace", replaced_id, tx1),
+
+                self.child_node(scion_id, "remove", to_remove_id),
+                self.child_node(scion_id, "remove", None, tx0),
+                self.child_node(scion_id, "remove", None, tx1),
+
+                self.child_node(scion_id, "create", created_1_id, tx0),
+                self.child_node(scion_id, "create", created_2_id, tx1),
+
+                self.child_node(scion_id, "remove_recreate", remove_recreate_1_id),
+                self.child_node(scion_id, "remove_recreate", None, tx1),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]"),
+            [
+                self.node_fork(tx1, to_replace_id, "//s/replace", None),
+
+                self.node_fork(tx1, replaced_id, "//s/replace", tx1),
+
+                self.node_fork(tx0, to_remove_id, "//s/remove", None),
+
+                self.node_fork(tx0, created_1_id, "//s/create", tx0),
+                self.node_fork(tx1, created_1_id, "//s/create", tx0),
+
+                self.node_fork(tx1, created_2_id, "//s/create", tx1),
+
+                self.node_fork(tx1, remove_recreate_1_id, "//s/remove_recreate", None),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
+            [
+                self.path_fork(tx1, "//s/replace", replaced_id, scion_id, None),
+
+                self.path_fork(tx0, "//s/remove", None, scion_id, None),
+                self.path_fork(tx1, "//s/remove", None, scion_id, None),
+
+                self.path_fork(tx0, "//s/create", created_1_id, scion_id, tx0),
+                self.path_fork(tx1, "//s/create", created_2_id, scion_id, tx0),
+
+                self.path_fork(tx1, "//s/remove_recreate", None, scion_id, None),
+            ])
+
+        commit_transaction(tx1)
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.node_id_to_path(scion_id, "//s"),
+
+                self.node_id_to_path(to_replace_id, "//s/replace"),
+                self.node_id_to_path(to_replace_id, "//s/replace", tx0, "tombstone"),
+
+                self.node_id_to_path(replaced_id, "//s/replace", tx0),
+
+                self.node_id_to_path(to_remove_id, "//s/remove"),
+                self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
+
+                self.node_id_to_path(created_2_id, "//s/create", tx0),
+
+                self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate"),
+                self.node_id_to_path(remove_recreate_1_id, "//s/remove_recreate", tx0, "tombstone"),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.path_to_node_id("//s", scion_id),
+
+                self.path_to_node_id("//s/replace", to_replace_id),
+                self.path_to_node_id("//s/replace", replaced_id, tx0),
+
+                self.path_to_node_id("//s/remove", to_remove_id),
+                self.path_to_node_id("//s/remove", None, tx0),
+
+                self.path_to_node_id("//s/create", created_2_id, tx0),
+
+                self.path_to_node_id("//s/remove_recreate", remove_recreate_1_id),
+                self.path_to_node_id("//s/remove_recreate", None, tx0),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_node.get_default_path()}]"),
+            [
+                self.child_node(scion_id, "replace", to_replace_id),
+                self.child_node(scion_id, "replace", replaced_id, tx0),
+
+                self.child_node(scion_id, "remove", to_remove_id),
+                self.child_node(scion_id, "remove", None, tx0),
+
+                self.child_node(scion_id, "create", created_2_id, tx0),
+
+                self.child_node(scion_id, "remove_recreate", remove_recreate_1_id),
+                self.child_node(scion_id, "remove_recreate", None, tx0),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]"),
+            [
+                self.node_fork(tx0, to_replace_id, "//s/replace", None),
+                self.node_fork(tx0, replaced_id, "//s/replace", tx0),
+                self.node_fork(tx0, to_remove_id, "//s/remove", None),
+                self.node_fork(tx0, created_2_id, "//s/create", tx0),
+                self.node_fork(tx0, remove_recreate_1_id, "//s/remove_recreate", None),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
+            [
+                self.path_fork(tx0, "//s/replace", replaced_id, scion_id, None),
+                self.path_fork(tx0, "//s/remove", None, scion_id, None),
+                self.path_fork(tx0, "//s/create", created_2_id, scion_id, tx0),
+                self.path_fork(tx0, "//s/remove_recreate", None, scion_id, None),
+            ])
+
+        commit_transaction(tx0)
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.node_id_to_path(scion_id, "//s"),
+                self.node_id_to_path(replaced_id, "//s/replace"),
+                self.node_id_to_path(created_2_id, "//s/create"),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(
+                f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] "
+                "where not is_prefix('//sys', path)"),
+            [
+                self.path_to_node_id("//s", scion_id),
+                self.path_to_node_id("//s/replace", replaced_id),
+                self.path_to_node_id("//s/create", created_2_id),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_node.get_default_path()}]"),
+            [
+                self.child_node(scion_id, "replace", replaced_id),
+                self.child_node(scion_id, "create", created_2_id),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]"),
+            [])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
+            [])
 
 
 ##################################################################

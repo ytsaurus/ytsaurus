@@ -58,7 +58,7 @@ void TTabletServant::Swap(TTabletServant* other)
     std::swap(MovementStage_, other->MovementStage_);
 }
 
-void TTabletServant::Persist(const TPersistenceContext& context)
+void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -76,7 +76,7 @@ void TTabletServant::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletBase::Save(TSaveContext& context) const
+void TTabletBase::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -97,7 +97,7 @@ void TTabletBase::Save(TSaveContext& context) const
     Save(context, NodeAvenueEndpointId_);
 }
 
-void TTabletBase::Load(TLoadContext& context)
+void TTabletBase::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
 

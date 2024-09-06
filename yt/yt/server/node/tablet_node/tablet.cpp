@@ -1047,10 +1047,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, DynamicStoreIdRequested_);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead ||
-        (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead_24_1 &&
-            context.GetVersion() < ETabletReign::Start_24_2))
-    {
+    if (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead) {
         Load(context, ReservedDynamicStoreIdCount_);
     }
 

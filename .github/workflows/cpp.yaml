@@ -25,7 +25,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: ${{ vars.YC_FOLDER_ID }}
-          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          image-id: fd80iiaqo2r526bii3qm
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
           cores: 16
@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: ydb-platform/ydb
-          ref: 6eb6b8380b3259fc57e80aa2aa94d5314b0e48b7
+          ref: 7518f5eb4e0b6e3035cc6499a8cbeb90110db073
           path: ydb
 
   tag:

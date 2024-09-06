@@ -42,7 +42,6 @@ class TUnorderedChunkPool
     , public IPersistentChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -422,49 +421,7 @@ public:
         CheckCompleted();
     }
 
-    // IPersistent implementation.
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolInputBase::Persist(context);
-        TChunkPoolOutputWithCountersBase::Persist(context);
-        TLoggerOwner::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, InputCookieToInternalCookies_);
-        Persist(context, Stripes_);
-        Persist(context, InputCookieIsSuspended_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, Sampler_);
-        Persist(context, JobSizeAdjuster_);
-        Persist(context, FreeStripes_);
-        Persist(context, ExtractedStripes_);
-        Persist(context, MaxBlockSize_);
-        Persist(context, NodeIdToEntry_);
-        Persist(context, OutputCookieGenerator_);
-        Persist(context, Mode_);
-        Persist(context, MinTeleportChunkSize_);
-        Persist(context, MinTeleportChunkDataWeight_);
-        Persist(context, SliceErasureChunksByParts_);
-        Persist(context, InputStreamDirectory_);
-        Persist(context, JobManager_);
-        Persist(context, FreeJobCounter_);
-        Persist(context, FreeDataWeightCounter_);
-        Persist(context, FreeRowCounter_);
-        Persist(context, IsCompleted_);
-
-        if (context.GetVersion() >= ESnapshotVersion::SingleChunkTeleportStrategy) {
-            Persist(context, SingleChunkTeleportStrategy_);
-        }
-
-        if (context.IsLoad()) {
-            ValidateLogger(Logger);
-        }
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool, 0xbacd26ad);
-
     //! A mapping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
     std::vector<std::vector<int>> InputCookieToInternalCookies_;
@@ -495,12 +452,7 @@ private:
         //! Indexes in #Stripes.
         THashSet<int> StripeIndexes;
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, Locality);
-            Persist(context, StripeIndexes);
-        }
+        PHOENIX_DECLARE_TYPE(TLocalityEntry, 0xe973566a);
     };
 
     THashMap<TNodeId, TLocalityEntry> NodeIdToEntry_;
@@ -890,28 +842,76 @@ private:
 
         IsCompleted_ = completed;
     }
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedChunkPool, 0xbacd26ad);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
+void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputBase>();
+    registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
+    registrar.template BaseType<TLoggerOwner>();
+
+    PHOENIX_REGISTER_FIELD(1, InputCookieToInternalCookies_)();
+    PHOENIX_REGISTER_FIELD(2, Stripes_)();
+    PHOENIX_REGISTER_FIELD(3, InputCookieIsSuspended_)();
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(5, Sampler_)();
+    PHOENIX_REGISTER_FIELD(6, JobSizeAdjuster_)();
+    PHOENIX_REGISTER_FIELD(7, FreeStripes_)();
+    PHOENIX_REGISTER_FIELD(8, ExtractedStripes_)();
+    PHOENIX_REGISTER_FIELD(9, MaxBlockSize_)();
+    PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_)();
+    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_)();
+    PHOENIX_REGISTER_FIELD(12, Mode_)();
+    PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_)();
+    PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_)();
+    PHOENIX_REGISTER_FIELD(16, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(17, JobManager_)();
+    PHOENIX_REGISTER_FIELD(18, FreeJobCounter_)();
+    PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_)();
+    PHOENIX_REGISTER_FIELD(20, FreeRowCounter_)();
+    PHOENIX_REGISTER_FIELD(21, IsCompleted_)();
+
+    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_)
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        ValidateLogger(this_->Logger);
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
+void TUnorderedChunkPool::TLocalityEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Mode);
-    Persist(context, JobSizeAdjusterConfig);
-    Persist(context, JobSizeConstraints);
-    Persist(context, MinTeleportChunkSize);
-    Persist(context, MinTeleportChunkDataWeight);
-    Persist(context, SliceErasureChunksByParts);
-    Persist(context, Logger);
-
-    if (context.GetVersion() >= ESnapshotVersion::SingleChunkTeleportStrategy) {
-        Persist(context, SingleChunkTeleportStrategy);
-    }
+    PHOENIX_REGISTER_FIELD(1, Locality)();
+    PHOENIX_REGISTER_FIELD(2, StripeIndexes)();
 }
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Mode)();
+    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig)();
+    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints)();
+    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize)();
+    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight)();
+    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts)();
+    PHOENIX_REGISTER_FIELD(7, Logger)();
+
+    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy)
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedChunkPoolOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -59,12 +59,12 @@ public:
     bool IsSuspended() const;
     void Reset(TChunkStripePtr stripe);
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     TChunkStripePtr Stripe_;
     int SuspendedStripeCount_ = 0;
     NTableClient::TChunkStripeStatistics Statistics_;
+
+    PHOENIX_DECLARE_TYPE(TSuspendableStripe, 0x14cdc54f);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

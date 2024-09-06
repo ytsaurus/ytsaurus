@@ -113,6 +113,7 @@ ACTIONS = {}
 # for all conversions on tables, which might be replicated in some environments such as
 # consumer_registrations or replicated_table_mapping.
 
+# Add queue_agent_banned column for queues table.
 TRANSFORMS[1] = [
     Conversion(
         "queues",
@@ -138,6 +139,31 @@ TRANSFORMS[1] = [
             attributes=DEFAULT_TABLE_ATTRIBUTES,
         ),
     ),
+]
+
+# Add queue_agent_banned column for consumers table.
+TRANSFORMS[2] = [
+    Conversion(
+        "consumers",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("treat_as_queue_consumer", "boolean"),
+                ("schema", "any"),
+                ("queue_agent_stage", "string"),
+                ("queue_agent_banned", "boolean"),  # New field.
+                ("synchronization_error", "any"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+    )
 ]
 
 MIGRATION = Migration(

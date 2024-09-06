@@ -563,6 +563,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("health_checker", &TThis::HealthChecker)
         .DefaultNew();
 
+    registrar.Parameter("database_directories", &TThis::DatabaseDirectories)
+        .Default();
+
     registrar.Parameter("total_memory_tracker_update_period", &TThis::TotalMemoryTrackerUpdatePeriod)
         .Default(TDuration::MilliSeconds(300));
 

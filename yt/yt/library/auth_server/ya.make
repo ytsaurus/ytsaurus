@@ -9,6 +9,7 @@ SRCS(
     blackbox_cookie_authenticator.cpp
     caching_secret_vault_service.cpp
     cookie_authenticator.cpp
+    credentials.cpp
     blackbox_service.cpp
     default_secret_vault_service.cpp
     dummy_secret_vault_service.cpp

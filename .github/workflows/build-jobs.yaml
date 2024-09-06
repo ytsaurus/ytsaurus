@@ -30,6 +30,14 @@ on:
         default: false
         required: false
         type: boolean
+      update-remote-cache:
+        default: false
+        required: false
+        type: boolean
+      skip-python-packages:
+        default: false
+        required: false
+        type: boolean
 
     secrets:
       YA_YT_TOKEN:
@@ -91,6 +99,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DREQUIRED_LLVM_TOOLING_VERSION=16 \
+            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
             ../ytsaurus/ytsaurus
 
           ccache --set-config base_dir="$(realpath ..)"
@@ -204,7 +213,13 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-put"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
+
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]
+          then
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put"
+          fi
+
           STRIP_VALUE=no
           BUILD_TYPE=profile
           if [ "${{ matrix.build-type }}" == "release" ]
@@ -212,6 +227,7 @@ jobs:
             STRIP_VALUE=yes
             BUILD_TYPE=release
           fi
+
           BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
           echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
           echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
@@ -240,10 +256,13 @@ jobs:
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
-          cd ../ytsaurus
+          if [ "${{ inputs.skip-python-packages }}" == "false" ]
+          then
+            cd ../ytsaurus
 
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+            source ../venv/bin/activate
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+          fi
 
       - name: Build ytsaurus (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker }}
@@ -266,6 +285,10 @@ jobs:
           ../ytsaurus/ytsaurus/ya make -T ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          # TODO(nadya73): Remove it after ya fix.
+          cat ../ytsaurus/ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
+          cp ./patched.ya.conf ../ytsaurus/ydb/build/internal/ya.conf
 
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
 

@@ -228,7 +228,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
             if (auto peerId = FindNewLeadingPeerId(cell); peerId != InvalidPeerId) {
                 leaderReassignments.emplace_back(cell, peerId);
             } else if (IsLeaderReassignmentRequired(cell)) {
-                // Leader reassignment is required not is not ready.
+                // Leader reassignment is required but is not ready.
                 bundlesWithUnreadyLeaderReassignments.insert(cell->CellBundle().Get());
             }
         }
@@ -631,7 +631,8 @@ int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
         }
 
         auto* slot = cell->FindCellSlot(peerId);
-        if (slot && slot->PreloadPendingStoreCount == 0 &&
+        if (slot &&
+            slot->PreloadPendingStoreCount == 0 &&
             slot->PreloadFailedStoreCount == 0)
         {
             return peerId;

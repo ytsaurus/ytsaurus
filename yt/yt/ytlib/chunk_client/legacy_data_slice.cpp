@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkClient {
@@ -98,21 +100,20 @@ i64 TLegacyDataSlice::GetMaxBlockSize() const
     return result;
 }
 
-void TLegacyDataSlice::Persist(const NTableClient::TPersistenceContext& context)
+void TLegacyDataSlice::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, IsLegacy);
-    Persist(context, LegacyLowerLimit_);
-    Persist(context, LegacyUpperLimit_);
-    Persist(context, LowerLimit_);
-    Persist(context, UpperLimit_);
-    Persist(context, ChunkSlices);
-    Persist(context, Type);
-    Persist(context, Tag);
-    Persist(context, InputStreamIndex_);
-    Persist(context, VirtualRowIndex);
-    Persist(context, ReadRangeIndex);
-    Persist(context, IsTeleportable);
+    PHOENIX_REGISTER_FIELD(1, IsLegacy)();
+    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_)();
+    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_)();
+    PHOENIX_REGISTER_FIELD(4, LowerLimit_)();
+    PHOENIX_REGISTER_FIELD(5, UpperLimit_)();
+    PHOENIX_REGISTER_FIELD(6, ChunkSlices)();
+    PHOENIX_REGISTER_FIELD(7, Type)();
+    PHOENIX_REGISTER_FIELD(8, Tag)();
+    PHOENIX_REGISTER_FIELD(9, InputStreamIndex_)();
+    PHOENIX_REGISTER_FIELD(10, VirtualRowIndex)();
+    PHOENIX_REGISTER_FIELD(11, ReadRangeIndex)();
+    PHOENIX_REGISTER_FIELD(12, IsTeleportable)();
 }
 
 int TLegacyDataSlice::GetTableIndex() const
@@ -282,6 +283,8 @@ void TLegacyDataSlice::SetInputStreamIndex(int inputStreamIndex)
 {
     InputStreamIndex_ = inputStreamIndex;
 }
+
+PHOENIX_DEFINE_TYPE(TLegacyDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

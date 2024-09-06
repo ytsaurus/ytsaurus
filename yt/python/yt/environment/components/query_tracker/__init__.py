@@ -66,6 +66,11 @@ class QueryTracker(YTServerComponentBase, YTComponent):
                         "addresses": self.addresses,
                     }
                 },
+                "testing": {
+                    "channel": {
+                        "addresses": self.addresses,
+                    }
+                },
             },
         }
         self.client.set(f"//sys/clusters/{self.env.id}/query_tracker", query_tracker_config)

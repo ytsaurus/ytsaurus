@@ -118,8 +118,6 @@ public:
 
     std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
 
-    void Persist(const TPersistenceContext& context);
-
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie);
@@ -194,8 +192,6 @@ private:
 
         void Remove();
 
-        void Persist(const TPersistenceContext& context);
-
         template <class... TArgs>
         void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), TArgs... args);
 
@@ -229,11 +225,16 @@ private:
 
         void SuspendSelf();
         void ResumeSelf();
+
+        PHOENIX_DECLARE_TYPE(TJob, 0xa97f53ea);
     };
 
     std::vector<TJob> Jobs_;
 
     NLogging::TSerializableLogger Logger;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TNewJobManager, 0x7e42ef5b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNewJobManager)

@@ -27,7 +27,7 @@ struct TOrderedChunkPoolOptions
     bool ShouldSliceByRowIndices = false;
     NLogging::TSerializableLogger Logger;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TOrderedChunkPoolOptions, 0xa7e43d2a);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

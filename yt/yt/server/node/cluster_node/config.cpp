@@ -393,20 +393,23 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         }
         if (!config->ResourceLimits->FreeMemoryWatermark) {
             config->ResourceLimits->FreeMemoryWatermark = 0;
-            auto freeMemoryWatermarkNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
+            auto freeMemoryWatermarkNode = ConvertToNode(config->ExecNode->SlotManager->JobEnvironment)->AsMap()->FindChild("free_memory_watermark");
+            YT_VERIFY(!freeMemoryWatermarkNode);
             if (freeMemoryWatermarkNode) {
                 config->ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
             }
         }
+
+        auto portoConfig = config->ExecNode->SlotManager->JobEnvironment.TryGetConcrete<NJobProxy::TPortoJobEnvironmentConfig>();
         if (!config->ResourceLimits->NodeDedicatedCpu) {
             config->ResourceLimits->NodeDedicatedCpu = 2; // Old default.
-            auto nodeDedicatedCpuNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
-            if (nodeDedicatedCpuNode) {
-                config->ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
+            if (portoConfig) {
+                config->ResourceLimits->NodeDedicatedCpu = portoConfig->NodeDedicatedCpu;
             }
         }
         if (!config->InstanceLimitsUpdatePeriod) {
-            auto resourceLimitsUpdatePeriodNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
+            auto resourceLimitsUpdatePeriodNode = ConvertToNode(config->ExecNode->SlotManager->JobEnvironment)->AsMap()->FindChild("resource_limits_update_period");
+            YT_VERIFY(!resourceLimitsUpdatePeriodNode);
             if (resourceLimitsUpdatePeriodNode) {
                 config->InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
             }

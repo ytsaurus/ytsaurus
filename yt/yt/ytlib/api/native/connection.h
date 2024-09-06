@@ -135,6 +135,7 @@ struct IConnection
     virtual const TSyncReplicaCachePtr& GetSyncReplicaCache() = 0;
     virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() = 0;
     virtual const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() = 0;
+    virtual const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
@@ -163,6 +164,10 @@ struct IConnection
     virtual const NLogging::TLogger& GetLogger() = 0;
 
     virtual void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) = 0;
+
+    virtual void StartShuffleService(const TString& address) = 0;
+
+    virtual NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

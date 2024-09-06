@@ -66,6 +66,12 @@ find_package(Python3 REQUIRED)
 
 find_package(Python3 REQUIRED)
 
+find_package(Python3 REQUIRED)
+
+find_package(Python3 REQUIRED)
+
+find_package(Python3 REQUIRED)
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
@@ -220,6 +226,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_service/proto/shuffle_service.proto
 )
 
 target_sources(yt-yt-ytlib PRIVATE
@@ -249,6 +256,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_queries_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_replicated_tables_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_security_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_shuffle_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_static_tables_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_transactions_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/config.cpp
@@ -300,10 +308,10 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_residency_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_residency_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
@@ -580,6 +588,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_service/shuffle_service.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
@@ -590,6 +599,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
@@ -616,6 +628,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
@@ -708,6 +723,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/shuffle_service/proto/shuffle_service.pb.h
 )
 
 
@@ -971,6 +987,81 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )
