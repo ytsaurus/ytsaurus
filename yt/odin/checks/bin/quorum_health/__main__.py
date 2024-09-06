@@ -17,10 +17,12 @@ def run_check(yt_client, logger, options, states):
     # Если не получилось получить схема мастеров - возвращаем CRIT
     masters_cells = discover_masters(yt_client, options, logger)
     if masters_cells is None:
-        juggler_message = 'Can\'t discover masters'
+        juggler_message = "Can't discover masters"
         return states.UNAVAILABLE_STATE, juggler_message
 
-    health, juggler_message = get_cluster_cells_health(masters_cells, datetime.now(), logger)
+    health, juggler_message = get_cluster_cells_health(
+        masters_cells, datetime.now(), logger
+    )
 
     if CRIT in health:
         logger.info(juggler_message)
@@ -30,7 +32,7 @@ def run_check(yt_client, logger, options, states):
         logger.info(juggler_message)
         return states.PARTIALLY_AVAILABLE_STATE, juggler_message
 
-    return states.FULLY_AVAILABLE_STATE, 'OK'
+    return states.FULLY_AVAILABLE_STATE, "OK"
 
 
 if __name__ == "__main__":
