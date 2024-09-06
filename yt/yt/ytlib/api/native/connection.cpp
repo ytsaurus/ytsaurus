@@ -1206,6 +1206,16 @@ private:
                     code == NChaosClient::EErrorCode::ReplicationCardNotKnown;
             }));
     }
+
+    void StartShuffleService(const TString& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() override
+    {
+        YT_UNIMPLEMENTED();
+    }
 };
 
 TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)

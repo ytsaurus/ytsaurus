@@ -816,6 +816,15 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishShuffle));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
@@ -6510,6 +6519,30 @@ private:
 
                 context->SetResponseInfo("ClusterName: %v", response->cluster_name());
             });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // Shuffle Service
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartShuffle)
+    {
+        ThrowUnimplemented("StartShuffle");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishShuffle)
+    {
+        ThrowUnimplemented("FinishShuffle");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadShuffleData)
+    {
+        ThrowUnimplemented("ReadShuffleData");
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteShuffleData)
+    {
+        ThrowUnimplemented("WriteShuffleData");
     }
 
     ////////////////////////////////////////////////////////////////////////////////

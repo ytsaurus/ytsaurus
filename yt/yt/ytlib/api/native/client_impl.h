@@ -888,6 +888,36 @@ public: \
         const TGetFlowViewOptions& options),
         (pipelinePath, viewPath, options))
 
+    IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
+        const TString& account,
+        int partitionCount,
+        const TStartShuffleOptions& options),
+        (account, partitionCount, options))
+    IMPLEMENT_METHOD(void, FinishShuffle, (
+        const TShuffleHandlePtr& shuffleHandle,
+        const TFinishShuffleOptions& options),
+        (shuffleHandle, options))
+
+    IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
+        const TShuffleHandlePtr& shuffleHandle,
+        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        const TRegisterShuffleChunksOptions& options),
+        (shuffleHandle, chunkSpecs, options))
+    IMPLEMENT_METHOD(std::vector<NChunkClient::NProto::TChunkSpec>, FetchShuffleChunks, (
+        const TShuffleHandlePtr& shuffleHandle,
+        int partitionIndex,
+        const TFetchShuffleChunksOptions& options),
+        (shuffleHandle, partitionIndex, options))
+
+    TFuture<IRowBatchReaderPtr> CreateShuffleReader(
+        const TShuffleHandlePtr& shuffleHandle,
+        int partitionIndex,
+        const NTableClient::TTableReaderConfigPtr& config) override;
+    TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
+        const TShuffleHandlePtr& shuffleHandle,
+        const TString& partitionColumn,
+        const NTableClient::TTableWriterConfigPtr& config) override;
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 

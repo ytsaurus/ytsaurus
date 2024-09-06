@@ -200,6 +200,8 @@ public:
     MOCK_METHOD(NYson::TYsonString, GetConfigYson, (), (const, override));
     MOCK_METHOD(NApi::IClientPtr, CreateClient, (const NApi::TClientOptions&), (override));
     MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
+    MOCK_METHOD(void, StartShuffleService, (const TString&), (override));
 
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
