@@ -62,10 +62,6 @@ DEFINE_ENUM(ETabletReign,
     ((ChunkReplicaAlwaysPrecache)                  (100910)) // osidorkin
     ((FixCDWComputationForChaosReplicas)           (100911)) // akozhikhov
     ((DropBuiltinAttrsFromMountConfig)             (100912)) // ifsmirnov
-    // 24.2 starts here.
-    ((Start_24_2)                                  (101000)) // ponasenko-rs
-    ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad
-    ((SmoothMovementDynamicStoreRead)              (101002)) // ifsmirnov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
