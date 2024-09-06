@@ -681,7 +681,8 @@ private:
             [&] (const TPathResolver::TLocalObjectPayload& targetPayload) -> IYPathServicePtr {
                 // Looks like a necessary evil  :(
                 // COMPAT(kvk1920): remove when similar backup-related compat
-                // will be removed from path resolver.
+                // will be removed from path resolver. Moreover, see comment in
+                // yt/yt/core/ytree/ypath_client.cpp in ExecuteVerb().
                 // There is no version from which this compat may be removed but
                 // there are some conditions:
                 //   - backup sessions don't try to figure out externalized tx
