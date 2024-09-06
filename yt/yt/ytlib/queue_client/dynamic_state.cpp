@@ -892,7 +892,7 @@ NApi::IUnversionedRowsetPtr TReplicatedTableMappingTableRow::DeleteRowRange(TRan
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
-    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
+    return CreateRowset(TReplicatedTableMappingTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
