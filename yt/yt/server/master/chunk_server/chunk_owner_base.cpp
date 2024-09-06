@@ -86,6 +86,12 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, SnapshotStatistics_);
     if (!IsTrunk()) {
         Save(context, DeltaStatistics());
+    } else {
+        YT_LOG_ALERT_IF(DeltaStatistics() != TChunkOwnerDataStatistics(),
+            "Trunk node has non empty delta statistics, which will be lost during snapshot save "
+            "(ChunkOwnerNodeId: %v, DeltaStatistics: %v)",
+            GetVersionedId(),
+            DeltaStatistics());
     }
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
