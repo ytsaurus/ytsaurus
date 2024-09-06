@@ -17,19 +17,12 @@ namespace {
 
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowType);
 
-NTi::TTypePtr MakeOptional(NTi::TTypePtr arrowType, bool isOptional)
-{
-    if (isOptional) {
-        return NTi::Optional(arrowType);
-    }
-    return arrowType;
-}
-
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 {
     switch (arrowType->id()) {
         case arrow::Type::type::BOOL:
             return NTi::Bool();
+
         case arrow::Type::type::UINT8:
             return NTi::Uint8();
         case arrow::Type::type::UINT16:
@@ -93,7 +86,10 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowField)
 {
     NTi::TTypePtr resultType = GetYTType(arrowField->type());
-    return MakeOptional(resultType, arrowField->nullable());
+    if (arrowField->nullable()) {
+        return NTi::Optional(resultType);
+    }
+    return resultType;
 }
 
 } // namespace
