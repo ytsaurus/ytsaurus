@@ -111,7 +111,7 @@ func TestEmptyServing(t *testing.T) {
 
 	stream1Chan := make(chan string, 32)
 
-	tt.AddStream(
+	tt.AddPipeline(
 		timbertruck.StreamConfig{
 			Name:    "stream1",
 			LogFile: path.Join(stream1Dir, "log"),
@@ -150,7 +150,7 @@ func TestSimpleServe(t *testing.T) {
 	stream1Chan := make(chan string, 32)
 
 	logFile := path.Join(stream1Dir, "log")
-	tt.AddStream(
+	tt.AddPipeline(
 		timbertruck.StreamConfig{
 			Name:    "stream1",
 			LogFile: logFile,
@@ -202,7 +202,7 @@ func TestSimpleRestartServer(t *testing.T) {
 		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
 		require.NoError(t, err)
 
-		tt.AddStream(
+		tt.AddPipeline(
 			timbertruck.StreamConfig{
 				Name:    "stream1",
 				LogFile: logFile,
@@ -262,7 +262,7 @@ func TestMoveWhenStopped(t *testing.T) {
 		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
 		require.NoError(t, err)
 
-		tt.AddStream(
+		tt.AddPipeline(
 			timbertruck.StreamConfig{
 				Name:    "stream1",
 				LogFile: logFile,

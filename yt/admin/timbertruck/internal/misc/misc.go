@@ -57,7 +57,7 @@ func (r *LogrotatingFile) reopen() (err error) {
 	defer r.lock.Unlock()
 	oldFile := r.file
 
-	r.file, err = os.OpenFile(r.path, os.O_RDWR|os.O_CREATE, 0644)
+	r.file, err = os.OpenFile(r.path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return
 	}

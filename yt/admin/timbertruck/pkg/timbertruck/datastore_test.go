@@ -269,7 +269,7 @@ func TestDatastoreTaskByIno(t *testing.T) {
 	err = ds.AddTask(&task1)
 	require.NoError(t, err)
 
-	peekedTask, err := ds.ActiveTaskByIno(100500)
+	peekedTask, err := ds.ActiveTaskByIno(100500, "foo")
 	require.NoError(t, err)
 
 	require.Equal(t, task1, peekedTask)

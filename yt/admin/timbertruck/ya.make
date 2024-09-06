@@ -1,5 +1,5 @@
 RECURSE(
     cmd
-    pkg
     internal
+    pkg
 )
