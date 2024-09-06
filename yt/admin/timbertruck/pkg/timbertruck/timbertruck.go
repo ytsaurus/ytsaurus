@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -204,21 +205,41 @@ func (h *streamHandler) stagingDir() string {
 	return path.Join(h.timberTruck.config.WorkDir, h.config.Name, "staging")
 }
 
-const dateRegexp = `[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}T[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}`
-const uuidRegexp = `[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}`
-const tempNameRegexp = "^" + dateRegexp + "-" + uuidRegexp
+var dateRegexp = regexp.MustCompile(`^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}T[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}_`)
+var inoRegexp = regexp.MustCompile(`^ino:[[:digit:]]+`)
 
-func isTempStagedPath(filePath string) bool {
+const pathTimeLayout = "2006-01-02T15:04:05"
+
+func parseStagedPath(filePath string, ino int64) (creationTime time.Time, isFinalPath bool) {
 	filePath = path.Base(filePath)
-	result, err := regexp.MatchString(tempNameRegexp, filePath)
-	if err != nil {
-		panic(fmt.Sprintf("internal error: bad regexp: %v", err))
+	datePrefix := dateRegexp.FindString(filePath)
+	if datePrefix == "" {
+		return
 	}
-	return result
+
+	creationTime, err := time.Parse(pathTimeLayout, strings.TrimSuffix(datePrefix, "_"))
+	if err != nil {
+		// unprobable but possible situation, date is malformed 9999-99-99
+		return
+	}
+
+	inoInfix := inoRegexp.FindString(filePath[len(datePrefix):])
+	if inoInfix == "" {
+		return
+	}
+
+	inoString := strings.TrimPrefix(inoInfix, "ino:")
+	parsedIno, err := strconv.ParseInt(inoString, 10, 64)
+	if err != nil {
+		return
+	}
+
+	isFinalPath = (parsedIno == ino)
+	return
 }
 
 func tempStagedName(now time.Time, uuid uuid.UUID, extensions string) string {
-	return fmt.Sprintf("%v-%v%v", now.Format("2006-01-02T15:04:05"), uuid.String(), extensions)
+	return fmt.Sprintf("%v_%v%v", now.Format(pathTimeLayout), uuid.String(), extensions)
 }
 
 func (h *streamHandler) tempStagedPath(now time.Time, uuid uuid.UUID) string {
@@ -226,8 +247,12 @@ func (h *streamHandler) tempStagedPath(now time.Time, uuid uuid.UUID) string {
 	return path.Join(h.stagingDir(), resultName)
 }
 
-func (h *streamHandler) stagedPath(createTime time.Time, ino int64) string {
-	resultName := fmt.Sprintf("%v_ino:%v%v", createTime.Format("2006-01-02T15:04:05"), ino, h.getExtensions())
+func finalStagedName(now time.Time, ino int64, extensions string) string {
+	return fmt.Sprintf("%v_ino:%v%v", now.Format(pathTimeLayout), ino, extensions)
+}
+
+func (h *streamHandler) finalStagedPath(now time.Time, ino int64) string {
+	resultName := finalStagedName(now, ino, h.getExtensions())
 	return path.Join(h.stagingDir(), resultName)
 }
 
@@ -302,68 +327,70 @@ func (h *streamHandler) handleCreate() {
 	h.handleStagedPath(linkedPath)
 }
 
-func (h *streamHandler) handleStagedPath(linkedPath string) {
+func (h *streamHandler) handleStagedPath(stagedPath string) {
 	var err error
 	var stat syscall.Stat_t
-	logger := h.logger.With("path", path.Base(linkedPath))
-	err = syscall.Stat(linkedPath, &stat)
+	logger := h.logger.With("path", path.Base(stagedPath))
+	err = syscall.Stat(stagedPath, &stat)
 	if err != nil {
 		logger.Error("Failed to stat staging file", "error", err)
 		return
 	}
 
 	ino := int64(stat.Ino)
-	createTime := time.Now()
+	creationTime, isFinalPath := parseStagedPath(stagedPath, ino)
+
+	if !isFinalPath {
+		if creationTime.IsZero() {
+			creationTime = time.Now()
+		}
+		oldStagedPath := stagedPath
+		stagedPath = h.finalStagedPath(creationTime, ino)
+		err = os.Rename(oldStagedPath, stagedPath)
+		if err != nil {
+			h.logger.Error("Failed to move staged file", "tempstagedpath", oldStagedPath, "error", err)
+			return
+		}
+		h.logger.Info("Renamed to final staged name", "tempstagedpath", oldStagedPath, "stagedpath", stagedPath)
+	}
 
 	task, err := h.timberTruck.datastore.ActiveTaskByIno(ino, h.config.Name)
 	if err == nil && task.CompletionTime.IsZero() { // NO ERROR, we already have this task
-		if task.StagedPath != linkedPath {
-			err = os.Remove(linkedPath)
+		if task.StagedPath != stagedPath {
+			err = os.Remove(stagedPath)
 			if err != nil {
-				h.logger.Error("Failed to remove duplicating task file", "duplicatepath", linkedPath, "stagedpath", task.StagedPath, "error", err)
+				h.logger.Error("Failed to remove duplicating task file", "stagedpath", stagedPath, "error", err)
 			} else {
-				h.logger.Info("Removed duplicating task file", "duplicatepath", linkedPath, "stagedpath", task.StagedPath)
+				h.logger.Info("Removed duplicating task file", "stagedPath", stagedPath)
 			}
 		}
-		h.logger.Info("Task already exists", "stagedpath", task.StagedPath)
+		h.logger.Info("Task already exists", "stagedpath", stagedPath, "originalPath", task.StagedPath)
 		return
 	} else if err != ErrNotFound {
 		panic(fmt.Sprintf("unexpected error ActiveTaskByIno(%v, %v): %v", ino, h.config.Name, err))
 	}
-	task, err = h.timberTruck.datastore.TaskByPath(linkedPath)
+
+	task, err = h.timberTruck.datastore.TaskByPath(stagedPath)
 	if err == nil { // NO ERROR, we already have this task
 		if !task.CompletionTime.IsZero() {
-			err = os.Remove(linkedPath)
+			err = os.Remove(stagedPath)
 			if err != nil {
-				h.logger.Error("Failed to remove completed task file", "stagedpath", task.StagedPath, "error", err)
+				h.logger.Error("Failed to remove completed task file", "stagedpath", stagedPath, "error", err)
 			} else {
-				h.logger.Info("Removed completed task file", "stagedpath", task.StagedPath)
+				h.logger.Info("Removed completed task file", "stagedpath", stagedPath)
 			}
 		}
-		h.logger.Info("Task already exists", "stagedpath", task.StagedPath)
+		h.logger.Info("Task already exists", "stagedpath", stagedPath, "originalpath", task.StagedPath)
 		return
 	} else if err != ErrNotFound {
-		panic(fmt.Sprintf("unexpected error TaskByPath(%v): %v", linkedPath, err))
-	}
-
-	var taskLogPath string
-	if isTempStagedPath(linkedPath) {
-		taskLogPath = linkedPath
-	} else {
-		taskLogPath = h.stagedPath(createTime, ino)
-		err = os.Rename(linkedPath, taskLogPath)
-		if err != nil {
-			h.logger.Error("Failed to move linked file", "error", err)
-			return
-		}
-		h.logger.Info("Renamed from temporary name to final staged name", "tmpname", linkedPath, "stagedpath", taskLogPath)
+		panic(fmt.Sprintf("unexpected error TaskByPath(%v): %v", stagedPath, err))
 	}
 
 	task = Task{
 		StreamName:   h.config.Name,
 		INode:        ino,
-		StagedPath:   taskLogPath,
-		CreationTime: createTime,
+		StagedPath:   stagedPath,
+		CreationTime: creationTime,
 	}
 	err = h.timberTruck.datastore.AddTask(&task)
 	if err != nil {
@@ -373,7 +400,7 @@ func (h *streamHandler) handleStagedPath(linkedPath string) {
 	go func() {
 		h.haveTasks <- struct{}{}
 	}()
-	h.logger.Info("Added task", "ino", ino, "ctime", createTime)
+	h.logger.Info("Added task", "stagedpath", stagedPath, "ino", ino, "ctime", creationTime)
 }
 
 func (h *streamHandler) resetActiveTask() {
