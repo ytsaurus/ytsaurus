@@ -78,10 +78,10 @@ bool TReleaseJobFlags::IsTrivial() const
 void TReleaseJobFlags::RegisterMetadata(auto&& registrar)
 {
     using namespace NYT::NControllerAgent;
-    registrar.template Field<1, &TThis::ArchiveStderr>("archive_stderr")();
-    registrar.template Field<2, &TThis::ArchiveJobSpec>("archive_job_spec")();
-    registrar.template Field<3, &TThis::ArchiveFailContext>("archive_fail_context")();
-    registrar.template Field<4, &TThis::ArchiveProfile>("archive_profile")();
+    PHOENIX_REGISTER_FIELD(1, ArchiveStderr)();
+    PHOENIX_REGISTER_FIELD(2, ArchiveJobSpec)();
+    PHOENIX_REGISTER_FIELD(3, ArchiveFailContext)();
+    PHOENIX_REGISTER_FIELD(4, ArchiveProfile)();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReleaseJobFlags& releaseFlags, TStringBuf /*spec*/)

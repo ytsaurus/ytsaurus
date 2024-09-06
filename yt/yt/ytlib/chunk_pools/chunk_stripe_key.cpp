@@ -6,8 +6,8 @@ namespace NYT::NChunkPools {
 
 void TBoundaryKeys::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::MinKey>("min_key")();
-    registrar.template Field<2, &TThis::MaxKey>("max_key")();
+    PHOENIX_REGISTER_FIELD(1, MinKey)();
+    PHOENIX_REGISTER_FIELD(2, MaxKey)();
 }
 
 bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
@@ -92,7 +92,7 @@ const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
 
 void TChunkStripeKey::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Key_>("key")();
+    PHOENIX_REGISTER_FIELD(1, Key_)();
 }
 
 bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const

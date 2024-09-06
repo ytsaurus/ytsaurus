@@ -853,29 +853,29 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
     registrar.template BaseType<TLoggerOwner>();
 
-    registrar.template Field<1, &TThis::InputCookieToInternalCookies_>("input_cookie_to_internal_cookies")();
-    registrar.template Field<2, &TThis::Stripes_>("stripes")();
-    registrar.template Field<3, &TThis::InputCookieIsSuspended_>("input_cookie_is_suspended")();
-    registrar.template Field<4, &TThis::JobSizeConstraints_>("job_size_constraints")();
-    registrar.template Field<5, &TThis::Sampler_>("sampler")();
-    registrar.template Field<6, &TThis::JobSizeAdjuster_>("job_size_adjuster")();
-    registrar.template Field<7, &TThis::FreeStripes_>("free_stripes")();
-    registrar.template Field<8, &TThis::ExtractedStripes_>("extracted_stripes")();
-    registrar.template Field<9, &TThis::MaxBlockSize_>("max_block_size")();
-    registrar.template Field<10, &TThis::NodeIdToEntry_>("node_id_to_entry")();
-    registrar.template Field<11, &TThis::OutputCookieGenerator_>("output_cookie_generator")();
-    registrar.template Field<12, &TThis::Mode_>("mode")();
-    registrar.template Field<13, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
-    registrar.template Field<14, &TThis::MinTeleportChunkDataWeight_>("min_teleport_chunk_data_weight")();
-    registrar.template Field<15, &TThis::SliceErasureChunksByParts_>("slice_erasure_chunks_by_parts")();
-    registrar.template Field<16, &TThis::InputStreamDirectory_>("input_stream_directory")();
-    registrar.template Field<17, &TThis::JobManager_>("job_manager")();
-    registrar.template Field<18, &TThis::FreeJobCounter_>("free_job_counter")();
-    registrar.template Field<19, &TThis::FreeDataWeightCounter_>("free_data_weight_counter")();
-    registrar.template Field<20, &TThis::FreeRowCounter_>("free_row_counter")();
-    registrar.template Field<21, &TThis::IsCompleted_>("is_completed")();
+    PHOENIX_REGISTER_FIELD(1, InputCookieToInternalCookies_)();
+    PHOENIX_REGISTER_FIELD(2, Stripes_)();
+    PHOENIX_REGISTER_FIELD(3, InputCookieIsSuspended_)();
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(5, Sampler_)();
+    PHOENIX_REGISTER_FIELD(6, JobSizeAdjuster_)();
+    PHOENIX_REGISTER_FIELD(7, FreeStripes_)();
+    PHOENIX_REGISTER_FIELD(8, ExtractedStripes_)();
+    PHOENIX_REGISTER_FIELD(9, MaxBlockSize_)();
+    PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_)();
+    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_)();
+    PHOENIX_REGISTER_FIELD(12, Mode_)();
+    PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_)();
+    PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_)();
+    PHOENIX_REGISTER_FIELD(16, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(17, JobManager_)();
+    PHOENIX_REGISTER_FIELD(18, FreeJobCounter_)();
+    PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_)();
+    PHOENIX_REGISTER_FIELD(20, FreeRowCounter_)();
+    PHOENIX_REGISTER_FIELD(21, IsCompleted_)();
 
-    registrar.template Field<22, &TThis::SingleChunkTeleportStrategy_>("single_chunk_teleport_strategy")
+    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_)
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -889,8 +889,8 @@ PHOENIX_DEFINE_TYPE(TUnorderedChunkPool);
 
 void TUnorderedChunkPool::TLocalityEntry::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Locality>("locality")();
-    registrar.template Field<2, &TThis::StripeIndexes>("stripe_indexes")();
+    PHOENIX_REGISTER_FIELD(1, Locality)();
+    PHOENIX_REGISTER_FIELD(2, StripeIndexes)();
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
@@ -899,15 +899,15 @@ PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
 
 void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Mode>("mode")();
-    registrar.template Field<2, &TThis::JobSizeAdjusterConfig>("job_size_adjuster_config")();
-    registrar.template Field<3, &TThis::JobSizeConstraints>("job_size_constraints")();
-    registrar.template Field<4, &TThis::MinTeleportChunkSize>("min_teleport_chunk_size")();
-    registrar.template Field<5, &TThis::MinTeleportChunkDataWeight>("min_teleport_chunk_data_weight")();
-    registrar.template Field<6, &TThis::SliceErasureChunksByParts>("slice_erasure_chunks_by_parts")();
-    registrar.template Field<7, &TThis::Logger>("logger")();
+    PHOENIX_REGISTER_FIELD(1, Mode)();
+    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig)();
+    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints)();
+    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize)();
+    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight)();
+    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts)();
+    PHOENIX_REGISTER_FIELD(7, Logger)();
 
-    registrar.template Field<8, &TThis::SingleChunkTeleportStrategy>("single_chunk_teleport_strategy")
+    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy)
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
 }
 

@@ -42,7 +42,7 @@ TOutputOrder::TEntry::TEntry()
 
 void TOutputOrder::TEntry::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Content_>("content")();
+    PHOENIX_REGISTER_FIELD(1, Content_)();
 }
 
 bool TOutputOrder::TEntry::operator ==(const TOutputOrder::TEntry& other) const
@@ -135,12 +135,12 @@ std::vector<TOutputOrder::TEntry> TOutputOrder::ToEntryVector() const
 
 void TOutputOrder::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::TeleportChunkToPosition_>("teleport_chunk_to_position")
+    PHOENIX_REGISTER_FIELD(1, TeleportChunkToPosition_)
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    registrar.template Field<2, &TThis::CookieToPosition_>("cookie_to_position")();
-    registrar.template Field<3, &TThis::Pool_>("pool")();
-    registrar.template Field<4, &TThis::NextPosition_>("next_position")();
-    registrar.template Field<5, &TThis::CurrentPosition_>("current_position")();
+    PHOENIX_REGISTER_FIELD(2, CookieToPosition_)();
+    PHOENIX_REGISTER_FIELD(3, Pool_)();
+    PHOENIX_REGISTER_FIELD(4, NextPosition_)();
+    PHOENIX_REGISTER_FIELD(5, CurrentPosition_)();
 }
 
 PHOENIX_DEFINE_TYPE(TOutputOrder);

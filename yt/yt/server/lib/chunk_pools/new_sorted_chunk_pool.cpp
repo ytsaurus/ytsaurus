@@ -785,24 +785,24 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJobSplittingBase>();
     // TLoggerOwner is persisted by TJobSplittingBase.
 
-    registrar.template Field<1, &TThis::SortedJobOptions_>("sorted_job_options")();
-    registrar.template Field<2, &TThis::PrimaryComparator_>("primary_comparator")();
-    registrar.template Field<3, &TThis::ForeignComparator_>("foreign_comparator")();
-    registrar.template Field<4, &TThis::ChunkSliceFetcherFactory_>("chunk_slice_fetcher_factory")();
-    registrar.template Field<5, &TThis::EnableKeyGuarantee_>("enable_key_guarantee")();
-    registrar.template Field<6, &TThis::InputStreamDirectory_>("input_stream_directory")();
-    registrar.template Field<7, &TThis::PrimaryPrefixLength_>("primary_prefix_length")();
-    registrar.template Field<8, &TThis::ForeignPrefixLength_>("foreign_prefix_length")();
-    registrar.template Field<9, &TThis::ShouldSlicePrimaryTableByKeys_>("should_slice_primary_table_by_keys")();
-    registrar.template Field<10, &TThis::SliceForeignChunks_>("slice_foreign_chunks")();
-    registrar.template Field<11, &TThis::MinTeleportChunkSize_>("min_teleport_chunk_size")();
-    registrar.template Field<12, &TThis::Stripes_>("stripes")();
-    registrar.template Field<13, &TThis::JobSizeConstraints_>("job_size_constraints")();
-    registrar.template Field<14, &TThis::TeleportChunkSampler_>("teleport_chunk_sampler")();
-    registrar.template Field<15, &TThis::SupportLocality_>("support_locality")();
-    registrar.template Field<16, &TThis::TeleportChunks_>("teleport_chunks")();
-    registrar.template Field<17, &TThis::IsCompleted_>("is_completed")();
-    registrar.template Field<18, &TThis::StructuredLogger>("structured_logger")();
+    PHOENIX_REGISTER_FIELD(1, SortedJobOptions_)();
+    PHOENIX_REGISTER_FIELD(2, PrimaryComparator_)();
+    PHOENIX_REGISTER_FIELD(3, ForeignComparator_)();
+    PHOENIX_REGISTER_FIELD(4, ChunkSliceFetcherFactory_)();
+    PHOENIX_REGISTER_FIELD(5, EnableKeyGuarantee_)();
+    PHOENIX_REGISTER_FIELD(6, InputStreamDirectory_)();
+    PHOENIX_REGISTER_FIELD(7, PrimaryPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(8, ForeignPrefixLength_)();
+    PHOENIX_REGISTER_FIELD(9, ShouldSlicePrimaryTableByKeys_)();
+    PHOENIX_REGISTER_FIELD(10, SliceForeignChunks_)();
+    PHOENIX_REGISTER_FIELD(11, MinTeleportChunkSize_)();
+    PHOENIX_REGISTER_FIELD(12, Stripes_)();
+    PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_)();
+    PHOENIX_REGISTER_FIELD(15, SupportLocality_)();
+    PHOENIX_REGISTER_FIELD(16, TeleportChunks_)();
+    PHOENIX_REGISTER_FIELD(17, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(18, StructuredLogger)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

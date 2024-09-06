@@ -49,13 +49,13 @@ bool TTimeStatistics::IsEmpty() const
 // TODO(pogorelov): Move TTimeStatistics to NControllerAgent.
 void TTimeStatistics::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::PrepareDuration>("prepare_duration")();
-    registrar.template Field<2, &TThis::ArtifactsDownloadDuration>("artifacts_download_duration")();
-    registrar.template Field<3, &TThis::PrepareRootFSDuration>("prepare_root_fs_duration")();
-    registrar.template Field<4, &TThis::ExecDuration>("exec_duration")();
-    registrar.template Field<5, &TThis::GpuCheckDuration>("gpu_check_duration")();
+    PHOENIX_REGISTER_FIELD(1, PrepareDuration)();
+    PHOENIX_REGISTER_FIELD(2, ArtifactsDownloadDuration)();
+    PHOENIX_REGISTER_FIELD(3, PrepareRootFSDuration)();
+    PHOENIX_REGISTER_FIELD(4, ExecDuration)();
+    PHOENIX_REGISTER_FIELD(5, GpuCheckDuration)();
 
-    registrar.template Field<6, &TThis::WaitingForResourcesDuration>("waiting_for_resources_duration")
+    PHOENIX_REGISTER_FIELD(6, WaitingForResourcesDuration)
         .SinceVersion(NControllerAgent::ESnapshotVersion::WaitingForResourcesDuration)();
 }
 

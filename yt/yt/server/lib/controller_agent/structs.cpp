@@ -102,8 +102,8 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
 
 void TJobSummary::RegisterMetadata(auto&& registrar)
 {
-    registrar.template Field<1, &TThis::Result>("result")();
-    registrar.template Field<2, &TThis::Error>("error")
+    PHOENIX_REGISTER_FIELD(1, Result)();
+    PHOENIX_REGISTER_FIELD(2, Error)
         .SinceVersion(ESnapshotVersion::JobErrorInJobSummary)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             if (this_->Result) {
@@ -111,18 +111,18 @@ void TJobSummary::RegisterMetadata(auto&& registrar)
             }
         })();
 
-    registrar.template Field<3, &TThis::Id>("id")();
-    registrar.template Field<4, &TThis::State>("state")();
-    registrar.template Field<5, &TThis::FinishTime>("finish_time")();
-    registrar.template Field<6, &TThis::ReleaseFlags>("release_flags")();
-    registrar.template Field<7, &TThis::Phase>("phase")();
-    registrar.template Field<8, &TThis::TimeStatistics>("time_statistics")();
+    PHOENIX_REGISTER_FIELD(3, Id)();
+    PHOENIX_REGISTER_FIELD(4, State)();
+    PHOENIX_REGISTER_FIELD(5, FinishTime)();
+    PHOENIX_REGISTER_FIELD(6, ReleaseFlags)();
+    PHOENIX_REGISTER_FIELD(7, Phase)();
+    PHOENIX_REGISTER_FIELD(8, TimeStatistics)();
 
-    registrar.template Field<9, &TThis::TotalInputDataStatistics>("total_input_data_statistics")
+    PHOENIX_REGISTER_FIELD(9, TotalInputDataStatistics)
         .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
-    registrar.template Field<10, &TThis::OutputDataStatistics>("output_data_statistics")
+    PHOENIX_REGISTER_FIELD(10, OutputDataStatistics)
         .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
-    registrar.template Field<11, &TThis::TotalOutputDataStatistics>("total_output_data_statistics")
+    PHOENIX_REGISTER_FIELD(11, TotalOutputDataStatistics)
         .SinceVersion(ESnapshotVersion::PersistDataStatistics)();
 }
 
@@ -195,9 +195,9 @@ void TCompletedJobSummary::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSummary>();
 
-    registrar.template Field<1, &TThis::Abandoned>("abandoned")();
-    registrar.template Field<2, &TThis::InterruptionReason>("interruption_reason")();
-    registrar.template Field<3, &TThis::SplitJobCount>("split_job_count")();
+    PHOENIX_REGISTER_FIELD(1, Abandoned)();
+    PHOENIX_REGISTER_FIELD(2, InterruptionReason)();
+    PHOENIX_REGISTER_FIELD(3, SplitJobCount)();
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // TODO(max42): now we persist only those completed job summaries that correspond
