@@ -1033,6 +1033,9 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/p13/m")
 
 
+##################################################################
+
+
 @authors("kvk1920")
 class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
     USE_SEQUOIA = True

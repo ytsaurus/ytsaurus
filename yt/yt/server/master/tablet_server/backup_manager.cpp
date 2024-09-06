@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -33,6 +34,8 @@
 #include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
 
 #include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 namespace NYT::NTabletServer {
 
@@ -99,6 +102,21 @@ public:
         std::optional<TClusterTag> clockClusterTag,
         std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
     {
+        YT_VERIFY(transaction);
+
+        // TODO(kvk1920): deny such requests when backup session will be fixed
+        // and updated everywhere (_everywhere_ because it's cross-cluster).
+        if (table->IsForeign() && transaction->IsForeign() && !transaction->IsExternalized()) {
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
+            if (!config->EnableNonStrictExternalizedTransactionUsage) {
+                YT_LOG_ALERT(
+                    "Backup session is starting in non-externalized transaction "
+                    "(TableId: %v, TransactionId: %v)",
+                    table->GetId(),
+                    transaction->GetId());
+            }
+        }
+
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
         if (!config->EnableBackups) {
             THROW_ERROR_EXCEPTION("Backups are disabled");

@@ -5,7 +5,9 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error)
+    raises_yt_error, read_table)
+
+from yt_sequoia_helpers import select_cypress_transaction_replicas
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import datetime_to_string, YtError
@@ -908,3 +910,142 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+class TestSequoiaCypressTransactionReplication(YTEnvSetup):
+    ENABLE_TMP_ROOTSTOCK = False
+    ENABLE_TMP_PORTAL = False
+
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+    }
+
+    @authors("kvk1920")
+    def test_replication_via_hive(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+        # Create table on coordinator to force tx replication instead of
+        # externalization.
+        create("table", "//tmp/p/t", attributes={"external_cell_tag": 12})
+        content = [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+        write_table("//tmp/p/t", content)
+
+        tx1 = start_transaction()
+        lock("//tmp/p/t", mode="exclusive", tx=tx1)
+
+        tx2 = start_transaction()
+        lock_id = lock("//tmp/p/t", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        assert get(f"#{lock_id}/@state") == "pending"
+
+        # Tx should be externalized instead of replication.
+        assert 12 in get(f"#{tx1}/@externalized_to_cell_tags")
+        assert not get(f"#{tx1}/@replicated_to_cell_tags")
+
+        # This replcia shouldn't be in Sequoia table since it's materialized via
+        # Hive instead of 2PC.
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            assert 12 not in select_cypress_transaction_replicas(tx1)
+
+        abort_transaction(tx1)
+
+        assert get(f"#{lock_id}/@state") == "acquired"
+
+        # tx2 should be replicated via Hive.
+        assert 12 in get(f"#{tx2}/@externalized_to_cell_tags")
+        assert get(f"#{tx2}/@replicated_to_cell_tags") == []
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            assert 12 not in select_cypress_transaction_replicas(tx2)
+
+        # Shouldn't crash.
+        gc_collect()
+
+    @authors("kvk1920")
+    def test_replication_and_externalization_conflict(self):
+        create("portal_entrance", "//tmp/p11", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p12", attributes={"exit_cell_tag": 12})
+
+        create("table", "//tmp/p11/t", attributes={"external_cell_tag": 12})
+        content = [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+        write_table("//tmp/p11/t", content)
+
+        create("map_node", "//tmp/p12/m")
+
+        tx1 = start_transaction()
+        lock("//tmp/p12/m", mode="exclusive", tx=tx1)
+        lock("//tmp/p11/t", mode="exclusive", tx=tx1)
+
+        tx2 = start_transaction()
+
+        lock_id_m = lock("//tmp/p12/m", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        assert get(f"#{lock_id_m}/@state") == "pending"
+
+        assert 12 not in get(f"#{tx2}/@externalized_to_cell_tags")
+
+        lock_id_t = lock("//tmp/p11/t", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        assert get(f"#{lock_id_t}/@state") == "pending"
+
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            assert 12 in select_cypress_transaction_replicas(tx1)
+        assert 12 in get(f"#{tx1}/@replicated_to_cell_tags")
+        assert 12 in get(f"#{tx1}/@externalized_to_cell_tags")
+
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            assert 12 in select_cypress_transaction_replicas(tx2)
+        assert 12 in get(f"#{tx2}/@replicated_to_cell_tags")
+        assert 12 in get(f"#{tx2}/@externalized_to_cell_tags")
+
+        abort_transaction(tx1)
+        assert get(f"#{lock_id_t}/@state") == "acquired"
+        assert get(f"#{lock_id_m}/@state") == "acquired"
+
+        abort_transaction(tx2)
+
+        # Shouldn't crash.
+        gc_collect()
+
+    @authors("kvk1920")
+    def test_cross_cell_table_copy(self):
+        # The main purpose of this test is to check if
+        # "enable_native_tx_externalization" is properly delivered to tx
+        # participant via Sequoia transactions.
+
+        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/portal/t")
+
+        assert get("//tmp/portal/t/@external_cell_tag") == 12
+
+        tx = start_transaction()
+
+        content = [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}]
+
+        write_table("//tmp/portal/t", content, tx=tx)
+
+        copy("//tmp/portal/t", "//tmp/t", tx=tx)
+        assert exists("//tmp/t", tx=tx)
+        assert read_table("//tmp/t", tx=tx) == content
+
+        commit_transaction(tx)
+        assert exists("//tmp/t")
+        assert read_table("//tmp/t") == content
+
+
+class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }

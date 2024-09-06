@@ -654,7 +654,8 @@ public:
             // Make sure to use correct transaction for copying.
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
-            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag) {
+
+            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag || Transaction_->IsNativeTxExternalizationEnabled()) {
                 sourceNodeExternalizedTransactionId =
                     NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
             }

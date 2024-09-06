@@ -3993,9 +3993,9 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("No such transaction"):
             get("//tmp/node", tx=tx) == 42
         with raises_yt_error("No such object"):
-            get("#{}".format(object_id))
+            get(f"#{object_id}")
         with raises_yt_error("No such transaction"):
-            get("#{}".format(object_id), tx=tx)
+            get(f"#{object_id}", tx=tx)
 
     @authors("kivedernikov")
     @not_implemented_in_sequoia

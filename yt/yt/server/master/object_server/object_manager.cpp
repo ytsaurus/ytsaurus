@@ -679,6 +679,29 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto proxy = Visit(resolvePath.Payload,
             [&] (const TPathResolver::TLocalObjectPayload& targetPayload) -> IYPathServicePtr {
+                // Looks like a necessary evil  :(
+                // COMPAT(kvk1920): remove when similar backup-related compat
+                // will be removed from path resolver.
+                // There is no version from which this compat may be removed but
+                // there are some conditions:
+                //   - backup sessions don't try to figure out externalized tx
+                //     ID by themselves;
+                //   - all native clients were updated EVERYWHERE (because
+                //     backup session may be cross-cluster).
+                if (context) {
+                    auto originalTransactionId = GetTransactionId(context->RequestHeader());
+                    auto effectiveTransactionId = GetObjectId(targetPayload.Transaction);
+                    if (originalTransactionId != effectiveTransactionId) {
+                        auto patchedRequestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
+                        patchedRequestHeader->CopyFrom(context->GetRequestHeader());
+                        SetTransactionId(patchedRequestHeader.get(), targetPayload.Transaction->GetId());
+                        context->SetRequestHeader(std::move(patchedRequestHeader));
+                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransacionId: %v, EffectiveTransactionId: %v)",
+                            originalTransactionId,
+                            effectiveTransactionId);
+                    }
+                }
+
                 return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
             [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
