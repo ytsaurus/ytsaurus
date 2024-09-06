@@ -29,8 +29,7 @@ using TStoreFlushCallback = TCallback<TStoreFlushResult(
     const NApi::ITransactionPtr& transaction,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
     TTimestamp currentTimestamp,
-    const TWriterProfilerPtr& writerProfiler,
-    const TFlushTaskInfoPtr& task)>;
+    const TWriterProfilerPtr& writerProfiler)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!

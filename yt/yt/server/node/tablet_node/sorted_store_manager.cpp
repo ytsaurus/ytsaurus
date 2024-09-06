@@ -8,7 +8,6 @@
 #include "transaction_manager.h"
 #include "structured_logger.h"
 #include "automaton.h"
-#include "store_flusher.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -640,9 +639,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp currentTimestamp,
-        const TWriterProfilerPtr& writerProfiler,
-        const TFlushTaskInfoPtr& task)
-    {
+        const TWriterProfilerPtr& writerProfiler
+    ) {
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
@@ -823,11 +821,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto rowsInStore = 0;
         TUpdateCacheStatistics cacheUpdateStatistics;
 
-        auto updateWriterStatistics = [&] {
-            auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(storeWriter->GetDataStatistics());
-        };
-
         THazardPtrReclaimOnContextSwitchGuard reclaimGuard;
 
         TRowBatchReadOptions readOptions{
@@ -871,8 +864,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     .ThrowOnError();
             }
 
-            updateWriterStatistics();
-
             onFlushRowMerger->Reset();
             compactionRowMerger->Reset();
         }
@@ -893,8 +884,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             WaitFor(hunkChunkPayloadWriter->Close())
                 .ThrowOnError();
         }
-
-        updateWriterStatistics();
 
         std::vector<TChunkInfo> chunkInfos{
             TChunkInfo{

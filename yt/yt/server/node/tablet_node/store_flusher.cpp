@@ -1,5 +1,6 @@
 #include "store_flusher.h"
 
+#include "background_activity_orchid.h"
 #include "bootstrap.h"
 #include "public.h"
 #include "slot_manager.h"
@@ -74,46 +75,29 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFlushTaskInfo::TFlushTaskInfo(
-    TGuid taskId,
-    TTabletId tabletId,
-    NHydra::TRevision mountRevision,
-    TString tablePath,
-    TString tabletCellBundle,
-    TStoreId storeId)
-    : TBackgroundActivityTaskInfoBase(
-        taskId,
-        tabletId,
-        mountRevision,
-        std::move(tablePath),
-        std::move(tabletCellBundle))
-    , StoreId(storeId)
-{ }
+namespace {
 
-bool TFlushTaskInfo::ComparePendingTasks(const TFlushTaskInfo& other) const
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFlushTaskInfo
+    : public TTaskInfoBase
 {
-    return StoreId < other.StoreId;
-}
+    TStoreId StoreId;
+
+    bool ComparePendingTasks(const TFlushTaskInfo& /*other*/) const
+    {
+        return false;
+    }
+};
 
 void Serialize(const TFlushTaskInfo& task, IYsonConsumer* consumer)
 {
-    auto guard = Guard(task.RuntimeData.SpinLock);
-
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Do([&] (auto fluent) {
-                Serialize(static_cast<const TBackgroundActivityTaskInfoBase&>(task), fluent.GetConsumer());
-            })
-            .Item("store_id").Value(task.StoreId)
-            .Do([&] (auto fluent) {
-                SerializeFragment(task.RuntimeData, fluent.GetConsumer());
-            })
-        .EndMap();
-}
-
-void Serialize(const TFlushTaskInfoPtr& task, IYsonConsumer* consumer)
-{
-    Serialize(*task, consumer);
+    BuildYsonFluently(consumer).BeginMap()
+        .Do([&] (auto fluent) {
+            Serialize(static_cast<const TTaskInfoBase&>(task), fluent.GetConsumer());
+        })
+        .Item("store_id").Value(task.StoreId)
+    .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,27 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TFlushOrchid);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFlushTask
-    : public TGuardedTaskInfo<TFlushTaskInfo>
-{
-    const ITabletSlotPtr Slot;
-    TTablet* Tablet;
-    const IDynamicStorePtr Store;
-
-    TFlushTask(
-        TFlushTaskInfoPtr info,
-        TFlushOrchidPtr orchid,
-        ITabletSlotPtr slot,
-        TTablet* tablet,
-        IDynamicStorePtr store)
-        : TGuardedTaskInfo<TFlushTaskInfo>(
-            std::move(info),
-            std::move(orchid))
-        , Slot(std::move(slot))
-        , Tablet(tablet)
-        , Store(std::move(store))
-    { }
-};
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,6 +196,8 @@ private:
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
+
+        Orchid_->ClearPendingTasks();
     }
 
     void OnScanSlot(const ITabletSlotPtr& slot)
@@ -298,32 +264,38 @@ private:
             return;
         }
 
-        std::vector<std::unique_ptr<TFlushTask>> tasks;
-        std::vector<TFlushTaskInfoPtr> pendingTaskInfos;
+        std::vector<TGuid> taskIds(tablet->StoreIdMap().size());
+        int index = 0;
+
+        TFlushOrchid::TTaskMap pendingTasks;
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
-            if (!store->IsDynamic()) {
-                continue;
+            if (store->IsDynamic() &&
+                tablet->GetStoreManager()->IsStoreFlushable(store->AsDynamic()))
+            {
+                auto taskId = TGuid::Create();
+                taskIds[index] = taskId;
+                pendingTasks.emplace(
+                    taskId,
+                    TFlushTaskInfo{
+                        TTaskInfoBase{
+                            .TaskId = taskId,
+                            .TabletId = tablet->GetId(),
+                            .MountRevision = tablet->GetMountRevision(),
+                            .TablePath = tablet->GetTablePath(),
+                            .TabletCellBundle = slot->GetTabletCellBundleName(),
+                        },
+                        storeId,
+                    }
+                );
             }
-
-            auto dynamicStore = store->AsDynamic();
-
-            if (tablet->GetStoreManager()->IsStoreFlushable(dynamicStore)) {
-                auto taskInfo = New<TFlushTaskInfo>(
-                    TGuid::Create(),
-                    tablet->GetId(),
-                    tablet->GetMountRevision(),
-                    tablet->GetTablePath(),
-                    slot->GetTabletCellBundleName(),
-                    storeId);
-
-                tasks.push_back(std::make_unique<TFlushTask>(taskInfo, Orchid_, slot, tablet, std::move(dynamicStore)));
-                pendingTaskInfos.push_back(std::move(taskInfo));
-            }
+            ++index;
         }
-        Orchid_->AddPendingTasks(std::move(pendingTaskInfos));
 
-        for (auto&& task : tasks) {
-            ScanStoreForFlush(std::move(task));
+        Orchid_->ResetPendingTasks(std::move(pendingTasks));
+
+        auto taskIdIt = taskIds.begin();
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            ScanStoreForFlush(slot, tablet, store, *(taskIdIt++));
         }
     }
 
@@ -405,10 +377,17 @@ private:
         BackingMemoryUsage_ += backingMemoryUsage;
     }
 
-    void ScanStoreForFlush(std::unique_ptr<TFlushTask> task)
+    void ScanStoreForFlush(const ITabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store, TGuid taskId)
     {
-        auto* tablet = task->Tablet;
-        const auto& store = task->Store;
+        if (!store->IsDynamic()) {
+            return;
+        }
+
+        auto dynamicStore = store->AsDynamic();
+        const auto& storeManager = tablet->GetStoreManager();
+        if (!storeManager->IsStoreFlushable(dynamicStore)) {
+            return;
+        }
 
         const auto& movementData = tablet->SmoothMovementData();
         bool isCommonFlush = movementData.CommonDynamicStoreIds().contains(store->GetId());
@@ -428,8 +407,8 @@ private:
         }
 
         auto state = tablet->GetState();
-        auto flushCallback = tablet->GetStoreManager()->BeginStoreFlush(
-            store,
+        auto flushCallback = storeManager->BeginStoreFlush(
+            dynamicStore,
             tabletSnapshot,
             IsInUnmountWorkflow(state));
 
@@ -437,28 +416,31 @@ private:
             &TStoreFlusher::FlushStore,
             MakeStrong(this),
             Passed(std::move(guard)),
+            slot,
+            tablet,
+            dynamicStore,
             flushCallback,
-            Owned(task.release())));
+            taskId));
     }
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
+        const ITabletSlotPtr& slot,
+        TTablet* tablet,
+        IDynamicStorePtr store,
         TStoreFlushCallback flushCallback,
-        TFlushTask* task)
+        TGuid taskId)
     {
-        auto* tablet = task->Tablet;
+        const auto& storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto writerProfiler = New<TWriterProfiler>();
-        const auto& slot = task->Slot;
-        const auto& store = task->Store;
-        const auto& storeManager = tablet->GetStoreManager();
 
         auto Logger = TabletNodeLogger
             .WithTag("%v, StoreId: %v",
                 tablet->GetLoggingTag(),
                 store->GetId());
 
-        auto traceId = task->Info->TaskId;
+        auto traceId = taskId;
         TTraceContextGuard traceContextGuard(
             TTraceContext::NewRoot("StoreFlusher", traceId));
 
@@ -470,7 +452,10 @@ private:
             return;
         }
 
-        task->OnStarted();
+        bool failed = false;
+
+        Orchid_->OnTaskStarted(taskId);
+
         try {
             NProfiling::TWallTimer timer;
 
@@ -511,7 +496,7 @@ private:
 
             auto asyncFlushResult = BIND(flushCallback)
                 .AsyncVia(ThreadPool_->GetInvoker())
-                .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler, task->Info);
+                .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler);
 
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
@@ -595,6 +580,8 @@ private:
 
             YT_LOG_INFO("Store flush completed (WallTime: %v)",
                 timer.GetElapsedTime());
+
+            Orchid_->OnTaskCompleted(taskId);
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletId)
@@ -605,14 +592,12 @@ private:
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
+            failed = true;
 
-            task->OnFailed(std::move(error));
+            Orchid_->OnTaskFailed(taskId);
         }
 
-        writerProfiler->Profile(
-            tabletSnapshot,
-            EChunkWriteProfilingMethod::StoreFlush,
-            task->IsFailed());
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::StoreFlush, failed);
     }
 };
 

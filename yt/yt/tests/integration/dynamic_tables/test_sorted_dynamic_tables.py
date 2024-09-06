@@ -146,52 +146,52 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             time.sleep(5)
         assert resharded
 
-    def _create_partitions(self, partition_count, table_path="//tmp/t", do_overlap=False):
+    def _create_partitions(self, partition_count, do_overlap=False):
         assert partition_count > 1
         partition_count += 1 - int(do_overlap)
 
         def _force_compact_tablet(tablet_index):
-            set(f"{table_path}/@forced_compaction_revision", 1)
+            set("//tmp/t/@forced_compaction_revision", 1)
 
-            chunk_list_id = get(f"{table_path}/@chunk_list_id")
-            tablet_chunk_list_id = get(f"#{chunk_list_id}/@child_ids/{tablet_index}")
-            tablet_chunk_ids = builtins.set(get(f"#{tablet_chunk_list_id}/@child_ids"))
+            chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list_id = get("#{0}/@child_ids/{1}".format(chunk_list_id, tablet_index))
+            tablet_chunk_ids = builtins.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
             assert len(tablet_chunk_ids) > 0
             for id in tablet_chunk_ids:
-                type = get(f"#{id}/@type")
+                type = get("#{}/@type".format(id))
                 assert type == "chunk" or type == "chunk_view"
 
-            sync_mount_table(table_path, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
 
             def _check():
-                new_tablet_chunk_ids = builtins.set(get(f"#{tablet_chunk_list_id}/@child_ids"))
+                new_tablet_chunk_ids = builtins.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
                 assert len(new_tablet_chunk_ids) > 0
                 return len(new_tablet_chunk_ids.intersection(tablet_chunk_ids)) == 0
             wait(lambda: _check())
 
-            sync_unmount_table(table_path)
+            sync_unmount_table("//tmp/t")
 
         def _write_row(tablet_index, key_count=2):
-            sync_mount_table(table_path, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
             rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
-            insert_rows(table_path, rows)
-            sync_unmount_table(table_path)
+            insert_rows("//tmp/t", rows)
+            sync_unmount_table("//tmp/t")
             _force_compact_tablet(tablet_index=tablet_index)
 
-        set(f"{table_path}/@min_partition_data_size", 1)
+        set("//tmp/t/@min_partition_data_size", 1)
 
         if do_overlap:
             # We write overlapping chunk to trigger creation of chunk view.
             _write_row(tablet_index=0, key_count=3)
 
         partition_boundaries = [[]] + [[2 * i] for i in range(1, partition_count)]
-        sync_reshard_table(table_path, partition_boundaries)
+        sync_reshard_table("//tmp/t", partition_boundaries)
 
         for tablet_index in range(1, partition_count):
             _write_row(tablet_index=tablet_index)
 
-        set(f"{table_path}/@enable_compaction_and_partitioning", False)
-        sync_reshard_table(table_path, [[]])
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t", [[]])
 
     def _separate_tablet_and_data_nodes(self):
         self._nodes = ls("//sys/cluster_nodes")

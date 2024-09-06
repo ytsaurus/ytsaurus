@@ -1,31 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "background_activity_orchid.h"
 
 namespace NYT::NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TFlushTaskInfo
-    : public TBackgroundActivityTaskInfoBase
-{
-    const TStoreId StoreId;
-
-    TRuntimeData RuntimeData;
-
-    TFlushTaskInfo(
-        TGuid taskId,
-        TTabletId tabletId,
-        NHydra::TRevision mountRevision,
-        TString tablePath,
-        TString tabletCellBundle,
-        TStoreId storeId);
-
-    bool ComparePendingTasks(const TFlushTaskInfo& other) const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TFlushTaskInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

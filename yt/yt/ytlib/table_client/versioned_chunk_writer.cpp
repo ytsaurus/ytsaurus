@@ -196,11 +196,7 @@ public:
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
-        dataStatistics.set_row_count(RowCount_);
-        dataStatistics.set_data_weight(DataWeight_);
-
-        return dataStatistics;
+        return EncodingChunkWriter_->GetDataStatistics();
     }
 
     TCodecStatistics GetCompressionStatistics() const override
