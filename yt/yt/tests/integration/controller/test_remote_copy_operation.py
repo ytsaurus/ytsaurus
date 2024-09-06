@@ -450,8 +450,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
         try:
             set("//sys/clusters", {})
-            # TODO(babenko): wait for cluster sync
-            time.sleep(2)
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                # NB(coteeq): This will clear scheduler's internal cache of connections.
+                # And also scheduler will reconfigure cluster directory.
+                pass
+
             op = remote_copy(
                 track=False,
                 in_="//tmp/t1",
@@ -466,10 +469,25 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
             with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
                 time.sleep(1)
+                transactions_to_check = [
+                    "input_transaction_id",
+                    "output_transaction_id",
+                ]
+                if self.Env.get_component_version("ytserver-controller-agent").abi >= (24, 1):
+                    transactions_to_check.append("input_transaction_ids/0")
+                for transaction in transactions_to_check:
+                    path = op.get_path() + "/@" + transaction
+                    assert exists(path)
+                    assert get(path) != "0-0-0-0"
 
             op.track()
 
-            assert input_tx != get(op.get_path() + "/@input_transaction_id")
+            # COMPAT(coteeq): In 24.1 the bug that forced clean start is fixed.
+            # But the old version is restarting from scratch (and starts a new transaction).
+            if self.Env.get_component_version("ytserver-controller-agent").abi < (24, 1):
+                assert input_tx != get(op.get_path() + "/@input_transaction_id")
+            else:
+                assert input_tx == get(op.get_path() + "/@input_transaction_id")
         finally:
             set("//sys/clusters", clusters)
             # TODO(babenko): wait for cluster sync

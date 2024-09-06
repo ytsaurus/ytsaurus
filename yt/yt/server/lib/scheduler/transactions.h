@@ -73,21 +73,17 @@ struct TOperationTransactions
     TControllerTransactionIds ControllerTransactionIds;
 };
 
-using TAttachTransactionFn = std::function<NApi::ITransactionPtr(NTransactionClient::TTransactionId, TString)>;
+//! The second argument is a human-readable name of the transaction (e.g. "input" or "async"),
+//! that can be used for logging.
+using TAttachTransactionCallback = std::function<NApi::ITransactionPtr(NTransactionClient::TTransactionId, const TString&)>;
 
 TOperationTransactions AttachControllerTransactions(
-    TAttachTransactionFn attachTransaction,
-    TControllerTransactionIds&& transactionIds);
+    TAttachTransactionCallback attachTransaction,
+    TControllerTransactionIds transactionIds);
 
 void ToProto(
     NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
     const TOperationTransactions& transactions);
-
-void FromProto(
-    TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NApi::NNative::IClientPtr(NObjectClient::TCellTag)> getClient,
-    TDuration pingPeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
 
