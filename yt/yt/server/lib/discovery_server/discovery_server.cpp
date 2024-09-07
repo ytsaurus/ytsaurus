@@ -44,8 +44,9 @@ public:
             std::move(invoker),
             TDiscoveryClientServiceProxy::GetDescriptor(),
             DiscoveryServerLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
     {
@@ -177,8 +178,9 @@ public:
             std::move(invoker),
             TDiscoveryServerServiceProxy::GetDescriptor(),
             DiscoveryServerLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
         , GossipBatchSize_(config->GossipBatchSize)

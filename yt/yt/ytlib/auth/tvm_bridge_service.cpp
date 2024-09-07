@@ -27,8 +27,9 @@ public:
             std::move(invoker),
             TTvmBridgeServiceProxy::GetDescriptor(),
             TvmBridgeLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , TvmService_(std::move(tvmService))
     {
         YT_VERIFY(TvmService_);

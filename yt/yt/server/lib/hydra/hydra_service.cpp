@@ -45,16 +45,14 @@ THydraServiceBase::THydraServiceBase(
     IHydraManagerPtr hydraManager,
     IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
-    const NLogging::TLogger& logger,
-    TRealmId realmId,
+    NLogging::TLogger logger,
     IUpstreamSynchronizerPtr upstreamSynchronizer,
-    IAuthenticatorPtr authenticator)
+    TServiceOptions options)
     : TServiceBase(
-        defaultInvoker,
+        std::move(defaultInvoker),
         descriptor,
-        logger,
-        realmId,
-        std::move(authenticator))
+        std::move(logger),
+        std::move(options))
     , HydraManager_(std::move(hydraManager))
     , UpstreamSynchronizer_(std::move(upstreamSynchronizer))
 { }

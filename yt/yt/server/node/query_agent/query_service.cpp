@@ -181,8 +181,9 @@ public:
                 DefaultQLExecutionTag),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Config_(config)
         , Bootstrap_(bootstrap)
         , FunctionImplCache_(CreateFunctionImplCache(

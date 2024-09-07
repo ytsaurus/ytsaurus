@@ -80,9 +80,11 @@ public:
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),
             TabletNodeLogger(),
-            slot->GetCellId(),
             CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .RealmId = slot->GetCellId(),
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {

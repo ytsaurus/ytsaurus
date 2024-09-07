@@ -30,10 +30,9 @@ protected:
         IHydraManagerPtr hydraManager,
         IInvokerPtr defaultInvoker,
         const NRpc::TServiceDescriptor& descriptor,
-        const NLogging::TLogger& logger,
-        NRpc::TRealmId realmId,
+        NLogging::TLogger logger,
         IUpstreamSynchronizerPtr upstreamSynchronizer,
-        NRpc::IAuthenticatorPtr authenticator);
+        NRpc::TServiceOptions options = {});
 
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();

@@ -31,8 +31,10 @@ public:
             TDispatcher::Get()->GetHeavyInvoker(),
             TExecNodeTrackerServiceProxy::GetDescriptor(),
             NodeTrackerServerLogger(),
-            bootstrap->GetCellId(),
-            bootstrap->GetNativeAuthenticator())
+            NRpc::TServiceOptions{
+                .RealmId = bootstrap->GetCellId(),
+                .Authenticator =bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)

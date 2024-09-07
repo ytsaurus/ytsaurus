@@ -33,9 +33,11 @@ public:
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TCoordinatorServiceProxy::GetDescriptor(),
             ChaosNodeLogger(),
-            slot->GetCellId(),
             CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
-            std::move(authenticator))
+            TServiceOptions{
+                .RealmId = slot->GetCellId(),
+                .Authenticator = std::move(authenticator),
+            })
         , Slot_(std::move(slot))
     {
         YT_VERIFY(Slot_);

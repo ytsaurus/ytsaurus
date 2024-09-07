@@ -39,8 +39,10 @@ public:
             bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             ExecNodeLogger(),
-            ProxyingDataNodeServiceRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .RealmId = ProxyingDataNodeServiceRealmId,
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Config_(bootstrap->GetConfig()->ExecNode)
         , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
         , Bootstrap_(bootstrap)
