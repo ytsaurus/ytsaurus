@@ -628,12 +628,18 @@ private:
             YT_LOG_INFO("Preparing root volume (Image: %v)", imageDescriptor);
 
             return ImageCache_->PullImage(imageDescriptor, Context_.DockerAuth)
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageCacheEntryPtr>& imageOrError) {
+                .Apply(BIND([
+                    =,
+                    this,
+                    this_ = MakeStrong(this),
+                    authenticated = bool(Context_.DockerAuth)
+                ] (const TErrorOr<TCriImageCacheEntryPtr>& imageOrError) {
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
                         THROW_ERROR_EXCEPTION(EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
                             << TErrorAttribute("docker_image", *dockerImage)
+                            << TErrorAttribute("authenticated", authenticated)
                             << imageOrError;
                     }
 
