@@ -284,8 +284,10 @@ public:
             invoker,
             TDistributedThrottlerProxy::GetDescriptor(),
             logger,
-            realmId,
-            authenticator)
+            TServiceOptions{
+                .RealmId = realmId,
+                .Authenticator = authenticator,
+            })
         , RpcServer_(std::move(rpcServer))
         , DiscoveryClient_(std::move(discoveryClient))
         , GroupId_(std::move(groupId))

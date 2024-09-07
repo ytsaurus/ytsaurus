@@ -57,8 +57,10 @@ public:
             std::move(invoker),
             TObjectServiceProxy::GetDescriptor(),
             logger,
-            masterCellId,
-            std::move(authenticator))
+            TServiceOptions{
+                .RealmId = masterCellId,
+                .Authenticator = std::move(authenticator),
+            })
         , Config_(config)
         , Cache_(std::move(cache))
         , CellId_(masterCellId)

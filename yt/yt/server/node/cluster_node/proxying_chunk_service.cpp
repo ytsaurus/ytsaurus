@@ -57,8 +57,10 @@ public:
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
             ClusterNodeLogger().WithTag("CellTag: %v", CellTagFromId(cellId)),
-            cellId,
-            std::move(authenticator))
+            TServiceOptions{
+                .RealmId = cellId,
+                .Authenticator = std::move(authenticator),
+            })
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(masterConnectionConfig))
         , LeaderChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Leader))

@@ -583,8 +583,10 @@ TDistributedElectionManager::TDistributedElectionManager(
         controlInvoker,
         TElectionServiceProxy::GetDescriptor(),
         ElectionLogger().WithTag("CellId: %v", cellManager->GetCellId()),
-        cellManager->GetCellId(),
-        std::move(authenticator))
+        TServiceOptions{
+            .RealmId = cellManager->GetCellId(),
+            .Authenticator = std::move(authenticator),
+        })
     , Config_(std::move(config))
     , ControlInvoker_(std::move(controlInvoker))
     , ElectionCallbacks_(std::move(electionCallbacks))

@@ -40,8 +40,9 @@ public:
             bootstrap->GetControlInvoker(),
             TBundleControllerServiceProxy::GetDescriptor(),
             NCellBalancer::BundleControllerLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         Y_UNUSED(Bootstrap_);

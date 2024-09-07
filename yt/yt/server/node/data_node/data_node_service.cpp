@@ -169,8 +169,9 @@ public:
             bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Config_(std::move(config))
         , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
         , Bootstrap_(bootstrap)

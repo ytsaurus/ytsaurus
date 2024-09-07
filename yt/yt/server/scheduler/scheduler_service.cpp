@@ -41,8 +41,9 @@ public:
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TOperationServiceProxy::GetDescriptor(),
             SchedulerLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
         , ResponseKeeper_(responseKeeper)
     {

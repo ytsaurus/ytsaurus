@@ -615,10 +615,11 @@ public:
         : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
-            WithCategory(memoryTracker, EMemoryCategory::Rpc),
             std::move(logger),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .MemoryUsageTracker = WithCategory(memoryTracker, EMemoryCategory::Rpc),
+                .Authenticator = std::move(authenticator),
+            })
         , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
         , Connection_(std::move(connection))

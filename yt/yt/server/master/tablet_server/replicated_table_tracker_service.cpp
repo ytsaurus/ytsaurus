@@ -33,8 +33,10 @@ public:
             std::move(invoker),
             TReplicatedTableTrackerServiceProxy::GetDescriptor(),
             TabletServerLogger(),
-            bootstrap->GetMulticellManager()->GetCellId(),
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .RealmId = bootstrap->GetMulticellManager()->GetCellId(),
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTrackerStateUpdates));

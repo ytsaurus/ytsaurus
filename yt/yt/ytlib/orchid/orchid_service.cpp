@@ -28,8 +28,9 @@ public:
             invoker,
             TOrchidServiceProxy::GetDescriptor(),
             OrchidLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , RootService_(CreateRootService(root))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
