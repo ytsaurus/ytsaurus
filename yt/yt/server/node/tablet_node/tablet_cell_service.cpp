@@ -32,8 +32,9 @@ public:
             bootstrap->GetControlInvoker(),
             NCellarClient::TTabletCellServiceProxy::GetDescriptor(),
             TabletNodeLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         YT_VERIFY(Bootstrap_);

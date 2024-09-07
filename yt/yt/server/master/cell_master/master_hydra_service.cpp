@@ -14,16 +14,20 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
     const NRpc::TServiceDescriptor& descriptor,
     EAutomatonThreadQueue defaultQueue,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger,
+    NRpc::TServiceOptions options)
     : THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(defaultQueue),
         descriptor,
-        logger,
-        bootstrap->GetMulticellManager()->GetCellId(),
+        std::move(logger),
         CreateMulticellUpstreamSynchronizer(bootstrap),
-        bootstrap->GetNativeAuthenticator())
-    , Bootstrap_(bootstrap)
+        [&] {
+            options.RealmId = bootstrap->GetMulticellManager()->GetCellId(),
+            options.Authenticator = bootstrap->GetNativeAuthenticator();
+            return options;
+        }())
+        , Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);
 }

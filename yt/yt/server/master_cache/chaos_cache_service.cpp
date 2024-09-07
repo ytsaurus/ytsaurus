@@ -158,8 +158,9 @@ public:
             invoker,
             TChaosNodeServiceProxy::GetDescriptor(),
             MasterCacheLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , Cache_(std::move(cache))
         , Client_(std::move(client))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(

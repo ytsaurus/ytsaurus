@@ -35,8 +35,9 @@ public:
             std::move(invoker),
             TAdminServiceProxy::GetDescriptor(),
             AdminLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , CoreDumper_(std::move(coreDumper))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Die));

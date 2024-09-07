@@ -164,7 +164,10 @@ public:
             NObjectClient::TObjectServiceProxy::GetDescriptor(),
             // Execute method is being handled in RPC thread pool anyway.
             EAutomatonThreadQueue::ObjectService,
-            ObjectServerLogger())
+            ObjectServerLogger(),
+            TServiceOptions{
+                .UseHotProfiler = false,
+            })
         , Config_(std::move(config))
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
         , Cache_(New<TObjectServiceCache>(

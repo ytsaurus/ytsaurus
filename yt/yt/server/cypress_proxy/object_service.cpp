@@ -41,8 +41,9 @@ public:
             /*invoker*/ nullptr,
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))

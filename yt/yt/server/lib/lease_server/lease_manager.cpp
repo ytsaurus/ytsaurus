@@ -140,9 +140,11 @@ public:
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             NLeaseClient::TLeaseServiceProxy::GetDescriptor(),
             LeaseManagerLogger(),
-            selfCellId,
             std::move(upstreamSynchronizer),
-            std::move(authenticator))
+            TServiceOptions{
+                .RealmId = selfCellId,
+                .Authenticator = std::move(authenticator),
+            })
         , Config_(std::move(config))
         , HiveManager_(std::move(hiveManager))
         , LeaseMap_(TLeaseEntityMapTraits(this))

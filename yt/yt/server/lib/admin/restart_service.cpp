@@ -33,8 +33,9 @@ public:
             invoker,
             NAdmin::TRestartServiceProxy::GetDescriptor(),
             logger,
-            NullRealmId,
-            authenticator)
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , RestartManager_(std::move(restartManager))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));

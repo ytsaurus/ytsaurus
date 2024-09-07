@@ -792,9 +792,11 @@ private:
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
                 descriptor,
                 TransactionSupervisorLogger(),
-                owner->SelfCellId_,
                 CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_),
-                owner->Authenticator_)
+                TServiceOptions{
+                    .RealmId = owner->SelfCellId_,
+                    .Authenticator = owner->Authenticator_,
+                })
             , Owner_(owner)
         { }
 

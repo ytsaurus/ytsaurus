@@ -55,8 +55,9 @@ public:
             bootstrap->GetJobInvoker(),
             TSupervisorServiceProxy::GetDescriptor(),
             ExecNodeLogger(),
-            NRpc::NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            NRpc::TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);

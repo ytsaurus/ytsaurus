@@ -37,9 +37,7 @@ public:
             peer->GetAutomatonInvoker(),
             TPeerServiceProxy::GetDescriptor(),
             HydraStressTestLogger,
-            NullRealmId,
-            CreateHydraManagerUpstreamSynchronizer(peer->HydraManager_),
-            /*authenticator*/ nullptr)
+            CreateHydraManagerUpstreamSynchronizer(peer->HydraManager_))
         , Peer_(peer)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
