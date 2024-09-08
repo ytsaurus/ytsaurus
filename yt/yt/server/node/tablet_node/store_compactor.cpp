@@ -414,9 +414,9 @@ protected:
         return writer;
     }
 
-    const TFuture<void>& CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
+    void CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
     {
-        return CloseFutures_.emplace_back(writer->Close());
+        CloseFutures_.emplace_back(writer->Close());
     }
 
 private:
@@ -688,14 +688,7 @@ public:
                         currentPartitionIndex,
                         currentPartitionRowCount);
 
-                    CloseWriter(currentWriter).Subscribe(BIND([currentWriter, currentWriterStatistics, task] (const TError& error) {
-                        if (error.IsOK()) {
-                            auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                            task->Info->RuntimeData.ProcessedWriterStatistics +=
-                                TBackgroundActivityTaskInfoBase::TWriterStatistics(currentWriter->GetDataStatistics()) - currentWriterStatistics;
-                        }
-                    }));
-                    updateWriterStatistics();
+                    CloseWriter(currentWriter);
                     partitionWriters.push_back({std::move(currentWriter), partitionIndex});
                     currentWriter.Reset();
                 }
@@ -830,13 +823,7 @@ public:
                 task->Info->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(writer->GetDataStatistics());
             }
 
-            // Task pointer will be valid at the time of calling callback since the CloseFutures_ will be awaited in Finalize.
-            CloseWriter(writer).Subscribe(BIND([writer, task] (const TError& error) {
-                if (error.IsOK()) {
-                    auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                    task->Info->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(writer->GetDataStatistics());
-                }
-            }));
+            CloseWriter(writer);
 
             return TPartitionCompactionResult{
                 .StoreWriter = std::move(writer),
