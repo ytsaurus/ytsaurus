@@ -28,6 +28,15 @@ type Encoder struct {
 func (e *Encoder) newCall(p Params) *Call {
 	call := e.StartCall()
 	call.Params = p
+	call.APIPath = "/api/v4/"
+	call.CallID = guid.New()
+	return call
+}
+
+func (e *Encoder) newAuthCall(p Params) *Call {
+	call := e.StartCall()
+	call.Params = p
+	call.APIPath = "/auth/"
 	call.CallID = guid.New()
 	return call
 }
@@ -242,6 +251,17 @@ func (e *Encoder) RemoveMember(
 	call := e.newCall(NewRemoveMemberParams(group, member, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return nil
+	})
+	return
+}
+
+func (e *Encoder) WhoAmI(
+	ctx context.Context,
+	options *yt.WhoAmIOptions,
+) (result *yt.WhoAmIResult, err error) {
+	call := e.newAuthCall(NewWhoAmIParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decodeJSON(&result)
 	})
 	return
 }

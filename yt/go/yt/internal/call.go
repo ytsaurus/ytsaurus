@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/cenkalti/backoff/v4"
@@ -23,8 +24,9 @@ type Params interface {
 }
 
 type Call struct {
-	Params Params
-	CallID guid.GUID
+	Params  Params
+	CallID  guid.GUID
+	APIPath string
 
 	YSONValue    []byte
 	RowBatch     yt.RowBatch
@@ -53,6 +55,11 @@ func (res *CallResult) decodeValue(value any) (err error) {
 
 func (res *CallResult) decode(value any) (err error) {
 	err = yson.Unmarshal(res.YSONValue, value)
+	return
+}
+
+func (res *CallResult) decodeJSON(value any) (err error) {
+	err = json.Unmarshal(res.YSONValue, value)
 	return
 }
 
