@@ -129,11 +129,14 @@ ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YT_VERIFY(sessionId.MediumIndex != AllMediaIndex);
-
     auto guard = ReaderGuard(SessionMapLock_);
-    auto it = SessionMap_.find(sessionId);
-    return it == SessionMap_.end() ? nullptr : it->second;
+    if (sessionId.MediumIndex == AllMediaIndex) {
+        auto it = ChunkMap_.find(sessionId.ChunkId);
+        return it == ChunkMap_.end() ? nullptr : it->second;
+    } else {
+        auto it = SessionMap_.find(sessionId);
+        return it == SessionMap_.end() ? nullptr : it->second;
+    }
 }
 
 ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
@@ -174,11 +177,11 @@ ISessionPtr TSessionManager::StartSession(
             Config_->MaxWriteSessions);
     }
 
-    if (SessionMap_.contains(sessionId)) {
+    if (ChunkMap_.contains(sessionId.ChunkId)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::SessionAlreadyExists,
-            "Write session %v is already registered",
-            sessionId);
+            "Write session for chunk %v is already registered",
+            sessionId.ChunkId);
     }
 
     if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
@@ -318,7 +321,9 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
     VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
 
-    YT_VERIFY(SessionMap_.emplace(session->GetId(), session).second);
+    EmplaceOrCrash(SessionMap_, session->GetId(), session);
+    EmplaceOrCrash(ChunkMap_, session->GetId().ChunkId, session);
+
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
 }
 
@@ -326,7 +331,8 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 {
     VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
 
-    YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
+    EraseOrCrash(SessionMap_, session->GetId());
+    EraseOrCrash(ChunkMap_, session->GetId().ChunkId);
 
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
     session->UnlockChunk();
