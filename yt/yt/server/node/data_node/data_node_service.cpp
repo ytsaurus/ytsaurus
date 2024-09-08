@@ -321,23 +321,32 @@ private:
         SetSessionIdAllocationTag(GetOrCreateTraceContext("FinishChunk"), ToString(sessionId));
 
         auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
+        bool ignoreMissingSession = request->ignore_missing_session();
 
-        context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
+        // COMPAT(babenko): This flag is only used for quorum journal session abort.
+        // Starting from 24.2, master will be sending AllMediaIndex by itself.
+        // Starting from 25.1, this compat may be removed.
+        if (ignoreMissingSession) {
+            sessionId.MediumIndex = AllMediaIndex;
+        }
+
+        context->SetRequestInfo("ChunkId: %v, BlockCount: %v, IgnoreMissingSession: %v",
             sessionId,
-            blockCount);
+            blockCount,
+            ignoreMissingSession);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        ISessionPtr session;
-
-        if (request->ignore_missing_session()) {
-            if (session = sessionManager->FindSession(sessionId); !session) {
-                context->Reply();
-                return;
-            }
-        } else {
-            session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = ignoreMissingSession
+            ? sessionManager->FindSession(sessionId)
+            : sessionManager->GetSessionOrThrow(sessionId);
+        if (!session) {
+            YT_VERIFY(ignoreMissingSession);
+            YT_LOG_DEBUG("Session is missing (SessionId: %v)",
+                sessionId);
+            context->Reply();
+            return;
         }
 
         auto meta = request->has_chunk_meta()
