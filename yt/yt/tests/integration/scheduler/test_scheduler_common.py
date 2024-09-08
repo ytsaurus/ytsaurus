@@ -35,6 +35,7 @@ import pytest
 import io
 import time
 import zstandard as zstd
+import itertools
 
 
 ##################################################################
@@ -1896,6 +1897,9 @@ class TestSchedulerTracing(YTEnvSetup):
     LOG_WRITE_WAIT_TIME = 0.5
 
     DELTA_SCHEDULER_CONFIG = {
+        "rpc_server": {
+            "tracing_mode": "enable",
+        },
         "jaeger": {
             "collector_channel_config": {
                 "address": "localhost:12345",
@@ -1907,6 +1911,9 @@ class TestSchedulerTracing(YTEnvSetup):
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
+        "rpc_server": {
+            "tracing_mode": "enable",
+        },
         "jaeger": {
             "collector_channel_config": {
                 "address": "localhost:12345",
@@ -1943,15 +1950,22 @@ class TestSchedulerTracing(YTEnvSetup):
 
     @authors("ignat", "pogorelov")
     def test_tracing(self):
-        # update_scheduler_config("rpc_server/tracing_mode", "enable")
-
-        run_test_vanilla("sleep 0.1", track=True)
-
         logs_path = self.path_to_run + "/logs"
 
         scheduler_log_file = logs_path + "/scheduler-0.debug.log.zst"
         controller_agent_log_file = logs_path + "/controller-agent-0.debug.log.zst"
         node_log_file = logs_path + "/node-0.debug.log.zst"
+
+        # This whole test is not ideal and should be rewritten at some point.
+        scheduler_log_start_line = 0
+        decompressor = zstd.ZstdDecompressor()
+        with open(scheduler_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+            for line in text_stream:
+                scheduler_log_start_line += 1
+
+        run_test_vanilla("sleep 0.1", track=True)
 
         time.sleep(self.LOG_WRITE_WAIT_TIME)
 
@@ -1961,7 +1975,7 @@ class TestSchedulerTracing(YTEnvSetup):
         with open(scheduler_log_file, "rb") as fin:
             binary_reader = decompressor.stream_reader(fin, read_size=8192)
             text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
-            for line in text_stream:
+            for line in itertools.islice(text_stream, scheduler_log_start_line, None):
                 if "AllocationTrackerService.Heartbeat ->" not in line:
                     continue
                 if "StartedAllocations:" not in line:
@@ -2034,3 +2048,15 @@ class TestSchedulerTracing(YTEnvSetup):
         assert has_spans_dropped_line_scheduler
         assert has_spans_dropped_line_controller_agent
         assert has_spans_dropped_line_node
+
+    @authors("eshcherbin")
+    def test_disable_tracing(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "scheduler_connector": {
+                    "enable_tracing": False,
+                },
+            },
+        })
+
+        run_test_vanilla("sleep 0.1", track=True)
