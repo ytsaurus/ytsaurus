@@ -1219,15 +1219,19 @@ TFuture<TControllerScheduleAllocationResultPtr> TNodeShard::BeginScheduleAllocat
 
     ValidateConnected();
 
-    auto pair = AllocationIdToScheduleEntry_.emplace(allocationId, TScheduleAllocationEntry());
-    YT_VERIFY(pair.second);
+    auto it = EmplaceOrCrash(
+        AllocationIdToScheduleEntry_,
+        allocationId,
+        TScheduleAllocationEntry{
+            .OperationId = operationId,
+            .IncarnationId = incarnationId,
+            .Promise = NewPromise<TControllerScheduleAllocationResultPtr>(),
+            .StartTime = GetCpuInstant(),
+            .TraceContext = NTracing::TryGetCurrentTraceContext(),
+        });
 
-    auto& entry = pair.first->second;
-    entry.Promise = NewPromise<TControllerScheduleAllocationResultPtr>();
-    entry.IncarnationId = incarnationId;
-    entry.OperationId = operationId;
-    entry.OperationIdToAllocationIdsIterator = OperationIdToAllocationIterators_.emplace(operationId, pair.first);
-    entry.StartTime = GetCpuInstant();
+    auto& entry = it->second;
+    entry.OperationIdToAllocationIdsIterator = OperationIdToAllocationIterators_.emplace(operationId, it);
 
     return entry.Promise.ToFuture();
 }
@@ -1260,6 +1264,8 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
 
     auto& entry = it->second;
     YT_VERIFY(operationId == entry.OperationId);
+
+    NTracing::TCurrentTraceContextGuard traceContextGuard(entry.TraceContext);
 
     auto scheduleAllocationDuration = CpuDurationToDuration(GetCpuInstant() - entry.StartTime);
     if (scheduleAllocationDuration > Config_->ScheduleAllocationDurationLoggingThreshold) {

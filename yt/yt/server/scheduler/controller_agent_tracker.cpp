@@ -148,41 +148,34 @@ void ProcessScheduleAllocationResponses(
                 protoResponses = std::move(groupedScheduleAllocationResponses[shardId]),
                 Logger = SchedulerLogger
             ] {
+                // TODO(eshcherbin): Use request trace contexts in response processing.
                 for (const auto* protoResponse : protoResponses) {
                     auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
                     auto allocationId = FromProto<TAllocationId>(protoResponse->allocation_id());
                     auto controllerEpoch = TControllerEpoch(protoResponse->controller_epoch());
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
 
-                    auto traceContext = TTraceContext::NewChildFromRpc(
-                        protoResponse->tracing_ext(),
-                        /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
-                        context->GetRequestId(),
-                        /*forceTracing*/ false);
-
-                    {
-                        TCurrentTraceContextGuard traceContextGuard(traceContext);
-
-                        if (controllerEpoch != expectedControllerEpoch) {
-                            YT_LOG_DEBUG(
-                                "Received allocation schedule result with unexpected controller epoch; result is ignored "
-                                "(OperationId: %v, AllocationId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                operationId,
-                                allocationId,
-                                controllerEpoch,
-                                expectedControllerEpoch);
-                            continue;
-                        }
-                        if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                            YT_LOG_DEBUG(
-                                "Received allocation schedule result for operation whose controller is terminated; "
-                                "result is ignored (OperationId: %v, AllocationId: %v)",
-                                operationId,
-                                allocationId);
-                            continue;
-                        }
-                        nodeShard->EndScheduleAllocation(*protoResponse);
+                    if (controllerEpoch != expectedControllerEpoch) {
+                        YT_LOG_DEBUG(
+                            "Received allocation schedule result with unexpected controller epoch; result is ignored "
+                            "(OperationId: %v, AllocationId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                            operationId,
+                            allocationId,
+                            controllerEpoch,
+                            expectedControllerEpoch);
+                        continue;
                     }
+
+                    if (nodeShard->IsOperationControllerTerminated(operationId)) {
+                        YT_LOG_DEBUG(
+                            "Received allocation schedule result for operation whose controller is terminated; "
+                            "result is ignored (OperationId: %v, AllocationId: %v)",
+                            operationId,
+                            allocationId);
+                        continue;
+                    }
+
+                    nodeShard->EndScheduleAllocation(*protoResponse);
                 }
             })
             .AsyncVia(nodeShardInvokers[shardId])
