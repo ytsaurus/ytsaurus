@@ -66,6 +66,7 @@ target_sources(unittester-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/node_directory_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/replication_card_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/replication_progress_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/row_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/schema_ut.cpp
