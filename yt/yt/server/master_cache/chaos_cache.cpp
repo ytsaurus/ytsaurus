@@ -31,15 +31,13 @@ const auto static& Logger = MasterCacheLogger;
 TChaosCacheKey::operator size_t() const
 {
     return MultiHash(
-        User,
         CardId,
         FetchOptions);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{User: %v, CardId: %v, FetchOptions: %v}",
-        key.User,
+    builder->AppendFormat("{CardId: %v, FetchOptions: %v}",
         key.CardId,
         key.FetchOptions);
 }
@@ -87,37 +85,41 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
     const TChaosCacheKey& key,
     TDuration successExpirationTime,
     TDuration failureExpirationTime,
-    TReplicationEra refreshEra)
+    TReplicationEra refreshEra,
+    const TString& user)
 {
     auto entry = Find(key);
     bool cacheHit = false;
     if (entry) {
         if (refreshEra != InvalidReplicationEra && entry->GetSuccess() && entry->GetReplicationCard().Value()->Era <= refreshEra) {
-            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Era: %v, RefreshEra: %v)",
+            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Era: %v, RefreshEra: %v, User: %v)",
                 requestId,
                 key,
                 entry->GetReplicationCard().Value()->Era,
-                refreshEra);
+                refreshEra,
+                user);
 
             TryRemoveValue(entry);
         }
         if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
-            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Success: %v)",
+            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Success: %v, User: %v)",
                 requestId,
                 key,
-                entry->GetSuccess());
+                entry->GetSuccess(),
+                user);
 
             TryRemoveValue(entry);
         } else {
             cacheHit = true;
-            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Success: %v)",
+            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Success: %v, User: %v)",
                 requestId,
                 key,
-                entry->GetSuccess());
+                entry->GetSuccess(),
+                user);
         }
     }
 
-    auto counters = GetProfilingCounters(key.User);
+    auto counters = GetProfilingCounters(user);
     if (cacheHit) {
         counters->HitRequestCount.Increment();
         counters->HitResponseBytes.Increment(entry->GetTotalSpace());
