@@ -119,6 +119,8 @@ private:
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::Tags);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeGroups)
+            .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::LastSeenTime);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotations)
             .SetPresent(static_cast<bool>(node->GetAnnotations())));
@@ -171,9 +173,10 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetThisImpl();
+        auto* node = GetThisImpl();
         auto state = node->GetLocalState();
         bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         switch (key) {
             case EInternedAttributeKey::Banned:
@@ -269,6 +272,11 @@ private:
             case EInternedAttributeKey::Tags:
                 BuildYsonFluently(consumer)
                     .Value(node->Tags());
+                return true;
+
+            case EInternedAttributeKey::NodeGroups:
+                BuildYsonFluently(consumer)
+                    .Value(nodeTracker->GetGroupNamesForNode(node));
                 return true;
 
             case EInternedAttributeKey::LastSeenTime:
