@@ -1201,16 +1201,13 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         self.setup_tables()
 
-        config = {
-            "%true": {
-                "exec_node": {
-                    "slot_manager": {
-                        "disable_jobs_on_gpu_check_failure": False
-                    }
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "slot_manager": {
+                    "disable_jobs_on_gpu_check_failure": False,
                 }
             }
-        }
-        set("//sys/cluster_nodes/@config", config)
+        })
 
         node = ls("//sys/cluster_nodes")[0]
 
