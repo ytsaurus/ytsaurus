@@ -19,6 +19,8 @@ ENDIF()
 
 END()
 
-RECURSE_FOR_TESTS(
-    tests
-)
+IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "yt")
+    RECURSE_FOR_TESTS(
+        tests
+    )
+ENDIF()
