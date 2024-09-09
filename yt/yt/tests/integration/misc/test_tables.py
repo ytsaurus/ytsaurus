@@ -601,6 +601,77 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"k2": 0}, {"k2": 1}])
         assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
+    @authors("cherepashka")
+    def test_non_materializied_computed_columns(self):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "schema": [
+                    {"name": "num", "type": "int64"},
+                    {
+                        "name": "doubled_num",
+                        "type": "int64",
+                        "expression": "num * 2",
+                        "materialized": False,
+                    },
+                ]
+            },
+        )
+        assert get("//tmp/table/@schema_mode") == "strong"
+
+        write_table("//tmp/table", [{"num": 1}, {"num": 1}, {"num": 2}, {"num": 3}, {"num": 5}, {"num": 8}, {"num": 13}])
+
+        # Computation of non materializied computed columns is not implemented yet.
+        assert read_table("//tmp/table") == [{"doubled_num": yson.YsonEntity(), "num": i} for i in [1, 1, 2, 3, 5, 8, 13]]
+
+    @authors("cherepashka")
+    def test_alter_materializability_of_computed_columns(self):
+        schema_with_materialized_columns = [
+            {"name": "num", "type": "int64"},
+            {
+                "name": "doubled_num",
+                "type": "int64",
+                "expression": "num * 2",
+                "materialized": True,
+            },
+        ]
+        schema_with_nonmaterialized_columns = [
+            {"name": "num", "type": "int64"},
+            {
+                "name": "doubled_num",
+                "type": "int64",
+                "expression": "num * 2",
+                "materialized": False,
+            },
+        ]
+
+        create(
+            "table",
+            "//tmp/table_with_mcc",
+            attributes={
+                "schema": schema_with_materialized_columns
+            },
+        )
+        create(
+            "table",
+            "//tmp/table_with_nmcc",
+            attributes={
+                "schema": schema_with_nonmaterialized_columns
+            },
+        )
+        write_table("//tmp/table_with_nmcc", [{"num": 1}])
+        write_table("//tmp/table_with_mcc", [{"num": 1}])
+
+        # It is forbiden to alter materializable computed column to non-materializible,
+        # because non-materializible computed columns should be non-key and matiarizable should be key.
+        with raises_yt_error("Materialization mode mismatch for column"):
+            alter_table("//tmp/table_with_mcc", schema=schema_with_nonmaterialized_columns)
+
+        # Alter of non-materializible computed column to materializable is prohibited due to uselessness.
+        with raises_yt_error("Materialization mode mismatch for column"):
+            alter_table("//tmp/table_with_nmcc", schema=schema_with_materialized_columns)
+
     @authors("panin", "ignat")
     def test_row_index_selector(self):
         create("table", "//tmp/table")
