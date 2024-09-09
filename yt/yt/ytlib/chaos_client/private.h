@@ -9,6 +9,8 @@ namespace NYT::NChaosClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger ChaosClientLogger("ChaosClient");
+inline const NLogging::TLogger ReplicationCardWatcherLogger("ReplicationCardWatcher");
+inline const NLogging::TLogger ReplicationCardWatcherClientLogger("ReplicationCardWatcherClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

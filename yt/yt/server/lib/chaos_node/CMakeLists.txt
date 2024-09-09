@@ -15,8 +15,11 @@ target_link_libraries(server-lib-chaos_node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
+  yt-yt-ytlib
   yt_proto-yt-client
 )
 target_sources(server-lib-chaos_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chaos_node/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.cpp
 )

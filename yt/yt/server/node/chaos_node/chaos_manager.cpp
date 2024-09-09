@@ -11,7 +11,6 @@
 #include "replication_card_observer.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-#include "slot_manager.h"
 
 #include <yt/server/node/chaos_node/chaos_manager.pb.h>
 
@@ -67,20 +66,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int MigrateLeftoversBatchSize = 128;
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCards(
-    const TEntityMap<TReplicationCard>& replicationCardsMap)
-{
-    std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
-    convertedCards.reserve(replicationCardsMap.size());
-    for (const auto& [cardId, card] : replicationCardsMap) {
-        convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
-    }
-
-    return convertedCards;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1674,7 +1659,7 @@ private:
 
     void HydraChaosNodeConfirmReplicationCardMigration(NChaosNode::NProto::TReqConfirmReplicationCardMigration* request)
     {
-        NObjectClient::TObjectId expectedMigrationToken = FromProto<NObjectClient::TObjectId>(request->migration_token());
+        auto expectedMigrationToken = FromProto<NObjectClient::TObjectId>(request->migration_token());
         std::vector<std::pair<TReplicationCardId, TCellId>> replicationCardIds;
         replicationCardIds.reserve(request->replication_card_ids_size());
 
@@ -2754,14 +2739,14 @@ private:
         Slot_->GetTimestampProvider()->GenerateTimestamps()
             .Subscribe(BIND(
                 &TChaosManager::OnNotifyWatchersTimestampGenerated,
-                MakeWeak(this),
+                MakeStrong(this),
                 std::move(replicationCardIds))
                 .Via(AutomatonInvoker_));
     }
 
     void OnNotifyWatchersTimestampGenerated(
         const std::vector<TReplicationCardId>& replicationCardIds,
-        TErrorOr<TTimestamp> timestampOrError)
+        const TErrorOr<TTimestamp>& timestampOrError)
     {
         if (!IsLeader()) {
             return;
@@ -2776,7 +2761,7 @@ private:
         YT_LOG_DEBUG("Timestamp generated (Timestamp: %v)",
             timestamp);
 
-        for (const auto& replicationCardId : replicationCardIds) {
+        for (auto replicationCardId : replicationCardIds) {
             auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
 
             if (!replicationCard) {
@@ -2795,6 +2780,18 @@ private:
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
             ReplicationCardWatcher_->OnReplcationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
         }
+    }
+
+    static std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCards(
+        const TEntityMap<TReplicationCard>& replicationCardsMap)
+    {
+        std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
+        convertedCards.reserve(replicationCardsMap.size());
+        for (const auto& [cardId, card] : replicationCardsMap) {
+            convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
+        }
+
+        return convertedCards;
     }
 };
 

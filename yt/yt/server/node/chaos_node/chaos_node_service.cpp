@@ -6,6 +6,8 @@
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 
+#include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
+
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 
@@ -334,7 +336,10 @@ private:
             cacheTimestamp);
 
         const auto& replicationCardWatcher = Slot_->GetReplicationCardsWatcher();
-        replicationCardWatcher->WatchReplicationCard(replicationCardId, cacheTimestamp, std::move(context));
+        replicationCardWatcher->WatchReplicationCard(
+            replicationCardId,
+            cacheTimestamp,
+            CreateReplicationCardWatcherCallbacks(std::move(context)));
     }
 };
 

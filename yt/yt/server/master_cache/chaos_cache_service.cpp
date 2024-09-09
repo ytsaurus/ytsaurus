@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
+#include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chaos_client/public.h>
@@ -25,6 +27,7 @@ using namespace NYTree::NProto;
 using namespace NApi::NNative;
 using namespace NChaosClient;
 using namespace NChaosCache;
+using namespace NChaosNode;
 using namespace NTransactionClient;
 using namespace NLogging;
 
@@ -42,14 +45,14 @@ public:
         TDuration expirationDelay,
         TLogger logger)
         : ReplicationCardsWatcher_(std::move(replicationCardWatcher))
-        , ChaosCache_(chaosCache)
+        , ChaosCache_(std::move(chaosCache))
         , ExpirationDelay_(expirationDelay)
-        , Logger(logger)
+        , Logger(std::move(logger))
     { }
 
     void OnReplicationCardUpdated(
-        const TReplicationCardId& replicationCardId,
-        TReplicationCardPtr replicationCard,
+        TReplicationCardId replicationCardId,
+        const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override
     {
         YT_LOG_DEBUG("Replication card updated (ReplicationCardId: %v, Timestamp: %v)",
@@ -60,8 +63,7 @@ public:
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
-    void OnReplicationCardDeleted(
-        const TReplicationCardId& replicationCardId) override
+    void OnReplicationCardDeleted(TReplicationCardId replicationCardId) override
     {
         YT_LOG_DEBUG("Replication card deleted (ReplicationCardId: %v)",
             replicationCardId);
@@ -70,28 +72,26 @@ public:
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
-    void OnUnknownReplicationCard(
-        const TReplicationCardId& replicationCardId) override
+    void OnUnknownReplicationCard(TReplicationCardId replicationCardId) override
     {
-        YT_LOG_DEBUG("Unknown replication cardc (ReplicationCardId: %v)",
+        YT_LOG_DEBUG("Unknown replication card (ReplicationCardId: %v)",
             replicationCardId);
 
         ReplicationCardsWatcher_->OnReplicationCardRemoved(replicationCardId);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
-    void OnNothingChanged(
-        const TReplicationCardId& replicationCardId) override
+    void OnNothingChanged(TReplicationCardId replicationCardId) override
     {
-        YT_LOG_DEBUG("Nothing changed (ReplicationCardId: %v)",
-            replicationCardId);
-
         if (ReplicationCardsWatcher_->GetLastSeenWatchers(replicationCardId) + ExpirationDelay_ < TInstant::Now() &&
             ReplicationCardsWatcher_->TryUnregisterReplicationCard(replicationCardId))
         {
-            if (auto owner = Owner_.Lock(); owner != nullptr) {
+            if (auto owner = Owner_.Lock()) {
                 owner->StopWatchingReplicationCard(replicationCardId);
             }
+
+            YT_LOG_DEBUG("Watching request expired. Watcher expired and unregistered (ReplicationCardId: %v)",
+                replicationCardId);
         }
     }
 
@@ -106,9 +106,9 @@ private:
     const TDuration ExpirationDelay_;
     const TLogger Logger;
 
-    TWeakPtr<IReplicationCardsWatcherClient> Owner_ = nullptr;
+    TWeakPtr<IReplicationCardsWatcherClient> Owner_;
 
-    static TChaosCacheKey GetKey(const TReplicationCardId& replicationCardId)
+    static TChaosCacheKey GetKey(TReplicationCardId replicationCardId)
     {
         return TChaosCacheKey{
             .CardId = replicationCardId,
@@ -124,13 +124,13 @@ IReplicationCardsWatcherClientPtr CreateReplicationCardsWatcherClientWithCallbac
     TChaosCachePtr chaosCache,
     TDuration expirationDelay,
     IConnectionPtr connection,
-    const TLogger& logger)
+    TLogger logger)
 {
     auto callbacks = std::make_unique<TCacheWatcherCallbacks>(
         std::move(replicationCardsWatcher),
         std::move(chaosCache),
         expirationDelay,
-        logger);
+        std::move(logger));
 
     auto* callbacksPtr = callbacks.get();
 
@@ -173,7 +173,7 @@ public:
             Logger))
         , EnableWatching_(config->EnableWatching)
     {
-        ReplicationCardsWatcher_->Start(std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>>());
+        ReplicationCardsWatcher_->Start({});
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
@@ -189,7 +189,7 @@ private:
     const IClientPtr Client_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
     const IReplicationCardsWatcherClientPtr ReplicationCardsWatcherClient_;
-    const bool EnableWatching_ = false;
+    const bool EnableWatching_;
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
@@ -290,7 +290,11 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
         return;
     }
 
-    auto state = ReplicationCardsWatcher_->WatchReplicationCard(replicationCardId, cacheTimestamp, context, true);
+    auto state = ReplicationCardsWatcher_->WatchReplicationCard(
+        replicationCardId,
+        cacheTimestamp,
+        CreateReplicationCardWatcherCallbacks(context),
+        /*allowUnregistered*/ true);
     if (state != EReplicationCardWatherState::Deleted) {
         ReplicationCardsWatcherClient_->WatchReplicationCard(replicationCardId);
     }
