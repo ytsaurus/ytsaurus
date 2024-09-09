@@ -594,7 +594,6 @@ protected:
 
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter);
 
-            WirePartitionKeys_.reserve(GetInputPartitions().size());
             WirePartitionLowerBoundPrefixes_.reserve(GetInputPartitions().size());
             PartitionLowerBoundInclusivenesses_.reserve(GetInputPartitions().size());
             for (const auto& inputPartition : GetInputPartitions()) {
@@ -615,11 +614,9 @@ protected:
                 }
                 YT_VERIFY(keysWritten == 0 || keysWritten + 1 == std::ssize(inputPartition->Children));
                 if (keysWritten == 0) {
-                    WirePartitionKeys_.push_back(std::nullopt);
                     WirePartitionLowerBoundPrefixes_.push_back(std::nullopt);
                     PartitionLowerBoundInclusivenesses_.push_back({});
                 } else {
-                    WirePartitionKeys_.push_back(ToString(keySetWriter->Finish()));
                     WirePartitionLowerBoundPrefixes_.push_back(ToString(partitionLowerBoundPrefixesWriter->Finish()));
                     PartitionLowerBoundInclusivenesses_.push_back(partitionLowerBoundInclusivenesses);
                 }
@@ -720,7 +717,10 @@ protected:
             Persist(context, DataBalancer_);
             Persist(context, Level_);
             Persist(context, ShuffleMultiChunkOutput_);
-            Persist(context, WirePartitionKeys_);
+            if (context.GetVersion() < ESnapshotVersion::DropLegacyWirePartitionKeys) {
+                std::vector<std::optional<TString>> wirePartitionKeys;
+                Persist(context, wirePartitionKeys);
+            }
             Persist(context, WirePartitionLowerBoundPrefixes_);
             Persist(context, PartitionLowerBoundInclusivenesses_);
 
@@ -757,9 +757,6 @@ protected:
         int Level_ = -1;
 
         IMultiChunkPoolOutputPtr ShuffleMultiChunkOutput_;
-
-        //! Partition index -> wire partition keys.
-        std::vector<std::optional<TString>> WirePartitionKeys_;
 
         //! Partition index -> wire partition lower key bound prefixes.
         std::vector<std::optional<TString>> WirePartitionLowerBoundPrefixes_;
@@ -859,9 +856,8 @@ protected:
 
             auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(partition->Children.size());
-            if (auto wirePartitionKeys = WirePartitionKeys_[partitionIndex]) {
-                partitionJobSpecExt->set_wire_partition_keys(*wirePartitionKeys);
-                partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(*WirePartitionLowerBoundPrefixes_[partitionIndex]);
+            if (const auto& lowerBoundPrefixes = WirePartitionLowerBoundPrefixes_[partitionIndex]) {
+                partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(*lowerBoundPrefixes);
                 ToProto(partitionJobSpecExt->mutable_partition_lower_bound_inclusivenesses(), PartitionLowerBoundInclusivenesses_[partitionIndex]);
             }
             partitionJobSpecExt->set_partition_task_level(Level_);
