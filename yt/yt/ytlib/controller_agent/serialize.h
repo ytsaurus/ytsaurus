@@ -54,6 +54,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OperationIncarnationInJoblet)         (301514))
     // 24.2 starts here
     ((BumpTo_24_2)                          (301600))
+    ((DropLegacyWirePartitionKeys)          (301601))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
