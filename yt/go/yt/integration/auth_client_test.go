@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"os"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 func TestAuthClient(t *testing.T) {

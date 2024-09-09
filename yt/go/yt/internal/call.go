@@ -59,6 +59,7 @@ func (res *CallResult) decode(value any) (err error) {
 }
 
 func (res *CallResult) decodeJSON(value any) (err error) {
+	// YSONValue contains the body of the response, it's not necessary YSON format, e.g. for whoami request
 	err = json.Unmarshal(res.YSONValue, value)
 	return
 }

@@ -261,6 +261,7 @@ func (e *Encoder) WhoAmI(
 ) (result *yt.WhoAmIResult, err error) {
 	call := e.newAuthCall(NewWhoAmIParams(options))
 	err = e.do(ctx, call, func(res *CallResult) error {
+		// The whoami method returns JSON value, not YSON, so we need to specify the decoding.
 		return res.decodeJSON(&result)
 	})
 	return
