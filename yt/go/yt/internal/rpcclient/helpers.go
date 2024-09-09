@@ -700,7 +700,6 @@ func makeListOperationsResult(result *rpc_proxy.TListOperationsResult) (*yt.List
 			BriefSpec:         briefSpec,
 			FullSpec:          op.GetFullSpec(),
 			StartTime:         makeTime(op.StartTime),
-			Suspend:           op.GetSuspended(),
 			Suspended:         op.GetSuspended(),
 			AuthenticatedUser: op.GetAuthenticatedUser(),
 			RuntimeParameters: runtimeParameters,

@@ -668,17 +668,15 @@ type OperationRuntimeParameters struct {
 }
 
 type OperationStatus struct {
-	ID            OperationID            `yson:"id"`
-	State         OperationState         `yson:"state"`
-	Result        *OperationResult       `yson:"result"`
-	Type          OperationType          `yson:"type"`
-	BriefProgress OperationBriefProgress `yson:"brief_progress"`
-	BriefSpec     map[string]any         `yson:"brief_spec"`
-	FullSpec      yson.RawValue          `yson:"full_spec"`
-	StartTime     yson.Time              `yson:"start_time"`
-	FinishTime    yson.Time              `yson:"finish_time"`
-	// Deprecated: use `Suspended` instead
-	Suspend           bool                       `yson:"suspended"`
+	ID                OperationID                `yson:"id"`
+	State             OperationState             `yson:"state"`
+	Result            *OperationResult           `yson:"result"`
+	Type              OperationType              `yson:"type"`
+	BriefProgress     OperationBriefProgress     `yson:"brief_progress"`
+	BriefSpec         map[string]any             `yson:"brief_spec"`
+	FullSpec          yson.RawValue              `yson:"full_spec"`
+	StartTime         yson.Time                  `yson:"start_time"`
+	FinishTime        yson.Time                  `yson:"finish_time"`
 	Suspended         bool                       `yson:"suspended"`
 	AuthenticatedUser string                     `yson:"authenticated_user"`
 	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
