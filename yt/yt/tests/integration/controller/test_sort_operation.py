@@ -1167,6 +1167,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize("comparator", ["generic", "codegen"])
     def test_inplace_sort_with_schema(self, sort_order, comparator):
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (23, 2):
+            pytest.skip()
+
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
 
@@ -2231,6 +2234,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_func", [simple_sort_1_phase, simple_sort_2_phase, sort_2_phase])
     @pytest.mark.parametrize("comparator", ["generic", "codegen"])
     def test_sort_key_complex_type_list(self, sort_func, comparator):
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (23, 2):
+            pytest.skip()
+
         spec = {}
         if comparator == "codegen":
             spec = {"enable_codegen_comparator": True}
