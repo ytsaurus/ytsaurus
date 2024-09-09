@@ -394,7 +394,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         if (!config->ResourceLimits->FreeMemoryWatermark) {
             config->ResourceLimits->FreeMemoryWatermark = 0;
             auto freeMemoryWatermarkNode = ConvertToNode(config->ExecNode->SlotManager->JobEnvironment)->AsMap()->FindChild("free_memory_watermark");
-            YT_VERIFY(!freeMemoryWatermarkNode);
             if (freeMemoryWatermarkNode) {
                 config->ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
             }
@@ -409,7 +408,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         }
         if (!config->InstanceLimitsUpdatePeriod) {
             auto resourceLimitsUpdatePeriodNode = ConvertToNode(config->ExecNode->SlotManager->JobEnvironment)->AsMap()->FindChild("resource_limits_update_period");
-            YT_VERIFY(!resourceLimitsUpdatePeriodNode);
             if (resourceLimitsUpdatePeriodNode) {
                 config->InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
             }
