@@ -1315,6 +1315,13 @@ func (e *Encoder) ListUserTokens(
 	return nil, xerrors.Errorf("Unimplemented method: ListUserTokens")
 }
 
+func (e *Encoder) WhoAmI(
+	ctx context.Context,
+	opts *yt.WhoAmIOptions,
+) (r *yt.WhoAmIResult, err error) {
+	return nil, xerrors.Errorf("Unimplemented method: WhoAmI")
+}
+
 func (e *Encoder) RemoveMember(
 	ctx context.Context,
 	group string,
