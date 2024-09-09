@@ -6221,7 +6221,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         }
 
         // NB(psushin): This option must be set before PrepareOutputTables call.
-        table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema->HasComputedColumns();
+        table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema->HasMaterializedComputedColumns();
 
         table->TableWriterOptions->SchemaModification = table->TableUploadOptions.SchemaModification;
 
