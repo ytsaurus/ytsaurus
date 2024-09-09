@@ -25,7 +25,7 @@ $ yt get //sys/cluster_nodes/my-node.yandex.net/@pending_restart
 Так, чанк обычного формата считается _underreplicated_, если выполняется одно из условий:
 * совокупное число реплик _available_ + _temporarily unavailable_ меньше _replication factor_;
 * _active_ реплик меньше, чем 1 + _max replicas per rack_;
-* _temporaily unavailable_ реплик больше одной;
+* _temporarily unavailable_ реплик больше одной;
 
 В свою очередь, _erasure_ чанки считаются _parity missing_ или _data missing_, если
 * какая-то из реплик недоступна и не является _temporarily unavailable_;
