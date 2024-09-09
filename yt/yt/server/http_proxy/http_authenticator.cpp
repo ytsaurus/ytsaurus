@@ -7,6 +7,7 @@
 #include <yt/yt/library/auth_server/token_authenticator.h>
 #include <yt/yt/library/auth_server/ticket_authenticator.h>
 #include <yt/yt/library/auth_server/cookie_authenticator.h>
+#include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
@@ -201,16 +202,15 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     constexpr TStringBuf UserTicketHeaderName = "X-Ya-User-Ticket";
     if (auto userTicketHeader = request->GetHeaders()->Find(UserTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
-
-        TTicketCredentials credentials;
-        credentials.Ticket = *userTicketHeader;
-
         if (!ticketAuthenticator) {
             return TError(
                 NRpc::EErrorCode::InvalidCredentials,
                 "Client has provided a user ticket, but no ticket authenticator is configured");
         }
 
+        TTicketCredentials credentials{
+            .Ticket = *userTicketHeader,
+        };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);
@@ -222,16 +222,15 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     constexpr TStringBuf ServiceTicketHeaderName = "X-Ya-Service-Ticket";
     if (auto serviceTicketHeader = request->GetHeaders()->Find(ServiceTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
-
-        TServiceTicketCredentials credentials;
-        credentials.Ticket = *serviceTicketHeader;
-
         if (!ticketAuthenticator) {
             return TError(
                 NRpc::EErrorCode::InvalidCredentials,
                 "Client has provided a service ticket, but no ticket authenticator is configured");
         }
 
+        TServiceTicketCredentials credentials{
+            .Ticket = *serviceTicketHeader,
+        };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);

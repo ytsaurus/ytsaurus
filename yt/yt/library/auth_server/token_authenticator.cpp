@@ -1,13 +1,13 @@
 #include "token_authenticator.h"
+
 #include "blackbox_service.h"
 #include "helpers.h"
 #include "config.h"
+#include "credentials.h"
 #include "private.h"
 #include "auth_cache.h"
 
 #include <yt/yt/client/api/client.h>
-
-#include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -272,27 +272,9 @@ ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTokenAuthenticatorCacheKey
-{
-    TTokenCredentials Credentials;
-
-    operator size_t() const
-    {
-        size_t result = 0;
-        HashCombine(result, Credentials.Token);
-        return result;
-    }
-
-    bool operator == (const TTokenAuthenticatorCacheKey& other) const
-    {
-        return
-            Credentials.Token == other.Credentials.Token;
-    }
-};
-
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , public TAuthCache<TString, TAuthenticationResult, NNet::TNetworkAddress>
+    , private TAuthCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
     TCachingTokenAuthenticator(
@@ -305,17 +287,15 @@ public:
 
     TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
-        return Get(credentials.Token, credentials.UserIP);
+        return Get(credentials);
     }
 
 private:
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    TFuture<TAuthenticationResult> DoGet(
-        const TString& token,
-        const NNet::TNetworkAddress& userIP) noexcept override
+    TFuture<TAuthenticationResult> DoGet(const TTokenCredentials& credentials) noexcept override
     {
-        return TokenAuthenticator_->Authenticate(TTokenCredentials{token, userIP});
+        return TokenAuthenticator_->Authenticate(credentials);
     }
 };
 

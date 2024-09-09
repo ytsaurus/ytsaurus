@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "cookie_authenticator.h"
+#include "credentials.h"
 #include "cypress_user_manager.h"
 #include "helpers.h"
 #include "oauth_service.h"

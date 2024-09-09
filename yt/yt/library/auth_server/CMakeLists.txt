@@ -30,6 +30,7 @@ target_sources(yt-library-auth_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_cookie_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/caching_secret_vault_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cookie_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/credentials.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/default_secret_vault_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/dummy_secret_vault_service.cpp

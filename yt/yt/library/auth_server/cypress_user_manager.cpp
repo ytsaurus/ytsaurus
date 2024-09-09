@@ -10,6 +10,7 @@
 namespace NYT::NAuth {
 
 using namespace NYTree;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +29,7 @@ public:
         , Client_(std::move(client))
     { }
 
-    TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) override
+    TFuture<TObjectId> CreateUser(const TString& name) override
     {
         YT_LOG_DEBUG("Creating user object (Name: %v)", name);
         NApi::TCreateObjectOptions options;
@@ -39,7 +40,7 @@ public:
         options.Attributes = std::move(attributes);
 
         return Client_->CreateObject(
-            NObjectClient::EObjectType::User,
+            EObjectType::User,
             options);
     }
 
@@ -63,7 +64,7 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 class TCachingCypressUserManager
     : public ICypressUserManager
-    , public TAuthCache<TString, NObjectClient::TObjectId, std::monostate>
+    , private TAuthCache<TString, TObjectId>
 {
 public:
     TCachingCypressUserManager(
@@ -74,17 +75,15 @@ public:
         , CypressUserManager_(std::move(CypressUserManager))
     { }
 
-    TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) override
+    TFuture<TObjectId> CreateUser(const TString& name) override
     {
-        return Get(name, std::monostate{});
+        return Get(name);
     }
 
 private:
     const ICypressUserManagerPtr CypressUserManager_;
 
-    TFuture<NObjectClient::TObjectId> DoGet(
-        const TString& name,
-        const std::monostate& /*context*/) noexcept override
+    TFuture<TObjectId> DoGet(const TString& name) noexcept override
     {
         return CypressUserManager_->CreateUser(name);
     }
