@@ -2548,7 +2548,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+        YT_LOG_DEBUG("Calculating node memory distribution (SchedulingTagFilter: %v)", filter);
 
         auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
@@ -2559,7 +2559,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %Qv)", filter);
+        YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %v)", filter);
 
         return result;
     }
