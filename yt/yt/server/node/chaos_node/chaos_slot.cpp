@@ -29,6 +29,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/client/security_client/public.h>
@@ -49,6 +51,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NChaosClient;
 using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
@@ -76,6 +79,9 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
             Format("ChaosSnap:%v", slotIndex)))
+        , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
+            Config_->ReplicationCardsWatcher,
+            bootstrap->GetConnection()->GetInvoker()))
         , Logger(ChaosNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
@@ -185,6 +191,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ChaosManager_;
+    }
+
+    const IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ReplicationCardsWatcher_;
     }
 
     const ICoordinatorManagerPtr& GetCoordinatorManager() const override
@@ -408,6 +421,7 @@ private:
     ICellarOccupantPtr Occupant_;
 
     const TActionQueuePtr SnapshotQueue_;
+    const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
 
     TCellDescriptor CellDescriptor_;
 

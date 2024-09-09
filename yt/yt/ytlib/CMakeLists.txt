@@ -1217,6 +1217,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_id.cpp

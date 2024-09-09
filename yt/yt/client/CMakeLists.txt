@@ -110,6 +110,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/election/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hive/timestamp_map.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hydra/version.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/chaos_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chaos_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chaos_client/replication_card.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chaos_client/replication_card_cache.cpp

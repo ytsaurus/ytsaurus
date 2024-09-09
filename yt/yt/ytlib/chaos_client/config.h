@@ -62,4 +62,21 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationCardsWatcherConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration PollExpirationTime;
+    TDuration GoneCardsExpirationTime;
+    TDuration ExpirationSweepPeriod;
+
+    REGISTER_YSON_STRUCT(TReplicationCardsWatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicationCardsWatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosClient

@@ -9,7 +9,9 @@
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 #include "replication_card_observer.h"
+#include "transaction.h"
 #include "transaction_manager.h"
+#include "slot_manager.h"
 
 #include <yt/server/node/chaos_node/chaos_manager.pb.h>
 
@@ -27,6 +29,8 @@
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -66,6 +70,20 @@ static constexpr int MigrateLeftoversBatchSize = 128;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCards(
+    const TEntityMap<TReplicationCard>& replicationCardsMap)
+{
+    std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
+    convertedCards.reserve(replicationCardsMap.size());
+    for (const auto& [cardId, card] : replicationCardsMap) {
+        convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
+    }
+
+    return convertedCards;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosManager
     : public IChaosManager
     , public TChaosAutomatonPart
@@ -102,6 +120,7 @@ public:
             slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigrationDepartment),
             BIND(&TChaosManager::PeriodicMigrateLeftovers, MakeWeak(this)),
             Config_->LeftoverMigrationPeriod))
+        , ReplicationCardWatcher_(slot->GetReplicationCardsWatcher())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -400,6 +419,7 @@ private:
     const IMigratedReplicationCardRemoverPtr MigratedReplicationCardRemover_;
     const IForeignMigratedReplicationCardRemoverPtr ForeignMigratedReplicationCardRemover_;
     const TPeriodicExecutorPtr LeftoversMigrationExecutor_;
+    const IReplicationCardsWatcherPtr ReplicationCardWatcher_;
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
@@ -514,6 +534,7 @@ private:
 
         TChaosAutomatonPart::OnLeaderActive();
 
+        ReplicationCardWatcher_->Start(ConvertNodeCardsToClientCards(ReplicationCardMap_));
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
         LeftoversMigrationExecutor_->Start();
@@ -536,6 +557,7 @@ private:
         MigratedReplicationCardRemover_->Stop();
         ForeignMigratedReplicationCardRemover_->Stop();
         Slot_->GetReplicatedTableTracker()->DisableTracking();
+        ReplicationCardWatcher_->Stop();
     }
 
     void OnRecoveryComplete() override
@@ -586,7 +608,9 @@ private:
         }
     }
 
-    TReplicationCardId CreateReplicationCardImpl(NChaosClient::NProto::TReqCreateReplicationCard* request)
+    TReplicationCardId CreateReplicationCardImpl(
+        NChaosClient::NProto::TReqCreateReplicationCard* request,
+        TTimestamp timestamp)
     {
         auto tableId = FromProto<TTableId>(request->table_id());
         auto hintId = FromProto<TReplicationCardId>(request->hint_id());
@@ -611,6 +635,9 @@ private:
 
         BindReplicationCardToRTT(replicationCard);
 
+        auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
+        ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, timestamp);
+
         return replicationCardId;
     }
 
@@ -620,7 +647,7 @@ private:
         NChaosClient::NProto::TRspCreateReplicationCard* response)
     {
         ValidateReplicationCardCreation(request);
-        auto replicationCardId = CreateReplicationCardImpl(request);
+        auto replicationCardId = CreateReplicationCardImpl(request, NullTimestamp);
 
         ToProto(response->mutable_replication_card_id(), replicationCardId);
 
@@ -643,11 +670,11 @@ private:
     }
 
     void HydraCommitCreateReplicationCard(
-        TTransaction* /*transaction*/,
+        TTransaction* transaction,
         NChaosClient::NProto::TReqCreateReplicationCard* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        CreateReplicationCardImpl(request);
+        CreateReplicationCardImpl(request, transaction->GetPrepareTimestamp());
     }
 
     void HydraAbortCreateReplicationCard(
@@ -891,6 +918,8 @@ private:
 
         YT_LOG_DEBUG("Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
+
+        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveReplicationCard(NChaosNode::NProto::TReqRemoveReplicationCard *request)
@@ -938,6 +967,8 @@ private:
 
         YT_LOG_DEBUG("Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
+
+        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveMigratedReplicationCards(NChaosNode::NProto::TReqRemoveMigratedReplicationCards* request)
@@ -1297,6 +1328,8 @@ private:
             coordinatorCellId,
             suspended,
             replicationCardIds);
+
+        NotifyWatchers(std::move(replicationCardIds));
     }
 
     void HydraRspRevokeShortcuts(NChaosNode::NProto::TRspRevokeShortcuts* request)
@@ -1342,6 +1375,8 @@ private:
         YT_LOG_DEBUG("Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
             coordinatorCellId,
             replicationCardIds);
+
+        NotifyWatchers(std::move(replicationCardIds));
     }
 
     void RevokeShortcuts(TReplicationCard* replicationCard)
@@ -1640,8 +1675,12 @@ private:
     void HydraChaosNodeConfirmReplicationCardMigration(NChaosNode::NProto::TReqConfirmReplicationCardMigration* request)
     {
         NObjectClient::TObjectId expectedMigrationToken = FromProto<NObjectClient::TObjectId>(request->migration_token());
+        std::vector<std::pair<TReplicationCardId, TCellId>> replicationCardIds;
+        replicationCardIds.reserve(request->replication_card_ids_size());
+
         for (const auto& protoReplicationCardId : request->replication_card_ids()) {
-            auto* replicationCard = ReplicationCardMap_.Find(FromProto<TReplicationCardId>(protoReplicationCardId));
+            auto replicationCardId = FromProto<TReplicationCardId>(protoReplicationCardId);
+            auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
 
             if (!replicationCard ||
                 replicationCard->GetState() != EReplicationCardState::AwaitingMigrationConfirmation ||
@@ -1651,7 +1690,10 @@ private:
             }
 
             replicationCard->SetState(EReplicationCardState::Migrated);
+            replicationCardIds.emplace_back(replicationCardId, replicationCard->Migration().ImmigratedToCellId);
         }
+
+        ReplicationCardWatcher_->OnReplicationCardMigrated(replicationCardIds);
     }
 
 
@@ -2701,6 +2743,58 @@ private:
             .TrackingEnabled = replicaInfo.EnableReplicatedTableTracker,
             .ContentType = replicaInfo.ContentType
         });
+    }
+
+    void NotifyWatchers(std::vector<TReplicationCardId> replicationCardIds)
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        Slot_->GetTimestampProvider()->GenerateTimestamps()
+            .Subscribe(BIND(
+                &TChaosManager::OnNotifyWatchersTimestampGenerated,
+                MakeWeak(this),
+                std::move(replicationCardIds))
+                .Via(AutomatonInvoker_));
+    }
+
+    void OnNotifyWatchersTimestampGenerated(
+        const std::vector<TReplicationCardId>& replicationCardIds,
+        TErrorOr<TTimestamp> timestampOrError)
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        if (!timestampOrError.IsOK()) {
+            YT_LOG_DEBUG(timestampOrError, "Error generating new current timestamp");
+            return;
+        }
+
+        auto timestamp = timestampOrError.Value();
+        YT_LOG_DEBUG("Timestamp generated (Timestamp: %v)",
+            timestamp);
+
+        for (const auto& replicationCardId : replicationCardIds) {
+            auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+
+            if (!replicationCard) {
+                YT_LOG_DEBUG("Replication card is gone (ReplicationCardId: %v)",
+                    replicationCardId);
+                continue;
+            }
+
+            if (IsReplicationCardMigrated(replicationCard)) {
+                YT_LOG_DEBUG("Replication card migrated (ReplicationCardId: %v)",
+                    replicationCardId);
+                return;
+            }
+
+            auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
+            auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
+            ReplicationCardWatcher_->OnReplcationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+        }
     }
 };
 
