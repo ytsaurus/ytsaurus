@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
@@ -129,6 +130,65 @@ func TestOperationWithStderr(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello\n"), stderr)
 	}
+}
+
+func TestSuspendOperation(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	opSpec := map[string]any{
+		"tasks": map[string]any{
+			"main": map[string]any{
+				"job_count": 1,
+				"command":   "sleep 5m",
+			},
+		},
+	}
+	opID, err := env.YT.StartOperation(ctx, yt.OperationVanilla, opSpec, nil)
+	require.NoError(t, err)
+
+	// Wait for the job to start.
+	for idx := 0; idx < 10; idx++ {
+		res, err := env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
+		require.NoError(t, err)
+		if len(res.Jobs) == 0 {
+			if idx == 9 {
+				t.Fatal("The job did not start")
+			}
+			time.Sleep(3 * time.Second)
+		} else {
+			break
+		}
+	}
+
+	// Suspend the operation.
+	err = env.YT.SuspendOperation(ctx, opID, &yt.SuspendOperationOptions{AbortRunningJobs: true})
+	require.NoError(t, err)
+
+	// Wait for the job to stop
+	for idx := 0; idx < 10; idx++ {
+		res, err := env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
+		require.NoError(t, err)
+		if len(res.Jobs) != 0 {
+			if idx == 9 {
+				t.Fatal("The job did not stop")
+			}
+			time.Sleep(3 * time.Second)
+		} else {
+			break
+		}
+	}
+
+	// Check the operation status
+	opStatus, err := env.YT.GetOperation(ctx, opID, &yt.GetOperationOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, yt.StateRunning, opStatus.State)
+	assert.Equal(t, true, opStatus.Suspend)
 }
 
 func TestListOperations(t *testing.T) {
