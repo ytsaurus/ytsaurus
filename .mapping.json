@@ -744,6 +744,7 @@
   "contrib/libs/re2/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/re2/CMakeLists.linux-x86_64.txt":"",
   "contrib/libs/re2/CMakeLists.txt":"",
+  "contrib/libs/simdjson/CMakeLists.txt":"",
   "contrib/libs/snappy/CMakeLists.darwin-arm64.txt":"",
   "contrib/libs/snappy/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/snappy/CMakeLists.linux-x86_64.txt":"",

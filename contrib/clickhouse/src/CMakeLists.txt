@@ -76,6 +76,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
@@ -121,6 +122,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   libs-poco-XML
   contrib-libs-rapidjson
   contrib-libs-re2
+  contrib-libs-simdjson
   contrib-libs-sparsehash
   contrib-libs-wyhash
   contrib-libs-xxhash
@@ -1784,6 +1786,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
@@ -1829,6 +1832,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   libs-poco-XML
   contrib-libs-rapidjson
   contrib-libs-re2
+  contrib-libs-simdjson
   contrib-libs-sparsehash
   contrib-libs-wyhash
   contrib-libs-xxhash
