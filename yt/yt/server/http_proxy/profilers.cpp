@@ -16,8 +16,8 @@ THttpProxyHeapUsageProfiler::THttpProxyHeapUsageProfiler(
     : AllocationTagProfiler_(
         CreateAllocationTagProfiler(
             {
-                HttpProxyCommandAllocationTag,
-                HttpProxyUserAllocationTag,
+                HttpProxyCommandAllocationTagKey,
+                HttpProxyUserAllocationTagKey,
             },
             std::move(invoker),
             std::move(config->SnapshotUpdatePeriod),

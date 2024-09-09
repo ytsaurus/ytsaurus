@@ -16,8 +16,8 @@ TRpcProxyHeapUsageProfiler::TRpcProxyHeapUsageProfiler(
     : AllocationTagProfiler_(
         CreateAllocationTagProfiler(
             {
-                RpcProxyRpcAllocationTag,
-                RpcProxyUserAllocationTag,
+                RpcProxyMethodAllocationTagKey,
+                RpcProxyUserAllocationTagKey,
             },
             std::move(invoker),
             config->SnapshotUpdatePeriod,

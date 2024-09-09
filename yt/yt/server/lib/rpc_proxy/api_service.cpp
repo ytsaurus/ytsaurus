@@ -922,11 +922,11 @@ private:
     {
         BuildYsonFluently(consumer)
             .DoMap([] (TFluentMap fluent) {
-                CollectHeapUsageStatistics(
+                DumpGlobalMemoryUsageSnapshot(
                     fluent.GetConsumer(),
                     {
-                        RpcProxyUserAllocationTag,
-                        RpcProxyRpcAllocationTag
+                        RpcProxyUserAllocationTagKey,
+                        RpcProxyMethodAllocationTagKey
                     });
             });
     }
@@ -956,10 +956,9 @@ private:
 
         if (config->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                // TODO(babenko): switch to std::string
-                {RpcProxyUserAllocationTag, TString(identity.User)},
-                {RpcProxyRequestIdAllocationTag, ToString(context->GetRequestId())},
-                {RpcProxyRpcAllocationTag, TString(context->RequestHeader().method())}
+                {RpcProxyUserAllocationTagKey, identity.User},
+                {RpcProxyRequestIdAllocationTagKey, ToString(context->GetRequestId())},
+                {RpcProxyMethodAllocationTagKey, context->RequestHeader().method()},
             });
 
             AllocateTestData(traceContext);
