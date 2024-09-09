@@ -6,9 +6,9 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto RpcProxyUserAllocationTag = "user";
-constexpr auto RpcProxyRequestIdAllocationTag = "request_id";
-constexpr auto RpcProxyRpcAllocationTag = "rpc";
+constexpr auto RpcProxyUserAllocationTagKey = "user";
+constexpr auto RpcProxyRequestIdAllocationTagKey = "request_id";
+constexpr auto RpcProxyMethodAllocationTagKey = "rpc";
 
 ////////////////////////////////////////////////////////////////////////////////
 

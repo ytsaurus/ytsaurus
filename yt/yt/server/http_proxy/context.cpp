@@ -708,10 +708,9 @@ void TContext::SetupTracing()
 
         if (Api_->GetDynamicConfig()->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                // TODO(babenko): switch to std::string
-                {HttpProxyUserAllocationTag, TString(DriverRequest_.AuthenticatedUser)},
-                {HttpProxyRequestIdAllocationTag, ToString(Request_->GetRequestId())},
-                {HttpProxyCommandAllocationTag, DriverRequest_.CommandName}
+                {HttpProxyUserAllocationTagKey, DriverRequest_.AuthenticatedUser},
+                {HttpProxyRequestIdAllocationTagKey, ToString(Request_->GetRequestId())},
+                {HttpProxyCommandAllocationTagKey, DriverRequest_.CommandName},
             });
 
             AllocateTestData(traceContext);
