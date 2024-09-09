@@ -27,6 +27,7 @@ using namespace NChunkClient;
  *  - New column type is compatible with the old one.
  *  - Optional column doesn't become required.
  *  - Column expression remains the same.
+ *  - Column materialized remains the same if column expression is present.
  *  - Column aggregate method either was introduced or remains the same.
  *  - Column sort order either changes to std::nullopt or remains the same.
  */
@@ -56,6 +57,15 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             oldColumn.GetDiagnosticNameString(),
             oldColumn.Expression(),
             newColumn.Expression());
+    }
+
+    if (newColumn.Expression()) {
+        if (newColumn.Materialized().value_or(true) != oldColumn.Materialized().value_or(true)) {
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Materialization mode mismatch for column %v: old %Qv, new %Qv",
+                oldColumn.GetDiagnosticNameString(),
+                oldColumn.Materialized().value_or(true),
+                newColumn.Materialized().value_or(true));
+        }
     }
 
     if (oldColumn.Aggregate() && oldColumn.Aggregate() != newColumn.Aggregate()) {
@@ -306,38 +316,46 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
-        // TODO(levysotsky): Use early continue.
-        if (columnSchema.Expression()) {
-            if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
-                THROW_ERROR_EXCEPTION("Non-key column %v cannot be computed", columnSchema.GetDiagnosticNameString());
+        if (!columnSchema.Expression()) {
+            if (columnSchema.Materialized().has_value()) {
+                THROW_ERROR_EXCEPTION("Column %v has \"materialized\" parameter without \"expression\" parameter", columnSchema.GetDiagnosticNameString());
             }
-            THashSet<TString> references;
-            auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
-            if (*columnSchema.LogicalType() != *expr->LogicalType) {
-                THROW_ERROR_EXCEPTION(
-                    "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
-                    columnSchema.GetDiagnosticNameString(),
-                    *columnSchema.LogicalType(),
-                    *expr->LogicalType);
-            }
+            continue;
+        }
 
-            for (const auto& ref : references) {
-                const auto* refColumn = schema.FindColumn(ref);
-                if (!refColumn) {
-                    THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
-                        columnSchema.GetDiagnosticNameString(),
-                        ref);
-                }
-                if (!refColumn->SortOrder() && isTableDynamic) {
-                    THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
-                        columnSchema.GetDiagnosticNameString(),
-                        refColumn->GetDiagnosticNameString());
-                }
-                if (refColumn->Expression()) {
-                    THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
-                        columnSchema.GetDiagnosticNameString(),
-                        refColumn->GetDiagnosticNameString());
-                }
+        auto materialized = columnSchema.Materialized().value_or(true);
+        if (materialized && index >= schema.GetKeyColumnCount() && isTableDynamic) {
+            THROW_ERROR_EXCEPTION("Non-key column %v cannot be computed in materializable way", columnSchema.GetDiagnosticNameString());
+        } else if (!materialized && index < schema.GetKeyColumnCount()) {
+            THROW_ERROR_EXCEPTION("Key column %v cannot be computed in non-materializable way", columnSchema.GetDiagnosticNameString());
+        }
+
+        THashSet<TString> references;
+        auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
+        if (*columnSchema.LogicalType() != *expr->LogicalType) {
+            THROW_ERROR_EXCEPTION(
+                "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
+                columnSchema.GetDiagnosticNameString(),
+                *columnSchema.LogicalType(),
+                *expr->LogicalType);
+        }
+
+        for (const auto& ref : references) {
+            const auto* refColumn = schema.FindColumn(ref);
+            if (!refColumn) {
+                THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
+                    columnSchema.GetDiagnosticNameString(),
+                    ref);
+            }
+            if (!refColumn->SortOrder() && isTableDynamic) {
+                THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
+                    columnSchema.GetDiagnosticNameString(),
+                    refColumn->GetDiagnosticNameString());
+            }
+            if (refColumn->Expression()) {
+                THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
+                    columnSchema.GetDiagnosticNameString(),
+                    refColumn->GetDiagnosticNameString());
             }
         }
     }

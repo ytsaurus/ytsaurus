@@ -2326,7 +2326,7 @@ private:
 
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
             Options_->ChunkFormat = TableUploadOptions_.ChunkFormat;
-            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
+            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasMaterializedComputedColumns();
             Options_->TableSchema = GetSchema();
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");

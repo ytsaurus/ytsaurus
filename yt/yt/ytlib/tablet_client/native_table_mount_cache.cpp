@@ -355,7 +355,7 @@ private:
 
             tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
             tableInfo->Dynamic = rsp->dynamic();
-            tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
+            tableInfo->NeedKeyEvaluation = primarySchema->HasMaterializedComputedColumns();
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
             tableInfo->ReplicationCardId = FromProto<TReplicationCardId>(rsp->replication_card_id());
             tableInfo->PhysicalPath = PhysicalPath_;
