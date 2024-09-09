@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
@@ -187,8 +186,8 @@ func TestSuspendOperation(t *testing.T) {
 	// Check the operation status
 	opStatus, err := env.YT.GetOperation(ctx, opID, &yt.GetOperationOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, yt.StateRunning, opStatus.State)
-	assert.Equal(t, true, opStatus.Suspend)
+	require.Equal(t, yt.StateRunning, opStatus.State)
+	require.Equal(t, true, opStatus.Suspended)
 }
 
 func TestListOperations(t *testing.T) {
