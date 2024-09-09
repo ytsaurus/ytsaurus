@@ -6,7 +6,7 @@
 #    include <base/types.h>
 #    include <Common/Exception.h>
 #    include <base/defines.h>
-#    error #include <simdjson.h>
+#    include <simdjson.h>
 #    include "ElementTypes.h"
 
 namespace DB

@@ -37,7 +37,7 @@ const char * auto_config_build[]
     "OPENSSL_VERSION", "1.1.1g",
     "OPENSSL_IS_BORING_SSL", "1",
     "USE_VECTORSCAN", "",
-    "USE_SIMDJSON", "OFF",
+    "USE_SIMDJSON", "1",
     "USE_ODBC", "",
     "USE_GRPC", "",
     "USE_LDAP", "",

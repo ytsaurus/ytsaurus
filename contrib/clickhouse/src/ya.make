@@ -45,6 +45,7 @@ PEERDIR(
     contrib/libs/poco/XML
     contrib/libs/rapidjson
     contrib/libs/re2
+    contrib/libs/simdjson
     contrib/libs/sparsehash
     contrib/libs/wyhash
     contrib/libs/xxhash
@@ -106,6 +107,7 @@ ADDINCL(
     contrib/libs/msgpack/include
     contrib/libs/pdqsort
     contrib/libs/rapidjson/include
+    contrib/libs/simdjson/include
     contrib/libs/sparsehash/src
     contrib/libs/zstd/include
     contrib/restricted/cityhash-1.0.2
