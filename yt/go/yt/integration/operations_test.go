@@ -151,40 +151,27 @@ func TestSuspendOperation(t *testing.T) {
 	opID, err := env.YT.StartOperation(ctx, yt.OperationVanilla, opSpec, nil)
 	require.NoError(t, err)
 
-	// Wait for the job to start.
+	// Wait for the operation to be in `running` state.
 	for idx := 0; idx < 10; idx++ {
-		res, err := env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
+		opStatus, err := env.YT.GetOperation(ctx, opID, nil)
 		require.NoError(t, err)
-		if len(res.Jobs) == 0 {
+		if opStatus.State != yt.StateRunning {
 			if idx == 9 {
-				t.Fatal("The job did not start")
+				t.Fatalf("The operation is still in %s status", opStatus.State)
 			}
 			time.Sleep(3 * time.Second)
 		} else {
+			require.Equal(t, false, opStatus.Suspended)
 			break
 		}
 	}
 
 	// Suspend the operation.
-	err = env.YT.SuspendOperation(ctx, opID, &yt.SuspendOperationOptions{AbortRunningJobs: true})
+	err = env.YT.SuspendOperation(ctx, opID, nil)
 	require.NoError(t, err)
 
-	// Wait for the job to stop
-	for idx := 0; idx < 10; idx++ {
-		res, err := env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
-		require.NoError(t, err)
-		if len(res.Jobs) != 0 {
-			if idx == 9 {
-				t.Fatal("The job did not stop")
-			}
-			time.Sleep(3 * time.Second)
-		} else {
-			break
-		}
-	}
-
-	// Check the operation status
-	opStatus, err := env.YT.GetOperation(ctx, opID, &yt.GetOperationOptions{})
+	// Check the operation status.
+	opStatus, err := env.YT.GetOperation(ctx, opID, nil)
 	require.NoError(t, err)
 	require.Equal(t, yt.StateRunning, opStatus.State)
 	require.Equal(t, true, opStatus.Suspended)
