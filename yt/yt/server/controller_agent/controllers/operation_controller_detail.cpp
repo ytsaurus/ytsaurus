@@ -8532,7 +8532,7 @@ i64 TOperationControllerBase::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto snapshot = GetMemoryUsageSnapshot();
+    const auto snapshot = GetGlobalMemoryUsageSnapshot();
     YT_VERIFY(snapshot);
 
     return snapshot->GetUsage(OperationIdTag, ToString(OperationId));

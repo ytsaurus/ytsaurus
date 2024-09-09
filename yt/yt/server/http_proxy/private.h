@@ -10,9 +10,9 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto HttpProxyUserAllocationTag = "user";
-constexpr auto HttpProxyRequestIdAllocationTag = "request_id";
-constexpr auto HttpProxyCommandAllocationTag = "command";
+constexpr auto HttpProxyUserAllocationTagKey = "user";
+constexpr auto HttpProxyRequestIdAllocationTagKey = "request_id";
+constexpr auto HttpProxyCommandAllocationTagKey = "command";
 
 ////////////////////////////////////////////////////////////////////////////////
 

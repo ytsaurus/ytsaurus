@@ -40,7 +40,7 @@ protected:
 
     ui64 MaxValue_;
     ui64 MinValue_;
-    THashMap<ui64, int> DistinctValues_;
+    THashMap<ui64, int>     DistinctValues_;
 
     void Reset()
     {
