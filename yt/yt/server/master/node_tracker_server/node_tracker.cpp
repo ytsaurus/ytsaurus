@@ -422,6 +422,16 @@ public:
         return host;
     }
 
+    TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) override
+    {
+        TCompactVector<std::string, 4> result;
+        auto groups = GetGroupsForNode(node);
+        for (const auto& group : groups) {
+            result.push_back(group->Id);
+        }
+        return result;
+    }
+
     void SetHostRack(THost* host, TRack* rack) override
     {
         if (host->GetRack() != rack) {
