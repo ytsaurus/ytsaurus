@@ -39,11 +39,8 @@ PEERDIR(
     yt/cpp/mapreduce/util
 )
 
-IF (NOT OPENSOURCE)
-    SET(YT_CONFIG_PATCH {init_operations_archive=%true;})
-
-    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
-ENDIF()
+SET(YT_CONFIG_PATCH {init_operations_archive=%true;})
+INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
 REQUIREMENTS(
     cpu:4
