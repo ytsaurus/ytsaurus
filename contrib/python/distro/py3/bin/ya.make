@@ -1,5 +1,7 @@
 PY3_PROGRAM(distro)
 
+VERSION(Service-proxy-version)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(
