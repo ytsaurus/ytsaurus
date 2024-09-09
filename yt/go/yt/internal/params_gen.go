@@ -707,6 +707,12 @@ func writeListUserTokensOptions(w *yson.Writer, o *yt.ListUserTokensOptions) {
 	}
 }
 
+func writeWhoAmIOptions(w *yson.Writer, o *yt.WhoAmIOptions) {
+	if o == nil {
+		return
+	}
+}
+
 func writeAddMaintenanceOptions(w *yson.Writer, o *yt.AddMaintenanceOptions) {
 	if o == nil {
 		return
@@ -920,6 +926,12 @@ func writeAlterTableReplicaOptions(w *yson.Writer, o *yt.AlterTableReplicaOption
 	if o.Mode != nil {
 		w.MapKeyString("mode")
 		w.Any(o.Mode)
+	}
+}
+
+func writeAttachTxOptions(w *yson.Writer, o *yt.AttachTxOptions) {
+	if o == nil {
+		return
 	}
 }
 
@@ -3884,9 +3896,9 @@ func (p *DeleteRowsParams) TransactionOptions() **yt.TransactionOptions {
 type PushQueueProducerParams struct {
 	verb         Verb
 	producerPath ypath.Path
-	queuePath ypath.Path
-	sessionID string
-	epoch     int64
+	queuePath    ypath.Path
+	sessionID    string
+	epoch        int64
 	options      *yt.PushQueueProducerOptions
 }
 
@@ -3945,9 +3957,9 @@ func (p *PushQueueProducerParams) TransactionOptions() **yt.TransactionOptions {
 type CreateQueueProducerSessionParams struct {
 	verb         Verb
 	producerPath ypath.Path
-	queuePath ypath.Path
-	sessionID string
-	options   *yt.CreateQueueProducerSessionOptions
+	queuePath    ypath.Path
+	sessionID    string
+	options      *yt.CreateQueueProducerSessionOptions
 }
 
 func NewCreateQueueProducerSessionParams(
@@ -4000,9 +4012,9 @@ func (p *CreateQueueProducerSessionParams) TimeoutOptions() **yt.TimeoutOptions 
 type RemoveQueueProducerSessionParams struct {
 	verb         Verb
 	producerPath ypath.Path
-	queuePath ypath.Path
-	sessionID string
-	options   *yt.RemoveQueueProducerSessionOptions
+	queuePath    ypath.Path
+	sessionID    string
+	options      *yt.RemoveQueueProducerSessionOptions
 }
 
 func NewRemoveQueueProducerSessionParams(
@@ -5004,6 +5016,38 @@ func (p *ListUserTokensParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("password_sha256")
 	w.Any(p.password)
 	writeListUserTokensOptions(w, p.options)
+}
+
+type WhoAmIParams struct {
+	verb    Verb
+	options *yt.WhoAmIOptions
+}
+
+func NewWhoAmIParams(
+	options *yt.WhoAmIOptions,
+) *WhoAmIParams {
+	if options == nil {
+		options = &yt.WhoAmIOptions{}
+	}
+	optionsCopy := *options
+	return &WhoAmIParams{
+		Verb("whoami"),
+		&optionsCopy,
+	}
+}
+
+func (p *WhoAmIParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *WhoAmIParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *WhoAmIParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *WhoAmIParams) MarshalHTTP(w *yson.Writer) {
+	writeWhoAmIOptions(w, p.options)
 }
 
 type GenerateTimestampParams struct {
