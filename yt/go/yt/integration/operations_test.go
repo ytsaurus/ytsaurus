@@ -131,6 +131,55 @@ func TestOperationWithStderr(t *testing.T) {
 	}
 }
 
+func TestSuspendOperation(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	opSpec := map[string]any{
+		"tasks": map[string]any{
+			"main": map[string]any{
+				"job_count": 1,
+				"command":   "sleep 5m",
+			},
+		},
+	}
+	opID, err := env.YT.StartOperation(ctx, yt.OperationVanilla, opSpec, nil)
+	require.NoError(t, err)
+
+	// Wait for the operation to be in `running` state.
+	for idx := 0; idx < 10; idx++ {
+		opStatus, err := env.YT.GetOperation(ctx, opID, nil)
+		require.NoError(t, err)
+		if opStatus.State != yt.StateRunning {
+			if idx == 9 {
+				t.Fatalf("The operation is still in %s status", opStatus.State)
+			}
+			time.Sleep(3 * time.Second)
+		} else {
+			require.Equal(t, false, opStatus.Suspended)
+			break
+		}
+	}
+
+	// Suspend the operation.
+	err = env.YT.SuspendOperation(ctx, opID, nil)
+	require.NoError(t, err)
+
+	// Check the operation status.
+	opStatus, err := env.YT.GetOperation(ctx, opID, nil)
+	require.NoError(t, err)
+	require.Equal(t, yt.StateRunning, opStatus.State)
+	require.Equal(t, true, opStatus.Suspended)
+
+	err = env.YT.AbortOperation(ctx, opID, nil)
+	require.NoError(t, err)
+}
+
 func TestListOperations(t *testing.T) {
 	t.Parallel()
 
