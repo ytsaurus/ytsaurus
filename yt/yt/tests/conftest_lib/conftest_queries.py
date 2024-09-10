@@ -53,6 +53,11 @@ class QueryTracker(ExternalComponent):
                         "addresses": self.addresses,
                     }
                 },
+                "testing": {
+                    "channel": {
+                        "addresses": self.addresses,
+                    }
+                },
             },
         }
         set("//sys/clusters/primary/query_tracker", query_tracker_config)
