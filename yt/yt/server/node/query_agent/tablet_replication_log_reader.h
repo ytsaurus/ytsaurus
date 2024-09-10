@@ -18,6 +18,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     const NTableClient::TRowBatchReadOptions& rowBatchReadOptions,
     const NChaosClient::TReplicationProgress& progress,
     const NTabletNode::IReplicationLogParserPtr& logParser,
+    const IReservingMemoryUsageTrackerPtr& memoryUsageTracker,
     NLogging::TLogger logger,
     i64 startRowIndex,
     NTransactionClient::TTimestamp upperTimestamp,

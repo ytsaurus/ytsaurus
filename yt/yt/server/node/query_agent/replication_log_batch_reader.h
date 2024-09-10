@@ -36,6 +36,7 @@ public:
     TReplicationLogBatchReaderBase(
         NTabletNode::TTableMountConfigPtr mountConfig,
         NTabletClient::TTabletId tabletId,
+        IReservingMemoryUsageTrackerPtr memoryUsageTracker,
         NLogging::TLogger logger);
 
     virtual ~TReplicationLogBatchReaderBase() = default;
@@ -48,6 +49,7 @@ public:
 protected:
     const NTabletNode::TTableMountConfigPtr TableMountConfig_;
     const NTabletClient::TTabletId TabletId_;
+    const IReservingMemoryUsageTrackerPtr MemoryUsageTracker_;
     const NLogging::TLogger Logger;
 
     virtual NTableClient::TColumnFilter CreateColumnFilter() const;
@@ -66,7 +68,7 @@ protected:
         NTableClient::TTimestamp* timestamp,
         i64* rowDataWeight) const = 0;
 
-    virtual void WriteTypeErasedRow(NTableClient::TTypeErasedRow row) = 0;
+    virtual size_t WriteTypeErasedRow(NTableClient::TTypeErasedRow row) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
