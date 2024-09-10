@@ -1451,6 +1451,12 @@ public:
         return reference;
     }
 
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool /*keepExistingTracking*/) override
+    {
+        // TODO(pogorelov): Support shared ref tracking.
+        return reference;
+    }
+
 private:
     const TResourceHolderPtr ResourceHolder_;
 
