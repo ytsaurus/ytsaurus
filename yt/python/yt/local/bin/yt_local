@@ -240,6 +240,8 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--use-native-client", action="store_true", default=False,
                         help="Use native client")
+    parser.add_argument("--enable-auth", action="store_true", default=False,
+                        help="Enable authentication. Default user/password/token: admin")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)

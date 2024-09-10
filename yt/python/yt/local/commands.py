@@ -174,7 +174,8 @@ def start(master_count=1,
           job_proxy_logging_mode=None,
           use_native_client=False,
           timestamp_provider_count=0,
-          components=None):
+          components=None,
+          enable_auth=False):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -213,6 +214,15 @@ def start(master_count=1,
         "directory_traversal_concurrency": None,
     }
 
+    proxy_config_patch = _load_config(proxy_config)
+
+    if enable_auth:
+        if "auth" not in proxy_config_patch:
+            proxy_config_patch["auth"] = {}
+        proxy_config_patch["auth"]["require_authentication"] = True
+        proxy_config_patch["auth"]["enable_authentication"] = True
+
+
     yt_config = LocalYtConfig(
         master_count=master_count,
         clock_count=clock_count,
@@ -239,7 +249,7 @@ def start(master_count=1,
         delta_controller_agent_config=_load_config(controller_agent_config),
         delta_node_config=_load_config(node_config),
         delta_rpc_proxy_config=_load_config(rpc_proxy_config),
-        delta_http_proxy_config=_load_config(proxy_config),
+        delta_http_proxy_config=proxy_config_patch,
         delta_master_cache_config=_load_config(master_cache_config),
         delta_driver_config=_load_config(driver_config),
         delta_global_cluster_connection_config=_load_config(global_cluster_connection_config),

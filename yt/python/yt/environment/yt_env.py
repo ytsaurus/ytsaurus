@@ -299,7 +299,7 @@ class YTInstance(object):
             self.watcher_config["disable_logrotate"] = True
 
         self._default_client_config = {
-            "enable_token": False,
+            "enable_token": True,  # !!!!!!!
             "is_local_mode": True,
             "pickling": {
                 "enable_local_files_usage_in_job": True,
@@ -643,6 +643,7 @@ class YTInstance(object):
             if self.yt_config.controller_agent_count > 0 and not self.yt_config.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
 
+            self.create_admin_user()
             self.synchronize()
 
             if self._run_watcher:
@@ -679,6 +680,34 @@ class YTInstance(object):
             logger.exception("Failed to start environment")
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
+
+    def create_admin_user(self):
+        client = self._create_cluster_client()
+
+        # client.set_attribute(
+        #     "//sys/schemas/user",
+        #     "acl",
+        #     value=[
+        #         {
+        #             "action": "allow",
+        #             "subjects": ["admins"]
+        #         }
+        #     ]
+        # )
+
+        client.create("user", attributes={"name": "admin"})
+        # client.create("group", attributes={"name": "admins"})
+        client.add_member("admin", "superusers")
+
+        client.create(
+            "map_node",
+            "//sys/cypress_tokens/8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+        )
+        client.set_attribute(
+            "//sys/cypress_tokens/8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+            "user",
+            "admin",
+        )
 
     def stop(self, force=False):
         if not self._started and not force:
@@ -1824,7 +1853,7 @@ class YTInstance(object):
 
     def create_client(self):
         if self.yt_config.cypress_proxy_count == 0 and self.yt_config.http_proxy_count > 0:
-            return YtClient(proxy=self.get_http_proxy_address(), config=self._default_client_config)
+            return YtClient(token="admin", proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -1849,7 +1878,7 @@ class YTInstance(object):
         return YtClient(config=config)
 
     def _create_cluster_client(self):
-        if self.yt_config.use_native_client:
+        if True or self.yt_config.use_native_client:
             return self.create_native_client()
         else:
             return self.create_client()
