@@ -899,6 +899,7 @@ class TestTmpfsLayers(YTEnvSetup):
 
         set("//tmp/static_cat/@executable", True)
 
+    @pytest.mark.skip(reason="Skip this test while YTADMINREQ-44111 is being fixed")
     def test_trusted_overlay_opaque_extended_attributes(self):
         self.setup_files()
 
