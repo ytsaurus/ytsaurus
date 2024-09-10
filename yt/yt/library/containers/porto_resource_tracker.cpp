@@ -1,6 +1,9 @@
 #include "porto_resource_tracker.h"
 #include "private.h"
 
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -19,6 +22,7 @@
 
 namespace NYT::NContainers {
 
+using namespace NConcurrency;
 using namespace NProfiling;
 
 static const auto& Logger = ContainersLogger;
@@ -417,8 +421,20 @@ TPortoResourceProfiler::TPortoResourceProfiler(
     const TProfiler& profiler)
     : ResourceTracker_(std::move(tracker))
     , PodSpec_(std::move(podSpec))
+    , UpdateBufferActionQueue_(New<TActionQueue>("PortoResourceProfiler"))
+    , UpdateBufferPeriodicExecutor_(New<TPeriodicExecutor>(
+        UpdateBufferActionQueue_->GetInvoker(),
+        BIND(&TPortoResourceProfiler::DoUpdateBuffer, MakeWeak(this)),
+        UpdateBufferMinPeriod_))
 {
     profiler.AddProducer("", MakeStrong(this));
+
+    UpdateBufferPeriodicExecutor_->Start();
+}
+
+TPortoResourceProfiler::~TPortoResourceProfiler()
+{
+    YT_UNUSED_FUTURE(UpdateBufferPeriodicExecutor_->Stop());
 }
 
 static void WriteGaugeIfOk(
@@ -712,6 +728,13 @@ void TPortoResourceProfiler::WriteNetworkMetrics(
         writer,
         "/network/tx_limit",
         totalStatistics.NetworkStatistics.TxLimit);
+}
+
+void TPortoResourceProfiler::DoUpdateBuffer()
+{
+    TSensorBuffer buffer;
+    CollectSensors(&buffer);
+    Update(std::move(buffer));
 }
 
 void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
