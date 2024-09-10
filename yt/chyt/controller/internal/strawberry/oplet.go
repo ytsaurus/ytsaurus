@@ -768,6 +768,9 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
 		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
 	}
+	spec["job_cpu_monitor"] = map[string]any{
+		"enable_cpu_reclaim": oplet.strawberrySpeclet.EnableCPUReclaimOrDefault(),
+	}
 
 	networkProject := oplet.agentInfo.DefaultNetworkProject
 	if oplet.strawberrySpeclet.NetworkProject != nil {
