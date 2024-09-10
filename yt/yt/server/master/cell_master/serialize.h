@@ -239,6 +239,7 @@ DEFINE_ENUM(EMasterReign,
     ((NestedAggregateColumns)                                       (2735))  // lukyan
     ((ForbiddenFieldsInMountConfig)                                 (2736))  // ifsmirnov
     ((NativeTransactionExternalization)                             (2737))  // kvk1920
+    ((RemoveCompatAroundAclSubjectTagFilterValidation)              (2738))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -2211,7 +2211,6 @@ public:
         TTagFilteringAceIterator aceIter(
             Bootstrap_->GetObjectManager().Get(),
             object,
-            /*alwaysEvaluateFirstElement*/ !dynamicConfig->FixSubjectTagFilterIteratorNeverSkippingFirstAce,
             userTags,
             std::move(options.FirstObjectAcdOverride));
         auto aceEndIter = TTagFilteringAceIterator();
