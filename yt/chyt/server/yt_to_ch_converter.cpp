@@ -345,7 +345,8 @@ public:
             Data_->insertValue(ysonItem.UncheckedAsBoolean());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::String ||
-            LogicalType == ESimpleLogicalValueType::Utf8)
+            LogicalType == ESimpleLogicalValueType::Utf8 ||
+            LogicalType == ESimpleLogicalValueType::Json)
         {
             auto data = ysonItem.UncheckedAsString();
             Data_->insertData(data.data(), data.size());
@@ -403,7 +404,8 @@ public:
                     Data_->insertValue(value.Data.Boolean);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::String ||
-                    LogicalType == ESimpleLogicalValueType::Utf8)
+                    LogicalType == ESimpleLogicalValueType::Utf8 ||
+                    LogicalType == ESimpleLogicalValueType::Json)
                 {
                     Data_->insertData(value.Data.String, value.Length);
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
@@ -444,7 +446,8 @@ public:
             ReplaceColumnTypeChecked(Column_, ConvertBooleanYTColumnToCHColumn(column));
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::String ||
-            LogicalType == ESimpleLogicalValueType::Utf8)
+            LogicalType == ESimpleLogicalValueType::Utf8 ||
+            LogicalType == ESimpleLogicalValueType::Json)
         {
             ReplaceColumnTypeChecked<DB::MutableColumnPtr>(Column_, ConvertStringLikeYTColumnToCHColumn(column));
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
@@ -1170,6 +1173,13 @@ private:
                 }
                 converter = std::make_unique<TSimpleValueConverter<ESimpleLogicalValueType::Timestamp, DB::ColumnDecimal<DB::DateTime64>>>(
                     descriptor, dataType);
+                break;
+            }
+
+            case ESimpleLogicalValueType::Json: {
+                ValidateReadOnly(descriptor);
+                converter = std::make_unique<TSimpleValueConverter<ESimpleLogicalValueType::Json, DB::ColumnString>>(
+                    descriptor, std::make_shared<DB::DataTypeString>());
                 break;
             }
 
