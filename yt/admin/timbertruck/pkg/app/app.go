@@ -1,17 +1,53 @@
-// Фреймворк для построения тимбертрак приложений.
-// Подразумевается следующее использование.
-
-// Во первых, заводится структура конфига:
+// Framework is used for building timbertruck applications.
+// The following usage is suggested:
 //
-//   - первое поле должно быть заинлайненным `app.Config`
+// First, user of framework creates configuration struct for application and configuration struct for stream
+// (or multiple configuration structs for different streams).
 //
-//   - дальше обычно идёт список пайплайнов для обработки
+// Configuration of the application has following properties:
+//   - the first field must be inlined field of type app.Config
+//   - other fields describe configuration of the streams
+//   - config might have other custom fields
+//   - config is annotated with yaml tags
 //
-//     type MyConfig struct {
-//     app.Config `yaml:",inline"`
+// Configuration of the particular stream has following properties:
+//   - the first field must be inlined field of type timbertruck.StreamConfig
+//   - config might have other custom fields
+//   - config is annotated with yaml tags
 //
-//     YtToken string `yaml:"yt_token"`
-//     }
+// Example:
+//
+//		type MyStreamConfig struct {
+//		     timbertruck.StreamConfig `yaml:",inline"`
+//	         YtQueuePath string `yaml:"some_output_configuration"`
+//		}
+//		type MyConfig struct {
+//		    app.Config `yaml:",inline"`
+//		    MyStreams []MyStreamConfig `yaml:"my_streams"`
+//		    YtToken   string `yaml:"yt_token"`
+//		}
+//
+// Second, user of framework creates main function with following structure:
+//
+//	func main() {
+//		// Create application instance, parse cmd line and config
+//		app, config := app.MustNewApp[MyConfig]()
+//		defer app.Close()
+//
+//		// Maybe do some stuff initialization
+//		// ...
+//		// Somehow register all streams
+//		for i := range config.MyStreams {
+//			app.AddPipeline(config.MyStreams[i].StreamConfig, func (task timbertruck.TaskArgs) (*pipelines.Pipeline, error) {
+//				// custom pipeline handling
+//			})
+//		}
+//		// Launch application and start to handle streams
+//		err = app.Run()
+//		if err != nil {
+//			log.Fatalln(err)
+//		}
+//	}
 package app
 
 import (
@@ -35,6 +71,7 @@ import (
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 
+	"go.ytsaurus.tech/library/go/core/buildinfo"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/nop"
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
@@ -84,9 +121,16 @@ func MustNewApp[UserConfigType any]() (app App, userConfig *UserConfigType) {
 func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err error) {
 	var configPath string
 	var oneShotConfigPath string
+	var version bool
+	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.StringVar(&configPath, "config", "", "path to configuration, timbertruck will be launched as daemon")
 	flag.StringVar(&oneShotConfigPath, "one-shot-config", "", "path to task configuration, timbertruck executes tasks and exits")
 	flag.Parse()
+
+	if version {
+		fmt.Println(buildinfo.Info.ProgramVersion)
+		os.Exit(0)
+	}
 
 	if configPath != "" && oneShotConfigPath != "" {
 		err = errors.New("-config and -task-config are mutually exclusive")
