@@ -160,10 +160,10 @@ public:
             std::move(nodeInThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
         }))
+        , MemoryTracker_(std::move(memoryTracker))
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
-        , MemoryTracker_(std::move(memoryTracker))
     { }
 
     void Enable() override
@@ -204,13 +204,13 @@ private:
     const NLogging::TLogger Logger;
 
     const IThroughputThrottlerPtr Throttler_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 
     IChaosAgentPtr ChaosAgent_;
     TBannedReplicaTracker BannedReplicaTracker_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
-    IMemoryUsageTrackerPtr MemoryTracker_;
 
     TFuture<void> FiberFuture_;
 

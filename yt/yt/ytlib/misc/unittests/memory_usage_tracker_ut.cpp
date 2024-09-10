@@ -416,48 +416,48 @@ TEST(TReservingMemoryUsageTrackerTest, TestReturnedAll)
 {
     NProfiling::TCounter memoryUsageCounter;
     auto tracker = New<TTestNodeMemoryTracker>();
-    auto categoryTracker = tracker->WithCategory(EMemoryCategory::PullIncoming);
+    auto categoryTracker = tracker->WithCategory(EMemoryCategory::ChaosReplicationIncoming);
     auto reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
 
     reservingTracker->SetLimit(10000);
-    ASSERT_EQ(tracker->GetLimit(EMemoryCategory::PullIncoming), 10000);
-    ASSERT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+    ASSERT_EQ(tracker->GetLimit(EMemoryCategory::ChaosReplicationIncoming), 10000);
+    ASSERT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 10000);
 
     EXPECT_EQ(reservingTracker->GetFree(), 10000);
     EXPECT_TRUE(!reservingTracker->TryReserve(100000).IsOK());
     EXPECT_EQ(reservingTracker->GetFree(), 10000);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 10000);
 
     EXPECT_TRUE(reservingTracker->TryReserve(1000).IsOK());
     EXPECT_EQ(reservingTracker->GetFree(), 10000);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 9000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 9000);
 
     EXPECT_TRUE(reservingTracker->TryAcquire(900).IsOK());
     EXPECT_EQ(reservingTracker->GetFree(), 9100);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 9000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 9000);
 
     EXPECT_TRUE(reservingTracker->TryReserve(1000).IsOK());
     EXPECT_EQ(reservingTracker->GetFree(), 9100);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 8000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 8000);
 
     EXPECT_TRUE(reservingTracker->TryAcquire(3000).IsOK());
     EXPECT_EQ(reservingTracker->GetFree(), 6100);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6100);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 6100);
 
     reservingTracker->Release(100);
     EXPECT_EQ(reservingTracker->GetFree(), 6200);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6100);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 6100);
 
     reservingTracker->ReleaseUnusedReservation();
     EXPECT_EQ(reservingTracker->GetFree(), 6200);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6200);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 6200);
 
     reservingTracker->Release(3800);
     EXPECT_EQ(reservingTracker->GetFree(), 10000);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 6200);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 6200);
 
     reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
-    EXPECT_EQ(tracker->GetFree(EMemoryCategory::PullIncoming), 10000);
+    EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 10000);
 
     tracker->ClearTrackers();
 }
