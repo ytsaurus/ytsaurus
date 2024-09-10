@@ -143,8 +143,6 @@ public:
     void CollectSensors(ISensorWriter* writer) override;
 
 private:
-    static constexpr TDuration UpdateBufferMinPeriod_ = TDuration::Seconds(2);
-
     const TPortoResourceTrackerPtr ResourceTracker_;
     const TPodSpecConfigPtr PodSpec_;
     const NConcurrency::TActionQueuePtr UpdateBufferActionQueue_;
