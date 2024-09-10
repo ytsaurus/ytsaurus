@@ -196,6 +196,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/replication_log_batch_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/session.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/session_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/tablet_replication_log_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/background_activity_orchid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/backing_store_cleaner.cpp

@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NQueryAgent {
@@ -16,6 +18,18 @@ struct IReplicationLogBatchFetcher
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReplicationLogBatchDescriptor
+{
+    i64 ReadRowCount = 0;
+    i64 ResponseRowCount = 0;
+    i64 ResponseDataWeight = 0;
+    NTransactionClient::TTimestamp MaxTimestamp = 0;
+    bool ReadAllRows = true;
+    i64 EndReplicationRowIndex = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicationLogBatchReaderBase
 {
 public:
@@ -26,15 +40,10 @@ public:
 
     virtual ~TReplicationLogBatchReaderBase() = default;
 
-    void ReadReplicationBatch(
-        i64* currentRowIndex,
+    TReplicationLogBatchDescriptor ReadReplicationBatch(
+        i64 startRowIndex,
         NTransactionClient::TTimestamp upperTimestamp,
-        i64 maxDataWeight,
-        i64* totalRowCount,
-        i64* batchRowCount,
-        i64* batchDataWeight,
-        NTransactionClient::TTimestamp* maxTimestamp,
-        bool* readAllRows);
+        i64 maxDataWeight);
 
 protected:
     const NTabletNode::TTableMountConfigPtr TableMountConfig_;
@@ -52,6 +61,7 @@ protected:
 
     virtual bool ToTypeErasedRow(
         const NTableClient::TUnversionedRow& row,
+        const NTableClient::TRowBufferPtr& rowBuffer,
         NTableClient::TTypeErasedRow* replicationRow,
         NTableClient::TTimestamp* timestamp,
         i64* rowDataWeight) const = 0;

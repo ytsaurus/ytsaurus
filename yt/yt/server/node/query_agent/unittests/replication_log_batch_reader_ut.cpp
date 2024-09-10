@@ -113,6 +113,7 @@ protected:
 
     bool ToTypeErasedRow(
         const TUnversionedRow& row,
+        const TRowBufferPtr& /*rowBuffer*/,
         TTypeErasedRow* replicationRow,
         TTimestamp* timestamp,
         i64* rowDataWeight) const override
@@ -185,29 +186,17 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
 
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
 
-    i64 currentRowIndex = 0;
-    i64 totalRowCount = 0;
-    i64 batchRowCount = 0;
-    i64 batchDataWeight = 0;
-    TTimestamp maxTimestamp = 0;
-    bool readAllRows = false;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    auto result = reader.ReadReplicationBatch(
+        0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_TRUE(readAllRows);
+    EXPECT_TRUE(result.ReadAllRows);
     EXPECT_TRUE(reader.GetProcessedRows().empty());
-    EXPECT_EQ(totalRowCount, 0ll);
-    EXPECT_EQ(batchRowCount, 0ll);
-    EXPECT_EQ(batchDataWeight, 0ll);
-    EXPECT_EQ(maxTimestamp, 0ull);
+    EXPECT_EQ(result.ReadRowCount, 0ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 0ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
 }
 
@@ -225,28 +214,16 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     AppendReplicationLogRows(3, 10, 10, &replicationLogRows);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, replicationLogRows);
 
-    i64 currentRowIndex = 0;
-    i64 totalRowCount = 0;
-    i64 batchRowCount = 0;
-    i64 batchDataWeight = 0;
-    TTimestamp maxTimestamp = 0;
-    bool readAllRows = false;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    auto result = reader.ReadReplicationBatch(
+        0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_TRUE(readAllRows);
-    EXPECT_EQ(totalRowCount, 30ll);
-    EXPECT_EQ(batchRowCount, 30ll);
-    EXPECT_EQ(batchDataWeight, 300ll);
-    EXPECT_EQ(maxTimestamp, 3ull);
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 30ll);
+    EXPECT_EQ(result.ResponseDataWeight, 300ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
     EXPECT_EQ(reader.GetReadsCount(), 2);
     CheckReaderContinious(reader, 30);
 }
@@ -265,53 +242,33 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     AppendReplicationLogRows(3, 10, 10, &transactions);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
 
-    i64 currentRowIndex = 0;
-    i64 totalRowCount = 0;
-    i64 batchRowCount = 0;
-    i64 batchDataWeight = 0;
-    TTimestamp maxTimestamp = 0;
-    bool readAllRows = false;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    auto result = reader.ReadReplicationBatch(
+        0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_FALSE(readAllRows);
-    EXPECT_EQ(totalRowCount, 24ll);
-    EXPECT_EQ(batchRowCount, 20ll);
-    EXPECT_EQ(batchDataWeight, 200ll);
-    EXPECT_EQ(maxTimestamp, 2ull);
+    EXPECT_FALSE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 24ll);
+    EXPECT_EQ(result.ResponseRowCount, 20ll);
+    EXPECT_EQ(result.ResponseDataWeight, 200ll);
+    EXPECT_EQ(result.MaxTimestamp, 2ull);
     EXPECT_EQ(reader.GetReadsCount(), 1);
-    EXPECT_EQ(currentRowIndex, 20);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
     CheckReaderContinious(reader, 20);
 
-    batchRowCount = 0;
-    batchDataWeight = 0;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    result = reader.ReadReplicationBatch(
+        20,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_TRUE(readAllRows);
-    EXPECT_EQ(totalRowCount, 34ll);
-    EXPECT_EQ(batchRowCount, 10ll);
-    EXPECT_EQ(batchDataWeight, 100ll);
-    EXPECT_EQ(maxTimestamp, 3ull);
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 10ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
     // 1 from previous read, 1 till the end and 1 to get null batch
     EXPECT_EQ(reader.GetReadsCount(), 3);
-    EXPECT_EQ(currentRowIndex, 30);
+    EXPECT_EQ(result.EndReplicationRowIndex, 30);
     CheckReaderContinious(reader, 30);
 }
 
@@ -329,54 +286,33 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     AppendReplicationLogRows(3, 10, 10, &transactions);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
 
-    i64 currentRowIndex = 0;
-    i64 totalRowCount = 0;
-    i64 batchRowCount = 0;
-    i64 batchDataWeight = 0;
-    TTimestamp maxTimestamp = 0;
-    bool readAllRows = false;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    auto result = reader.ReadReplicationBatch(
+        0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_FALSE(readAllRows);
-    EXPECT_EQ(totalRowCount, 106ll);
-    EXPECT_EQ(batchRowCount, 100ll);
-    EXPECT_EQ(batchDataWeight, 1000ll);
-    EXPECT_EQ(maxTimestamp, 1ull);
+    EXPECT_FALSE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 106ll);
+    EXPECT_EQ(result.ResponseRowCount, 100ll);
+    EXPECT_EQ(result.ResponseDataWeight, 1000ll);
+    EXPECT_EQ(result.MaxTimestamp, 1ull);
     EXPECT_EQ(reader.GetReadsCount(), 5);
     CheckReaderContinious(reader, 100);
-    EXPECT_EQ(currentRowIndex, 100);
+    EXPECT_EQ(result.EndReplicationRowIndex, 100);
 
-    batchRowCount = 0;
-    batchDataWeight = 0;
-    totalRowCount = 0;
-
-    reader.ReadReplicationBatch(
-        &currentRowIndex,
+    result = reader.ReadReplicationBatch(
+        100,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB,
-        &totalRowCount,
-        &batchRowCount,
-        &batchDataWeight,
-        &maxTimestamp,
-        &readAllRows);
+        /*maxDataWeight*/ 1_GB);
 
-    EXPECT_TRUE(readAllRows);
-    EXPECT_EQ(totalRowCount, 20ll);
-    EXPECT_EQ(batchRowCount, 20ll);
-    EXPECT_EQ(batchDataWeight, 200ll);
-    EXPECT_EQ(maxTimestamp, 3ull);
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 20ll);
+    EXPECT_EQ(result.ResponseRowCount, 20ll);
+    EXPECT_EQ(result.ResponseDataWeight, 200ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
     // 5 from previous read, 1 till the end and 1 to get null batch
     EXPECT_EQ(reader.GetReadsCount(), 7);
-    EXPECT_EQ(currentRowIndex, 120);
+    EXPECT_EQ(result.EndReplicationRowIndex, 120);
     CheckReaderContinious(reader, 120);
 }
 
