@@ -2488,6 +2488,42 @@ class TestUserJobMonitoring(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
+    @authors("omgronny")
+    def test_has_monitoring_before_start(self):
+        op = run_test_vanilla(
+            "for (( c=1; c>0; c++ )); do : ; done",
+            job_count=1,
+            spec={
+                "job_testing_options": {
+                    "delay_before_run_job_proxy": 1000000,
+                },
+            },
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["gpu/utilization_power"]
+                },
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            },
+        )
+
+        wait(lambda: len(list_jobs(op.id)) > 0)
+
+        job_id = list_jobs(op.id)["jobs"][0]["id"]
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
+        job = get_job(op.id, job_id)
+        node = job["address"]
+        descriptor = job["monitoring_descriptor"]
+
+        profiler = profiler_factory().at_node(node)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_power",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+
 
 ##################################################################
 

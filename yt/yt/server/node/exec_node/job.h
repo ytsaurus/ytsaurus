@@ -173,6 +173,8 @@ public:
 
     void ResetStatisticsLastSendTime();
 
+    void UpdateUserJobMonitoring();
+
     void SetStatistics(const NYson::TYsonString& statisticsYson);
     void SetTotalInputDataStatistics(NChunkClient::NProto::TDataStatistics dataStatistics);
     void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);

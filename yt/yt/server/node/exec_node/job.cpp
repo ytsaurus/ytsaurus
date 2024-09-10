@@ -1179,36 +1179,45 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingJobProxy) {
-        auto statistics = ConvertTo<TStatistics>(statisticsYson);
-        GetTimeStatistics().AddSamplesTo(&statistics);
+    if (JobPhase_ != EJobPhase::Running && JobPhase_ != EJobPhase::FinalizingJobProxy) {
+        return;
+    }
 
-        if (auto gpuSlots = GetGpuSlots(); !std::empty(gpuSlots)) {
-            EnrichStatisticsWithGpuInfo(&statistics, gpuSlots);
+    auto statistics = ConvertTo<TStatistics>(statisticsYson);
+    GetTimeStatistics().AddSamplesTo(&statistics);
 
-            if (IsFullHostGpuJob()) {
-                EnrichStatisticsWithRdmaDeviceInfo(&statistics);
-            }
-        }
+    if (auto gpuSlots = GetGpuSlots(); !std::empty(gpuSlots)) {
+        EnrichStatisticsWithGpuInfo(&statistics, gpuSlots);
 
-        EnrichStatisticsWithDiskInfo(&statistics);
-
-        EnrichStatisticsWithArtifactsInfo(&statistics);
-
-        UpdateIOStatistics(statistics);
-
-        StatisticsYson_ = ConvertToYsonString(statistics);
-
-        HandleJobReport(MakeDefaultJobReport()
-            .Statistics(StatisticsYson_));
-
-        if (UserJobSensorProducer_) {
-            TSensorBuffer userJobSensors;
-            CollectSensorsFromStatistics(&userJobSensors);
-            CollectSensorsFromGpuAndRdmaDeviceInfo(&userJobSensors);
-            UserJobSensorProducer_->Update(std::move(userJobSensors));
+        if (IsFullHostGpuJob()) {
+            EnrichStatisticsWithRdmaDeviceInfo(&statistics);
         }
     }
+
+    EnrichStatisticsWithDiskInfo(&statistics);
+
+    EnrichStatisticsWithArtifactsInfo(&statistics);
+
+    UpdateIOStatistics(statistics);
+
+    StatisticsYson_ = ConvertToYsonString(statistics);
+
+    HandleJobReport(MakeDefaultJobReport()
+        .Statistics(StatisticsYson_));
+
+    UpdateUserJobMonitoring();
+}
+
+void TJob::UpdateUserJobMonitoring()
+{
+    if (!UserJobSensorProducer_) {
+        return;
+    }
+
+    TSensorBuffer userJobSensors;
+    CollectSensorsFromStatistics(&userJobSensors);
+    CollectSensorsFromGpuAndRdmaDeviceInfo(&userJobSensors);
+    UserJobSensorProducer_->Update(std::move(userJobSensors));
 }
 
 void TJob::SetTotalInputDataStatistics(TDataStatistics datastatistics)
@@ -1790,6 +1799,8 @@ void TJob::StartUserJobMonitoring()
         .AddProducer("", UserJobSensorProducer_);
     HandleJobReport(TNodeJobReport()
         .MonitoringDescriptor(monitoringConfig.job_descriptor()));
+
+    UpdateUserJobMonitoring();
 }
 
 void TJob::ReportJobInterruptionInfo(
@@ -3616,6 +3627,11 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
         return;
     }
 
+    // NB(omgronny): We don't want to log any errors in case the job hasn't started yet.
+    if (statisticsNode->GetChildCount() == 0) {
+        return;
+    }
+
     const auto& monitoringConfig = UserJobSpec_->monitoring_config();
     for (const auto& sensorName : monitoringConfig.sensor_names()) {
         // sensor must be present in config, the check was performed in constructor.
@@ -3692,12 +3708,7 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
     for (int index = 0; index < std::ssize(gpuSlots); ++index) {
         auto slot = gpuSlots[index];
 
-        auto it = gpuInfoMap.find(slot->GetDeviceIndex());
-        if (it == gpuInfoMap.end()) {
-            continue;
-        }
-
-        const auto& gpuInfo = it->second;
+        auto gpuInfo = GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), NGpu::TGpuInfo{});
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
