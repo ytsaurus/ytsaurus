@@ -201,7 +201,6 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const IThroughputThrottlerPtr NodeInThrottler_;
     const IThroughputThrottlerPtr Throttler_;
 
     IChaosAgentPtr ChaosAgent_;
