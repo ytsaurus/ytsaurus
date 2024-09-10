@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
     ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
     ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
+    ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
     // 24.2 starts here.
     ((Start_24_2)                                                   (2700))  //
     ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
