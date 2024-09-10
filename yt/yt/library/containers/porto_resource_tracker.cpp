@@ -425,7 +425,7 @@ TPortoResourceProfiler::TPortoResourceProfiler(
     , UpdateBufferPeriodicExecutor_(New<TPeriodicExecutor>(
         UpdateBufferActionQueue_->GetInvoker(),
         BIND(&TPortoResourceProfiler::DoUpdateBuffer, MakeWeak(this)),
-        UpdateBufferMinPeriod_))
+        ResourceUsageUpdatePeriod))
 {
     profiler.AddProducer("", MakeStrong(this));
 
