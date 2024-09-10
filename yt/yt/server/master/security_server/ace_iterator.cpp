@@ -391,18 +391,11 @@ TAceIterator::TValue TAceIterator::operator*() const
 TTagFilteringAceIterator::TTagFilteringAceIterator(
     const NObjectServer::IObjectManager* objectManager,
     NObjectServer::TObject* object,
-    bool alwaysEvaluateFirstElement,
     const TBooleanFormulaTags* tags,
     TAcdOverride firstObjectAcdOverride)
     : Tags_(tags)
     , Underlying_(objectManager, object, std::move(firstObjectAcdOverride))
 {
-    // COMPAT(h0pless): a bug when first element of any ACE would always be evaluated is in 23.2
-    // We want to have an ability to roll this fix out to masters which necessitates this flag.
-    if (alwaysEvaluateFirstElement) {
-        return;
-    }
-
     if (ShouldAdvance()) {
         Advance();
     }
