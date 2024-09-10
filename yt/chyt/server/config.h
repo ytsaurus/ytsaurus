@@ -644,7 +644,7 @@ public:
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
-    int QueryStickyGroupSize;
+    std::optional<int> QueryStickyGroupSize;
 
     //! Note that CliqueId will be added to Directory automatically.
     TDiscoveryConfigPtr Discovery;

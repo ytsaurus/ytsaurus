@@ -713,22 +713,16 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert len(set(picked_instances)) == 1, "QueryStickyGroupSize must be populated with value from URL parameter when specified"
 
     @authors("barykinni")
-    def test_disable_sticky_group_manually(self):
+    def test_sticky_group_size_bad_value(self):
         patch = {
             "yt": {
-                "query_sticky_group_size": 0,  # Sticky-group technology is disabled.
+                "query_sticky_group_size": 0,  # Doesn't make any sense!
             }
         }
 
-        NUM_REQUESTS = 25  # (1/2)**25 ~ 3e-8
-
-        with Clique(2, config_patch=patch) as clique:
-            query_seed = _generate_string()
-
-            picked_instances = [_job_id_of_instance_picked_for_the_query(clique, seed=query_seed)
-                                for _ in range(NUM_REQUESTS)]
-
-            assert len(set(picked_instances)) == 2, "Proxy must use default random stategy when QueryStickyGroupSize=0 (and there are no other strategies)"
+        with Clique(1, config_patch=patch) as clique:
+            with raises_yt_error("Sticky group size should be positive"):
+                clique.make_query_via_proxy("SELECT 1")
 
     @authors("barykinni")
     def test_sticky_group_corner_cases(self):

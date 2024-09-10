@@ -523,7 +523,7 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("query_sticky_group_size", &TThis::QueryStickyGroupSize)
-        .Default(0);
+        .Default();
 
     registrar.Parameter("discovery", &TThis::Discovery)
         .DefaultNew();
