@@ -145,7 +145,6 @@ public:
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
         , TableSchema_(tablet->GetTableSchema())
-        , VersionedWriteSchema_(TableSchema_->ToVersionedWrite())
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicaId_(tablet->GetUpstreamReplicaId())
         , PivotKey_(tablet->GetPivotKey())
@@ -193,7 +192,6 @@ private:
     const TTabletId TabletId_;
     const TRevision MountRevision_;
     const TTableSchemaPtr TableSchema_;
-    const TTableSchemaPtr VersionedWriteSchema_;
     const TTableMountConfigPtr MountConfig_;
     const TReplicaId ReplicaId_;
     const TLegacyOwningKey PivotKey_;
