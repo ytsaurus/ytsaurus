@@ -55,9 +55,10 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, const IAlertManager
         .BeginMap()
             .Item("queue_agent_host").Value(GetLocalHostName())
             .Item("alerts")
-                .BeginAttributes()
-                    .Item("opaque").Value(true)
-                .EndAttributes()
+                // TODO(apachee): Uncomment this if and when builtin attributes will support opaque attributes (e.g. <some_obj>/@<some_interned_attribute>/path/to/opaque/field)
+                // // .BeginAttributes()
+                // //     .Item("opaque").Value(true)
+                // // .EndAttributes()
                 .Value(alertManager->GetAlerts())
             .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
                 fluentMap.Item("family").Value(snapshot->Family);
