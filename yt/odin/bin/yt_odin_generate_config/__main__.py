@@ -179,6 +179,7 @@ CHECKS_LIST = [
     "chaos_cells",
     "unaware_nodes",
     "wrapper_files_count",
+    "yt_logs",
 ]
 
 
