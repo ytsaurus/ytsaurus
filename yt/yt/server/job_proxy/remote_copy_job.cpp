@@ -556,7 +556,19 @@ private:
                 const auto& writer = writers[partIndex];
                 if (!copyResult.IsOK()) {
                     erasedPartIndices.push_back(partIndex);
-                    closeReplicaWriterResults.push_back(writer->Cancel());
+                    closeReplicaWriterResults.push_back(
+                        writer
+                            ->Cancel()
+                            .Apply(
+                                BIND([&, partIndex] (const TError& error) {
+                                    // NB(coteeq): Do not treat error as a failure. Cancellation is
+                                    // a hint here, so error is not fatal. We just forget and move on.
+                                    YT_LOG_INFO(
+                                        error,
+                                        "Failed to cancel writer (ChunkId: %v, PartIndex: %v)",
+                                        inputChunkId,
+                                        partIndex);
+                                })));
                 } else {
                     closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
                 }
