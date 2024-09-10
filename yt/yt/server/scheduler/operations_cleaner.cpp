@@ -64,6 +64,9 @@ using namespace NProfiling;
 
 static inline const NLogging::TLogger Logger("OperationsCleaner");
 
+// TODO(eshcherbin): It should be nested within SchedulerProfiler.
+static inline const TProfiler Profiler = TProfiler("/operations_cleaner").WithGlobal();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrderedByIdTag
@@ -836,7 +839,6 @@ private:
 
     NNative::IClientPtr Client_;
 
-    TProfiler Profiler{"/operations_cleaner"};
     std::atomic<i64> RemovePending_{0};
     std::atomic<i64> ArchivePending_{0};
     std::atomic<i64> Submitted_{0};
