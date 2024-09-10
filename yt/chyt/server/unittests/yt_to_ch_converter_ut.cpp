@@ -361,6 +361,12 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         "0.0",
     };
 
+    std::vector<TString> ysonStringsJson = {
+        R"("{\"foo\":\"bar\", \"bar\":[\"baz\"]}")",
+        R"("{\"id\":1}")",
+        R"("{}")",
+    };
+
     auto ysonsInt8 = ToYsonStringBufs(ysonStringsInt8);
     auto ysonsInt16 = ToYsonStringBufs(ysonStringsInt16);
     auto ysonsInt32 = ToYsonStringBufs(ysonStringsInt32);
@@ -372,6 +378,7 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
     auto ysonsBool = ToYsonStringBufs(ysonStringsBool);
     auto ysonsString = ToYsonStringBufs(ysonStringsString);
     auto ysonsFloat = ToYsonStringBufs(ysonStringsFloat);
+    auto ysonsJson = ToYsonStringBufs(ysonStringsJson);
 
     // Dummy variables are replacing template class parameters which are currently not available for lambdas.
     auto testAsType = [&] (
@@ -422,6 +429,7 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
     testAsType(ysonsInt32, ESimpleLogicalValueType::Date32, std::make_shared<DB::DataTypeDate32>(), i32(), i32());
     testAsType(ysonsUint32, ESimpleLogicalValueType::Datetime, std::make_shared<DB::DataTypeDateTime>(), ui32(), ui32());
     testAsType(ysonsString, ESimpleLogicalValueType::String, std::make_shared<DB::DataTypeString>(), TString(), std::string());
+    testAsType(ysonsJson, ESimpleLogicalValueType::Json, std::make_shared<DB::DataTypeString>(), TString(), std::string());
     testAsType(ysonsFloat, ESimpleLogicalValueType::Float, std::make_shared<DB::DataTypeNumber<float>>(), double(), float());
     testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
 }
@@ -1153,6 +1161,9 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
         TColumnSchema(
             /*name*/ "",
             OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint8)))),
+        TColumnSchema(
+            /*name*/ "",
+            SimpleLogicalType(ESimpleLogicalValueType::Json)),
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
