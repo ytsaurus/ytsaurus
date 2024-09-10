@@ -4219,7 +4219,8 @@ private:
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
-            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication)));
+            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication),
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PullIncoming)));
     }
 
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)

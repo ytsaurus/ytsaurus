@@ -195,6 +195,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,
@@ -234,6 +235,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,
@@ -273,6 +275,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,
@@ -294,6 +297,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,
@@ -335,6 +339,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,
@@ -357,6 +362,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     reader.ReadReplicationBatch(
         &currentRowIndex,
         NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
         &totalRowCount,
         &batchRowCount,
         &batchDataWeight,

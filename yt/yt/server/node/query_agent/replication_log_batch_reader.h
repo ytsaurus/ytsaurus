@@ -29,6 +29,7 @@ public:
     void ReadReplicationBatch(
         i64* currentRowIndex,
         NTransactionClient::TTimestamp upperTimestamp,
+        i64 maxDataWeight,
         i64* totalRowCount,
         i64* batchRowCount,
         i64* batchDataWeight,

@@ -15,6 +15,10 @@
 
 namespace NYT {
 
+using namespace NLogging;
+using namespace NProfiling;
+using namespace NThreading;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using ECategory = INodeMemoryTracker::ECategory;
@@ -36,8 +40,8 @@ public:
     TNodeMemoryTracker(
         i64 totalLimit,
         const std::vector<std::pair<ECategory, i64>>& limits,
-        const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const TLogger& logger,
+        const TProfiler& profiler);
 
     i64 GetTotalLimit() const override;
     i64 GetTotalUsed() const override;
@@ -112,10 +116,10 @@ private:
         const EMemoryCategory Category_;
     };
 
-    const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler_;
+    const TLogger Logger;
+    const TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     std::atomic<i64> TotalLimit_;
 
@@ -279,8 +283,8 @@ private:
 TNodeMemoryTracker::TNodeMemoryTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,
-    const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const TLogger& logger,
+    const TProfiler& profiler)
     : Logger(logger)
     , Profiler_(profiler.WithSparse())
     , TotalLimit_(totalLimit)
@@ -1104,6 +1108,156 @@ TSharedRefArray TrackMemory(
         tracker->WithCategory(category),
         std::move(array),
         keepExistingTracking);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReservingMemoryTracker
+    : public IReservingMemoryUsageTracker
+{
+public:
+    TReservingMemoryTracker(
+        IMemoryUsageTrackerPtr underlying,
+        TCounter memoryUsageCounter)
+        : Underlying_(std::move(underlying))
+        , MemoryUsageCounter_(std::move(memoryUsageCounter))
+    { }
+
+    ~TReservingMemoryTracker()
+    {
+        Underlying_->Release(UnderlyingAllocatedSize_);
+        MemoryUsageCounter_.Increment(-UnderlyingAllocatedSize_);
+    }
+
+    TError TryAcquire(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
+        if (auto toAquire = size - reservedAmount; toAquire > 0) {
+            auto acquireResult = Underlying_->TryAcquire(toAquire);
+            if (!acquireResult.IsOK()) {
+                return acquireResult;
+            }
+            UnderlyingAllocatedSize_ += toAquire;
+            MemoryUsageCounter_.Increment(toAquire);
+        }
+
+        AllocatedSize_ += size;
+
+        return {};
+    }
+
+    TError TryChange(i64 /*size*/) override
+    {
+        return TError("Setting is not supported for reserve memory tracker");
+    }
+
+    bool Acquire(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
+        bool result = true;
+        if (auto toAquire = size - reservedAmount; toAquire > 0) {
+            result = Underlying_->Acquire(toAquire);
+            UnderlyingAllocatedSize_ += toAquire;
+            MemoryUsageCounter_.Increment(toAquire);
+        }
+
+        AllocatedSize_ += size;
+        return result;
+    }
+
+    void Release(i64 size) override
+    {
+        YT_VERIFY(size >= 0);
+
+        auto guard = Guard(SpinLock_);
+        AllocatedSize_ -= size;
+    }
+
+    void SetLimit(i64 size) override
+    {
+        Underlying_->SetLimit(size);
+    }
+
+    i64 GetLimit() const override
+    {
+        return Underlying_->GetLimit();
+    }
+
+    i64 GetUsed() const override
+    {
+        return Underlying_->GetUsed();
+    }
+
+    i64 GetFree() const override
+    {
+        auto guard = Guard(SpinLock_);
+        return Underlying_->GetFree() + UnderlyingAllocatedSize_ - AllocatedSize_;
+    }
+
+    bool IsExceeded() const override
+    {
+        return Underlying_->IsExceeded();
+    }
+
+    TError TryReserve(i64 size) override
+    {
+        auto guard = Guard(SpinLock_);
+        auto reserveResult = Underlying_->TryAcquire(size);
+        if (reserveResult.IsOK()) {
+            UnderlyingAllocatedSize_ += size;
+            MemoryUsageCounter_.Increment(size);
+        }
+
+        return reserveResult;
+    }
+
+    TSharedRef Track(TSharedRef reference, bool keepHolder) override
+    {
+        return Underlying_->Track(std::move(reference), keepHolder);
+    }
+
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool keepHolder) override
+    {
+        return Underlying_->TryTrack(std::move(reference), keepHolder);
+    }
+
+    void ReleaseUnusedReservation() override
+    {
+        auto guard = Guard(SpinLock_);
+        if (auto releaseAmount = UnderlyingAllocatedSize_ - AllocatedSize_; releaseAmount > 0) {
+            Underlying_->Release(releaseAmount);
+            MemoryUsageCounter_.Increment(-releaseAmount);
+            UnderlyingAllocatedSize_ -= releaseAmount;
+        }
+    }
+
+private:
+    const IMemoryUsageTrackerPtr Underlying_;
+    const TCounter MemoryUsageCounter_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
+    // Amount we allocated from Underlying_.
+    i64 UnderlyingAllocatedSize_ = 0;
+    // Amount that was allocated by users (UnderlyingAllocatedSize_ >= AllocatedSize_).
+    i64 AllocatedSize_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TReservingMemoryTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+    IMemoryUsageTrackerPtr underlying,
+    TCounter memoryUsageCounter)
+{
+    return New<TReservingMemoryTracker>(std::move(underlying), std::move(memoryUsageCounter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

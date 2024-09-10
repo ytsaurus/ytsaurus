@@ -28,7 +28,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
-    NConcurrency::IThroughputThrottlerPtr nodeInThrottler);
+    NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
+    IMemoryUsageTrackerPtr memoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

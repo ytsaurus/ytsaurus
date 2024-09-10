@@ -40,8 +40,9 @@ DEFINE_ENUM(EMemoryCategory,
     ((JobInputBlockCache)         (25))
     ((JobInputChunkMetaCache)     (26))
     ((TableReplication)           (27))
-    ((ReadTable)                  (28))
-    ((Other)                      (29))
+    ((PullIncoming)               (28))
+    ((ReadTable)                  (30))
+    ((Other)                      (31))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

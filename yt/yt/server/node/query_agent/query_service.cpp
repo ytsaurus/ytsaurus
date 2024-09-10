@@ -581,6 +581,9 @@ private:
             ? std::make_optional(request->start_replication_row_index())
             : std::nullopt;
         auto upperTimestamp = request->upper_timestamp();
+        auto maxDataWeight = request->has_max_data_weight()
+            ? request->max_data_weight()
+            : std::numeric_limits<i64>::max();
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -683,6 +686,7 @@ private:
                         rowBuffer,
                         &currentRowIndex,
                         upperTimestamp,
+                        maxDataWeight,
                         writer.get(),
                         &readRowCount,
                         &responseRowCount,
@@ -1947,6 +1951,7 @@ private:
         const TRowBufferPtr& rowBuffer,
         i64* currentRowIndex,
         TTimestamp upperTimestamp,
+        i64 maxDataWeight,
         IWireProtocolWriter* writer,
         i64* totalRowCount,
         i64* batchRowCount,
@@ -1967,6 +1972,7 @@ private:
                 .ReadReplicationBatch(
                     currentRowIndex,
                     upperTimestamp,
+                    maxDataWeight,
                     totalRowCount,
                     batchRowCount,
                     batchDataWeight,
@@ -1984,6 +1990,7 @@ private:
                 .ReadReplicationBatch(
                     currentRowIndex,
                     upperTimestamp,
+                    maxDataWeight,
                     totalRowCount,
                     batchRowCount,
                     batchDataWeight,
