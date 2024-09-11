@@ -631,10 +631,12 @@ public:
             SequoiaTransaction_->AddTransactionAction(cellTag, transactionActionData);
 
             for (auto transactionId : TransactionIds_) {
-                SequoiaTransaction_->WriteRow(NRecords::TTransactionReplica{
-                    .Key = {.TransactionId = transactionId, .CellTag = cellTag},
-                    .Dummy = 0,
-                });
+                SequoiaTransaction_->WriteRow(
+                    NRecords::TTransactionReplica{
+                        .Key = {.TransactionId = transactionId, .CellTag = cellTag},
+                        .Dummy = 0,
+                    },
+                    ELockType::SharedWrite);
             }
         }
     }

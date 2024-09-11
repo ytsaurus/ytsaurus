@@ -4,6 +4,8 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
+// COMPAT(kvk1920): make |transaction_id| required in all these actions.
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateNode
@@ -12,6 +14,7 @@ message TReqCreateNode
     required NYT.NProto.TGuid node_id = 2;
     required string path = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 4;
+    optional NYT.NProto.TGuid transaction_id = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +38,7 @@ message TReqCloneNode
     required NYT.NProto.TGuid dst_id = 2;
     required string dst_path = 3;
     required TCloneOptions options = 4;
+    optional NYT.NProto.TGuid transaction_id = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +48,7 @@ message TReqAttachChild
     required NYT.NProto.TGuid parent_id = 1;
     required NYT.NProto.TGuid child_id = 2;
     required string key = 3;
+    optional NYT.NProto.TGuid transaction_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +56,7 @@ message TReqAttachChild
 message TReqRemoveNode
 {
     required NYT.NProto.TGuid node_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +65,7 @@ message TReqDetachChild
 {
     required NYT.NProto.TGuid parent_id = 1;
     required string key = 2;
+    optional NYT.NProto.TGuid transaction_id = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +74,27 @@ message TReqSetNode
 {
     required NYT.NProto.TGuid node_id = 1;
     optional bytes value = 2;
+    optional NYT.NProto.TGuid transaction_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLockNode
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
+    required int32 mode = 3; // ELockMode
+    optional string child_key = 4;
+    optional string attribute_key = 5;
+    optional uint64 timestamp = 6;
+    required bool waitable = 7;
+    required NYT.NProto.TGuid lock_id = 8;
+}
+
+message TReqUnlockNode
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

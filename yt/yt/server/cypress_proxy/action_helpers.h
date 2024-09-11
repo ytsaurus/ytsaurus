@@ -74,6 +74,7 @@ NCypressClient::TNodeId CopySubtree(
 void RemoveSelectedSubtree(
     const std::vector<TCypressNodeDescriptor>& nodesToRemove,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
+    NCypressClient::TTransactionId cypressTransactionId,
     bool removeRoot = true,
     NCypressClient::TNodeId subtreeParentId = {});
 

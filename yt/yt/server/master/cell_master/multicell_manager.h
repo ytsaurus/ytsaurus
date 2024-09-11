@@ -99,7 +99,7 @@ struct IMulticellManager
         bool reliable = true) = 0;
     virtual void PostToMasters(
         const TCrossCellMessage& message,
-        const NObjectClient::TCellTagList& cellTags,
+        TRange<NObjectClient::TCellTag> cellTags,
         bool reliable = true) = 0;
     virtual void PostToPrimaryMaster(
         const TCrossCellMessage& message,

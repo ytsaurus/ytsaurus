@@ -81,14 +81,17 @@ void DeleteSequoiaNodeRows(
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetNode(
-    TNodeId id,
+    TVersionedNodeId nodeId,
     const TYsonString& value,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqSetNode setNodeRequest;
-    ToProto(setNodeRequest.mutable_node_id(), id);
+    ToProto(setNodeRequest.mutable_node_id(), nodeId.ObjectId);
     setNodeRequest.set_value(value.ToString());
-    transaction->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(setNodeRequest));
+    ToProto(setNodeRequest.mutable_transaction_id(), nodeId.TransactionId);
+    transaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(setNodeRequest));
 }
 
 void CreateNode(
@@ -160,16 +163,17 @@ TNodeId CopyNode(
 }
 
 void RemoveNode(
-    TNodeId id,
+    TVersionedNodeId nodeId,
     const TMangledSequoiaPath& path,
     const ISequoiaTransactionPtr& transaction)
 {
-    DeleteSequoiaNodeRows(id, path, transaction);
+    DeleteSequoiaNodeRows(nodeId.ObjectId, path, transaction);
 
     NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
-    ToProto(reqRemoveNode.mutable_node_id(), id);
+    ToProto(reqRemoveNode.mutable_node_id(), nodeId.ObjectId);
+    ToProto(reqRemoveNode.mutable_transaction_id(), nodeId.TransactionId);
     transaction->AddTransactionAction(
-        CellTagFromId(id),
+        CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqRemoveNode));
 }
 
@@ -218,6 +222,54 @@ void LockRowInNodeIdToPathTable(
     ELockType lockType)
 {
     transaction->LockRow(NRecords::TNodeIdToPathKey{.NodeId = nodeId}, lockType);
+}
+
+TLockId LockNodeInMaster(
+    TVersionedNodeId nodeId,
+    ELockMode lockMode,
+    const std::optional<TString>& childKey,
+    const std::optional<TString>& attributeKey,
+    TTimestamp timestamp,
+    bool waitable,
+    const ISequoiaTransactionPtr& sequoiaTransaction)
+{
+    YT_VERIFY(nodeId.IsBranched());
+
+    NCypressServer::NProto::TReqLockNode request;
+    ToProto(request.mutable_node_id(), nodeId.ObjectId);
+    ToProto(request.mutable_transaction_id(), nodeId.TransactionId);
+    request.set_mode(ToProto<int>(lockMode));
+    if (childKey) {
+        request.set_child_key(*childKey);
+    }
+    if (attributeKey) {
+        request.set_attribute_key(*attributeKey);
+    }
+    request.set_timestamp(timestamp);
+    request.set_waitable(waitable);
+    auto lockId = sequoiaTransaction->GenerateObjectId(
+        EObjectType::Lock,
+        CellTagFromId(nodeId.ObjectId));
+    ToProto(request.mutable_lock_id(), lockId);
+
+    sequoiaTransaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(request));
+
+    return lockId;
+}
+
+void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr &sequoiaTransaction)
+{
+    YT_VERIFY(nodeId.IsBranched());
+
+    NCypressServer::NProto::TReqUnlockNode request;
+    ToProto(request.mutable_node_id(), nodeId.ObjectId);
+    ToProto(request.mutable_transaction_id(), nodeId.TransactionId);
+
+    sequoiaTransaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

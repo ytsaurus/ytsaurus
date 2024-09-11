@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -17,7 +19,7 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> TokenizeUnresolvedSuffix(const NSequoiaClient::TYPath& unresolvedSuffix);
+std::vector<TString> TokenizeUnresolvedSuffix(NSequoiaClient::TYPathBuf unresolvedSuffix);
 NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
     const std::vector<TString>& childKeys);
@@ -46,6 +48,15 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 void FromProto(
     TCopyOptions* options,
     const NCypressClient::NProto::TReqCopy& protoOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Fetches single object from follower using vectorized read. Therefore, there
+//! is no resolve step on master.
+TFuture<NYTree::INodePtr> FetchSingleObject(
+    const NApi::NNative::IClientPtr& client,
+    NCypressClient::TVersionedObjectId objectId,
+    const NYTree::TAttributeFilter& attributeFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

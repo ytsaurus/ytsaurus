@@ -2,17 +2,26 @@
 
 #include "actions.h"
 #include "action_helpers.h"
+#include "bootstrap.h"
 #include "helpers.h"
+
+#include <yt/yt/server/lib/sequoia/cypress_transaction.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NCypressProxy {
 
@@ -21,6 +30,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -29,6 +39,10 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+constexpr auto& Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TCypressNodeDescriptor> ParseSubtree(TRange<NRecords::TPathToNodeId> records)
 {
@@ -54,15 +68,92 @@ std::vector<TCypressNodeDescriptor> ParseSubtree(TRange<NRecords::TPathToNodeId>
 
 DEFINE_REFCOUNTED_TYPE(TSequoiaSession)
 
-TSequoiaSessionPtr TSequoiaSession::Start(const ISequoiaClientPtr& sequoiaClient)
+TSequoiaSessionPtr TSequoiaSession::Start(
+    IBootstrap* bootstrap,
+    TTransactionId cypressTransactionId)
 {
+    auto sequoiaClient = bootstrap->GetSequoiaClient();
     auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient))
         .ValueOrThrow();
-    return New<TSequoiaSession>(std::move(sequoiaTransaction));
+    return New<TSequoiaSession>(bootstrap, std::move(sequoiaTransaction), cypressTransactionId);
+}
+
+void TSequoiaSession::LockAndReplicateCypressTransaction()
+{
+    if (!CypressTransactionId_) {
+        return;
+    }
+
+    // To prevent concurrent finishing of this Cypress tx.
+    SequoiaTransaction_->LockRow(
+        NRecords::TTransactionKey{.TransactionId = CypressTransactionId_},
+        ELockType::SharedStrong);
+
+    auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
+    Erase(affectedCellTags, CellTagFromId(CypressTransactionId_));
+
+    std::vector<NRecords::TTransactionReplicaKey> replicaKeys(affectedCellTags.size());
+    std::transform(affectedCellTags.begin(), affectedCellTags.end(), replicaKeys.begin(), [&] (TCellTag cellTag) {
+        return NRecords::TTransactionReplicaKey{
+            .TransactionId = CypressTransactionId_,
+            .CellTag = cellTag,
+        };
+    });
+
+    auto replicas = WaitFor(SequoiaTransaction_->LookupRows(replicaKeys))
+        .ValueOrThrow();
+
+    TTransactionReplicationDestinationCellTagList dstCellTags;
+    for (int i = 0; i < std::ssize(affectedCellTags); ++i) {
+        if (!replicas[i].has_value()) {
+            dstCellTags.push_back(affectedCellTags[i]);
+        }
+    }
+
+    // Fast path.
+    if (dstCellTags.empty()) {
+        YT_LOG_DEBUG("Cypress transaction is already replicated to all participands");
+        return;
+    }
+
+    YT_LOG_DEBUG("Need Cypress transaction replication (MasterCellTags: %v)",
+        dstCellTags);
+
+    auto coordinatorCellId = Bootstrap_
+        ->GetNativeConnection()
+        ->GetMasterCellId(CellTagFromId(CypressTransactionId_));
+
+    // TODO(kvk1920): design a way to "stick" 2 Sequoia transactions together
+    // to reduce latency. For now, there are 3 necessary waiting points in
+    // Sequoia transaction:
+    //   1. coordinator prepare;
+    //   2. participants prepare;
+    //   3. coordinator commit.
+    // If Cypress transaction replication is needed we are waiting 6 times
+    // because of additional Sequoia transaction for replication. If we could
+    // execute main Sequoia transaction's prepare right in the same mutation as
+    // additional Sequoia transaction's commit we could eliminate 2 of 3 waiting
+    // points of main Sequoia transactions. The final cost of verb execution
+    // with Cypress transaction replication may be 1 + 1/3 Sequoia transactions
+    // instead of 2.
+
+    AdditionalFutures_.push_back(ReplicateCypressTransactions(
+        SequoiaTransaction_->GetClient(),
+        {CypressTransactionId_},
+        dstCellTags,
+        coordinatorCellId,
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        Logger()));
 }
 
 void TSequoiaSession::Commit(TCellId coordinatorCellId)
 {
+    YT_VERIFY(coordinatorCellId);
+
+    Finished_ = true;
+
+    LockAndReplicateCypressTransaction();
+
     if (!AdditionalFutures_.empty()) {
         WaitFor(AllSucceeded(std::move(AdditionalFutures_)))
             .ThrowOnError();
@@ -77,6 +168,25 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
         .ThrowOnError();
 }
 
+TSequoiaSession::~TSequoiaSession()
+{
+    if (!Finished_) {
+        Abort();
+    }
+}
+
+void TSequoiaSession::Abort()
+{
+    Finished_ = true;
+
+    if (!AdditionalFutures_.empty()) {
+        for (auto& future : AdditionalFutures_) {
+            future.Cancel(TError("Sequoia session aborted"));
+        }
+        AdditionalFutures_.clear();
+    }
+}
+
 TCellTag TSequoiaSession::RemoveRootstock(TNodeId rootstockId)
 {
     NCypressServer::NProto::TReqRemoveNode reqRemoveRootstock;
@@ -87,11 +197,47 @@ TCellTag TSequoiaSession::RemoveRootstock(TNodeId rootstockId)
     return CellTagFromId(rootstockId);
 }
 
+TLockId TSequoiaSession::LockNode(
+    TNodeId nodeId,
+    ELockMode lockMode,
+    const std::optional<TString>& childKey,
+    const std::optional<TString>& attributeKey,
+    TTimestamp timestamp,
+    bool waitable)
+{
+    YT_VERIFY(CypressTransactionId_);
+
+    return LockNodeInMaster(
+        {nodeId, CypressTransactionId_},
+        lockMode,
+        childKey,
+        attributeKey,
+        timestamp,
+        waitable,
+        SequoiaTransaction_);
+}
+
+void TSequoiaSession::UnlockNode(TNodeId nodeId)
+{
+    YT_VERIFY(CypressTransactionId_);
+
+    return UnlockNodeInMaster({nodeId, CypressTransactionId_}, SequoiaTransaction_);
+}
+
 void TSequoiaSession::MaybeLockNodeInSequoiaTable(TNodeId nodeId, ELockType lockType)
 {
     if (!JustCreated(nodeId)) {
         LockRowInNodeIdToPathTable(nodeId, SequoiaTransaction_, lockType);
     }
+}
+
+void TSequoiaSession::MaybeLockForRemovalInSequoiaTable(TNodeId nodeId)
+{
+    YT_VERIFY(!JustCreated(nodeId));
+
+    // XXX(kvk1920): traverse all ancestor transactions.
+
+    LockRowInNodeIdToPathTable(nodeId, SequoiaTransaction_, ELockType::Exclusive);
 }
 
 bool TSequoiaSession::JustCreated(TObjectId id)
@@ -102,7 +248,7 @@ bool TSequoiaSession::JustCreated(TObjectId id)
 void TSequoiaSession::SetNode(TNodeId nodeId, TYsonString value)
 {
     MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
-    NYT::NCypressProxy::SetNode(nodeId, value, SequoiaTransaction_);
+    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, value, SequoiaTransaction_);
 }
 
 bool TSequoiaSession::IsMapNodeEmpty(TNodeId nodeId)
@@ -122,9 +268,9 @@ void TSequoiaSession::DetachAndRemoveSingleNode(
     TAbsoluteYPathBuf path,
     TNodeId parentId)
 {
-    RemoveNode(nodeId, path.ToMangledSequoiaPath(), SequoiaTransaction_);
+    RemoveNode({nodeId, CypressTransactionId_}, path.ToMangledSequoiaPath(),  SequoiaTransaction_);
     if (TypeFromId(nodeId) != EObjectType::Scion) {
-        MaybeLockNodeInSequoiaTable(parentId, ELockType::SharedStrong);
+        MaybeLockNodeInSequoiaTable(parentId, ELockType::Exclusive);
         DetachChild(parentId, path.GetBaseName(), SequoiaTransaction_);
     }
 }
@@ -138,8 +284,16 @@ TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsoluteYPathBuf path)
 
 void TSequoiaSession::DetachAndRemoveSubtree(const TSubtree& subtree, TNodeId parentId)
 {
-    MaybeLockNodeInSequoiaTable(subtree.Nodes.front().Id, ELockType::SharedStrong);
-    RemoveSelectedSubtree(subtree.Nodes, SequoiaTransaction_, /*removeRoot*/ true, parentId);
+    for (auto node : subtree.Nodes) {
+        MaybeLockNodeInSequoiaTable(node.Id, ELockType::Exclusive);
+    }
+
+    RemoveSelectedSubtree(
+        subtree.Nodes,
+        SequoiaTransaction_,
+        CypressTransactionId_,
+        /*removeRoot*/ true,
+        parentId);
 }
 
 TNodeId TSequoiaSession::CopySubtree(
@@ -180,7 +334,11 @@ TNodeId TSequoiaSession::CopySubtree(
 void TSequoiaSession::ClearSubtree(const TSubtree& subtree)
 {
     MaybeLockNodeInSequoiaTable(subtree.Nodes.front().Id, ELockType::SharedStrong);
-    RemoveSelectedSubtree(subtree.Nodes, SequoiaTransaction_, /*removeRoot*/ false);
+    RemoveSelectedSubtree(
+        subtree.Nodes,
+        SequoiaTransaction_,
+        CypressTransactionId_,
+        /*removeRoot*/ false);
 }
 
 void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
@@ -190,10 +348,14 @@ void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
             const std::vector<NRecords::TPathToNodeId>& records
         ) {
             MaybeLockNodeInSequoiaTable(records.front().NodeId, ELockType::SharedStrong);
-            RemoveSelectedSubtree(ParseSubtree(records), SequoiaTransaction_, /*removeRoot*/ false);
+            RemoveSelectedSubtree(
+                ParseSubtree(records),
+                SequoiaTransaction_,
+                CypressTransactionId_,
+                /*removeRoot*/ false);
         }));
 
-    AdditionalFutures_.emplace_back(std::move(future));
+    AdditionalFutures_.push_back(std::move(future));
 }
 
 std::optional<TAbsoluteYPath> TSequoiaSession::FindNodePath(TNodeId id)
@@ -334,8 +496,13 @@ TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNo
         .ApplyUnique(parseRecords);
 }
 
-TSequoiaSession::TSequoiaSession(ISequoiaTransactionPtr sequoiaTransaction)
+TSequoiaSession::TSequoiaSession(
+    IBootstrap* bootstrap,
+    ISequoiaTransactionPtr sequoiaTransaction,
+    TTransactionId cypressTransactionId)
     : SequoiaTransaction_(std::move(sequoiaTransaction))
+    , CypressTransactionId_(cypressTransactionId)
+    , Bootstrap_(bootstrap)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -352,6 +352,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
 
     // Copy sequoia properties.
     if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+        YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
         branchedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
             *originatingNode->ImmutableSequoiaProperties());
         branchedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
@@ -400,6 +401,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
         // Just a sanity check that properties did not change.
         YT_VERIFY(*originatingNode->ImmutableSequoiaProperties() == *branchedNode->ImmutableSequoiaProperties());
+        YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
     }
 
     // Perform cleanup by resetting the parent link of the branched node.
@@ -429,7 +431,6 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
                 branchedNode->GetVersionedId(),
                 branchedNode->GetNativeContentRevision(),
                 nativeContentRevision);
-
         }
     }
 
@@ -448,6 +449,17 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     securityManager->ResetAccount(branchedNode);
 
     securityManager->UpdateMasterMemoryUsage(originatingNode);
+
+    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+        if (branchedNode->MutableSequoiaProperties()->Tombstone) {
+            if (originatingNode->IsTrunk()) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(originatingNode);
+            } else {
+                originatingNode->MutableSequoiaProperties()->Tombstone = true;
+            }
+        }
+    }
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -1345,11 +1357,6 @@ template class TCypressMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TCluste
 
 namespace {
 
-[[noreturn]] void ThrowCypressTransactionsInSequoiaNotImplemented()
-{
-    THROW_ERROR_EXCEPTION("Cypress transactions in Sequoia are not implemented yet");
-}
-
 [[noreturn]] void ThrowSequoiaNodeCloningNotImplemented()
 {
     THROW_ERROR_EXCEPTION("Sequoia node cloning is not implemented yet");
@@ -1374,10 +1381,6 @@ ICypressNodeProxyPtr TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
     TImpl* trunkNode,
     TTransaction* transaction)
 {
-    if (transaction) [[unlikely]] {
-        ThrowCypressTransactionsInSequoiaNotImplemented();
-    }
-
     return New<TSequoiaMapNodeProxy>(
         this->GetBootstrap(),
         &this->Metadata_,
@@ -1394,22 +1397,82 @@ void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* trunkNode)
     TBase::DoDestroy(trunkNode);
 }
 
-
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBranch(
-    const TImpl* /*originatingNode*/,
-    TImpl* /*branchedNode*/,
-    const TLockRequest& /*lockRequest*/)
+    const TImpl* originatingNode,
+    TImpl* branchedNode,
+    const TLockRequest& lockRequest)
 {
-    ThrowCypressTransactionsInSequoiaNotImplemented();
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+    YT_VERIFY(!branchedNode->Children_);
+
+    if (lockRequest.Mode == ELockMode::Snapshot) {
+        if (originatingNode->IsTrunk()) {
+            branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
+            branchedNode->AssignChildren(originatingNode->Children_);
+        } else {
+            const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+
+            TKeyToCypressNodeId keyToChildStorage;
+            const auto& originatingNodeChildren = GetMapNodeChildMap(
+                cypressManager,
+                originatingNode->GetTrunkNode()->template As<TImpl>(),
+                originatingNode->GetTransaction(),
+                &keyToChildStorage);
+
+            branchedNode->ChildCountDelta() = originatingNodeChildren.size();
+            auto& children = branchedNode->MutableChildren();
+            for (const auto& [key, childNode] : SortHashMapByKeys(originatingNodeChildren)) {
+                children.Insert(key, childNode);
+            }
+        }
+    }
+
+    // Non-snapshot branches only hold changes, i.e. deltas. Which are empty at first.
 }
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMerge(
-    TImpl* /*originatingNode*/,
-    TImpl* /*branchedNode*/)
+    TImpl* originatingNode,
+    TImpl* branchedNode)
 {
-    ThrowCypressTransactionsInSequoiaNotImplemented();
+    TBase::DoMerge(originatingNode, branchedNode);
+
+    bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
+
+    auto& children = originatingNode->MutableChildren();
+    const auto& keyToChild = originatingNode->KeyToChild();
+
+    for (const auto& [key, trunkChildNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
+        auto it = keyToChild.find(key);
+        auto childModified = it == keyToChild.end() || it->second != trunkChildNode;
+        if (trunkChildNode && childModified) {
+            // The following action invalidates the iterator.
+            children.Set(key, trunkChildNode);
+        } else if (!trunkChildNode) {
+            // Branched: tombstone
+            if (it == keyToChild.end()) {
+                // Originating: missing
+                if (isOriginatingNodeBranched) {
+                    children.Insert(key, {});
+                }
+            } else if (it->second) {
+                // Originating: present
+                if (isOriginatingNodeBranched) {
+                    children.Set(key, {});
+                } else {
+                    children.Remove(key, it->second);
+                }
+            } else {
+                // Originating: tombstone
+            }
+        }
+    }
+
+    originatingNode->ChildCountDelta() += branchedNode->ChildCountDelta();
+
+    branchedNode->Children_.Reset();
 }
 
 template <class TImpl>
@@ -1422,14 +1485,41 @@ void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoClone(
     TAccount* account)
 {
     TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
+
+    auto* transaction = factory->GetTransaction();
+
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+
+    TKeyToCypressNodeId keyToChildMapStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
+        cypressManager,
+        sourceNode->GetTrunkNode()->template As<TSequoiaMapNode>(),
+        transaction,
+        &keyToChildMapStorage);
+    auto keyToChildList = SortHashMapByKeys(keyToChildMap);
+
+    auto& clonedChildren = clonedTrunkNode->MutableChildren();
+
+    for (const auto& [key, trunkChildNode] : keyToChildList) {
+        clonedChildren.Insert(key, trunkChildNode);
+        ++clonedTrunkNode->ChildCountDelta();
+    }
 }
 
 template <class TImpl>
 bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
-    TImpl* /*originatingNode*/,
-    TImpl* /*branchedNode*/)
+    TImpl* originatingNode,
+    TImpl* branchedNode)
 {
-    ThrowCypressTransactionsInSequoiaNotImplemented();
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+        return false;
+    }
+
+    return !branchedNode->KeyToChild().empty();
 }
 
 template <class TImpl>
@@ -1638,4 +1728,3 @@ void TListNodeTypeHandler::DoEndCopy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-

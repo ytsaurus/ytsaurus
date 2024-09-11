@@ -25,7 +25,7 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetNode(
-    NCypressClient::TNodeId id,
+    NCypressClient::TVersionedNodeId nodeId,
     const NYson::TYsonString& value,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -43,7 +43,7 @@ NCypressClient::TNodeId CopyNode(
 
 //! Removes node but not detaches it from its parent.
 void RemoveNode(
-    NCypressClient::TNodeId id,
+    NCypressClient::TVersionedNodeId nodeId,
     const NSequoiaClient::TMangledSequoiaPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -63,6 +63,19 @@ void LockRowInNodeIdToPathTable(
     NCypressClient::TNodeId nodeId,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     NTableClient::ELockType lockType);
+
+NCypressClient::TLockId LockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::ELockMode lockMode,
+    const std::optional<TString>& childKey,
+    const std::optional<TString>& attributeKey,
+    NTransactionClient::TTimestamp timestamp,
+    bool waitable,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void UnlockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
