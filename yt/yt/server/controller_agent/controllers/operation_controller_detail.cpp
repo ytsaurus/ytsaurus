@@ -3126,7 +3126,7 @@ void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult
     }
 }
 
-void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
+void TOperationControllerBase::OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
@@ -3139,8 +3139,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         return;
     }
-
-    auto joblet = GetJoblet(jobId);
 
     JobAbortsUntilOperationFailure_.clear();
 
@@ -3201,7 +3199,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         // In case any id is not known, abort the job.
         for (const auto& chunkSpec : jobResultExt.output_chunk_specs()) {
             if (auto abortedJobSummary = RegisterOutputChunkReplicas(*jobSummary, chunkSpec)) {
-                OnJobAborted(std::move(abortedJobSummary));
+                OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
                 return;
             }
         }
@@ -3210,7 +3208,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     // Controller should abort job if its competitor has already completed.
     if (auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet)) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
-        OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason));
+        OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason));
         return;
     }
 
@@ -3313,7 +3311,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     }
 }
 
-void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
+void TOperationControllerBase::OnJobFailed(TJobletPtr joblet, std::unique_ptr<TFailedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
@@ -3326,8 +3324,6 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     YT_LOG_DEBUG("Job failed (JobId: %v)", jobId);
 
-    auto joblet = GetJoblet(jobId);
-
     JobAbortsUntilOperationFailure_.clear();
 
     if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
@@ -3336,7 +3332,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
             jobId,
             joblet->NodeDescriptor.Address);
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
-        OnJobAborted(std::move(abortedJobSummary));
+        OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
         return;
     }
 
@@ -3345,7 +3341,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
             "(JobId: %v)",
             jobId);
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::JobTreatmentFailed);
-        OnJobAborted(std::move(abortedJobSummary));
+        OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
         return;
     }
 
@@ -3453,7 +3449,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     }
 }
 
-void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+void TOperationControllerBase::OnJobAborted(TJobletPtr joblet, std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
@@ -3469,8 +3465,6 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         "Job aborted (JobId: %v, AbortReason: %v)",
         jobId,
         abortReason);
-
-    auto joblet = GetJoblet(jobId);
 
     auto error = jobSummary->Error;
 
@@ -3660,7 +3654,7 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     // so joblet may still be present in allocation.
     if (allocation.Joblet) {
         auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(eventSummary));
-        OnJobAborted(std::move(jobSummary));
+        OnJobAborted(allocation.Joblet, std::move(jobSummary));
     }
 
     AllocationMap_.erase(allocationIt);
@@ -3680,7 +3674,7 @@ void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSumma
     ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
 }
 
-void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
+void TOperationControllerBase::OnJobRunning(const TJobletPtr& joblet, std::unique_ptr<TRunningJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
@@ -3722,8 +3716,6 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
         YT_LOG_DEBUG("Stale job running event ignored because controller is not running (JobId: %v, State: %v)", jobId, State.load());
         return;
     }
-
-    auto joblet = GetJoblet(jobSummary->Id);
 
     if (jobSummary->StatusTimestamp <= joblet->LastUpdateTime) {
         YT_LOG_DEBUG(
@@ -3806,7 +3798,7 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
 
     Host->AbortJob(jobId, EAbortReason::Abandoned);
 
-    OnJobCompleted(CreateAbandonedJobSummary(jobId));
+    OnJobCompleted(std::move(joblet), CreateAbandonedJobSummary(jobId));
 }
 
 void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDuration timeout)
@@ -5743,7 +5735,9 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
-    if (!FindJoblet(jobId)) {
+    auto joblet = FindJoblet(jobId);
+
+    if (!joblet) {
         YT_LOG_DEBUG(
             "Ignore stale job abort request from job tracker (JobId: %v, AbortReason: %v)",
             jobId,
@@ -5754,7 +5748,7 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 
     YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
 
-    DoAbortJob(jobId, abortReason, /*requestJobTrackerJobAbortion*/ false);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false);
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
@@ -6046,22 +6040,25 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
 
     switch (jobSummary->State) {
         case EJobState::Waiting:
-            break;
+            return;
         case EJobState::Running:
-            OnJobRunning(SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
-            break;
+            OnJobRunning(joblet, SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
+            return;
         case EJobState::Completed:
             OnJobCompleted(
+                std::move(joblet),
                 SummaryCast<TCompletedJobSummary>(std::move(jobSummary)));
-            break;
+            return;
         case EJobState::Failed:
             OnJobFailed(
+                std::move(joblet),
                 SummaryCast<TFailedJobSummary>(std::move(jobSummary)));
-            break;
+            return;
         case EJobState::Aborted:
             OnJobAborted(
+                std::move(joblet),
                 SummaryCast<TAbortedJobSummary>(std::move(jobSummary)));
-            break;
+            return;
         default:
             YT_ABORT();
     }
@@ -10632,11 +10629,13 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
 }
 
 void TOperationControllerBase::DoAbortJob(
-    TJobId jobId,
+    TJobletPtr joblet,
     EAbortReason abortReason,
     bool requestJobTrackerJobAbortion)
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
+
+    auto jobId = joblet->JobId;
 
     if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG(
@@ -10650,12 +10649,13 @@ void TOperationControllerBase::DoAbortJob(
         Host->AbortJob(jobId, abortReason);
     }
 
-    OnJobAborted(std::make_unique<TAbortedJobSummary>(jobId, abortReason));
+    OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(jobId, abortReason));
 }
 
 void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
 {
-    if (!FindJoblet(jobId)) {
+    auto joblet = FindJoblet(jobId);
+    if (!joblet) {
         YT_LOG_DEBUG(
             "Ignore stale job abort request (JobId: %v, AbortReason: %v)",
             jobId,
@@ -10669,7 +10669,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
         jobId,
         abortReason);
 
-    DoAbortJob(jobId, abortReason, /*requestJobTrackerJobAbortion*/ true);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true);
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const
