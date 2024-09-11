@@ -68,8 +68,8 @@ _environment_driver_logging_config = None
 
 
 DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin"
-DEFAULT_ADMIN_TOKEN = "admin"
+DEFAULT_ADMIN_PASSWORD = "password"
+DEFAULT_ADMIN_TOKEN = "password"
 
 
 def set_environment_driver_logging_config(config):

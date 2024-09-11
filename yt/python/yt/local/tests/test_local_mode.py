@@ -616,5 +616,5 @@ class TestLocalMode(object):
             with pytest.raises(yt.errors.YtTokenError):
                 client.list("/")
 
-            client.config["token"] = "admin"
+            client.config["token"] = "password"
             client.list("/")
