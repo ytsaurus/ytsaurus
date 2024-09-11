@@ -326,7 +326,8 @@ class TestParquet(object):
             schema = TableSchema() \
                 .add_column("x", type_info.Optional[type_info.Int64]) \
                 .add_column("y", type_info.Optional[type_info.List[
-                    type_info.List[type_info.Struct["foo": type_info.Int64]]]])
+                    type_info.Optional[type_info.List[type_info.Optional[type_info.Struct[
+                        "foo": type_info.Optional[type_info.Int64]]]]]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr
@@ -358,8 +359,8 @@ class TestParquet(object):
 
             schema = TableSchema() \
                 .add_column("x", type_info.Optional[type_info.Int64]) \
-                .add_column("y", type_info.Optional[
-                    type_info.List[type_info.List[type_info.Int64]]])
+                .add_column("y", type_info.Optional[type_info.List[
+                    type_info.Optional[type_info.List[type_info.Optional[type_info.Int64]]]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr
@@ -413,8 +414,10 @@ class TestParquet(object):
                 .add_column("x", type_info.Optional[type_info.Int64]) \
                 .add_column("y", type_info.Optional[type_info.Double]) \
                 .add_column("z", type_info.Optional[type_info.Struct[
-                    "foo": type_info.Struct["a": type_info.Uint8, "b": type_info.String],
-                    "bar": type_info.String]])
+                    "foo": type_info.Optional[type_info.Struct[
+                        "a": type_info.Optional[type_info.Uint8],
+                        "b": type_info.Optional[type_info.String]]],
+                    "bar": type_info.Optional[type_info.String]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr

@@ -15,6 +15,8 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowType);
+
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 {
     switch (arrowType->id()) {
@@ -57,12 +59,12 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
 
         case arrow::Type::type::LIST:
             return NTi::List(
-                GetYTType(std::reinterpret_pointer_cast<arrow::ListType>(arrowType)->value_type()));
+                GetYTType(std::reinterpret_pointer_cast<arrow::ListType>(arrowType)->value_field()));
 
         case arrow::Type::type::MAP:
             return NTi::Dict(
-                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->key_type()),
-                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->item_type()));
+                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->key_field()),
+                GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->item_field()));
 
         case arrow::Type::type::STRUCT:
         {
@@ -71,7 +73,7 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
             members.reserve(structType->num_fields());
             for (auto fieldIndex = 0; fieldIndex < structType->num_fields(); ++fieldIndex) {
                 auto field = structType->field(fieldIndex);
-                members.push_back({TString(field->name()), GetYTType(field->type())});
+                members.push_back({TString(field->name()), GetYTType(field)});
             }
             return NTi::Struct(std::move(members));
         }
@@ -96,6 +98,15 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
     }
 }
 
+NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowField)
+{
+    NTi::TTypePtr resultType = GetYTType(arrowField->type());
+    if (arrowField->nullable()) {
+        return NTi::Optional(resultType);
+    }
+    return resultType;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +115,7 @@ TTableSchema CreateYTTableSchemaFromArrowSchema(const std::shared_ptr<arrow::Sch
 {
     TTableSchema resultSchema;
     for (const auto& field : arrowSchema->fields()) {
-        auto ytType = NTi::Optional(GetYTType(field->type()));
+        auto ytType = GetYTType(field);
         resultSchema.AddColumn(TColumnSchema().Name(TString(field->name())).TypeV3(ytType));
     }
     return resultSchema;
