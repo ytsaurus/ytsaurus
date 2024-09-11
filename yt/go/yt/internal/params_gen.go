@@ -260,6 +260,10 @@ func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
 		w.MapKeyString("pessimistic_quota_check")
 		w.Any(o.PessimisticQuotaCheck)
 	}
+	if o.EnableCrossCellCopying != nil {
+		w.MapKeyString("enable_cross_cell_copying")
+		w.Any(o.EnableCrossCellCopying)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
@@ -288,6 +292,10 @@ func writeMoveNodeOptions(w *yson.Writer, o *yt.MoveNodeOptions) {
 	if o.PessimisticQuotaCheck != nil {
 		w.MapKeyString("pessimistic_quota_check")
 		w.Any(o.PessimisticQuotaCheck)
+	}
+	if o.EnableCrossCellCopying != nil {
+		w.MapKeyString("enable_cross_cell_copying")
+		w.Any(o.EnableCrossCellCopying)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)

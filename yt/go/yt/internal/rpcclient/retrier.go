@@ -63,6 +63,43 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker,
 	}
 }
 
+func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+	var cancel func()
+	if timeout := r.RequestTimeout; timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	for {
+		err = invoke(ctx, call, rsp, opts...)
+		if err == nil || call.DisableRetries {
+			return
+		}
+
+		if !r.shouldRetry(true, err) {
+			return
+		}
+
+		b := call.Backoff.NextBackOff()
+		if b == backoff.Stop {
+			return
+		}
+
+		if r.Log != nil {
+			ctxlog.Warn(ctx, r.Log.Logger(), "retrying request in transaction",
+				log.String("call_id", call.CallID.String()),
+				log.Duration("backoff", b),
+				log.Error(err))
+		}
+
+		select {
+		case <-time.After(b):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" {
