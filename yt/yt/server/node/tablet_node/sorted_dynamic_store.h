@@ -170,6 +170,8 @@ public:
     bool IsMergeRowsOnFlushAllowed() const;
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     class TReaderBase;
     class TRangeReader;
     class TLookupReader;
