@@ -689,7 +689,8 @@ private:
 
         for (const auto& variable : Environment_) {
             if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
-                !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
+                !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+            {
                 continue;
             }
             if (variable.StartsWith("YT_") && 

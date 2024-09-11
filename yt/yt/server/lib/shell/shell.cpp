@@ -100,6 +100,59 @@ public:
         return Index_;
     }
 
+    ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ConsumedOffset_ < inputOffset) {
+            // Key sequence from the future is not possible.
+            THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
+                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
+                << TErrorAttribute("actual_input_offset", inputOffset);
+        }
+
+        if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
+            YT_LOG_WARNING(
+                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
+                ConsumedOffset_,
+                inputOffset);
+        }
+
+        size_t offset = ConsumedOffset_ - inputOffset;
+        if (offset < keys.Size()) {
+            ConsumedOffset_ += keys.Size() - offset;
+            WaitFor(ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size())))
+                .ThrowOnError();
+
+            LastActivity_ = TInstant::Now();
+            if (InactivityCookie_) {
+                TDelayedExecutor::CancelAndClear(InactivityCookie_);
+                InactivityCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TShellBase::Terminate, MakeWeak(this), InactivityError_)
+                        .Via(GetCurrentInvoker()),
+                    InactivityTimeout_);
+            }
+        }
+        return ConsumedOffset_;
+    }
+
+    TFuture<void> Shutdown(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsRunning_ && !InactivityCookie_) {
+            auto delay = InactivityTimeout_;
+            InactivityError_ = error;
+            InactivityCookie_ = TDelayedExecutor::Submit(
+                BIND(&TShellBase::Terminate, MakeWeak(this), InactivityError_)
+                    .Via(GetCurrentInvoker()),
+                delay);
+        }
+        return TerminatedPromise_;
+    }
+
+    virtual void TerminateSpecific() { }
+
     void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -113,6 +166,9 @@ public:
         YT_UNUSED_FUTURE(Writer_->Abort());
         Reader_->SetReadDeadline(TInstant::Now() + TerminatedShellReadTimeout);
         TerminatedPromise_.TrySet();
+
+        TerminateSpecific();
+
         YT_LOG_INFO(error, "Shell terminated");
     }
 
@@ -288,61 +344,8 @@ public:
         YT_LOG_INFO("Shell started");
     }
 
-    ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
+    void TerminateSpecific() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (ConsumedOffset_ < inputOffset) {
-            // Key sequence from the future is not possible.
-            THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
-                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
-                << TErrorAttribute("actual_input_offset", inputOffset);
-        }
-
-        if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
-            YT_LOG_WARNING(
-                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
-                ConsumedOffset_,
-                inputOffset);
-        }
-
-        size_t offset = ConsumedOffset_ - inputOffset;
-        if (offset < keys.Size()) {
-            ConsumedOffset_ += keys.Size() - offset;
-            WaitFor(ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size())))
-                .ThrowOnError();
-
-            LastActivity_ = TInstant::Now();
-            if (InactivityCookie_) {
-                TDelayedExecutor::CancelAndClear(InactivityCookie_);
-                InactivityCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TPortoShell::Terminate, MakeWeak(this), InactivityError_)
-                        .Via(GetCurrentInvoker()),
-                    InactivityTimeout_);
-            }
-        }
-        return ConsumedOffset_;
-    }
-
-    TFuture<void> Shutdown(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (IsRunning_ && !InactivityCookie_) {
-            auto delay = InactivityTimeout_;
-            InactivityError_ = error;
-            InactivityCookie_ = TDelayedExecutor::Submit(
-                BIND(&TPortoShell::Terminate, MakeWeak(this), InactivityError_)
-                    .Via(GetCurrentInvoker()),
-                delay);
-        }
-        return TerminatedPromise_;
-    }
-
-    void Terminate(const TError& error) override
-    {
-        TShellBase::Terminate(error);
-
         if (Instance_) {
             Instance_->Destroy();
         }
@@ -474,57 +477,6 @@ public:
         ResizeWindow(CurrentHeight_, CurrentWidth_);
         Process_->Spawn().Subscribe(BIND(&TShell::Terminate, MakeWeak(this)).Via(GetCurrentInvoker()));
         YT_LOG_INFO("Shell started");
-    }
-
-    ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (ConsumedOffset_ < inputOffset) {
-            // Key sequence from the future is not possible.
-            THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
-                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
-                << TErrorAttribute("actual_input_offset", inputOffset);
-        }
-
-        if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
-            YT_LOG_WARNING(
-                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
-                ConsumedOffset_,
-                inputOffset);
-        }
-
-        size_t offset = ConsumedOffset_ - inputOffset;
-        if (offset < keys.Size()) {
-            ConsumedOffset_ += keys.Size() - offset;
-            WaitFor(ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size())))
-                .ThrowOnError();
-
-            LastActivity_ = TInstant::Now();
-            if (InactivityCookie_) {
-                TDelayedExecutor::CancelAndClear(InactivityCookie_);
-                InactivityCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
-                        .Via(GetCurrentInvoker()),
-                    InactivityTimeout_);
-            }
-        }
-        return ConsumedOffset_;
-    }
-
-    TFuture<void> Shutdown(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (IsRunning_ && !InactivityCookie_) {
-            auto delay = InactivityTimeout_;
-            InactivityError_ = error;
-            InactivityCookie_ = TDelayedExecutor::Submit(
-                BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
-                    .Via(GetCurrentInvoker()),
-                delay);
-        }
-        return TerminatedPromise_;
     }
 
 private:
