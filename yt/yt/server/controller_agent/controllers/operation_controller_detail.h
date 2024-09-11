@@ -1492,10 +1492,10 @@ private:
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
 
-    void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary);
-    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
-    void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
-    void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
+    void OnJobRunning(const TJobletPtr& joblet, std::unique_ptr<TRunningJobSummary> jobSummary);
+    void OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary);
+    void OnJobFailed(TJobletPtr joblet, std::unique_ptr<TFailedJobSummary> jobSummary);
+    void OnJobAborted(TJobletPtr joblet, std::unique_ptr<TAbortedJobSummary> jobSummary);
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
     void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
@@ -1517,7 +1517,7 @@ private:
     void RemoveRemainingJobsOnOperationFinished();
 
     void DoAbortJob(
-        TJobId jobId,
+        TJobletPtr joblet,
         EAbortReason abortReason,
         bool requestJobTrackerJobAbortion);
 
