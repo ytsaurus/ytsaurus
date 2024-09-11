@@ -64,6 +64,15 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					DefaultValue: DefaultRestartOnSpecletChange,
 					Description:  "If true, automatically restart a corresponding YT operation on every speclet change.",
 				},
+				{
+					Title:        "Enable CPU reclaim",
+					Name:         "enable_cpu_reclaim",
+					Type:         TypeBool,
+					CurrentValue: speclet.EnableCPUReclaim,
+					DefaultValue: DefaultEnableCPUReclaim,
+					Description: "If true, the job's CPU limit may be adjusted dynamically based on its CPU usage. " +
+						"Generally, this option is not recommended for operations that have non-uniform CPU usage and require more CPU at peak times.",
+				},
 			},
 		},
 	}
@@ -767,6 +776,9 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	}
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
 		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
+	}
+	spec["job_cpu_monitor"] = map[string]any{
+		"enable_cpu_reclaim": oplet.strawberrySpeclet.EnableCPUReclaimOrDefault(),
 	}
 
 	networkProject := oplet.agentInfo.DefaultNetworkProject

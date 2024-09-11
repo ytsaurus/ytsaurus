@@ -384,6 +384,7 @@ void TCypressNode::TMutableSequoiaProperties::Save(NCellMaster::TSaveContext& co
     using NYT::Save;
 
     Save(context, BeingCreated);
+    Save(context, Tombstone);
 }
 
 void TCypressNode::TMutableSequoiaProperties::Load(NCellMaster::TLoadContext& context)
@@ -391,6 +392,13 @@ void TCypressNode::TMutableSequoiaProperties::Load(NCellMaster::TLoadContext& co
     using NYT::Load;
 
     Load(context, BeingCreated);
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EMasterReign::CypressLocksInSequoia) {
+        Load(context, Tombstone);
+    } else {
+        Tombstone = false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

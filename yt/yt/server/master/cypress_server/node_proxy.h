@@ -1,12 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "node.h"
 
 #include <yt/yt/server/master/object_server/object_proxy.h>
 
 #include <yt/yt/server/master/security_server/cluster_resources.h>
-#include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
@@ -96,6 +94,9 @@ struct ICypressNodeProxy
 
     virtual void SetAccessed() = 0;
     virtual void SetTouched() = 0;
+
+    virtual void Lock(const TLockRequest& lockRequest, bool waitable, TLockId lockIdHint = {}) = 0;
+    virtual void Unlock() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)

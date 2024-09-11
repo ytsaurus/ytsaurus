@@ -190,7 +190,28 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Type of aggregate function should match the type of a column.
             TColumnSchema("Key1", EValueType::String)
                 .SetAggregate(TString("sum"))
-        }
+        },
+        {
+            // "Materialized" parameter can only be set with "Expression" parameter.
+            TColumnSchema("Key1", EValueType::Int64),
+            TColumnSchema("Key2", EValueType::Int64)
+                .SetMaterialized(true)
+        },
+        {
+            // Materializable computed columns should be key columns.
+            TColumnSchema("Key1", EValueType::Int64),
+            TColumnSchema("Key2", EValueType::Int64)
+                .SetExpression(TString("Key1 * 2"))
+                .SetMaterialized(true)
+        },
+        {
+            // Non-materializable computed columns should be non-key columns.
+            TColumnSchema("Key1", EValueType::Int64),
+            TColumnSchema("Key2", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("Key1 * 2"))
+                .SetMaterialized(false)
+        },
     };
 
     // There should be no more than MaxColumnLockCount locks.
@@ -224,9 +245,12 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             TColumnSchema("HeightPlusWeight", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("Height + Weight")),
+            TColumnSchema("NormalizedWeight", EValueType::Int64)
+                .SetExpression(TString("Weight / Height"))
+                .SetMaterialized(false),
             TColumnSchema("MaximumActivity", EValueType::Int64)
-                .SetAggregate(TString("max"))
-        }
+                .SetAggregate(TString("max")),
+        },
     };
 
     for (const auto& tableSchema : invalidSchemas) {

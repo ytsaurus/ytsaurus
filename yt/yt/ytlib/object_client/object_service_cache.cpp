@@ -429,8 +429,7 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::
     }
 
     auto counters = New<TCacheProfilingCounters>(Profiler_
-        // TODO(babenko): switch to std::string
-        .WithTag("user", TString(user))
+        .WithTag("user", user)
         .WithTag("method", method));
 
     {

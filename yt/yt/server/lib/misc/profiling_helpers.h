@@ -97,9 +97,9 @@ std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectHeapUsageStatistics(
+void DumpGlobalMemoryUsageSnapshot(
     NYson::IYsonConsumer* consumer,
-    const std::vector<TString>& memoryTags);
+    const std::vector<TAllocationTagKey>& tagKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

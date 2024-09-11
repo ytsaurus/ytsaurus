@@ -355,6 +355,7 @@
     XX(NodeAddress, node_address) \
     XX(NodeEndpointId, node_endpoint_id) \
     XX(NodeId, node_id) \
+    XX(NodeGroups, node_groups) \
     XX(Nodes, nodes) \
     XX(NodeTagFilter, node_tag_filter) \
     XX(NonPreemptibleResourceUsageThreshold, non_preemptible_resource_usage_threshold) \

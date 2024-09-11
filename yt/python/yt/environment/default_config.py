@@ -111,7 +111,6 @@ def get_dynamic_master_config():
         request_rate_smoothing_period = 60000;
         account_master_memory_usage_update_period = 500;
         enable_delayed_membership_closure_recomputation = %false;
-        fix_subject_tag_filter_iterator_never_skipping_first_ace = %true;
     };
 
     cypress_manager = {

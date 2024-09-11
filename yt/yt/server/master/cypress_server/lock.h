@@ -149,6 +149,8 @@ struct TCypressNodeLockingState
     static const TCypressNodeLockingState Empty;
 };
 
+static_assert(sizeof(TCypressNodeLockingState) == 144, "Think twice before increasing this size");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a lock (either held or waiting).
@@ -190,6 +192,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+static_assert(sizeof(TLock) <= 216, "Think twice before increasing this size");
 
 ////////////////////////////////////////////////////////////////////////////////
 

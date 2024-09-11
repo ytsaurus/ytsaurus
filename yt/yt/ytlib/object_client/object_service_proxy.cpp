@@ -445,6 +445,16 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
             fullResponse->SetResponseReceived(globalIndex, revision, attachmentRange);
         } else if (rsp->IsResponseUncertain(i)) {
             fullResponse->SetResponseUncertain(globalIndex);
+        } else {
+            // NB: now, master reports for every subresponse if it was executed,
+            // not executer or uncertain. But there are tricky request races
+            // because of which sometimes non-executed subrequests are actually
+            // were executed. It leads to "Duplicate request is not marked as
+            // retry" error. Is safer to mark such subrequests as uncertain.
+
+            // TODO(kvk1920): rethink "uncertain subresponse" and probably stop
+            // report them explicitly.
+            fullResponse->SetResponseUncertain(globalIndex);
         }
 
         do {
@@ -1051,6 +1061,9 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::OnParallelResponses(
                 auto attachmentRange = parallelRsp->GetResponseAttachmentRange(i);
                 fullResponse->SetResponseReceived(globalIndex, revision, attachmentRange);
             } else if (parallelRsp->IsResponseUncertain(i)) {
+                fullResponse->SetResponseUncertain(globalIndex);
+            } else {
+                // See comment in OnSubbatchResponse().
                 fullResponse->SetResponseUncertain(globalIndex);
             }
             ++globalIndex;

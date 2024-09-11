@@ -12,7 +12,7 @@
 #define USE_CASSANDRA 0
 #define USE_SENTRY 0
 #define USE_GRPC 0
-#define USE_SIMDJSON 0
+#define USE_SIMDJSON 1
 #define USE_RAPIDJSON 1
 #define USE_DATASKETCHES 0
 #define USE_YAML_CPP 0

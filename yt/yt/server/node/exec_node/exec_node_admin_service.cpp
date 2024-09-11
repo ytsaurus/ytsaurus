@@ -27,8 +27,9 @@ public:
             bootstrap->GetControlInvoker(),
             TExecNodeAdminServiceProxy::GetDescriptor(),
             ExecNodeLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
     {
         YT_VERIFY(Bootstrap_);

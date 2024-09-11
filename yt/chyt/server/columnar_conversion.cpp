@@ -298,7 +298,39 @@ i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
     return result;
 }
 
-DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+i64 CountTotalStringLengthWithFilterHint(
+    TRange<ui32> ytOffsets,
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    ui32 avgLength,
+    i64 startIndex,
+    i64 endIndex,
+    TRange<DB::UInt8> filterHint)
+{
+    i64 totalStringLength = 0;
+    int rowIndex = 0;
+
+    DecodeRawVector<i32>(
+            startIndex,
+            endIndex,
+            dictionaryIndexes,
+            rleIndexes,
+            [&] (i64 offsetIndex) {
+                auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, offsetIndex);
+                return endOffset - startOffset;
+            },
+            [&] (i32 length) {
+                if (filterHint[rowIndex++]) {
+                    totalStringLength += length;
+                }
+            });
+
+    return totalStringLength;
+}
+
+DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
@@ -371,7 +403,38 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnve
             1_KB);
     };
 
-    if (dictionaryIndexes) {
+    if (filterHint) {
+        YT_VERIFY(std::ssize(filterHint) == ytColumn.ValueCount);
+
+        resizeCHChars(
+            CountTotalStringLengthWithFilterHint(
+                ytOffsets,
+                dictionaryIndexes,
+                rleIndexes,
+                avgLength,
+                ytColumn.StartIndex,
+                ytColumn.StartIndex + ytColumn.ValueCount,
+                filterHint) +
+            ytColumn.ValueCount);
+
+        int rowIndex = 0;
+        DecodeRawVector<std::pair<const char*, i32>>(
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            dictionaryIndexes,
+            rleIndexes,
+            [&] (i64 index) {
+                    auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+                    return std::pair(ytChars + startOffset, endOffset - startOffset);
+                },
+            [&] (auto pair) {
+                if (filterHint[rowIndex++]) {
+                    uncheckedConsumer(pair);
+                } else {
+                    uncheckedConsumer(std::pair{pair.first, 0});
+                }
+            });
+    } else if (dictionaryIndexes) {
         // Check for small dictionary case: at least #SmallDictionaryFactor
         // occurrences of dictionary entries on average.
         constexpr int SmallDictionaryFactor = 3;
@@ -504,9 +567,10 @@ DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
 }
 
 DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
-    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint)
 {
-    return ConvertStringLikeYTColumnToCHColumnImpl(ytColumn);
+    return ConvertStringLikeYTColumnToCHColumnImpl(ytColumn, filterHint);
 }
 
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)

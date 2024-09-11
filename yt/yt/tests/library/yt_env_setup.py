@@ -689,6 +689,20 @@ class YTEnvSetup(object):
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
             enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
             enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
+            delta_global_cluster_connection_config={
+                "table_mount_cache": {
+                    "expire_after_successful_update_time": 60000,
+                    "refresh_time": 60000,
+                    "expire_after_failed_update_time": 1000,
+                    "expire_after_access_time": 300000,
+                },
+                "permission_cache": {
+                    "expire_after_successful_update_time": 60000,
+                    "refresh_time": 60000,
+                    "expire_after_failed_update_time": 1000,
+                    "expire_after_access_time": 300000,
+                },
+            } if cls._is_ground_cluster(index) else None
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -993,6 +1007,16 @@ class YTEnvSetup(object):
         if any(component in cls.ARTIFACT_COMPONENTS.get("23_2", []) for component in ["scheduler", "controller_agent"]):
             config["%true"]["exec_node"]["job_controller"]["disable_legacy_allocation_preparation"] = False
 
+        if cls._is_ground_cluster(cluster_index):
+            config["%true"]["tablet_node"].setdefault("security_manager", {})
+            config["%true"]["tablet_node"]["security_manager"].setdefault("resource_limits_cache", {})
+            config["%true"]["tablet_node"]["security_manager"]["resource_limits_cache"] = {
+                "expire_after_successful_update_time": 45000,
+                "refresh_time": 45000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 120000,
+            }
+
         return config
 
     @classmethod
@@ -1255,6 +1279,22 @@ class YTEnvSetup(object):
             self._restore_default_bundle_options(cluster_index)
             self._setup_tablet_balancer_dynamic_config(driver=driver)
             self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
+
+        if self._is_ground_cluster(cluster_index):
+            yt_commands.ls("//sys/cluster_nodes", attributes=["user_tags"])
+            yt_commands.set(
+                "//sys/cluster_nodes/@config/%true/tablet_node",
+                {
+                    "security_manager": {
+                        "resource_limits_cache": {
+                            "expire_after_successful_update_time": 120000,
+                            "refresh_time": 120000,
+                            "expire_after_failed_update_time": 2000,
+                            "expire_after_access_time": 180000,
+                        },
+                    },
+                },
+                driver=driver)
 
         if not self.get_param("DEFER_SECONDARY_CELL_START", cluster_index):
             yt_commands.wait_for_nodes(driver=driver)

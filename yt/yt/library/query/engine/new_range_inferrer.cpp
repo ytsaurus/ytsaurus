@@ -1121,7 +1121,7 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
     const TConstConstraintExtractorMapPtr& constraintExtractors,
     const TQueryOptions& options)
 {
-    return schema->HasComputedColumns()
+    return schema->HasMaterializedComputedColumns()
         ? CreateNewHeavyRangeInferrer(
             predicate,
             schema,

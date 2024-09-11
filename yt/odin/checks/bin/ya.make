@@ -1,15 +1,15 @@
 RECURSE(
+    chaos_cells
     clock_quorum_health
     controller_agent_alerts
     controller_agent_count
-    controller_agent_uptime
     controller_agent_operation_memory_consumption
+    controller_agent_uptime
     destroyed_replicas_size
     discovery
     dynamic_table_commands
     dynamic_table_replication
     lost_vital_chunks
-    quorum_health
     map_result
     master
     master_alerts
@@ -22,12 +22,13 @@ RECURSE(
     operations_satisfaction
     operations_snapshots
     proxy
-    queue_agent_alerts
-    queue_api
     query_tracker_alerts
-    query_tracker_yql_liveness
     query_tracker_chyt_liveness
     query_tracker_ql_liveness
+    query_tracker_yql_liveness
+    queue_agent_alerts
+    queue_api
+    quorum_health
     quorum_health
     register_watcher
     scheduler
@@ -39,10 +40,9 @@ RECURSE(
     stuck_missing_part_chunks
     suspicious_jobs
     system_quotas
-    tablet_cells
     tablet_cell_gossip
     tablet_cell_snapshots
-    chaos_cells
+    tablet_cells
     unaware_nodes
     wrapper_node_count
 )

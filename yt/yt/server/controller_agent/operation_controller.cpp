@@ -167,7 +167,7 @@ public:
     {
         auto Logger = ControllerLogger().WithTag("OperationId: %v", Id_);
 
-        const auto snapshot = GetMemoryUsageSnapshot();
+        const auto snapshot = GetGlobalMemoryUsageSnapshot();
         YT_VERIFY(snapshot);
 
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
@@ -180,7 +180,7 @@ public:
         {
             NProfiling::TWallTimer timer;
 
-            const auto snapshotBefore = GetMemoryUsageSnapshot();
+            const auto snapshotBefore = GetGlobalMemoryUsageSnapshot();
             YT_VERIFY(snapshotBefore);
 
             auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdTag, ToString(id));
@@ -192,7 +192,7 @@ public:
                     refCount);
             }
 
-            const auto snapshotAfter = GetMemoryUsageSnapshot();
+            const auto snapshotAfter = GetGlobalMemoryUsageSnapshot();
             YT_VERIFY(snapshotAfter);
 
             auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdTag, ToString(id));

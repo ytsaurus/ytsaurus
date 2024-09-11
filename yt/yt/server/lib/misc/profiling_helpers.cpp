@@ -138,18 +138,18 @@ std::vector<TTestAllocationGuard> MakeTestHeapAllocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CollectHeapUsageStatistics(
+void DumpGlobalMemoryUsageSnapshot(
     IYsonConsumer* consumer,
-    const std::vector<TString>& memoryTags)
+    const std::vector<TAllocationTagKey>& tagKeys)
 {
-    auto memorySnapshot = GetMemoryUsageSnapshot();
+    auto memorySnapshot = GetGlobalMemoryUsageSnapshot();
     BuildYsonMapFragmentFluently(consumer)
         .Item("heap_usage").DoMapFor(
-            memoryTags,
+            tagKeys,
             [&] (TFluentMap fluent, const auto& tag) {
                 fluent.Item(tag).DoMap([&] (TFluentMap fluent) {
                     fluent.DoFor(
-                        memorySnapshot->GetUsage(tag),
+                        memorySnapshot->GetUsageSlice(tag),
                         [] (TFluentMap fluent, const auto& pair) {
                             fluent.Item(pair.first).Value(pair.second);
                         });

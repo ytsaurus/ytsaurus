@@ -6221,7 +6221,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         }
 
         // NB(psushin): This option must be set before PrepareOutputTables call.
-        table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema->HasComputedColumns();
+        table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema->HasMaterializedComputedColumns();
 
         table->TableWriterOptions->SchemaModification = table->TableUploadOptions.SchemaModification;
 
@@ -8532,7 +8532,7 @@ i64 TOperationControllerBase::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto snapshot = GetMemoryUsageSnapshot();
+    const auto snapshot = GetGlobalMemoryUsageSnapshot();
     YT_VERIFY(snapshot);
 
     return snapshot->GetUsage(OperationIdTag, ToString(OperationId));
@@ -9680,6 +9680,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->ExtraEnvironment.contains(EExtraEnvironment::DiscoveryServerAddresses)) {
         auto addresses = ConvertToYsonString(Client->GetNativeConnection()->GetDiscoveryServerAddresses(), EYsonFormat::Text);
         jobSpec->add_environment(Format("YT_DISCOVERY_ADDRESSES=%v", addresses));
+    }
+
+    if (jobSpecConfig->DockerImage) {
+        jobSpec->add_environment(Format("YT_JOB_DOCKER_IMAGE=%v", *jobSpecConfig->DockerImage));
     }
 
     BuildFileSpecs(jobSpec, files, jobSpecConfig, Config->EnableBypassArtifactCache);

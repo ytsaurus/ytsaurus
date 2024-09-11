@@ -79,6 +79,7 @@ SRCS(
     query_context.cpp
     query_registry.cpp
     query_service.cpp
+    read_plan.cpp
     revision_tracker.cpp
     schema_inference.cpp
     secondary_query_header.cpp
@@ -105,10 +106,11 @@ SRCS(
     user_defined_sql_objects_storage.cpp
     version.cpp
     virtual_column.cpp
-    yt_to_ch_converter.cpp
-    yt_database.cpp
     yt_database_base.cpp
+    yt_database.cpp
     yt_directory_database.cpp
+    yt_to_ch_block_converter.cpp
+    yt_to_ch_column_converter.cpp
 )
 
 END()

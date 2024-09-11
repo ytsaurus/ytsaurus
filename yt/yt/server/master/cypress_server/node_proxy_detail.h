@@ -3,6 +3,7 @@
 #include "node_detail.h"
 #include "node_proxy.h"
 #include "config.h"
+#include "cypress_manager.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 
@@ -57,6 +58,9 @@ public:
     virtual void ValidateLockPossible();
 
     void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+
+    void Lock(const TLockRequest& lockRequest, bool waitable, TLockId lockIdHint) final;
+    void Unlock() final;
 
 protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
@@ -151,7 +155,6 @@ protected:
 
     private:
         TNontemplateCypressNodeProxyBase* const Proxy_;
-
     };
 
     using TCustomAttributeDictionaryPtr = TIntrusivePtr<TCustomAttributeDictionary>;
@@ -167,6 +170,12 @@ protected:
     bool AccessTrackingSuppressed_ = false;
     bool ExpirationTimeoutRenewalSuppressed_ = false;
 
+    struct TLockResult
+    {
+        ICypressManager::TCreateLockResult CreateLockResult;
+        TTransactionId ExternalizedTransactionId;
+    };
+    TLockResult DoLock(const TLockRequest& request, bool waitable, TLockId lockIdHint);
 
     NObjectServer::TVersionedObjectId GetVersionedId() const override;
     NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;

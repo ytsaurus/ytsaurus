@@ -54,8 +54,6 @@ FORK_TESTS()
 FORK_SUBTESTS()
 SPLIT_FACTOR(5)
 
-IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
-ENDIF()
+INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
 END()

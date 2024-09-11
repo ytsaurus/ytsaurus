@@ -1033,8 +1033,10 @@ private:
 
         if (options.CoordinatorCellId) {
             if (!IsParticipantRegistered(options.CoordinatorCellId)) {
-                THROW_ERROR_EXCEPTION("Cell %v is not a participant and thus cannot be explicitly",
-                    options.CoordinatorCellId);
+                THROW_ERROR_EXCEPTION(
+                    "Cell %v is not a participant and thus cannot be explicitly chosen as coordinator",
+                    options.CoordinatorCellId)
+                    << TErrorAttribute("transaction_id", Id_);
             }
             return options.CoordinatorCellId;
         }

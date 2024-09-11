@@ -62,8 +62,7 @@ public:
         : NRpc::TServiceBase(
             std::move(invoker),
             TDataNodeServiceProxy::GetDescriptor(),
-            NLogging::TLogger("Test"),
-            NullRealmId)
+            NLogging::TLogger("Test"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));

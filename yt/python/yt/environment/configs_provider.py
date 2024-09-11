@@ -900,6 +900,14 @@ def _build_node_configs(node_dirs,
             # Forward variables set in docker image into user job environment.
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
 
+            # Job proxy needs CA certificate to validate incoming connections.
+            if yt_config.ca_cert is not None:
+                get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
+                    "internal_path": yt_config.ca_cert,
+                    "external_path": yt_config.ca_cert,
+                    "read_only": True,
+                })
+
         if yt_config.use_slot_user_id:
             start_uid = 10000 + config["rpc_port"]
             set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)

@@ -1,7 +1,7 @@
 from helpers import get_scheduling_options
 
 from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set)
+                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set, select_rows)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -82,8 +82,9 @@ class Clique(object):
     alias = None
     tvm_secret = None
     sql_udf_path = None
+    query_log_table_path = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, export_query_log=False, **kwargs):
         """
         alias: str
             Alias for the database. With or without asterisk: both forms are legal.
@@ -91,6 +92,12 @@ class Clique(object):
 
             Is generated randomly if not provided.
         """
+
+        self.alias = (alias.removeprefix("*")
+                      if alias is not None
+                      else _generate_random_alias())
+
+        assert self.alias != ""
 
         discovery_patch = {
             "yt": {
@@ -108,17 +115,31 @@ class Clique(object):
         }
         config = update(Clique.base_config, discovery_patch)
 
+        if export_query_log:
+            system_log_table_dir = f"//sys/strawberry/chyt/{self.alias}/artifacts/system_log_tables"
+            create("map_node", system_log_table_dir, recursive=True)
+
+            self.query_log_table_path = f"{system_log_table_dir}/query_log/0"
+
+            log_table_config_patch = {
+                "yt": {
+                    "system_log_table_exporters": {
+                        "cypress_root_directory": system_log_table_dir,
+                        "default": {
+                            "enabled": True,
+                            "max_rows_to_keep": 100000,
+                            "reporting_period": 100,
+                        },
+                    },
+                },
+            }
+            config = update(config, log_table_config_patch)
+
         if config_patch is not None:
             config = update(config, config_patch)
 
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
-
-        self.alias = (alias.removeprefix("*")
-                      if alias is not None
-                      else _generate_random_alias())
-
-        assert self.alias != ""
 
         # alias processing
         config["yt"]["clique_alias"] = self.alias
@@ -662,6 +683,41 @@ class Clique(object):
             return True
 
         wait(check)
+
+    def get_query_log_rows(self, query_id, include_secondary_queries=True):
+        query = f'* from [{self.query_log_table_path}] where [initial_query_id] = "{query_id}" and [type] = "QueryFinish"'
+        if not include_secondary_queries:
+            query += " and [is_initial_query] = 1"
+
+        return select_rows(query, verbose=True)
+
+    def wait_and_get_query_log_rows(self, query_id, include_secondary_queries=True):
+        def validate_query_log_rows(rows):
+            initial_queries = [row for row in rows if row["is_initial_query"] == 1]
+            if len(initial_queries) == 0:
+                return False
+
+            assert len(initial_queries) == 1
+
+            if not include_secondary_queries:
+                assert len(rows) == 1
+                return True
+
+            secondary_query_count = len(initial_queries[0]["chyt_secondary_query_ids"])
+            assert len(rows) <= secondary_query_count + 1
+
+            return len(rows) == secondary_query_count + 1
+
+        result = []
+
+        def get_and_validate_query_log_rows():
+            nonlocal result
+            result = self.get_query_log_rows(query_id, include_secondary_queries)
+            return validate_query_log_rows(result)
+
+        wait(get_and_validate_query_log_rows)
+
+        return result
 
 
 class ClickHouseTestBase(YTEnvSetup):

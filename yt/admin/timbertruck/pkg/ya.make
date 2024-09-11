@@ -1,3 +1,10 @@
+IF (NOT OPENSOURCE)
+    RECURSE(
+        antisecret
+        logbroker
+    )
+ENDIF()
+
 RECURSE(
     app
     pipelines
@@ -5,10 +12,3 @@ RECURSE(
     ytlog
     ytqueue
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        antisecret
-        logbroker
-    )
-ENDIF()

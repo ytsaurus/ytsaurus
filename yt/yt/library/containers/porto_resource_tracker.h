@@ -130,7 +130,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoResourceProfiler
-    : public ISensorProducer
+    : public TBufferedProducer
 {
 public:
     TPortoResourceProfiler(
@@ -138,11 +138,15 @@ public:
         TPodSpecConfigPtr podSpec,
         const TProfiler& profiler = TProfiler{"/porto"});
 
+    ~TPortoResourceProfiler();
+
     void CollectSensors(ISensorWriter* writer) override;
 
 private:
     const TPortoResourceTrackerPtr ResourceTracker_;
     const TPodSpecConfigPtr PodSpec_;
+    const NConcurrency::TActionQueuePtr UpdateBufferActionQueue_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateBufferPeriodicExecutor_;
 
     void WriteCpuMetrics(
         ISensorWriter* writer,
@@ -173,6 +177,8 @@ private:
         ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
+
+    void DoUpdateBuffer();
 };
 
 DECLARE_REFCOUNTED_TYPE(TPortoResourceProfiler)

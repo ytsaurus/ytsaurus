@@ -26,6 +26,7 @@
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -1282,6 +1283,36 @@ public:
         if (!context->getSettingsRef().optimize_move_to_prewhere) {
             YT_LOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
             return {};
+        }
+
+        if (QueryContext_->Settings->Prewhere->UseHeuristicColumnSizes) {
+            // Approximate column sizes based on their types.
+            // Column sizes are used to sort them for more optimal prewhere execution,
+            // so the exact column size does not matter. Column sizes only matter in relation to each other.
+            // Assume column weights as:
+            // Simple types -> 1
+            // Strings      -> 5
+            // Any          -> 10
+            // Composite    -> 20
+            std::unordered_map<std::string, DB::ColumnSize> columnSizes;
+            for (const auto& column : Schema_->Columns()) {
+                i64 columnWeight;
+                auto type = column.LogicalType();
+                if (IsV1Type(type)) {
+                    auto [typeV1, required] = CastToV1Type(type);
+                    if (typeV1 == ESimpleLogicalValueType::Any) {
+                        columnWeight = 10;
+                    } else if (IsStringLikeType(typeV1)) {
+                        columnWeight = 5;
+                    } else {
+                        columnWeight = 1;
+                    }
+                } else {
+                    columnWeight = 20;
+                }
+                columnSizes.emplace(column.Name(), columnWeight);
+            }
+            return columnSizes;
         }
 
         for (const auto& table : Tables_) {

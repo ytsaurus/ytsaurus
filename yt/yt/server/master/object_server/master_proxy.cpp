@@ -436,7 +436,6 @@ private:
     {
         DeclareNonMutating();
 
-        auto transactionId = NCypressClient::GetTransactionId(context);
         auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
 
         // Recover template request.
@@ -453,6 +452,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
         auto templateMethod = templateRequestHeader.method();
+        auto transactionId = NCypressClient::GetTransactionId(templateRequestHeader);
 
         context->SetRequestInfo("TemplateMethod: %v, TransactionId: %v, ObjectIds: %v",
             templateMethod,

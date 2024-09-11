@@ -415,7 +415,6 @@ target_sources(yt-yt-core.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/assert.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/guid.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_tracked.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/allocation_hooks.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
 )
 

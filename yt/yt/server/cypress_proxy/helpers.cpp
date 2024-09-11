@@ -3,7 +3,11 @@
 #include "path_resolver.h"
 #include "sequoia_service.h"
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
@@ -13,6 +17,8 @@
 
 namespace NYT::NCypressProxy {
 
+using namespace NApi::NNative;
+using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NObjectClient;
@@ -89,7 +95,7 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> TokenizeUnresolvedSuffix(const TYPath& unresolvedSuffix)
+std::vector<TString> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
 {
     constexpr auto TypicalPathTokenCount = 3;
     std::vector<TString> pathTokens;
@@ -193,6 +199,30 @@ void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
     options->PreserveExpirationTime = protoOptions.preserve_expiration_time();
     options->PreserveExpirationTimeout = protoOptions.preserve_expiration_timeout();
     options->PessimisticQuotaCheck = protoOptions.pessimistic_quota_check();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NYTree::INodePtr> FetchSingleObject(
+    const IClientPtr& client,
+    TVersionedObjectId objectId,
+    const TAttributeFilter& attributeFilter)
+{
+    auto request = TYPathProxy::Get();
+
+    if (objectId.TransactionId) {
+        SetTransactionId(request, objectId.TransactionId);
+    }
+
+    if (attributeFilter) {
+        ToProto(request->mutable_attributes(), attributeFilter);
+    }
+
+    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, request, {objectId.ObjectId});
+
+    return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
+        return ConvertToNode(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

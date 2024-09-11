@@ -90,7 +90,7 @@ class TestSequoiaInternals(YTEnvSetup):
         return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
     @authors("kvk1920")
-    def test_map_not_set_doesnt_cause_detach(self):
+    def test_map_node_set_doesnt_cause_detach(self):
         set("//tmp/m1/m2/m3", {"abcde": 4}, recursive=True, force=True)
         assert get("//tmp/m1") == {"m2": {"m3": {"abcde": 4}}}
         m2_id = get("//tmp/m1/m2/@id")
@@ -1031,6 +1031,79 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/m1")
         assert exists("//tmp/p11/m")
         assert exists("//tmp/p13/m")
+
+
+@authors("kvk1920")
+class TestSequoiaNodeVersioning(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_TEST_PARTITIONS = 6
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["transaction_coordinator", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host", "cypress_node_host"]}
+    }
+
+    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_set_attribute_under_tx(self, finish_tx):
+        create("table", "//tmp/t")
+        tx = start_transaction()
+
+        set("//tmp/t/@my_attribute", 123, tx=tx)
+        with raises_yt_error("Attribute \"my_attribute\" is not found"):
+            get("//tmp/t/@my_attribute")
+
+        assert get("//tmp/t/@my_attribute", tx=tx) == 123
+
+        with raises_yt_error(f"this attribute is locked by concurrent transaction {tx}"):
+            set("//tmp/t/@my_attribute", 321)
+
+        finish_tx(tx)
+
+        if finish_tx is commit_transaction:
+            assert get("//tmp/t/@my_attribute") == 123
+        else:
+            with raises_yt_error("Attribute \"my_attribute\" is not found"):
+                get("//tmp/t/@my_attribute")
+
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_set_value_under_tx(self, finish_tx):
+        create("int64_node", "//tmp/x")
+        tx = start_transaction()
+
+        set("//tmp/x", 1)
+        set("//tmp/x", 2, tx=tx)
+        assert get("//tmp/x") == 1
+        assert get("//tmp/x", tx=tx) == 2
+
+        # TODO(kvk1920): unwrap error becuse for now it looks like "Internal RPC call failed: failed
+        # to commit Sequoia tx: prepare failed: ... <actual error message>".
+        with raises_yt_error(f" since \"exclusive\" lock is taken by concurrent transaction {tx}"):
+            set("//tmp/x", 3)
+
+        finish_tx(tx)
+
+        if finish_tx is commit_transaction:
+            assert get("//tmp/x") == 2
+        else:
+            assert get("//tmp/x") == 1
 
 
 ##################################################################

@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "yt_to_ch_block_converter.h"
+
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
@@ -31,12 +33,11 @@ public:
 public:
     TBlockInputStream(
         NTableClient::ISchemalessMultiChunkReaderPtr reader,
-        NTableClient::TTableSchemaPtr readSchemaWithVirtualColumns,
+        TReadPlanWithFilterPtr readPlanWithFilter,
         NTracing::TTraceContextPtr traceContext,
         THost* host,
         TQuerySettingsPtr settings,
         NLogging::TLogger logger,
-        DB::PrewhereInfoPtr prewhereInfo,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback);
 
@@ -47,18 +48,18 @@ public:
     virtual void readSuffixImpl() override;
 
 private:
-    const NTableClient::TTableSchemaPtr ReadSchemaWithVirtualColumns_;
+    const TReadPlanWithFilterPtr ReadPlan_;
     NTracing::TTraceContextPtr TraceContext_;
     THost* const Host_;
     const TQuerySettingsPtr Settings_;
     const NLogging::TLogger Logger;
     const NTableClient::TRowBufferPtr RowBuffer_;
-    const DB::PrewhereInfoPtr PrewhereInfo_;
-    DB::ExpressionActionsPtr PrewhereActions_;
 
-    DB::Block InputHeaderBlock_;
-    DB::Block OutputHeaderBlock_;
-    std::vector<int> IdToColumnIndex_;
+    //! Converters for every step from the read plan.
+    //! Every converter converts only additional columns required by corresponding step.
+    std::vector<TYTToCHBlockConverter> Converters_;
+    //! Output header block after execution of all read steps and filter actions (if any).
+    DB::Block HeaderBlock_;
 
     TDuration ColumnarConversionCpuTime_;
     TDuration NonColumnarConversionCpuTime_;
@@ -76,30 +77,35 @@ private:
 
     virtual DB::Block readImpl() override;
     void Prepare();
-    DB::Block ConvertRowBatchToBlock(const NTableClient::IUnversionedRowBatchPtr& batch);
+
+    DB::Block ConvertStepColumns(
+        int stepIndex,
+        const NTableClient::IUnversionedRowBatchPtr& batch,
+        TRange<DB::UInt8> filterHint);
+    DB::Block DoConvertStepColumns(
+        int stepIndex,
+        const NTableClient::IUnversionedRowBatchPtr& batch,
+        TRange<DB::UInt8> filterHint);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     NTableClient::ISchemalessMultiChunkReaderPtr reader,
-    NTableClient::TTableSchemaPtr readSchema,
+    TReadPlanWithFilterPtr readPlan,
     NTracing::TTraceContextPtr traceContext,
     THost* host,
     TQuerySettingsPtr settings,
     NLogging::TLogger logger,
-    DB::PrewhereInfoPtr prewhereInfo,
     NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TCallback<void(const TStatistics&)> statisticsCallback);
 
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const std::vector<TString>& realColumns,
-    const std::vector<TString>& virtualColumns,
+    TReadPlanWithFilterPtr readPlan,
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
-    DB::PrewhereInfoPtr prewhereInfo,
     NTableClient::IGranuleFilterPtr granuleFilter,
     TCallback<void(const TStatistics&)> statisticsCallback);
 

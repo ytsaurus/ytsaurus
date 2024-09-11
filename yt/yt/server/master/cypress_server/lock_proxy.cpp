@@ -67,7 +67,7 @@ private:
 
             case EInternedAttributeKey::TransactionId:
                 BuildYsonFluently(consumer)
-                    .Value(lock->GetTransaction()->GetId());
+                    .Value(GetObjectId(lock->GetTransaction()));
                 return true;
 
             case EInternedAttributeKey::NodeId:

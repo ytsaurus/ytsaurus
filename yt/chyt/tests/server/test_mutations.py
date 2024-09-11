@@ -35,7 +35,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query('insert into "//tmp/t"(str) values (2)')
             clique.make_query("insert into \"//tmp/t\"(i64, ui64, str, dbl, bool) values (-1, 1, 'abc', 3.14, 1)")
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (NULL, NULL, NULL, NULL, NULL)')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 1, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": -2, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": None, "ui64": 7, "str": None, "dbl": None, "bool": None},
@@ -43,12 +43,12 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": None, "ui64": None, "str": "2", "dbl": None, "bool": None},
                 {"i64": -1, "ui64": 1, "str": "abc", "dbl": 3.14, "bool": True},
                 {"i64": None, "ui64": None, "str": None, "dbl": None, "bool": None},
-            ]
+            ])
             assert get("//tmp/t/@chunk_count") == 5
             clique.make_query("insert into \"<append=%false>//tmp/t\" values (-2, 2, 'xyz', 2.71, 0)")
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": -2, "ui64": 2, "str": "xyz", "dbl": 2.71, "bool": False},
-            ]
+            ])
             assert get("//tmp/t/@chunk_count") == 1
 
     @authors("buyval01")
@@ -75,7 +75,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query('insert into "//tmp/t"(interval) values (13)')
             clique.make_query('insert into "//tmp/t"(interval64) values (-13)')
             clique.make_query('insert into "//tmp/t" values (NULL, NULL, NULL, NULL, NULL, NULL)')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"datetime": 42, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
                 {"datetime": 12, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
                 {"datetime": None, "datetime64": -42, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
@@ -85,7 +85,7 @@ class TestMutations(ClickHouseTestBase):
                 {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": 13, "interval64": None},
                 {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": -13},
                 {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
-            ]
+            ])
 
     @authors("max42")
     def test_insert_values_complex(self):
@@ -145,7 +145,7 @@ class TestMutations(ClickHouseTestBase):
                     result.append(cloned_row)
                 return result
 
-            assert read_table("//tmp/t") == populate_with_defaults([
+            assert_items_equal(read_table("//tmp/t"), populate_with_defaults([
                 {"list_i64": [2, -3]},
                 {"list_i64": []},
                 {"list_i64": [42]},
@@ -160,7 +160,7 @@ class TestMutations(ClickHouseTestBase):
                 {"list_optional_i32": [57]},
                 {"list_i64": [9, 8, 7], "tuple_dbl_bool": [6.02, False], "struct_ui8_str": {"ui8": 17, "str": "qux"},
                  "list_optional_i32": [None, 57, None, 18]}
-            ])
+            ]))
 
     @authors("max42")
     def test_insert_select(self):
@@ -222,10 +222,10 @@ class TestMutations(ClickHouseTestBase):
         )
         with Clique(1) as clique:
             clique.make_query('insert into "//tmp/t" select * from "//tmp/s1"')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 2, "ui64": 3, "str": "abc", "dbl": 3.14, "bool": True},
                 {"i64": -1, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": False},
-            ]
+            ])
 
             # Number of columns does not match.
             with raises_yt_error(QueryFailedError):
@@ -233,29 +233,29 @@ class TestMutations(ClickHouseTestBase):
 
             # Columns are matched according to positions. Values are best-effort casted due to CH logic.
             clique.make_query('insert into "<append=%false>//tmp/t" select * from "//tmp/s2"')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 4, "ui64": None, "str": "12.3", "dbl": 9.0, "bool": False},
                 {"i64": -5, "ui64": None, "str": "-3.1", "dbl": 5.0, "bool": True},
-            ]
+            ])
 
             clique.make_query('insert into "<append=%false>//tmp/t" select i64, ui64, str, dbl, bool from "//tmp/s2"')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
                 {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
-            ]
+            ])
 
             clique.make_query('insert into "<append=%false>//tmp/t" select * from "//tmp/t"')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
                 {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
-            ]
+            ])
 
             clique.make_query('insert into "//tmp/t"(i64, ui64) select max(i64), min(ui64) from "//tmp/s2"')
-            assert read_table("//tmp/t") == [
+            assert_items_equal(read_table("//tmp/t"), [
                 {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
                 {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
                 {"i64": 4, "ui64": 5, "str": None, "dbl": None, "bool": None},
-            ]
+            ])
 
     @authors("max42")
     def test_distributed_insert_select(self):

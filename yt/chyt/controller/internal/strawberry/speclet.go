@@ -7,10 +7,11 @@ import (
 
 // Change of these parameters leads to operation restart.
 type RestartRequiredOptions struct {
-	Stage          *string      `yson:"stage"`
-	NetworkProject *string      `yson:"network_project"`
-	PreemptionMode *string      `yson:"preemption_mode"`
-	LayerPaths     []ypath.Path `yson:"layer_paths"`
+	Stage            *string      `yson:"stage"`
+	NetworkProject   *string      `yson:"network_project"`
+	PreemptionMode   *string      `yson:"preemption_mode"`
+	LayerPaths       []ypath.Path `yson:"layer_paths"`
+	EnableCPUReclaim *bool        `yson:"enable_cpu_reclaim"`
 }
 
 type Speclet struct {
@@ -40,6 +41,7 @@ const (
 	DefaultStage                  = "production"
 	DefaultRestartOnSpecletChange = true
 	DefaultMinIncarnationIndex    = -1
+	DefaultEnableCPUReclaim       = false
 )
 
 func (speclet *Speclet) ActiveOrDefault() bool {
@@ -68,4 +70,11 @@ func (speclet *Speclet) RestartOnSpecletChangeOrDefault() bool {
 		return *speclet.RestartOnSpecletChange
 	}
 	return DefaultRestartOnSpecletChange
+}
+
+func (speclet *Speclet) EnableCPUReclaimOrDefault() bool {
+	if speclet.EnableCPUReclaim != nil {
+		return *speclet.EnableCPUReclaim
+	}
+	return DefaultEnableCPUReclaim
 }

@@ -164,7 +164,10 @@ public:
             NObjectClient::TObjectServiceProxy::GetDescriptor(),
             // Execute method is being handled in RPC thread pool anyway.
             EAutomatonThreadQueue::ObjectService,
-            ObjectServerLogger())
+            ObjectServerLogger(),
+            TServiceOptions{
+                .UseHotProfiler = false,
+            })
         , Config_(std::move(config))
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
         , Cache_(New<TObjectServiceCache>(
@@ -886,8 +889,7 @@ private:
         if (!cellTags.empty() && hydraManager->GetReadOnly()) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::ReadOnly,
-                "Cannot synchronize with cells when read-only mode is active (CellTags: %v)",
-                cellTags);
+                "Cannot synchronize with cells when read-only mode is active");
         }
 
         // NB: we always have to wait all current prepared transactions to

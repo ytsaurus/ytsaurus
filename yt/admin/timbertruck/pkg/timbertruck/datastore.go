@@ -12,7 +12,7 @@ import (
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 )
 
-const timeLayout = time.RFC3339Nano
+const datastoreTimeLayout = time.RFC3339Nano
 
 type Task struct {
 	// Name of the stream this task belongs to.
@@ -42,7 +42,7 @@ type rowScanner interface {
 }
 
 func parseTime(s string) (t time.Time) {
-	t, errParse := time.Parse(timeLayout, s)
+	t, errParse := time.Parse(datastoreTimeLayout, s)
 	if errParse != nil {
 		t = time.Time{}
 	}
@@ -119,10 +119,10 @@ func NewDatastore(fileName string) (db *Datastore, err error) {
 }
 
 func (ds *Datastore) AddTask(task *Task) (err error) {
-	timestamp := task.CreationTime.Format(timeLayout)
+	timestamp := task.CreationTime.Format(datastoreTimeLayout)
 	var boundTimestamp sql.NullString
 	if !task.BoundTime.IsZero() {
-		boundTimestamp.String = task.BoundTime.Format(timeLayout)
+		boundTimestamp.String = task.BoundTime.Format(datastoreTimeLayout)
 		boundTimestamp.Valid = true
 	}
 
@@ -184,7 +184,7 @@ func (ds *Datastore) ListActiveTasks() (tasks []Task, err error) {
 }
 
 func (ds *Datastore) CompleteTask(stagedPath string, completionTime time.Time, taskError error) error {
-	completionTimeStr := completionTime.Format(timeLayout)
+	completionTimeStr := completionTime.Format(datastoreTimeLayout)
 	taskErrorStr := fmt.Sprintf("%v", taskError)
 	result, err := ds.sqlite.Exec(`
 			UPDATE Tasks
@@ -205,7 +205,7 @@ func (ds *Datastore) CompleteTask(stagedPath string, completionTime time.Time, t
 }
 
 func (ds *Datastore) CleanupOldCompletedTasks(completionTime time.Time) error {
-	completionTimeStr := completionTime.Format(timeLayout)
+	completionTimeStr := completionTime.Format(datastoreTimeLayout)
 
 	_, err := ds.sqlite.Exec(`
 			DELETE FROM Tasks
@@ -216,7 +216,7 @@ func (ds *Datastore) CleanupOldCompletedTasks(completionTime time.Time) error {
 	return err
 }
 
-func (ds *Datastore) ActiveTaskByIno(ino int64) (task Task, err error) {
+func (ds *Datastore) ActiveTaskByIno(ino int64, streamName string) (task Task, err error) {
 	row := ds.sqlite.QueryRow(`
 			SELECT
 				StreamName,
@@ -227,9 +227,12 @@ func (ds *Datastore) ActiveTaskByIno(ino int64) (task Task, err error) {
 				BoundTime,
 				CompletionTime
 			FROM Tasks
-			WHERE INode = ?
+			WHERE
+				INode = ?
+				AND StreamName = ?
 		`,
 		ino,
+		streamName,
 	)
 
 	err = parseTask(row, &task)
@@ -302,7 +305,7 @@ func (ds *Datastore) SetPeeked(streamName, fileName string) (err error) {
 }
 
 func (ds *Datastore) ResetUnboundTask(streamName string, ino int64, boundTime time.Time) (err error) {
-	boundTimeString := boundTime.Format(timeLayout)
+	boundTimeString := boundTime.Format(datastoreTimeLayout)
 	_, err = ds.sqlite.Exec(`
 			BEGIN;
 
@@ -336,7 +339,7 @@ func (ds *Datastore) ResetUnboundTask(streamName string, ino int64, boundTime ti
 }
 
 func (ds *Datastore) BoundAllTasks(streamName string, boundTime time.Time) (err error) {
-	boundTimeString := boundTime.Format(timeLayout)
+	boundTimeString := boundTime.Format(datastoreTimeLayout)
 	_, err = ds.sqlite.Exec(`
 		UPDATE Tasks
 		SET

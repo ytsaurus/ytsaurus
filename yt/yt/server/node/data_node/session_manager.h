@@ -36,11 +36,9 @@ public:
     ISessionPtr StartSession(TSessionId sessionId, const TSessionOptions& options);
 
     //! Finds session by session ID. Returns |nullptr| if no session is found.
-    //! Session ID must not specify AllMediaIndex as medium index.
     ISessionPtr FindSession(TSessionId sessionId);
 
     //! Finds session by session ID. Throws if no session is found.
-    //! Session ID must not specify AllMediaIndex as medium index.
     ISessionPtr GetSessionOrThrow(TSessionId sessionId);
 
     //! Returns the number of currently active sessions of a given type.
@@ -64,6 +62,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;
+    THashMap<TChunkId, ISessionPtr> ChunkMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;
 

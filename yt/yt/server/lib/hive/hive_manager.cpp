@@ -126,9 +126,11 @@ public:
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
             HiveServerLogger(),
-            selfCellId,
             std::move(upstreamSynchronizer),
-            std::move(authenticator))
+            TServiceOptions{
+                .RealmId = selfCellId,
+                .Authenticator = std::move(authenticator),
+            })
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,

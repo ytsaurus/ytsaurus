@@ -680,9 +680,11 @@ private:
                 invoker,
                 descriptor,
                 HydraLogger().WithTag("CellId: %v", cellId),
-                cellId,
                 CreateHydraManagerUpstreamSynchronizer(owner),
-                std::move(authenticator))
+                TServiceOptions{
+                    .RealmId = cellId,
+                    .Authenticator = std::move(authenticator),
+                })
             , Owner_(owner)
         { }
 

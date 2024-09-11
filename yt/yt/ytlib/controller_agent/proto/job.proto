@@ -618,9 +618,7 @@ message TPartitionJobSpecExt
     // Size of key prefix used for bucket decision.
     optional int32 reduce_key_column_count = 7;
 
-    // If empty then THashPartitioner is used.
-    // Otherwise TOrderedPartitioner is used.
-    optional bytes wire_partition_keys = 8;
+    // Deprecated = 8.
 
     // Level of the partition task job belongs to.
     // Refer to sort_controller.cpp for level description.

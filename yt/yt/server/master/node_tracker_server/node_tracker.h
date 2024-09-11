@@ -176,6 +176,9 @@ public:
     //! Returns a host with a given name (fails if none).
     virtual THost* GetHostByName(const std::string& hostName) = 0;
 
+    //! Returns all groups for a given node.
+    virtual TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) = 0;
+
     //! Sets the rack and notifies the subscribers.
     virtual void SetHostRack(THost* host, TRack* rack) = 0;
 

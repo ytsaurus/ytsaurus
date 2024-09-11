@@ -660,6 +660,12 @@ type OperationResult struct {
 	Error *yterrors.Error `yson:"error"`
 }
 
+type WhoAmIResult struct {
+	Login     string `json:"login"`
+	Realm     string `json:"realm"`
+	CSRFToken string `json:"csrf_token"`
+}
+
 type OperationRuntimeParameters struct {
 	ACL                          []ACE          `yson:"acl"`
 	SchedulingOptionsPerPoolTree map[string]any `yson:"scheduling_options_per_pool_tree"`
@@ -677,7 +683,7 @@ type OperationStatus struct {
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
 	FinishTime        yson.Time                  `yson:"finish_time"`
-	Suspend           bool                       `yson:"suspend"`
+	Suspended         bool                       `yson:"suspended"`
 	AuthenticatedUser string                     `yson:"authenticated_user"`
 	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
 }
@@ -819,6 +825,8 @@ type IssueTokenOptions struct{}
 type RevokeTokenOptions struct{}
 
 type ListUserTokensOptions struct{}
+
+type WhoAmIOptions struct{}
 
 type AddMaintenanceOptions struct {
 }
@@ -1682,6 +1690,12 @@ type AuthClient interface {
 		password string,
 		options *ListUserTokensOptions,
 	) (tokens []string, err error)
+
+	// http:verb:"whoami"
+	WhoAmI(
+		ctx context.Context,
+		options *WhoAmIOptions,
+	) (r *WhoAmIResult, err error)
 }
 
 type Client interface {

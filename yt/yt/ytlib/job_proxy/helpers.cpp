@@ -122,17 +122,6 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
         }
 
         return CreateOrderedPartitioner(std::move(partitionLowerBounds), comparator);
-    } else if (partitionJobSpecExt.has_wire_partition_keys()) {
-        auto wirePartitionKeys = TSharedRef::FromString(partitionJobSpecExt.wire_partition_keys());
-
-        auto comparator = GetComparator(FromProto<TSortColumns>(partitionJobSpecExt.sort_columns()));
-        // COMPAT(gritukan)
-        if (comparator.GetLength() == 0) {
-            int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
-            comparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
-        }
-
-        return CreateOrderedPartitioner(wirePartitionKeys, comparator);
     } else {
         return CreateHashPartitioner(
             partitionJobSpecExt.partition_count(),

@@ -626,9 +626,22 @@ def are_hunks_enabled(client):
     return True
 
 
+def is_ttl_column_available(client):
+    host = client.list("//sys/primary_masters")[0]
+    version = client.get(f"//sys/primary_masters/{host}/orchid/build_info/binary_version")
+    version = float(version[:4])
+    return version >= 24.1
+
+
 def check_operations_archive_version(client, target_version):
     if not are_hunks_enabled(client) and target_version >= 48:
         raise Exception("Unable to init operations archive: hunks are not enabled")
+
+    if not is_ttl_column_available(client) and target_version >= 54:
+        logging.info("Master's version is lower than 24.1. Archive target version reduced to 53")
+        target_version = 53
+
+    return target_version
 
 
 def prepare_migration(client, archive_path):
@@ -718,7 +731,7 @@ def run(client, archive_path, target_version, shard_count, latest, force):
     if latest:
         target_version = migration.get_latest_version()
 
-    check_operations_archive_version(client, target_version)
+    target_version = check_operations_archive_version(client, target_version)
 
     migration.run(
         client=client,

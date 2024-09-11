@@ -240,6 +240,7 @@ private:
         TPromise<TControllerScheduleAllocationResultPtr> Promise;
         THashMultiMap<TOperationId, THashMap<TAllocationId, TScheduleAllocationEntry>::iterator>::iterator OperationIdToAllocationIdsIterator;
         NProfiling::TCpuInstant StartTime;
+        NTracing::TTraceContextPtr TraceContext;
     };
     // NB: It is important to use THash* instead of std::unordered_* since we rely on
     // iterators not to be invalidated.

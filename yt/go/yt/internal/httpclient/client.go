@@ -210,7 +210,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	}
 
 	verb := call.Params.HTTPVerb()
-	req, err = http.NewRequest(verb.HTTPMethod(), c.schema()+"://"+address+"/api/v4/"+verb.String(), body)
+	req, err = http.NewRequest(verb.HTTPMethod(), c.schema()+"://"+address+call.APIPath+verb.String(), body)
 	if err != nil {
 		return
 	}

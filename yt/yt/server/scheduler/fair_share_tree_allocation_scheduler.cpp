@@ -3945,7 +3945,7 @@ void TFairShareTreeAllocationScheduler::CountOperationsByPreemptionPriority(
     for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
         TWithTagGuard scopeTagGuard(&sensorBuffer, "scope", FormatEnum(scope));
         for (bool ssdPriorityPreemptionEnabled : {false, true}) {
-            TWithTagGuard ssdTagGuard(&sensorBuffer, "ssd_priority_preemption_enabled", TString(FormatBool(ssdPriorityPreemptionEnabled)));
+            TWithTagGuard ssdTagGuard(&sensorBuffer, "ssd_priority_preemption_enabled", std::string(FormatBool(ssdPriorityPreemptionEnabled)));
             TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled};
             const auto& operationCountByPreemptionPriority = operationCountsByPreemptionPriorityParameters[parameters];
             for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {

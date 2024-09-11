@@ -42,7 +42,7 @@ NTableClient::TTableSchema ToTableSchema(
 
 //! Convert single YT-value (UnversionedValue) to CH-value (DB::Field).
 //! This function is suboptimal and can be used only for query preparation.
-//! For converting data on execution stage consider using TYTToCHConverter.
+//! For converting data on execution stage consider using TYTToCHColumnConverter.
 DB::Field ToField(
     const NTableClient::TUnversionedValue& value,
     const NTableClient::TLogicalTypePtr& type);
@@ -62,13 +62,6 @@ void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue*
 std::vector<int> GetColumnIndexToId(const NTableClient::TNameTablePtr& nameTable, const std::vector<TString>& columnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DB::Block ToBlock(
-    const NTableClient::IUnversionedRowBatchPtr& batch,
-    const NTableClient::TTableSchema& readSchema,
-    const std::vector<int>& idToColumnIndex,
-    const DB::Block& headerBlock,
-    const TCompositeSettingsPtr& compositeSettings);
 
 TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
     const DB::Block& block,

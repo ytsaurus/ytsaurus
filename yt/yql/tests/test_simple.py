@@ -540,6 +540,7 @@ class TestYqlColumnOrderIssue707(TestQueriesYqlBase):
 class TestYqlColumnOrderParametrize(TestQueriesYqlBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.parametrize("dynamic", [False, True])
+    @pytest.mark.timeout(300)
     def test_select_table(self, query_tracker, yql_agent, dynamic):
         create("table", "//tmp/t", attributes={
             "schema": [

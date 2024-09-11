@@ -10,7 +10,10 @@
 #include "sequoia_service.h"
 #include "sequoia_session.h"
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -21,6 +24,7 @@ namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
@@ -41,8 +45,9 @@ public:
             /*invoker*/ nullptr,
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
-            NullRealmId,
-            bootstrap->GetNativeAuthenticator())
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
         , Bootstrap_(bootstrap)
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
@@ -355,13 +360,13 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto client = Owner_->Bootstrap_->GetSequoiaClient();
         auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
+        auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
 
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
         try {
-            session = TSequoiaSession::Start(client);
+            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId);
             resolveResult = ResolvePath(
                 session,
                 originalTargetPath,

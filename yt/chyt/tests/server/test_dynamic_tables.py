@@ -85,7 +85,10 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select key from `//tmp/dt` where value == 'foo7' order by key") == [{"key": 7}]
 
             with raises_yt_error("CHYT-462"):
-                assert clique.make_query("select value from `//tmp/dt` prewhere key == 5 order by key") == [
+                settings = {
+                    "chyt.prewhere.prefilter_data_slices": 1,
+                }
+                assert clique.make_query("select value from `//tmp/dt` prewhere key == 5 order by key", settings=settings) == [
                     {"value": "foo5"}
                 ]
 

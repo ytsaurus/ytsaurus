@@ -171,6 +171,21 @@ class TestNodeTracker(YTEnvSetup):
         remove("//sys/cluster_nodes/{0}/@rack".format(node))
         assert "r" not in get("//sys/cluster_nodes/{0}/@tags".format(node))
 
+    @authors("aleksandra-zh")
+    def test_node_groups(self):
+        node = ls("//sys/cluster_nodes")[0]
+        assert get("//sys/cluster_nodes/{0}/@node_groups".format(node)) == ["default"]
+
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["bebebe"])
+        node_group_config = {
+            "bebebe": {
+                "node_tag_filter": "bebebe",
+                "max_concurrent_node_registrations": 1,
+            }
+        }
+        set("//sys/@config/node_tracker/node_groups", node_group_config)
+        assert sorted(get("//sys/cluster_nodes/{0}/@node_groups".format(node))) == sorted(["bebebe", "default"])
+
     @authors("babenko", "shakurov")
     def test_create_cluster_node(self):
         kwargs = {"type": "cluster_node"}

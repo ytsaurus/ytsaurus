@@ -1,6 +1,7 @@
 from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (OrchidWithRegularPasses, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
-                                      CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid)
+                                      CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
+                                      ObjectAlertHelper)
 
 from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
@@ -3638,3 +3639,29 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         assert alerts.get_alert_count() == 2
 
         self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_queue_status_alerts(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/export"
+
+        _, queue_id = self._create_queue(queue_path)
+        set(f"{queue_path}/@static_export_config", {
+            "first": {
+                "export_directory": export_dir,
+                "export_period": 1 * 1000,
+            },
+            "second": {
+                "export_directory": export_dir,
+                "export_period": 1 * 1000,
+            },
+        })
+
+        self._wait_for_component_passes()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        alerts = ObjectAlertHelper(get(f"{queue_path}/@queue_status/alerts"))
+        alerts.assert_matching("queue_agent_queue_controller_static_export_misconfiguration", text="Static export config check failed")
+        assert alerts.get_alert_count() == 1

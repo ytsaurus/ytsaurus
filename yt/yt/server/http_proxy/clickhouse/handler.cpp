@@ -639,7 +639,7 @@ private:
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::BadRequest,
-                TError("Error while fetching authorization and clique-specification data")
+                TError("Error while fetching authorization and clique specification data")
                     << ex);
             return false;
         }
@@ -978,7 +978,7 @@ private:
 
     TInstanceMap::const_iterator TryPickInstanceByJobCookie(size_t jobCookie) const
     {
-        YT_LOG_DEBUG("Pick instance by job-cookie (JobCookie: %v)", jobCookie);
+        YT_LOG_DEBUG("Pick instance by job cookie (JobCookie: %v)", jobCookie);
         auto result = std::find_if(
             Instances_.cbegin(), Instances_.cend(),
             [&](const auto& instance) {
@@ -986,7 +986,7 @@ private:
             });
 
         if (result == Instances_.cend()) {
-            YT_LOG_DEBUG("No instance with given job-cookie (JobCookie: %v)", *JobCookie_);
+            YT_LOG_DEBUG("No instance with given job cookie (JobCookie: %v)", *JobCookie_);
         }
 
         return result;
@@ -994,9 +994,11 @@ private:
 
     TInstanceMap::const_iterator PickInstanceSticky(size_t stickyHash, int stickyGroupSize) const
     {
-        YT_VERIFY(stickyGroupSize >= 0);
+        YT_VERIFY(stickyGroupSize > 0);
 
-        YT_LOG_DEBUG("Pick an instance using sticky-strategy (StickyHash: %v, StickyGroupSize: %v)", stickyHash, stickyGroupSize);
+        YT_LOG_DEBUG("Pick an instance using sticky strategy (StickyHash: %v, StickyGroupSize: %v)",
+            stickyHash,
+            stickyGroupSize);
 
         // Each instance is given a numeric score to compare by.
         auto instanceScore = [&](const auto& instance) -> size_t {
@@ -1008,13 +1010,15 @@ private:
         };
 
         if (stickyGroupSize > ssize(Instances_)) {
-            YT_LOG_DEBUG("Specified stickyGroupSize is greater than a number of instances therefore it is reduced to the maximum value (StickyGroupSize: %v, NumberOfInstances: %v)", stickyGroupSize, Instances_.size());
+            YT_LOG_DEBUG("Specified sticky group size is greater than a number of instances therefore it is reduced to the maximum value (StickyGroupSize: %v, NumberOfInstances: %v)",
+                stickyGroupSize,
+                Instances_.size());
             stickyGroupSize = ssize(Instances_);
         }
 
         // Optimizations.
         if (stickyGroupSize == ssize(Instances_)) {
-            YT_LOG_DEBUG("Random-strategy is going to be used instead of sticky-strategy, since QueryStickyGroupSize has maximum value");
+            YT_LOG_DEBUG("Using random strategy instead of sticky strategy, since query sticky group size has maximum value");
             return PickInstanceRandomly();
         }
         if (stickyGroupSize == 1) {
@@ -1046,13 +1050,15 @@ private:
 
     TInstanceMap::const_iterator PickInstanceBySessionId(const TString& sessionId) const
     {
-        YT_LOG_DEBUG("Pick instance by session-id using sticky-strategy (SessionId: %v)", sessionId);
+        YT_LOG_DEBUG("Pick instance by session id using sticky strategy (SessionId: %v)", sessionId);
         return PickInstanceSticky(ComputeHash(sessionId), 1);
     }
 
     TInstanceMap::const_iterator PickInstanceByQueryHash(size_t queryHash, int stickyGroupSize) const
     {
-        YT_LOG_DEBUG("Pick instance by query-hash using sticky-strategy (QueryHash: %v, QueryStickyGroupSize: %v)", queryHash, stickyGroupSize);
+        YT_LOG_DEBUG("Pick instance by query hash using sticky strategy (QueryHash: %v, QueryStickyGroupSize: %v)",
+            queryHash,
+            stickyGroupSize);
         return PickInstanceSticky(queryHash, stickyGroupSize);
     }
 
@@ -1079,21 +1085,27 @@ private:
         return result;
     }
 
-    TErrorOr<int> GetQueryStickyGroupSize() const
+    TErrorOr<std::optional<int>> GetQueryStickyGroupSize() const
     {
-        // There are two sources: url-parameters and discovery.
+        // There are two sources: url parameters and discovery.
 
-        int result = 0;
+        std::optional<int> result;
 
         if (CgiParameters_.Has("chyt.query_sticky_group_size")) {
             const auto& stickyGroupSizeString = CgiParameters_.Get("chyt.query_sticky_group_size");
-            if (!TryIntFromString<10>(stickyGroupSizeString, result)){
-                return TError("Error while parsing sticky group size %v", stickyGroupSizeString);
+            int tmp;
+            if (!TryIntFromString<10>(stickyGroupSizeString, tmp)){
+                return TError("Error while parsing sticky group size %Qv", stickyGroupSizeString);
             }
+            result = tmp;
         } else {
             YT_VERIFY(!Instances_.empty());
             // Get parameter from any instance, they all have the same value.
-            result = Instances_.cbegin()->second->template Find<int>("query_sticky_group_size").value_or(0);
+            result = Instances_.cbegin()->second->template Find<std::optional<int>>("query_sticky_group_size");
+        }
+
+        if (result.has_value() && *result <= 0) {
+            return TError("Sticky group size should be positive");
         }
 
         return result;
@@ -1115,7 +1127,7 @@ private:
             ReplyWithError(EStatusCode::BadRequest, queryStickyGroupSizeOrError);
             return false;
         }
-        int queryStickyGroupSize = queryStickyGroupSizeOrError.Value();
+        std::optional<int> queryStickyGroupSize = queryStickyGroupSizeOrError.Value();
 
         if (JobCookie_.has_value()) {
             pickedInstance = TryPickInstanceByJobCookie(*JobCookie_);
@@ -1126,8 +1138,8 @@ private:
         } else if (const TString& sessionId = CgiParameters_.Get("session_id"); !sessionId.empty()) {
             pickedInstance = PickInstanceBySessionId(sessionId);
 
-        } else if (queryStickyGroupSize != 0) { // 0 means 'disabled'
-            pickedInstance = PickInstanceByQueryHash(CalculateQueryHash(), queryStickyGroupSize);
+        } else if (queryStickyGroupSize.has_value()) {
+            pickedInstance = PickInstanceByQueryHash(CalculateQueryHash(), *queryStickyGroupSize);
 
         } else {
             pickedInstance = PickInstanceRandomly();
@@ -1334,8 +1346,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProfiler
             .WithSparse()
-            // TODO(babenko): switch to std::string
-            .WithTag("user", TString(user))
+            .WithTag("user", user)
             .Gauge("/running_query_count");
         return std::pair(0, gauge);
     }).first;

@@ -615,10 +615,11 @@ public:
         : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
-            WithCategory(memoryTracker, EMemoryCategory::Rpc),
             std::move(logger),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .MemoryUsageTracker = WithCategory(memoryTracker, EMemoryCategory::Rpc),
+                .Authenticator = std::move(authenticator),
+            })
         , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
         , Connection_(std::move(connection))
@@ -930,11 +931,11 @@ private:
     {
         BuildYsonFluently(consumer)
             .DoMap([] (TFluentMap fluent) {
-                CollectHeapUsageStatistics(
+                DumpGlobalMemoryUsageSnapshot(
                     fluent.GetConsumer(),
                     {
-                        RpcProxyUserAllocationTag,
-                        RpcProxyRpcAllocationTag
+                        RpcProxyUserAllocationTagKey,
+                        RpcProxyMethodAllocationTagKey
                     });
             });
     }
@@ -964,10 +965,9 @@ private:
 
         if (config->EnableAllocationTags) {
             traceContext->SetAllocationTags({
-                // TODO(babenko): switch to std::string
-                {RpcProxyUserAllocationTag, TString(identity.User)},
-                {RpcProxyRequestIdAllocationTag, ToString(context->GetRequestId())},
-                {RpcProxyRpcAllocationTag, TString(context->RequestHeader().method())}
+                {RpcProxyUserAllocationTagKey, identity.User},
+                {RpcProxyRequestIdAllocationTagKey, ToString(context->GetRequestId())},
+                {RpcProxyMethodAllocationTagKey, context->RequestHeader().method()},
             });
 
             AllocateTestData(traceContext);

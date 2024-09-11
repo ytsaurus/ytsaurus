@@ -138,6 +138,8 @@ items:
           href: user-guide/dynamic-tables/bulk-insert.md
         - name: Язык запросов
           href: user-guide/dynamic-tables/dyn-query-language.md
+        - name: Вторичные индексы
+          href: user-guide/dynamic-tables/secondary-indices.md
         - name: Примеры
           items:
             - name: Создание веб-сервиса

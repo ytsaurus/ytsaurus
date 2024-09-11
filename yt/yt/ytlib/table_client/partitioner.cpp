@@ -26,23 +26,6 @@ class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    TOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
-        : KeySetReader_(wirePivots)
-        , Comparator_(std::move(comparator))
-    {
-        PartitionLowerBounds_.push_back(TOwningKeyBound::MakeUniversal(/*isUpper*/ false));
-
-        for (const auto& key : KeySetReader_->GetKeys()) {
-            PartitionLowerBounds_.push_back(
-                KeyBoundFromLegacyRow(
-                    /*key*/ key,
-                    /*isUpper*/ false,
-                    /*keyLength*/ Comparator_.GetLength()));
-        }
-
-        ValidateKeyBounds();
-    }
-
     TOrderedPartitioner(std::vector<TOwningKeyBound> partitionLowerBounds, TComparator comparator)
         : PartitionLowerBounds_(std::move(partitionLowerBounds))
         , Comparator_(std::move(comparator))
@@ -74,7 +57,6 @@ public:
     }
 
 private:
-    const std::optional<TKeySetReader> KeySetReader_;
     std::vector<TOwningKeyBound> PartitionLowerBounds_;
     const TComparator Comparator_;
 
@@ -93,11 +75,6 @@ private:
         }
     }
 };
-
-IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
-{
-    return New<TOrderedPartitioner>(wirePivots, comparator);
-}
 
 IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKeyBound> partitionLowerBounds, TComparator comparator)
 {

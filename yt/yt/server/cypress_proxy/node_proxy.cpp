@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/helpers.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -30,6 +32,7 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -54,6 +57,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -172,6 +176,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
@@ -182,6 +188,8 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         DISPATCH_YPATH_SERVICE_METHOD(Copy);
+        DISPATCH_YPATH_SERVICE_METHOD(Lock);
+        DISPATCH_YPATH_SERVICE_METHOD(Unlock);
 
         return false;
     }
@@ -259,30 +267,34 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    template <class TRequestPtr, class TResponse, class TContextPtr>
-    void ForwardRequest(TRequestPtr request, TResponse* response, const TContextPtr& context)
+    void ForwardRequestAndAbortSequoiaSession(auto createRequest, const auto& contextPtr)
     {
+        auto newRequest = createRequest(NYPath::TYPath());
+        newRequest->CopyFrom(contextPtr->Request());
+
         // TODO(kvk1920): it could be better to deal with Cypress tx replication
         // here since we already have started Sequoia tx. This will require a
         // request flag "suppress_mirrored_tx_sync" or something similar.
 
-        auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
-        SetRequestTargetYPath(&request->Header(), FromObjectId(Id_) + suffix);
-        bool isMutating = IsRequestMutating(context->GetRequestHeader());
+        auto suffix = GetRequestTargetYPath(contextPtr->GetRequestHeader());
+        SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
+        auto isMutating = IsRequestMutating(contextPtr->GetRequestHeader());
+        SetTransactionId(newRequest, SequoiaSession_->GetCypressTransactionId());
         auto proxy = isMutating ? CreateWriteProxyForObject(Id_) : CreateReadProxyForObject(Id_);
 
         // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
 
         YT_LOG_DEBUG("Forwarded request to master (RequestId: %v -> %v)",
-            context->GetRequestId(),
-            request->GetRequestId());
+            contextPtr->GetRequestId(),
+            newRequest->GetRequestId());
 
-        auto rsp = WaitFor(proxy.Execute(std::move(request)))
+        SequoiaSession_->Abort();
+
+        auto rsp = WaitFor(proxy.Execute(std::move(newRequest)))
             .ValueOrThrow();
-        response->CopyFrom(*rsp);
-        context->Reply();
+        contextPtr->Response().CopyFrom(*rsp);
+        contextPtr->Reply();
     }
-
 
     struct TSubtreeReplacementResult
     {
@@ -363,7 +375,7 @@ protected:
         };
     }
 
-    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
     {
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
@@ -374,14 +386,12 @@ protected:
             limit,
             attributeFilter);
 
-        auto newRequest = TYPathProxy::Get();
-        newRequest->CopyFrom(*request);
-        ForwardRequest(std::move(newRequest), response, context);
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
     }
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
-        bool force = request->force();
+        auto force = request->force();
         context->SetRequestInfo("Force: %v", force);
 
         SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()));
@@ -430,59 +440,49 @@ protected:
 
     void ExistsAttribute(
         const NYPath::TYPath& /*path*/,
-        TReqExists* request,
-        TRspExists* response,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
-        auto newRequest = TYPathProxy::Exists();
-        newRequest->CopyFrom(*request);
-        ForwardRequest(std::move(newRequest), response, context);
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
     }
 
     void GetAttribute(
         const NYPath::TYPath& /*path*/,
-        TReqGet* request,
-        TRspGet* response,
+        TReqGet* /*request*/,
+        TRspGet* /*response*/,
         const TCtxGetPtr& context) override
     {
         context->SetRequestInfo();
-        auto newRequest = TYPathProxy::Get();
-        newRequest->CopyFrom(*request);
-        ForwardRequest(std::move(newRequest), response, context);
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
     }
 
     void SetAttribute(
         const NYPath::TYPath& /*path*/,
-        TReqSet* request,
-        TRspSet* response,
+        TReqSet* /*request*/,
+        TRspSet* /*response*/,
         const TCtxSetPtr& context) override
     {
         context->SetRequestInfo();
-        auto newRequest = TYPathProxy::Set();
-        newRequest->CopyFrom(*request);
-        ForwardRequest(std::move(newRequest), response, context);
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Set, context);
     }
 
     void RemoveAttribute(
         const NYPath::TYPath& /*path*/,
-        TReqRemove* request,
-        TRspRemove* response,
+        TReqRemove* /*request*/,
+        TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override
     {
         context->SetRequestInfo();
-        auto newRequest = TYPathProxy::Remove();
-        newRequest->CopyFrom(*request);
-        ForwardRequest(std::move(newRequest), response, context);
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Remove, context);
     }
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
     context->SetRequestInfo();
-    auto newRequest = TObjectYPathProxy::GetBasicAttributes();
-    newRequest->CopyFrom(*request);
-    ForwardRequest(std::move(newRequest), response, context);
+    ForwardRequestAndAbortSequoiaSession(TObjectYPathProxy::GetBasicAttributes, context);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
@@ -561,13 +561,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         }
 
         // TODO(h0pless): If lockExisting - lock the node.
-        SequoiaSession_->Commit();
+        SequoiaSession_->Abort();
 
         ToProto(response->mutable_node_id(), Id_);
         response->set_cell_tag(ToProto<int>(CellTagFromId(Id_)));
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
         context->Reply();
+
         return;
     }
 
@@ -698,12 +699,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         }
 
         // TODO(h0pless): If lockExisting - lock the node.
-        SequoiaSession_->Commit();
+        SequoiaSession_->Abort();
 
         ToProto(response->mutable_node_id(), Id_);
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
         context->Reply();
+
         return;
     }
 
@@ -751,6 +753,138 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     context->Reply();
 }
 
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
+{
+    if (!SequoiaSession_->GetCypressTransactionId()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
+    }
+
+    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.Empty()) {
+        NYPath::TTokenizer tokenizer(unresolvedSuffix);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+            ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+        } else {
+            ThrowMethodNotSupported(context->GetMethod());
+        }
+    }
+
+    context->SetRequestInfo();
+
+    SequoiaSession_->UnlockNode(Id_);
+    SequoiaSession_->Commit(CellIdFromObjectId(Id_));
+
+    context->SetResponseInfo();
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
+{
+    if (!SequoiaSession_->GetCypressTransactionId()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
+    }
+
+    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.Empty()) {
+        NYPath::TTokenizer tokenizer(unresolvedSuffix);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+            ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+        } else {
+            ThrowMethodNotSupported(context->GetMethod());
+        }
+    }
+
+    auto mode = CheckedEnumCast<ELockMode>(request->mode());
+    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
+    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto timestamp = request->timestamp();
+    auto waitable = request->waitable();
+
+    CheckLockRequest(mode, childKey, attributeKey)
+        .ThrowOnError();
+
+    {
+        // TODO(kvk1920): move TLockKey to /yt/yt/server/lib/sequoia to avoid code
+        // duplication.
+
+        context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
+            mode,
+            MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+                if (childKey) {
+                    builder->AppendFormat("Child[%v]", *childKey);
+                } else if (attributeKey) {
+                    builder->AppendFormat("Attribute[%v]", *attributeKey);
+                } else {
+                    builder->AppendString("None");
+                }
+            }),
+            waitable);
+    }
+
+    auto lockId = SequoiaSession_->LockNode(Id_, mode, childKey, attributeKey, timestamp, waitable);
+
+    SequoiaSession_->Commit(CellIdFromObjectId(Id_));
+
+    const auto& client = Bootstrap_->GetNativeRootClient();
+
+    const auto& stateAttribute = EInternedAttributeKey::State.Unintern();
+    auto asyncLockAcquired = waitable
+        ? FetchSingleObject(
+            client,
+            TVersionedObjectId{lockId},
+            TAttributeFilter({stateAttribute}))
+            .Apply(BIND([&] (const INodePtr& rsp) {
+                return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
+            }))
+        : MakeFuture<bool>(true);
+
+    const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
+    const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();
+
+    auto asyncNode = FetchSingleObject(
+        client,
+        {Id_, SequoiaSession_->GetCypressTransactionId()},
+        TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
+
+    // There can be a race between attribute getting and tx finishing.
+    // TODO(kvk1920): detect such situations and retry.
+
+    auto nodeLocked = WaitForFast(asyncLockAcquired)
+        .ValueOrThrow();
+    auto node = WaitFor(asyncNode)
+        .ValueOrThrow();
+
+    auto revision = nodeLocked
+        ? node->Attributes().Get<NHydra::TRevision>(revisionAttribute)
+        : NHydra::NullRevision;
+    auto externalCellTag = node
+        ->Attributes()
+        .Find<TCellTag>(externalCellTagAttribute)
+        .value_or(CellTagFromId(Id_));
+
+    auto externalTransactionId = externalCellTag == CellTagFromId(Id_)
+        ? SequoiaSession_->GetCypressTransactionId()
+        : MakeExternalizedTransactionId(SequoiaSession_->GetCypressTransactionId(), externalCellTag);
+
+    ToProto(response->mutable_lock_id(), lockId);
+    ToProto(response->mutable_node_id(), Id_);
+    ToProto(response->mutable_external_transaction_id(), externalTransactionId);
+    response->set_external_cell_tag(ToProto<int>(externalCellTag));
+    response->set_revision(revision);
+
+    context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",
+        lockId,
+        externalCellTag,
+        externalTransactionId,
+        revision);
+
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapLikeNodeProxy
@@ -780,7 +914,8 @@ private:
             TSequoiaSession* session,
             TAbsoluteYPath subtreePath,
             TNodeId parentId)
-            : Session_(session)
+            : UncaughtExceptions_(std::uncaught_exceptions())
+            , Session_(session)
             , CurrentPath_(std::move(subtreePath))
         {
             YT_VERIFY(Session_);
@@ -788,10 +923,12 @@ private:
             CurrentAncestors_.push(parentId);
         }
 
-        ~TTreeBuilder() noexcept
+        ~TTreeBuilder()
         {
-            // Failure here means that the tree is not fully constructed yet.
-            YT_VERIFY(CurrentAncestors_.size() == 1);
+            if (std::uncaught_exceptions() == UncaughtExceptions_) {
+                // Failure here means that the tree is not fully constructed yet.
+                YT_VERIFY(CurrentAncestors_.size() == 1);
+            }
         }
 
         void OnMyKeyedItem(TStringBuf key) override
@@ -852,6 +989,7 @@ private:
         }
 
     private:
+        const int UncaughtExceptions_;
         TSequoiaSession* const Session_;
         std::stack<TNodeId, std::vector<TNodeId>> CurrentAncestors_;
         TAbsoluteYPath CurrentPath_;
@@ -1182,7 +1320,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         .ValueOrThrow();
 
     // Should be no-op.
-    SequoiaSession_->Commit();
+    SequoiaSession_->Abort();
 
     response->set_value(BuildYsonStringFluently()
         .BeginList()

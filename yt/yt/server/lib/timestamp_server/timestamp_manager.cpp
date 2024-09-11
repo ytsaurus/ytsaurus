@@ -57,8 +57,9 @@ public:
             GetSyncInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
             TimestampServerLogger(),
-            NullRealmId,
-            std::move(authenticator))
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,

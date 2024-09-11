@@ -18,8 +18,8 @@ protected:
         TBootstrap* bootstrap,
         const NRpc::TServiceDescriptor& descriptor,
         EAutomatonThreadQueue defaultQueue,
-        const NLogging::TLogger& logger);
-
+        NLogging::TLogger logger,
+        NRpc::TServiceOptions options = {});
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);
     void ValidateClusterInitialized();

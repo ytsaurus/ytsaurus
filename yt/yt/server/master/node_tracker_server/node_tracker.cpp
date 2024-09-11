@@ -233,7 +233,7 @@ public:
 
         auto groups = GetGroupsForNode(address);
         for (auto* group : groups) {
-            if (group->PendingRegisterNodeMutationCount + group->LocalRegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
+            if (group->PendingRegisterNodeMutationCount + group->RegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
                 context->Reply(TError(
                     NRpc::EErrorCode::Unavailable,
                     "Node registration throttling is active in group %Qv",
@@ -420,6 +420,16 @@ public:
         auto* host = FindHostByName(hostName);
         YT_VERIFY(host);
         return host;
+    }
+
+    TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) override
+    {
+        TCompactVector<std::string, 4> result;
+        auto groups = GetGroupsForNode(node);
+        for (const auto& group : groups) {
+            result.push_back(group->Id);
+        }
+        return result;
     }
 
     void SetHostRack(THost* host, TRack* rack) override
@@ -985,7 +995,7 @@ private:
     {
         std::string Id;
         TNodeGroupConfigPtr Config;
-        int LocalRegisteredNodeCount = 0;
+        int RegisteredNodeCount = 0;
         int PendingRegisterNodeMutationCount = 0;
     };
 
@@ -1331,6 +1341,7 @@ private:
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
+        UpdateNodeCounters(node, -1);
         SetNodeLocalState(node, ENodeState::Registered);
         UpdateNodeCounters(node, +1);
 
@@ -2061,10 +2072,19 @@ private:
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        if (node->GetLocalState() == ENodeState::Registered) {
+        auto isRegistered = false;
+        const auto& descriptors = node->MulticellDescriptors();
+        for (const auto& [cellag, descriptor] : descriptors) {
+            if (descriptor.State == ENodeState::Registered) {
+                isRegistered = true;
+                break;
+            }
+        }
+
+        if (isRegistered) {
             auto groups = GetGroupsForNode(node);
             for (auto* group : groups) {
-                group->LocalRegisteredNodeCount += delta;
+                group->RegisteredNodeCount += delta;
             }
         }
 
@@ -2155,6 +2175,7 @@ private:
 
             UpdateNodeCounters(node, -1);
             SetNodeLocalState(node, ENodeState::Unregistered);
+            UpdateNodeCounters(node, +1);
             node->ReportedHeartbeats().clear();
 
             NodeUnregistered_.Fire(node);
