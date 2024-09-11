@@ -20,7 +20,7 @@ import yt_error_codes
 
 from yt_helpers import profiler_factory
 
-from yt_type_helpers import make_schema, optional_type, list_type, tuple_type
+from yt_type_helpers import make_schema, optional_type, list_type, tuple_type, decimal_type
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
@@ -554,6 +554,29 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert_items_equal(read_table("//tmp/t1"), [value2, value1])
         assert_items_equal(read_table("//tmp/t2"), [value4, value3])
+
+    @authors("whatsername")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_decimal_keys(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", optimize_for=optimize_for, schema=[
+            {"name": "key", "type_v3": decimal_type(5, 4), "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+        )
+        sync_mount_table("//tmp/t")
+
+        value1 = {"key": b"\x80\x00\x7A\xB7", "value": "write"}
+        insert_rows("//tmp/t", [value1])
+        value3 = {"key": b"\x7F\xFF\x95\xD2", "value": "insert"}
+        insert_rows("//tmp/t", [value3])
+        value2 = {"key": b"\x80\x00\x00\x00", "value": "mutate"}
+        insert_rows("//tmp/t", [value2])
+
+        assert_items_equal(read_table("//tmp/t"), [value3, value2, value1])
+
+        sync_compact_table("//tmp/t")
+
+        assert_items_equal(read_table("//tmp/t"), [value3, value2, value1])
 
     @authors("babenko", "savrus")
     def test_yt_13441_empty_store_set(self):

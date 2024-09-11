@@ -264,6 +264,7 @@ DEFINE_ENUM(EMasterReign,
     ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
     ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
     ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
+    ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
