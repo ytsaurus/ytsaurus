@@ -120,6 +120,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("session_finalization_period", &TThis::SessionFinalizationPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("schedule_chunk_replace_period", &TThis::ScheduleChunkReplacePeriod)
+        .Default(TDuration::Seconds(1))
+        .DontSerializeDefault();
 
     registrar.Parameter("create_chunks_batch_size", &TThis::CreateChunksBatchSize)
         .GreaterThan(0)
@@ -152,6 +155,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
         .Default(1'000'000)
+        .DontSerializeDefault();
+
+    registrar.Parameter("max_chunk_lists_with_chunks_being_replaced", &TThis::MaxChunkListsWithChunksBeingReplaced)
+        .Default(100)
         .DontSerializeDefault();
 
     registrar.Parameter("max_allowed_backoff_reschedulings_per_table", &TThis::MaxAllowedBackoffReschedulingsPerSession)

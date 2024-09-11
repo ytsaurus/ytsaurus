@@ -858,6 +858,9 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
 
     buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
+    buffer->AddCounter("/chunk_merger_chunk_lists_with_chunks_being_replaced", ChunkListsWithChunksBeingReplaced_);
+    buffer->AddCounter("/chunk_merger_chunk_lists_awaiting_chunk_replacement", ChunkListsAwaitingChunkReplacement_.size());
+
     for (auto mergerMode : TEnumTraits<NChunkClient::EChunkMergerMode>::GetDomainValues()) {
         if (mergerMode == NChunkClient::EChunkMergerMode::None) {
             continue;
@@ -964,6 +967,12 @@ void TChunkMerger::OnLeaderActive()
         config->SessionFinalizationPeriod);
     FinalizeSessionExecutor_->Start();
 
+    ReplaceChunksExecutor_ = New<TPeriodicExecutor>(
+        epochAutomatonInvoker,
+        BIND(&TChunkMerger::ScheduleChunkReplaces, MakeWeak(this)),
+        config->ScheduleChunkReplacePeriod);
+    ReplaceChunksExecutor_->Start();
+
     for (auto [nodeId, accountId] : NodesBeingMerged_) {
         auto* node = FindChunkOwner(nodeId);
         if (!CanScheduleMerge(node)) {
@@ -1005,6 +1014,11 @@ void TChunkMerger::OnStopLeading()
     if (FinalizeSessionExecutor_) {
         YT_UNUSED_FUTURE(FinalizeSessionExecutor_->Stop());
         FinalizeSessionExecutor_.Reset();
+    }
+
+    if (ReplaceChunksExecutor_) {
+        YT_UNUSED_FUTURE(ReplaceChunksExecutor_->Stop());
+        ReplaceChunksExecutor_.Reset();
     }
 
     if (JobEpoch_ != InvalidJobEpoch) {
@@ -1248,13 +1262,8 @@ void TChunkMerger::FinalizeJob(
 
     if (runningJobs.empty()) {
         EraseOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
-        auto completedJobsIt = session.ChunkListIdToCompletedJobs.find(parentChunkListId);
-        if (completedJobsIt != session.ChunkListIdToCompletedJobs.end()) {
-            ScheduleReplaceChunks(
-                nodeId,
-                parentChunkListId,
-                session.AccountId,
-                &completedJobsIt->second);
+        if (session.ChunkListIdToCompletedJobs.contains(parentChunkListId)) {
+            ChunkListsAwaitingChunkReplacement_.emplace(nodeId, parentChunkListId);
         }
     }
 
@@ -1272,6 +1281,13 @@ void TChunkMerger::FinalizeReplacement(
         return;
     }
 
+    --ChunkListsWithChunksBeingReplaced_;
+    if (ChunkListsWithChunksBeingReplaced_ < 0) {
+        YT_LOG_ALERT("Chunk lists with chunks being replaced count is negative (ChunkListsWithChunksBeingReplaced: %v)",
+            ChunkListsWithChunksBeingReplaced_);
+        ChunkListsWithChunksBeingReplaced_ = 0;
+    }
+
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.Result = std::max(session.Result, result);
 
@@ -1287,12 +1303,37 @@ void TChunkMerger::FinalizeReplacement(
     }
 }
 
+void TChunkMerger::ScheduleChunkReplaces()
+{
+    YT_VERIFY(IsLeader());
+
+    YT_LOG_DEBUG("Scheduling chunk replacements (ChunkListsWithChunksBeingReplaced: %v, ChunkListsAwaitingChunkReplacement: %v)",
+        ChunkListsWithChunksBeingReplaced_,
+        ChunkListsAwaitingChunkReplacement_.size());
+
+    auto maxChunkListsWithChunksBeingReplaced = GetDynamicConfig()->MaxChunkListsWithChunksBeingReplaced;
+    while (!ChunkListsAwaitingChunkReplacement_.empty() && ChunkListsWithChunksBeingReplaced_ < maxChunkListsWithChunksBeingReplaced) {
+        auto chunkListAwaitingReplacement = ChunkListsAwaitingChunkReplacement_.front();
+        ChunkListsAwaitingChunkReplacement_.pop();
+
+        auto nodeId = chunkListAwaitingReplacement.NodeId;
+        auto chunkListId = chunkListAwaitingReplacement.ChunkListId;
+
+        auto& session = GetOrCrash(RunningSessions_, nodeId);
+
+        auto& completedJobs = GetOrCrash(session.ChunkListIdToCompletedJobs, chunkListId);
+        ScheduleReplaceChunks(nodeId, chunkListId, session.AccountId, &completedJobs);
+    }
+}
+
 void TChunkMerger::ScheduleReplaceChunks(
     TObjectId nodeId,
     TChunkListId parentChunkListId,
     TObjectId accountId,
     std::vector<TMergeJobInfo>* jobInfos)
 {
+    YT_VERIFY(IsLeader());
+
     YT_LOG_DEBUG("Scheduling chunk replacement (NodeId: %v, ParentChunkListId: %v, AccountId: %v, JobIds: %v)",
         nodeId,
         parentChunkListId,
@@ -1301,12 +1342,13 @@ void TChunkMerger::ScheduleReplaceChunks(
             builder->AppendFormat("%v", jobInfo.JobId);
         }));
 
-    TReqReplaceChunks request;
+    ++ChunkListsWithChunksBeingReplaced_;
 
     SortBy(jobInfos->begin(), jobInfos->end(), [] (const TMergeJobInfo& info) {
         return info.JobIndex;
     });
 
+    TReqReplaceChunks request;
     for (const auto& job : *jobInfos) {
         auto* replacement = request.add_replacements();
         ToProto(replacement->mutable_new_chunk_id(), job.OutputChunkId);
@@ -1773,6 +1815,9 @@ void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/
     }
     if (FinalizeSessionExecutor_) {
         FinalizeSessionExecutor_->SetPeriod(config->SessionFinalizationPeriod);
+    }
+    if (ReplaceChunksExecutor_) {
+        ReplaceChunksExecutor_->SetPeriod(config->ScheduleChunkReplacePeriod);
     }
 
     auto enable = config->Enable;
