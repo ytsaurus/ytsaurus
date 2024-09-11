@@ -1846,7 +1846,8 @@ class YTInstance(object):
 
     def create_client(self):
         if self.yt_config.cypress_proxy_count == 0 and self.yt_config.http_proxy_count > 0:
-            return YtClient(token="admin", proxy=self.get_http_proxy_address(), config=self._default_client_config)
+            token = DEFAULT_ADMIN_TOKEN if self.yt_config.enable_auth else None
+            return YtClient(token=token, proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -1871,7 +1872,8 @@ class YTInstance(object):
         return YtClient(config=config)
 
     def _create_cluster_client(self):
-        if True or self.yt_config.use_native_client:
+        # In case of enabled auth we have to create admin user first, so let's use native client.
+        if self.yt_config.use_native_client or self.yt_config.enable_auth:
             return self.create_native_client()
         else:
             return self.create_client()
