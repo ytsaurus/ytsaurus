@@ -605,6 +605,7 @@ private:
         THashSet<std::string> nativeClusterAddresses;
 
         auto peerConfig = New<TPeerConnectionConfig>();
+        peerConfig->Load(ConvertToNode(Config_), /*postprocess*/ false);
         peerConfig->CellId = entry->Descriptor->CellId;
         peerConfig->Addresses.emplace();
 
@@ -622,12 +623,6 @@ private:
                 nativeClusterAddresses.insert(address);
             }
         }
-        peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
-        peerConfig->AcknowledgementTimeout = Config_->AcknowledgementTimeout;
-        peerConfig->RediscoverPeriod = Config_->RediscoverPeriod;
-        peerConfig->RediscoverSplay = Config_->RediscoverSplay;
-        peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
-        peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 
         auto alienClusterChannelFactory = New<TAlienClusterChannelFactory>(
             std::move(nativeClusterAddresses),
