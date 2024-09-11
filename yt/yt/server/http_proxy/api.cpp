@@ -176,8 +176,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 {
     return Counters_.FindOrInsert(key, [&, this] {
         auto profiler = SparseProfiler_
-            // TODO(babenko): switch to std::string
-            .WithTag("user", TString(key.first))
+            .WithTag("user", key.first)
             .WithTag("command", key.second);
 
         auto counters = std::make_unique<TProfilingCounters>();
@@ -234,8 +233,7 @@ void TApi::IncrementProfilingCounters(
         HttpCodesByUser_.FindOrInsert({user, *httpStatusCode}, [&, this] {
             return SparseProfiler_
                 .WithTag("http_code", ToString(static_cast<int>(*httpStatusCode)))
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
+                .WithTag("user", user)
                 .Counter("/user_http_code_count");
         }).first->Increment();
     }
@@ -243,8 +241,7 @@ void TApi::IncrementProfilingCounters(
     if (apiErrorCode) {
         counters->ApiErrors.FindOrInsert(apiErrorCode, [&, this] {
             return SparseProfiler_
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
+                .WithTag("user", user)
                 .WithTag("command", command)
                 .WithTag("error_code", ToString(static_cast<int>(apiErrorCode)))
                 .Counter("/api_error_count");
@@ -254,8 +251,7 @@ void TApi::IncrementProfilingCounters(
     auto incrementUserCounter = [&, this] (auto& counterMap, auto counterName, auto tagName, auto tagValue, auto value) {
         counterMap.FindOrInsert(std::pair(user, networkName), [&, this] {
             return SparseProfiler_
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
+                .WithTag("user", user)
                 .WithTag(tagName, tagValue)
                 .Counter(counterName);
         }).first->Increment(value);
