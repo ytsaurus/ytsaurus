@@ -4,7 +4,7 @@
 #include <yt/chyt/server/conversion.h>
 #include <yt/chyt/server/custom_data_types.h>
 #include <yt/chyt/server/helpers.h>
-#include <yt/chyt/server/yt_to_ch_converter.h>
+#include <yt/chyt/server/yt_to_ch_column_converter.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
@@ -78,7 +78,7 @@ using TYsonStringBufs = std::vector<TYsonStringBuf>;
 using TUnversionedValues = std::vector<TUnversionedValue>;
 using TYTColumn = IUnversionedColumnarRowBatch::TColumn*;
 
-void DoConsume(TYTToCHConverter& converter, TYsonStringBufs ysons)
+void DoConsume(TYTToCHColumnConverter& converter, TYsonStringBufs ysons)
 {
     for (const auto& yson : ysons) {
         if (!yson) {
@@ -89,17 +89,17 @@ void DoConsume(TYTToCHConverter& converter, TYsonStringBufs ysons)
     }
 }
 
-void DoConsume(TYTToCHConverter& converter, TUnversionedValues values)
+void DoConsume(TYTToCHColumnConverter& converter, TUnversionedValues values)
 {
     converter.ConsumeUnversionedValues(values);
 }
 
-void DoConsume(TYTToCHConverter& converter, TYTColumn ytColumn)
+void DoConsume(TYTToCHColumnConverter& converter, TYTColumn ytColumn)
 {
     converter.ConsumeYtColumn(*ytColumn);
 }
 
-void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFields)
+void ExpectFields(const DB::IColumn& column, const std::vector<DB::Field>& expectedFields)
 {
     ASSERT_EQ(expectedFields.size(), column.size());
 
@@ -127,9 +127,10 @@ protected:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     template <class TExpectedColumnType = void>
-    void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, std::vector<DB::Field> expectedFields) const
+    void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, const std::vector<DB::Field>& expectedFields) const
     {
-        TYTToCHConverter converter(descriptor, Settings_);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
+        converter.InitColumn();
         DoConsume(converter, input);
         auto column = converter.FlushColumn();
 
@@ -140,9 +141,23 @@ protected:
         ExpectFields(*column, expectedFields);
     }
 
+    void ExpectDataConversion(
+        TComplexTypeFieldDescriptor descriptor,
+        const TYTColumn& ytColumn,
+        TRange<DB::UInt8> filterHint,
+        const std::vector<DB::Field>& expectedFields) const
+    {
+        TYTToCHColumnConverter converter(descriptor, Settings_);
+        converter.InitColumn();
+        converter.ConsumeYtColumn(*ytColumn, filterHint);
+        auto chColumn = converter.FlushColumn();
+
+        ExpectFields(*chColumn, expectedFields);
+    }
+
     void ExpectTypeConversion(TComplexTypeFieldDescriptor descriptor, const DB::DataTypePtr& expectedDataType) const
     {
-        TYTToCHConverter converter(descriptor, Settings_);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
         ValidateTypeEquality(converter.GetDataType(), expectedDataType);
     }
 };
@@ -512,7 +527,7 @@ TEST_F(TYTToCHConversionTest, DateTime64Types)
             /*name*/ "",
             SimpleLogicalType(ESimpleLogicalValueType::Timestamp));
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        auto converter = TYTToCHConverter(descriptor, Settings_, /*isReadConversions*/ false);
+        auto converter = TYTToCHColumnConverter(descriptor, Settings_, /*isReadConversions*/ false);
         auto dataType = converter.GetDataType();
         ASSERT_EQ("YtTimestamp", dataType->getName());
     }
@@ -525,7 +540,8 @@ TEST_F(TYTToCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
 
     auto logicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TComplexTypeFieldDescriptor descriptor(logicalType);
-    TYTToCHConverter converter(descriptor, Settings_);
+    TYTToCHColumnConverter converter(descriptor, Settings_);
+    converter.InitColumn();
 
     std::vector<TUnversionedValue> values = {intValue, nullValue};
 
@@ -1167,9 +1183,78 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        EXPECT_THROW(TYTToCHConverter(descriptor, Settings_, /*isReadConversions*/ false), std::exception)
+        EXPECT_THROW(TYTToCHColumnConverter(descriptor, Settings_, /*isReadConversions*/ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
     }
+}
+
+TEST_F(TYTToCHConversionTest, FilterHintString)
+{
+    std::vector<TUnversionedValue> unversionedValues = {
+        MakeUnversionedStringValue("foo"),
+        MakeUnversionedStringValue("bar"),
+        MakeUnversionedStringValue("baaaaaaaz"),
+    };
+
+    auto logicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
+    TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
+    TColumnSchema columnSchemaOptional(/*name*/ "", OptionalLogicalType(logicalType));
+    auto [ytColumnRequired, ytColumnRequiredOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaRequired);
+    auto [ytColumnOptional, ytColumnOptionalOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaOptional);
+
+    std::vector<DB::UInt8> filterHint = {1, 0, 1};
+    std::vector<DB::Field> expectedFields = {"foo", "", "baaaaaaaz"};
+
+    TComplexTypeFieldDescriptor requiredDescriptor(logicalType);
+    TComplexTypeFieldDescriptor optionalDescriptor(OptionalLogicalType(logicalType));
+    ExpectDataConversion(requiredDescriptor, ytColumnOptional, filterHint, expectedFields);
+    ExpectDataConversion(optionalDescriptor, ytColumnRequired, filterHint, expectedFields);
+}
+
+TEST_F(TYTToCHConversionTest, FilterHintList)
+{
+    std::vector<TUnversionedValue> unversionedValues = {
+        MakeUnversionedAnyValue("[1;2;3]"),
+        MakeUnversionedAnyValue("[58;124;99]"),
+        MakeUnversionedAnyValue("[-1]"),
+    };
+
+    auto logicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32));
+    TColumnSchema columnSchema(/*name*/ "", logicalType);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchema);
+
+    std::vector<DB::UInt8> filterHint = {1, 0, 1};
+    std::vector<DB::Field> expectedFields{
+        DB::Array{DB::Field(1), DB::Field(2), DB::Field(3)},
+        DB::Array{},
+        DB::Array{DB::Field(-1)},
+    };
+
+    TComplexTypeFieldDescriptor descriptor(logicalType);
+    ExpectDataConversion(descriptor, ytColumn, filterHint, expectedFields);
+}
+
+TEST_F(TYTToCHConversionTest, FilterHintTuple)
+{
+    std::vector<TUnversionedValue> unversionedValues = {
+        MakeUnversionedAnyValue("[42; xyz]"),
+        MakeUnversionedAnyValue("[123; baaaaz]"),
+        MakeUnversionedAnyValue("[-1; abc]"),
+    };
+
+    auto logicalType = TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String)});
+    TColumnSchema columnSchema(/*name*/ "", logicalType);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchema);
+
+    std::vector<DB::UInt8> filterHint = {1, 0, 1};
+    std::vector<DB::Field> expectedFields{
+        DB::Tuple{DB::Field(42), DB::Field("xyz")},
+        DB::Tuple{DB::Field(0), DB::Field("")},
+        DB::Tuple{DB::Field(-1), DB::Field("abc")},
+    };
+
+    TComplexTypeFieldDescriptor descriptor(logicalType);
+    ExpectDataConversion(descriptor, ytColumn, filterHint, expectedFields);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1203,8 +1288,9 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
-        TYTToCHConverter converter(descriptor, Settings_);
+        converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }
@@ -1224,8 +1310,9 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedMedium)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
-        TYTToCHConverter converter(descriptor, Settings_);
+        converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }
@@ -1245,8 +1332,9 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedBig)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
-        TYTToCHConverter converter(descriptor, Settings_);
+        converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
         converter.FlushColumn();
     }

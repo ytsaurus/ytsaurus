@@ -2,11 +2,14 @@
 
 #include "block_input_stream.h"
 #include "config.h"
+#include "read_plan.h"
 #include "granule_min_max_filter.h"
 #include "prewhere_block_input_stream.h"
 #include "query_context.h"
 #include "storage_base.h"
 #include "subquery_spec.h"
+
+#include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -23,6 +26,47 @@ using namespace NTabletClient;
 using namespace NTracing;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TColumnSchema> GetColumnSchemas(
+    const TSubquerySpec& subquerySpec,
+    const DB::Names& columnNames)
+{
+    std::vector<TColumnSchema> result;
+    result.reserve(columnNames.size());
+
+    TTableSchemaPtr virtualValueSchema;
+    if (!subquerySpec.DataSourceDirectory->DataSources().empty()) {
+        auto virtualValueDirectory = subquerySpec.DataSourceDirectory->DataSources().front().GetVirtualValueDirectory();
+
+        // Sanity check.
+        for (const auto& dataSource : subquerySpec.DataSourceDirectory->DataSources()) {
+            if (virtualValueDirectory) {
+                YT_VERIFY(dataSource.GetVirtualValueDirectory());
+                YT_VERIFY(*dataSource.GetVirtualValueDirectory()->Schema == *virtualValueDirectory->Schema);
+            } else {
+                YT_VERIFY(!dataSource.GetVirtualValueDirectory());
+            }
+        }
+
+        if (virtualValueDirectory) {
+            virtualValueSchema = virtualValueDirectory->Schema;
+        }
+    }
+
+    for (const auto& columnName : columnNames) {
+        if (const auto* column = subquerySpec.ReadSchema->FindColumn(columnName)) {
+            result.push_back(*column);
+        } else if (const auto* column = virtualValueSchema ? virtualValueSchema->FindColumn(columnName) : nullptr) {
+            result.push_back(*column);
+        } else {
+            THROW_ERROR_EXCEPTION("No such column %Qv", columnName);
+        }
+    }
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,20 +188,17 @@ public:
             SubquerySpec_.DataSliceDescriptors.size(),
             columnNames);
 
-        auto schema = SubquerySpec_.ReadSchema;
-
         YT_LOG_INFO("Creating table readers");
         DB::Pipes pipes;
-        const auto& prewhereInfo = queryInfo.prewhere_info;
-
-        if (SubquerySpec_.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable && prewhereInfo) {
-            // TODO(max42): CHYT-462.
-            THROW_ERROR_EXCEPTION("PREWHERE is not supported for dynamic tables (CHYT-462)");
-        }
 
         IGranuleFilterPtr granuleMinMaxFilter;
         if (StorageContext_->Settings->Execution->EnableMinMaxFiltering) {
-            granuleMinMaxFilter = CreateGranuleMinMaxFilter(queryInfo, StorageContext_->Settings->Composite, schema, context, realColumnNames);
+            granuleMinMaxFilter = CreateGranuleMinMaxFilter(
+                queryInfo,
+                StorageContext_->Settings->Composite,
+                SubquerySpec_.ReadSchema,
+                context,
+                realColumnNames);
         }
 
         auto statisticsCallback = BIND([weakQueryContext = MakeWeak(QueryContext_)] (const TStatistics& statistics) {
@@ -166,32 +207,37 @@ public:
             }
         });
 
-        for (int threadIndex = 0;
-            threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
-            ++threadIndex)
-        {
+        auto columnSchemas = GetColumnSchemas(SubquerySpec_, columnNames);
+
+        TReadPlanWithFilterPtr readPlan;
+        if (queryInfo.prewhere_info) {
+            readPlan = BuildReadPlanWithPrewhere(
+                columnSchemas,
+                queryInfo.prewhere_info,
+                context->getSettingsRef());
+        } else {
+            readPlan = BuildSimpleReadPlan(columnSchemas);
+        }
+
+        for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
-            if (prewhereInfo) {
+            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && readPlan->SuitableForTwoStagePrewhere()) {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
                     StorageContext_,
                     SubquerySpec_,
-                    realColumnNames,
-                    virtualColumnNames,
+                    readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo,
                     granuleMinMaxFilter,
                     statisticsCallback)));
             } else {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
                     StorageContext_,
                     SubquerySpec_,
-                    realColumnNames,
-                    virtualColumnNames,
+                    readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo,
                     granuleMinMaxFilter,
                     statisticsCallback)));
             }

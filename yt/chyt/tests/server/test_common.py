@@ -1601,7 +1601,21 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table(table_path, rows)
             table_data.append(rows)
 
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    },
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             # Simple.
             query = "select * from concatYtTablesRange('//tmp') where $table_index = 2 order by (key, subkey)"
             assert clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table)) == \

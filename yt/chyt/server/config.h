@@ -287,6 +287,33 @@ DEFINE_REFCOUNTED_TYPE(TListDirSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPrewhereSettings
+    : public NYTree::TYsonStruct
+{
+public:
+    //! If |true|, CHYT would use a separate stage to pre-filter data slices
+    //! with a prewhere condition before reading all other columns.
+    //! This could significantly reduce the amount of data read from YT if the
+    //! total size of the prewhere columns is much smaller than the total size
+    //! of all other columns, and the prewhere filters out most of the rows.
+    //! However, it could also increase the amount of data read from YT by up
+    //! to x2, due to the prewhere column being read twice.
+    //! Use with caution.
+    bool PrefilterDataSlices;
+    //! If |true|, column sizes would be approximated based only on column types.
+    //! It is less accurate than using data weight column statistics, but it does
+    //! not require any calls to master/data nodes.
+    bool UseHeuristicColumnSizes;
+
+    REGISTER_YSON_STRUCT(TPrewhereSettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrewhereSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonStruct
@@ -327,6 +354,8 @@ public:
 
     NApi::TSerializableMasterReadOptionsPtr CypressReadOptions;
     NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
+
+    TPrewhereSettingsPtr Prewhere;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 

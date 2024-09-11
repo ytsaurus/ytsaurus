@@ -111,6 +111,8 @@ DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker)
 DECLARE_REFCOUNTED_CLASS(TConcatTablesSettings)
 DECLARE_REFCOUNTED_CLASS(TCachingSettings)
 DECLARE_REFCOUNTED_CLASS(TListDirSettings)
+DECLARE_REFCOUNTED_CLASS(TPrewhereSettings)
+DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 
 struct TValue;
 class TSubquerySpec;
@@ -267,6 +269,7 @@ extern const int NO_SUCH_COLUMN_IN_TABLE;
 ////////////////////////////////////////////////////////////////////////////////
 
 class AccessControl;
+class Block;
 class ColumnsDescription;
 class Field;
 class IDatabase;
@@ -278,6 +281,7 @@ struct ASTTableExpression;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 struct SelectQueryInfo;
+struct Settings;
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;
@@ -287,6 +291,12 @@ using ColumnPtr = COW<IColumn>::Ptr;
 using MutableColumnPtr = COW<IColumn>::MutablePtr;
 
 class StorageFactory;
+
+class ExpressionActions;
+using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
+
+struct PrewhereInfo;
+using PrewhereInfoPtr = std::shared_ptr<PrewhereInfo>;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

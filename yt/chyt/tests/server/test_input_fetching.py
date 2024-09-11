@@ -31,7 +31,22 @@ class TestInputFetching(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"i": i}])
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    },
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             clique.make_query_and_validate_row_count(
                 'select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7
             )
@@ -130,8 +145,19 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(
                 1,
                 config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True,
-                                        "execution": {"enable_min_max_filtering": False}}}
+                    "yt": {
+                        "settings": {
+                            "enable_computed_column_deduction": True,
+                            "execution": {
+                                "enable_min_max_filtering": False
+                            }
+                        }
+                    },
+                    "clickhouse": {
+                        "settings": {
+                            "optimize_move_to_prewhere": False,
+                        }
+                    }
                 },
         ) as clique:
             clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
@@ -171,13 +197,23 @@ class TestInputFetching(ClickHouseTestBase):
         for i in range(key_count):
             insert_rows("//tmp/t", [{"key": "k" + str(i), "subkey": "sk" + str(i), "value": "v" + str(i)}])
 
-        with Clique(
-                1,
-                config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True,
-                                        "execution": {"enable_min_max_filtering": False}}}
-                },
-        ) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "enable_computed_column_deduction": True,
+                    "execution": {
+                        "enable_min_max_filtering": False
+                    }
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
             assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)) == 5
             assert (
                 len(
@@ -309,7 +345,21 @@ class TestInputFetching(ClickHouseTestBase):
         for type in interval_types:
             create_type_table(type, interval_values)
 
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False
+                    }
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             query1 = 'select * from "//tmp/t_{}" where key = 2'
             query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
             for type in (int_types + float_types):
@@ -347,7 +397,21 @@ class TestInputFetching(ClickHouseTestBase):
         assert get("#" + chunk_id + "/@compressed_data_size") > 100 * 1024
         assert get("#" + chunk_id + "/@max_block_size") < 20 * 1024
 
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False
+                    }
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
@@ -357,8 +421,24 @@ class TestInputFetching(ClickHouseTestBase):
             )
 
         # Forcefully disable chunk slicing.
-        with Clique(1, config_patch={"yt": {"subquery": {"max_sliced_chunk_count": 0},
-                                            "settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False
+                    }
+                },
+                "subquery": {
+                    "max_sliced_chunk_count": 0
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', exact=10)
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', exact=10)
@@ -971,7 +1051,23 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("<append=%true>" + table_path, [{"a": 2, "b": 32, "c": "teapot", "d": None, "e": "c"}])
         write_table("<append=%true>" + table_path, [{"a": -33, "b": 91, "c": "ytsaurus", "d": 10.01, "e": []}])
 
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": True}}}}) as clique:
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": True,
+                    },
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    # NB: prewhere filters rows before returning the block to CH,
+                    # so "rows_read" is incorrect in this case.
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             assert clique.make_query_and_validate_row_count(f'select c from "{table_path}" where a > 2 or b == 0 order by c', exact=3) == \
                 [{"c": "ab" * 100}, {"c": "apple"}, {"c": "polka"}]
 
@@ -1020,12 +1116,12 @@ class TestInputFetching(ClickHouseTestBase):
 
         if secondary_queries:
             block_rows = sum([
-                secondary_query["chyt_query_statistics"]["block_input_stream"]["block_rows"]["sum"]
+                secondary_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
                 for secondary_query in secondary_queries
             ])
         else:
             initial_query = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
-            block_rows = initial_query["chyt_query_statistics"]["block_input_stream"]["block_rows"]["sum"]
+            block_rows = initial_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
 
         print_debug(f"Block rows read by query {query_id}: {block_rows}")
         return block_rows
@@ -1038,23 +1134,6 @@ class TestInputFetching(ClickHouseTestBase):
             assert log_message["type"] == "QueryFinish"
             read_in_order_modes[log_message["query_id"]] = log_message["chyt_query_runtime_variables"].get("read_in_order_mode", "none")
         return read_in_order_modes
-
-    @staticmethod
-    def prepare_query_log(log_dir):
-        create("map_node", log_dir)
-
-        log_table = f"{log_dir}/query_log/0"
-
-        config = {
-            "cypress_root_directory": log_dir,
-            "default": {
-                "enabled": True,
-                "max_rows_to_keep": 100000,
-                "reporting_period": 100,
-            },
-        }
-
-        return log_table, config
 
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
@@ -1086,9 +1165,7 @@ class TestInputFetching(ClickHouseTestBase):
                     for row_index in range(chunk_row_count)])
                 ts_column += [chunk_index * 256 + row_index for row_index in range(chunk_row_count)]
 
-        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
-
-        with Clique(1, config_patch={
+        with Clique(1, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1104,9 +1181,10 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_data_weight_per_thread": 30,
                     "min_slice_data_weight": 1,
                 },
-                "system_log_table_exporters": query_log_config
             },
         }) as clique:
+            log_table = clique.query_log_table_path
+
             result, query_id = self.make_query(
                 clique,
                 f'select message from concatYtTables("//tmp/table-0", "//tmp/table-1", "//tmp/table-2") where log_level = \'info\' and ts > {7 * 256 + 2} order by ts limit 6',
@@ -1216,9 +1294,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "ordered_table": [{"key": k if str(k) != "nan" else str(k)} for k in ordered_keys],
             }
 
-        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
-
-        with Clique(1, config_patch={
+        with Clique(1, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1229,9 +1305,10 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_data_weight_per_thread": 30,
                     "min_slice_data_weight": 1,
                 },
-                "system_log_table_exporters": query_log_config,
             },
         }) as clique:
+            log_table = clique.query_log_table_path
+
             expected_read_in_order_modes = {}
 
             def register_query_check(query, read_in_order_mode, result, settings=None):
@@ -1376,9 +1453,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "message": f"{row_index}, {chunk_index}, 0"}
                 for row_index in range(chunk_row_count)])
 
-        log_table, query_log_config = self.prepare_query_log("//tmp/exporter")
-
-        with Clique(1, config_patch={
+        with Clique(1, export_query_log=True, config_patch={
             "yt": {
                 "settings": {
                     "execution": {
@@ -1394,9 +1469,10 @@ class TestInputFetching(ClickHouseTestBase):
                     "min_data_weight_per_thread": 30,
                     "min_slice_data_weight": 1,
                 },
-                "system_log_table_exporters": query_log_config,
             },
         }) as clique:
+            log_table = clique.query_log_table_path
+
             # Queries could have been a test parameter, but CHYT cliques take a while to start,
             # so we save execution time by performing the checks in one test invocation.
             # Also, query log takes a few seconds to write messages, so we run all checks in the end.

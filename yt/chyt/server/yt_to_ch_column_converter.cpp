@@ -1,4 +1,4 @@
-#include "yt_to_ch_converter.h"
+#include "yt_to_ch_column_converter.h"
 
 #include "config.h"
 #include "columnar_conversion.h"
@@ -83,6 +83,8 @@ namespace {
 //! std::unique_ptr<IConverter> in member fields of particular implementations.
 struct IConverter
 {
+    virtual void InitColumn() = 0;
+
     //! Consume single value expressed by YSON stream.
     virtual void ConsumeYson(TYsonPullParserCursor* cursor) = 0;
     //! Consume a batch of values represented by unversioned values.
@@ -90,7 +92,7 @@ struct IConverter
     //! Consume given number of nulls.
     virtual void ConsumeNulls(int count) = 0;
     //! Consume native YT column.
-    virtual void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) = 0;
+    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> /*filterHint*/) = 0;
 
     virtual DB::ColumnPtr FlushColumn() = 0;
     virtual DB::DataTypePtr GetDataType() const = 0;
@@ -120,11 +122,11 @@ public:
         }
     }
 
-    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
     {
         // TODO(max42): this may be done without full column materialization.
 
-        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column);
+        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column, filterHint);
         for (int index = 0; index < std::ssize(*stringColumn); ++index) {
             auto data = static_cast<std::string_view>(stringColumn->getDataAt(index));
             if (data.size() == 0) {
@@ -166,11 +168,15 @@ class TRawYsonToStringConverter
 {
 public:
     TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TCompositeSettingsPtr& settings)
-        : Column_(DB::ColumnString::create())
-        , Settings_(settings)
+        : Settings_(settings)
         , YsonOutput_(YsonBuffer_)
         , YsonWriter_(&YsonOutput_, settings->DefaultYsonFormat)
     { }
+
+    void InitColumn() override
+    {
+        Column_ = DB::ColumnString::create();
+    }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
@@ -204,7 +210,7 @@ public:
         return std::make_shared<DB::DataTypeString>();
     }
 
-    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
     {
         // This is the outermost converter.
         // Input column may be of concrete type in case of any upcast, so we may need to
@@ -218,15 +224,15 @@ public:
         switch (v1Type) {
             case ESimpleLogicalValueType::Any:
                 if (Settings_->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
-                    ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column));
+                    ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column, filterHint));
                 } else {
-                    TYsonExtractingConverterBase::ConsumeYtColumn(column);
+                    TYsonExtractingConverterBase::ConsumeYtColumn(column, filterHint);
                 }
                 return;
             case ESimpleLogicalValueType::String:
             case ESimpleLogicalValueType::Utf8:
             case ESimpleLogicalValueType::Json:
-                intermediateColumn = ConvertStringLikeYTColumnToCHColumn(column);
+                intermediateColumn = ConvertStringLikeYTColumnToCHColumn(column, filterHint);
                 break;
             case ESimpleLogicalValueType::Int8:
             case ESimpleLogicalValueType::Int16:
@@ -299,9 +305,13 @@ public:
     TSimpleValueConverter(TComplexTypeFieldDescriptor descriptor, DB::DataTypePtr dataType)
         : Descriptor_(std::move(descriptor))
         , DataType_(std::move(dataType))
-        , Column_(DataType_->createColumn())
-        , Data_(static_cast<TColumn*>(Column_.get()))
     { }
+
+    void InitColumn() override
+    {
+        Column_ = DataType_->createColumn();
+        Data_ = static_cast<TColumn*>(Column_.get());
+    }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
@@ -417,7 +427,7 @@ public:
         }
     }
 
-    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
     {
         if constexpr (
             LogicalType == ESimpleLogicalValueType::Int8 ||
@@ -449,7 +459,7 @@ public:
             LogicalType == ESimpleLogicalValueType::Utf8 ||
             LogicalType == ESimpleLogicalValueType::Json)
         {
-            ReplaceColumnTypeChecked<DB::MutableColumnPtr>(Column_, ConvertStringLikeYTColumnToCHColumn(column));
+            ReplaceColumnTypeChecked<DB::MutableColumnPtr>(Column_, ConvertStringLikeYTColumnToCHColumn(column, filterHint));
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             // AssumeNothingColumn()->insertDefault(column);
         } else {
@@ -508,7 +518,11 @@ public:
     TOptionalConverter(IConverterPtr underlyingConverter, int nestingLevel)
         : UnderlyingConverter_(std::move(underlyingConverter))
         , NestingLevel_(nestingLevel)
+    { }
+
+    void InitColumn() override
     {
+        UnderlyingConverter_->InitColumn();
         // Tuples and arrays cannot be inside Nullable() in ClickHouse.
         // Also note that all non-simple types are represented as tuples and arrays.
         // Both DB::makeNullable are silently returning original argument if they see
@@ -574,7 +588,7 @@ public:
         UnderlyingConverter_->ConsumeNulls(count);
     }
 
-    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
     {
         if (!column.Values) {
             // Column of type Null or Void.
@@ -584,9 +598,9 @@ public:
                 ReplaceColumnTypeChecked(NullColumn_, BuildNullBytemapForCHColumn(column));
             }
 
-            UnderlyingConverter_->ConsumeYtColumn(column);
+            UnderlyingConverter_->ConsumeYtColumn(column, filterHint);
         } else {
-            TYsonExtractingConverterBase::ConsumeYtColumn(column);
+            TYsonExtractingConverterBase::ConsumeYtColumn(column, filterHint);
         }
     }
 
@@ -627,8 +641,14 @@ class TListConverter
 public:
     TListConverter(IConverterPtr underlyingConverter)
         : UnderlyingConverter_(std::move(underlyingConverter))
-        , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
+
+    void InitColumn() override
+    {
+        ItemCount_ = 0;
+        UnderlyingConverter_->InitColumn();
+        ColumnOffsets_ = DB::ColumnVector<ui64>::create();
+    }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
@@ -683,8 +703,15 @@ public:
     TDictConverter(IConverterPtr keyConverter, IConverterPtr valueConverter)
         : KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
-        , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
+
+    void InitColumn() override
+    {
+        ItemCount_ = 0;
+        KeyConverter_->InitColumn();
+        ValueConverter_->InitColumn();
+        ColumnOffsets_ = DB::ColumnVector<ui64>::create();
+    }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
@@ -753,6 +780,13 @@ public:
         : ItemConverters_(std::move(itemConverters))
     { }
 
+    void InitColumn() override
+    {
+        for (const auto& itemConverter : ItemConverters_) {
+            itemConverter->InitColumn();
+        }
+    }
+
     void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
@@ -809,6 +843,13 @@ public:
     {
         for (const auto& [index, fieldName] : Enumerate(FieldNames_)) {
             FieldNameToPosition_[fieldName] = index;
+        }
+    }
+
+    void InitColumn() override
+    {
+        for (const auto& fieldConverter : FieldConverters_) {
+            fieldConverter->InitColumn();
         }
     }
 
@@ -912,9 +953,12 @@ public:
     TDecimalConverter(int precision, int scale)
         : Precision_(precision)
         , DataType_(std::make_shared<DB::DataTypeDecimal<TClickHouseDecimal>>(precision, scale))
-        , Column_(DataType_->createColumn())
-        , DecimalColumn_(dynamic_cast<TDecimalColumn*>(Column_.get()))
+    { }
+
+    void InitColumn() override
     {
+        Column_ = DataType_->createColumn();
+        DecimalColumn_ = dynamic_cast<TDecimalColumn*>(Column_.get());
         YT_VERIFY(DecimalColumn_ != nullptr);
     }
 
@@ -951,10 +995,10 @@ public:
         Column_->insertManyDefaults(count);
     }
 
-    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
     {
         // TODO(dakovalkov): Can be done without materialization to string column.
-        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column);
+        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column, filterHint);
 
         int rowCount = std::ssize(*stringColumn);
         DecimalColumn_->reserve(rowCount);
@@ -1015,6 +1059,11 @@ class TNothingConverter
     : public IConverter
 {
 public:
+    void InitColumn() override
+    {
+        Column_ = DataType_->createColumn();
+    }
+
     void ConsumeYson(TYsonPullParserCursor* /*cursor*/) override
     {
         Column_->insertDefault();
@@ -1030,7 +1079,7 @@ public:
         Column_->insertManyDefaults(count);
     }
 
-    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> /*filterHint*/) override
     {
         Column_->insertManyDefaults(column.ValueCount);
     }
@@ -1047,7 +1096,7 @@ public:
 
 private:
     const DB::DataTypePtr DataType_ = std::make_shared<DB::DataTypeNothing>();
-    DB::IColumn::MutablePtr Column_ = DataType_->createColumn();
+    DB::IColumn::MutablePtr Column_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1056,7 +1105,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYTToCHConverter::TImpl
+class TYTToCHColumnConverter::TImpl
 {
 public:
     TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isReadConversions)
@@ -1065,6 +1114,11 @@ public:
         , IsReadConversions_(isReadConversions)
         , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
     { }
+
+    void InitColumn()
+    {
+        RootConverter_->InitColumn();
+    }
 
     void ConsumeUnversionedValues(TUnversionedValueRange values)
     {
@@ -1087,9 +1141,9 @@ public:
         RootConverter_->ConsumeNulls(count);
     }
 
-    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint)
     {
-        RootConverter_->ConsumeYtColumn(column);
+        RootConverter_->ConsumeYtColumn(column, filterHint);
     }
 
     DB::ColumnPtr FlushColumn()
@@ -1358,48 +1412,54 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYTToCHConverter::TYTToCHConverter(
+TYTToCHColumnConverter::TYTToCHColumnConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings,
     bool isReadConversions)
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
 { }
 
-void TYTToCHConverter::ConsumeUnversionedValues(TUnversionedValueRange values)
+void TYTToCHColumnConverter::InitColumn()
+{
+    Impl_->InitColumn();
+}
+
+void TYTToCHColumnConverter::ConsumeUnversionedValues(TUnversionedValueRange values)
 {
     return Impl_->ConsumeUnversionedValues(values);
 }
 
-void TYTToCHConverter::ConsumeYson(TYsonStringBuf yson)
+void TYTToCHColumnConverter::ConsumeYson(TYsonStringBuf yson)
 {
     return Impl_->ConsumeYson(yson);
 }
 
-DB::ColumnPtr TYTToCHConverter::FlushColumn()
+DB::ColumnPtr TYTToCHColumnConverter::FlushColumn()
 {
     return Impl_->FlushColumn();
 }
 
-DB::DataTypePtr TYTToCHConverter::GetDataType() const
+DB::DataTypePtr TYTToCHColumnConverter::GetDataType() const
 {
     return Impl_->GetDataType();
 }
 
-void TYTToCHConverter::ConsumeNulls(int count)
+void TYTToCHColumnConverter::ConsumeNulls(int count)
 {
     return Impl_->ConsumeNulls(count);
 }
 
-void TYTToCHConverter::ConsumeYtColumn(
-    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
+void TYTToCHColumnConverter::ConsumeYtColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
+    TRange<DB::UInt8> filterHint)
 {
-    return Impl_->ConsumeYtColumn(column);
+    return Impl_->ConsumeYtColumn(column, filterHint);
 }
 
-TYTToCHConverter::~TYTToCHConverter() = default;
+TYTToCHColumnConverter::~TYTToCHColumnConverter() = default;
 
-TYTToCHConverter::TYTToCHConverter(
-    TYTToCHConverter&& other)
+TYTToCHColumnConverter::TYTToCHColumnConverter(
+    TYTToCHColumnConverter&& other)
     : Impl_(std::move(other.Impl_))
 { }
 

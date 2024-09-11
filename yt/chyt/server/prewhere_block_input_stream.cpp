@@ -1,9 +1,10 @@
 #include "prewhere_block_input_stream.h"
 
-#include "subquery_spec.h"
-#include "host.h"
 #include "block_input_stream.h"
+#include "host.h"
 #include "query_context.h"
+#include "read_plan.h"
+#include "subquery_spec.h"
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
@@ -24,64 +25,49 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Names ExtractColumnsFromPrewhereInfo(PrewhereInfoPtr prewhereInfo)
-{
-    // TODO(dakovalkov): prewhereInfo also contains row_level_filter. Explore what it is.
-    // Probable we need to use both of them (see IMergeTreeSelectAlgorithm::getPrewhereActions).
-    return prewhereInfo->prewhere_actions->getRequiredColumnsNames();
-}
-
 std::vector<TDataSliceDescriptor> GetFilteredDataSliceDescriptors(std::shared_ptr<TBlockInputStream> blockInputStream)
 {
     std::vector<TDataSliceDescriptor> filteredDataSliceDescriptors;
+
+    blockInputStream->readPrefixImpl();
+
     while (auto block = blockInputStream->read()) {
         if (block.rows() > 0) {
             filteredDataSliceDescriptors.emplace_back(blockInputStream->Reader()->GetCurrentReaderDescriptor());
             blockInputStream->Reader()->SkipCurrentReader();
         }
     }
+
+    blockInputStream->readSuffixImpl();
+
     return filteredDataSliceDescriptors;
 }
 
 std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     std::vector<TDataSliceDescriptor>&& dataSliceDescriptors,
-    PrewhereInfoPtr prewhereInfo,
-    const std::vector<TString>& virtualColumnNames,
+    const TReadPlanWithFilterPtr& readPlan,
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const NTracing::TTraceContextPtr& traceContext,
     IGranuleFilterPtr granuleFilter,
     TCallback<void(const TStatistics&)> statisticsCallback)
 {
-    auto prewhereColumns = ExtractColumnsFromPrewhereInfo(prewhereInfo);
     auto* queryContext = storageContext->QueryContext;
 
-    std::vector<TString> realPrewhereColumns;
-    std::vector<TString> virtualPrewhereColumns;
-
-    for (const auto& column : prewhereColumns) {
-        if (std::find(virtualColumnNames.begin(), virtualColumnNames.end(), column) != virtualColumnNames.end()) {
-            virtualPrewhereColumns.emplace_back(column);
-        } else {
-            realPrewhereColumns.emplace_back(column);
-        }
-    }
+    auto prewhereReadPlan = ExtractPrewhereOnlyReadPlan(readPlan);
 
     auto Logger = queryContext->Logger;
     YT_LOG_DEBUG(
-        "Started executing PREWHERE data slice filtering (PrewhereColumnName: %v, RealPrewhereColumns: %v, VirtualPrewhereColumns: %v)",
-        prewhereInfo->prewhere_column_name,
-        realPrewhereColumns,
-        virtualPrewhereColumns);
+        "Started executing PREWHERE data slice filtering (PrewhereColumnCount: %v, TotalColumnCount: %v)",
+        prewhereReadPlan->GetReadColumnCount(),
+        readPlan->GetReadColumnCount());
 
     auto blockInputStream = CreateBlockInputStream(
         storageContext,
         subquerySpec,
-        realPrewhereColumns,
-        virtualPrewhereColumns,
+        std::move(prewhereReadPlan),
         traceContext,
         dataSliceDescriptors,
-        std::move(prewhereInfo),
         std::move(granuleFilter),
         std::move(statisticsCallback));
 
@@ -104,28 +90,22 @@ public:
     TPrewhereBlockInputStream(
         TStorageContext* storageContext,
         const TSubquerySpec& subquerySpec,
-        const std::vector<TString>& realColumns,
-        const std::vector<TString>& virtualColumns,
+        TReadPlanWithFilterPtr readPlan,
         NTracing::TTraceContextPtr traceContext,
-        DB::PrewhereInfoPtr prewhereInfo,
         std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
         IGranuleFilterPtr granuleFilter,
         TCallback<void(const TStatistics&)> statisticsCallback)
         : StorageContext_(storageContext)
         , QueryContext_(storageContext->QueryContext)
         , SubquerySpec_(subquerySpec)
-        , RealColumnNames_(realColumns)
-        , VirtualColumnNames_(virtualColumns)
+        , ReadPlan_(std::move(readPlan))
         , TraceContext_(traceContext)
-        , PrewhereInfo_(std::move(prewhereInfo))
         , Header_(CreateBlockInputStream(
             StorageContext_,
             SubquerySpec_,
-            realColumns,
-            virtualColumns,
+            ReadPlan_,
             TraceContext_,
             /*dataSliceDescriptors*/ {},
-            PrewhereInfo_,
             /*granuleFilter*/ nullptr,
             /*statisticsCallback*/ {})->getHeader())
         , GranuleFilter_(std::move(granuleFilter))
@@ -153,8 +133,7 @@ public:
 
         DataSliceDescriptors_ = NDetail::FilterDataSliceDescriptorsByPrewhereInfo(
             std::move(DataSliceDescriptors_),
-            PrewhereInfo_,
-            VirtualColumnNames_,
+            ReadPlan_,
             StorageContext_,
             SubquerySpec_,
             TraceContext_,
@@ -171,11 +150,9 @@ public:
         BlockInputStream_ = CreateBlockInputStream(
             StorageContext_,
             SubquerySpec_,
-            RealColumnNames_,
-            VirtualColumnNames_,
+            ReadPlan_,
             TraceContext_,
             DataSliceDescriptors_,
-            PrewhereInfo_,
             // Chunks have been already prefiltered.
             /*granuleFilter*/ nullptr,
             StatisticsCallback_);
@@ -191,10 +168,8 @@ private:
     TStorageContext* StorageContext_;
     TQueryContext* QueryContext_;
     const TSubquerySpec SubquerySpec_;
-    const std::vector<TString> RealColumnNames_;
-    const std::vector<TString> VirtualColumnNames_;
+    TReadPlanWithFilterPtr ReadPlan_;
     NTracing::TTraceContextPtr TraceContext_;
-    DB::PrewhereInfoPtr PrewhereInfo_;
     DB::Block Header_;
     const IGranuleFilterPtr GranuleFilter_;
     TCallback<void(const TStatistics&)> StatisticsCallback_;
@@ -215,21 +190,23 @@ private:
 DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const std::vector<TString>& realColumns,
-    const std::vector<TString>& virtualColumns,
+    TReadPlanWithFilterPtr readPlan,
     const NTracing::TTraceContextPtr& traceContext,
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
-    DB::PrewhereInfoPtr prewhereInfo,
     IGranuleFilterPtr granuleFilter,
     TCallback<void(const TStatistics&)> statisticsCallback)
 {
+    for (const auto& dataSource : subquerySpec.DataSourceDirectory->DataSources()) {
+        if (dataSource.GetType() == EDataSourceType::VersionedTable) {
+            THROW_ERROR_EXCEPTION("PREWHERE stage is not supported for dynamic tables (CHYT-462)");
+        }
+    }
+
     return std::make_shared<TPrewhereBlockInputStream>(
         storageContext,
         subquerySpec,
-        realColumns,
-        virtualColumns,
+        std::move(readPlan),
         traceContext,
-        std::move(prewhereInfo),
         std::move(dataSliceDescriptors),
         std::move(granuleFilter),
         std::move(statisticsCallback));

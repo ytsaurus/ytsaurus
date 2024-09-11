@@ -10,14 +10,43 @@ import random
 
 
 class TestClickHousePrewhere(ClickHouseTestBase):
-    def get_config_patch(self, value, enable_min_max_filtering=False):
-        return {"clickhouse": {"settings": {"optimize_move_to_prewhere": int(value)}},
-                "yt": {"settings": {"execution": {"enable_min_max_filtering": enable_min_max_filtering}}}}
+    NUM_TEST_PARTITIONS = 2
+
+    def get_config_patch(self, optimize_move_to_prewhere, prefilter_data_slices=False):
+        return {
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": int(optimize_move_to_prewhere),
+                },
+            },
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    },
+                    "prewhere": {
+                        "prefilter_data_slices": prefilter_data_slices,
+                    },
+                },
+            },
+        }
+
+    @staticmethod
+    def _extract_step_summary(query_log_rows, step_index, metric_name):
+        result = 0
+        for row in query_log_rows:
+            statistics = row["chyt_query_statistics"]
+            if "block_input_stream" not in statistics:
+                continue
+            if str(step_index) not in statistics["block_input_stream"]["steps"]:
+                continue
+            result += statistics["block_input_stream"]["steps"][str(step_index)][metric_name]["sum"]
+        return result
 
     @authors("evgenstf")
-    @pytest.mark.parametrize("optimize_for, required", itertools.product(["lookup", "scan"], [False, True]))
-    def test_prewhere_actions(self, optimize_for, required):
-        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
+    @pytest.mark.parametrize("optimize_for, required, prefilter_data_slices", itertools.product(["lookup", "scan"], [False, True], [False, True]))
+    def test_prewhere_actions(self, optimize_for, required, prefilter_data_slices):
+        with Clique(1, config_patch=self.get_config_patch(False, prefilter_data_slices)) as clique:
             create(
                 "table",
                 "//tmp/t1",
@@ -190,7 +219,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         # Without unmount we would simply get zeroes as columnar statistics as all rows will reside in dynamic stores.
         sync_unmount_table("//tmp/t")
 
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
             query = "select light from `//tmp/t` where heavy == '{}'".format(rows[42]["heavy"])
             explain_result = clique.make_query("explain syntax " + query)
             print_debug(explain_result)
@@ -202,3 +231,45 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 verbose=False)
             assert len(result) == 1
             assert result[0]["light"] == 42
+
+    @authors("dakovalkov")
+    def test_prefilter_data_slices(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "heavy", "type": "string"},
+                       {"name": "light", "type": "int64"}],
+        })
+        write_table("<append=%true>//tmp/t", [{"heavy": "abc", "light": 1}])
+        write_table("<append=%true>//tmp/t", [{"heavy": "bcd", "light": 2}])
+
+        config_patch = self.get_config_patch(optimize_move_to_prewhere=False, prefilter_data_slices=True)
+        with Clique(1, export_query_log=True, config_patch=config_patch) as clique:
+            result = clique.make_query("select * from `//tmp/t` prewhere light = 1", full_response=True)
+            assert result.json()["data"] == [{"heavy": "abc", "light": 1}]
+
+            query_log_rows = clique.wait_and_get_query_log_rows(result.headers["X-ClickHouse-Query-Id"])
+
+            assert self._extract_step_summary(query_log_rows, 0, "block_rows") == 3
+            assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 1
+
+    @authors("dakovalkov")
+    def test_filter_heavy_columns(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "heavy", "type": "string"},
+                       {"name": "light", "type": "int64"}],
+        })
+
+        heavy_value_size = 1000
+
+        write_table("//tmp/t", [{"heavy": "abc", "light": 1}, {"heavy": "b" * heavy_value_size, "light": 2}])
+
+        config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
+        with Clique(1, export_query_log=True, config_patch=config_patch) as clique:
+            result = clique.make_query("select * from `//tmp/t` prewhere light = 1", full_response=True)
+
+            assert result.json()["data"] == [{"heavy": "abc", "light": 1}]
+
+            query_log_rows = clique.wait_and_get_query_log_rows(result.headers["X-ClickHouse-Query-Id"])
+
+            assert self._extract_step_summary(query_log_rows, 0, "block_rows") == 2
+            assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
+            assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
