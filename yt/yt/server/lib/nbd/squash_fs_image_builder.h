@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/client/api/file_reader.h>
@@ -12,7 +14,7 @@
 #include <util/string/split.h>
 #include <util/system/types.h>
 
-namespace NYT::NSquashFs {
+namespace NYT::NSquashFS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +27,7 @@ struct TArtifactDescription
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSquashFsData
+struct TSquashFSData
 {
     TBlobOutput Head;
     std::vector<TArtifactDescription> Files;
@@ -34,11 +36,11 @@ struct TSquashFsData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSquashFsImageTag {};
+struct TSquashFSImageTag {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSquashFsImage
+class TSquashFSImage
     : public TRefCounted
 {
 public:
@@ -46,7 +48,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY_NO_INIT(std::vector<TArtifactDescription>, Files);
 
 public:
-    explicit TSquashFsImage(TSquashFsData data);
+    explicit TSquashFSImage(TSquashFSData data);
 
     TSharedRef ReadHead(
         i64 offset,
@@ -69,12 +71,11 @@ private:
     i64 TailOffset_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TSquashFsImage)
-DEFINE_REFCOUNTED_TYPE(TSquashFsImage)
+DEFINE_REFCOUNTED_TYPE(TSquashFSImage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSquashFsBuilderOptions
+struct TSquashFSBuilderOptions
 {
     ui32 BlockSize = 128_KB;
     ui32 Uid = 0;
@@ -84,7 +85,7 @@ struct TSquashFsBuilderOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISquashFsBuilder
+struct ISquashFSBuilder
     : public virtual TRefCounted
 {
     // Adds directories and file to file system.
@@ -95,16 +96,15 @@ struct ISquashFsBuilder
         ui16 permissions) = 0;
 
     // Builds squashFs that contains all directories and files added previously.
-    virtual TSquashFsImagePtr Build() = 0;
+    virtual TSquashFSImagePtr Build() = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(ISquashFsBuilder)
-DEFINE_REFCOUNTED_TYPE(ISquashFsBuilder)
+DEFINE_REFCOUNTED_TYPE(ISquashFSBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISquashFsBuilderPtr CreateSquashFsBuilder(TSquashFsBuilderOptions options = {});
+ISquashFSBuilderPtr CreateSquashFSBuilder(TSquashFSBuilderOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSquashFs
+} // namespace NYT::NSquashFS

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "block_device.h"
-#include "config.h"
-
-#include <yt/yt/server/lib/nbd/image_reader.h>
+#include "public.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 

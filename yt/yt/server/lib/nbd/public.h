@@ -17,6 +17,21 @@ DECLARE_REFCOUNTED_CLASS(TFileSystemBlockDeviceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTableBlockDeviceConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryBlockDeviceConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IImageReader)
+
+DECLARE_REFCOUNTED_STRUCT(IRandomAccessFileReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd
+
+namespace NYT::NSquashFS {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(ISquashFSBuilder)
+DECLARE_REFCOUNTED_CLASS(TSquashFSImage)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNbd

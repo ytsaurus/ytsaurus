@@ -1,8 +1,8 @@
 #include "file_system_block_device.h"
 #include "block_device.h"
+#include "config.h"
+#include "image_reader.h"
 #include "profiler.h"
-
-#include <yt/yt/server/lib/nbd/private.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -153,6 +153,12 @@ public:
     }
 
 private:
+    const TString ExportId_;
+    const TFileSystemBlockDeviceConfigPtr Config_;
+    const IImageReaderPtr Reader_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
+    const NProfiling::TTagSet TagSet_;
 
     void DoInitialize()
     {
@@ -163,19 +169,11 @@ private:
         YT_LOG_INFO("Initialized File system block device (Path: %v)", Config_->Path);
     }
 
-private:
     static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()
     {
         static NProfiling::TTaggedCounters<int> result;
         return result;
     }
-
-    const TString ExportId_;
-    const TFileSystemBlockDeviceConfigPtr Config_;
-    const IImageReaderPtr Reader_;
-    const IInvokerPtr Invoker_;
-    const NLogging::TLogger Logger;
-    const NProfiling::TTagSet TagSet_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
