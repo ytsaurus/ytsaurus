@@ -1334,8 +1334,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProfiler
             .WithSparse()
-            // TODO(babenko): switch to std::string
-            .WithTag("user", TString(user))
+            .WithTag("user", user)
             .Gauge("/running_query_count");
         return std::pair(0, gauge);
     }).first;
