@@ -678,8 +678,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            // TODO(babenko): switch to std::string
-            return TCounter(tabletProfiler.WithTag("user", TString(*userTag)), mediumProfiler, schema);
+            return TCounter(tabletProfiler.WithTag("user", *userTag), mediumProfiler, schema);
         } else {
             return TCounter(tabletProfiler, mediumProfiler, schema);
         }
@@ -793,8 +792,7 @@ TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
         return {};
     }
 
-    // TODO(babenko): switch to std::string
-    return TReplicaCounters{Profiler_.WithTag("replica_cluster", TString(cluster))};
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
 }
 
 template <class TCounter>

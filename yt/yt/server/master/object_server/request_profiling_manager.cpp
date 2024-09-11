@@ -34,10 +34,8 @@ public:
                 ObjectServerProfiler
                     .WithHot()
                     .WithSparse()
-                    // TODO(babenko): switch to std::string
-                    .WithTag("user", TString(user))
-                    // TODO(babenko): switch to std::string
-                    .WithTag("method", TString(method)));
+                    .WithTag("user", user)
+                    .WithTag("method", method));
         }).first;
     }
 

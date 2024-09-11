@@ -456,8 +456,7 @@ public:
         , ProfileManager_(CreateConsumerProfileManager(
             QueueAgentProfilerGlobal
                 .WithRequiredTag("consumer_path", ConsumerRef_.Path)
-                // TODO(babenko): switch to std::string
-                .WithRequiredTag("consumer_cluster", TString(ConsumerRef_.Cluster)),
+                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
             Logger))
     {
         // Prepare initial erroneous snapshot.

@@ -155,8 +155,7 @@ TCacheProfilingCountersPtr TChaosCache::GetProfilingCounters(const std::string& 
     }
 
     auto counters = New<TCacheProfilingCounters>(Profiler_
-        // TODO(babenko): switch to std::string
-        .WithTag("user", TString(user)));
+        .WithTag("user", user));
 
     {
         auto guard = WriterGuard(Lock_);
