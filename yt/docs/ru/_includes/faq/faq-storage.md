@@ -6,7 +6,7 @@
 
 #### **Q: Можно ли изменять схему таблицы?**
 
-**A:** Можно, примеры и ограничения можно найти в разделе [Схема таблиц](../../../user-guide/storage/static-schema.md#create).
+**A:** Можно, примеры и ограничения можно найти в разделе [Схема таблиц](../../user-guide/storage/static-schema.md#create).
 
 ------
 
@@ -24,17 +24,17 @@ yt unmount-table --sync //home/path/to/table
 yt set //home/path/to/table/@primary_medium ssd_blobs
 yt mount-table --sync //home/path/to/table
 ```
-Сразу после выставления атрибута новые данные будут записываться на SSD, старые данные будут переложены в фоне. Подробнее о том, как влиять на данный процесс и отслеживать его динамику, в разделе [статические таблицы](../../../user-guide/storage/static-tables.md#medium).
+Сразу после выставления атрибута новые данные будут записываться на SSD, старые данные будут переложены в фоне. Подробнее о том, как влиять на данный процесс и отслеживать его динамику, в разделе [статические таблицы](../../user-guide/storage/static-tables.md#medium).
 
 ------
 #### **Q: Что делать, если чтение таблицы тормозит?**
 
-**A:** Про это есть [отдельная страница](../../../user-guide/problems/slow-read.md).
+**A:** Про это есть [отдельная страница](../../user-guide/problems/slow-read.md).
 
 ------
 #### **Q: Как уменьшить число используемых чанков в своей квоте?**
 
-**A:** Если эти чанки занимают таблицы (а это типичный случай), то следует запустить операцию [Merge](../../../user-guide/data-processing/operations/merge.md) с параметром `combine_chunks = %true`.
+**A:** Если эти чанки занимают таблицы (а это типичный случай), то следует запустить операцию [Merge](../../user-guide/data-processing/operations/merge.md) с параметром `combine_chunks = %true`.
 Таблица будет пересобрана из более крупных чанков, тем самым можно уменьшить использование чанков в своей квоте. Из командной строки операцию можно запустить командой, заменив `src table` и `dst table`:
 
 ```
@@ -48,4 +48,4 @@ yt merge --src table --dst table --spec "{combine_chunks=true}"
 ------
 #### **Q: Получаю ошибку: Format "YamredDsv" is disabled. Что делать?**
 
-**A:** Формат `YAMRED_DSV` больше не поддерживается. Стоит воспользоваться другим [форматом](../../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh). 
+**A:** Формат `YAMRED_DSV` больше не поддерживается. Стоит воспользоваться другим [форматом](../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh).

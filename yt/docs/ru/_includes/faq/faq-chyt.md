@@ -1,27 +1,31 @@
-# FAQ
-
 #### **Q: Почему в CHYT есть клики, тогда как в обычном ClickHouse ничего похожего нет? Что такое клика?**
 
-**A:** Про это есть отдельная [статья](../../../user-guide/data-processing/chyt/general.md)
+**A:** Про это есть отдельная [статья](../../user-guide/data-processing/chyt/general.md).
 
 ------
 
 #### **Q: Получаю одну из ошибок «DB::NetException: Connection refused», «DB::Exception: Attempt to read after eof: while receiving packet from». Что это значит?**
 
- **A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
+ **A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
 
 ------
 
 #### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?**
 
-**A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики.
+**A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики.
 
 ------
 
 #### **Q: Как сохранять в таблицу?**
 
-**A:** Есть функции **INSERT INTO** и **CREATE TABLE**, Подробнее можно прочитать в разделе [Отличие от ClickHouse.](../../../user-guide/data-processing/chyt/yt-tables.md#save)
+**A:** Есть функции **INSERT INTO** и **CREATE TABLE**, Подробнее можно прочитать в разделе [Отличие от ClickHouse.](../../user-guide/data-processing/chyt/yt-tables.md#save)
 
+
+------
+
+#### **Q: Как загрузить геословари в собственной клике?**
+
+**A:** При старте любой клики можно указать опцию `--cypress-geodata-path`, которая позволяет указать путь к геословарям в Кипарисе. Подробнее про эту опцию можно прочитать в статье [Как попробовать](../../user-guide/data-processing/chyt/try-chyt.md).
 
 ------
 
@@ -43,9 +47,9 @@ https://yql.yandex-team.ru/Operations/XVZ8JglcTpHZhVoH3iFVAeixaazEBY0NtJKv0zUIQm
 
 **A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в медиуме **ssd_blobs**. Для этого можно на {% if audience == "public" %}странице аккаунтов{% else %}[странице аккаунтов](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %} переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме **ssd_blobs** нет, то ее можно запросить через специальную форму.
 
-После получения квоты на медиуме **ssd_blobs** необходимо изменить значение атрибута `primary_medium`, данные будут в фоне переложены на соответствующий медиум. Подробнее можно прочитать в разделе про [хранение](../../../faq/faq.md#storage).
+После получения квоты на медиуме **ssd_blobs** необходимо изменить значение атрибута `primary_medium`, данные будут в фоне переложены на соответствующий медиум. Подробнее можно прочитать в разделе про [хранение](../../faq/faq.md#storage).
 
-Для статических таблиц можно форсировать перекладывание с помощью операции [Merge](../../../user-guide/data-processing/operations/merge.md):
+Для статических таблиц можно форсировать перекладывание с помощью операции [Merge](../../user-guide/data-processing/operations/merge.md):
 
 ```bash
 yt set //home/dev/test_table/@primary_medium ssd_blobs
@@ -61,7 +65,7 @@ yt set //home/dev/test_table/@primary_medium ssd_blobs
 yt mount-table //home/dev/test_table --sync
 ```
 
-Дополнительно ускорить перекладывание можно с помощью [forced_compaction](../../../user-guide/dynamic-tables/overview.md#attributes), однако использование этого метода создаёт большую нагрузку на кластер и крайне не рекомендуется.
+Дополнительно ускорить перекладывание можно с помощью [forced_compaction](../../user-guide/dynamic-tables/overview.md#attributes), однако использование этого метода создаёт большую нагрузку на кластер и крайне не рекомендуется.
 
 Для проверки того, что таблица действительно изменила медиум можно воспользоваться командой:
 
@@ -100,4 +104,4 @@ yt get //home/dev/test_table/@resource_usage
 
 #### **Q: Как мне получить имя таблицы в запросе?**
 
-**A:** Можно воспользоваться виртуальными колонками `$table_name` и `$table_path`. Подробнее про виртуальные колонки читайте в разделе [Работа с таблицами {{product-name}}](../../../user-guide/data-processing/chyt/yt-tables.md##virtual_columns).
+**A:** Можно воспользоваться виртуальными колонками `$table_name` и `$table_path`. Подробнее про виртуальные колонки читайте в разделе [Работа с таблицами {{product-name}}](../../user-guide/data-processing/chyt/yt-tables.md##virtual_columns).

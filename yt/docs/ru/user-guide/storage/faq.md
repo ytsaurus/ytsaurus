@@ -1,1 +1,3 @@
-{% include [FAQ](../../_includes/user-guide/storage/faq.md) %}
+# FAQ
+
+{% include [FAQ](../../_includes/faq/faq-storage.md) %}
