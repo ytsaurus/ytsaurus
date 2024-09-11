@@ -63,6 +63,7 @@ class LocalYtConfig(object):
     enable_tvm_only_proxies = attr.ib(False)
     enable_chyt_http_proxies = attr.ib(False)
     enable_chyt_https_proxies = attr.ib(False)
+    enable_auth = attr.ib(False)
 
     """TLS settings"""
     enable_tls = attr.ib(False)

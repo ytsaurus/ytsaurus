@@ -44,6 +44,7 @@ import copy
 import datetime
 import errno
 import itertools
+import hashlib
 import time
 import signal
 import socket
@@ -64,6 +65,10 @@ BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 BinaryInfo = namedtuple("BinaryInfo", ["name", "path"])
 
 _environment_driver_logging_config = None
+
+
+DEFAULT_ADMIN_PASSWORD = "admin"
+DEFAULT_ADMIN_TOKEN = "admin"
 
 
 def set_environment_driver_logging_config(config):
@@ -299,7 +304,7 @@ class YTInstance(object):
             self.watcher_config["disable_logrotate"] = True
 
         self._default_client_config = {
-            "enable_token": True,  # !!!!!!!
+            "enable_token": self.yt_config.enable_auth,
             "is_local_mode": True,
             "pickling": {
                 "enable_local_files_usage_in_job": True,
@@ -643,7 +648,9 @@ class YTInstance(object):
             if self.yt_config.controller_agent_count > 0 and not self.yt_config.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
 
-            self.create_admin_user()
+            if self.yt_config.enable_auth:
+                self.create_admin_user()
+
             self.synchronize()
 
             if self._run_watcher:
@@ -696,18 +703,12 @@ class YTInstance(object):
         # )
 
         client.create("user", attributes={"name": "admin"})
-        # client.create("group", attributes={"name": "admins"})
         client.add_member("admin", "superusers")
 
-        client.create(
-            "map_node",
-            "//sys/cypress_tokens/8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
-        )
-        client.set_attribute(
-            "//sys/cypress_tokens/8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
-            "user",
-            "admin",
-        )
+        token_hash = hashlib.sha256(DEFAULT_ADMIN_TOKEN.encode()).hexdigest()
+        token_map_node_path = f"//sys/cypress_tokens/{token_hash}"
+        client.create("map_node", token_map_node_path)
+        client.set_attribute(token_map_node_path,"user","admin")
 
     def stop(self, force=False):
         if not self._started and not force:
