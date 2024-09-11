@@ -10,7 +10,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Note: in normal situation you should not use this class directly. Use one of the
-// helpers from conversion.h.
+// helpers from conversion.h or TYTToCHBlockConverter.
 
 //! This class serves for two purposes.
 //!
@@ -21,7 +21,7 @@ namespace NYT::NClickHouseServer {
 //! Second is less obvious: even if you do not care about actual conversion, but rather
 //! interested in performing data type conversion (TLogicalTypePtr -> DB::DataTypePtr),
 //! you may instantiate this class and access GetDataType().
-class TYTToCHConverter
+class TYTToCHColumnConverter
 {
 public:
     //! `isReadConversion` is used to maintain type compatibility,
@@ -34,18 +34,27 @@ public:
     //!
     //! Example of read-only conversions:
     //! - optional<T> -> T' when Nullable(T') is not available in CH;
-    TYTToCHConverter(
+    TYTToCHColumnConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
         TCompositeSettingsPtr settings,
         bool isReadConversion = true);
 
-    TYTToCHConverter(TYTToCHConverter&& other);
+    TYTToCHColumnConverter(TYTToCHColumnConverter&& other);
 
-    ~TYTToCHConverter();
+    TYTToCHColumnConverter(const TYTToCHColumnConverter& other) = delete;
 
-    DB::ColumnPtr FlushColumn();
+    ~TYTToCHColumnConverter();
 
     DB::DataTypePtr GetDataType() const;
+
+    //! Init underlying CH-column.
+    //! Should be called before any Consume* method.
+    void InitColumn();
+
+    //! Returns converted CH column.
+    //! No Consume* method may be called after flush till the converter is
+    //! reinitialized with InitColumn again.
+    DB::ColumnPtr FlushColumn();
 
     //! Consume a range of values represented by YT unversioned values.
     //! Each unversioned value may be Any/Composite as well as of non-YSON kind or even Null.
@@ -65,7 +74,7 @@ public:
     //! Consume native YT column taken from columnar row batch.
     //! If this method is called, it should be the only Consume* method ever called to this
     //! instance of converter.
-    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column);
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filter = {});
 
 private:
     class TImpl;

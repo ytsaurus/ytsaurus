@@ -183,6 +183,16 @@ void TListDirSettings::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPrewhereSettings::Register(TRegistrar registrar)
+{
+    registrar.Parameter("prefilter_data_slices", &TThis::PrefilterDataSlices)
+        .Default(false);
+    registrar.Parameter("use_heuristic_column_sizes", &TThis::UseHeuristicColumnSizes)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQuerySettings::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_columnar_read", &TThis::EnableColumnarRead)
@@ -238,6 +248,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("cypress_read_options", &TThis::CypressReadOptions)
         .DefaultNew();
     registrar.Parameter("fetch_chunks_read_options", &TThis::FetchChunksReadOptions)
+        .DefaultNew();
+
+    registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

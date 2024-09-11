@@ -1,12 +1,13 @@
 #include "dictionary_source.h"
 
-#include "helpers.h"
-#include "table.h"
-#include "host.h"
-#include "conversion.h"
-#include "revision_tracker.h"
 #include "block_input_stream.h"
+#include "conversion.h"
+#include "helpers.h"
+#include "host.h"
 #include "query_context.h"
+#include "read_plan.h"
+#include "revision_tracker.h"
+#include "table.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -91,12 +92,11 @@ public:
 
         auto blockInputStream = CreateBlockInputStream(
             reader,
-            table->Schema,
+            BuildSimpleReadPlan(table->Schema->Columns()),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
             Logger,
-            /*prewhereInfo*/ nullptr,
             /*chunkReaderStatistics*/ nullptr,
             /*statisticsCallback*/ {});
 

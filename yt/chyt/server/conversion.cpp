@@ -1,6 +1,6 @@
 #include "conversion.h"
 
-#include "yt_to_ch_converter.h"
+#include "yt_to_ch_column_converter.h"
 #include "ch_to_yt_converter.h"
 #include "config.h"
 #include "helpers.h"
@@ -27,7 +27,7 @@ static const TLogger Logger("Conversion");
 
 DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
-    TYTToCHConverter converter(descriptor, settings, isReadConversions);
+    TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
@@ -148,8 +148,8 @@ DB::Field ToField(
     const NTableClient::TLogicalTypePtr& type)
 {
     auto settings = New<TCompositeSettings>();
-    TYTToCHConverter convertor(TComplexTypeFieldDescriptor(type), settings);
-
+    TYTToCHColumnConverter convertor(TComplexTypeFieldDescriptor(type), settings);
+    convertor.InitColumn();
     convertor.ConsumeUnversionedValues(TRange(&value, 1));
     auto resultColumn = convertor.FlushColumn();
 
@@ -225,95 +225,6 @@ std::vector<int> GetColumnIndexToId(const TNameTablePtr& nameTable, const std::v
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DB::Block ToBlock(
-    const IUnversionedRowBatchPtr& batch,
-    const TTableSchema& readSchema,
-    const std::vector<int>& idToColumnIndex,
-    const DB::Block& headerBlock,
-    const TCompositeSettingsPtr& compositeSettings)
-{
-    // NB(max42): CHYT-256.
-    // If chunk schema contains not all of the requested columns (which may happen
-    // when a non-required column was introduced after chunk creation), we are not
-    // going to receive some of the unversioned values with nulls. We still need
-    // to provide them to CH, though, so we keep track of present columns for each
-    // row we get and add nulls for all unpresent columns.
-    std::vector<bool> presentColumnMask(readSchema.GetColumnCount());
-
-    auto block = headerBlock.cloneEmpty();
-
-    // Indexed by column indices.
-    std::vector<TYTToCHConverter> converters;
-    converters.reserve(readSchema.GetColumnCount());
-
-    for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
-        const auto& columnSchema = readSchema.Columns()[columnIndex];
-        TComplexTypeFieldDescriptor descriptor(columnSchema);
-        converters.emplace_back(descriptor, compositeSettings);
-    }
-
-    if (auto columnarBatch = batch->TryAsColumnar()) {
-        auto batchColumns = columnarBatch->MaterializeColumns();
-        for (const auto* ytColumn : batchColumns) {
-            auto columnIndex = idToColumnIndex[ytColumn->Id];
-            YT_VERIFY(columnIndex != -1);
-            converters[columnIndex].ConsumeYtColumn(*ytColumn);
-            presentColumnMask[columnIndex] = true;
-        }
-        for (int columnIndex = 0; columnIndex < static_cast<int>(readSchema.Columns().size()); ++columnIndex) {
-            if (!presentColumnMask[columnIndex]) {
-                YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-                converters[columnIndex].ConsumeNulls(batch->GetRowCount());
-            }
-        }
-    } else {
-        auto rowBatch = batch->MaterializeRows();
-        // We transpose rows by writing down contiguous range of values for each column.
-        // This is done to reduce the number of converter virtual calls.
-        std::vector<std::vector<TUnversionedValue>> columnIndexToUnversionedValues(readSchema.GetColumnCount());
-        for (auto& unversionedValues : columnIndexToUnversionedValues) {
-            unversionedValues.reserve(rowBatch.size());
-        }
-
-        auto nullValue = MakeUnversionedNullValue();
-
-        for (auto row : rowBatch) {
-            presentColumnMask.assign(readSchema.GetColumnCount(), false);
-            for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-                auto value = row[index];
-                auto id = value.Id;
-                int columnIndex = (id < idToColumnIndex.size()) ? idToColumnIndex[id] : -1;
-                YT_VERIFY(columnIndex != -1);
-                YT_VERIFY(!presentColumnMask[columnIndex]);
-                presentColumnMask[columnIndex] = true;
-                columnIndexToUnversionedValues[columnIndex].emplace_back(value);
-            }
-            for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
-                if (!presentColumnMask[columnIndex]) {
-                    YT_VERIFY(readSchema.Columns()[columnIndex].LogicalType()->IsNullable());
-                    // NB: converter does not care about value ids.
-                    columnIndexToUnversionedValues[columnIndex].emplace_back(nullValue);
-                }
-            }
-        }
-
-        for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
-            const auto& unversionedValues = columnIndexToUnversionedValues[columnIndex];
-            YT_VERIFY(unversionedValues.size() == rowBatch.size());
-            auto& converter = converters[columnIndex];
-            converter.ConsumeUnversionedValues(unversionedValues);
-        }
-    }
-
-    for (const auto& [columnIndex, converter] : Enumerate(converters)) {
-        auto column = converter.FlushColumn();
-        YT_VERIFY(std::ssize(*column) == batch->GetRowCount());
-        block.getByPosition(columnIndex).column = std::move(column);
-    }
-
-    return block;
-}
 
 TSharedRange<TUnversionedRow> ToRowRange(
     const DB::Block& block,
