@@ -67,6 +67,9 @@ public:
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
 
+    // COMPAT(danilalexeev)
+    bool AlertOnMixedReadWriteBatch;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);
