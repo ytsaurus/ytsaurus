@@ -77,6 +77,14 @@ func WithDynamicTables() testcontainers.CustomizeRequestOption {
 	}
 }
 
+func WithSecondaryMasterCells(count int) testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) error {
+		req.Cmd = append(req.Cmd, "--secondary-master-cell-count", strconv.Itoa(count))
+
+		return nil
+	}
+}
+
 func WithClusterName(name string) testcontainers.CustomizeRequestOption {
 	return func(req *testcontainers.GenericContainerRequest) error {
 		idInd := slices.Index(req.Cmd, "--id")
