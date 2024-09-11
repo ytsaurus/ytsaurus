@@ -89,6 +89,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	c.Encoder.StartCall = c.startCall
 	c.Encoder.Invoke = c.invoke
+	c.Encoder.InvokeInTx = c.invokeInTx
 	c.Encoder.InvokeReadRow = c.doReadRow
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
@@ -105,6 +106,9 @@ func NewClient(conf *yt.Config) (*client, error) {
 		Wrap(mutationRetrier.Intercept).
 		Wrap(readRetrier.Intercept).
 		Wrap(errorWrapper.Intercept)
+
+	c.Encoder.InvokeInTx = c.Encoder.InvokeInTx.
+		Wrap(readRetrier.InterceptInTx)
 
 	return c, nil
 }
@@ -198,6 +202,33 @@ func (c *client) invoke(
 	}
 
 	return err
+}
+
+func (c *client) invokeInTx(
+	ctx context.Context,
+	call *Call,
+	rsp proto.Message,
+	opts ...bus.SendOption,
+) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tx, err := c.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	commandCall := *call
+	commandCall.DisableRetries = true
+	if err := tx.(*TxInterceptor).Invoke(ctx, &commandCall, rsp, opts...); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error) {

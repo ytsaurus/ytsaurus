@@ -8,8 +8,10 @@ IF (OPENSOURCE AND AUTOCHECK)
     SKIP_TEST(Tests use docker)
 ENDIF()
 
+ENV(YT_STUFF_MAX_START_RETRIES=10)
+
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_tablets.inc)
+    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_multicells.inc)
 ENDIF()
 
 GO_TEST_SRCS(
@@ -18,6 +20,7 @@ GO_TEST_SRCS(
     client_test.go
     complex_types_test.go
     compression_test.go
+    cross_cell_commands_test.go
     cypress_client_test.go
     cypress_test.go
     discovery_client_test.go

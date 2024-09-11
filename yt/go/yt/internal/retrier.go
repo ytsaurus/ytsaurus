@@ -121,6 +121,43 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker)
 	}
 }
 
+func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
+	var cancel func()
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	for {
+		res, err = invoke(ctx, call)
+		if err == nil || call.DisableRetries {
+			return
+		}
+
+		if !r.shouldRetry(true, err) {
+			return
+		}
+
+		b := call.Backoff.NextBackOff()
+		if b == backoff.Stop {
+			return
+		}
+
+		if r.Log != nil {
+			ctxlog.Warn(ctx, r.Log.Logger(), "retrying request in transaction",
+				log.String("call_id", call.CallID.String()),
+				log.Duration("backoff", b),
+				log.Error(err))
+		}
+
+		select {
+		case <-time.After(b):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
 func (r *Retrier) Read(ctx context.Context, call *Call, invoke ReadInvoker) (rc io.ReadCloser, err error) {
 	for {
 		rc, err = invoke(ctx, call)
