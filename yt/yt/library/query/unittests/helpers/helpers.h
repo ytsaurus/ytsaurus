@@ -4,7 +4,6 @@
 
 #include <util/random/fast.h>
 
-
 namespace NYT::NQueryClient {
 
 using namespace NTableClient;

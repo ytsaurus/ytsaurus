@@ -110,7 +110,7 @@ TString TRandomExpressionGenerator::GenerateRandomLiteral(EValueType type)
             return Format("%v", static_cast<i64>(GenerateInt()));
         case EValueType::Uint64:
             return Format("%vu", GenerateInt());
-        // FIXME: Pregenerate random strings.
+        // FIXME(lukyan): Pregenerate random strings.
         case EValueType::String: {
             static constexpr int MaxStringLength = 10;
             auto length = Rng.Uniform(MaxStringLength);

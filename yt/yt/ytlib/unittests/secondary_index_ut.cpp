@@ -13,8 +13,7 @@
 
 #include <util/random/shuffle.h>
 
-
-namespace NYT {
+namespace NYT::NQueryClient {
 namespace {
 
 using namespace NApi;
@@ -22,7 +21,6 @@ using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NQueryClient;
 
 using NTabletClient::EErrorCode::UniqueIndexConflict;
 
@@ -525,4 +523,4 @@ TEST_F(TSecondaryIndexTest, Stress)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NQueryClient
