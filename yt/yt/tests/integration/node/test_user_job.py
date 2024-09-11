@@ -2508,7 +2508,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             },
         )
 
-        wait(lambda: len(list_jobs(op.id)) > 0)
+        wait(lambda: len(list_jobs(op.id)["jobs"]) > 0)
 
         job_id = list_jobs(op.id)["jobs"][0]["id"]
 
