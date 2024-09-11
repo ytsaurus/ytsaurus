@@ -234,7 +234,7 @@ public:
 
     void PostToMasters(
         const TCrossCellMessage& message,
-        const TCellTagList& cellTags,
+        TRange<TCellTag> cellTags,
         bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1314,7 +1314,7 @@ private:
 
     void DoPostMessage(
         const TSerializedMessagePtr& message,
-        const TCellTagList& cellTags,
+        TRange<TCellTag> cellTags,
         bool reliable)
     {
         TMailboxList mailboxes;

@@ -23,8 +23,11 @@ class TSequoiaSession
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(NSequoiaClient::ISequoiaTransactionPtr, SequoiaTransaction);
+    DEFINE_BYVAL_RO_PROPERTY(NCypressClient::TTransactionId, CypressTransactionId);
 
 public:
+    ~TSequoiaSession();
+
     //! Represents Cypress subtree selected from "path_to_node_id" Sequoia
     //! table. Used as strong typedef with some guarantees.
     struct TSubtree
@@ -36,11 +39,17 @@ public:
     // Start and finish.
 
     //! Initializes Sequoia session and starts Sequoia tx.
-    static TSequoiaSessionPtr Start(const NSequoiaClient::ISequoiaClientPtr& client);
+    static TSequoiaSessionPtr Start(
+        IBootstrap* bootstrap,
+        NCypressClient::TTransactionId cypressTransactionId);
 
-    //! Commits Sequoia transaction. If #coordinatorCellId is specified then
-    //! late prepare mode will be used.
-    void Commit(NObjectClient::TCellId coordinatorCellId = {});
+    //! Commits Sequoia transaction.
+    // TODO(kvk1920): derive #coordinatorCellId automatically from registered actions.
+    void Commit(NObjectClient::TCellId coordinatorCellId);
+
+    //! Cancels all background activity related to this session and aborts
+    //! Sequoia transaction.
+    void Abort();
 
     // Operations over subtree.
 
@@ -157,19 +166,38 @@ public:
     //! Adds tx action for rootstock removal.
     NObjectClient::TCellTag RemoveRootstock(NCypressClient::TNodeId rootstockId);
 
+    //! Used only to implement "lock" verb.
+    NCypressClient::TLockId LockNode(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::ELockMode lockMode,
+        const std::optional<TString>& childKey,
+        const std::optional<TString>& attributeKey,
+        NTransactionClient::TTimestamp timestamp,
+        bool waitable);
+
+    void UnlockNode(NCypressClient::TNodeId nodeId);
+
 private:
+    IBootstrap* const Bootstrap_;
     // Scheduled asynchronoius requests which must be done before session is
     // committed.
     std::vector<TFuture<void>> AdditionalFutures_;
+    bool Finished_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedLinkTargetPathsLock_);
     THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath> CachedLinkTargetPaths_;
 
-    TSequoiaSession(NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction);
+    TSequoiaSession(
+        IBootstrap* bootstrap,
+        NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction,
+        NCypressClient::TTransactionId cypressTransactionId);
 
     //! Acquires lock in "node_id_to_path" Sequoia table. If object was created
     //! during this session this method is no-op.
     void MaybeLockNodeInSequoiaTable(NCypressClient::TNodeId nodeId, NTableClient::ELockType lockType);
+
+    //! Acquires removal lock in "node_id_to_path" Sequoia table.
+    void MaybeLockForRemovalInSequoiaTable(NCypressClient::TNodeId nodeId);
 
     //! Returns whether or not an object with a given ID _could_ be created in
     //! this session.
@@ -181,6 +209,8 @@ private:
      *  object existence the result of this method is guaranteed to be correct.
      */
     bool JustCreated(NObjectClient::TObjectId nodeId);
+
+    void LockAndReplicateCypressTransaction();
 
     DECLARE_NEW_FRIEND()
 };

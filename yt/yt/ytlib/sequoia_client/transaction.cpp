@@ -113,6 +113,22 @@ public:
         return Transaction_->GetStartTimestamp();
     }
 
+    TCellTagList GetAffectedMasterCellTags() const override
+    {
+        auto guard = Guard(Lock_);
+
+        TCellTagList cellTags(MasterCellCommitSessions_.size());
+        std::transform(
+            MasterCellCommitSessions_.begin(),
+            MasterCellCommitSessions_.end(),
+            cellTags.begin(),
+            [] (const auto& pair) {
+                return pair.first;
+            });
+
+        return cellTags;
+    }
+
     bool CouldGenerateId(NObjectClient::TObjectId id) const noexcept override
     {
         return IsSequoiaId(id) && GetStartTimestamp() == TimestampFromId(id);
@@ -275,7 +291,7 @@ public:
         auto entropy = RandomGenerator_->Generate<ui32>();
         // TODO(kvk1920): exacly the same code exists in |TObjectManager|. Think
         // about moving it into more general place.
-        if (objectType == EObjectType::Transaction || objectType == EObjectType::NestedTransaction) {
+        if (IsCypressTransactionType(objectType)) {
             entropy &= 0xffff;
         }
         auto id = MakeSequoiaId(
@@ -791,6 +807,12 @@ private:
 
         options.Force2PC = true; // Just in case.
         options.AllowAlienCoordinator = true;
+
+        // TODO(kvk1920): enumerate such cases.
+        if (options.CoordinatorCellId && MasterCellCommitSessions_.empty()) {
+            options.CoordinatorCellId = TCellId{};
+            options.CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Early;
+        }
 
         Transaction_->ChooseCoordinator(options);
         return Transaction_->Commit(options).AsVoid();

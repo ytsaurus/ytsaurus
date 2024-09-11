@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     cypress_transaction.cpp
+    helpers.cpp
     protobuf_helpers.cpp
 
     proto/transaction_manager.proto
