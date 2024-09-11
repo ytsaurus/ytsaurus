@@ -67,6 +67,7 @@ BinaryInfo = namedtuple("BinaryInfo", ["name", "path"])
 _environment_driver_logging_config = None
 
 
+DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin"
 DEFAULT_ADMIN_TOKEN = "admin"
 
@@ -691,24 +692,15 @@ class YTInstance(object):
     def create_admin_user(self):
         client = self._create_cluster_client()
 
-        # client.set_attribute(
-        #     "//sys/schemas/user",
-        #     "acl",
-        #     value=[
-        #         {
-        #             "action": "allow",
-        #             "subjects": ["admins"]
-        #         }
-        #     ]
-        # )
-
-        client.create("user", attributes={"name": "admin"})
-        client.add_member("admin", "superusers")
+        client.create("user", attributes={"name": DEFAULT_ADMIN_USERNAME})
+        client.add_member(DEFAULT_ADMIN_USERNAME, "superusers")
 
         token_hash = hashlib.sha256(DEFAULT_ADMIN_TOKEN.encode()).hexdigest()
         token_map_node_path = f"//sys/cypress_tokens/{token_hash}"
         client.create("map_node", token_map_node_path)
-        client.set_attribute(token_map_node_path,"user","admin")
+        client.set_attribute(token_map_node_path,"user",DEFAULT_ADMIN_USERNAME)
+
+        client.set_user_password(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
 
     def stop(self, force=False):
         if not self._started and not force:

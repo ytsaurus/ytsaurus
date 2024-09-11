@@ -1203,6 +1203,7 @@ def _build_http_proxy_config(proxy_dir,
 
         if yt_config.enable_auth:
             set_at(config, "auth/enable_authentication", True)
+            set_at(config, "auth/require_authentication", True)
 
     return proxy_configs
 
