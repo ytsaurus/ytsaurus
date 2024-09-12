@@ -21,6 +21,7 @@ import time
 import types
 import socket
 import stat
+import weakref
 
 from datetime import datetime
 from urllib.parse import urlparse
@@ -242,8 +243,8 @@ def create_response(response, request_info, request_id, error_format, client):
     response.request_info = request_info
     response.request_id = request_id
     response._error = get_error()
-    response.error = types.MethodType(error, response)
-    response.is_ok = types.MethodType(is_ok, response)
+    response.error = types.MethodType(error, weakref.proxy(response))
+    response.is_ok = types.MethodType(is_ok, weakref.proxy(response))
     response.framing_error = None
     return response
 
