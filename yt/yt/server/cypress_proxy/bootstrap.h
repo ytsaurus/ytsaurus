@@ -23,6 +23,9 @@ struct IBootstrap
 
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
+    virtual const TUserDirectoryPtr& GetUserDirectory() const = 0;
+    virtual const IUserDirectorySynchronizerPtr& GetUserDirectorySynchronizer() const = 0;
+
     virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
 
     virtual const IInvokerPtr& GetControlInvoker() const = 0;

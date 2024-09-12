@@ -47,6 +47,8 @@ public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
+    TDuration SyncSplay;
+
     REGISTER_YSON_STRUCT(TUserDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);

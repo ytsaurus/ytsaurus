@@ -5,6 +5,8 @@
 #include "config.h"
 #include "object_service.h"
 #include "sequoia_service.h"
+#include "user_directory.h"
+#include "user_directory_synchronizer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -114,6 +116,16 @@ public:
         return DynamicConfigManager_;
     }
 
+    const TUserDirectoryPtr& GetUserDirectory() const override
+    {
+        return UserDirectory_;
+    }
+
+    const IUserDirectorySynchronizerPtr& GetUserDirectorySynchronizer() const override
+    {
+        return UserDirectorySynchronizer_;
+    }
+
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
     {
         return NativeAuthenticator_;
@@ -189,6 +201,9 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
+    TUserDirectoryPtr UserDirectory_;
+    IUserDirectorySynchronizerPtr UserDirectorySynchronizer_;
+
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
@@ -215,6 +230,13 @@ private:
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+
+        UserDirectory_ = New<TUserDirectory>();
+        UserDirectorySynchronizer_ = CreateUserDirectorySynchronizer(
+            Config_->UserDirectorySynchronizer,
+            GetRootClient(),
+            UserDirectory_,
+            GetControlInvoker());
 
         {
             TCypressRegistrarOptions options{
@@ -281,6 +303,7 @@ private:
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
         DynamicConfigManager_->Start();
+        UserDirectorySynchronizer_->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
