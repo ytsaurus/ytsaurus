@@ -45,6 +45,7 @@ class THunkChunkRef;
 class TColumnMetaExt;
 class TVersionedRowDigestExt;
 class TCompressionDictionaryExt;
+class TVersionedReadOptions;
 
 } // namespace NProto
 

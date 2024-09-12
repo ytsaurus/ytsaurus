@@ -272,6 +272,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt_proto-yt-client)
 target_include_directories(yt_proto-yt-client PUBLIC
@@ -303,6 +315,7 @@ target_proto_messages(yt_proto-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/table_client/proto/versioned_io_options.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/tablet_client/proto/lock_mask.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.proto
@@ -327,6 +340,7 @@ target_sources(yt_proto-yt-client PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_client/proto/versioned_io_options.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/tablet_client/proto/lock_mask.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.pb.h
