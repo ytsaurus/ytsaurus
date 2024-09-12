@@ -713,6 +713,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
 
+    if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && Attributes_) {
+        Attributes_->Remove(EInternedAttributeKey::MaintenanceRequests.Unintern());
+    }
+
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();
 }
