@@ -3069,6 +3069,8 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
         time.sleep(5)
         assert len(ls(export_dir)) == 2
 
+        self.remove_export_destination(export_dir)
+
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
     @authors("cherepashka", "achulkov2", "nadya73")
