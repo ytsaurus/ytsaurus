@@ -67,6 +67,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(DefaultTabletBalancerSchedule);
     registrar.Parameter("period", &TThis::Period)
         .Default();
+    registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
+        .Default();
+    registrar.Parameter("parameterized_timeout", &TThis::ParameterizedTimeout)
+        .Default();
+
     registrar.Parameter("bundle_errors_ttl", &TThis::BundleErrorsTtl)
         .Default(TDuration::Days(1));
     registrar.Parameter("statistics_table_path", &TThis::StatisticsTablePath)

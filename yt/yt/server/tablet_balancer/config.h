@@ -52,6 +52,8 @@ public:
     bool EnableEverywhere;
 
     std::optional<TDuration> Period;
+    std::optional<TDuration> ParameterizedTimeoutOnStart;
+    std::optional<TDuration> ParameterizedTimeout;
 
     NYPath::TYPath StatisticsTablePath;
     bool UseStatisticsReporter;
