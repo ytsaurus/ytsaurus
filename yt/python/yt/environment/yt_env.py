@@ -1873,7 +1873,6 @@ class YTInstance(object):
         return YtClient(config=config)
 
     def _create_cluster_client(self):
-        # In case of enabled auth we have to create admin user first, so let's use native client.
         if self.yt_config.use_native_client:
             return self.create_native_client()
         else:
