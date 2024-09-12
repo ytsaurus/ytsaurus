@@ -4,40 +4,46 @@
 
 namespace NYT::NCypressProxy {
 
-using NObjectClient::NProto::TUserRequestLimits;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TUserDescriptor* userDescriptor, const TUserRequestLimits& proto)
+void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto)
 {
     userDescriptor->Name = proto.user_name();
     userDescriptor->QueueSizeLimit = YT_PROTO_OPTIONAL(proto, request_queue_size_limit);
-    userDescriptor->ReadLimit = YT_PROTO_OPTIONAL(proto, read_request_rate_limit);
-    userDescriptor->WriteLimit = YT_PROTO_OPTIONAL(proto, write_request_rate_limit);
+    userDescriptor->ReadRequestRateLimit = YT_PROTO_OPTIONAL(proto, read_request_rate_limit);
+    userDescriptor->WriteRequestRateLimit = YT_PROTO_OPTIONAL(proto, write_request_rate_limit);
 }
 
-void ToProto(TUserRequestLimits* proto, const TUserDescriptor& userLimits)
+void ToProto(NObjectClient::NProto::TUserDescriptor* proto, const TUserDescriptor& userLimits)
 {
-    if (userLimits.ReadLimit) {
-        proto->set_read_request_rate_limit(*userLimits.ReadLimit);
+    NYT::ToProto(proto->mutable_user_name(), userLimits.Name);
+    if (userLimits.ReadRequestRateLimit) {
+        proto->set_read_request_rate_limit(*userLimits.ReadRequestRateLimit);
     }
-    if (userLimits.WriteLimit) {
-        proto->set_write_request_rate_limit(*userLimits.WriteLimit);
+    if (userLimits.WriteRequestRateLimit) {
+        proto->set_write_request_rate_limit(*userLimits.WriteRequestRateLimit);
     }
     if (userLimits.QueueSizeLimit) {
         proto->set_request_queue_size_limit(*userLimits.QueueSizeLimit);
     }
 }
 
-const TUserDescriptor& TUserDirectory::GetUserByNameOrThrow(const TString& name)
+////////////////////////////////////////////////////////////////////////////////
+
+TUserDirectory::TUserDescriptorPtr TUserDirectory::FindByName(const std::string& name) const
 {
     auto guard = ReaderGuard(SpinLock_);
-
     auto it = NameToDescriptor_.find(name);
-    if (it == NameToDescriptor_.end()) {
-        THROW_ERROR_EXCEPTION("No such user %v", name);
+    return it == NameToDescriptor_.end() ? nullptr : it->second;
+}
+
+TUserDirectory::TUserDescriptorPtr TUserDirectory::GetUserByNameOrThrow(const std::string& name) const
+{
+    auto result = FindByName(name);
+    if (!result) {
+        THROW_ERROR_EXCEPTION("No such user %Qv", name);
     }
-    return it->second;
+    return result;
 }
 
 void TUserDirectory::Clear()
@@ -47,18 +53,12 @@ void TUserDirectory::Clear()
     NameToDescriptor_.clear();
 }
 
-void TUserDirectory::UpdateDescriptor(const TUserDescriptor& descriptor)
+std::vector<std::string> TUserDirectory::LoadFrom(const std::vector<TUserDescriptor>& sourceDirectory)
 {
-    auto guard = WriterGuard(SpinLock_);
-
-    NameToDescriptor_[descriptor.Name] = descriptor;
-}
-
-std::vector<TString> TUserDirectory::LoadFrom(const std::vector<TUserDescriptor>& sourceDirectory)
-{
-    THashMap<TString, TUserDescriptor> userDescriptors;
+    THashMap<std::string, TUserDescriptorPtr> userDescriptors;
     for (const auto& descriptor : sourceDirectory) {
-        EmplaceOrCrash(userDescriptors, descriptor.Name, descriptor);
+        auto descriptorHolder = std::make_shared<TUserDescriptor>(descriptor);
+        EmplaceOrCrash(userDescriptors, descriptor.Name, std::move(descriptorHolder));
     }
 
     {
@@ -66,10 +66,10 @@ std::vector<TString> TUserDirectory::LoadFrom(const std::vector<TUserDescriptor>
         std::swap(NameToDescriptor_, userDescriptors);
     }
 
-    std::vector<TString> updatedUsers;
+    std::vector<std::string> updatedUsers;
     for (const auto& newDescriptor : sourceDirectory) {
         auto it = userDescriptors.find(newDescriptor.Name);
-        if (it == userDescriptors.end() || it->second != newDescriptor) {
+        if (it == userDescriptors.end() || *it->second != newDescriptor) {
             updatedUsers.push_back(newDescriptor.Name);
         }
     }

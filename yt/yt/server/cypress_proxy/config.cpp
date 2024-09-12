@@ -49,7 +49,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("sync_splay", &TThis::SyncSplay)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

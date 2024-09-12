@@ -31,16 +31,14 @@ public:
         TUserDirectorySynchronizerConfigPtr config,
         NApi::IClientPtr client,
         TUserDirectoryPtr userDirectory,
-        IInvokerPtr invoker,
-        TCallbackList<void(const TString&)>* reconfigurationCallback)
+        IInvokerPtr invoker)
     : Config_(std::move(config))
     , Client_(std::move(client))
     , UserDirectory_(std::move(userDirectory))
-    , ReconfigurationCallback_(reconfigurationCallback)
     , SyncExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TUserDirectorySynchronizer::OnSync, MakeStrong(this)),
-        Config_->SyncPeriod))
+        TPeriodicExecutorOptions{Config_->SyncPeriod, Config_->SyncSplay}))
     { }
 
     void Start() override
@@ -76,12 +74,12 @@ public:
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
+    DEFINE_SIGNAL_OVERRIDE(void(const std::string&), UserDescriptorUpdated);
 
 private:
     const TUserDirectorySynchronizerConfigPtr Config_;
     NApi::IClientPtr Client_;
     const TWeakPtr<TUserDirectory> UserDirectory_;
-    TCallbackList<void(const TString&)>* ReconfigurationCallback_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
@@ -119,6 +117,8 @@ private:
     void DoSync()
     {
         try {
+            YT_LOG_DEBUG("Started synchronizing user directory");
+
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             options.PopulateUserDirectory = true;
@@ -127,10 +127,7 @@ private:
                 .ValueOrThrow();
 
             std::vector<TUserDescriptor> userLimits;
-            userLimits.reserve(meta.UserDirectory->limits().size());
-            for (const auto& userInfo : meta.UserDirectory->limits()) {
-                userLimits.push_back(NYT::FromProto<TUserDescriptor>(userInfo));
-            }
+            NYT::FromProto(&userLimits, meta.UserDirectory->limits());
 
             auto userDirectory = UserDirectory_.Lock();
             if (!userDirectory) {
@@ -140,7 +137,7 @@ private:
             auto updatedUsers = userDirectory->LoadFrom(userLimits);
 
             for (const auto& userName : updatedUsers) {
-                ReconfigurationCallback_->Fire(userName);
+                UserDescriptorUpdated_.Fire(userName);
             }
 
             YT_LOG_DEBUG("Finished synchronizing user directory");
@@ -189,15 +186,13 @@ IUserDirectorySynchronizerPtr CreateUserDirectorySynchronizer(
     TUserDirectorySynchronizerConfigPtr config,
     NApi::IClientPtr client,
     TUserDirectoryPtr userDirectory,
-    IInvokerPtr invoker,
-    TCallbackList<void(const TString&)>* reconfigurationCallback)
+    IInvokerPtr invoker)
 {
     return New<TUserDirectorySynchronizer>(
         std::move(config),
         std::move(client),
         std::move(userDirectory),
-        std::move(invoker),
-        std::move(reconfigurationCallback));
+        std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
