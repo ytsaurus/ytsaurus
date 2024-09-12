@@ -1,7 +1,6 @@
 #include "cypress_token_authenticator.h"
 
 #include "config.h"
-#include "credentials.h"
 #include "token_authenticator.h"
 #include "private.h"
 

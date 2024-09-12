@@ -1,7 +1,6 @@
 #include "cypress_cookie_authenticator.h"
 
 #include "config.h"
-#include "credentials.h"
 #include "cypress_cookie_store.h"
 
 #include <yt/yt/client/api/client.h>

@@ -4,7 +4,6 @@
 #include "helpers.h"
 #include "private.h"
 #include "auth_cache.h"
-#include "credentials.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -16,9 +15,35 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCookieAuthenticatorCacheKey
+{
+    TCookieCredentials Credentials;
+
+    operator size_t() const
+    {
+        size_t result = 0;
+
+        std::vector<std::pair<TString, TString>> cookies(
+            Credentials.Cookies.begin(),
+            Credentials.Cookies.end());
+        std::sort(cookies.begin(), cookies.end());
+        for (const auto& cookie : cookies) {
+            HashCombine(result, cookie.first);
+            HashCombine(result, cookie.second);
+        }
+
+        return result;
+    }
+
+    bool operator == (const TCookieAuthenticatorCacheKey& other) const
+    {
+        return Credentials.Cookies == other.Credentials.Cookies;
+    }
+};
+
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TAuthCache<TCookieCredentials, TAuthenticationResult>
+    , private TAuthCache<TCookieAuthenticatorCacheKey, TAuthenticationResult, NNet::TNetworkAddress>
 {
 public:
     TCachingCookieAuthenticator(
@@ -39,16 +64,21 @@ public:
         return UnderlyingAuthenticator_->CanAuthenticate(credentials);
     }
 
-    TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
+    TFuture<TAuthenticationResult> Authenticate(
+        const TCookieCredentials& credentials) override
     {
-        return Get(credentials);
+        return Get(TCookieAuthenticatorCacheKey{credentials}, credentials.UserIP);
     }
 
 private:
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    TFuture<TAuthenticationResult> DoGet(const TCookieCredentials& credentials) noexcept override
+    TFuture<TAuthenticationResult> DoGet(
+        const TCookieAuthenticatorCacheKey& key,
+        const NNet::TNetworkAddress& userIP) noexcept override
     {
+        auto credentials = key.Credentials;
+        credentials.UserIP = userIP;
         return UnderlyingAuthenticator_->Authenticate(credentials);
     }
 };

@@ -3,7 +3,6 @@
 #include "blackbox_service.h"
 #include "config.h"
 #include "cookie_authenticator.h"
-#include "credentials.h"
 #include "helpers.h"
 #include "private.h"
 

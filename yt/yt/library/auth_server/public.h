@@ -88,12 +88,50 @@ DEFINE_ENUM(ESecretVaultErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTokenCredentials;
-struct TCookieCredentials;
-struct TTicketCredentials;
-struct TServiceTicketCredentials;
+struct TTokenCredentials
+{
+    TString Token;
+    // NB: UserIP may be ignored for caching purposes.
+    NNet::TNetworkAddress UserIP;
+};
 
-struct TAuthenticationResult;
+struct TCookieCredentials
+{
+    // NB: Since requests are caching, pass only required
+    // subset of cookies here.
+    THashMap<TString, TString> Cookies;
+
+    NNet::TNetworkAddress UserIP;
+};
+
+struct TTicketCredentials
+{
+    TString Ticket;
+};
+
+struct TServiceTicketCredentials
+{
+    TString Ticket;
+};
+
+struct TAuthenticationResult
+{
+    TString Login;
+    TString Realm;
+    TString UserTicket;
+
+    //! If set, client is advised to set this cookie.
+    std::optional<TString> SetCookie;
+};
+
+inline bool operator ==(
+    const TCookieCredentials& lhs,
+    const TCookieCredentials& rhs)
+{
+    return
+        std::tie(lhs.Cookies, lhs.UserIP) ==
+        std::tie(rhs.Cookies, rhs.UserIP);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,3 +143,25 @@ constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
+
+template <>
+struct THash<NYT::NAuth::TCookieCredentials>
+{
+    inline size_t operator()(const NYT::NAuth::TCookieCredentials& credentials) const
+    {
+        size_t result = 0;
+
+        std::vector<std::pair<TString, TString>> cookies(
+            credentials.Cookies.begin(),
+            credentials.Cookies.end());
+        std::sort(cookies.begin(), cookies.end());
+        for (const auto& cookie : cookies) {
+            NYT::HashCombine(result, cookie.first);
+            NYT::HashCombine(result, cookie.second);
+        }
+
+        NYT::HashCombine(result, credentials.UserIP);
+
+        return result;
+    }
+};
