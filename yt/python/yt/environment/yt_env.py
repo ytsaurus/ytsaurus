@@ -615,6 +615,10 @@ class YTInstance(object):
             if self.yt_config.replicated_table_tracker_count > 0:
                 self.start_replicated_table_trackers(sync=False)
 
+            if self.yt_config.enable_auth:
+                # The following `synchroize` might use http client, so the user has to be created before that.
+                self.create_admin_user()
+
             self.synchronize()
 
             if not self.yt_config.defer_secondary_cell_start:
@@ -648,9 +652,6 @@ class YTInstance(object):
                 self.start_schedulers(sync=False)
             if self.yt_config.controller_agent_count > 0 and not self.yt_config.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
-
-            if self.yt_config.enable_auth:
-                self.create_admin_user()
 
             self.synchronize()
 
@@ -690,7 +691,7 @@ class YTInstance(object):
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def create_admin_user(self):
-        client = self._create_cluster_client()
+        client = self.create_native_client()
 
         client.create("user", attributes={"name": DEFAULT_ADMIN_USERNAME})
         client.add_member(DEFAULT_ADMIN_USERNAME, "superusers")
@@ -1873,7 +1874,7 @@ class YTInstance(object):
 
     def _create_cluster_client(self):
         # In case of enabled auth we have to create admin user first, so let's use native client.
-        if self.yt_config.use_native_client or self.yt_config.enable_auth:
+        if self.yt_config.use_native_client:
             return self.create_native_client()
         else:
             return self.create_client()
