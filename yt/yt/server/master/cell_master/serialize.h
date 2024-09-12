@@ -242,6 +242,7 @@ DEFINE_ENUM(EMasterReign,
     ((NativeTransactionExternalization)                             (2737))  // kvk1920
     ((RemoveCompatAroundAclSubjectTagFilterValidation)              (2738))  // h0pless
     ((CypressLocksInSequoia)                                        (2739))  // kvk1920
+    ((RemoveStuckAttributes)                                        (2740))  // aleksandra-zh
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
