@@ -273,3 +273,26 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 0, "block_rows") == 2
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
             assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
+
+    @authors("dakovalkov")
+    def test_filter_by_const_and_low_cardinality_column(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "required": True},
+                {"name": "b", "type": "int64", "required": True}
+            ],
+        })
+        write_table("//tmp/t", [{"a": 1, "b": 2}])
+
+        config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
+        with Clique(1, config_patch=config_patch) as clique:
+            # NB: a is not NULL / a is NULL are constant expressions, because column a is required.
+            # b = 2 is needed because if the whole expression is constant, CH eliminates it.
+            query = "select * from `//tmp/t` prewhere b = 2 and 1 = 1 and 1 and (a is not NULL) and (not (a is NULL))"
+            assert clique.make_query(query) == [{"a": 1, "b": 2}]
+
+            query = "select * from `//tmp/t` prewhere cast(a != b, 'LowCardinality(UInt8)')"
+            settings = {
+                "allow_suspicious_low_cardinality_types": 1,
+            }
+            assert clique.make_query(query, settings=settings) == [{"a": 1, "b": 2}]
