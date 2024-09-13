@@ -546,7 +546,6 @@ private:
         auto mountCacheWaitTime = timer.GetElapsedTime();
 
         if (DetailedProfilingInfo_ && tableInfo->EnableDetailedProfiling) {
-            DetailedProfilingInfo_->EnableDetailedTableProfiling = true;
             DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
         }
 
@@ -1534,16 +1533,19 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
-    GetQueryTableInfos(astQuery, cache);
+
+    NProfiling::TWallTimer timer;
+    auto mainTableMountInfo = GetQueryTableInfos(astQuery, cache)[0];
+    auto getMountInfoTime = timer.GetElapsedTime();
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
-    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
+    auto [replicatedTableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
         options,
         GetQueryTableInfos(astQuery, cache));
-    if (!tableInfos.empty()) {
+    if (!replicatedTableInfos.empty()) {
         std::vector<TYPath> paths;
-        for (const auto& tableInfo : tableInfos) {
+        for (const auto& tableInfo : replicatedTableInfos) {
             paths.push_back(tableInfo->Path);
         }
 
@@ -1551,7 +1553,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
 
         int retryCountLimit = 0;
-        for (const auto& tableInfo : tableInfos) {
+        for (const auto& tableInfo : replicatedTableInfos) {
             if (tableInfo->ReplicationCardId) {
                 retryCountLimit = Connection_->GetConfig()->ReplicaFallbackRetryCount;
                 break;
@@ -1559,8 +1561,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
 
         THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
-        for (int index = 0; index < std::ssize(tableInfos); ++index) {
-            const auto& tableInfo = tableInfos[index];
+        for (int index = 0; index < std::ssize(replicatedTableInfos); ++index) {
+            const auto& tableInfo = replicatedTableInfos[index];
             if (tableInfo->ReplicationCardId) {
                 for (const auto& replicaInfo : replicaCandidates[index]) {
                     replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo->TableId;
@@ -1575,7 +1577,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                 retryCount);
 
             auto [clusterName, expectedTableSchemas] = PickInSyncClusterAndPatchQuery(
-                tableInfos,
+                replicatedTableInfos,
                 replicaCandidates,
                 astQuery);
             unresolveOptions.ExpectedTableSchemas = std::move(expectedTableSchemas);
@@ -1703,7 +1705,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         });
     }
 
-    NProfiling::TWallTimer timer;
+    timer.Restart();
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
@@ -1716,15 +1718,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto permissionCacheWaitTime = timer.GetElapsedTime();
 
     if (options.DetailedProfilingInfo) {
-        const auto& path = astQuery->Table.Path;
-        timer.Restart();
-        auto tableInfo = WaitFor(cache->GetTableInfo(path))
-            .ValueOrThrow();
-        auto mountCacheWaitTime = timer.GetElapsedTime();
-        if (tableInfo->EnableDetailedProfiling) {
+        if (mainTableMountInfo->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-            options.DetailedProfilingInfo->TablePath = path;
-            options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+            options.DetailedProfilingInfo->TablePath = mainTableMountInfo->Path;
+            options.DetailedProfilingInfo->MountCacheWaitTime += getMountInfoTime;
             options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
     }
