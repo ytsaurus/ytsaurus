@@ -52,6 +52,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobDeterminismValidation)             (301512))
     ((MultipleJobsInAllocation)             (301513))
     ((OperationIncarnationInJoblet)         (301514))
+    ((TeleportedOutputRowCount)             (301515))
     // 24.2 starts here
     ((BumpTo_24_2)                          (301600))
     ((DropLegacyWirePartitionKeys)          (301601))
