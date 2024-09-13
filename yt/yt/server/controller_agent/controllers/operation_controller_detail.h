@@ -580,6 +580,8 @@ protected:
     i64 TotalEstimatedInputCompressedDataSize = 0;
     i64 TotalEstimatedInputUncompressedDataSize = 0;
 
+    i64 TeleportedOutputRowCount = 0;
+
     // Only used during materialization, not persisted.
     double InputCompressionRatio = 0.0;
 
