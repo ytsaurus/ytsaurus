@@ -884,12 +884,16 @@ private:
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
-            if (!isNontrivialInput && IsRowCountPreserved() && Spec->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != UnorderedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
+            if (!isNontrivialInput && IsRowCountPreserved()) {
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
                     TotalEstimatedInputRowCount,
-                    UnorderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == UnorderedTask_->GetTotalOutputRowCount());
+                    UnorderedTask_->GetTotalOutputRowCount(),
+                    TeleportedOutputRowCount);
+                YT_VERIFY(TotalEstimatedInputRowCount == TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount());
+                if (Spec->ForceTransform) {
+                    YT_VERIFY(TeleportedOutputRowCount == 0);
+                }
             }
         }
 
