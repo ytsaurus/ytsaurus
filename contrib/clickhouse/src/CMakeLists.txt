@@ -67,7 +67,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/libdivide
@@ -1777,7 +1776,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/libdivide
