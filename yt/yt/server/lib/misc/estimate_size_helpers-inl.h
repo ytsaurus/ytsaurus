@@ -8,10 +8,35 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename I>
+    requires std::integral<I>
+size_t EstimateSize(const I& /*value*/)
+{
+    return EstimatedValueSize;
+}
+
+template <typename F>
+    requires std::floating_point<F>
+size_t EstimateSize(const F& /*value*/)
+{
+    return EstimatedValueSize * 2;
+}
+
 template <typename T>
 size_t EstimateSize(const std::optional<T>& v)
 {
     return v ? EstimateSize(*v) : 0;
+}
+
+template <typename C>
+    requires std::ranges::range<C>
+size_t EstimateSize(const C& value)
+{
+    size_t result = EstimatedValueSize;
+    for (const auto& elem : value) {
+        result += EstimateSize(elem);
+    }
+    return result;
 }
 
 template <typename E>

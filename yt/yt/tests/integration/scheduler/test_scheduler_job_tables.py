@@ -11,13 +11,14 @@ from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
-    set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config)
+    set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
+    lookup_rows)
 
 import yt_error_codes
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.environment import arcadia_interop
-from yt.common import YtError
+from yt.common import YtError, uuid_to_parts, parts_to_uuid
 from yt.wrapper.common import uuid_hash_pair
 
 import binascii
@@ -1667,3 +1668,101 @@ class TestJobTraceEvents(YTEnvSetup):
                 assert event_map["tid"] == 1
                 assert event["event_time"] == 1
                 assert event["event_index"] == (i % 2)
+
+
+##################################################################
+
+
+class TestJobReporterInProgressLimits(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                    "job_stderr_handler": {
+                        "max_in_progress_data_size": 0,
+                    },
+                },
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_stderr_reporter": True,
+        }
+    }
+
+    JOB_STDERR_TABLE = "//sys/operations_archive/stderrs"
+    JOB_TABLE = "//sys/operations_archive/jobs"
+
+    def setup_method(self, method):
+        super(TestJobReporterInProgressLimits, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    @authors("achulkov2")
+    def test_stderr_table_limit(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="echo GG >&2 ; cat",
+            spec={
+                "job_count": 1,
+            }
+        )
+        op.track()
+
+        jobs = op.list_jobs()
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        stderr_dict = get_stderr_dict_from_api(op)
+
+        def get_stderr_from_archive(op_id, job_id):
+            op_id_hi, op_id_lo = uuid_to_parts(op_id)
+            job_id_hi, job_id_lo = uuid_to_parts(job_id)
+            rows = lookup_rows(self.JOB_STDERR_TABLE, [{
+                "operation_id_hi": op_id_hi,
+                "operation_id_lo": op_id_lo,
+                "job_id_hi": job_id_hi,
+                "job_id_lo": job_id_lo,
+            }])
+            assert len(rows) <= 1
+            return rows[0]["stderr"] if rows else None
+
+        def get_stderr_size_from_archive(op_id, job_id):
+            op_id_hi, op_id_lo = uuid_to_parts(op_id)
+            job_id_hi, job_id_lo = uuid_to_parts(job_id)
+            rows = lookup_rows(self.JOB_TABLE, [{
+                "operation_id_hi": op_id_hi,
+                "operation_id_lo": op_id_lo,
+                "job_id_hi": job_id_hi,
+                "job_id_lo": job_id_lo,
+            }])
+            assert len(rows) <= 1
+            return rows[0]["stderr_size"] if rows else None
+
+        wait(lambda: get_stderr_size_from_archive(op.id, job_id) is not None)
+
+        time.sleep(3)
+
+        assert get_stderr_size_from_archive(op.id, job_id) == len(stderr_dict[job_id].decode("ascii"))
+        assert get_stderr_from_archive(op.id, job_id) is None
+
+
+##################################################################

@@ -1,6 +1,7 @@
 #include "job_reporter.h"
 
 #include "config.h"
+#include "estimate_size_helpers.h"
 
 #include <yt/yt/server/lib/job_agent/config.h>
 
@@ -74,7 +75,35 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying(),
+            Report_.State(),
+            Report_.StartTime(),
+            Report_.FinishTime(),
+            TInstant::Now().MicroSeconds(), // UpdateTime.
+            Report_.Address(),
+            Report_.StderrSize(),
+            Report_.HasCompetitors(),
+            Report_.HasProbingCompetitors(),
+            Report_.TaskName(),
+            Report_.TreeId(),
+            Report_.MonitoringDescriptor(),
+            Report_.Type(),
+            Report_.Error(),
+            Report_.InterruptionInfo(),
+            Report_.Statistics(),
+            Report_.Events(),
+            Report_.Spec().has_value(),
+            i64{0}, // FailContextSize.
+            Report_.CoreInfos(),
+            Report_.JobCompetitionId().Underlying(),
+            Report_.ProbingJobCompetitionId().Underlying(),
+            Report_.ExecAttributes(),
+            Report_.JobCookie(),
+            Report_.ControllerState(),
+            Report_.ArchiveFeatures(),
+            Report_.Ttl());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -179,7 +208,9 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying());
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -212,7 +243,11 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying(),
+            Report_.Spec(),
+            Report_.SpecVersion());
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -248,7 +283,10 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying(),
+            Report_.Stderr());
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -287,7 +325,10 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying(),
+            Report_.FailContext());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -326,7 +367,13 @@ public:
 
     size_t EstimateSize() const override
     {
-        return Report_.EstimateSize();
+        return ::NYT::EstimateSizes(
+            Report_.OperationId().Underlying(),
+            Report_.JobId().Underlying(),
+            Report_.Profile().value_or(NJobAgent::TJobProfile{}).Type,
+            int{0}, // PartIndex.
+            Report_.Profile().value_or(NJobAgent::TJobProfile{}).Blob,
+            Report_.Profile().value_or(NJobAgent::TJobProfile{}).ProfilingProbability);
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
