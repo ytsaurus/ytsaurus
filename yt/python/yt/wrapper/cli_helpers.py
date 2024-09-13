@@ -56,7 +56,7 @@ def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
     else:
         output_stream.write(string_or_bytes)
 
-    if eoln:
+    if eoln or output_stream.isatty():
         output_stream.write("\n")
 
 
