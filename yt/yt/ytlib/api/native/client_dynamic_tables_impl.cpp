@@ -1541,7 +1541,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
     NProfiling::TWallTimer timer;
-    GetQueryTableInfos(astQuery, cache);
+    auto mainTableMountInfo = GetQueryTableInfos(astQuery, cache)[0];
     auto getMountInfoTime = timer.GetElapsedTime();
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
@@ -1723,9 +1723,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto permissionCacheWaitTime = timer.GetElapsedTime();
 
     if (options.DetailedProfilingInfo) {
-        if (tableInfos[0]->EnableDetailedProfiling) {
+        if (mainTableMountInfo->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-            options.DetailedProfilingInfo->TablePath = tableInfos[0]->Path;
+            options.DetailedProfilingInfo->TablePath = mainTableMountInfo->Path;
             options.DetailedProfilingInfo->MountCacheWaitTime += getMountInfoTime;
             options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
