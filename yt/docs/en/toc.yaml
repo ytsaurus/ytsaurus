@@ -368,6 +368,8 @@ items:
          items:
            - name: Overview
              href: user-guide/query-tracker/about.md
+           - name: Python User Defined Functions
+             href: user-guide/query-tracker/system-python-udf.md
        - name: Jupyter Notebooks
          when: audience == "public"
          href: user-guide/jupyt.md
