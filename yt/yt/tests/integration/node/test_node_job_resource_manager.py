@@ -22,7 +22,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
         user_jobs_used = profiler \
             .counter(
                 name="cluster_node/memory_usage/used",
-                tags={'category': 'user_jobs'})
+                tags={"category": "user_jobs"})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         wait_breakpoint()
@@ -41,7 +41,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
         user_jobs_used = profiler \
             .counter(
                 name="cluster_node/memory_usage/used",
-                tags={'category': 'user_jobs'})
+                tags={"category": "user_jobs"})
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id, ) = wait_breakpoint()
@@ -62,7 +62,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
         user_jobs_used = profiler \
             .counter(
                 name="cluster_node/memory_usage/used",
-                tags={'category': 'user_jobs'})
+                tags={"category": "user_jobs"})
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -138,7 +138,7 @@ class TestMemoryPressureDetector(YTEnvSetup):
             },
         })
 
-        wait(lambda: get(node_memory) < memory_before_pressure - 3*self.FREE_MEMORY_WATERMARK)
+        wait(lambda: get(node_memory) < memory_before_pressure - 3 * self.FREE_MEMORY_WATERMARK)
 
 
 class TestMemoryPressureAtJobProxy(YTEnvSetup):
@@ -174,3 +174,42 @@ class TestMemoryPressureAtJobProxy(YTEnvSetup):
 
         wait(lambda: op.get_job_count(state="aborted") > 0, timeout=10)
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+
+
+class TestNodeJobResourceManagerProfiling(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 10,
+                "cpu": 2,
+            },
+        }
+    }
+
+    @authors("ignat")
+    def test_resource_usage(self):
+        node = ls("//sys/cluster_nodes")[0]
+        resource_usage_metric = profiler_factory().at_node(node).gauge("job_controller/resource_usage/user_slots")
+
+        op1 = run_sleeping_vanilla()
+
+        wait(lambda: resource_usage_metric.get({"state": "acquired"}) == 1)
+        wait(lambda: resource_usage_metric.get({"state": "pending"}) == 0)
+        wait(lambda: resource_usage_metric.get({"state": "releasing"}) == 0)
+
+        op2 = run_sleeping_vanilla()
+
+        wait(lambda: resource_usage_metric.get({"state": "acquired"}) == 2)
+        wait(lambda: resource_usage_metric.get({"state": "pending"}) == 0)
+        wait(lambda: resource_usage_metric.get({"state": "releasing"}) == 0)
+
+        op1.abort()
+
+        wait(lambda: resource_usage_metric.get({"state": "acquired"}) == 1)
+        wait(lambda: resource_usage_metric.get({"state": "pending"}) == 0)
+        wait(lambda: resource_usage_metric.get({"state": "releasing"}) == 0)
+
+        op2.abort()

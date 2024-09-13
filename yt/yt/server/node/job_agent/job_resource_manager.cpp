@@ -110,12 +110,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
         Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
 
-        NProfiling::TTagSet tags;
-        tags.AddTag(MakeResourcesTag(EResourcesState::Pending));
-        tags.AddTag(MakeResourcesTag(EResourcesState::Acquired));
-        tags.AddTag(MakeResourcesTag(EResourcesState::Releasing));
-
-        Profiler_.WithTags(tags).AddProducer(
+        Profiler_.AddProducer(
             "/resource_usage",
             ResourceUsageBuffer_);
 
