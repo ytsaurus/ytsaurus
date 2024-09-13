@@ -13,7 +13,7 @@ Following actions are required to launch a notebook:
 export JUPYT_CTL_ADDRESS=jupyt.test.yt.mycloud.net
 ```
 
-1. Select docker-image of the jupyter-notebook. You can use [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/) as an image or as a base of the image. Example of such an image is [minimal-notebook](quay.io/jupyter/minimal-notebook).
+1. Select docker-image of the jupyter-notebook. You can use [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/) as an image or as a base of the image. Example of such an image is [minimal-notebook](https://quay.io/jupyter/minimal-notebook).
 
 1. Create a notebook. To create a notebook you should specify docker-image with the notebook and scheduler pool for the operation.
 ```bash
