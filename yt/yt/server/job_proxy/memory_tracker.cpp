@@ -12,12 +12,15 @@
 
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/string_helpers.h>
 
 #include <util/stream/file.h>
 
 namespace NYT::NJobProxy {
 
 const static NLogging::TLogger Logger("MemoryTracker");
+
+const int CommandLineMaxLength = 1_KB;
 
 using namespace NTools;
 
@@ -167,7 +170,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                         "Process memory statistics collected (Pid: %v, ProcessName: %v, CommandLine: %v, Rss: %v, Shared: %v, MajorPageFaults: %v)",
                         pid,
                         processName,
-                        commandLine,
+                        TruncateString(Format("%v", commandLine), CommandLineMaxLength),
                         memoryUsage.Rss,
                         memoryUsage.Shared,
                         majorPageFaults);
