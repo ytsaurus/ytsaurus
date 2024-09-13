@@ -287,6 +287,7 @@ private:
                 auto lock = getLock();
                 removeAllObjectsExcept({});
                 LastSeenObjectRevisions_.clear();
+                LastSeenRootRevision_ = NullRevision;
             }
         }
     }
