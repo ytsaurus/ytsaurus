@@ -63,7 +63,7 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
     filterInfo.Actions->execute(block);
 
     auto filterColumnPosition = block.getPositionByName(filterInfo.FilterColumnName);
-    auto filterColumn = block.getByPosition(filterColumnPosition).column;
+    auto filterColumn = block.getByPosition(filterColumnPosition).column->convertToFullIfNeeded();
 
     i64 rowCount = block.rows();
 
