@@ -1216,7 +1216,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 class TestMultipleAgents(TestQueueAgentBase):
     NUM_TEST_PARTITIONS = 3
 
-    NUM_QUEUE_AGENTS = 5
+    NUM_QUEUE_AGENTS_PRIMARY = 5
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
@@ -2429,6 +2429,15 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
             init_queue_agent_state.PRODUCER_OBJECT_TABLE_SCHEMA,
             replicated_table_attributes={"treat_as_queue_producer": True})
         return chaos_replicated_producer_replicas
+
+    @authors("apachee")
+    def test_no_queue_agent_instances_on_remote_clusters(self):
+        for remote_index in range(self.NUM_REMOTE_CLUSTERS):
+            cluster_name = f"remote_{remote_index}"
+            # NB(apachee): Cypress registrar recursively creates //sys/queue_agents/instances, and if
+            # //sys/queue_agents is not present, then everything is fine, and there is no reason
+            # for queue agent state to be present on remote clusters.
+            assert not exists("//sys/queue_agents", driver=get_driver(cluster=cluster_name))
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue_consumer_pair", [

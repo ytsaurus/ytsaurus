@@ -266,7 +266,10 @@ class ReplicatedObjectBase(ChaosTestBase):
 
 
 class TestQueueAgentBase(YTEnvSetup):
-    NUM_QUEUE_AGENTS = 1
+    # NB(apachee): Create Queue Agent instances only on primary cluster
+    NUM_QUEUE_AGENTS_PRIMARY = 1
+    NUM_QUEUE_AGENTS = 0
+
     NUM_DISCOVERY_SERVERS = 3
 
     USE_DYNAMIC_TABLES = True
@@ -477,7 +480,7 @@ class TestQueueAgentBase(YTEnvSetup):
     @classmethod
     def _wait_for_instances(cls):
         def all_instances_up():
-            return len(ls("//sys/queue_agents/instances", verbose=False)) == getattr(cls, "NUM_QUEUE_AGENTS")
+            return len(ls("//sys/queue_agents/instances", verbose=False)) == getattr(cls, "NUM_QUEUE_AGENTS_PRIMARY")
 
         wait(all_instances_up, sleep_backoff=0.15)
 
