@@ -41,7 +41,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
-        .Default(5)
+        .Default(50)
         .GreaterThanOrEqual(0);
     registrar.Parameter("max_parameterized_move_action_hard_limit", &TThis::MaxParameterizedMoveActionHardLimit)
         .Default(2000)
