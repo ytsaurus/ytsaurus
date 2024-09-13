@@ -16,7 +16,7 @@ import (
 
 const ytsaurusPath = "/home/yt"
 
-type YTsaurusContainter struct {
+type YTsaurusContainer struct {
 	testcontainers.Container
 
 	Proxy   string
@@ -24,7 +24,7 @@ type YTsaurusContainter struct {
 }
 
 // RunContainer creates an instance of the YTsaurus container type.
-func RunContainer(ctx context.Context, opts ...testcontainers.ContainerCustomizer) (*YTsaurusContainter, error) {
+func RunContainer(ctx context.Context, opts ...testcontainers.ContainerCustomizer) (*YTsaurusContainer, error) {
 	httpProxyPort, err := getAvailablePort()
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func RunContainer(ctx context.Context, opts ...testcontainers.ContainerCustomize
 		cluster = req.Cmd[idInd+1]
 	}
 
-	return &YTsaurusContainter{Container: container, Cluster: cluster, Proxy: fmt.Sprintf("localhost:%d", httpProxyPort)}, nil
+	return &YTsaurusContainer{Container: container, Cluster: cluster, Proxy: fmt.Sprintf("localhost:%d", httpProxyPort)}, nil
 }
 
 func WithDynamicTables() testcontainers.CustomizeRequestOption {

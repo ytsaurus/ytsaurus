@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
-func InitYTsaurusContainer(ctx context.Context, opts ...testcontainers.ContainerCustomizer) (*YTsaurusContainter, error) {
+func InitYTsaurusContainer(ctx context.Context, opts ...testcontainers.ContainerCustomizer) (*YTsaurusContainer, error) {
 	volume := os.Getenv("YT_VOLUME")
 	if volume != "" {
 		opts = append(opts, WithVolumeMount(volume))
