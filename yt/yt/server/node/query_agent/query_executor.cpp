@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
@@ -487,7 +488,8 @@ public:
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , ChunkReadOptions_{
             .WorkloadDescriptor = QueryOptions_.WorkloadDescriptor,
-            .ReadSessionId = QueryOptions_.ReadSessionId
+            .ReadSessionId = QueryOptions_.ReadSessionId,
+            .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
         }
     { }
 
@@ -1605,16 +1607,22 @@ private:
                         ChunkReadOptions_.WorkloadDescriptor.Category,
                         std::move(timestampReadOptions),
                         QueryOptions_.MergeVersionedRows);
-                } if (dataSplit.Keys) {
-                    reader = CreateSchemafulLookupTabletReader(
+                } else if (dataSplit.Keys) {
+                    THROW_ERROR_EXCEPTION_IF(!QueryOptions_.MergeVersionedRows,
+                        "Read on full key is incompatible with not merging versioned rows");
+
+                    return CreateLookupSessionReader(
+                        MemoryChunkProvider_,
                         tabletSnapshot,
                         columnFilter,
                         dataSplit.Keys,
                         QueryOptions_.TimestampRange,
+                        QueryOptions_.UseLookupCache,
                         ChunkReadOptions_,
-                        ETabletDistributedThrottlerKind::Select,
-                        ChunkReadOptions_.WorkloadDescriptor.Category,
-                        std::move(timestampReadOptions));
+                        std::move(timestampReadOptions),
+                        Invoker_,
+                        GetProfilingUser(Identity_),
+                        Logger);
                 }
 
                 return New<TProfilingReaderWrapper>(
