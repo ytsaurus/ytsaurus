@@ -552,6 +552,9 @@ class YTEnvSetup(object):
     @classmethod
     def _get_param_real_name(cls, name, cluster_index):
         if cluster_index == 0:
+            primary_cluster_param_name = f"{name}_PRIMARY"
+            if hasattr(cls, primary_cluster_param_name):
+                return primary_cluster_param_name
             return name
 
         if cls._is_ground_cluster(cluster_index):
