@@ -73,8 +73,13 @@ void TObjectServiceCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCachingObjectServiceConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TCachingObjectServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([] (TThis* config) {
+        // The default value of 10 is too low for most caching object service instances.
+        config->RateLimit = 1000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
