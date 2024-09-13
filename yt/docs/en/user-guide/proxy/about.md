@@ -1,1 +1,1 @@
-{% include [Прокси](../../_includes/user-guide/proxy/about.md) %}
+{% include [Overview](../../_includes/user-guide/proxy/about.md) %}
