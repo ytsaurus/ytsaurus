@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -145,6 +146,113 @@ TSelectRowsQuery BuildSelectByTransactionIds(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+concept CForkRecordType =
+    std::same_as<T, NRecords::TPathFork> ||
+    std::same_as<T, NRecords::TNodeFork> ||
+    std::same_as<T, NRecords::TChildFork>;
+
+template <class T>
+concept CResolveRecordType =
+    std::same_as<T, NRecords::TPathToNodeId> ||
+    std::same_as<T, NRecords::TNodeIdToPath> ||
+    std::same_as<T, NRecords::TChildNode>;
+
+bool IsTombstone(const NRecords::TNodeFork& record)
+{
+    // Every ID can occur in "node_forks" table at most twice: one creation
+    // and on removal. This allows us to derive fork kind from "topmost_tx"
+    // field.
+
+    // NB: the alternative solution could be to mark such tombstone records
+    // with null path.
+
+    return record.TopmostTransactionId != record.Key.TransactionId;
+}
+
+bool IsTombstone(const NRecords::TPathFork& record)
+{
+    return !record.NodeId;
+}
+
+bool IsTombstone(const NRecords::TChildFork& record)
+{
+    return !record.ChildId;
+}
+
+template <class T>
+using TRecordKey = std::decay_t<decltype(std::declval<T>().Key)>;
+
+template <CForkRecordType TForkRecord>
+auto MakeResolveRecordKey(const TForkRecord& forkRecord);
+
+template <>
+auto MakeResolveRecordKey<NRecords::TNodeFork>(const NRecords::TNodeFork& forkRecord)
+{
+    return NRecords::TNodeIdToPathKey{
+        .NodeId = forkRecord.Key.NodeId,
+        .TransactionId = forkRecord.Key.TransactionId,
+    };
+}
+
+template <>
+auto MakeResolveRecordKey<NRecords::TPathFork>(const NRecords::TPathFork& forkRecord)
+{
+    return NRecords::TPathToNodeIdKey{
+        .Path = forkRecord.Key.Path,
+        .TransactionId = forkRecord.Key.TransactionId,
+    };
+}
+
+template <>
+auto MakeResolveRecordKey<NRecords::TChildFork>(const NRecords::TChildFork& forkRecord)
+{
+    return NRecords::TChildNodeKey{
+        .ParentId = forkRecord.Key.ParentId,
+        .TransactionId = forkRecord.Key.TransactionId,
+        .ChildKey = forkRecord.Key.ChildKey,
+    };
+}
+
+NRecords::TNodeIdToPathKey MakeResolveRecordKey(const NRecords::TNodeSnapshot& forkRecord)
+{
+    return {.NodeId = forkRecord.Key.NodeId, .TransactionId = forkRecord.Key.TransactionId};
+}
+
+template <CForkRecordType TForkRecord>
+auto MakeResolveRecord(const TForkRecord& forkRecord);
+
+template <>
+auto MakeResolveRecord<NRecords::TNodeFork>(const NRecords::TNodeFork& forkRecord)
+{
+    return NRecords::TNodeIdToPath{
+        .Key = MakeResolveRecordKey(forkRecord),
+        .Path = forkRecord.Path,
+        .TargetPath = forkRecord.TargetPath,
+        .ForkKind = IsTombstone(forkRecord) ? EForkKind::Tombstone : EForkKind::Regular,
+    };
+}
+
+template <>
+auto MakeResolveRecord<NRecords::TPathFork>(const NRecords::TPathFork& forkRecord)
+{
+    return NRecords::TPathToNodeId{
+        .Key = MakeResolveRecordKey(forkRecord),
+        .NodeId = forkRecord.NodeId,
+    };
+}
+
+template <>
+auto MakeResolveRecord(const NRecords::TChildFork& forkRecord)
+{
+    return NRecords::TChildNode{
+        .Key = MakeResolveRecordKey(forkRecord),
+        .ChildId = forkRecord.ChildId,
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class handles node/path forks on Cypress transaction commit.
 /*!
  *  There are 2 different cases:
@@ -167,7 +275,8 @@ public:
         ISequoiaTransaction* sequoiaTransaction,
         const NRecords::TTransaction& committedCypressTransaction,
         TRange<NRecords::TNodeFork> nodeForks,
-        TRange<NRecords::TPathFork> pathForks)
+        TRange<NRecords::TPathFork> pathForks,
+        TRange<NRecords::TChildFork> childForks)
         : SequoiaTransaction_(sequoiaTransaction)
         , CommittedCypressTransactionId_(committedCypressTransaction.Key.TransactionId)
         , ParentCypressTransactionId_(committedCypressTransaction.AncestorIds.empty()
@@ -175,12 +284,14 @@ public:
             : committedCypressTransaction.AncestorIds.back())
         , NodeForks_(nodeForks)
         , PathForks_(pathForks)
+        , ChildForks_(childForks)
     { }
 
     void Run()
     {
-        MergeForks<NRecords::TNodeIdToPath>(NodeForks_);
-        MergeForks<NRecords::TPathToNodeId, NRecords::TChildNode>(PathForks_);
+        MergeForks(NodeForks_);
+        MergeForks(PathForks_);
+        MergeForks(ChildForks_);
     }
 
 private:
@@ -189,14 +300,12 @@ private:
     const TTransactionId ParentCypressTransactionId_;
     const TRange<NRecords::TNodeFork> NodeForks_;
     const TRange<NRecords::TPathFork> PathForks_;
+    const TRange<NRecords::TChildFork> ChildForks_;
 
-    template <class... TResolveRecords>
-    void MergeForks(auto committedForks)
+    template <class TForkRecord>
+    void MergeForks(TRange<TForkRecord> committedForks)
     {
-        using TCommittedForks = std::decay_t<decltype(committedForks)>;
-        static_assert(
-            std::is_same_v<TCommittedForks, TRange<NRecords::TNodeFork>> ||
-            std::is_same_v<TCommittedForks, TRange<NRecords::TPathFork>>);
+        static_assert(CForkRecordType<TForkRecord>);
 
         for (const auto& record : committedForks) {
             // Every record in "{node,path}_forks" Sequoia table can be one of
@@ -207,48 +316,40 @@ private:
             // NB: of course, "node_forks" cannot have "replacement" records.
 
             if (IsTombstone(record) && record.TopmostTransactionId == ParentCypressTransactionId_) {
-                DeleteForkFromParent<TResolveRecords...>(record);
+                DeleteForkFromParent(record);
             } else {
                 // Non-topmost removal is non-distinguishable from creation: it
                 // is just a propagation of record (with either created node or
                 // tombstone) to parent transaction.
-                WriteForkToParent<TResolveRecords...>(record);
+                WriteForkToParent(record);
             }
         }
     }
 
-    template <class... TResolveRecords>
-    void WriteForkToParent(const auto& forkRecord)
+    template <class TForkRecord>
+    void WriteForkToParent(const TForkRecord& forkRecord)
     {
-        static_assert(IsForkRecordType<std::decay_t<decltype(forkRecord)>>);
+        static_assert(CForkRecordType<TForkRecord>);
 
         if (ParentCypressTransactionId_) {
             // Fork tables don't contain records for trunk versions of nodes.
             SequoiaTransaction_->WriteRow(UnderParentCypressTransaction(forkRecord));
         }
 
-        auto writeRecordToParent = [&] (const auto& resolveRecord) {
-            SequoiaTransaction_->WriteRow(UnderParentCypressTransaction(resolveRecord));
-        };
-
-        (writeRecordToParent(MakeResolveRecord<TResolveRecords>(forkRecord)), ...);
+        SequoiaTransaction_->WriteRow(UnderParentCypressTransaction(MakeResolveRecord(forkRecord)));
     }
 
-    template <class... TResolveRecords>
-    void DeleteForkFromParent(const auto& forkRecord)
+    template <class TForkRecord>
+    void DeleteForkFromParent(const TForkRecord& forkRecord)
     {
-        static_assert(IsForkRecordType<std::decay_t<decltype(forkRecord)>>);
+        static_assert(CForkRecordType<TForkRecord>);
 
         if (ParentCypressTransactionId_) {
             // Fork tables don't contain records for trunk versions of nodes.
             SequoiaTransaction_->DeleteRow(UnderParentCypressTransaction(forkRecord.Key));
         }
 
-        auto deleteRecordFromParent = [&] (const auto& resolveRecord) {
-            SequoiaTransaction_->DeleteRow(UnderParentCypressTransaction(resolveRecord));
-        };
-
-        (deleteRecordFromParent(MakeResolveRecordKey<TResolveRecords>(forkRecord)), ...);
+         SequoiaTransaction_->DeleteRow(UnderParentCypressTransaction(MakeResolveRecordKey(forkRecord)));
     }
 
     //! Used to propagate (or delete) records from committed Cypress tx to
@@ -259,12 +360,12 @@ private:
     {
         if constexpr (requires { record.TransactionId; }) {
             using TRecord = T::TRecordDescriptor::TRecord;
-            static_assert(IsForkRecordType<TRecord> || IsResolveRecordType<TRecord>);
+            static_assert(CForkRecordType<TRecord> || CResolveRecordType<TRecord>);
         } else {
-            static_assert(IsForkRecordType<T> || IsResolveRecordType<T>);
+            static_assert(CForkRecordType<T> || CResolveRecordType<T>);
         }
 
-        if constexpr (IsForkRecordType<T>) {
+        if constexpr (CForkRecordType<T>) {
             // On transaction commit all forks are propagated to parent tx
             // which may cause change of "topmost_transaction_id".
             if (record.TopmostTransactionId == record.Key.TransactionId) {
@@ -280,101 +381,6 @@ private:
         }
 
         return record;
-    }
-
-    template <class T>
-    constexpr static bool IsForkRecordType =
-        std::is_same_v<T, NRecords::TPathFork> || std::is_same_v<T, NRecords::TNodeFork>;
-
-    template <class T>
-    constexpr static bool IsResolveRecordType =
-        std::is_same_v<T, NRecords::TPathToNodeId> ||
-        std::is_same_v<T, NRecords::TNodeIdToPath> ||
-        std::is_same_v<T, NRecords::TChildNode>;
-
-    static bool IsTombstone(const NRecords::TNodeFork& record)
-    {
-        // Every ID can occur in "node_forks" table at most twice: one creation
-        // and on removal. This allows us to derive fork kind from "topmost_tx"
-        // field.
-
-        // NB: the alternative solution could be to mark such tombstone records
-        // with null path.
-
-        return record.TopmostTransactionId != record.Key.TransactionId;
-    }
-
-    static bool IsTombstone(const NRecords::TPathFork& record)
-    {
-        return !record.NodeId;
-    }
-
-    template <class T>
-    using TRecordKey = std::decay_t<decltype(std::declval<T>().Key)>;
-
-    template <class TResolveRecord, class TForkRecord>
-        requires IsForkRecordType<TForkRecord>
-    static TRecordKey<TResolveRecord> MakeResolveRecordKey(const TForkRecord& forkRecord);
-
-    template <>
-    NRecords::TNodeIdToPathKey MakeResolveRecordKey<NRecords::TNodeIdToPath, NRecords::TNodeFork>(
-        const NRecords::TNodeFork& forkRecord)
-    {
-        return {.NodeId = forkRecord.Key.NodeId, .TransactionId = forkRecord.Key.TransactionId};
-    }
-
-    template <>
-    NRecords::TPathToNodeIdKey MakeResolveRecordKey<NRecords::TPathToNodeId, NRecords::TPathFork>(
-        const NRecords::TPathFork& forkRecord)
-    {
-        return {.Path = forkRecord.Key.Path, .TransactionId = forkRecord.Key.TransactionId};
-    }
-
-    template <>
-    NRecords::TChildNodeKey MakeResolveRecordKey<NRecords::TChildNode, NRecords::TPathFork>(
-        const NRecords::TPathFork& forkRecord)
-    {
-        return {
-            .ParentId = forkRecord.ParentNodeId,
-            .TransactionId = forkRecord.Key.TransactionId,
-            .ChildKey = TAbsoluteYPath(forkRecord.Key.Path).GetBaseName(),
-        };
-    }
-
-    template <class TResolveRecord, class TForkRecord>
-        requires IsForkRecordType<TForkRecord>
-    static TResolveRecord MakeResolveRecord(const TForkRecord& forkRecord);
-
-    template <>
-    NRecords::TNodeIdToPath MakeResolveRecord<NRecords::TNodeIdToPath, NRecords::TNodeFork>(
-        const NRecords::TNodeFork& forkRecord)
-    {
-        return {
-            .Key = MakeResolveRecordKey<NRecords::TNodeIdToPath>(forkRecord),
-            .Path = forkRecord.Path,
-            .TargetPath = forkRecord.TargetPath,
-            .ForkKind = IsTombstone(forkRecord) ? EForkKind::Tombstone : EForkKind::Regular,
-        };
-    }
-
-    template <>
-    NRecords::TPathToNodeId MakeResolveRecord<NRecords::TPathToNodeId, NRecords::TPathFork>(
-        const NRecords::TPathFork& forkRecord)
-    {
-        return {
-            .Key = MakeResolveRecordKey<NRecords::TPathToNodeId>(forkRecord),
-            .NodeId = forkRecord.NodeId,
-        };
-    }
-
-    template <>
-    NRecords::TChildNode MakeResolveRecord<NRecords::TChildNode, NRecords::TPathFork>(
-        const NRecords::TPathFork& forkRecord)
-    {
-        return {
-            .Key = MakeResolveRecordKey<NRecords::TChildNode>(forkRecord),
-            .ChildId = forkRecord.NodeId,
-        };
     }
 };
 
@@ -441,6 +447,7 @@ public:
             FetchChanges(&NodeForks_),
             FetchChanges(&Snapshots_),
             FetchChanges(&PathForks_),
+            FetchChanges(&ChildForks_),
         })
             .Apply(BIND(&TCypressTransactionChangesProcessor::ProcessChanges, MakeStrong(this))
                 .AsyncVia(Invoker_));
@@ -455,6 +462,7 @@ private:
     // These fields are fetched from Sequoia tables once and then never changed.
     std::vector<NRecords::TNodeFork> NodeForks_;
     std::vector<NRecords::TPathFork> PathForks_;
+    std::vector<NRecords::TChildFork> ChildForks_;
     std::vector<NRecords::TNodeSnapshot> Snapshots_;
 
     template <class T>
@@ -509,54 +517,24 @@ private:
                 SequoiaTransaction_.Get(),
                 *CommittedCypressTransaction_,
                 FindCommittedForks(NodeForks_),
-                FindCommittedForks(PathForks_))
+                FindCommittedForks(PathForks_),
+                FindCommittedForks(ChildForks_))
                 .Run();
         }
 
-        CleanupNodeForks();
-        CleanupPathForks();
-        CleanupSnapshots();
+        CleanupChanges(Snapshots_);
+        CleanupChanges(NodeForks_);
+        CleanupChanges(PathForks_);
+        CleanupChanges(ChildForks_);
     }
 
-    void CleanupNodeForks()
-    {
-        DoCleanupNodeChanges(NodeForks_);
-    }
-
-    void CleanupSnapshots()
-    {
-        DoCleanupNodeChanges(Snapshots_);
-    }
-
-    void CleanupPathForks()
+    void CleanupChanges(const auto& changes)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        for (const auto& change : PathForks_) {
-            SequoiaTransaction_->DeleteRow(NRecords::TPathToNodeIdKey{
-                .Path = change.Key.Path,
-                .TransactionId = change.Key.TransactionId,
-            });
-            SequoiaTransaction_->DeleteRow(NRecords::TChildNodeKey{
-                .ParentId = change.ParentNodeId,
-                .TransactionId = change.Key.TransactionId,
-                .ChildKey = TAbsoluteYPath(change.Key.Path).GetBaseName(),
-            });
-            SequoiaTransaction_->DeleteRow(change.Key);
-        }
-    }
-
-    template <class T>
-    void DoCleanupNodeChanges(const std::vector<T>& changes)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        for (const T& change : changes) {
-            SequoiaTransaction_->DeleteRow(NRecords::TNodeIdToPathKey{
-                .NodeId = change.Key.NodeId,
-                .TransactionId = change.Key.TransactionId,
-            });
-            SequoiaTransaction_->DeleteRow(change.Key);
+        for (const auto& record : changes) {
+            SequoiaTransaction_->DeleteRow(MakeResolveRecordKey(record));
+            SequoiaTransaction_->DeleteRow(record.Key);
         }
     }
 };
