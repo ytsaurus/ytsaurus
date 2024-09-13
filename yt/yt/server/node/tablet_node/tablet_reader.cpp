@@ -304,35 +304,6 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
     return reader;
 }
 
-std::unique_ptr<TSchemafulRowMerger> CreateLatestTimestampRowMerger(
-    TRowBufferPtr rowBuffer,
-    const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
-    TTimestamp retentionTimestamp,
-    const TTimestampReadOptions& timestampReadOptions)
-{
-    auto createRowMerger = [&] (int columnCount, const TColumnFilter& rowMergerColumnFilter) {
-        return std::make_unique<TSchemafulRowMerger>(
-            std::move(rowBuffer),
-            columnCount,
-            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
-            rowMergerColumnFilter,
-            tabletSnapshot->ColumnEvaluator,
-            retentionTimestamp,
-            timestampReadOptions.TimestampColumnMapping,
-            GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
-    };
-
-    if (timestampReadOptions.TimestampColumnMapping.empty()) {
-        return createRowMerger(tabletSnapshot->QuerySchema->GetColumnCount(), columnFilter);
-    } else {
-        return createRowMerger(
-            // Add timestamp column for every value column.
-            tabletSnapshot->QuerySchema->GetColumnCount() + tabletSnapshot->QuerySchema->GetValueColumnCount(),
-            CreateLatestTimestampColumnFilter(columnFilter, tabletSnapshot->QuerySchema, timestampReadOptions));
-    }
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -931,157 +902,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulUnversionedReaderPtr CreatePartitionLookupReader(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    int partitionIndex,
-    const TColumnFilter& columnFilter,
-    const TSharedRange<TLegacyKey>& keys,
-    TReadTimestampRange timestampRange,
-    const TClientChunkReadOptions& chunkReadOptions,
-    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    std::optional<EWorkloadCategory> workloadCategory,
-    const TTimestampReadOptions& timestampReadOptions)
-{
-    auto timestamp = timestampRange.Timestamp;
-    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
-
-    tabletSnapshot->WaitOnLocks(timestamp);
-
-    if (tabletThrottlerKind) {
-        ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
-    }
-
-    const auto& partition = tabletSnapshot->PartitionList[partitionIndex];
-
-    auto minKey = *keys.Begin();
-    auto maxKey = *(keys.End() - 1);
-    std::vector<ISortedStorePtr> stores;
-
-    // Pick stores which intersect [minKey, maxKey] (including maxKey).
-    auto takeStores = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
-        for (const auto& store : candidateStores) {
-            if (store->GetMinKey() <= maxKey && store->GetUpperBoundKey() > minKey) {
-                stores.push_back(store);
-            }
-        }
-    };
-
-    takeStores(tabletSnapshot->GetEdenStores());
-    takeStores(partition->Stores);
-
-    YT_LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
-        " ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        timestamp,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()));
-
-    auto rowBuffer = New<TRowBuffer>(TTabletReaderPoolTag());
-
-    auto rowMerger = CreateLatestTimestampRowMerger(
-        std::move(rowBuffer),
-        tabletSnapshot,
-        columnFilter,
-        timestampRange.RetentionTimestamp,
-        timestampReadOptions);
-
-    return CreateSchemafulOverlappingLookupReader(
-        std::move(rowMerger),
-        [
-            =,
-            stores = std::move(stores),
-            index = 0
-        ] () mutable -> IVersionedReaderPtr {
-            if (index < std::ssize(stores)) {
-                return stores[index++]->CreateReader(
-                    tabletSnapshot,
-                    keys,
-                    timestamp,
-                    false,
-                    columnFilter,
-                    chunkReadOptions,
-                    workloadCategory);
-            } else {
-                return nullptr;
-            }
-        });
-}
-
-ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
-    const TSharedRange<TLegacyKey>& keys,
-    TReadTimestampRange timestampRange,
-    const TClientChunkReadOptions& chunkReadOptions,
-    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    std::optional<EWorkloadCategory> workloadCategory,
-    TTimestampReadOptions timestampReadOptions)
-{
-    if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
-        THROW_ERROR_EXCEPTION("Table %v is not sorted",
-            tabletSnapshot->TableId);
-    }
-
-    std::vector<int> partitionIndexes;
-    std::vector<TSharedRange<TLegacyKey>> partitionedKeys;
-    auto currentIt = keys.Begin();
-    while (currentIt != keys.End()) {
-        auto nextPartitionIt = std::upper_bound(
-            tabletSnapshot->PartitionList.begin(),
-            tabletSnapshot->PartitionList.end(),
-            *currentIt,
-            [] (TLegacyKey lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey;
-            });
-        YT_VERIFY(nextPartitionIt != tabletSnapshot->PartitionList.begin());
-        auto nextIt = nextPartitionIt == tabletSnapshot->PartitionList.end()
-            ? keys.End()
-            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey);
-        partitionIndexes.push_back((nextPartitionIt - 1) - tabletSnapshot->PartitionList.begin());
-        partitionedKeys.push_back(keys.Slice(currentIt, nextIt));
-        currentIt = nextIt;
-    }
-
-    auto readerFactory = [
-        =,
-        partitionIndexes = std::move(partitionIndexes),
-        partitionedKeys = std::move(partitionedKeys),
-        timestampReadOptions = std::move(timestampReadOptions),
-        index = 0
-    ] () mutable -> ISchemafulUnversionedReaderPtr {
-        if (index < std::ssize(partitionedKeys)) {
-            auto reader = CreatePartitionLookupReader(
-                tabletSnapshot,
-                partitionIndexes[index],
-                columnFilter,
-                partitionedKeys[index],
-                timestampRange,
-                chunkReadOptions,
-                tabletThrottlerKind,
-                workloadCategory,
-                timestampReadOptions);
-            ++index;
-            return reader;
-        } else {
-            return nullptr;
-        }
-    };
-
-    auto reader = CreatePrefetchingOrderedSchemafulReader(std::move(readerFactory));
-
-    return WrapSchemafulTabletReader(
-        tabletThrottlerKind,
-        tabletSnapshot,
-        chunkReadOptions,
-        columnFilter,
-        std::move(reader));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedReaderPtr CreateCompactionTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
@@ -1190,6 +1010,37 @@ IVersionedReaderPtr CreateCompactionTabletReader(
             std::move(throttler));
     } else {
         return reader;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<TSchemafulRowMerger> CreateLatestTimestampRowMerger(
+    TRowBufferPtr rowBuffer,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    TTimestamp retentionTimestamp,
+    const TTimestampReadOptions& timestampReadOptions)
+{
+    auto createRowMerger = [&] (int columnCount, const TColumnFilter& rowMergerColumnFilter) {
+        return std::make_unique<TSchemafulRowMerger>(
+            std::move(rowBuffer),
+            columnCount,
+            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            rowMergerColumnFilter,
+            tabletSnapshot->ColumnEvaluator,
+            retentionTimestamp,
+            timestampReadOptions.TimestampColumnMapping,
+            GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
+    };
+
+    if (timestampReadOptions.TimestampColumnMapping.empty()) {
+        return createRowMerger(tabletSnapshot->QuerySchema->GetColumnCount(), columnFilter);
+    } else {
+        return createRowMerger(
+            // Add timestamp column for every value column.
+            tabletSnapshot->QuerySchema->GetColumnCount() + tabletSnapshot->QuerySchema->GetValueColumnCount(),
+            CreateLatestTimestampColumnFilter(columnFilter, tabletSnapshot->QuerySchema, timestampReadOptions));
     }
 }
 

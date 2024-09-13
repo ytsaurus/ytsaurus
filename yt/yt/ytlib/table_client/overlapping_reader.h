@@ -14,10 +14,6 @@ constexpr int DefaultMinConcurrency = 5;
 
 using TOverlappingReaderKeyComparer = std::function<int(TUnversionedValueRange, TUnversionedValueRange)>;
 
-ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingLookupReader(
-    std::unique_ptr<TSchemafulRowMerger> rowMerger,
-    std::function<IVersionedReaderPtr()> readerFactory);
-
 ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
     const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
