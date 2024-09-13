@@ -28,6 +28,7 @@ DEFINE_ENUM(ESequoiaTable,
     (NodeForks)
     (NodeSnapshots)
     (PathForks)
+    (ChildForks)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,

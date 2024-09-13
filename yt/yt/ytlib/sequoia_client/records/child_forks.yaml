@@ -1,9 +1,9 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - table_name: path_forks
+  - table_name: child_forks
     table_group: transactions
-    type_name: TPathFork
+    type_name: TChildFork
     fields:
       - cpp_name: TransactionIdHash
         cpp_type: ui64
@@ -18,15 +18,21 @@ types:
         column_type: String
         sort_order: Ascending
 
-      - cpp_name: Path
-        cpp_type: TMangledSequoiaPath
-        column_name: path
+      - cpp_name: ParentId
+        cpp_type: NCypressClient::TNodeId
+        column_name: parent_id
         column_type: String
         sort_order: Ascending
 
-      - cpp_name: NodeId
+      - cpp_name: ChildKey
+        cpp_type: TString
+        column_name: child_key
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChildId
         cpp_type: NCypressClient::TNodeId
-        column_name: node_id
+        column_name: child_id
         column_type: String
 
       - cpp_name: TopmostTransactionId
@@ -35,4 +41,4 @@ types:
         column_type: String
 
     verbatim: |
-        static constexpr auto Table = ESequoiaTable::PathForks;
+        static constexpr auto Table = ESequoiaTable::ChildForks;

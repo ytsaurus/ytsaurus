@@ -606,6 +606,12 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    sequoia_client/records/child_forks.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/operation_alias.yaml
 )
 
