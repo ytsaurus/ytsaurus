@@ -16,7 +16,7 @@ import (
 
 type AdminPanelConfig struct {
 	Port           int               `yaml:"port"`
-	MonitoringTags map[string]string `yaml:"default_tags"`
+	MonitoringTags map[string]string `yaml:"monitoring_tags"`
 }
 
 type adminPanel struct {

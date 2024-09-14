@@ -4,6 +4,7 @@ SRCS(
     datastore.go
     fs_watcher.go
     timbertruck.go
+    timbertruck_metrics.go
 )
 
 GO_TEST_SRCS(

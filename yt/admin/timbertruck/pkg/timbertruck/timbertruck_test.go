@@ -75,7 +75,7 @@ func TestSmoke(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -103,7 +103,7 @@ func TestEmptyServing(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -141,7 +141,7 @@ func TestSimpleServe(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -199,7 +199,7 @@ func TestSimpleRestartServer(t *testing.T) {
 
 	newTimberTruck := func() *timbertruck.TimberTruck {
 		config := newTestConfig(workingDir)
-		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+		tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 		require.NoError(t, err)
 
 		tt.AddStream(
@@ -259,7 +259,7 @@ func TestMoveWhenStopped(t *testing.T) {
 
 	newTimberTruck := func() *timbertruck.TimberTruck {
 		config := newTestConfig(workingDir)
-		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+		tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 		require.NoError(t, err)
 
 		tt.AddStream(

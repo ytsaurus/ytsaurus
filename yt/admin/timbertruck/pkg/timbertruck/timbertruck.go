@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 )
 
@@ -43,13 +44,16 @@ type TimberTruck struct {
 	fsWatcher *FsWatcher
 	datastore *Datastore
 
+	metrics metrics.Registry
+
 	handlers []streamHandler
 }
 
-func NewTimberTruck(config Config, logger *slog.Logger) (result *TimberTruck, err error) {
+func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry) (result *TimberTruck, err error) {
 	logPusher := TimberTruck{
-		config: config,
-		logger: logger,
+		config:  config,
+		logger:  logger,
+		metrics: metrics,
 	}
 
 	if logPusher.config.LogCompletionDelay == nil {
@@ -177,9 +181,37 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		curHandler.logger.Info("Stream initialized ok")
 	}
 
+	tt.launchMetricsProc(ctx)
+
 	tt.logger.Info("Serving")
 
 	return tt.fsWatcher.Run(ctx)
+}
+
+func (tt *TimberTruck) launchMetricsProc(ctx context.Context) {
+	if tt.metrics == nil {
+		return
+	}
+
+	streamNames := []string{}
+	for i := range tt.handlers {
+		streamNames = append(streamNames, tt.handlers[i].config.Name)
+	}
+
+	activeTaskCounter := newActiveTaskCounter(tt.logger, streamNames, tt.metrics, tt.datastore)
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				activeTaskCounter.Do()
+			}
+		}
+	}()
+
 }
 
 type streamHandler struct {
