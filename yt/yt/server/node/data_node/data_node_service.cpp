@@ -1585,14 +1585,38 @@ private:
         options.WorkloadDescriptor = workloadDescriptor;
         options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        auto chunkMetaFuture = chunk->ReadMeta(
-            options,
-            extensionTags);
+        struct TReadMetaResult
+        {
+            TRefCountedChunkMetaPtr Meta;
+            bool Throttled = false;
+        };
 
-        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+        auto result = chunk->ReadMeta(options, extensionTags)
+            .ApplyUnique(BIND([] (TRefCountedChunkMetaPtr&& meta) {
+                return TReadMetaResult{
+                    .Meta = std::move(meta),
+                    .Throttled = false,
+                };
+            }));
+        auto chunkMetaFuture = WrapWithTimeout(
+            result,
+            context,
+            BIND([] { return TReadMetaResult{.Throttled = true}; }));
+
+        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TReadMetaResult& readMetaResult) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
+
+            if (readMetaResult.Throttled) {
+                response->set_net_throttling(true);
+                context->SetResponseInfo("NetThrottling: %v", true);
+                return;
+            }
+
+            const auto& meta = readMetaResult.Meta;
+
+            YT_VERIFY(meta);
 
             {
                 NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
