@@ -5,6 +5,7 @@
 #include "formats.h"
 #include "framing.h"
 #include "helpers.h"
+#include "profiling.h"
 #include "http_authenticator.h"
 #include "private.h"
 
@@ -611,12 +612,20 @@ void TContext::LogStructuredRequest()
 
 void TContext::SetupInputStream()
 {
+    auto profilingRequest = CreateProfilingInputStream(
+        Request_,
+        Api_,
+        DriverRequest_.AuthenticatedUser,
+        Request_->GetRemoteAddress(),
+        InputFormat_,
+        InputContentEncoding_);
+
     if (IdentityContentEncoding == InputContentEncoding_) {
-        DriverRequest_.InputStream = Request_;
+        DriverRequest_.InputStream = std::move(profilingRequest);
     } else {
         DriverRequest_.InputStream = CreateZeroCopyAdapter(
             CreateDecompressingAdapter(
-                Request_,
+                std::move(profilingRequest),
                 *InputContentEncoding_,
                 // TODO(babenko): consider using compression pool
                 Api_->GetPoller()->GetInvoker()),
@@ -633,7 +642,13 @@ void TContext::SetupOutputStream()
         MemoryOutput_ = New<TSharedRefOutputStream>();
         DriverRequest_.OutputStream = MemoryOutput_;
     } else {
-        DriverRequest_.OutputStream = Response_;
+        DriverRequest_.OutputStream = CreateProfilingOutpuStream(
+            Response_,
+            Api_,
+            DriverRequest_.AuthenticatedUser,
+            Request_->GetRemoteAddress(),
+            OutputFormat_,
+            OutputContentEncoding_);
     }
 
     if (IdentityContentEncoding != OutputContentEncoding_) {
@@ -881,13 +896,7 @@ void TContext::LogAndProfile()
         Error_.GetNonTrivialCode(),
         WallTime_,
         CpuTime_,
-        Request_->GetRemoteAddress(),
-        Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount(),
-        InputFormat_,
-        OutputFormat_,
-        InputContentEncoding_,
-        OutputContentEncoding_);
+        Request_->GetRemoteAddress());
 }
 
 void TContext::Finalize()

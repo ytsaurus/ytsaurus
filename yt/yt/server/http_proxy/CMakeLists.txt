@@ -50,6 +50,7 @@ target_sources(yt-server-http_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/profiling.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
