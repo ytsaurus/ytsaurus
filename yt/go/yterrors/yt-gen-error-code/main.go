@@ -136,12 +136,18 @@ func main() {
 			return errorCode{"InvalidElectionState", e.value}
 		case 1129:
 			return errorCode{"ExecNodeLayerUnpackingFailed", e.value}
+		case 1135:
+			return errorCode{"ExecNodeNoSuchJob", e.value}
 		case 1915:
 			return errorCode{"APINoSuchOperation", e.value}
 		case 1916:
 			return errorCode{"APINoSuchJob", e.value}
+		case 3101:
+			return errorCode{"QueueClientInvalidEpoch", e.value}
 		case 3900:
 			return errorCode{"QueryTrackerClientIncarnationMismatch", e.value}
+		case 4419:
+			return errorCode{"ControllerAgentNoSuchJob", e.value}
 		case 19000:
 			return errorCode{"MiscIOError", e.value}
 		default:
