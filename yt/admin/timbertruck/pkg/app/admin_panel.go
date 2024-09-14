@@ -88,7 +88,7 @@ type loggingMiddleware struct {
 func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	requestID := uuid.New().String()
 	msg := fmt.Sprintf("> request %v %v", req.Method, req.URL.Path)
-	slog.Info(msg,
+	h.logger.Info(msg,
 		"RequestId", requestID,
 		"Method", req.Method,
 		"Path", req.URL.Path,
@@ -103,7 +103,7 @@ func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	msg = fmt.Sprintf("< response %v %v", wrapped.statusCode, req.URL.Path)
 
-	slog.Info(msg,
+	h.logger.Info(msg,
 		"RequestId", requestID,
 		"StatusCode", wrapped.statusCode)
 }
