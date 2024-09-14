@@ -31,6 +31,8 @@ PEERDIR(
 
 SIZE(MEDIUM)
 
+REQUIREMENTS(ram_disk:4 cpu:4 ram:9)
+
 IF (NOT OPENSOURCE)
     INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 ENDIF()
