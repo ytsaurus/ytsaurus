@@ -36,7 +36,7 @@ func isNetError(err error) bool {
 	return xerrors.As(err, &netErr)
 }
 
-func (r *Retrier) shouldRetry(isRead bool, err error) bool {
+func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool {
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" {
 		var lookupErr *net.DNSError
@@ -48,10 +48,14 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 			return false
 		}
 
+		if hasStickyProxy {
+			return false
+		}
+
 		return true
 	}
 
-	if isRead && isNetError(err) {
+	if isRead && isNetError(err) && !hasStickyProxy {
 		return true
 	}
 
@@ -63,7 +67,7 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
-	if isProxyBannedError(err) {
+	if isProxyBannedError(err) && !hasStickyProxy {
 		return true
 	}
 
@@ -97,7 +101,7 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker)
 		}
 
 		_, isRead := call.Params.(ReadRetryParams)
-		if !r.shouldRetry(isRead, err) {
+		if !r.shouldRetry(isRead, call.RequestedProxy != "", err) {
 			return
 		}
 
@@ -134,7 +138,7 @@ func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvo
 			return
 		}
 
-		if !r.shouldRetry(true, err) {
+		if !r.shouldRetry(true, call.RequestedProxy != "", err) {
 			return
 		}
 
@@ -165,7 +169,7 @@ func (r *Retrier) Read(ctx context.Context, call *Call, invoke ReadInvoker) (rc 
 			return
 		}
 
-		if !r.shouldRetry(true, err) {
+		if !r.shouldRetry(true, call.RequestedProxy != "", err) {
 			return
 		}
 
@@ -197,7 +201,7 @@ func (r *Retrier) Write(ctx context.Context, call *Call, invoke WriteInvoker) (w
 		}
 
 		// We never actually sent any data to server. In is safe to retry this request like any other read.
-		if !r.shouldRetry(true, err) {
+		if !r.shouldRetry(true, call.RequestedProxy != "", err) {
 			return
 		}
 
