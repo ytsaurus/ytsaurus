@@ -78,6 +78,7 @@ const TString PartIndexColumnName = "part_index";
 const TString FileIdColumnName = "file_id";
 const TString FileIndexColumnName = "file_index";
 const TString DataColumnName = "data";
+const TString OutputTableIndexColumnName = "output_table_index";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,7 +296,7 @@ public:
                 writer,
                 keyNode,
                 blobTableSchema,
-                /*firstPartIndex*/ 1,
+                /*firstPartIndex*/ 2,
                 /*autoFinishOfWriter*/ false);
 
             FileSize_ = 0;
@@ -412,21 +413,24 @@ public:
     void Do(const TRawJobContext& context) override
     {
         TUnbufferedFileInput unbufferedInput(context.GetInputFile());
-        TUnbufferedFileOutput unbufferedOutput(context.GetOutputFileList()[0]);
-
         TBufferedInput input(&unbufferedInput);
-        TBufferedOutput output(&unbufferedOutput);
 
         auto reader = TNodeTableReader(MakeIntrusive<NYT::NDetail::TInputStreamProxy>(&input));
 
         while (reader.IsValid()) {
             const auto& row = reader.GetRow();
-            auto tableIndex = reader.GetTableIndex();
-
-            YT_VERIFY(tableIndex == 0);
+            YT_VERIFY(reader.GetTableIndex() == 0);
 
             auto metadata = row[MetadataColumnName].AsString();
             auto startIndex = row[StartMetadataOffsetColumnName].AsInt64();
+
+            reader.Next();
+            const auto& outputTableInformationRow = reader.GetRow();
+            YT_VERIFY(reader.GetTableIndex() == 1);
+            auto outputTableIndex = outputTableInformationRow[OutputTableIndexColumnName].AsInt64();
+
+            TUnbufferedFileOutput unbufferedOutput(context.GetOutputFileList()[outputTableIndex]);
+            TBufferedOutput output(&unbufferedOutput);
 
             auto stream = std::make_shared<TFileReader>(&reader);
 
@@ -494,7 +498,7 @@ private:
                     return 0;
                 }
 
-                YT_VERIFY(Reader_->GetTableIndex() == 1);
+                YT_VERIFY(Reader_->GetTableIndex() == 2);
                 const auto& row = Reader_->GetRow();
                 Buffer_ = row[DataColumnName].AsString();
                 Position_ = 0;
@@ -560,20 +564,56 @@ REGISTER_RAW_JOB(TParseParquetFilesReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema CreateResultTableSchema(IClientPtr ytClient, const TString& metadataOfParquetTable)
+std::vector<TTempTable> CreateOutputParserTables(
+    IClientPtr ytClient,
+    const TString& metadataTablePath,
+    const TString& outputInformationTablePath)
 {
-    // Extract metadata to find out the schema.
-    auto reader = ytClient->CreateTableReader<TNode>(metadataOfParquetTable);
-    if (!reader->IsValid()) {
-        THROW_ERROR_EXCEPTION("Can't read metadata of Parquet file");
+    YT_LOG_INFO("Prepare information about output tables for reduce operation");
+
+    std::vector<TTempTable> outputParserTables;
+
+    auto reader = ytClient->CreateTableReader<TNode>(metadataTablePath);
+
+    TTableSchema prevSchema;
+    auto outputInformationTableWriter = ytClient->CreateTableWriter<TNode>(outputInformationTablePath);
+    int currentOutputTableIndexColumnName;
+
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        auto metadata = row[MetadataColumnName].AsString();
+        auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
+        auto arrowSchema = NArrow::CreateArrowSchemaFromParquetMetadata(&metadata, metadataStartOffset);
+        auto currentSchema = CreateYTTableSchemaFromArrowSchema(arrowSchema);
+
+        if (prevSchema != currentSchema) {
+            currentOutputTableIndexColumnName = std::ssize(outputParserTables);
+            TTempTable outputTable(
+                ytClient,
+                /*prefix*/ TString(),
+                /*path*/ TString(),
+                TCreateOptions().Attributes(TNode()("schema", currentSchema.ToNode())));
+            outputParserTables.push_back(std::move(outputTable));
+        }
+        TNode outputRow;
+        outputRow[FileIndexColumnName] = row[FileIndexColumnName].AsInt64();
+        outputRow[PartIndexColumnName] = 1;
+        outputRow[OutputTableIndexColumnName] = currentOutputTableIndexColumnName;
+
+        outputInformationTableWriter->AddRow(std::move(outputRow));
+        prevSchema = std::move(currentSchema);
     }
 
-    auto& row = reader->GetRow();
-    auto metadata = row[MetadataColumnName].AsString();
-    auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
+    outputInformationTableWriter->Finish();
 
-    auto arrowSchema = NArrow::CreateArrowSchemaFromParquetMetadata(&metadata, metadataStartOffset);
-    return CreateYTTableSchemaFromArrowSchema(arrowSchema);
+    YT_LOG_INFO("Starting sorting the output information table");
+
+    ytClient->Sort(TSortOperationSpec()
+        .SortBy({FileIndexColumnName, PartIndexColumnName})
+        .AddInput(outputInformationTablePath)
+        .Output(outputInformationTablePath));
+
+    return outputParserTables;
 }
 
 void ImportParquetFilesFromSource(
@@ -703,30 +743,66 @@ void ImportParquetFilesFromSource(
         .AddInput(metadataTablePath)
         .Output(metadataTablePath));
 
-    YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the result table (MaxRowWeight: %v)", config->MaxRowWeight);
+    YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the temporary tables (MaxRowWeight: %v)", config->MaxRowWeight);
 
     {
         TOperationOptions operationOptions;
         operationOptions.Spec(TNode()("job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))));
 
-        auto spec = TRawReduceOperationSpec()
+        TTempTable outputInformationTable(
+            ytClient,
+            /*prefix*/ TString(),
+            /*path*/ TString(),
+            TCreateOptions().Attributes(TNode()("schema", TTableSchema()
+                .AddColumn(TColumnSchema()
+                    .Name(FileIndexColumnName)
+                    .Type(VT_INT64, true))
+                .AddColumn(TColumnSchema()
+                    .Name(PartIndexColumnName)
+                    .Type(VT_INT64, true))
+                .AddColumn(TColumnSchema()
+                    .Name(OutputTableIndexColumnName)
+                    .Type(VT_INT64, true)).ToNode())));
+
+        auto outputParserTables = CreateOutputParserTables(
+            ytClient,
+            metadataTablePath,
+            outputInformationTable.Name());
+
+        auto reduceOperationSpec = TRawReduceOperationSpec()
             .ReduceBy({FileIndexColumnName})
             .SortBy({FileIndexColumnName, PartIndexColumnName})
             .AddInput(metadataTablePath)
+            .AddInput(outputInformationTable.Name())
             .AddInput(dataTablePath)
-            .AddOutput(TRichYPath(resultTable)
-                .Schema(CreateResultTableSchema(ytClient, metadataTablePath)))
             .InputFormat(TFormat(TNode("yson")))
             .OutputFormat(TFormat(TNode("arrow")));
 
+        for (const auto& outputReduceTable : outputParserTables) {
+            reduceOperationSpec = reduceOperationSpec
+                .AddOutput(TRichYPath(outputReduceTable.Name()));
+        }
+
         if (attachLibIconv) {
-            spec = spec.ReducerSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+            reduceOperationSpec = reduceOperationSpec.ReducerSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
         }
 
         ytClient->RawReduce(
-            spec,
+            reduceOperationSpec,
             new TParseParquetFilesReducer,
             operationOptions);
+
+        auto mergeOperationSpec = TMergeOperationSpec();
+        for (auto& table : outputParserTables) {
+            mergeOperationSpec = mergeOperationSpec.AddInput(table.Name());
+        }
+
+        mergeOperationSpec = mergeOperationSpec
+            .Output(resultTable)
+            .SchemaInferenceMode(ESchemaInferenceMode::FromInput);
+
+        YT_LOG_INFO("Start merge operation: filling rows in the result table (MaxRowWeight: %v)", config->MaxRowWeight);
+        ytClient->Merge(mergeOperationSpec, operationOptions);
     }
 
     YT_LOG_INFO("Parquet files were successfully uploaded (ResultTable: %v)", resultTable);
