@@ -235,14 +235,18 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 	}
 	app.logger = slog.New(slog.NewJSONHandler(logFile, nil))
 
-	app.metrics = solomon.NewRegistry(nil)
+	solomonRegistryOptions := solomon.NewRegistryOpts()
+	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
+		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
+	}
+	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
 
 	var prevExitIsClean bool
 	prevExitIsClean, app.errorExitDetectorClose, err = errorExitDetector(app.logger, config.WorkDir)
 	if err != nil {
 		return
 	}
-	errorExitMetrics := app.metrics.IntGauge("error_exit")
+	errorExitMetrics := app.metrics.IntGauge("tt.application.error_exit")
 	if prevExitIsClean {
 		errorExitMetrics.Set(0)
 	} else {
@@ -255,7 +259,7 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
 	cancelOnSignals(app.cancelFunc)
 
-	app.timberTruck, err = timbertruck.NewTimberTruck(config.Config, app.logger)
+	app.timberTruck, err = timbertruck.NewTimberTruck(config.Config, app.logger, app.metrics)
 	if err != nil {
 		return
 	}
