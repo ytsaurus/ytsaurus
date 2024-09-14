@@ -936,6 +936,7 @@ private:
             .Apply(BIND([=] (bool isThrottled) {
                 if (isThrottled) {
                     response->set_net_throttling(true);
+                    response->clear_block_checksums();
                     response->Attachments().clear();
 
                     // Override response info.
