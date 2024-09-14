@@ -97,7 +97,7 @@ type Config struct {
 }
 
 type App interface {
-	AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc)
+	AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc)
 
 	Logger() *slog.Logger
 	Fatalf(format string, a ...any)
@@ -287,8 +287,8 @@ func (app *daemonApp) Close() error {
 	return nil
 }
 
-func (app *daemonApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
-	app.timberTruck.AddPipeline(config, newFunc)
+func (app *daemonApp) AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
+	app.timberTruck.AddStream(config, newFunc)
 }
 
 func (app *daemonApp) Run() error {
@@ -431,7 +431,7 @@ func newOneShotApp() (a App, err error) {
 	return
 }
 
-func (app *oneShotApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
+func (app *oneShotApp) AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
 	app.tasks = append(app.tasks, oneShotAppTask{config, newFunc})
 }
 

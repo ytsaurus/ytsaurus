@@ -20,6 +20,9 @@ import (
 
 const (
 	stateFile = "log_pusher_state.sqlite"
+
+	createPipelineMaxBackoff         = 5 * time.Minute
+	createPipelineMaxBackoffTestMode = 1 * time.Second
 )
 
 type Config struct {
@@ -100,7 +103,6 @@ type TaskArgs struct {
 
 type NewPipelineFunc func(task TaskArgs) (*pipelines.Pipeline, error)
 
-// TODO: should be named PipelineConfig
 type StreamConfig struct {
 	// Name of the stream. Can contain [-_A-Za-z0-9].
 	// This name identifies stream inside timbertruck storage
@@ -112,8 +114,7 @@ type StreamConfig struct {
 	LogFile string `yaml:"log_file"`
 }
 
-// TODO: Should be named AddPipeline
-func (tt *TimberTruck) AddPipeline(stream StreamConfig, newPipeline NewPipelineFunc) {
+func (tt *TimberTruck) AddStream(stream StreamConfig, newPipeline NewPipelineFunc) {
 	handler := streamHandler{
 		timberTruck: tt,
 		logger: tt.logger.With(
@@ -129,7 +130,6 @@ func (tt *TimberTruck) AddPipeline(stream StreamConfig, newPipeline NewPipelineF
 }
 
 func (tt *TimberTruck) Serve(ctx context.Context) error {
-
 	activeTasks, err := tt.datastore.ListActiveTasks()
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error ListActiveTasks(): %v", err))
@@ -483,21 +483,37 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 			datastore: h.timberTruck.datastore,
 			logger:    h.logger.With("component", "pipeline"),
 		}
-		p, err := h.newPipelineFunc(TaskArgs{
-			Context:    ctx,
-			Path:       task.StagedPath,
-			Position:   task.EndPosition,
-			Controller: &taskController,
-		})
-		if err != nil {
-			h.logger.Error("Error creating pipeline", "error", err)
-			// TODO: metrics
-			err = h.completeTask(task, err)
-			if err != nil {
-				panic(fmt.Sprintf("unexpected error completeTask(%v): %v", task, err))
+
+		var p *pipelines.Pipeline
+		var err error
+		backoff := time.Second
+		maxBackoff := getCreatePipelineMaxBackoff()
+		for retry := 1; ; retry += 1 {
+			p, err = h.newPipelineFunc(TaskArgs{
+				Context:    ctx,
+				Path:       task.StagedPath,
+				Position:   task.EndPosition,
+				Controller: &taskController,
+			})
+			if err == nil { // no error
+				break
+			} else {
+				level := slog.LevelWarn
+				if retry > 3 {
+					level = slog.LevelError
+				}
+				h.logger.Log(context.Background(), level, "Error creating pipeline", "error", err)
+				h.logger.Error("Error creating pipeline", "error", err)
+
+				time.Sleep(backoff)
+				backoff *= 2
+
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
 			}
-			return
 		}
+
 		h.logger.Info("Pipeline created", "stagedpath", task.StagedPath)
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
@@ -570,4 +586,11 @@ func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 
 func (c *taskController) Logger() *slog.Logger {
 	return c.logger
+}
+
+func getCreatePipelineMaxBackoff() time.Duration {
+	if os.Getenv("TIMBERTRUCK_TEST_MODE") != "" {
+		return createPipelineMaxBackoffTestMode
+	}
+	return createPipelineMaxBackoff
 }
