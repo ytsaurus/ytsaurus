@@ -368,6 +368,10 @@ const (
 	CodeSequoiaTableCorrupted                                 ErrorCode = 6001
 	CodeSequoiaRetriableError                                 ErrorCode = 6002
 	CodeS3ApiError                                            ErrorCode = 8300
+	CodeProcessNonZeroExitCode                                ErrorCode = 10000
+	CodeProcessSignal                                         ErrorCode = 10001
+	CodeProcessCannotResolveBinary                            ErrorCode = 10002
+	CodeProcessCannotStartProcess                             ErrorCode = 10003
 	CodeNoSuchTransaction                                     ErrorCode = 11000
 	CodeNestedExternalTransactionExists                       ErrorCode = 11001
 	CodeTransactionDepthLimitReached                          ErrorCode = 11002
@@ -386,6 +390,12 @@ const (
 	CodeClockClusterTagMismatch                               ErrorCode = 11015
 	CodeFailedToStartContainer                                ErrorCode = 14000
 	CodeJobIsNotRunning                                       ErrorCode = 17000
+	CodeSecretVaultUnknownError                               ErrorCode = 18000
+	CodeSecretVaultMalformedResponse                          ErrorCode = 18001
+	CodeSecretVaultNonexistentEntityError                     ErrorCode = 18002
+	CodeSecretVaultDelegationAccessError                      ErrorCode = 18003
+	CodeSecretVaultDelegationTokenRevoked                     ErrorCode = 18004
+	CodeSecretVaultUnexpectedStatus                           ErrorCode = 18005
 	CodeMiscIOError                                           ErrorCode = 19000
 	CodeEndpointSetDoesNotExist                               ErrorCode = 20000
 	CodeEndpointResolveFailed                                 ErrorCode = 20001
@@ -1141,6 +1151,14 @@ func (e ErrorCode) String() string {
 		return "SequoiaRetriableError"
 	case CodeS3ApiError:
 		return "S3ApiError"
+	case CodeProcessNonZeroExitCode:
+		return "ProcessNonZeroExitCode"
+	case CodeProcessSignal:
+		return "ProcessSignal"
+	case CodeProcessCannotResolveBinary:
+		return "ProcessCannotResolveBinary"
+	case CodeProcessCannotStartProcess:
+		return "ProcessCannotStartProcess"
 	case CodeNoSuchTransaction:
 		return "NoSuchTransaction"
 	case CodeNestedExternalTransactionExists:
@@ -1177,6 +1195,18 @@ func (e ErrorCode) String() string {
 		return "FailedToStartContainer"
 	case CodeJobIsNotRunning:
 		return "JobIsNotRunning"
+	case CodeSecretVaultUnknownError:
+		return "SecretVaultUnknownError"
+	case CodeSecretVaultMalformedResponse:
+		return "SecretVaultMalformedResponse"
+	case CodeSecretVaultNonexistentEntityError:
+		return "SecretVaultNonexistentEntityError"
+	case CodeSecretVaultDelegationAccessError:
+		return "SecretVaultDelegationAccessError"
+	case CodeSecretVaultDelegationTokenRevoked:
+		return "SecretVaultDelegationTokenRevoked"
+	case CodeSecretVaultUnexpectedStatus:
+		return "SecretVaultUnexpectedStatus"
 	case CodeMiscIOError:
 		return "MiscIOError"
 	case CodeEndpointSetDoesNotExist:
