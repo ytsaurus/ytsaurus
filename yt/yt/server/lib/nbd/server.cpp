@@ -682,12 +682,12 @@ private:
     void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
     {
         if (!connectionOrError.IsOK()) {
-            TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Success"}}), "/server/connection/accepted").Increment(1);
+            TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Failure"}}), "/server/connection/accepted").Increment(1);
             YT_LOG_INFO(connectionOrError, "Error accepting connection");
             return;
         }
 
-        TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Failure"}}), "/server/connection/accepted").Increment(1);
+        TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Success"}}), "/server/connection/accepted").Increment(1);
 
         AcceptConnection();
 
