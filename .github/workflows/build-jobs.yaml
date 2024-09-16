@@ -31,7 +31,7 @@ on:
         required: false
         type: boolean
       update-remote-cache:
-        default: true
+        default: false
         required: false
         type: boolean
       skip-python-packages:

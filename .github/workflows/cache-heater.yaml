@@ -3,7 +3,7 @@ name: Cache heater
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0,3,6,9,12,15,18,21 * * *'
+    - cron: '0,30 * * * *'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
