@@ -692,8 +692,7 @@ TEST_F(TLookupFilterTest, YT_10159)
         }
 
         if (iter == 0) {
-            SyncUnmountTable(Table_);
-            SyncMountTable(Table_);
+            SyncFlushTable(Table_);
         }
     }
 }
@@ -801,9 +800,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
         {"v2", "v3", "v1"},
         "<id=0> 24; <id=1> 25; <id=2> 23;");
 
-    // Remount table to cause stores to flush.
-    SyncUnmountTable(Table_);
-    SyncMountTable(Table_);
+    SyncFlushTable(Table_);
 
     auto options = TQueueRowBatchReadOptions{.MaxRowCount = 1};
     auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
