@@ -2387,12 +2387,15 @@ void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
     UpdateProfilingCounter(allocation, 1);
 
     YT_LOG_DEBUG(
-        "Allocation registered (AllocationId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
+        "Allocation registered "
+        "(AllocationId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v, NodeId: %v, NodeAddress: %v)",
         allocation->GetId(),
         allocation->IsRevived(),
         allocation->GetOperationId(),
         allocation->GetControllerEpoch(),
-        allocation->GetSchedulingIndex());
+        allocation->GetSchedulingIndex(),
+        node->GetId(),
+        node->GetDefaultAddress());
 
     if (allocation->IsRevived()) {
         allocation->GetNode()->AllocationsToAbort().erase(allocation->GetId());

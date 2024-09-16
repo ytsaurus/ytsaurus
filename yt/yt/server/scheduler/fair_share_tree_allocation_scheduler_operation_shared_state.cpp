@@ -139,6 +139,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationStarted(
 
     AddAllocation(allocationId, resourceUsage);
     operationElement->CommitHierarchicalResourceUsage(resourceUsage, precommittedResources);
+
     UpdatePreemptibleAllocationsList(operationElement);
 
     return true;
