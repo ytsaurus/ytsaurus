@@ -134,6 +134,8 @@ items:
            href: user-guide/dynamic-tables/bulk-insert.md
          - name: Query language
            href: user-guide/dynamic-tables/dyn-query-language.md
+         - name: Secondary indexes
+           href: user-guide/dynamic-tables/secondary-indices.md
          - name: Usage examples
            items:
              - name: Creating a web service

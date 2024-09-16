@@ -1,1 +1,1 @@
-{% include [No translation note](../../_includes/no-translation.md) %}
+{% include [Secondary indices](../../_includes/user-guide/dynamic-tables/secondary-indices.md) %}
