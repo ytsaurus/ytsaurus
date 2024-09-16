@@ -28,7 +28,7 @@ type Agent struct {
 	family   string
 	root     ypath.Path
 
-	// nodeCh receives events of form "particular node in root has changed revision"
+	// nodeCh receives events of form "particular node in root has changed revision".
 	nodeCh <-chan PathsOrError
 
 	// runningOpsCh periodically receives all running vanilla operations
@@ -101,17 +101,16 @@ func (a *Agent) updateACLs() error {
 	return nil
 }
 
-func (a *Agent) abortDangling(runningOps []yt.OperationStatus) error {
+func (a *Agent) processRunningOperations(runningOps []yt.OperationStatus) error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 
 	startedAt := time.Now()
 
-	l.Info("aborting dangling operations")
-	abortedOps := 0
+	l.Info("processing running operations")
+	toAbort := make([]yt.OperationID, 0)
+	foundAliases := make(map[string]bool)
 	for _, op := range runningOps {
-		needAbort := false
-
 		if op.BriefSpec == nil {
 			// This may happen on early stages of operation lifetime.
 			continue
@@ -121,37 +120,91 @@ func (a *Agent) abortDangling(runningOps []yt.OperationStatus) error {
 		if !ok {
 			l.Debug("operation misses alias (how is that possible?), aborting it",
 				log.String("operation_id", op.ID.String()))
-			needAbort = true
-		} else {
-			alias := opAlias.(string)[1:]
-			oplet, ok := a.aliasToOp[alias]
-			if !ok {
-				l.Debug("operation alias unknown, aborting it",
-					log.String("alias", alias), log.String("operation_id", op.ID.String()))
-				needAbort = true
-			} else if opID, _ := oplet.OperationInfo(); oplet.UpToDateWithCypress() && opID != op.ID {
-				a.l.Debug("yt operation has unexpected id, aborting it",
-					log.String("alias", alias), log.String("operation_id", op.ID.String()),
-					log.String("expected_id", opID.String()))
-				needAbort = true
-			}
+			toAbort = append(toAbort, op.ID)
+			continue
+		}
+		alias := opAlias.(string)[1:]
+
+		oplet, ok := a.aliasToOp[alias]
+		if !ok {
+			l.Debug("operation alias unknown, aborting it",
+				log.String("alias", alias), log.String("operation_id", op.ID.String()))
+			toAbort = append(toAbort, op.ID)
+			continue
+		}
+		foundAliases[alias] = true
+
+		opID, opState := oplet.OperationInfo()
+		if !oplet.UpToDateWithCypress() {
+			continue
 		}
 
-		if needAbort {
-			abortedOps++
-			err := a.ytc.AbortOperation(a.ctx, op.ID, nil)
-			if err != nil {
-				l.Error("error aborting operation",
-					log.String("operation_id", op.ID.String()),
-					log.Error(err))
-			}
+		if opID != op.ID {
+			l.Debug("yt operation has unexpected id, aborting it",
+				log.String("alias", alias), log.String("operation_id", op.ID.String()),
+				log.String("expected_id", opID.String()))
+			toAbort = append(toAbort, op.ID)
+			continue
+		}
+
+		if opState != op.State {
+			oplet.UpdateOpStatus(&op)
 		}
 	}
 
-	l.Info("finished aborting dangling operations",
+	abortCh := make(chan yt.OperationID, len(toAbort))
+	checkCh := make(chan *strawberry.Oplet, len(a.aliasToOp)-len(foundAliases))
+
+	workerNumber := a.config.PassWorkerNumberOrDefault()
+	var wg sync.WaitGroup
+	wg.Add(workerNumber)
+
+	for range workerNumber {
+		go func() {
+			defer wg.Done()
+
+			// Abort dangling operations. This results in filtering those
+			// which are not listed in our aliasToOp.
+			for opID := range abortCh {
+				err := a.ytc.AbortOperation(a.ctx, opID, nil)
+				if err != nil {
+					l.Error("error aborting operation",
+						log.String("operation_id", opID.String()),
+						log.Error(err))
+				}
+			}
+
+			// Additionally check operation liveness for all oplets that have no running operations
+			// but have info about operation in persistent state.
+			for oplet := range checkCh {
+				_ = oplet.CheckOperationLiveness(a.ctx)
+			}
+		}()
+	}
+
+	for _, opID := range toAbort {
+		abortCh <- opID
+	}
+	close(abortCh)
+
+	checkedCnt := 0
+	for alias, oplet := range a.aliasToOp {
+		wasProcessed := foundAliases[alias]
+		if wasProcessed || !oplet.UpToDateWithCypress() || !oplet.HasYTOperation() {
+			continue
+		}
+		checkCh <- oplet
+		checkedCnt++
+	}
+	close(checkCh)
+
+	wg.Wait()
+
+	l.Info("finished processing running operations",
 		log.Duration("elapsed_time", time.Since(startedAt)),
-		log.Int("aborted_operations_count", abortedOps),
-		log.Int("total_operations_count", len(runningOps)))
+		log.Int("total_operations_count", len(runningOps)),
+		log.Int("explicit_checked_count", checkedCnt),
+		log.Int("aborted_operations_count", len(toAbort)))
 
 	return nil
 }
@@ -171,7 +224,9 @@ func (a *Agent) processOplets() {
 		go func() {
 			defer wg.Done()
 			for oplet := range opletsChan {
-				_ = oplet.Pass(a.ctx)
+				// We don't need to check the liveness of the operation in the agent,
+				// since we do it while processing the result of the operation listing.
+				_ = oplet.Pass(a.ctx, false /*checkOpLiveness*/)
 			}
 		}()
 	}
@@ -321,10 +376,9 @@ func (a *Agent) background() {
 				a.healthState.SetTrackOpsState(event.Error)
 				continue
 			}
-			// Abort dangling operations. This results in filtering those
-			// which are not listed in our aliasToOp.
-			if err := a.abortDangling(event.Operations); err != nil {
-				err = yterrors.Err("failed to abort dangling operations", err)
+
+			if err := a.processRunningOperations(event.Operations); err != nil {
+				err = yterrors.Err("failed to process running operations", err)
 				a.healthState.SetTrackOpsState(err)
 				continue
 			}

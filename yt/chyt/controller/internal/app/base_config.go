@@ -7,7 +7,7 @@ type BaseConfig struct {
 	// If not present, it is taken from STRAWBERRY_TOKEN env var.
 	Token string `yson:"token"`
 
-	// LocationProxy to be initialized
+	// LocationProxy to be initialized.
 	Proxy string `yson:"proxy"`
 
 	// Root points to root directory with operation states.

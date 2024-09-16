@@ -728,7 +728,7 @@ func (a *API) Start(ctx context.Context, alias string, untracked bool, userClien
 	if err != nil {
 		return err
 	}
-	return oplet.Pass(ctx)
+	return oplet.Pass(ctx, true /*checkOpLiveness*/)
 }
 
 func (a *API) Stop(ctx context.Context, alias string) error {
@@ -758,7 +758,7 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	if err != nil {
 		return err
 	}
-	return oplet.Pass(ctx)
+	return oplet.Pass(ctx, true /*checkOpLiveness*/)
 }
 
 func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.OptionGroupDescriptor, error) {
