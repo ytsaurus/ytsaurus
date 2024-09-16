@@ -81,7 +81,7 @@ public:
             Report_.State(),
             Report_.StartTime(),
             Report_.FinishTime(),
-            TInstant::Now().MicroSeconds(), // UpdateTime.
+            /*updateTime*/ TInstant::Now().MicroSeconds(),
             Report_.Address(),
             Report_.StderrSize(),
             Report_.HasCompetitors(),
@@ -95,7 +95,7 @@ public:
             Report_.Statistics(),
             Report_.Events(),
             Report_.Spec().has_value(),
-            i64{0}, // FailContextSize.
+            /*failContextSize*/ i64{0},
             Report_.CoreInfos(),
             Report_.JobCompetitionId().Underlying(),
             Report_.ProbingJobCompetitionId().Underlying(),
@@ -371,7 +371,7 @@ public:
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Type,
-            int{0}, // PartIndex.
+            /*partIndex*/ int{0},
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Blob,
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).ProfilingProbability);
     }
