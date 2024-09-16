@@ -514,6 +514,7 @@ class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlBase):
 
 class TestYqlColumnOrderIssue707(TestQueriesYqlBase):
     @authors("gritukan", "mpereskokova")
+    @pytest.mark.timeout(300)
     def test_issue_707(self, query_tracker, yql_agent):
         # https://github.com/ytsaurus/ytsaurus/issues/707
         create("table", "//tmp/t", attributes={
