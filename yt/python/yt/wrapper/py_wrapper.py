@@ -803,6 +803,7 @@ class DockerRespawner:
             target_platform,
             docker,
             python,
+            argv=None,
             env=None,
             main_scipt_path=None,
             cwd=None,
@@ -816,6 +817,9 @@ class DockerRespawner:
         self._docker = docker
         self._python = python
         self._env = env
+        self._argv = argv
+        if self._argv is None:
+            self._argv = sys.argv[1:]
         if self._env is None:
             # By default, we forward only YT-specific variables.
             self._env = {
@@ -902,7 +906,7 @@ class DockerRespawner:
             *docker_env_args,
             *docker_mount_args,
             self._image,
-            self._python, self._main_script_path,
+            self._python, self._main_script_path, *self._argv,
         ]
         command = [
             shlex.quote(c)
@@ -926,6 +930,7 @@ class DockerRespawner:
 
 def respawn_in_docker(
         image,
+        argv=None,
         target_platform=None,
         docker="docker",
         python="python3",
@@ -941,6 +946,7 @@ def respawn_in_docker(
 
     Args:
         :param str image: docker image (same format as in the operation's spec)
+        :param Optional[list[str]] argv: command line args
         :param Optional[str] target_platform: target platform for the docker container
         :param str docker: local docker executable name/path
         :param str python: python executable name/path in docker
@@ -971,6 +977,7 @@ def respawn_in_docker(
                 return func(*args, **kwargs)
             respawner = DockerRespawner(
                 image=image,
+                argv=argv,
                 target_platform=target_platform,
                 docker=docker,
                 env=env,

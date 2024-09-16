@@ -1,4 +1,5 @@
 import tempfile
+import sys
 
 import pytest
 
@@ -10,7 +11,7 @@ from yt.wrapper import respawn_in_docker
 from yt.wrapper.py_wrapper import DockerRespawner
 
 
-@authors("thenno")
+@authors("denvr")
 def test_docker_respawner(monkeypatch):
     if arcadia_interop.yatest_common is not None:
         pytest.skip("There are other YT_* variables in the environment")
@@ -19,6 +20,7 @@ def test_docker_respawner(monkeypatch):
     monkeypatch.setenv("SOME_KEY", "SOME_VALUE")
     respawner = DockerRespawner(
         image="some_image",
+        argv=[],
         target_platform="arm64",
         docker="docker_test",
         python="/custom/docker/python/path",
@@ -56,10 +58,11 @@ def test_docker_respawner(monkeypatch):
     ]
 
 
-@authors("thenno")
+@authors("denvr")
 def test_docker_respawner_user_overrides():
     respawner = DockerRespawner(
         image="some_image",
+        argv=["cli_arg"],
         target_platform="arm64",
         docker="docker_test",
         python="python3",
@@ -92,11 +95,43 @@ def test_docker_respawner_user_overrides():
         "-v", "/custom/path:/custom/path",
         "-v", "/etc/custom/path2:/etc/custom/path2",
         "some_image",
-        "python3", "/home/user/yt/main.py",
+        "python3", "/home/user/yt/main.py", "cli_arg",
     ]
 
 
-@authors("thenno")
+@authors("denvr")
+def test_docker_respawner_argv(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["some_script.py", "cli_param"])
+    respawner = DockerRespawner(
+        image="some_image",
+        argv=None,
+        target_platform="arm64",
+        docker="docker_test",
+        python="python3",
+        env={},
+        main_scipt_path="/home/user/yt/main.py",
+        cwd="/home/user/yt/lib",
+        homedir="/root",
+        python_lib_paths=[],
+        mount=[],
+    )
+    assert respawner.make_command() == [
+        "docker_test",
+        "run",
+        "--platform", "arm64",
+        "-it",
+        "--rm",
+        "-e", "CWD=/home/user/yt/lib",
+        "-e", "PYTHONPATH=",
+        "-e", "YT_RESPAWNED_IN_CONTAINER=1",
+        "-e", "YT_BASE_LAYER=some_image",
+
+        "some_image",
+        "python3", "/home/user/yt/main.py", "cli_param",
+    ]
+
+
+@authors("denvr")
 def test_docker_respawner_with_sudo():
     respawner_withour_sudo = DockerRespawner(
         image="some_image",
@@ -112,6 +147,7 @@ def test_docker_respawner_with_sudo():
     assert respawner_withour_sudo.make_command()[0] != "sudo"
     respawner_with_sudo = DockerRespawner(
         image="some_image",
+        argv=[],
         target_platform="arm64",
         docker="docker_test",
         python="python3",
@@ -125,10 +161,11 @@ def test_docker_respawner_with_sudo():
     assert respawner_with_sudo.make_command()[0] == "sudo"
 
 
-@authors("thenno")
+@authors("denvr")
 def test_docker_respawner_escaping():
     respawner_withour_sudo = DockerRespawner(
         image="some image",
+        argv=["a", "b v"],
         target_platform="arm 64",
         docker="docker test",
         python="python\n3",
@@ -168,10 +205,12 @@ def test_docker_respawner_escaping():
         "'some image'",
         "'python\n3'",
         "/home/user2/yt/main.py",
+        "a",
+        "'b v'",
     ]
 
 
-@authors("thenno")
+@authors("denvr")
 def test_respawn_in_docker(monkeypatch):
     # `docker = echo` allows us to avoid running real docker.
     @respawn_in_docker("some_image", docker="echo")
