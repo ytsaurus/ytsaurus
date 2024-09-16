@@ -80,9 +80,9 @@ protected:
     const IInvokerPtr SessionInvoker_;
 
     const NLogging::TLogger Logger;
+    const TInstant StartTime_;
 
     TLockedChunkGuard LockedChunkGuard_;
-    TInstant StartTime_;
 
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();
 
