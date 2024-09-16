@@ -74,6 +74,7 @@ using namespace NLogging;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NApi;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -917,7 +918,7 @@ public:
         DB::SelectQueryInfo& queryInfo) const override
     {
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/storage_distributor/get_query_processing_stage");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/storage_distributor/get_query_processing_stage"_SP);
 
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
         const auto& executionSettings = storageContext->Settings->Execution;
@@ -1015,7 +1016,7 @@ public:
         size_t /*numStreams*/) override
     {
         TCurrentTraceContextGuard traceContextGuard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read"_SP);
 
         auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
 
@@ -1065,7 +1066,7 @@ public:
         bool /*asyncInsert*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write"_SP);
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
@@ -1134,7 +1135,7 @@ public:
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write"_SP);
 
         // First, validate if SELECT part is suitable for distributed INSERT SELECT.
 
@@ -1254,7 +1255,7 @@ public:
         DB::TableExclusiveLockHolder&) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/truncate");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/truncate"_SP);
 
         THROW_ERROR_EXCEPTION_IF(Tables_.size() != 1,
             "Wrong number of tables for TRUNCATE: %v instead of 1",
@@ -1273,7 +1274,7 @@ public:
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/get_column_sizes");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/get_column_sizes"_SP);
 
         auto context = WeakContext_.lock();
         if (!context) {

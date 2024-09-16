@@ -52,7 +52,7 @@ public:
 
     void DumpMemoryUsageStatistics(
         TStatistics* statistics,
-        const TString& path);
+        const NStatisticPath::TStatisticPath& prefixPath);
 
     i64 GetMemoryUsage();
 

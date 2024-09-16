@@ -138,6 +138,7 @@ using namespace NContainers;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NStatisticPath;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -742,7 +743,7 @@ void TJob::OnJobFinalized()
     FinishTime_ = TInstant::Now();
     // Copy info from traffic meter to statistics.
     auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
-    FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
+    FillTrafficStatistics("exec_agent"_L, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
     // NB(eshcherbin): We need to destroy this producer, otherwise it will continue
@@ -3445,21 +3446,21 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         aggregatedGpuStatistics,
         totalGpuMemory);
 
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", aggregatedGpuStatistics.CumulativeUtilizationGpu);
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", aggregatedGpuStatistics.CumulativeUtilizationMemory);
-    statistics->AddSample("/user_job/gpu/cumulative_utilization_power", aggregatedGpuStatistics.CumulativeUtilizationPower);
-    statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", aggregatedGpuStatistics.CumulativeMemoryMBSec);
-    statistics->AddSample("/user_job/gpu/cumulative_power", aggregatedGpuStatistics.CumulativePower);
-    statistics->AddSample("/user_job/gpu/cumulative_load", aggregatedGpuStatistics.CumulativeLoad);
-    statistics->AddSample("/user_job/gpu/max_memory_used", aggregatedGpuStatistics.MaxMemoryUsed);
-    statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", aggregatedGpuStatistics.CumulativeSMUtilization);
-    statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", aggregatedGpuStatistics.CumulativeSMOccupancy);
-    statistics->AddSample("/user_job/gpu/nvlink/rx_bytes", aggregatedGpuStatistics.NvlinkRxBytes);
-    statistics->AddSample("/user_job/gpu/nvlink/tx_bytes", aggregatedGpuStatistics.NvlinkTxBytes);
-    statistics->AddSample("/user_job/gpu/pcie/rx_bytes", aggregatedGpuStatistics.PcieRxBytes);
-    statistics->AddSample("/user_job/gpu/pcie/tx_bytes", aggregatedGpuStatistics.PcieTxBytes);
-    statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregatedGpuStatistics.MaxStuckDuration);
-    statistics->AddSample("/user_job/gpu/memory_total", totalGpuMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu"_SP, aggregatedGpuStatistics.CumulativeUtilizationGpu);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_memory"_SP, aggregatedGpuStatistics.CumulativeUtilizationMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_power"_SP, aggregatedGpuStatistics.CumulativeUtilizationPower);
+    statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec"_SP, aggregatedGpuStatistics.CumulativeMemoryMBSec);
+    statistics->AddSample("/user_job/gpu/cumulative_power"_SP, aggregatedGpuStatistics.CumulativePower);
+    statistics->AddSample("/user_job/gpu/cumulative_load"_SP, aggregatedGpuStatistics.CumulativeLoad);
+    statistics->AddSample("/user_job/gpu/max_memory_used"_SP, aggregatedGpuStatistics.MaxMemoryUsed);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_utilization"_SP, aggregatedGpuStatistics.CumulativeSMUtilization);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy"_SP, aggregatedGpuStatistics.CumulativeSMOccupancy);
+    statistics->AddSample("/user_job/gpu/nvlink/rx_bytes"_SP, aggregatedGpuStatistics.NvlinkRxBytes);
+    statistics->AddSample("/user_job/gpu/nvlink/tx_bytes"_SP, aggregatedGpuStatistics.NvlinkTxBytes);
+    statistics->AddSample("/user_job/gpu/pcie/rx_bytes"_SP, aggregatedGpuStatistics.PcieRxBytes);
+    statistics->AddSample("/user_job/gpu/pcie/tx_bytes"_SP, aggregatedGpuStatistics.PcieTxBytes);
+    statistics->AddSample("/user_job/gpu/max_stuck_duration"_SP, aggregatedGpuStatistics.MaxStuckDuration);
+    statistics->AddSample("/user_job/gpu/memory_total"_SP, totalGpuMemory);
 }
 
 void TJob::EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics)
@@ -3473,50 +3474,50 @@ void TJob::EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics)
         aggregatedRdmaStatistics.TxByteRate += rdmaDevice.TxByteRate;
     }
 
-    statistics->AddSample("/user_job/gpu/rdma/rx_bytes", aggregatedRdmaStatistics.RxByteRate);
-    statistics->AddSample("/user_job/gpu/rdma/tx_bytes", aggregatedRdmaStatistics.TxByteRate);
+    statistics->AddSample("/user_job/gpu/rdma/rx_bytes"_SP, aggregatedRdmaStatistics.RxByteRate);
+    statistics->AddSample("/user_job/gpu/rdma/tx_bytes"_SP, aggregatedRdmaStatistics.TxByteRate);
 }
 
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = GetUserSlot()->GetDiskStatistics();
     MaxDiskUsage_ = std::max(MaxDiskUsage_, diskStatistics.Usage);
-    statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
-    statistics->AddSample("/user_job/disk/max_usage", MaxDiskUsage_);
+    statistics->AddSample("/user_job/disk/usage"_SP, diskStatistics.Usage);
+    statistics->AddSample("/user_job/disk/max_usage"_SP, MaxDiskUsage_);
     if (diskStatistics.Limit) {
-        statistics->AddSample("/user_job/disk/limit", *diskStatistics.Limit);
+        statistics->AddSample("/user_job/disk/limit"_SP, *diskStatistics.Limit);
     }
 }
 
 void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
 {
-    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size", ChunkCacheStatistics_.CacheHitArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size", ChunkCacheStatistics_.CacheMissArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size", ChunkCacheStatistics_.CacheBypassedArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ChunkCacheStatistics_.CacheHitArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ChunkCacheStatistics_.CacheMissArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ChunkCacheStatistics_.CacheBypassedArtifactsSize);
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto getStat = [&] (i64 oldValue, const char *path) {
+    auto getStat = [&] (i64 oldValue, const TStatisticPath& path) {
         auto iter = statistics.Data().find(path);
         i64 newValue = iter == statistics.Data().end() ? 0 : iter->second.GetSum();
         if (newValue < oldValue) {
-            YT_LOG_WARNING("Job I/O statistic decreased over time (Name: %v, OldValue: %v, NewValue: %v)", path, oldValue, newValue);
+            YT_LOG_WARNING("Job I/O statistic decreased over time (Name: %v, OldValue: %v, NewValue: %v)", path.Path(), oldValue, newValue);
             newValue = oldValue;
         }
         return newValue;
     };
 
-    auto newBytesRead = getStat(BytesRead_, "/user_job/block_io/bytes_read");
-    auto newBytesWritten = getStat(BytesWritten_, "/user_job/block_io/bytes_written");
+    auto newBytesRead = getStat(BytesRead_, "/user_job/block_io/bytes_read"_SP);
+    auto newBytesWritten = getStat(BytesWritten_, "/user_job/block_io/bytes_written"_SP);
 
     // NB(gepardo): Porto currently calculates only io_total, without making any difference between read and
     // write IO requests. So, we use io_total to estimate both. This place must be corrected when Porto will
     // export read and write IO requests separately (see PORTO-1011 for details).
-    auto newIORequestsRead = getStat(IORequestsRead_, "/user_job/block_io/io_total");
-    auto newIORequestsWritten = getStat(IORequestsWritten_, "/user_job/block_io/io_total");
+    auto newIORequestsRead = getStat(IORequestsRead_, "/user_job/block_io/io_total"_SP);
+    auto newIORequestsWritten = getStat(IORequestsWritten_, "/user_job/block_io/io_total"_SP);
 
     if (Bootstrap_->GetIOTracker()->IsEnabled()) {
         auto processDirection = [&] (const char *direction, i64 byteDelta, i64 ioRequestDelta) {

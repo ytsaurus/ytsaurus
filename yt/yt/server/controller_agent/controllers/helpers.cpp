@@ -39,6 +39,7 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NStatisticPath;
 
 using NYT::FromProto;
 
@@ -257,7 +258,7 @@ void UpdateAggregatedJobStatistics(
     if (targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit) {
         // Limit is already exceeded, so truncate the statistics.
         auto jobStatisticsCopy = jobStatistics;
-        jobStatisticsCopy.RemoveRangeByPrefix("/custom");
+        jobStatisticsCopy.RemoveRangeByPrefix("custom"_L);
         targetStatistics.AppendStatistics(jobStatisticsCopy, tags);
     } else {
         targetStatistics.AppendStatistics(jobStatistics, tags);

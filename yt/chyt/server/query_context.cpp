@@ -42,6 +42,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,7 +286,7 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
 
     guard.Release();
 
-    AddStatisticsSample(Format("/phase_duration_us/%v", oldPhase), duration.MicroSeconds());
+    AddStatisticsSample("phase_duration_us"_L / TStatisticPathLiteral(ToString(oldPhase)), duration.MicroSeconds());
 
     // It is effectively useless to count queries in state "Finish" in query registry,
     // and also we do not want exceptions to throw in query context destructor.
@@ -647,7 +648,7 @@ void TQueryContext::AcquireSnapshotLocks(const std::vector<TYPath>& paths)
     }
 }
 
-void TQueryContext::AddStatisticsSample(const NYPath::TYPath& path, i64 sample)
+void TQueryContext::AddStatisticsSample(const TStatisticPath& path, i64 sample)
 {
     auto guard = Guard(QueryLogLock_);
     Statistics_.AddSample(path, sample);
@@ -665,7 +666,7 @@ void TQueryContext::AddSecondaryQueryId(TQueryId id)
     SecondaryQueryIds_.push_back(id);
 }
 
-TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(NYPath::TYPath path)
+TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(TStatisticPath path)
 {
     return TStatisticsTimerGuard(std::move(path), MakeWeak(this));
 }
@@ -688,7 +689,7 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
         lastPhaseDuration = TInstant::Now() - LastPhaseTime_;
     }
     result.Statistics.AddSample(
-        Format("/phase_duration_us/%v", QueryPhase_.load()),
+        "phase_duration_us"_L / TStatisticPathLiteral(ToString(QueryPhase_.load())),
         lastPhaseDuration.MicroSeconds());
 
     return result;
@@ -748,7 +749,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryContext::TStatisticsTimerGuard::TStatisticsTimerGuard(NYPath::TYPath path, TWeakPtr<TQueryContext> queryContext)
+TQueryContext::TStatisticsTimerGuard::TStatisticsTimerGuard(TStatisticPath path, TWeakPtr<TQueryContext> queryContext)
     : Path_(std::move(path))
     , QueryContext_(std::move(queryContext))
 { }
@@ -757,7 +758,8 @@ TQueryContext::TStatisticsTimerGuard::~TStatisticsTimerGuard()
 {
     Timer_.Stop();
     if (auto queryContext = QueryContext_.Lock()) {
-        queryContext->AddStatisticsSample(Path_ + "_us", Timer_.GetElapsedTime().MicroSeconds());
+        auto newPath = ParseStatisticPath(Path_.Path() + "_us").ValueOrThrow();
+        queryContext->AddStatisticsSample(newPath, Timer_.GetElapsedTime().MicroSeconds());
     }
 }
 

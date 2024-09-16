@@ -2,7 +2,12 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/core/misc/statistic_path.h>
+
 namespace NYT::NScheduler {
+
+using namespace NStatisticPath;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +21,7 @@ TEST(TJobMetricsTest, TestIsEmpty)
     EXPECT_TRUE(!metrics.IsEmpty());
 
     TCustomJobMetricDescription customMetricDescription{
-        "/custom_statistic",
+        "/custom_statistic"_SP,
         "/custom_metric",
     };
     metrics.CustomValues()[customMetricDescription] = 117;

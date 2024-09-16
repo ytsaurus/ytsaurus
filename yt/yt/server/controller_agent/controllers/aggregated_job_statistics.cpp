@@ -3,6 +3,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NYson;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +41,8 @@ void Serialize(const TJobStatisticsTags& tags, IYsonConsumer* consumer)
 i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
 {
     i64 count = 0;
-    for (const auto& [key, value] : GetData()) {
-        if (key.StartsWith("/custom/")) {
+    for (const auto& [path, value] : GetData()) {
+        if (path.StartsWith("custom"_L)) {
             ++count;
         }
     }
@@ -49,7 +50,7 @@ i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
 }
 
 i64 TAggregatedJobStatistics::GetSumByJobStateAndType(
-    const TString& statisticPath,
+    const TStatisticPath& statisticPath,
     EJobState jobState,
     const TString& jobType) const
 {
@@ -69,7 +70,7 @@ i64 TAggregatedJobStatistics::GetSumByJobStateAndType(
 }
 
 std::optional<TSummary> TAggregatedJobStatistics::FindSummaryByJobStateAndType(
-    const TString& statisticPath,
+    const TStatisticPath& statisticPath,
     EJobState jobState,
     const TString& jobType) const
 {
@@ -115,7 +116,7 @@ void TAggregatedJobStatistics::SerializeCustom(
     IYsonConsumer* consumer,
     const std::function<void(const TTaggedSummaries&, NYson::IYsonConsumer*)>& summariesSerializer) const
 {
-    SerializeYsonPathsMap<TTaggedSummaries>(
+    SerializeStatisticPathsMap<TTaggedSummaries>(
         GetData(),
         consumer,
         summariesSerializer);

@@ -1,6 +1,7 @@
 #include "chunk_reader_statistics.h"
 
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistic_path.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -9,7 +10,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NProfiling;
-using namespace NYPath;
+using namespace NStatisticPath;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,25 +94,25 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
 
 void DumpChunkReaderStatistics(
     TStatistics* jobStatistics,
-    const TString& path,
+    const TStatisticPath& prefixPath,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr)
 {
-    jobStatistics->AddSample(path + "/data_bytes_read_from_disk", chunkReaderStatisticsPtr->DataBytesReadFromDisk.load(std::memory_order::relaxed));
-    jobStatistics->AddSample(path + "/data_io_requests", chunkReaderStatisticsPtr->DataIORequests.load(std::memory_order::relaxed));
-    jobStatistics->AddSample(path + "/data_bytes_transmitted", chunkReaderStatisticsPtr->DataBytesTransmitted.load(std::memory_order::relaxed));
-    jobStatistics->AddSample(path + "/data_bytes_read_from_cache", chunkReaderStatisticsPtr->DataBytesReadFromCache.load(std::memory_order::relaxed));
-    jobStatistics->AddSample(path + "/meta_bytes_read_from_disk", chunkReaderStatisticsPtr->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
-    jobStatistics->AddSample(path + "/meta_io_requests", chunkReaderStatisticsPtr->MetaIORequests.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "data_bytes_read_from_disk"_L, chunkReaderStatisticsPtr->DataBytesReadFromDisk.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "data_io_requests"_L, chunkReaderStatisticsPtr->DataIORequests.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "data_bytes_transmitted"_L, chunkReaderStatisticsPtr->DataBytesTransmitted.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "data_bytes_read_from_cache"_L, chunkReaderStatisticsPtr->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "meta_bytes_read_from_disk"_L, chunkReaderStatisticsPtr->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "meta_io_requests"_L, chunkReaderStatisticsPtr->MetaIORequests.load(std::memory_order::relaxed));
 }
 
 void DumpTimingStatistics(
     TStatistics* jobStatistics,
-    const TString& path,
+    const TStatisticPath& path,
     const TTimingStatistics& timingStatistics)
 {
-    jobStatistics->AddSample(path + "/wait_time", timingStatistics.WaitTime);
-    jobStatistics->AddSample(path + "/read_time", timingStatistics.ReadTime);
-    jobStatistics->AddSample(path + "/idle_time", timingStatistics.IdleTime);
+    jobStatistics->AddSample(path / "wait_time"_L, timingStatistics.WaitTime);
+    jobStatistics->AddSample(path / "read_time"_L, timingStatistics.ReadTime);
+    jobStatistics->AddSample(path / "idle_time"_L, timingStatistics.IdleTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

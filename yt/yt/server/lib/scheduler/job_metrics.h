@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/statistic_path.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -58,7 +59,7 @@ DEFINE_ENUM(ESummaryValueType,
 
 struct TCustomJobMetricDescription
 {
-    TString StatisticsPath;
+    NStatisticPath::TStatisticPath StatisticsPath;
     TString ProfilingName;
     ESummaryValueType SummaryValueType = ESummaryValueType::Sum;
     std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};

@@ -19,6 +19,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,8 +50,7 @@ public:
         const FilterByNameFunction& filterByTableName) const override
     {
         auto* queryContext = GetQueryContext(context);
-
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/get_tables_iterator");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/get_tables_iterator"_SP);
 
         TTableTraverser traverser(
             queryContext->Client(),

@@ -162,14 +162,14 @@ public:
     TDuration LowCpuUsageAlertMinAverageJobTime;
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
-    std::vector<TString> LowCpuUsageAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> LowCpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowCpuUsageAlertJobStates;
 
     // Minimum average job time to analyze operation
     TDuration HighCpuWaitAlertMinAverageJobTime;
     // Minimum cpu wait time ratio to send an alert
     double HighCpuWaitAlertThreshold;
-    std::vector<TString> HighCpuWaitAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> HighCpuWaitAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> HighCpuWaitAlertJobStates;
 
     // Minimum wall time of operation duration
@@ -186,7 +186,7 @@ public:
     double LowGpuUsageAlertGpuUtilizationPowerThreshold;
     // Ratio.
     double LowGpuUsageAlertGpuUtilizationSMThreshold;
-    std::vector<TString> LowGpuUsageAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> LowGpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
 
     TLowGpuPowerUsageOnWindowConfigPtr LowGpuPowerUsageOnWindow;

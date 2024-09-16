@@ -36,6 +36,7 @@ using namespace NConcurrency;
 using namespace NTracing;
 using namespace NChunkClient;
 using namespace NYTree;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,14 +155,14 @@ void TBlockInputStream::readSuffixImpl()
     auto lastIdleDuration = IdleTimer_.GetCurrentDuration();
     IdleTimer_.Stop();
 
-    Statistics_.AddSample("/block_input_stream/idle_time_us", lastIdleDuration.MicroSeconds());
+    Statistics_.AddSample("/block_input_stream/idle_time_us"_SP, lastIdleDuration.MicroSeconds());
 
     if (ChunkReaderStatistics_) {
-        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_disk", ChunkReaderStatistics_->DataBytesReadFromDisk);
-        Statistics_.AddSample("/block_input_stream/chunk_reader/data_io_requests", ChunkReaderStatistics_->DataIORequests);
-        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_transmitted", ChunkReaderStatistics_->DataBytesTransmitted);
-        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_cache", ChunkReaderStatistics_->DataBytesReadFromCache);
-        Statistics_.AddSample("/block_input_stream/chunk_reader/meta_bytes_read_from_disk", ChunkReaderStatistics_->MetaBytesReadFromDisk);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_disk"_SP, ChunkReaderStatistics_->DataBytesReadFromDisk);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_io_requests"_SP, ChunkReaderStatistics_->DataIORequests);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_transmitted"_SP, ChunkReaderStatistics_->DataBytesTransmitted);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/data_bytes_read_from_cache"_SP, ChunkReaderStatistics_->DataBytesReadFromCache);
+        Statistics_.AddSample("/block_input_stream/chunk_reader/meta_bytes_read_from_disk"_SP, ChunkReaderStatistics_->MetaBytesReadFromDisk);
     }
 
     if (StatisticsCallback_) {
@@ -213,7 +214,7 @@ DB::Block TBlockInputStream::readImpl()
     IdleTimer_.Stop();
     ++ReadCount_;
 
-    Statistics_.AddSample("/block_input_stream/idle_time_us", lastIdleDuration.MicroSeconds());
+    Statistics_.AddSample("/block_input_stream/idle_time_us"_SP, lastIdleDuration.MicroSeconds());
 
     NProfiling::TWallTimer totalWallTimer;
     YT_LOG_TRACE("Started reading ClickHouse block");
@@ -236,7 +237,7 @@ DB::Block TBlockInputStream::readImpl()
 
             auto elapsed = wallTimer.GetElapsedTime();
             WaitReadyEventTime_ += elapsed;
-            Statistics_.AddSample("/block_input_stream/wait_ready_event_time_us", elapsed.MicroSeconds());
+            Statistics_.AddSample("/block_input_stream/wait_ready_event_time_us"_SP, elapsed.MicroSeconds());
 
             if (elapsed > TDuration::Seconds(1)) {
                 YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
@@ -289,11 +290,11 @@ DB::Block TBlockInputStream::readImpl()
     auto totalElapsed = totalWallTimer.GetElapsedTime();
     YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
 
-    Statistics_.AddSample("/block_input_stream/block_rows", resultBlock.rows());
-    Statistics_.AddSample("/block_input_stream/block_columns", resultBlock.columns());
-    Statistics_.AddSample("/block_input_stream/block_bytes", resultBlock.bytes());
+    Statistics_.AddSample("/block_input_stream/block_rows"_SP, resultBlock.rows());
+    Statistics_.AddSample("/block_input_stream/block_columns"_SP, resultBlock.columns());
+    Statistics_.AddSample("/block_input_stream/block_bytes"_SP, resultBlock.bytes());
 
-    Statistics_.AddSample("/block_input_stream/read_impl_us", totalElapsed.MicroSeconds());
+    Statistics_.AddSample("/block_input_stream/read_impl_us"_SP, totalElapsed.MicroSeconds());
 
     IdleTimer_.Start();
 
@@ -321,7 +322,7 @@ void TBlockInputStream::Prepare()
 
     HeaderBlock_ = std::move(blockWithFilter.Block);
 
-    Statistics_.AddSample("/block_input_stream/step_count", ReadPlan_->Steps.size());
+    Statistics_.AddSample("/block_input_stream/step_count"_SP, ReadPlan_->Steps.size());
 }
 
 DB::Block TBlockInputStream::ConvertStepColumns(
@@ -329,7 +330,7 @@ DB::Block TBlockInputStream::ConvertStepColumns(
     const IUnversionedRowBatchPtr& batch,
     TRange<DB::UInt8> filterHint)
 {
-    auto statisticsPrefix = Format("/block_input_stream/steps/%v", stepIndex);
+    auto statisticsPrefix = SlashedStatisticPath(Format("/block_input_stream/steps/%v", stepIndex)).ValueOrThrow();
 
     DB::Block block;
     if (Settings_->ConvertRowBatchesInWorkerThreadPool) {
@@ -346,14 +347,14 @@ DB::Block TBlockInputStream::ConvertStepColumns(
 
         auto elapsed = TInstant::Now() - start;
         ConversionSyncWaitTime_ += elapsed;
-        Statistics_.AddSample("/block_input_stream/conversion_sync_wait_time_us", elapsed.MicroSeconds());
+        Statistics_.AddSample("/block_input_stream/conversion_sync_wait_time_us"_SP, elapsed.MicroSeconds());
     } else {
         block = DoConvertStepColumns(stepIndex, batch, filterHint);
     }
 
-    Statistics_.AddSample(statisticsPrefix + "/block_rows", block.rows());
-    Statistics_.AddSample(statisticsPrefix + "/block_columns", block.columns());
-    Statistics_.AddSample(statisticsPrefix + "/block_bytes", block.bytes());
+    Statistics_.AddSample(statisticsPrefix / "block_rows"_L, block.rows());
+    Statistics_.AddSample(statisticsPrefix / "block_columns"_L, block.columns());
+    Statistics_.AddSample(statisticsPrefix / "block_bytes"_L, block.bytes());
 
     return block;
 }
@@ -371,10 +372,10 @@ DB::Block TBlockInputStream::DoConvertStepColumns(
     timer.Stop();
     if (isColumnarBatch) {
         ColumnarConversionCpuTime_ += timer.GetElapsedTime();
-        Statistics_.AddSample("/block_input_stream/columnar_conversion_cpu_time_us", timer.GetElapsedTime().MicroSeconds());
+        Statistics_.AddSample("/block_input_stream/columnar_conversion_cpu_time_us"_SP, timer.GetElapsedTime().MicroSeconds());
     } else {
         NonColumnarConversionCpuTime_ += timer.GetElapsedTime();
-        Statistics_.AddSample("/block_input_stream/non_columnar_conversion_cpu_time_us", timer.GetElapsedTime().MicroSeconds());
+        Statistics_.AddSample("/block_input_stream/non_columnar_conversion_cpu_time_us"_SP, timer.GetElapsedTime().MicroSeconds());
     }
 
     return block;

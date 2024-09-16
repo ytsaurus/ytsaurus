@@ -261,9 +261,14 @@ private:
             auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
                 bool needToRemove = removePred(dataSlice);
 
-                TYPath prefix = (needToRemove ? "/input_fetcher/filtered_data_slices" : "/input_fetcher/data_slices");
-                QueryContext_->AddStatisticsSample(prefix + "/row_count", dataSlice->GetRowCount());
-                QueryContext_->AddStatisticsSample(prefix + "/data_weight", dataSlice->GetDataWeight());
+                using namespace NStatisticPath;
+                if (needToRemove) {
+                    QueryContext_->AddStatisticsSample("/input_fetcher/filtered_data_slices/row_count"_SP, dataSlice->GetRowCount());
+                    QueryContext_->AddStatisticsSample("/input_fetcher/filtered_data_slices/data_weight"_SP, dataSlice->GetRowCount());
+                } else {
+                    QueryContext_->AddStatisticsSample("/input_fetcher/data_slices/row_count"_SP, dataSlice->GetRowCount());
+                    QueryContext_->AddStatisticsSample("/input_fetcher/data_slices/data_weight"_SP, dataSlice->GetRowCount());
+                }
 
                 return needToRemove;
             });

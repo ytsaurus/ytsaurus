@@ -174,6 +174,8 @@ void UpdateJobletFromSummary(
     const TJobSummary& jobSummary,
     const TJobletPtr& joblet)
 {
+    using namespace NStatisticPath;
+
     // Note that TJoblet::{Controller,Job}Statistics are intentionally made shared const-pointers.
     // This allows thread-safe access to statistics from joblet with snapshot semantics, which
     // is useful for regular running job statistics updating from separate thread-pool.
@@ -196,7 +198,7 @@ void UpdateJobletFromSummary(
         joblet->LastUpdateTime);
     auto duration = endTime - joblet->StartTime;
 
-    controllerStatistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
+    controllerStatistics->ReplacePathWithSample("/time/total"_SP, duration.MilliSeconds());
 
     auto getCumulativeMemory = [] (i64 memory, TDuration period) {
         double cumulativeMemory = static_cast<double>(memory) * period.MilliSeconds();
@@ -207,31 +209,33 @@ void UpdateJobletFromSummary(
     i64 jobProxyMemoryReserve = joblet->EstimatedResourceUsage.GetJobProxyMemory() * *joblet->JobProxyMemoryReserveFactor;
 
     controllerStatistics->ReplacePathWithSample(
-        "/job_proxy/estimated_memory",
+        "/job_proxy/estimated_memory"_SP,
         joblet->EstimatedResourceUsage.GetJobProxyMemory());
     controllerStatistics->ReplacePathWithSample(
-        "/job_proxy/memory_reserve",
+        "/job_proxy/memory_reserve"_SP,
         jobProxyMemoryReserve);
     controllerStatistics->ReplacePathWithSample(
-        "/job_proxy/cumulative_estimated_memory",
+        "/job_proxy/cumulative_estimated_memory"_SP,
         getCumulativeMemory(joblet->EstimatedResourceUsage.GetJobProxyMemory(), duration));
     controllerStatistics->ReplacePathWithSample(
-        "/job_proxy/cumulative_memory_reserve",
+        "/job_proxy/cumulative_memory_reserve"_SP,
         getCumulativeMemory(jobProxyMemoryReserve, duration));
+
+    // TODO(pavook) what? maybe overflow?
     controllerStatistics->AddSample(
-        "/job_proxy/memory_reserve_factor_x10000",
+        "/job_proxy/memory_reserve_factor_x10000"_SP,
         static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
 
-    auto addCumulativeMemoryStatistics = [&] (const TString& originalPath, const TString& cumulativePath) {
+    auto addCumulativeMemoryStatistics = [&] (const TStatisticPath& originalPath, const TStatisticPath& cumulativePath) {
         if (auto usage = FindNumericValue(*jobStatistics, originalPath)) {
             controllerStatistics->ReplacePathWithSample(
                 cumulativePath,
                 getCumulativeMemory(*usage, duration));
         }
     };
-    addCumulativeMemoryStatistics("/user_job/max_memory", "/user_job/cumulative_max_memory");
-    addCumulativeMemoryStatistics("/user_job/memory_reserve", "/user_job/cumulative_memory_reserve");
-    addCumulativeMemoryStatistics("/job_proxy/max_memory", "/job_proxy/cumulative_max_memory");
+    addCumulativeMemoryStatistics("/user_job/max_memory"_SP, "/user_job/cumulative_max_memory"_SP);
+    addCumulativeMemoryStatistics("/user_job/memory_reserve"_SP, "/user_job/cumulative_memory_reserve"_SP);
+    addCumulativeMemoryStatistics("/job_proxy/max_memory"_SP, "/job_proxy/cumulative_max_memory"_SP);
 
     joblet->ControllerStatistics = std::move(controllerStatistics);
 

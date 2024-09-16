@@ -151,6 +151,7 @@ using namespace NContainers;
 using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
+using namespace NStatisticPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1066,32 +1067,32 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         statistics = std::move(extendedStatistics.Statstics);
 
         if (job->HasInputStatistics()) {
-            statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
-            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
+            statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
+            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
 
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
-            auto ypathIndex = ToYPathLiteral(index);
-            statistics.AddSample("/data/output/" + ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
-            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode/" + ypathIndex, &statistics);
+            auto ypathIndex = TStatisticPathLiteral(ToString(index));
+            statistics.AddSample("/data/output"_SP / ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
+            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.ChunkReaderStatistics);
-        DumpTimingStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.TimingStatistics);
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
+        DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
         if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
-            auto dumpPipeStatistics = [&] (const TYPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
-                statistics.AddSample(path + "/idle_time", pipeStatistics.ConnectionStatistics.IdleDuration);
-                statistics.AddSample(path + "/busy_time", pipeStatistics.ConnectionStatistics.BusyDuration);
-                statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
+            auto dumpPipeStatistics = [&] (const TStatisticPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
+                statistics.AddSample(path / "idle_time"_L, pipeStatistics.ConnectionStatistics.IdleDuration);
+                statistics.AddSample(path / "busy_time"_L, pipeStatistics.ConnectionStatistics.BusyDuration);
+                statistics.AddSample(path / "bytes"_L, pipeStatistics.Bytes);
             };
 
             if (job->HasInputStatistics()) {
-                dumpPipeStatistics("/user_job/pipes/input", *pipeStatistics->InputPipeStatistics);
+                dumpPipeStatistics("/user_job/pipes/input"_SP, *pipeStatistics->InputPipeStatistics);
             }
-            dumpPipeStatistics("/user_job/pipes/output/total", pipeStatistics->TotalOutputPipeStatistics);
+            dumpPipeStatistics("/user_job/pipes/output/total"_SP, pipeStatistics->TotalOutputPipeStatistics);
             for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, pipeStatistics->OutputPipeStatistics.size()); ++index) {
-                dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), pipeStatistics->OutputPipeStatistics[index]);
+                dumpPipeStatistics("/user_job/pipes/output"_SP / TStatisticPathLiteral(ToString(index)), pipeStatistics->OutputPipeStatistics[index]);
             }
         }
     }
@@ -1100,7 +1101,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto cpuStatistics = environment->GetCpuStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job_proxy/cpu", cpuStatistics);
+            statistics.AddSample("/job_proxy/cpu"_SP, cpuStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get CPU statistics from resource controller");
         }
@@ -1108,7 +1109,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto blockIOStatistics = environment->GetBlockIOStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
+            statistics.AddSample("/job_proxy/block_io"_SP, blockIOStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
         }
@@ -1121,34 +1122,34 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         RunNoExcept([&] {
             auto jobCpuStatistics = environment->GetJobCpuStatistics();
             if (jobCpuStatistics) {
-                statistics.AddSample("/job/cpu", *jobCpuStatistics);
+                statistics.AddSample("/job/cpu"_SP, *jobCpuStatistics);
             }
 
             auto jobMemoryStatistics = environment->GetJobMemoryStatistics();
             if (jobMemoryStatistics) {
-                statistics.AddSample("/job/memory", *jobMemoryStatistics);
+                statistics.AddSample("/job/memory"_SP, *jobMemoryStatistics);
             }
 
             auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics();
             if (jobBlockIOStatistics) {
-                statistics.AddSample("/job/block_io", *jobBlockIOStatistics);
+                statistics.AddSample("/job/block_io"_SP, *jobBlockIOStatistics);
             }
         });
     }
 
     if (JobProxyMaxMemoryUsage_ > 0) {
-        statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
+        statistics.AddSample("/job_proxy/max_memory"_SP, JobProxyMaxMemoryUsage_);
     }
 
     if (JobProxyMemoryReserve_ > 0) {
-        statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
+        statistics.AddSample("/job_proxy/memory_reserve"_SP, JobProxyMemoryReserve_);
     }
 
     if (CumulativeMemoryUsageMBSec_ > 0) {
-        statistics.AddSample("/job_proxy/cumulative_memory_mb_sec", CumulativeMemoryUsageMBSec_);
+        statistics.AddSample("/job_proxy/cumulative_memory_mb_sec"_SP, CumulativeMemoryUsageMBSec_);
     }
 
-    FillTrafficStatistics(JobProxyTrafficStatisticsPrefix, statistics, TrafficMeter_);
+    FillTrafficStatistics("/job_proxy"_SP, statistics, TrafficMeter_);
 
     CpuMonitor_->FillStatistics(statistics);
 

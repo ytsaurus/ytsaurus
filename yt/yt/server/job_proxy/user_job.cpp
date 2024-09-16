@@ -136,6 +136,7 @@ using namespace NYPath;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NUserJob;
+using namespace NStatisticPath;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
@@ -1335,15 +1336,15 @@ private:
     void AddCustomStatistics(const INodePtr& sample)
     {
         auto guard = Guard(StatisticsLock_);
-        CustomStatistics_.AddSample("/custom", sample);
+        CustomStatistics_.AddSample("custom"_L, sample);
 
         int customStatisticsCount = 0;
         for (const auto& [path, summary] : CustomStatistics_.Data()) {
-            if (HasPrefix(path, "/custom")) {
-                if (path.size() > MaxCustomStatisticsPathLength) {
+            if (path.StartsWith("custom"_L)) {
+                if (path.Path().size() > MaxCustomStatisticsPathLength) {
                     THROW_ERROR_EXCEPTION(
                         "Custom statistics path is too long: %v > %v",
-                        path.size(),
+                        path.Path().size(),
                         MaxCustomStatisticsPathLength);
                 }
                 ++customStatisticsCount;
@@ -1386,7 +1387,7 @@ private:
             if (auto dataStatistics = UserJobReadController_->GetDataStatistics()) {
                 result.TotalInputStatistics.DataStatistics = *dataStatistics;
             }
-            statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
+            statistics.AddSample("/data/input/not_fully_consumed"_SP, NotFullyConsumed_.load() ? 1 : 0);
             if (auto codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
                 result.TotalInputStatistics.CodecStatistics = *codecStatistics;
             }
@@ -1409,13 +1410,13 @@ private:
         // Job environment statistics.
         if (Prepared_) {
             if (auto userJobCpuStatistics = GetUserJobCpuStatistics()) {
-                statistics.AddSample("/user_job/cpu", *userJobCpuStatistics);
+                statistics.AddSample("/user_job/cpu"_SP, *userJobCpuStatistics);
             }
 
             try {
                 auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics()
                     .ValueOrThrow();
-                statistics.AddSample("/user_job/block_io", blockIOStatistics);
+                statistics.AddSample("/user_job/block_io"_SP, blockIOStatistics);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
@@ -1424,37 +1425,38 @@ private:
                 auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics()
                     .ValueOrThrow();
                 if (networkStatistics) {
-                    statistics.AddSample("/user_job/network", *networkStatistics);
+                    statistics.AddSample("/user_job/network"_SP, *networkStatistics);
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get network statistics for user job");
             }
 
-            statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
+            statistics.AddSample("/user_job/woodpecker"_SP, Woodpecker_ ? 1 : 0);
         }
 
         if (auto time = UserContainerFinalizationTime_.load()) {
-            statistics.AddSample("/user_job/finalization_time", time->MilliSeconds());
+            statistics.AddSample("/user_job/finalization_time"_SP, time->MilliSeconds());
         }
 
         try {
-            TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
+            TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to dump user job tmpfs statistics");
         }
 
         try {
-            MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job");
+            MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to dump user job memory usage statistics");
         }
 
         YT_VERIFY(UserJobSpec_.memory_limit() > 0);
-        statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
-        statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
+        statistics.AddSample("/user_job/memory_limit"_SP, UserJobSpec_.memory_limit());
+        statistics.AddSample("/user_job/memory_reserve"_SP, UserJobSpec_.memory_reserve());
 
+        // TODO(pavook) repeating calculation code?
         statistics.AddSample(
-            "/user_job/memory_reserve_factor_x10000",
+            "/user_job/memory_reserve_factor_x10000"_SP,
             static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
 
         // Pipe statistics.
@@ -1485,7 +1487,7 @@ private:
             result.PipeStatistics = pipeStatistics;
         }
 
-        statistics.AddSample("/user_job/profiler_failure_count", JobProfilerFailureCount_);
+        statistics.AddSample("/user_job/profiler_failure_count"_SP, JobProfilerFailureCount_);
 
         return result;
     }

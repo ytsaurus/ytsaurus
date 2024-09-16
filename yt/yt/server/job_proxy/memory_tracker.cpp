@@ -23,6 +23,7 @@ const static NLogging::TLogger Logger("MemoryTracker");
 const int CommandLineMaxLength = 1_KB;
 
 using namespace NTools;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,12 +52,12 @@ TMemoryTracker::TMemoryTracker(
     YT_VERIFY(Environment_);
 }
 
-void TMemoryTracker::DumpMemoryUsageStatistics(TStatistics* statistics, const TString& path)
+void TMemoryTracker::DumpMemoryUsageStatistics(TStatistics* statistics, const TStatisticPath& prefixPath)
 {
-    statistics->AddSample(Format("%v/current_memory", path), GetMemoryStatistics()->Total);
-    statistics->AddSample(Format("%v/max_memory", path), MaxMemoryUsage_);
-    statistics->AddSample(Format("%v/cumulative_memory_mb_sec", path), CumulativeMemoryUsageMBSec_);
-    statistics->AddSample(Format("%v/peak_resident_anon", path), PeakResidentAnon_);
+    statistics->AddSample(prefixPath / "current_memory"_L, GetMemoryStatistics()->Total);
+    statistics->AddSample(prefixPath / "max_memory"_L, MaxMemoryUsage_);
+    statistics->AddSample(prefixPath / "cumulative_memory_mb_sec"_L, CumulativeMemoryUsageMBSec_);
+    statistics->AddSample(prefixPath / "peak_resident_anon"_L, PeakResidentAnon_);
 }
 
 i64 TMemoryTracker::GetMemoryUsage()

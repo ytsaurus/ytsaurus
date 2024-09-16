@@ -63,12 +63,12 @@ void UpdateFromProto(
 
 void DumpChunkReaderStatistics(
     TStatistics* jobStatistics,
-    const TString& path,
+    const NStatisticPath::TStatisticPath& path,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr);
 
 void DumpTimingStatistics(
     TStatistics* jobStatistics,
-    const TString& path,
+    const NStatisticPath::TStatisticPath& path,
     const NTableClient::TTimingStatistics& timingStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////

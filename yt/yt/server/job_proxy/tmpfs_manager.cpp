@@ -7,6 +7,7 @@ namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
 using namespace NFS;
+using namespace NStatisticPath;
 
 const static NLogging::TLogger Logger("TmpfsManager");
 
@@ -27,7 +28,7 @@ TTmpfsManager::TTmpfsManager(TTmpfsManagerConfigPtr config)
 
 void TTmpfsManager::DumpTmpfsStatistics(
     TStatistics* statistics,
-    const TString& path) const
+    const TStatisticPath& prefixPath) const
 {
     auto tmpfsVolumesStatistics = GetTmpfsVolumeStatistics();
 
@@ -42,22 +43,25 @@ void TTmpfsManager::DumpTmpfsStatistics(
         aggregatedTmpfsUsage += volumeStatistics.Usage;
         aggregatedTmpfsLimit += volumeStatistics.Limit;
 
-        // COMPAT(ignat): size and max_size are misleading names.
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/size", path, index), volumeStatistics.Usage);
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/max_size", path, index), volumeStatistics.MaxUsage);
+        // TODO(pavook) maybe use prefixPath / "tmpfs" / "volume" / i?
+        const TStatisticPath volumePrefix = prefixPath / "tmpfs_volumes"_L / TStatisticPathLiteral(ToString(index));
 
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/usage", path, index), volumeStatistics.Usage);
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/max_usage", path, index), volumeStatistics.MaxUsage);
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/limit", path, index), volumeStatistics.Limit);
+        // COMPAT(ignat): size and max_size are misleading names.
+        statistics->AddSample(volumePrefix / "size"_L, volumeStatistics.Usage);
+        statistics->AddSample(volumePrefix / "max_size"_L, volumeStatistics.MaxUsage);
+
+        statistics->AddSample(volumePrefix / "usage"_L, volumeStatistics.Usage);
+        statistics->AddSample(volumePrefix / "max_usage"_L, volumeStatistics.MaxUsage);
+        statistics->AddSample(volumePrefix / "limit"_L, volumeStatistics.Limit);
     }
 
     // COMPAT(ignat): tmpfs_size and max_tmpfs_size are misleading names.
-    statistics->AddSample(Format("%v/tmpfs_size", path), aggregatedTmpfsUsage);
-    statistics->AddSample(Format("%v/max_tmpfs_size", path), MaxAggregatedTmpfsUsage_);
+    statistics->AddSample(prefixPath / "tmpfs_size"_L, aggregatedTmpfsUsage);
+    statistics->AddSample(prefixPath / "max_tmpfs_size"_L, MaxAggregatedTmpfsUsage_);
 
-    statistics->AddSample(Format("%v/tmpfs_usage", path), aggregatedTmpfsUsage);
-    statistics->AddSample(Format("%v/tmpfs_max_usage", path), MaxAggregatedTmpfsUsage_);
-    statistics->AddSample(Format("%v/tmpfs_limit", path), aggregatedTmpfsLimit);
+    statistics->AddSample(prefixPath / "tmpfs_usage"_L, aggregatedTmpfsUsage);
+    statistics->AddSample(prefixPath / "tmpfs_max_usage"_L, MaxAggregatedTmpfsUsage_);
+    statistics->AddSample(prefixPath / "tmpfs_limit"_L, aggregatedTmpfsLimit);
 }
 
 i64 TTmpfsManager::GetAggregatedTmpfsUsage() const
