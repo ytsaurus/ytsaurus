@@ -223,10 +223,9 @@ void TLocationMemoryGuard::DecreaseSize(i64 delta)
     Owner_->DecreaseUsedMemory(Direction_, Category_, delta);
 }
 
-i64 TLocationMemoryGuard::GetSize()
+i64 TLocationMemoryGuard::GetSize() const
 {
     return Size_;
-
 }
 
 TLocationMemoryGuard::operator bool() const

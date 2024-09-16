@@ -725,7 +725,7 @@ private:
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
-            YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
@@ -790,7 +790,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(
             context,
@@ -1005,7 +1005,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
@@ -1139,7 +1139,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1487,7 +1487,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);

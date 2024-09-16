@@ -40,9 +40,7 @@ public:
         TLockedChunkGuard lockedChunkGuard);
 
     i64 GetMemoryUsage() const override;
-
     i64 GetTotalSize() const override;
-
     i64 GetBlockCount() const override;
 
 private:
@@ -73,7 +71,7 @@ private:
     int WindowStartBlockIndex_ = 0;
     int WindowIndex_ = 0;
 
-    std::atomic<i64> Size_ = 0;
+    std::atomic<i64> TotalByteSize_ = 0;
     std::atomic<i64> BlockCount_ = 0;
     std::atomic<i64> MemoryUsage_ = 0;
 

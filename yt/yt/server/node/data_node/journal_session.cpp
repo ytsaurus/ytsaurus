@@ -60,19 +60,19 @@ void TJournalSession::DoCancel(const TError& /*error*/)
 
 i64 TJournalSession::GetMemoryUsage() const
 {
-    //TODO(don-dron): Calculate memory usage.
+    // TODO(don-dron): Calculate memory usage.
     return 0;
 }
 
 i64 TJournalSession::GetTotalSize() const
 {
-    //TODO(don-dron): Calculate size.
+    // TODO(don-dron): Calculate size.
     return 0;
 }
 
 i64 TJournalSession::GetBlockCount() const
 {
-    //TODO(don-dron): Calculate block count.
+    // TODO(don-dron): Calculate block count.
     return 0;
 }
 

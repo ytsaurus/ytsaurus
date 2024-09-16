@@ -117,7 +117,7 @@ public:
 
     void Release();
 
-    i64 GetSize();
+    i64 GetSize() const;
 
     void IncreaseSize(i64 delta);
     void DecreaseSize(i64 delta);
