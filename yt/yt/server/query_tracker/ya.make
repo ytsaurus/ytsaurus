@@ -36,7 +36,8 @@ PEERDIR(
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
-    
+    yt/yt/server/lib/state_checker
+
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
 

@@ -115,6 +115,58 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         """, [{"idx": 1, "sqr": 9}])
 
 
+class TestYqlAgentBan(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 1
+    YQL_AGENT_DYNAMIC_CONFIG = {"state_check_period": 2000}
+
+    def query_fails():
+        query = start_query("yql", 'select 1')
+        query.track()
+        return False
+
+    def query_completes():
+        query = start_query("yql", 'select 1')
+        try:
+            query.track()
+        except Exception:
+            return False
+        return True
+
+    @authors("mpereskokova")
+    def test_yql_agent_ban_on_new_queries(self, query_tracker, yql_agent):
+        address = yql_agent.yql_agent.addresses[0]
+        set(f"//sys/yql_agent/instances/{address}/@banned", True)
+
+        with raises_yt_error() as err:
+            wait(TestYqlAgentBan.query_fails)
+        assert err[0].contains_text("No alive peers found")
+
+        set(f"//sys/yql_agent/instances/{address}/@banned", False)
+
+        wait(TestYqlAgentBan.query_completes)
+
+    @authors("mpereskokova")
+    def test_yql_agent_ban_on_existing_queries(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        long_query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        wait(lambda: long_query.get()["state"] == "running")
+
+        address = yql_agent.yql_agent.addresses[0]
+        set(f"//sys/yql_agent/instances/{address}/@banned", True)
+
+        with raises_yt_error():
+            wait(TestYqlAgentBan.query_fails)
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+        long_query.track()
+
+
 class TestComplexQueriesYql(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
