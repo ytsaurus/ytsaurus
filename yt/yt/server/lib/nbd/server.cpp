@@ -240,9 +240,9 @@ private:
             try {
                 try {
                     DoHandshake();
-                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Success"}}), "/server/connection/handshaked").Increment(1);
+                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "success"}}), "/server/connection/handshaked").Increment(1);
                 } catch (const std::exception& ex) {
-                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Failure"}}), "/server/connection/handshaked").Increment(1);
+                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "failure"}}), "/server/connection/handshaked").Increment(1);
                     throw;
                 }
 
@@ -682,12 +682,12 @@ private:
     void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
     {
         if (!connectionOrError.IsOK()) {
-            TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Failure"}}), "/server/connection/accepted").Increment(1);
+            TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "failure"}}), "/server/connection/accepted").Increment(1);
             YT_LOG_INFO(connectionOrError, "Error accepting connection");
             return;
         }
 
-        TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "Success"}}), "/server/connection/accepted").Increment(1);
+        TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "success"}}), "/server/connection/accepted").Increment(1);
 
         AcceptConnection();
 
