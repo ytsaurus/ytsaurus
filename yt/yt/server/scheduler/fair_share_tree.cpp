@@ -2519,6 +2519,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
+            traceContext->AddTag("tree", TreeId_);
+        }
+
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
