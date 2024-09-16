@@ -83,6 +83,7 @@ using namespace NSecurityClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NTableClient;
+using namespace NStatisticPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -907,11 +908,11 @@ i64 CalculateDiskSpaceUsage(
 
 void DumpCodecStatistics(
     const TCodecStatistics& codecStatistics,
-    const NYPath::TYPath& path,
+    const TStatisticPath& path,
     TStatistics* statistics)
 {
     for (auto [codecId, duration] : codecStatistics.CodecToDuration()) {
-        statistics->AddSample(path + '/' + FormatEnum(codecId), duration);
+        statistics->AddSample(path / TStatisticPathLiteral(FormatEnum(codecId)), duration);
     }
 }
 

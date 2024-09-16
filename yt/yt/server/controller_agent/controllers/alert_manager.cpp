@@ -8,6 +8,8 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NConcurrency;
+using namespace NStatisticPath;
+
 using NScheduler::TUserJobSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +85,7 @@ private:
     THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
 
     void AnalyzeProcessingUnitUsage(
-        const std::vector<TString>& usageStatistics,
+        const std::vector<TStatisticPath>& usageStatistics,
         const std::vector<EJobState>& jobStates,
         const std::function<double(const TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(TDuration, double, i64, double)>& needSetAlert,
@@ -113,7 +115,7 @@ private:
                     ? Host_->GetAggregatedRunningJobStatistics()
                     : Host_->GetAggregatedFinishedJobStatistics();
                 auto summary = aggregatedStatistics
-                    .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
+                    .FindSummaryByJobStateAndType("/time/exec"_SP, jobState, taskName)
                     .value_or(NYT::TSummary());
                 totalExecutionTime += summary.GetSum();
                 jobCount += summary.GetCount();
@@ -192,7 +194,7 @@ private:
 
             for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
                 auto summary = Host_->GetAggregatedFinishedJobStatistics().FindSummaryByJobStateAndType(
-                    "/user_job/max_memory",
+                    "/user_job/max_memory"_SP,
                     jobState,
                     task->GetVertexDescriptor());
                 if (summary) {
@@ -389,7 +391,7 @@ private:
             i64 sum = 0;
             for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
                 sum += Host_->GetAggregatedFinishedJobStatistics().GetSumByJobStateAndType(
-                    "/time/total",
+                    "/time/total"_SP,
                     state,
                     FormatEnum(type));
             }
@@ -423,7 +425,7 @@ private:
 
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             auto value = Host_->GetAggregatedFinishedJobStatistics().GetSumByJobStateAndType(
-                "/user_job/woodpecker",
+                "/user_job/woodpecker"_SP,
                 EJobState::Completed,
                 FormatEnum(jobType));
 
@@ -538,7 +540,7 @@ private:
                 Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
 
             AnalyzeProcessingUnitUsage(
-                {"/user_job/gpu/cumulative_utilization_power"},
+                {"/user_job/gpu/cumulative_utilization_power"_SP},
                 Config_->LowGpuUsageAlertJobStates,
                 getGpuLimit,
                 needSetAlert,
@@ -559,7 +561,7 @@ private:
                 Config_->LowGpuUsageAlertGpuUtilizationSMThreshold * 100.0);
 
             AnalyzeProcessingUnitUsage(
-                {"/user_job/gpu/cumulative_sm_utilization"},
+                {"/user_job/gpu/cumulative_sm_utilization"_SP},
                 Config_->LowGpuUsageAlertJobStates,
                 getGpuLimit,
                 needSetAlert,
@@ -598,7 +600,7 @@ private:
                     ? Host_->GetAggregatedRunningJobStatistics()
                     : Host_->GetAggregatedFinishedJobStatistics();
                 auto summary = aggregatedStatistics
-                    .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
+                    .FindSummaryByJobStateAndType("/time/exec"_SP, jobState, taskName)
                     .value_or(NYT::TSummary());
                 totalExecutionTime += summary.GetSum();
                 jobCount += summary.GetCount();
@@ -613,7 +615,7 @@ private:
                 const auto& aggregatedStatistics = (jobState == EJobState::Running)
                     ? Host_->GetAggregatedRunningJobStatistics()
                     : Host_->GetAggregatedFinishedJobStatistics();
-                usage += aggregatedStatistics.GetSumByJobStateAndType("/user_job/gpu/cumulative_power", jobState, taskName);
+                usage += aggregatedStatistics.GetSumByJobStateAndType("/user_job/gpu/cumulative_power"_SP, jobState, taskName);
             }
 
             auto& records = descriptorToRecords[taskName];
@@ -671,7 +673,7 @@ private:
 
         for (auto jobType : Host_->GetSupportedJobTypesForJobsDurationAnalyzer()) {
             auto completedJobsSummary = Host_->GetAggregatedFinishedJobStatistics().FindSummaryByJobStateAndType(
-                "/time/total",
+                "/time/total"_SP,
                 EJobState::Completed,
                 FormatEnum(jobType));
 

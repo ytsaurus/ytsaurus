@@ -121,7 +121,9 @@ public:
         NTracing::TChildTraceContextGuard traceContextGuard(
             QueryContext_->TraceContext,
             "ClickHouseYt.PreparePipes");
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_subquery/read");
+
+        using namespace NStatisticPath;
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_subquery/read"_SP);
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 

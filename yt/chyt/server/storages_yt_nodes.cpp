@@ -296,8 +296,10 @@ public:
         size_t /*maxBlockSize*/,
         size_t /*numStreams*/) override
     {
+        using namespace NStatisticPath;
+
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_nodes_base/read");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_nodes_base/read"_SP);
         // const auto& Logger = queryContext->Logger;
         auto client = queryContext->Client();
 

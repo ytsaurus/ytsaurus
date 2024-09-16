@@ -1,6 +1,8 @@
 #include "cpu_monitor.h"
 #include "job_proxy.h"
 
+#include <yt/yt/core/misc/statistic_path.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NJobProxy {
@@ -37,15 +39,17 @@ TFuture<void> TCpuMonitor::Stop()
 
 void TCpuMonitor::FillStatistics(TStatistics& statistics) const
 {
-    if (SmoothedUsage_) {
-        statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100", static_cast<i64>(*SmoothedUsage_ * 100));
-        statistics.AddSample("/job_proxy/preemptible_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
+    using namespace NStatisticPath;
 
-        statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100", static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
-        statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100", static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
+    if (SmoothedUsage_) {
+        statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100"_SP, static_cast<i64>(*SmoothedUsage_ * 100));
+        statistics.AddSample("/job_proxy/preemptible_cpu_x100"_SP, static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
+
+        statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100"_SP, static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
+        statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100"_SP, static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
         const auto preemptibleCpu = static_cast<i64>(AggregatedPreemptibleCpu_ * 100);
-        statistics.AddSample("/job_proxy/aggregated_preemptible_cpu_x100", preemptibleCpu);
-        statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100", Config_->EnableCpuReclaim ? preemptibleCpu : 0);
+        statistics.AddSample("/job_proxy/aggregated_preemptible_cpu_x100"_SP, preemptibleCpu);
+        statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100"_SP, Config_->EnableCpuReclaim ? preemptibleCpu : 0);
     }
 }
 

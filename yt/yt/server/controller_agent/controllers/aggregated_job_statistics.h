@@ -36,12 +36,12 @@ public:
     i64 CalculateCustomStatisticsCount() const;
 
     i64 GetSumByJobStateAndType(
-        const TString& statisticPath,
+        const NStatisticPath::TStatisticPath& statisticPath,
         EJobState jobState,
         const TString& jobType) const;
 
     std::optional<TSummary> FindSummaryByJobStateAndType(
-        const TString& statisticPath,
+        const NStatisticPath::TStatisticPath& statisticPath,
         EJobState state,
         const TString& taskName) const;
 

@@ -28,6 +28,8 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NStatisticPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIntermediateChunkScraperConfig::Register(TRegistrar registrar)
@@ -137,10 +139,10 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cpu_usage_alert_statistics", &TThis::LowCpuUsageAlertStatistics)
         .Default({
-            "/job_proxy/cpu/system",
-            "/job_proxy/cpu/user",
-            "/user_job/cpu/system",
-            "/user_job/cpu/user"
+            "/job_proxy/cpu/system"_SP,
+            "/job_proxy/cpu/user"_SP,
+            "/user_job/cpu/system"_SP,
+            "/user_job/cpu/user"_SP,
         });
 
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
@@ -157,7 +159,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("high_cpu_wait_alert_statistics", &TThis::HighCpuWaitAlertStatistics)
         .Default({
-            "/user_job/cpu/wait",
+            "/user_job/cpu/wait"_SP,
         });
 
     registrar.Parameter("high_cpu_wait_alert_job_states", &TThis::HighCpuWaitAlertJobStates)
@@ -193,7 +195,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_statistics", &TThis::LowGpuUsageAlertStatistics)
         .Default({
-            "/user_job/gpu/cumulative_utilization_gpu",
+            "/user_job/gpu/cumulative_utilization_gpu"_SP,
         });
 
     registrar.Parameter("low_gpu_usage_alert_job_states", &TThis::LowGpuUsageAlertJobStates)

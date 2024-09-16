@@ -27,6 +27,7 @@ namespace NYT::NClickHouseServer {
 using namespace NYPath;
 using namespace NYTree;
 using namespace NApi;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +47,8 @@ public:
         auto* queryContext = GetQueryContext(context);
 
         auto timerGuard = queryContext->CreateStatisticsTimerGuard(
-            Format("/%v_database/get_tables_iterator", to_lower(TString(getDatabaseName()))));
+            SlashedStatisticPath(
+                Format("/%v_database/get_tables_iterator", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
         DB::Tables resultingTargets;
 

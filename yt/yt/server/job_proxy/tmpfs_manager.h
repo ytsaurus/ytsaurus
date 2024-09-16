@@ -16,7 +16,7 @@ public:
 
     void DumpTmpfsStatistics(
         TStatistics* statistcs,
-        const TString& path) const;
+        const NStatisticPath::TStatisticPath& path) const;
 
     //! Returns space used in tmpfs volumes.
     i64 GetAggregatedTmpfsUsage() const;

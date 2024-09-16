@@ -243,7 +243,7 @@ i64 CalculateDiskSpaceUsage(
 
 void DumpCodecStatistics(
     const TCodecStatistics& codecStatistics,
-    const NYPath::TYPath& path,
+    const NStatisticPath::TStatisticPath& path,
     TStatistics* statistics);
 
 ////////////////////////////////////////////////////////////////////////////////

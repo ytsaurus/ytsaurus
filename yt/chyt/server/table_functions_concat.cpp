@@ -42,6 +42,7 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NStatisticPath;
 
 using namespace DB;
 
@@ -162,7 +163,7 @@ private:
     StoragePtr Execute(ContextPtr context) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/concat_yt_tables/execute");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/concat_yt_tables/execute"_SP);
 
         auto tables = FetchTables(
             queryContext,
@@ -242,7 +243,7 @@ private:
     StoragePtr Execute(ContextPtr context) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/list_and_concat_yt_tables/execute");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/list_and_concat_yt_tables/execute"_SP);
         const auto& Logger = queryContext->Logger;
 
         YT_LOG_INFO("Listing directory (Path: %v)", Directory_);
