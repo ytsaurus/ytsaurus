@@ -8,7 +8,7 @@ from .conftest import authors
 import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.wrapper import respawn_in_docker
-from yt.wrapper.py_wrapper import DockerRespawner
+from yt.wrapper.py_wrapper import DockerRespawner, _INHERIT_SYS_ARGV
 
 
 @authors("denvr")
@@ -104,7 +104,7 @@ def test_docker_respawner_cli_args(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["some_script.py", "cli_param"])
     respawner = DockerRespawner(
         image="some_image",
-        cli_args=None,
+        cli_args=_INHERIT_SYS_ARGV,
         target_platform="arm64",
         docker="docker_test",
         python="python3",

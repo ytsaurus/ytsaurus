@@ -45,6 +45,7 @@ OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 SINGLE_INDEPENDENT_BINARY_CASE = None
 
 YT_RESPOWNED_IN_CONTAINER_KEY = "YT_RESPAWNED_IN_CONTAINER"
+_INHERIT_SYS_ARGV = object()
 
 
 class TarInfo(tarfile.TarInfo):
@@ -803,7 +804,7 @@ class DockerRespawner:
             target_platform,
             docker,
             python,
-            cli_args=None,
+            cli_args=_INHERIT_SYS_ARGV,
             env=None,
             main_scipt_path=None,
             cwd=None,
@@ -818,7 +819,7 @@ class DockerRespawner:
         self._python = python
         self._env = env
         self._cli_args = cli_args
-        if self._cli_args is None:
+        if self._cli_args is _INHERIT_SYS_ARGV:
             self._cli_args = sys.argv[1:]
         if self._env is None:
             # By default, we forward only YT-specific variables.
@@ -933,7 +934,7 @@ def respawn_in_docker(
         target_platform=None,
         docker="docker",
         python="python3",
-        cli_args=None,
+        cli_args=_INHERIT_SYS_ARGV,
         env=None,
         mount=None,
         need_sudo=False,
@@ -949,7 +950,7 @@ def respawn_in_docker(
         :param Optional[str] target_platform: target platform for the docker container
         :param str docker: local docker executable name/path
         :param str python: python executable name/path in docker
-        :param Optional[list[str]] cli_args: command line args
+        :param Union[_INHERIT_SYS_ARGV, list[str]] cli_args: command line args, sys.argv[1:] by default
         :param Optional[dict] env: environment variables to pass to the docker container
         If not set it will use global variables with the YT_ prefix
         :param Optional[list[str]] mount: mount points for the docker container
