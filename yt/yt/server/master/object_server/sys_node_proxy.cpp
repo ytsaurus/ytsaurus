@@ -91,7 +91,6 @@ private:
 
     void ValidateCustomAttributeUpdate(
         const TString& key,
-        const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
         auto internedKey = TInternedAttributeKey::Lookup(key);
@@ -115,7 +114,7 @@ private:
                 break;
         }
 
-        return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+        return TBase::ValidateCustomAttributeUpdate(key, newValue);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override

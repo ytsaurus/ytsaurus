@@ -76,23 +76,16 @@ private:
 
     void ValidateCustomAttributeUpdate(
         const TString& key,
-        const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
         auto internedKey = TInternedAttributeKey::Lookup(key);
 
         switch (internedKey) {
             case EInternedAttributeKey::Executable:
-                if (!newValue) {
-                    break;
-                }
                 ConvertTo<bool>(newValue);
                 return;
 
             case EInternedAttributeKey::FileName:
-                if (!newValue) {
-                    break;
-                }
                 ConvertTo<TString>(newValue);
                 return;
 
@@ -100,7 +93,7 @@ private:
                 break;
         }
 
-        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+        TBase::ValidateCustomAttributeUpdate(key, newValue);
     }
 
     void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
