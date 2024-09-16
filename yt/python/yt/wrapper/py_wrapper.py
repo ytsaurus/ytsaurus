@@ -803,7 +803,7 @@ class DockerRespawner:
             target_platform,
             docker,
             python,
-            argv=None,
+            cli_args=None,
             env=None,
             main_scipt_path=None,
             cwd=None,
@@ -817,9 +817,9 @@ class DockerRespawner:
         self._docker = docker
         self._python = python
         self._env = env
-        self._argv = argv
-        if self._argv is None:
-            self._argv = sys.argv[1:]
+        self._cli_args = cli_args
+        if self._cli_args is None:
+            self._cli_args = sys.argv[1:]
         if self._env is None:
             # By default, we forward only YT-specific variables.
             self._env = {
@@ -906,7 +906,7 @@ class DockerRespawner:
             *docker_env_args,
             *docker_mount_args,
             self._image,
-            self._python, self._main_script_path, *self._argv,
+            self._python, self._main_script_path, *self._cli_args,
         ]
         command = [
             shlex.quote(c)
@@ -930,10 +930,10 @@ class DockerRespawner:
 
 def respawn_in_docker(
         image,
-        argv=None,
         target_platform=None,
         docker="docker",
         python="python3",
+        cli_args=None,
         env=None,
         mount=None,
         need_sudo=False,
@@ -946,10 +946,10 @@ def respawn_in_docker(
 
     Args:
         :param str image: docker image (same format as in the operation's spec)
-        :param Optional[list[str]] argv: command line args
         :param Optional[str] target_platform: target platform for the docker container
         :param str docker: local docker executable name/path
         :param str python: python executable name/path in docker
+        :param Optional[list[str]] cli_args: command line args
         :param Optional[dict] env: environment variables to pass to the docker container
         If not set it will use global variables with the YT_ prefix
         :param Optional[list[str]] mount: mount points for the docker container
@@ -977,7 +977,7 @@ def respawn_in_docker(
                 return func(*args, **kwargs)
             respawner = DockerRespawner(
                 image=image,
-                argv=argv,
+                cli_args=cli_args,
                 target_platform=target_platform,
                 docker=docker,
                 env=env,

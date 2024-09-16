@@ -20,7 +20,7 @@ def test_docker_respawner(monkeypatch):
     monkeypatch.setenv("SOME_KEY", "SOME_VALUE")
     respawner = DockerRespawner(
         image="some_image",
-        argv=[],
+        cli_args=[],
         target_platform="arm64",
         docker="docker_test",
         python="/custom/docker/python/path",
@@ -62,7 +62,7 @@ def test_docker_respawner(monkeypatch):
 def test_docker_respawner_user_overrides():
     respawner = DockerRespawner(
         image="some_image",
-        argv=["cli_arg"],
+        cli_args=["cli_arg"],
         target_platform="arm64",
         docker="docker_test",
         python="python3",
@@ -100,11 +100,11 @@ def test_docker_respawner_user_overrides():
 
 
 @authors("denvr")
-def test_docker_respawner_argv(monkeypatch):
+def test_docker_respawner_cli_args(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["some_script.py", "cli_param"])
     respawner = DockerRespawner(
         image="some_image",
-        argv=None,
+        cli_args=None,
         target_platform="arm64",
         docker="docker_test",
         python="python3",
@@ -147,7 +147,7 @@ def test_docker_respawner_with_sudo():
     assert respawner_withour_sudo.make_command()[0] != "sudo"
     respawner_with_sudo = DockerRespawner(
         image="some_image",
-        argv=[],
+        cli_args=[],
         target_platform="arm64",
         docker="docker_test",
         python="python3",
@@ -165,7 +165,7 @@ def test_docker_respawner_with_sudo():
 def test_docker_respawner_escaping():
     respawner_withour_sudo = DockerRespawner(
         image="some image",
-        argv=["a", "b v"],
+        cli_args=["a", "b v"],
         target_platform="arm 64",
         docker="docker test",
         python="python\n3",
