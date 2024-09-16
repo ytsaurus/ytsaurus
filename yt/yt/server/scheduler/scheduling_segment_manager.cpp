@@ -1146,8 +1146,8 @@ void TSchedulingSegmentManager::GetMovableNodes(
 
             YT_LOG_DEBUG(
                 "Considering node for scheduling segment rebalancing "
-                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, "
-                "MovePenalty: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
+                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, MovePenalty: %v, "
+                "RunningAllocationIds: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
                 "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
                 nodeId,
                 node.Descriptor->Address,
@@ -1155,6 +1155,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
                 node.SpecifiedSchedulingSegment,
                 GetNodeModule(node),
                 GetMovePenaltyForNode(node, Config_->Mode),
+                GetKeys(node.RunningAllocations),
                 node.RunningAllocationStatistics,
                 CpuInstantToInstant(node.LastRunningAllocationStatisticsUpdateTime.value_or(0)),
                 getNodeMovableIndex(nodeId),

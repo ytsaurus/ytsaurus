@@ -280,6 +280,9 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic(self):
+        # A little hack to disable preemptible jobs. These are tested below.
+        set("//sys/pool_trees/default/large_gpu/@non_preemptible_resource_usage_threshold", {"user_slots": 9})
+
         blocking_op1 = run_sleeping_vanilla(
             job_count=9,
             spec={"pool": "large_gpu"},
@@ -876,9 +879,9 @@ class TestSchedulingSegments(YTEnvSetup):
     def test_manual_move_node_from_segment_and_back(self):
         node = list(ls("//sys/cluster_nodes"))[0]
         set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "large_gpu")
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "large_gpu")
         set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "default")
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "default")
 
     @authors("eshcherbin")
     def test_freeze_node_segment(self):
@@ -900,20 +903,20 @@ class TestSchedulingSegments(YTEnvSetup):
         assert are_almost_equal(self._get_usage_ratio(op.id), 0.0)
 
         node = list(ls("//sys/cluster_nodes"))[0]
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "large_gpu")
         set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "default")
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "default")
 
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
         op.complete()
         time.sleep(3.0)
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "default")
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.9))
 
         remove("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node))
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "large_gpu")
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
     @authors("eshcherbin")
@@ -1087,7 +1090,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def _get_operation_module(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op.id, tree) + "/scheduling_segment_module", default=None)
 
-    def _setup_node_modules(self, module_per_node):
+    def _setup_node_modules(self, node_count_per_module):
         raise NotImplementedError()
 
     def _get_module_type(self):
