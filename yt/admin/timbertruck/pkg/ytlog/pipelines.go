@@ -73,9 +73,41 @@ func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		batched = pipelines.Apply(options.AntisecretTransform, batched)
 	}
 
-	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, tskv []byte, emit pipelines.EmitFunc[pipelines.Row]) {
+	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, value []byte, emit pipelines.EmitFunc[pipelines.Row]) {
 		emit(ctx, meta, pipelines.Row{
-			Payload: []byte(tskv),
+			Payload: value,
+			SeqNo:   meta.End.LogicalOffset,
+		})
+		task.Controller.NotifyProgress(meta.End)
+	}, batched)
+
+	pipelines.ApplyOutput(output, rows)
+	return
+}
+
+type YSONLogPipelineOptions struct {
+	AntisecretTransform pipelines.Transform[[]byte, []byte]
+}
+
+func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipelines.Row], options YSONLogPipelineOptions) (p *pipelines.Pipeline, err error) {
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Path, task.Position, pipelines.TextPipelineOptions{
+		LineLimit:   TextFileLineLimit,
+		BufferLimit: TextFileBufferLimit,
+	})
+	if err != nil {
+		return
+	}
+
+	lines := pipelines.Apply(pipelines.NewDiscardTruncatedLinesTransform(task.Controller.Logger()), lineInfos)
+	lines = pipelines.Apply(NewValidateYSONTransform(task.Controller.Logger()), lines)
+	batched := pipelines.Apply(NewBatchLinesTransform(QueueBatchSize), lines)
+	if options.AntisecretTransform != nil {
+		batched = pipelines.Apply(options.AntisecretTransform, batched)
+	}
+
+	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, value []byte, emit pipelines.EmitFunc[pipelines.Row]) {
+		emit(ctx, meta, pipelines.Row{
+			Payload: value,
 			SeqNo:   meta.End.LogicalOffset,
 		})
 		task.Controller.NotifyProgress(meta.End)
