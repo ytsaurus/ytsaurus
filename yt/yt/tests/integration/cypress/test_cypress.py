@@ -3957,6 +3957,8 @@ class TestCypress(YTEnvSetup):
         assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
         set("//sys/@cluster_connection", yson.YsonEntity())
         assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
+        remove("//sys/@cluster_connection")
+        assert not exists("//sys/@cluster_connection")
 
     @authors("kvk1920")
     @not_implemented_in_sequoia
@@ -3967,6 +3969,8 @@ class TestCypress(YTEnvSetup):
         assert "a" * 128 == get("//sys/@cluster_name")
         with raises_yt_error("ASCII"):
             set("//sys/@cluster_name", "кириллица")
+        remove("//sys/@cluster_name")
+        assert not exists("//sys/@cluster_name")
 
     @authors("h0pless")
     @not_implemented_in_sequoia
