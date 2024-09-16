@@ -1329,6 +1329,7 @@ def get_allocation_id_from_job_id(job_id):
 
 class Operation(object):
     def __init__(self, driver=None):
+        self.id = None
         self._tmpdir = ""
         self._poll_frequency = 0.1
         self._driver = driver
