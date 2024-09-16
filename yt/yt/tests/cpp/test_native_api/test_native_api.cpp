@@ -8,6 +8,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -47,6 +50,7 @@ namespace NCppTests {
 namespace {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -936,8 +940,7 @@ TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
     };
 
     auto flush = [] {
-        SyncUnmountTable(Table_);
-        SyncMountTable(Table_);
+        SyncFlushTable(Table_);
         return GenerateTimestamp();
     };
 
@@ -1065,6 +1068,128 @@ TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
     ASSERT_FALSE(orderedStores[3].IsOK());
 
     SyncUnfreezeTable(Table_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFetchHunkChunkSpecsTest
+    : public TDynamicTablesTestBase
+{
+public:
+    std::vector<TChunkId> GetHunkChunkIds(TTabletId tabletId)
+    {
+        auto hunkChunkIdsResponse = WaitFor(Client_->GetNode(FromObjectId(tabletId) + "/orchid/hunk_chunks"))
+            .ValueOrThrow();
+        auto hunkChunkIdsAsStrings = ConvertTo<IMapNodePtr>(hunkChunkIdsResponse)->GetKeys();
+        return ConvertTo<std::vector<TChunkId>>(hunkChunkIdsAsStrings);
+    }
+
+    void UpdateHunkChunkIds(TTabletId tabletId, std::vector<TChunkId>* hunkChunkIds)
+    {
+        auto newHunkChunkIds = GetHunkChunkIds(tabletId);
+        auto hunkChunkIdsSet = THashSet<TChunkId>(hunkChunkIds->begin(), hunkChunkIds->end());
+        for (auto hunkChunkId : newHunkChunkIds) {
+            if (!hunkChunkIdsSet.contains(hunkChunkId)) {
+                hunkChunkIds->push_back(hunkChunkId);
+            }
+        }
+    }
+
+    auto FetchHunkChunkSpecs(
+        TTableId tableId,
+        std::vector<NChunkClient::TReadRange>&& ranges,
+        std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr&)> prepareRequest)
+    {
+        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(tableId));
+        req->set_chunk_list_content_type(static_cast<int>(EChunkListContentType::Hunk));
+        req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+        ToProto(req->mutable_ranges(), std::move(ranges));
+        prepareRequest(req);
+        auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+        auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+        auto fetchResponse = WaitFor(proxy.Execute(req)).ValueOrThrow();
+        return fetchResponse->chunks();
+    }
+};
+
+TEST_F(TFetchHunkChunkSpecsTest, Simple)
+{
+    CreateTable(
+        "//tmp/test_fetch_hunk_chunk_specs", // tablePath
+        "[" // schema
+        "{name=k1;type=int64;sort_order=ascending};"
+        "{name=v1;type=string;max_inline_hunk_size=1}]");
+
+    WaitFor(Client_->SetNode(Table_ + "/@mount_config/enable_compaction_and_partitioning",  ConvertToYsonString(false)))
+        .ThrowOnError();
+
+    SyncUnmountTable(Table_);
+    SyncMountTable(Table_);
+
+    auto tableIdResponse = WaitFor(Client_->GetNode(Table_ + "/@id"))
+        .ValueOrThrow();
+    auto tableId = ConvertTo<TTableId>(tableIdResponse);
+
+    auto tabletIdResponse = WaitFor(Client_->GetNode(Table_ + "/@tablets/0/tablet_id"))
+        .ValueOrThrow();
+    auto tabletId = ConvertTo<TTabletId>(tabletIdResponse);
+
+    constexpr int HunkCount = 3;
+    std::vector<TChunkId> hunkChunkIds;
+    for (int index = 0; index < HunkCount; ++index) {
+        WriteUnversionedRow(
+            {"k1", "v1"},
+            Format("<id=0> %v; <id=1;ts=%v> PP%v", index, index + 1, index) + "HunkValueHunkValueHunkValue;");
+
+        SyncFlushTable(Table_);
+
+        UpdateHunkChunkIds(tabletId, &hunkChunkIds);
+    }
+
+    EXPECT_EQ(std::ssize(hunkChunkIds), HunkCount);
+
+    auto tabletCountResponse = WaitFor(Client_->GetNode(Table_ + "/@tablet_count"))
+        .ValueOrThrow();
+    auto tabletCount = ConvertTo<int>(tabletCountResponse);
+    ASSERT_EQ(tabletCount, 1);
+
+    {
+        auto hunkChunkSpecs = FetchHunkChunkSpecs(
+            tableId,
+            std::vector<NChunkClient::TReadRange>{TReadRange()},
+            [] (TChunkOwnerYPathProxy::TReqFetchPtr& /*req*/) {});
+
+        EXPECT_EQ(std::ssize(hunkChunkSpecs), HunkCount);
+        auto hunkChunkIdsSet = THashSet<TChunkId>(hunkChunkIds.begin(), hunkChunkIds.end());
+        for (const auto& chunkSpec : hunkChunkSpecs) {
+            auto hunkChunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            EXPECT_TRUE(hunkChunkIdsSet.contains(hunkChunkId));
+            auto inputChunk = New<TInputChunk>(chunkSpec);
+            EXPECT_EQ(inputChunk->GetChunkFormat(), EChunkFormat::HunkDefault);
+            EXPECT_EQ(FromProto<EChunkType>(chunkSpec.chunk_meta().type()), EChunkType::Hunk);
+        }
+    }
+
+    constexpr int RequestedHunkCount = 2;
+    for (int shift = 0; shift <= 1; ++shift) {
+        YT_VERIFY(shift + RequestedHunkCount <= HunkCount);
+        auto range = TReadRange();
+        range.LowerLimit().SetChunkIndex(shift);
+        range.UpperLimit().SetChunkIndex(shift + RequestedHunkCount);
+        auto hunkChunkSpecs = FetchHunkChunkSpecs(
+            tableId,
+            std::vector<NChunkClient::TReadRange>{range},
+            [](TChunkOwnerYPathProxy::TReqFetchPtr& /*req*/) {});
+
+        EXPECT_EQ(std::ssize(hunkChunkSpecs), RequestedHunkCount);
+        auto hunkChunkIdsSet = THashSet<TChunkId>(
+            hunkChunkIds.begin() + shift,
+            hunkChunkIds.begin() + shift + RequestedHunkCount);
+        for (const auto& chunkSpec : hunkChunkSpecs) {
+            auto hunkChunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            EXPECT_TRUE(hunkChunkIdsSet.contains(hunkChunkId));
+        }
+    }
 }
 
 
