@@ -61,16 +61,16 @@ TSessionManager::TSessionManager(
 
 void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
 {
-    THashMap<TSessionId, ISessionPtr> sessionMap;
+    THashMap<TSessionId, ISessionPtr> idToSession;
     {
         auto guard = ReaderGuard(SessionMapLock_);
-        sessionMap = SessionMap_;
+        idToSession = SessionMap_;
     }
 
-    THashMap<TSessionId, TStoreLocationPtr> sessionIdToLocations;
+    THashMap<TSessionId, TStoreLocationPtr> sessionIdToLocation;
 
-    for (const auto& [id, session] : sessionMap) {
-        EmplaceOrCrash(sessionIdToLocations, session->GetId(), session->GetStoreLocation());
+    for (const auto& [id, session] : idToSession) {
+        EmplaceOrCrash(sessionIdToLocation, session->GetId(), session->GetStoreLocation());
     }
 
     BuildYsonFluently(consumer)
@@ -78,11 +78,11 @@ void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
             .Item("sessions")
             .BeginMap()
             .DoFor(
-                sessionMap.begin(),
-                sessionMap.end(),
+                idToSession.begin(),
+                idToSession.end(),
                 [&] (TFluentMap fluent, const auto& idToSession) {
                     const auto& session = idToSession->second;
-                    const auto& location = GetOrCrash(sessionIdToLocations, session->GetId());
+                    const auto& location = GetOrCrash(sessionIdToLocation, session->GetId());
 
                     fluent
                         .Item(ToString(session->GetId()))
@@ -99,7 +99,7 @@ void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
                         .EndMap();
                 })
             .EndMap()
-            .Item("session_count").Value(sessionMap.size())
+            .Item("session_count").Value(idToSession.size())
         .EndMap();
 }
 
