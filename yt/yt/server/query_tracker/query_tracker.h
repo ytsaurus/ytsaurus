@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/state_checker/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/client.h>
@@ -34,6 +36,7 @@ IQueryTrackerPtr CreateQueryTracker(
     IInvokerPtr controlInvoker,
     NAlertManager::IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
+    NStateChecker::TStateCheckerPtr stateChecker,
     NYPath::TYPath stateRoot,
     int minRequiredStateVersion);
 

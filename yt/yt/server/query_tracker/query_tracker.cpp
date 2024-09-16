@@ -8,6 +8,8 @@
 #include "mock_engine.h"
 #include "spyt_engine.h"
 
+#include <yt/yt/server/lib/state_checker/state_checker.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -48,6 +50,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NRecords;
+using namespace NStateChecker;
 using namespace NTableClient;
 using namespace NLogging;
 using namespace NTransactionClient;
@@ -71,12 +74,14 @@ public:
         IInvokerPtr controlInvoker,
         IAlertCollectorPtr alertCollector,
         NApi::NNative::IClientPtr stateClient,
+        TStateCheckerPtr stateChecker,
         TYPath stateRoot,
         int minRequiredStateVersion)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
         , AlertCollector_(std::move(alertCollector))
         , StateClient_(std::move(stateClient))
+        , StateChecker_(std::move(stateChecker))
         , StateRoot_(std::move(stateRoot))
         , MinRequiredStateVersion_(minRequiredStateVersion)
         , AcquisitionExecutor_(New<TPeriodicExecutor>(
@@ -120,6 +125,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IAlertCollectorPtr AlertCollector_;
     const NApi::NNative::IClientPtr StateClient_;
+    const TStateCheckerPtr StateChecker_;
     const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
 
@@ -182,6 +188,11 @@ private:
 
         if (!LeaseTransaction_) {
             YT_LOG_DEBUG("Skip active queries acquisition, since lease transaction is not started");
+            return;
+        }
+
+        if (StateChecker_->IsComponentBanned()) {
+            YT_LOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
             return;
         }
 
@@ -756,6 +767,7 @@ IQueryTrackerPtr CreateQueryTracker(
     IInvokerPtr controlInvoker,
     IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
+    TStateCheckerPtr stateChecker,
     TYPath stateRoot,
     int minRequiredStateVersion)
 {
@@ -765,6 +777,7 @@ IQueryTrackerPtr CreateQueryTracker(
         std::move(controlInvoker),
         std::move(alertCollector),
         std::move(stateClient),
+        std::move(stateChecker),
         std::move(stateRoot),
         minRequiredStateVersion);
 }

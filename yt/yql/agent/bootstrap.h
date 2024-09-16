@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_election/public.h>
 
+#include <yt/yt/server/lib/state_checker/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
@@ -51,6 +53,8 @@ private:
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
+
+    NStateChecker::TStateCheckerPtr StateChecker_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
