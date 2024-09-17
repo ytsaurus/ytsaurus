@@ -1945,8 +1945,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     DeclareNonMutating();
 
     bool fetchLastKey = request->fetch_last_key();
+    bool fetchHunkChunkListIds = request->fetch_hunk_chunk_list_ids();
 
-    context->SetRequestInfo("FetchLastKey: %v", fetchLastKey);
+    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListIds: %v", fetchLastKey, fetchHunkChunkListIds);
 
     ValidateNotExternal();
     ValidateInUpdate();
@@ -2008,6 +2009,24 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                 chunkList->GetId(),
                 chunkList->GetKind());
+    }
+
+    if (fetchHunkChunkListIds) {
+        auto* hunkChunkList = node->GetHunkChunkList();
+        if (!hunkChunkList) {
+            THROW_ERROR_EXCEPTION("Requested hunk chunk list ids when there is no root hunk chunk list");
+        }
+
+        for (auto* tabletList : hunkChunkList->Children()) {
+            auto chunkListKind = tabletList->AsChunkList()->GetKind();
+            if (chunkListKind != EChunkListKind::Hunk) {
+                THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv when %Qv expected",
+                    tabletList->GetId(),
+                    chunkListKind,
+                    EChunkListKind::Hunk);
+            }
+            ToProto(response->add_tablet_hunk_chunk_list_ids(), tabletList->GetId());
+        }
     }
 
     response->set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
