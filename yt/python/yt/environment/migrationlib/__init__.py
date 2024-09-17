@@ -81,8 +81,13 @@ class TableInfo(object):
     """
 
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None,
-                 default_lock=None, optimize_for="scan", attributes={}):
-        def make_column(name, type_name, attributes={}, key=False):
+                 default_lock=None, optimize_for="scan", attributes=None):
+        if attributes is None:
+            attributes = dict()
+
+        def make_column(name, type_name, attributes=None, key=False):
+            if attributes is None:
+                attributes = dict()
             result = {
                 "name": name,
                 "type": type_name,
