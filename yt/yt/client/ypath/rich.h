@@ -2,15 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/client/chunk_client/read_limit.h>
-
-#include <yt/yt/client/security_client/public.h>
-
-#include <yt/yt/client/table_client/column_sort_schema.h>
-#include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/client/transaction_client/public.h>
-
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/attributes.h>
@@ -18,6 +9,15 @@
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/library/erasure/public.h>
+
+#include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/client/chunk_client/read_limit.h>
+
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 namespace NYT::NYPath {
 
@@ -166,9 +166,6 @@ public:
 
     // "create"
     bool GetCreate() const;
-
-    // "versioned_read_options"
-    NTableClient::TVersionedReadOptions GetVersionedReadOptions() const;
 
 private:
     TYPath Path_;

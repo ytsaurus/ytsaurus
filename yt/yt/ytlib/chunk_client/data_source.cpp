@@ -12,7 +12,6 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NTableClient;
@@ -106,8 +105,6 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     if (!IsLocal(dataSource.GetClusterName())) {
         ToProto(protoDataSource->mutable_cluster_name(), dataSource.GetClusterName());
     }
-
-    ToProto(protoDataSource->mutable_versioned_read_options(), dataSource.GetVersionedReadOptions());
 }
 
 void FromProto(
@@ -177,10 +174,6 @@ void FromProto(
 
     if (protoDataSource.has_cluster_name()) {
         dataSource->SetClusterName(NScheduler::TClusterName(protoDataSource.cluster_name()));
-    }
-
-    if (protoDataSource.has_versioned_read_options()) {
-        dataSource->SetVersionedReadOptions(FromProto<TVersionedReadOptions>(protoDataSource.versioned_read_options()));
     }
 }
 

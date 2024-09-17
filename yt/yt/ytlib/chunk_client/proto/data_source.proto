@@ -1,7 +1,6 @@
 package NYT.NChunkClient.NProto;
 
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
-import "yt_proto/yt/client/table_client/proto/versioned_io_options.proto";
 import "yt/ytlib/table_client/proto/virtual_value_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,8 +33,6 @@ message TDataSource
     optional string account = 17;
 
     optional string cluster_name = 18;
-
-    optional NYT.NTableClient.NProto.TVersionedReadOptions versioned_read_options = 19;
 
     reserved 5, 6;
 }
