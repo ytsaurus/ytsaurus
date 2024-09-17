@@ -76,7 +76,7 @@ public:
 private:
     using TBase = TCellTypeHandlerBase<TChaosCell>;
 
-    TString DoGetName(const TChaosCell* cell) override
+    std::string DoGetName(const TChaosCell* cell) override
     {
         return Format("chaos cell %v", cell->GetId());
     }
