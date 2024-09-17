@@ -539,7 +539,10 @@ TJobletPtr TVanillaController::CreateJoblet(
 void TVanillaController::ValidateOperationLimits()
 {
     if (std::ssize(Spec_->Tasks) > Options_->MaxTaskCount) {
-        THROW_ERROR_EXCEPTION("Maximum number of tasks exceeded: %v > %v", Spec_->Tasks.size(), Options_->MaxTaskCount);
+        THROW_ERROR_EXCEPTION(
+            "Maximum number of tasks exceeded: %v > %v",
+            Spec_->Tasks.size(),
+            Options_->MaxTaskCount);
     }
 
     i64 totalJobCount = 0;
@@ -547,7 +550,10 @@ void TVanillaController::ValidateOperationLimits()
         totalJobCount += taskSpec->JobCount;
     }
     if (totalJobCount > Options_->MaxTotalJobCount) {
-        THROW_ERROR_EXCEPTION("Maximum total job count exceeded: %v > %v", totalJobCount, Options_->MaxTotalJobCount);
+        THROW_ERROR_EXCEPTION(
+            "Maximum total job count exceeded: %v > %v",
+            totalJobCount,
+            Options_->MaxTotalJobCount);
     }
 }
 
