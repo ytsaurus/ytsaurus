@@ -260,7 +260,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressTransactionCoordinato
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
     const TYPathRequestPtr& innerRequest,
-    std::optional<TString> key,
+    std::optional<std::string> key,
     std::optional<size_t> hash)
 {
     const auto& ypathExt = innerRequest->Header().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -276,7 +276,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
-    std::optional<TString> key,
+    std::optional<std::string> key,
     std::any tag,
     std::optional<size_t> hash)
 {
@@ -713,7 +713,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
     auto message = CreateResponseMessage(body);
     static_cast<IClientResponseHandler*>(this)->HandleResponse(
         std::move(message),
-        /*address*/ TString());
+        /*address*/ std::string());
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
@@ -872,17 +872,17 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(i
     return GetResponse<TYPathResponse>(index);
 }
 
-std::optional<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
+std::optional<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const std::string& key) const
 {
     return FindResponse<TYPathResponse>(key);
 }
 
-TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
+TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const std::string& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
+std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<std::string>& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -1119,7 +1119,7 @@ const TServiceDescriptor& TObjectServiceProxy::GetDescriptor()
 
 TError GetCumulativeError(
     const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
-    const std::optional<TString>& key)
+    const std::optional<std::string>& key)
 {
     if (!batchRspOrError.IsOK()) {
         return batchRspOrError;
@@ -1130,7 +1130,7 @@ TError GetCumulativeError(
 
 TError GetCumulativeError(
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
-    const std::optional<TString>& key)
+    const std::optional<std::string>& key)
 {
     TError cumulativeError("Error communicating with master");
     for (const auto& rspOrError : batchRsp->GetResponses(key)) {
