@@ -1320,10 +1320,28 @@ private:
         const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
 
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
-        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage({
-            NJobAgent::EResourcesState::Pending,
-            NJobAgent::EResourcesState::Acquired,
-        }));
+
+        const auto config = GetDynamicConfig();
+        if (config->IncludeReleasingResourcesInResourceUsageReportedToScheduler) {
+            auto resourceUsage = ToNodeResources(JobResourceManager_->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+                NJobAgent::EResourcesState::Releasing,
+            }));
+            YT_LOG_DEBUG(
+                "Reporting resource usage to scheduler including releasing resources (Usage: %v)",
+                resourceUsage);
+            *request->mutable_resource_usage() = resourceUsage;
+        } else {
+            auto resourceUsage = ToNodeResources(JobResourceManager_->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+            }));
+            YT_LOG_DEBUG(
+                "Reporting resource usage to scheduler excluding releasing resources (Usage: %v)",
+                resourceUsage);
+            *request->mutable_resource_usage() = resourceUsage;
+        }
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
@@ -1752,7 +1770,7 @@ private:
 
         auto usage = JobResourceManager_->GetResourceUsage({
             NJobAgent::EResourcesState::Acquired,
-                NJobAgent::EResourcesState::Releasing
+            NJobAgent::EResourcesState::Releasing,
         });
         const auto limits = JobResourceManager_->GetResourceLimits();
         auto schedulerJobs = GetRunningJobsSortedByStartTime();

@@ -810,6 +810,11 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
         .Default();
+
+    registrar.Parameter(
+        "include_releasing_resources_in_resource_usage_reported_to_scheduler",
+        &TThis::IncludeReleasingResourcesInResourceUsageReportedToScheduler)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

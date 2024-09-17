@@ -686,6 +686,8 @@ public:
     //! Adds delay before starting a job.
     std::optional<TDuration> TestResourceAcquisitionDelay;
 
+    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
