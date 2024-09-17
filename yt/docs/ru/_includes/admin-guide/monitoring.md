@@ -52,7 +52,7 @@
 - `yt_resource_tracker_memory_usage_rss{service="yt-master"}` — использование мастером памяти. Порог должен быть чуть меньше половины памяти контейнера. Мастер делает fork для записи снапшота, потому должен быть двойной запас по памяти;
 - `yt_resource_tracker_memory_usage_rss` — важная метрика и для других компонентов кластера, позволяющая оценить тенденцию потребления памяти для избежания событий out of memory;
 - `yt_changelogs_available_space{service="yt-master"}` — свободное место под changelogs. В конфигурационном файле мастера есть настройка хранения changelogs, свободного места должно быть больше, чем эта настройка;
-- `yt_snapshots_available_space{service="yt-master"}` — аналогично для shapshots;
+- `yt_snapshots_available_space{service="yt-master"}` — аналогично для snapshots;
 - `yt_logging_min_log_storage_available_space{service="yt-master"}` — аналогично для logs.
 
 Необходимо следить за ростом чанков в «нехороших» состояниях:
