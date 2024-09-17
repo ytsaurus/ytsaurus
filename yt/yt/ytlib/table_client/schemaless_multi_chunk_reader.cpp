@@ -1032,6 +1032,8 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
         columns.push_back(schema->Columns()[timestampColumnIndex]);
     }
 
+    std::sort(columnFilterIndexes.begin(), columnFilterIndexes.end());
+
     return std::tuple(
         New<TTableSchema>(std::move(columns)),
         TColumnFilter(std::move(columnFilterIndexes)));
