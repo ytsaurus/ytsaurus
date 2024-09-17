@@ -15,7 +15,7 @@ DEFINE_ENUM(EExecuteMode,
 );
 
 YT_DEFINE_ERROR_ENUM(
-    ((Throttled)            (40100))
+    ((RequestThrottled)     (40100))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
