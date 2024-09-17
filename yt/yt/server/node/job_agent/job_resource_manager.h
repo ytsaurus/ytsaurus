@@ -77,7 +77,7 @@ public:
     static TJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);
-    DECLARE_INTERFACE_SIGNAL(void(EResourcesConsumerType, bool), ResourcesReleased);
+    DECLARE_INTERFACE_SIGNAL(void(), ResourcesReleased);
     DECLARE_INTERFACE_SIGNAL(void(TResourceHolderPtr), ResourceUsageOverdraftOccurred);
 
     DECLARE_INTERFACE_SIGNAL(
