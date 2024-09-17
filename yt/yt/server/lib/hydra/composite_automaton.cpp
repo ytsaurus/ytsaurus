@@ -575,7 +575,7 @@ TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor
 {
     auto it = MethodNameToDescriptor_.find(mutationType);
     if (it == MethodNameToDescriptor_.end()) {
-        YT_LOG_FATAL("No handler for mutation type %v",
+        YT_LOG_FATAL("No handler for mutation (MutationType: %v)",
             mutationType);
     }
     return &it->second;
