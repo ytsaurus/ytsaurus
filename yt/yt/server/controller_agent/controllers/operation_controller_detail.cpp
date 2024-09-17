@@ -1361,6 +1361,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // Once again check that revival is allowed (now having the loaded snapshot).
     ValidateSnapshot();
 
+    UpdateConfig(Config);
+
     Snapshot = TOperationSnapshot();
 
     TOperationControllerReviveResult result;
@@ -10346,10 +10348,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     // COMPAT(eshcherbin)
     if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
         Persist(context, InitialMinNeededResources_);
-    }
-
-    if (context.IsLoad()) {
-        ScheduleAllocationStatistics_->SetMovingAverageWindowSize(Config->ScheduleAllocationStatisticsMovingAverageWindowSize);
     }
 
     if (context.GetVersion() >= ESnapshotVersion::JobAbortsUntilOperationFailure) {
