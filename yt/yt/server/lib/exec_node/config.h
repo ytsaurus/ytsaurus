@@ -462,7 +462,9 @@ class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    bool SendHeartbeatOnJobFinished;
+    bool SendHeartbeatOnResourcesReleased;
+
+    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
@@ -685,8 +687,6 @@ public:
     //! This option is used for testing purposes only.
     //! Adds delay before starting a job.
     std::optional<TDuration> TestResourceAcquisitionDelay;
-
-    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 

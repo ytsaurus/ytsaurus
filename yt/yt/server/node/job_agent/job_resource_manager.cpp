@@ -85,7 +85,7 @@ class TJobResourceManager::TImpl
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
-    DEFINE_SIGNAL_OVERRIDE(void(EResourcesConsumerType, bool), ResourcesReleased);
+    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesReleased);
     DEFINE_SIGNAL_OVERRIDE(void(TResourceHolderPtr), ResourceUsageOverdraftOccurred);
 
     DEFINE_SIGNAL_OVERRIDE(
@@ -651,7 +651,7 @@ public:
             FormatResources(acquiredResources),
             FormatResources(releasingResources));
 
-        NotifyResourcesReleased(resourceHolder->ResourcesConsumerType, /*fullyReleased*/ true);
+        NotifyResourcesReleased();
     }
 
     void PrepareResourcesRelease(const TLogger& Logger, EResourcesState observed, const TJobResources& resources)
@@ -912,16 +912,16 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resources released (ResourceHolderStarted: %v, Delta: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            "Resources released "
+            "(ResourceConsumerType: %v, ResourceHolderStarted: %v, Delta: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            resourcesConsumerType,
             resourceHolderStarted,
             FormatResources(baseResources),
             FormatResources(pendingResources),
             FormatResources(acquiredResources),
             FormatResources(releasingResources));
 
-        if (resourceHolderStarted) {
-            NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ true);
-        }
+        NotifyResourcesReleased();
     }
 
     bool OnResourcesUpdated(
@@ -970,12 +970,14 @@ public:
 
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
-            NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ false);
+            NotifyResourcesReleased();
         }
 
         if (resourceUsageOverdraftOccurred) {
             YT_LOG_INFO(
-                "Resource usage overdraft detected during updating resource usage (CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                "Resource usage overdraft detected during updating resource usage "
+                "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                resourcesConsumerType,
                 state,
                 FormatResources(resourceDelta),
                 FormatResources(acquiredResources),
@@ -986,7 +988,9 @@ public:
             ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
         } else {
             YT_LOG_DEBUG(
-                "Resource usage updated (CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                "Resource usage updated "
+                "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
+                resourcesConsumerType,
                 state,
                 FormatResources(resourceDelta),
                 FormatResources(acquiredResources),
@@ -1245,9 +1249,9 @@ private:
         return std::vector<int>(begin(FreePorts_), end(FreePorts_));
     }
 
-    void NotifyResourcesReleased(EResourcesConsumerType resourcesConsumerType, bool fullyReleased)
+    void NotifyResourcesReleased()
     {
-        ResourcesReleased_.Fire(resourcesConsumerType, fullyReleased);
+        ResourcesReleased_.Fire();
         for (const auto& callbacks : ResourcesConsumerCallbacks_) {
             callbacks.Fire();
         }

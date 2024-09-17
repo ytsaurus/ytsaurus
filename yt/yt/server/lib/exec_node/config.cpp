@@ -572,9 +572,14 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter(
-        "send_heartbeat_on_job_finished",
-        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)
+        "send_heartbeat_on_resources_released",
+        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnResourcesReleased)
         .Default(true);
+
+    registrar.Parameter(
+        "include_releasing_resources_in_resource_usage_reported_to_scheduler",
+        &TThis::IncludeReleasingResourcesInResourceUsageReportedToScheduler)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,11 +815,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
         .Default();
-
-    registrar.Parameter(
-        "include_releasing_resources_in_resource_usage_reported_to_scheduler",
-        &TThis::IncludeReleasingResourcesInResourceUsageReportedToScheduler)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
