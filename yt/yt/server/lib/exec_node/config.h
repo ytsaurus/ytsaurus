@@ -326,7 +326,7 @@ class TSchedulerConnectorDynamicConfig
 public:
     bool SendHeartbeatOnResourcesReleased;
 
-    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
+    bool IncludeReleasingResourcesInSchedulerHeartbeat;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 

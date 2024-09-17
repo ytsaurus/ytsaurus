@@ -121,7 +121,7 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
-    auto resourceUsage = DynamicConfig_.Acquire()->IncludeReleasingResourcesInResourceUsageReportedToScheduler
+    auto resourceUsage = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat
         ? jobResourceManager->GetResourceUsage({
             NJobAgent::EResourcesState::Pending,
             NJobAgent::EResourcesState::Acquired,
@@ -360,30 +360,33 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
 
-    *request->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
+    {
+        auto resourceLimits = ToNodeResources(jobResourceManager->GetResourceLimits());
+        auto diskResources = jobResourceManager->GetDiskResources();
 
-    if (DynamicConfig_.Acquire()->IncludeReleasingResourcesInResourceUsageReportedToScheduler) {
-        auto resourceUsage = ToNodeResources(jobResourceManager->GetResourceUsage({
-            NJobAgent::EResourcesState::Pending,
-            NJobAgent::EResourcesState::Acquired,
-            NJobAgent::EResourcesState::Releasing,
-        }));
+        bool includeReleasingResources = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat;
+        auto resourceUsage = includeReleasingResources
+            ? ToNodeResources(jobResourceManager->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+                NJobAgent::EResourcesState::Releasing,
+            }))
+            : ToNodeResources(jobResourceManager->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+            }));
+
         YT_LOG_DEBUG(
-            "Reporting resource usage to scheduler including releasing resources (Usage: %v)",
-            resourceUsage);
+            "Reporting resource usage to scheduler (IncludeReleasingResources: %v, Usage: %v, Limits: %v, DiskResources: %v)",
+            includeReleasingResources,
+            resourceUsage,
+            resourceLimits,
+            diskResources);
+
+        *request->mutable_resource_limits() = resourceLimits;
         *request->mutable_resource_usage() = resourceUsage;
-    } else {
-        auto resourceUsage = ToNodeResources(jobResourceManager->GetResourceUsage({
-            NJobAgent::EResourcesState::Pending,
-            NJobAgent::EResourcesState::Acquired,
-        }));
-        YT_LOG_DEBUG(
-            "Reporting resource usage to scheduler excluding releasing resources (Usage: %v)",
-            resourceUsage);
-        *request->mutable_resource_usage() = resourceUsage;
+        *request->mutable_disk_resources() = diskResources;
     }
-
-    *request->mutable_disk_resources() = jobResourceManager->GetDiskResources();
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
