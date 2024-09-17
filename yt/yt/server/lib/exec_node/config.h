@@ -565,6 +565,8 @@ public:
 
     TAllocationConfigPtr Allocation;
 
+    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
