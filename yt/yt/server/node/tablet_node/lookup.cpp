@@ -245,7 +245,7 @@ protected:
         const TColumnFilter& /*columnFilter*/,
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
-        const std::optional<TString>& /*profilingUser*/,
+        const std::optional<std::string>& /*profilingUser*/,
         NLogging::TLogger /*logger*/)
         : TRowAdapter(std::move(adapter))
         , Timestamp_(timestampRange.Timestamp)
@@ -308,7 +308,7 @@ protected:
         const TColumnFilter& /*columnFilter*/,
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
-        const std::optional<TString>& profilingUser,
+        const std::optional<std::string>& profilingUser,
         NLogging::TLogger logger)
         : TRowAdapter(std::move(adapter))
         , TabletId_(tabletSnapshot->TabletId)
@@ -710,7 +710,7 @@ private:
     const TTabletId TabletId_;
     const TTableProfilerPtr TableProfiler_;
     const TRowCachePtr RowCache_;
-    const std::optional<TString> ProfilingUser_;
+    const std::optional<std::string> ProfilingUser_;
     const TTimestamp Timestamp_;
     const TTimestamp RetainedTimestamp_;
     const ui32 StoreFlushIndex_;
@@ -772,7 +772,7 @@ protected:
         const TColumnFilter& columnFilter,
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        const std::optional<TString>& profilingUser,
+        const std::optional<std::string>& profilingUser,
         const NLogging::TLogger Logger)
         : TBasePipeline(
             std::move(adapter),
@@ -791,7 +791,8 @@ protected:
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
-                    .UserTag = profilingUser,
+                    // TODO(babenko): migrate to std::string
+                    .UserTag = profilingUser ? std::optional<TString>(profilingUser) : std::nullopt,
                     .HunkChunk = true,
                 });
         }
@@ -1013,7 +1014,7 @@ public:
         TRetentionConfigPtr retentionConfig,
         bool enablePartialResult,
         const ITabletSnapshotStorePtr& snapshotStore,
-        std::optional<TString> profilingUser,
+        const std::optional<std::string>& profilingUser,
         IInvokerPtr invoker);
 
     ~TLookupSession();
@@ -1041,7 +1042,7 @@ private:
     const TRetentionConfigPtr RetentionConfig_;
     const bool EnablePartialResult_;
     const ITabletSnapshotStorePtr& SnapshotStore_;
-    const std::optional<TString> ProfilingUser_;
+    const std::optional<std::string> ProfilingUser_;
     const IInvokerPtr Invoker_;
 
     const NLogging::TLogger Logger;
@@ -1107,7 +1108,7 @@ public:
         const TReadTimestampRange& readTimestampRange,
         const TClientChunkReadOptions& chunkReadOptions,
         IInvokerPtr invoker,
-        std::optional<TString> profilingUser,
+        const std::optional<std::string>& profilingUser,
         NLogging::TLogger logger);
 
     ~TTabletLookupSession();
@@ -1190,7 +1191,7 @@ TLookupSession::TLookupSession(
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
     const ITabletSnapshotStorePtr& snapshotStore,
-    std::optional<TString> profilingUser,
+    const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker)
     : InMemoryMode_(inMemoryMode)
     , TimestampRange_(timestampRange)
@@ -1201,7 +1202,7 @@ TLookupSession::TLookupSession(
     , RetentionConfig_(std::move(retentionConfig))
     , EnablePartialResult_(enablePartialResult)
     , SnapshotStore_(snapshotStore)
-    , ProfilingUser_(std::move(profilingUser))
+    , ProfilingUser_(profilingUser)
     , Invoker_(std::move(invoker))
     , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
     , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -1239,7 +1240,8 @@ void TLookupSession::AddTabletRequest(
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
-                            .UserTag = ProfilingUser_,
+                            // TODO(babenko): migrate to std::string
+                            .UserTag = ProfilingUser_ ? std::optional<TString>(ProfilingUser_) : std::nullopt,
                             .HunkChunk = false,
                         });
                 }
@@ -1738,7 +1740,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     const TReadTimestampRange& readTimestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     IInvokerPtr invoker,
-    std::optional<TString> profilingUser,
+    const std::optional<std::string>& profilingUser,
     NLogging::TLogger logger)
     : TPipeline(
         std::move(adapter),
@@ -1756,7 +1758,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
-    , OnDestruction_([this, profilingUser = std::move(profilingUser)] {
+    , OnDestruction_([this, profilingUser] {
         auto* counters = TabletSnapshot_->TableProfiler->GetSelectRowsCounters(profilingUser);
 
         // The following counters are normally accounted for in TProfilingReaderWrapper,
@@ -2178,7 +2180,7 @@ ILookupSessionPtr CreateLookupSession(
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
     const ITabletSnapshotStorePtr& snapshotStore,
-    std::optional<TString> profilingUser,
+    const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker)
 {
     return New<TLookupSession>(
@@ -2193,7 +2195,7 @@ ILookupSessionPtr CreateLookupSession(
         std::move(retentionConfig),
         enablePartialResult,
         snapshotStore,
-        std::move(profilingUser),
+        profilingUser,
         std::move(invoker));
 }
 
@@ -2263,7 +2265,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const TTimestampReadOptions& timestampReadOptions,
     IInvokerPtr invoker,
-    std::optional<TString> profilingUser,
+    const std::optional<std::string>& profilingUser,
     NLogging::TLogger Logger)
 {
     ThrowUponDistributedThrottlerOverdraft(
@@ -2303,7 +2305,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                std::move(profilingUser),
+                profilingUser,
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2316,7 +2318,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                std::move(profilingUser),
+                profilingUser,
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2331,7 +2333,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                std::move(profilingUser),
+                profilingUser,
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2344,7 +2346,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                std::move(profilingUser),
+                profilingUser,
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
