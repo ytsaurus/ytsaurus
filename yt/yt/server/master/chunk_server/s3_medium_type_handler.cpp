@@ -43,7 +43,7 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<TString>("name");
+        auto name = attributes->GetAndRemove<std::string>("name");
         auto config = attributes->GetAndRemove<TS3MediumConfigPtr>("config");
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");

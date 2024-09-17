@@ -159,8 +159,8 @@ void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellBundleProfilingCounters::TTabletCellBundleProfilingCounters(TString bundleName)
-    : BundleName(std::move(bundleName))
+TTabletCellBundleProfilingCounters::TTabletCellBundleProfilingCounters(const std::string& bundleName)
+    : BundleName(bundleName)
 {
     auto profiler = TabletServerProfiler
         .WithDefaultDisabled()

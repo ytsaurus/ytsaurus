@@ -52,9 +52,9 @@ public:
         TObjectId /*hintId*/,
         IAttributeDictionary* attributes) override
     {
-        auto tablePath = attributes->GetAndRemove<TString>("table_path");
-        auto clusterName = attributes->GetAndRemove<TString>("cluster_name");
-        auto replicaPath = attributes->GetAndRemove<TString>("replica_path");
+        auto tablePath = attributes->GetAndRemove<TYPath>("table_path");
+        auto clusterName = attributes->GetAndRemove<std::string>("cluster_name");
+        auto replicaPath = attributes->GetAndRemove<TYPath>("replica_path");
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
         auto startReplicationRowIndexes = attributes->FindAndRemove<std::vector<i64>>("start_replication_row_indexes");
         auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);

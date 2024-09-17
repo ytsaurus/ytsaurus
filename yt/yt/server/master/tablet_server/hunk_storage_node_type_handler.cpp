@@ -69,7 +69,7 @@ protected:
         auto readQuorum = combinedAttributes->GetAndRemove<int>("read_quorum", config->DefaultHunkStorageReadQuorum);
         auto writeQuorum = combinedAttributes->GetAndRemove<int>("write_quorum", config->DefaultHunkStorageWriteQuorum);
 
-        auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
+        auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
         auto tabletCount = combinedAttributes->GetAndRemove<int>("tablet_count", 1);
 
         const auto& tabletManager = this->Bootstrap_->GetTabletManager();
