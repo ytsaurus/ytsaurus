@@ -89,9 +89,7 @@ private:
     TError DoSendHeartbeat();
 
     void OnResourcesAcquired();
-    void OnResourcesReleased(
-        NJobAgent::EResourcesConsumerType resourcesConsumerType,
-        bool fullyReleased);
+    void OnResourcesReleased();
 
     void OnAllocationFinished(TAllocationPtr allocation);
 
