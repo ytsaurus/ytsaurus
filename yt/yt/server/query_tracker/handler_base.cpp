@@ -179,13 +179,26 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction(EQueryState previ
     auto optionalRecords = ToOptionalRecords<TActiveQuery>(rowset);
     YT_VERIFY(optionalRecords.size() == 1);
     if (!optionalRecords[0]) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v record is missing", QueryId_);
+        THROW_ERROR_EXCEPTION(
+            NQueryTrackerClient::EErrorCode::IncarnationMismatch,
+            "Query %v record is missing",
+            QueryId_);
     }
     if (optionalRecords[0]->Incarnation != Incarnation_) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::IncarnationMismatch, "Query %v incarnation mismatch: expected %v, actual %v", QueryId_, Incarnation_, optionalRecords[0]->Incarnation);
+        THROW_ERROR_EXCEPTION(
+            NQueryTrackerClient::EErrorCode::IncarnationMismatch,
+            "Query %v incarnation mismatch: expected %v, actual %v",
+            QueryId_,
+            Incarnation_,
+            optionalRecords[0]->Incarnation);
     }
     if (optionalRecords[0]->State != previousState) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::StateMismatch, "Query %v is not in state %Qlv, actual state is %Qlv", QueryId_, previousState, optionalRecords[0]->State);
+        THROW_ERROR_EXCEPTION(
+            NQueryTrackerClient::EErrorCode::StateMismatch,
+            "Query %v is not in state %Qlv, actual state is %Qlv",
+            QueryId_,
+            previousState,
+            optionalRecords[0]->State);
     }
     YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
     return transaction;

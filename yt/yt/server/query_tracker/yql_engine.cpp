@@ -87,7 +87,6 @@ public:
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
-        , QueryState_(EYqlQueryState::Pending)
     { }
 
     void Start() override
@@ -134,6 +133,7 @@ private:
     const TString Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
+
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
     TString YqlServiceName_;
 
@@ -143,7 +143,7 @@ private:
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryStateSpinLock_);
-    EYqlQueryState QueryState_;
+    EYqlQueryState QueryState_ = EYqlQueryState::Pending;
 
     void TryStart()
     {
@@ -235,7 +235,7 @@ private:
             return;
         }
 
-        if (rspOrError.FindMatching(NYqlClient::EErrorCode::Throttled)) {
+        if (rspOrError.FindMatching(NYqlClient::EErrorCode::RequestThrottled)) {
             {
                 auto guard = Guard(QueryStateSpinLock_);
                 QueryState_ = EYqlQueryState::Throttled;
