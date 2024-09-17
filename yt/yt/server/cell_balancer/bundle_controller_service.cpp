@@ -198,7 +198,7 @@ private:
                 << TErrorAttribute("tablet_node_vcpu", bundleConfig->TabletNodeResourceGuarantee->Vcpu);
         }
 
-        //TODO(capone212): multi-dc logic
+        // TODO(capone212): multi-dc logic
     }
 
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
