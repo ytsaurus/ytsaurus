@@ -40,7 +40,8 @@ public:
         int maxChunksPerLocateRequest,
         const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int /*tableIndex*/)>& initializeFetchRequest,
         const NLogging::TLogger& logger,
-        bool skipUnavailableChunks = false);
+        bool skipUnavailableChunks = false,
+        bool fetchHunkChunks = false);
 
     void Add(
         NObjectClient::TObjectId objectId,
@@ -66,6 +67,7 @@ private:
     std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)> InitializeFetchRequest_;
     NLogging::TLogger Logger;
     bool SkipUnavailableChunks_;
+    bool FetchHunkChunks_;
     i64 TotalChunkCount_ = 0;
     int TableCount_ = 0;
 

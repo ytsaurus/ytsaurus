@@ -337,12 +337,14 @@ public:
         TChunkLists chunkLists,
         TCtxFetchPtr rpcContext,
         TFetchContext&& fetchContext,
-        TComparator comparator)
+        TComparator comparator,
+        EChunkListContentType contentType)
         : Bootstrap_(bootstrap)
         , ChunkLists_(std::move(chunkLists))
         , RpcContext_(std::move(rpcContext))
         , FetchContext_(std::move(fetchContext))
         , Comparator_(std::move(comparator))
+        , ContentType_(contentType)
         , NodeDirectoryBuilder_(
             RpcContext_->Response().mutable_node_directory(),
             FetchContext_.AddressType)
@@ -371,6 +373,7 @@ private:
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
     const TComparator Comparator_;
+    EChunkListContentType ContentType_;
 
     std::vector<TEphemeralObjectPtr<TChunk>> Chunks_;
 
@@ -388,13 +391,23 @@ private:
         auto context = CreateAsyncChunkTraverserContext(
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
-        TraverseChunkTree(
-            std::move(context),
-            this,
-            ChunkLists_,
-            FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-            Comparator_);
+        if (ContentType_ == EChunkListContentType::Hunk) {
+            TraverseHunkChunkTree(
+                std::move(context),
+                this,
+                ChunkLists_,
+                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+                Comparator_);
+        } else {
+            TraverseChunkTree(
+                std::move(context),
+                this,
+                ChunkLists_,
+                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+                Comparator_);
+        }
     }
 
     bool PopulateReplicas()
@@ -523,6 +536,8 @@ private:
         if (FetchContext_.OmitDynamicStores) {
             return true;
         }
+
+        YT_VERIFY(ContentType_ != EChunkListContentType::Hunk);
 
         if (dynamicStore->IsFlushed()) {
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
@@ -1633,12 +1648,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         FromProto(&range, protoRange, comparator.GetLength());
     }
 
+    auto contentType = FromProto<EChunkListContentType>(request->chunk_list_content_type());
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap_,
         std::move(chunkLists),
         context,
         std::move(fetchContext),
-        std::move(comparator));
+        std::move(comparator),
+        contentType);
     visitor->Run();
 }
 

@@ -1457,6 +1457,140 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkChunk)
     EXPECT_EQ(correctResult, visitor->GetChunkInfos());
 }
 
+TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
+{
+    auto* mainRoot = CreateChunkList(EChunkListKind::SortedDynamicRoot);
+    auto* mainTablet1 = CreateChunkList(EChunkListKind::SortedDynamicTablet);
+    auto* mainTablet2 = CreateChunkList(EChunkListKind::SortedDynamicTablet);
+    auto* mainTablet3 = CreateChunkList(EChunkListKind::SortedDynamicTablet);
+    auto* chunk1 = CreateChunk(1, 1, 1, 1);
+    AttachToChunkList(mainRoot, {mainTablet1, mainTablet2, mainTablet3});
+    AttachToChunkList(mainTablet1, {chunk1});
+
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+
+    auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet3 = CreateChunkList(EChunkListKind::Hunk);
+
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk4 = CreateChunk(4, 4, 4, 4, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk5 = CreateChunk(5, 5, 5, 5, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk6 = CreateChunk(6, 6, 6, 6, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk7 = CreateChunk(7, 7, 7, 7, {}, {}, EChunkType::Hunk);
+
+    AttachToChunkList(hunkRoot, {hunkTablet1, hunkTablet2, hunkTablet3});
+    AttachToChunkList(hunkTablet1, {hunkChunk1, hunkChunk2, hunkChunk3, hunkChunk4});
+    AttachToChunkList(hunkTablet2, {hunkChunk5, hunkChunk6});
+    AttachToChunkList(hunkTablet3, {hunkChunk7});
+
+    auto context = GetSyncChunkTraverserContext();
+    TChunkLists roots{
+        {EChunkListContentType::Main, mainRoot},
+        {EChunkListContentType::Hunk, hunkRoot},
+    };
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseHunkChunkTree(
+            context,
+            visitor,
+            roots,
+            TReadLimit(),
+            TReadLimit(),
+            TComparator());
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk1),
+            TChunkInfo(hunkChunk2),
+            TChunkInfo(hunkChunk3),
+            TChunkInfo(hunkChunk4),
+            TChunkInfo(hunkChunk5),
+            TChunkInfo(hunkChunk6),
+            TChunkInfo(hunkChunk7),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(0);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetChunkIndex(2);
+
+        TraverseHunkChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            MakeComparator(1));
+        EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk1),
+            TChunkInfo(hunkChunk2),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(5);
+
+        TLegacyReadLimit upperLimit;
+
+        TraverseHunkChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            MakeComparator(1));
+        EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+    }
+
+    std::mt19937 gen;
+    auto generateOrderedPair = [&] (int bound) {
+        int lhs = gen() % bound;
+        int rhs = gen() % bound;
+        if (lhs > rhs) {
+            std::swap(lhs, rhs);
+        }
+        return std::pair(lhs, rhs);
+    };
+
+    for (int iter = 0; iter < 100; ++iter) {
+        auto chunkIndices = generateOrderedPair(7);
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(chunkIndices.first);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetChunkIndex(chunkIndices.second);
+
+        auto expected = TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit);
+
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseHunkChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            /*keyColumnCount*/ {});
+
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraverseWithKeyColumnCount

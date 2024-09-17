@@ -174,12 +174,6 @@ public:
         WriteSingleRow(path, nameTable, owningRow);
     }
 
-    static void UnmountAndMount(const TYPath& path)
-    {
-        SyncUnmountTable(path);
-        SyncMountTable(path);
-    }
-
     static void WaitForRowCount(const TYPath& path, i64 rowCount)
     {
         WaitForPredicate([rowCount, path] {
@@ -308,7 +302,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
         WriteSingleRow(queue->GetPath(), queueNameTable, {"43u", "b"});
         WriteSingleRow(queue->GetPath(), queueNameTable, {"44u", "c"});
 
-        UnmountAndMount(queue->GetPath());
+        SyncFlushTable(queue->GetPath());
 
         WriteSingleRow(queue->GetPath(), queueNameTable, {"45u", "d"});
         WriteSingleRow(queue->GetPath(), queueNameTable, {"46u", "e"});
@@ -362,7 +356,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueueConsumer)
     WriteSingleRow(queue->GetPath(), queueNameTable, {"43u", "b"});
     WriteSingleRow(queue->GetPath(), queueNameTable, {"44u", "c"});
 
-    UnmountAndMount(queue->GetPath());
+    SyncFlushTable(queue->GetPath());
 
     WriteSingleRow(queue->GetPath(), queueNameTable, {"45u", "d"});
     WriteSingleRow(queue->GetPath(), queueNameTable, {"46u", "e"});

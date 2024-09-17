@@ -907,8 +907,8 @@ protected:
                         childChunkListKind);
                 }
 
-                // Don't traverse hunks when bounds are enforced.
-                if (!isHunkChunkList || !EnforceBounds_) {
+                // Don't traverse hunks when bounds are enforced and hunks are not explicitly requested.
+                if (!isHunkChunkList || !EnforceBounds_ || ShouldTraverseHunkChunkListAsMain()) {
                     PushFirstChild(childChunkList, childIndex, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
                 }
                 break;
@@ -1074,8 +1074,11 @@ protected:
     {
         int childIndex = 0;
 
-        // Don't traverse hunks when bounds are enforced.
-        if (EnforceBounds_ && chunkList->GetKind() == EChunkListKind::HunkRoot) {
+        // Don't traverse hunks when bounds are enforced and hunks are not explicitly requested.
+        if (EnforceBounds_ &&
+            chunkList->GetKind() == EChunkListKind::HunkRoot &&
+            !ShouldTraverseHunkChunkListAsMain())
+        {
             auto error = TError("Attempted to traverse hunk root chunk list %v with bounds enforced",
                 chunkList->GetId());
             OnFinish(error);
@@ -1376,6 +1379,11 @@ protected:
             *endLimit);
     }
 
+    bool ShouldTraverseHunkChunkListAsMain() const
+    {
+        return PrimaryChunkListContentType_ == EChunkListContentType::Hunk;
+    }
+
     bool IsStackEmpty()
     {
         return Stack_.empty();
@@ -1411,6 +1419,7 @@ protected:
     const bool EnforceBounds_;
     const TComparator Comparator_;
     const TTraverserTestingOptions TestingOptions_;
+    const EChunkListContentType PrimaryChunkListContentType_;
 
     const TEphemeralObjectPtr<TChunkList> RootHunkChunkList_;
 
@@ -1436,12 +1445,14 @@ public:
         TComparator comparator,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
-        TTraverserTestingOptions testingOptions)
+        TTraverserTestingOptions testingOptions,
+        EChunkListContentType primaryChunkListContentType = EChunkListContentType::Main)
         : Context_(std::move(context))
         , Visitor_(std::move(visitor))
         , EnforceBounds_(enforceBounds)
         , Comparator_(std::move(comparator))
         , TestingOptions_(std::move(testingOptions))
+        , PrimaryChunkListContentType_(primaryChunkListContentType)
         , RootHunkChunkList_(chunkLists[EChunkListContentType::Hunk])
         , Logger(ChunkServerLogger.WithTag("RootId: %v", chunkLists[EChunkListContentType::Main]->GetId()))
     {
@@ -1450,7 +1461,12 @@ public:
             upperLimit,
             EnforceBounds_);
 
-        auto* chunkList = chunkLists[EChunkListContentType::Main];
+        auto* chunkList = chunkLists[PrimaryChunkListContentType_];
+        if (!chunkList && PrimaryChunkListContentType_ == EChunkListContentType::Hunk) {
+            YT_LOG_DEBUG("Started chunk tree traversal by hunk chunk list for node without hunk chunk list");
+            return;
+        }
+
         PushFirstChild(chunkList, 0, 0, std::nullopt, lowerLimit, upperLimit);
     }
 
@@ -1517,11 +1533,33 @@ void TraverseChunkTree(
         std::move(traverserContext),
         std::move(visitor),
         roots,
-        true,
+        /*enforceBounds*/ true,
         comparator,
         lowerLimit,
         upperLimit,
         std::move(testingOptions))
+        ->Run();
+}
+
+void TraverseHunkChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    TComparator comparator,
+    TTraverserTestingOptions testingOptions)
+{
+    New<TChunkTreeTraverser>(
+        std::move(traverserContext),
+        std::move(visitor),
+        roots,
+        /*enforceBounds*/ true,
+        comparator,
+        lowerLimit,
+        upperLimit,
+        std::move(testingOptions),
+        EChunkListContentType::Hunk)
         ->Run();
 }
 
@@ -1547,14 +1585,10 @@ void TraverseChunkTree(
         std::move(testingOptions));
 }
 
-void TraverseChunkTree(
-    IChunkTraverserContextPtr traverserContext,
-    IChunkVisitorPtr visitor,
-    const TChunkLists& roots,
-    const TLegacyReadLimit& legacyLowerLimit,
-    const TLegacyReadLimit& legacyUpperLimit,
+std::pair<TReadLimit, TReadLimit> GetReadLimitsFromLegacyReadLimits(
     TComparator comparator,
-    TTraverserTestingOptions testingOptions)
+    const TLegacyReadLimit& legacyLowerLimit,
+    const TLegacyReadLimit& legacyUpperLimit)
 {
     TReadLimit lowerLimit;
     TReadLimit upperLimit;
@@ -1568,15 +1602,53 @@ void TraverseChunkTree(
         upperLimit = ReadLimitFromLegacyReadLimitKeyless(legacyUpperLimit);
     }
 
+    return {lowerLimit, upperLimit};
+}
+
+void TraverseChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots,
+    const TLegacyReadLimit& legacyLowerLimit,
+    const TLegacyReadLimit& legacyUpperLimit,
+    TComparator comparator,
+    TTraverserTestingOptions testingOptions)
+{
+    auto [lowerLimit, upperLimit] = GetReadLimitsFromLegacyReadLimits(comparator, legacyLowerLimit, legacyUpperLimit);
+
     New<TChunkTreeTraverser>(
         std::move(traverserContext),
         std::move(visitor),
         roots,
-        true,
+        /*enforceBounds*/ true,
         comparator,
         lowerLimit,
         upperLimit,
         std::move(testingOptions))
+        ->Run();
+}
+
+void TraverseHunkChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots,
+    const TLegacyReadLimit& legacyLowerLimit,
+    const TLegacyReadLimit& legacyUpperLimit,
+    TComparator comparator,
+    TTraverserTestingOptions testingOptions)
+{
+    auto [lowerLimit, upperLimit] = GetReadLimitsFromLegacyReadLimits(comparator, legacyLowerLimit, legacyUpperLimit);
+
+    New<TChunkTreeTraverser>(
+        std::move(traverserContext),
+        std::move(visitor),
+        roots,
+        /*enforceBounds*/ true,
+        comparator,
+        lowerLimit,
+        upperLimit,
+        std::move(testingOptions),
+        EChunkListContentType::Hunk)
         ->Run();
 }
 
@@ -1606,7 +1678,7 @@ void TraverseChunkTree(
         std::move(traverserContext),
         std::move(visitor),
         roots,
-        false,
+        /*enforceBounds*/ false,
         TComparator(),
         TReadLimit(),
         TReadLimit(),
