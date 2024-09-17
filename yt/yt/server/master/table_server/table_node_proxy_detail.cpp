@@ -1739,37 +1739,24 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
 void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const TString& key,
-    const TYsonString& oldValue,
     const TYsonString& newValue)
 {
     auto internedKey = TInternedAttributeKey::Lookup(key);
 
     switch (internedKey) {
         case EInternedAttributeKey::ChunkWriter:
-            if (!newValue) {
-                break;
-            }
             ConvertTo<NTabletNode::TTabletStoreWriterConfigPtr>(newValue);
             return;
 
         case EInternedAttributeKey::HunkChunkWriter:
-            if (!newValue) {
-                break;
-            }
             ConvertTo<NTabletNode::TTabletHunkWriterConfigPtr>(newValue);
             return;
 
         case EInternedAttributeKey::ChunkReader:
-            if (!newValue) {
-                break;
-            }
             ConvertTo<NTabletNode::TTabletStoreReaderConfigPtr>(newValue);
             return;
 
         case EInternedAttributeKey::HunkChunkReader:
-            if (!newValue) {
-                break;
-            }
             ConvertTo<NTabletNode::TTabletHunkReaderConfigPtr>(newValue);
             return;
 
@@ -1777,7 +1764,7 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
             break;
     }
 
-    TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+    TBase::ValidateCustomAttributeUpdate(key, newValue);
 }
 
 void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const

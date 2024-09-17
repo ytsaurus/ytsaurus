@@ -129,19 +129,24 @@ protected:
 
     virtual void LogAcdUpdate(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value);
 
-    //! Called before attribute #key is updated (added, removed or changed).
+    //! Called before attribute #key is added or changed.
+    //! Not called for removals, thus `newValue` is always non-null.
     virtual void ValidateCustomAttributeUpdate(
         const TString& key,
-        const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue);
-
-    void ValidateCustomAttributeLength(const NYson::TYsonString& value);
 
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
         const TString& key,
-        const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue);
+
+    //! Called before attribute #key is removed.
+    virtual void ValidateCustomAttributeRemoval(const TString& key);
+
+    //! Same as #ValidateCustomAttributeRemoval but wraps the exceptions.
+    void GuardedValidateCustomAttributeRemoval(const TString& key);
+
+    void ValidateCustomAttributeLength(const NYson::TYsonString& value);
 
     void DeclareMutating();
     void DeclareNonMutating();

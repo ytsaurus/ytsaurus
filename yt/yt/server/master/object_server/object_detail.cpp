@@ -793,13 +793,8 @@ void TObjectProxyBase::LogAcdUpdate(TInternedAttributeKey /* key */, const TYson
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
     const TString& key,
-    const TYsonString& /*oldValue*/,
-    const TYsonString& newValue)
+    const TYsonString& /*newValue*/)
 {
-    if (!newValue) {
-        return;
-    }
-
     const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
     const auto& reservedAttributes = config->ReservedAttributes;
 
@@ -818,24 +813,29 @@ void TObjectProxyBase::ValidateCustomAttributeUpdate(
 
 void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     const TString& key,
-    const TYsonString& oldValue,
     const TYsonString& newValue)
 {
     try {
-        if (newValue) {
-            ValidateCustomAttributeLength(newValue);
-        }
-        ValidateCustomAttributeUpdate(key, oldValue, newValue);
+        ValidateCustomAttributeLength(newValue);
+        ValidateCustomAttributeUpdate(key, newValue);
     } catch (const std::exception& ex) {
-        if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
-                ToYPathLiteral(key))
-                << ex;
-        } else {
-            THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
-                ToYPathLiteral(key))
-                << ex;
-        }
+        THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
+            ToYPathLiteral(key))
+            << ex;
+    }
+}
+
+void TObjectProxyBase::ValidateCustomAttributeRemoval(const TString& /*key*/)
+{ }
+
+void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const TString& key)
+{
+    try {
+        ValidateCustomAttributeRemoval(key);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
+            ToYPathLiteral(key))
+            << ex;
     }
 }
 
@@ -1069,8 +1069,7 @@ TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary:
 
 void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
-    auto oldValue = FindYson(key);
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, value);
 
     auto* object = Proxy_->Object_;
     auto* attributes = object->GetMutableAttributes();
@@ -1082,8 +1081,7 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
 
 bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
-    auto oldValue = FindYson(key);
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
+    Proxy_->GuardedValidateCustomAttributeRemoval(key);
 
     auto* object = Proxy_->Object_;
     if (!object->GetAttributes()) {
