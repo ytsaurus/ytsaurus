@@ -47,7 +47,6 @@ message TRspBeginUpload
 message TReqGetUploadParams
 {
     optional bool fetch_last_key = 1 [default = false];
-    optional bool fetch_hunk_chunk_list_ids = 2 [default = false];
 }
 
 message TRspGetUploadParams
@@ -56,7 +55,6 @@ message TRspGetUploadParams
     optional bytes last_key = 2;
     optional NYT.NCrypto.NProto.TMD5Hasher md5_hasher = 3;
     repeated NYT.NProto.TGuid tablet_chunk_list_ids = 4;
-    repeated NYT.NProto.TGuid tablet_hunk_chunk_list_ids = 8;
     repeated bytes pivot_keys = 5;
     optional int32 max_heavy_columns = 6;
     optional int64 row_count = 7 [default = 0];
