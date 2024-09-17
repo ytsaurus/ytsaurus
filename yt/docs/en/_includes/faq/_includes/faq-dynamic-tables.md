@@ -1,7 +1,7 @@
 #### **Q: When working with dynamic tables from Python API or C++ API, I get the "Sticky transaction 1935-3cb03-4040001-e8723e5a is not found" error, what should I do?**
 
 **A:** The answer depends on how the transactions are used. If a master transaction is used, then this is a pointless action and you must set the query outside the transaction. To do this, you can either create a separate client or explicitly specify that the query must be run under a null transaction (`with client.Transaction(transaction_id="0-0-0-0"): ...`).
-Full use of tablet transactions in Python API is only possible via RPC-proxy (`yt.config['backend'] = 'rpc'`). Use of tablet transactions via HTTP is impossible in the current implementation. In this case,  write to yt@ and describe your task.
+Full use of tablet transactions in Python API is only possible via RPC-proxy (`yt.config['backend'] = 'rpc'`). Use of tablet transactions via HTTP is currently not supported. {% if audience == "internal" %}You might want to send an email to "yt@" and describe your case.{% endif %}
 
 ------
 #### **Q: When writing to a dynamic table, the "Node is out of tablet memory; all writes disabled" or "Active store is overflown, all writes disabled" error occurs. What does it mean and how should I deal with it?**
@@ -72,14 +72,40 @@ There are a few problems with the first option. The problem is that queries are 
 
 **A:** There are quite strict limits on the size of values in dynamic tables. Single value (table cell) size must not exceed 16 MB, while the length of an entire row should stay under 128 and 512 MB taking into account all versions. There can be a maximum of 1024 values in a row, taking all versions into account. There is also a limit on the number of rows per query, which defaults to 100,000 rows per transaction when inserting, one million rows for selects, and 5 million for a lookup. Please note that operation may become unstable in the vicinity of the threshold values. If you are over limit, you need to change data storage in a dynamic table and not store such long rows.
 
-------
-#### **Q: How can I clear replicated table using CLI?**
+{% if audience == "internal" %}
 
-**A:** Replicated table itself cannot be cleared atomically. You can clear individual replicas with [Erase](../../../user-guide/data-processing/operations/erase.md) operation. In order to do it, you should enable so called "bulk insert" cluster-wide by setting:
+------
+#### **Q: I get the "No healthy tablet cells in bundle" error after creating a bundle**
+**A:** If this error occurs after you create a bundle, check whether you [allocated](../../../user-guide/dynamic-tables/dynamic-tables-resources#upravlenie-instansami) instances within the bundle. You can find them in the "Instances" tab of the bundle's page.
+{% endif %}
+------
+#### **Q: How do I clear a replicated table using a CLI?**
+
+**A:** You can't clear a replicated table atomically, but you can clear individual replicas using the [Erase](../../../user-guide/data-processing/operations/erase.md) operation. To do this, you need to [enable](../../../user-guide/dynamic-tables/bulk-insert.md) bulk insert for the entire cluster by setting:
 
 - `//sys/@config/tablet_manager/enable_bulk_insert` to `%true`
-- `//sys/controller_agents/config/enable_bulk_insert_for_everyone` to `%true` (note the absence of @)
+- `//sys/controller_agents/config/enable_bulk_insert_for_everyone` to `%true` (note the missing `@` symbol)
 
 {% if audience == "public" %}
-If the latter node does not exist, create it with `$ yt create document //sys/controller_agents/config --attributes '{value={}}'` command.
+If the last specified node doesn't exist, create it using the following command:
+
+```bash
+$ yt create document //sys/controller_agents/config --attributes '{value={}}'
+```
 {% endif %}
+
+------
+#### **Q: When reading from a dynamic table, I get the "Timed out waiting on blocked row" error**
+
+**A:** This error occurs due to read-write conflicts – you attempt to read by a key used by a concurrent transaction. The system must wait for the result of that transaction to ensure the required level of isolation between transactions.
+
+If you don't require strict consistency, you can [weaken](../../../user-guide/dynamic-tables/sorted-dynamic-tables#chtenie-stroki) the isolation level for the reading transaction.
+
+------
+#### **Q: When writing to a dynamic table, I get the "Row lock conflict due to concurrent ... write" error**
+
+**A:** This error occurs due to write conflicts – you try to write to a row that is locked by a concurrent transaction (this can be a write operation or an explicit lock). In some cases, the system may indicate the conflicting transaction. For example, for write-write conflicts, the error attributes include the transaction ID.
+
+In general, to eliminate conflicts caused by writing to the same key from multiple locations, you need to revise your logic for writing to dynamic tables.
+
+In some scenarios, weakening [guarantees](../../../user-guide/dynamic-tables/transactions#conflicts) may help. For example, you can use `atomicity=none` mode or shared write lock mode. Before you weaken the guarantees, be sure to read the documentation to find out whether the side effects can impact you.
