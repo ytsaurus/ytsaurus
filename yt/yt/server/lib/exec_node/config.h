@@ -324,7 +324,9 @@ class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    bool SendHeartbeatOnJobFinished;
+    bool SendHeartbeatOnResourcesReleased;
+
+    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
@@ -564,8 +566,6 @@ public:
     TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
 
     TAllocationConfigPtr Allocation;
-
-    bool IncludeReleasingResourcesInResourceUsageReportedToScheduler;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
