@@ -445,15 +445,27 @@ def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_
 
         for start in builtins.range(lower_limit, upper_limit, rows_per_thread):
             end = min(start + rows_per_thread, upper_limit)
-            result.append((start, end))
+            result.append({"range" : (start, end)})
 
     return result
 
 
 def _prepare_params_for_parallel_read(params, range):
-    params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range[0]},
-                                            "upper_limit": {"row_index": range[1]}}]
+    params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range["range"][0]},
+                                            "upper_limit": {"row_index": range["range"][1]}}]
     return params
+
+
+def _check_warnings_for_parallel_read(attributes, table, control_attributes):
+    if attributes.get("dynamic"):
+        logger.warning("Cannot read table in parallel since parallel reading for dynamic tables is not supported")
+    elif table.has_key_limit_in_ranges():
+        logger.warning("Cannot read table in parallel since table path contains key limits")
+    elif control_attributes is not None:
+        logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
+    else:
+        return True
+    return False
 
 
 class _ReadTableRetriableState(object):
@@ -756,6 +768,23 @@ class _ReadTableRetriableState(object):
         return can_omit_control_info
 
 
+def _check_attributes_for_read_table(attributes, table, client):
+    if attributes.get("type") != "table":
+        raise YtError("Command read is supported only for tables")
+    if attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
+        logger.info("Table chunks are too small; consider running the following command to improve read performance: "
+                    "yt merge --proxy {1} --src {0} --dst {0} --spec '{{combine_chunks=true;}}'"
+                    .format(table, get_config(client)["proxy"]["url"]))
+
+
+def _get_table_attributes(table, client):
+    attributes = get(
+        table + "/@",
+        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "uncompressed_data_size"],
+        client=client)
+    return attributes
+
+
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
                raw=None, response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table and parse (optionally).
@@ -782,17 +811,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                                          close=lambda from_delete: None,
                                          process_error=lambda response: None,
                                          get_response_parameters=lambda: None)
-    attributes = get(
-        table + "/@",
-        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "uncompressed_data_size"],
-        client=client)
 
-    if attributes.get("type") != "table":
-        raise YtError("Command read is supported only for tables")
-    if attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
-        logger.info("Table chunks are too small; consider running the following command to improve read performance: "
-                    "yt merge --proxy {1} --src {0} --dst {0} --spec '{{combine_chunks=true;}}'"
-                    .format(table, get_config(client)["proxy"]["url"]))
+    attributes = _get_table_attributes(table, client)
+    _check_attributes_for_read_table(attributes, table, client)
 
     params = {
         "path": table,
@@ -804,13 +825,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
 
     if enable_read_parallel:
-        if attributes.get("dynamic"):
-            logger.warning("Cannot read table in parallel since parallel reading for dynamic tables is not supported")
-        elif control_attributes is not None:
-            logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
-        elif table.has_key_limit_in_ranges():
-            logger.warning("Cannot read table in parallel since table path contains key limits")
-        else:
+        if _check_warnings_for_parallel_read(attributes, table, control_attributes):
             if "ranges" not in table.attributes:
                 table.attributes["ranges"] = [
                     {"lower_limit": {"row_index": 0},
@@ -825,17 +840,19 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 response_parameters["start_row_index"] = 0
                 response_parameters["approximate_row_count"] = 0
             else:
-                response_parameters["start_row_index"] = ranges[0][0]
-                response_parameters["approximate_row_count"] = sum(range[1] - range[0] for range in ranges)
+                response_parameters["start_row_index"] = ranges[0]["range"][0]
+                response_parameters["approximate_row_count"] = sum(range["range"][1] - range["range"][0] for range in ranges)
             response = make_read_parallel_request(
                 "read_table",
                 table,
                 ranges,
                 params,
                 _prepare_params_for_parallel_read,
-                unordered,
-                response_parameters,
-                client)
+                prepare_meta_func=None,
+                max_thread_count=get_config(client)["read_parallel"]["max_thread_count"],
+                unordered=unordered,
+                response_parameters=response_parameters,
+                client=client)
             if raw:
                 return response
             else:
@@ -1098,23 +1115,139 @@ def partition_tables(paths, partition_mode=None, data_weight_per_partition=None,
     return partitions
 
 
-def dump_parquet(table, output_file, client=None):
+def _slice_row_ranges_for_dump_parquet(max_thread_count, lower_limit, upper_limit):
+    result = []
+    range_count = upper_limit - lower_limit
+    if range_count == 0:
+        return result
+
+    ranges_per_thread = max(int(range_count / max_thread_count), 1)
+    start = lower_limit
+    while start < upper_limit:
+        end = min(start + ranges_per_thread, upper_limit)
+        if len(result) == max_thread_count - 1:
+            end = upper_limit
+        result.append({
+            "lower_key" : start,
+            "upper_key" : end,
+        })
+        start = end
+
+    return result
+
+
+def _prepare_meta_for_dump_parquet(meta):
+    return meta["thread_id"].to_bytes(4, 'little')
+
+
+def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
     """Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
     :param table: table
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param output_file: path to output file
+    :param output_file: path to output file, this option is deprecated, please use output_path
     :type output_file: str
+    :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the parquet format will be placed
+    :type output_path: str
+    :param enable_several_files: allowing parquet to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+    :type enable_several_files: bool
+    :param unordered: if the option is set to false, the order will be as in the original table
+    :type unordered: bool
     """
-    stream = read_table(table, raw=True, format="arrow", client=client)
 
     if not yson.HAS_PARQUET:
         raise YtError(
-            'YSON binding required.'
-            'binding is shipped as additional package and '
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    yson.dump_parquet(output_file, stream)
+    if not output_path:
+        if output_file:
+            output_path = output_file
+            logger.warning('Parameter output_file is deprecated, please use output_path instead of it.')
+        else:
+            raise YtError('Parameter output_path is required')
+
+    enable_parallel = get_config(client)["read_parallel"]["enable"]
+
+    if enable_parallel:
+        max_thread_count = get_config(client)["read_parallel"]["max_thread_count"]
+        if enable_several_files:
+            py_thread_count = max(max_thread_count // 2, 1)
+            c_thread_count = max(max_thread_count - py_thread_count, 1)
+        else:
+            py_thread_count = max_thread_count
+            c_thread_count = 1
+
+        table = TablePath(table, client=client)
+
+        attributes = _get_table_attributes(table, client)
+        _check_attributes_for_read_table(attributes, table, client)
+
+        if not _check_warnings_for_parallel_read(attributes, table, None):
+            py_thread_count = 1
+            c_thread_count = max_thread_count
+
+        params = {
+            "path": table,
+            "output_format": "arrow",
+            "unordered": True,
+            "control_attributes": {"enable_end_of_stream": True},
+        }
+
+        if "ranges" not in table.attributes:
+            table.attributes["ranges"] = [{
+                "lower_limit": {"row_index": 0},
+                "upper_limit": {"row_index": attributes["row_count"]},
+            }]
+
+        data_size_per_thread = get_config(client)["read_parallel"]["data_size_per_thread"]
+        ranges = _slice_row_ranges_for_parallel_read(
+            table.attributes["ranges"],
+            attributes["row_count"],
+            attributes["uncompressed_data_size"],
+            data_size_per_thread)
+
+        range_count = len(ranges)
+        result_ranges = []
+        c_thread_count = min(c_thread_count, range_count)
+        thread_ids = _slice_row_ranges_for_dump_parquet(c_thread_count, 0, range_count)
+
+        current_thread_id = 0
+        while (len(result_ranges) < range_count):
+            current_range_id = thread_ids[current_thread_id]["lower_key"]
+            if (current_range_id != thread_ids[current_thread_id]["upper_key"]):
+                thread_ids[current_thread_id]["lower_key"] += 1
+                result_ranges.append({
+                    "range" : ranges[current_range_id]["range"],
+                    "meta" : {"thread_id" : current_thread_id},
+                })
+            current_thread_id += 1
+            current_thread_id %= c_thread_count
+
+        response = make_read_parallel_request(
+            "read_table",
+            table,
+            result_ranges,
+            params,
+            _prepare_params_for_parallel_read,
+            _prepare_meta_for_dump_parquet,
+            get_config(client)["read_parallel"]["max_thread_count"],
+            unordered,
+            response_parameters=None,
+            client=client)
+
+        yson.async_dump_parquet(
+            output_path=output_path,
+            is_directory=enable_several_files,
+            thread_count=c_thread_count,
+            data_size_per_thread=data_size_per_thread,
+            stream=response)
+    else:
+        stream = read_table(table, raw=True, format="arrow", enable_read_parallel=False, client=client)
+        yson.dump_parquet(output_path, stream)
 
 
 def upload_parquet(table, input_file, client=None):

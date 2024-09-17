@@ -1,7 +1,13 @@
 #include "arrow_raw_iterator.h"
 
+#include <yt/yt/core/concurrency/async_stream_pipe.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
 
@@ -13,22 +19,105 @@
 
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
-
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.h>
-
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
+
+#include <math.h>
 
 namespace NYT::NPython {
 
 namespace {
 
+using namespace NConcurrency;
+
+using TArrowStatusCallback = std::function<void(arrow::Status)>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status) {
-    if (!status.ok()) {
-        throw Py::TypeError(status.message());
+static constexpr int MinFileNameWidth = 4;
+static constexpr i64 MaxBufferSize = 128_MB;
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetFileNameWidth(int fileCount)
+{
+    return std::max(MinFileNameWidth, static_cast<int>(log10(static_cast<double>(fileCount))) + 1);
+}
+
+TString GenerateFileName(int index, int fileNameWidth)
+{
+    auto stringIndex = ToString(index);
+    TString zeroPrefix(fileNameWidth - stringIndex.Size(), '0');
+    return Format("%v%v.par", zeroPrefix, stringIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAsyncDumpParquetInputArguments
+{
+    TString OutputPath;
+    bool IsDirectory;
+    i64 ThreadCount;
+    i64 DataSizePerJob;
+    std::unique_ptr<IZeroCopyInput> InputStream;
+};
+
+struct TWorkerBlock
+{
+    // The ID of the thread that processes the worker block.
+    int WorkerId;
+    TSharedMutableRef Block;
+};
+
+TString GetFileName(const TAsyncDumpParquetInputArguments& inputArquments, int fileIndex, int totalFileCount)
+{
+    if (inputArquments.IsDirectory) {
+        return inputArquments.OutputPath + "/" + GenerateFileName(fileIndex, GetFileNameWidth(totalFileCount));
+    } else {
+        return inputArquments.OutputPath;
     }
+}
+
+std::optional<TWorkerBlock> GetNextWorkerBlock(
+    const std::unique_ptr<IZeroCopyInput>& inputStream)
+{
+    // Read thread ID.
+    int workerId;
+    if (inputStream->Load(&workerId, sizeof(workerId)) != sizeof(workerId)) {
+        return std::nullopt;
+    }
+
+    // Read size of block.
+    int32_t blockSize;
+    inputStream->Load(&blockSize, sizeof(blockSize));
+
+    // Read block.
+    auto block = TSharedMutableRef::Allocate(blockSize);
+    inputStream->Load(block.Begin(), blockSize);
+
+    return TWorkerBlock{
+        .WorkerId = workerId,
+        .Block = std::move(block),
+    };
+}
+
+TAsyncDumpParquetInputArguments ExtractAsyncDumpParquetArguments(Py::Tuple& args, Py::Dict& kwargs)
+{
+    auto outputPath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_path"));
+    auto isDirectory = Py::ConvertToBoolean(ExtractArgument(args, kwargs, "is_directory"));
+    auto threadCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "thread_count"));
+    auto dataSizePerJob = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "data_size_per_thread"));
+
+    auto streamArg = ExtractArgument(args, kwargs, "stream");
+    auto stream = CreateInputStreamWrapper(streamArg);
+
+    ValidateArgumentsEmpty(args, kwargs);
+    return TAsyncDumpParquetInputArguments{
+        .OutputPath = std::move(outputPath),
+        .IsDirectory = isDirectory,
+        .ThreadCount = threadCount,
+        .DataSizePerJob = dataSizePerJob,
+        .InputStream = std::move(stream),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +133,11 @@ class TParquetWriter
     : public IFormatWriter
 {
 public:
-    TParquetWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+    TParquetWriter(
+        const arrow::Schema& schema,
+        const std::string& outputFilePath,
+        TArrowStatusCallback arrowStatusCallback)
+        : ArrowStatusCallback_(std::move(arrowStatusCallback))
     {
         auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
         if (!outputFileOrError.ok()) {
@@ -55,7 +148,7 @@ public:
         auto properties =
             parquet::WriterProperties::Builder().compression(arrow::Compression::SNAPPY)->build();
 
-        ThrowOnError(parquet::arrow::FileWriter::Open(
+        ArrowStatusCallback_(parquet::arrow::FileWriter::Open(
             schema,
             arrow::default_memory_pool(),
             outputFile,
@@ -77,17 +170,22 @@ public:
 
 private:
     std::unique_ptr<parquet::arrow::FileWriter> Writer_;
+    TArrowStatusCallback ArrowStatusCallback_;
 };
 
 class TOrcWriter
     : public IFormatWriter
 {
 public:
-    TOrcWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+    TOrcWriter(
+        const arrow::Schema& schema,
+        const std::string& outputFilePath,
+        TArrowStatusCallback arrowStatusCallback)
         : OutputStream_(liborc::writeLocalFile(outputFilePath))
+        , ArrowStatusCallback_(arrowStatusCallback)
     {
         auto orcSchemaOrError = arrow::adapters::orc::GetOrcType(schema);
-        ThrowOnError(orcSchemaOrError.status());
+        ArrowStatusCallback_(orcSchemaOrError.status());
         OrcSchema_ = std::move(orcSchemaOrError.ValueOrDie());
         Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), liborc::WriterOptions{});
     }
@@ -106,7 +204,7 @@ public:
 
         while (rowCount > 0) {
             for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-                ThrowOnError(arrow::adapters::orc::WriteBatch(
+                ArrowStatusCallback_(arrow::adapters::orc::WriteBatch(
                     *(table.column(columnIndex)),
                     chunkSize,
                     &chunkOffsets[columnIndex],
@@ -133,18 +231,19 @@ private:
     std::unique_ptr<liborc::Type> OrcSchema_;
     std::unique_ptr<liborc::Writer> Writer_;
     std::unique_ptr<liborc::OutputStream> OutputStream_;
+    TArrowStatusCallback ArrowStatusCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPipeForRecordBatchStreamReader
+class TArrowInputStreamAdapter
     : public arrow::io::InputStream
 {
 public:
-    TPipeForRecordBatchStreamReader(IInputStream* reader)
-        : Reader_(reader)
+    TArrowInputStreamAdapter(IInputStream* stream)
+        : Stream_(stream)
     {
-        IsFinished_ = !Reader_->ReadChar(PreviousElement_);
+        IsClosed_ = !Stream_->ReadChar(PreviousElement_);
     }
 
     arrow::Status Close() override
@@ -154,7 +253,7 @@ public:
 
     bool closed() const override
     {
-        return false;
+        return IsClosed_;
     }
 
     arrow::Result<int64_t> Tell() const override
@@ -175,45 +274,132 @@ public:
         return arrow::Buffer::FromString(buffer);
     }
 
-    bool IsFinished() const
-    {
-        return IsFinished_;
-    }
-
 private:
     int64_t Position_ = 0;
-    bool IsFinished_ = false;
+    bool IsClosed_ = false;
     char PreviousElement_;
-    IInputStream* Reader_;
+    IInputStream* Stream_;
 
     size_t DoLoad(void* buf, size_t len)
     {
-        if (IsFinished_ || len == 0) {
+        if (IsClosed_ || len == 0) {
             return 0;
         }
         char* outChar = reinterpret_cast<char*>(buf);
         *outChar = PreviousElement_;
         outChar++;
-        auto nBytes = Reader_->Load(outChar, len - 1) + 1;
+        auto nBytes = Stream_->Load(outChar, len - 1) + 1;
         Position_ += nBytes;
-        IsFinished_ = !Reader_->ReadChar(PreviousElement_);
+        IsClosed_ = !Stream_->ReadChar(PreviousElement_);
         return nBytes;
+    }
+};
+
+class TArrowStreamPipe
+    : public arrow::io::InputStream
+{
+public:
+    explicit TArrowStreamPipe(i64 dataSizePerThread)
+        : Pipe_(New<TBoundedAsyncStreamPipe>(MaxBufferSize / dataSizePerThread))
+    { }
+
+    void Start()
+    {
+        UpdateLastBlock();
+    }
+
+    void Write(TSharedRef ref)
+    {
+        WaitFor(Pipe_->Write(ref))
+            .ThrowOnError();
+    }
+
+    void AbortPipe(const TError& error)
+    {
+        Pipe_->Abort(error);
+    }
+
+    arrow::Status Close() override
+    {
+        auto error = WaitFor(Pipe_->Close());
+        if (error.IsOK()) {
+            return arrow::Status::OK();
+        }
+        return arrow::Status::Invalid(error.GetMessage());
+    }
+
+    bool closed() const override
+    {
+        return LastBlock_.size() == 0;
+    }
+
+    arrow::Result<int64_t> Tell() const override
+    {
+        return Position_;
+    }
+
+    arrow::Result<int64_t> Read(int64_t nBytes, void* out) override
+    {
+        char* outputChar = reinterpret_cast<char*>(out);
+        auto bytesCountLeft = nBytes;
+
+        while (bytesCountLeft > 0) {
+            if (LastBlock_.size() == 0) {
+                break;
+            }
+
+            if (bytesCountLeft < std::ssize(LastBlock_)) {
+                memcpy(outputChar, LastBlock_.Data(), bytesCountLeft);
+                LastBlock_ = LastBlock_.Slice(bytesCountLeft, LastBlock_.Size());
+                bytesCountLeft = 0;
+            } else {
+                memcpy(outputChar, LastBlock_.Data(), LastBlock_.Size());
+                bytesCountLeft -= LastBlock_.Size();
+                outputChar += LastBlock_.Size();
+                UpdateLastBlock();
+            }
+        }
+
+        return nBytes - bytesCountLeft;
+    }
+
+    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nBytes) override
+    {
+        std::string buffer;
+        buffer.resize(nBytes);
+        auto resultBytesOrError = Read(buffer.size(), buffer.data());
+        if (!resultBytesOrError.ok()) {
+            return resultBytesOrError.status();
+        }
+        buffer.resize(*resultBytesOrError);
+        return arrow::Buffer::FromString(buffer);
+    }
+
+private:
+    const TBoundedAsyncStreamPipePtr Pipe_;
+
+    TSharedRef LastBlock_;
+    int64_t Position_ = 0;
+
+    void UpdateLastBlock()
+    {
+        LastBlock_ = WaitFor(Pipe_->Read())
+            .ValueOrThrow();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::Array> ConvertDictionaryToDense(const arrow::Array& array)
+std::shared_ptr<arrow::Array> ConvertDictionaryToDense(
+    const arrow::Array& array,
+    const TArrowStatusCallback& arrowStatusCallback)
 {
     const arrow::DictionaryType& dictType =
         static_cast<const arrow::DictionaryType&>(*array.type());
 
     auto castOutputOrError =
         arrow::compute::Cast(array.data(), dictType.value_type(), arrow::compute::CastOptions());
-
-    if (!castOutputOrError.ok()) {
-        throw Py::TypeError(castOutputOrError.status().message());
-    }
+    arrowStatusCallback(castOutputOrError.status());
 
     auto castOutput = castOutputOrError.ValueOrDie();
     return castOutput.make_array();
@@ -236,7 +422,9 @@ std::shared_ptr<arrow::Schema> ConvertDictionarySchema(const std::shared_ptr<arr
     return std::make_shared<arrow::Schema>(fields);
 }
 
-std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(const std::shared_ptr<arrow::RecordBatch>& data) {
+std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(
+    const std::shared_ptr<arrow::RecordBatch>& data,
+    const TArrowStatusCallback& arrowStatusCallback) {
     if (data == nullptr) {
         return nullptr;
     }
@@ -257,7 +445,7 @@ std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(const std::shared_pt
     std::vector<std::shared_ptr<arrow::Array>> columns;
     for (auto&& column : data->columns()) {
         if (column->type_id() == arrow::Type::DICTIONARY) {
-            columns.emplace_back(ConvertDictionaryToDense(*column));
+            columns.emplace_back(ConvertDictionaryToDense(*column, arrowStatusCallback));
         } else {
             columns.emplace_back(column);
         }
@@ -268,76 +456,155 @@ std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(const std::shared_pt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::ipc::RecordBatchStreamReader> GetNextBatchReader(TPipeForRecordBatchStreamReader& pipe)
+std::shared_ptr<arrow::ipc::RecordBatchStreamReader> GetNextBatchReader(
+    const std::shared_ptr<arrow::io::InputStream>& pipe,
+    const TArrowStatusCallback& arrowStatusCallback)
 {
-    if (pipe.IsFinished()) {
+    if (pipe->closed()) {
         return nullptr;
     }
-    auto batchReaderOrError = arrow::ipc::RecordBatchStreamReader::Open(&pipe);
-    if (!batchReaderOrError.ok()) {
-        throw Py::TypeError(batchReaderOrError.status().message());
-    }
+    auto batchReaderOrError = arrow::ipc::RecordBatchStreamReader::Open(pipe);
+    arrowStatusCallback(batchReaderOrError.status());
 
     return batchReaderOrError.ValueOrDie();
 }
 
-std::shared_ptr<arrow::RecordBatch> GetNextBatch(const std::shared_ptr<arrow::ipc::RecordBatchStreamReader>& batchReader)
+std::shared_ptr<arrow::RecordBatch> GetNextBatch(
+    const std::shared_ptr<arrow::ipc::RecordBatchStreamReader>& batchReader,
+    const TArrowStatusCallback& arrowStatusCallback)
 {
     auto batchOrError = batchReader->Next();
-    if (!batchOrError.ok()) {
-        throw Py::TypeError(batchOrError.status().message());
-    }
-    return ConvertDictionaryArrays(batchOrError.ValueOrDie());
+    arrowStatusCallback(batchOrError.status());
+    return ConvertDictionaryArrays(batchOrError.ValueOrDie(), arrowStatusCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DumpFile(
-    const std::string& outputFilePath,
-    IInputStream* stream,
-    EFileFormat format)
+void DoDumpFile(
+    const std::shared_ptr<arrow::io::InputStream>& pipe,
+    TString outputFilePath,
+    EFileFormat format,
+    const TArrowStatusCallback& arrowStatusCallback)
 {
-    TPipeForRecordBatchStreamReader pipe(stream);
-    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe);
+    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe, arrowStatusCallback);
     if (!batchReader) {
         return;
     }
 
-    std::unique_ptr<parquet::arrow::FileWriter> writer;
+    auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
+    arrowStatusCallback(outputFileOrError.status());
+
+    auto outputFile = outputFileOrError.ValueOrDie();
 
     auto schema = ConvertDictionarySchema(batchReader->schema());
+
     std::unique_ptr<IFormatWriter> formatWriter;
     switch (format) {
         case EFileFormat::Parquet:
-            formatWriter = std::make_unique<TParquetWriter>(*schema, outputFilePath);
+            formatWriter = std::make_unique<TParquetWriter>(*schema, outputFilePath, arrowStatusCallback);
             break;
         case EFileFormat::ORC:
-            formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath);
+            formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath, arrowStatusCallback);
     }
 
     do {
-        auto batch = GetNextBatch(batchReader);
+        auto batch = GetNextBatch(batchReader, arrowStatusCallback);
 
         while (batch != nullptr) {
             auto tableOrError = arrow::Table::FromRecordBatches(batch->schema(), {batch});
+            arrowStatusCallback(tableOrError.status());
 
-            if (!tableOrError.ok()) {
-                throw Py::TypeError(tableOrError.status().message());
-            }
             auto table = tableOrError.ValueOrDie();
-            ThrowOnError(formatWriter->WriteTable(*table.get(), batch->num_rows()));
-
-            batch = GetNextBatch(batchReader);
+            arrowStatusCallback(formatWriter->WriteTable(*table.get(), batch->num_rows()));
+            batch = GetNextBatch(batchReader, arrowStatusCallback);
         }
 
-    } while (batchReader = GetNextBatchReader(pipe));
+    } while (batchReader = GetNextBatchReader(pipe, arrowStatusCallback));
 
-    ThrowOnError(formatWriter->Close());
+    arrowStatusCallback(formatWriter->Close());
 }
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
+{
+    auto inputArquments = ExtractAsyncDumpParquetArguments(args, kwargs);
+
+    auto threadPool = CreateThreadPool(inputArquments.ThreadCount, "ParquetDumperPool");
+
+    std::vector<TFuture<void>> asyncResults;
+
+    std::vector<std::shared_ptr<TArrowStreamPipe>> pipes;
+    pipes.reserve(inputArquments.ThreadCount);
+    for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
+        pipes.push_back(std::make_shared<TArrowStreamPipe>(inputArquments.DataSizePerJob));
+    }
+
+    std::atomic<bool> isError = false;
+    TString errorMessage;
+
+    auto onArrowStatusCallback = [&inputArquments, &isError, &errorMessage, &pipes] (const arrow::Status& status) {
+        if (!status.ok()) {
+            bool expected = false;
+            if (isError.compare_exchange_strong(expected, true)) {
+                for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
+                    pipes[fileIndex]->AbortPipe(TError("%v", status.message()));
+                }
+                errorMessage = status.message();
+            }
+            THROW_ERROR_EXCEPTION("An error occurred while parsing parquet: %v", TString(status.message()));
+        }
+    };
+
+    // Сreate handlers that turn blocks into parquet format and write the result to a file.
+    for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
+        auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount);
+
+        asyncResults.push_back(BIND([pipe = pipes[fileIndex], fileName = std::move(fileName), onArrowStatusCallback] {
+            pipe->Start();
+            DoDumpFile(
+                pipe,
+                fileName,
+                EFileFormat::Parquet,
+                onArrowStatusCallback);
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    }
+
+    while (auto currentBlock = GetNextWorkerBlock(inputArquments.InputStream)) {
+        // Passing the block to the handler.
+        YT_VERIFY(currentBlock->WorkerId >= 0 && currentBlock->WorkerId < std::ssize(pipes));
+        pipes[currentBlock->WorkerId]->Write(std::move(currentBlock->Block));
+        if (isError) {
+            break;
+        }
+    }
+
+    // Sending a completion signal to all handlers.
+    for (int workerId = 0; workerId < inputArquments.ThreadCount; ++workerId) {
+        auto closeStatus = pipes[workerId]->Close();
+        if (!closeStatus.ok()) {
+            throw Py::TypeError(closeStatus.message());
+        }
+    }
+
+    auto error = WaitFor(AllSet(asyncResults));
+
+    threadPool->Shutdown();
+
+    if (isError) {
+        throw Py::TypeError(errorMessage);
+    }
+
+    if (!error.IsOK()) {
+        throw Py::TypeError(error.GetMessage());
+    }
+
+    return Py::None();
+}
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
@@ -348,7 +615,12 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
     ValidateArgumentsEmpty(args, kwargs);
 
-    DumpFile(outputFilePath, stream.get(), EFileFormat::Parquet);
+    auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
+    DoDumpFile(pipe, outputFilePath, EFileFormat::Parquet, [] (const arrow::Status& status) {
+        if (!status.ok()) {
+            throw Py::TypeError(status.message());
+        }
+    });
 
     return Py::None();
 }
@@ -364,7 +636,12 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
 
     ValidateArgumentsEmpty(args, kwargs);
 
-    DumpFile(outputFilePath, stream.get(), EFileFormat::ORC);
+    auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
+    DoDumpFile(pipe, outputFilePath, EFileFormat::ORC, [] (const arrow::Status& status) {
+        if (!status.ok()) {
+            throw Py::TypeError(status.message());
+        }
+    });
 
     return Py::None();
 }

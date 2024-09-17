@@ -11,6 +11,8 @@ namespace NYT::NPython {
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs);
 
+Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs);
+
 Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs);
 
 Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs);
