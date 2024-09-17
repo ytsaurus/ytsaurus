@@ -67,6 +67,11 @@ i64 ConvertToLongLong(const Object& obj)
     return static_cast<i64>(LongLong(obj));
 }
 
+bool ConvertToBoolean(const Object& obj)
+{
+    return static_cast<bool>(Boolean(obj));
+}
+
 std::optional<Object> FindAttr(const Object& obj, const std::string& fieldName)
 {
     if (!obj.hasAttr(fieldName)) {

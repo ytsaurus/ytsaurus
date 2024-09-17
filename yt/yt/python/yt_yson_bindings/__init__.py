@@ -1,5 +1,5 @@
 try:
-    from .yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet, upload_parquet, # noqa
+    from .yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet, async_dump_parquet, upload_parquet, # noqa
                            load_skiff, load_skiff_structured, dump_skiff, dump_skiff_structured, dump_orc, upload_orc,
                            SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns)
 except ImportError:

@@ -47,10 +47,11 @@ class ParallelReadRetrier(Retrier):
 
 
 class ParallelReader(object):
-    def __init__(self, command_name, transaction, params, prepare_params_func, unordered, thread_count, client):
+    def __init__(self, command_name, transaction, params, prepare_params_func, prepare_meta_func, unordered, thread_count, client):
         self._command_name = command_name
         self._transaction = transaction
         self._prepare_params_func = prepare_params_func
+        self._prepare_meta_func = prepare_meta_func
         self._unordered = unordered
 
         self._thread_data = {}
@@ -76,7 +77,11 @@ class ParallelReader(object):
         retrier = self._thread_data[ident]["retrier"]
         params = self._thread_data[ident]["params"]
         params = self._prepare_params_func(params, range)
-        return retrier.run_read(params)
+        if "meta" in range:
+            block = retrier.run_read(params)
+            return self._prepare_meta_func(range["meta"]) + (len(block)).to_bytes(4, 'little') + block
+        else:
+            return retrier.run_read(params)
 
     def _read_iterator(self, ranges):
         if self._unordered:
@@ -98,8 +103,8 @@ class ParallelReader(object):
                 self._transaction.abort()
 
 
-def make_read_parallel_request(command_name, path, ranges, params,
-                               prepare_params_func, unordered, response_parameters, client):
+def make_read_parallel_request(command_name, path, ranges, params, prepare_params_func,
+                               prepare_meta_func, max_thread_count, unordered, response_parameters, client):
     if not ranges:
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
@@ -115,13 +120,13 @@ def make_read_parallel_request(command_name, path, ranges, params,
     if response_parameters is None:
         response_parameters = {}
 
-    thread_count = min(len(ranges), get_config(client)["read_parallel"]["max_thread_count"])
+    thread_count = min(len(ranges), max_thread_count)
     try:
         if transaction:
             with Transaction(transaction_id=transaction.transaction_id, attributes={"title": title}, client=client):
                 lock(path, mode="snapshot", client=client)
 
-        reader = ParallelReader(command_name, transaction, params, prepare_params_func, unordered, thread_count, client)
+        reader = ParallelReader(command_name, transaction, params, prepare_params_func, prepare_meta_func, unordered, thread_count, client)
         iterator = reader.read(ranges)
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
