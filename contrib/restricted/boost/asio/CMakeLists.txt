@@ -26,6 +26,7 @@ target_link_libraries(restricted-boost-asio INTERFACE
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl
+  restricted-boost-align
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-bind
