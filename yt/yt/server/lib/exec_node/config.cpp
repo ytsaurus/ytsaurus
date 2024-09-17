@@ -577,8 +577,8 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter(
-        "include_releasing_resources_in_resource_usage_reported_to_scheduler",
-        &TThis::IncludeReleasingResourcesInResourceUsageReportedToScheduler)
+        "include_releasing_resources_in_scheduler_heartbeat",
+        &TThis::IncludeReleasingResourcesInSchedulerHeartbeat)
         .Default(false);
 }
 
