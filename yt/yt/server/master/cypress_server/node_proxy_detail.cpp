@@ -174,8 +174,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
 {
     YT_ASSERT(value);
 
-    auto oldValue = FindYson(key);
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, value);
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
@@ -202,12 +201,11 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
-    auto oldValue = FindYson(key);
-    if (!oldValue) {
+    if (!FindYson(key)) {
         return false;
     }
 
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, {});
+    Proxy_->GuardedValidateCustomAttributeRemoval(key);
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
