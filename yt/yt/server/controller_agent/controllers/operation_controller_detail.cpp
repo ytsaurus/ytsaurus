@@ -74,7 +74,6 @@
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
@@ -6113,6 +6112,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     MaxTimestamp)
                     << TErrorAttribute("output_timestamp", outputTimestamp)
                     << TErrorAttribute("table_path", path);
+
             }
 
             table->Timestamp = outputTimestamp;
@@ -7238,14 +7238,11 @@ void TOperationControllerBase::ParseInputQuery(
     };
 
     // Use query column filter for input tables.
-    bool allowTimestampColumns = false;
     for (auto table : InputManager->GetInputTables()) {
         auto columns = getColumns(*query->GetReadSchema(), *table->Schema);
         if (columns) {
             table->Path.SetColumns(*columns);
         }
-
-        allowTimestampColumns |= table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
     }
 
     InputQuery.emplace();
@@ -7255,8 +7252,7 @@ void TOperationControllerBase::ParseInputQuery(
     ValidateTableSchema(
         *InputQuery->Query->GetTableSchema(),
         /*isTableDynamic*/ false,
-        /*allowUnversionedUpdateColumns*/ true,
-        allowTimestampColumns);
+        /*allowUnversionedUpdateColumns*/ true);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)

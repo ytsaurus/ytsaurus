@@ -8,8 +8,6 @@
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/versioned_io_options.h>
 
 #include <yt/yt/core/misc/property.h>
 
@@ -46,7 +44,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TClusterName, ClusterName);
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVersionedReadOptions, VersionedReadOptions);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
     NTableClient::TComparator GetComparator() const;

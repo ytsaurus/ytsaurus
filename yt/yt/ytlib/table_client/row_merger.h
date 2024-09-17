@@ -50,8 +50,6 @@ private:
     TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
     TCompactVector<int, TypicalColumnCount> ColumnIdToTimestampColumnId_;
 
-    TCompactVector<bool, TypicalColumnCount> IsTimestampColumn_;
-
     std::vector<int> AggregateColumnIds_;
     std::vector<std::vector<TVersionedValue>> AggregateValues_;
 

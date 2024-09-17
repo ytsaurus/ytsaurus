@@ -11,14 +11,13 @@
 #include "hunks.h"
 #include "overlapping_reader.h"
 #include "private.h"
-#include "remote_dynamic_store_reader.h"
 #include "row_merger.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
-#include "timestamped_schema_helpers.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
+#include "remote_dynamic_store_reader.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -1001,79 +1000,30 @@ private:
 
 std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
     const TTableSchemaPtr& schema,
-    const TColumnFilter& columnFilter,
-    const THashSet<int>& timestampOnlyColumns,
-    const THashSet<int>& timestampColumnIndexes)
+    const TColumnFilter& columnFilter)
 {
     if (columnFilter.IsUniversal()) {
-        YT_VERIFY(timestampOnlyColumns.empty());
-        return std::tuple(schema, columnFilter);
+        return std::pair(schema, columnFilter);
     }
 
     std::vector<NTableClient::TColumnSchema> columns;
-    for (int columnIndex = 0; columnIndex < schema->GetKeyColumnCount(); ++columnIndex) {
-        columns.push_back(schema->Columns()[columnIndex]);
+    for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
+        columns.push_back(schema->Columns()[index]);
     }
 
     TColumnFilter::TIndexes columnFilterIndexes;
-    for (int columnIndex : columnFilter.GetIndexes()) {
-        if (columnIndex >= schema->GetKeyColumnCount()) {
-            if (!timestampOnlyColumns.contains(columnIndex)) {
-                columnFilterIndexes.push_back(ssize(columns));
-            }
-
-            columns.push_back(schema->Columns()[columnIndex]);
+    for (int index : columnFilter.GetIndexes()) {
+        if (index >= schema->GetKeyColumnCount()) {
+            columnFilterIndexes.push_back(columns.size());
+            columns.push_back(schema->Columns()[index]);
         } else {
-            columnFilterIndexes.push_back(columnIndex);
+            columnFilterIndexes.push_back(index);
         }
     }
-    for (int timestampColumnIndex : timestampColumnIndexes) {
-        columnFilterIndexes.push_back(ssize(columns));
-        columns.push_back(schema->Columns()[timestampColumnIndex]);
-    }
-
-    std::sort(columnFilterIndexes.begin(), columnFilterIndexes.end());
 
     return std::tuple(
         New<TTableSchema>(std::move(columns)),
         TColumnFilter(std::move(columnFilterIndexes)));
-}
-
-std::tuple<std::vector<int>, TTimestampColumnMapping> CreateTimestampedMappings(
-    const TTableSchemaPtr& schema,
-    const TColumnFilter& columnFilter,
-    const TNameTablePtr& nameTable,
-    const THashSet<TStringBuf>& omittedInaccessibleColumnSet)
-{
-    std::vector<int> idMapping(schema->GetColumnCount());
-    TTimestampColumnMapping timestampColumnMapping;
-
-    try {
-        for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
-            const auto& column = schema->Columns()[columnIndex];
-
-            if (columnFilter.ContainsIndex(columnIndex) && !omittedInaccessibleColumnSet.contains(column.Name())) {
-                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
-
-                if (auto originalColumn = GetTimestampColumnOriginalNameOrNull(column.Name())) {
-                    timestampColumnMapping.push_back({
-                        .ColumnIndex = schema->GetColumnIndexOrThrow(*originalColumn),
-                        .TimestampColumnIndex = columnIndex,
-                    });
-                }
-            } else {
-                // We should skip this column in schemaless reading.
-                idMapping[columnIndex] = -1;
-            }
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging multi chunk reader")
-            << ex;
-    }
-
-    return std::tuple(
-        std::move(idMapping),
-        std::move(timestampColumnMapping));
 }
 
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
@@ -1105,66 +1055,47 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     auto retentionTimestamp = dataSource.GetRetentionTimestamp();
     const auto& renameDescriptors = dataSource.ColumnRenameDescriptors();
 
-    // NB: We use `columnFilter` for reading data from stores, so [$timestamp:v] columns should be dropped,
-    // and `timestampOnlyColumns` should be added to this filter.
-    // In row merger we use `timestampedColumnFilter`, in which we drop `timestampOnlyColumns` and add
-    // [$timestamp:] columns using `timestampColumnMapping`.
+    THashSet<TStringBuf> omittedInaccessibleColumnSet(
+        dataSource.OmittedInaccessibleColumns().begin(),
+        dataSource.OmittedInaccessibleColumns().end());
 
-    THashSet<int> timestampColumnIndexes;
-    THashSet<int> timestampOnlyColumns;
-    // Transform column filter from name table indexing to schema indexing.
     if (!columnFilter.IsUniversal()) {
-        THashSet<int> transformedIndexes;
-
-        for (int index : columnFilter.GetIndexes()) {
-            auto columnName = nameTable->GetName(index);
-
-            if (const auto* column = tableSchema->FindColumn(columnName)) {
-                int columnIndex = tableSchema->GetColumnIndex(*column);
-
-                if (auto originalColumnName = GetTimestampColumnOriginalNameOrNull(columnName)) {
-                    timestampColumnIndexes.insert(columnIndex);
-
-                    int originalColumnIndex = tableSchema->GetColumnIndex(tableSchema->GetColumn(*originalColumnName));
-                    // NB: `originalColumnIndex` will be added to transformedIndexes lately, if it is actually timestamp only column.
-                    // Here we add candidate columns on being timestamp only, it will be filtered below
-                    timestampOnlyColumns.insert(originalColumnIndex);
-                } else {
-                    transformedIndexes.insert(columnIndex);
+        TColumnFilter::TIndexes transformedIndexes;
+        for (auto index : columnFilter.GetIndexes()) {
+            if (const auto* column = tableSchema->FindColumn(nameTable->GetName(index))) {
+                auto columnIndex = tableSchema->GetColumnIndex(*column);
+                if (std::find(transformedIndexes.begin(), transformedIndexes.end(), columnIndex) ==
+                    transformedIndexes.end())
+                {
+                    transformedIndexes.push_back(columnIndex);
                 }
             }
         }
-
-        for (auto it = timestampOnlyColumns.begin(); it != timestampOnlyColumns.end();) {
-            auto currentElementIt = it++;
-            int columnIndex = *currentElementIt;
-
-            THashSet<int>::insert_ctx context;
-            if (transformedIndexes.contains(columnIndex, context)) {
-                timestampOnlyColumns.erase(currentElementIt);
-            } else {
-                transformedIndexes.insert_direct(columnIndex, context);
-            }
-        }
-
-        columnFilter = TColumnFilter(TColumnFilter::TIndexes{transformedIndexes.begin(), transformedIndexes.end()});
+        columnFilter = TColumnFilter(std::move(transformedIndexes));
     }
 
     ValidateColumnFilter(columnFilter, tableSchema->GetColumnCount());
 
-    auto [versionedReadSchema, timestampedColumnFilter] = CreateVersionedReadParameters(
+    auto [versionedReadSchema, versionedColumnFilter] = CreateVersionedReadParameters(
         tableSchema,
-        columnFilter,
-        timestampOnlyColumns,
-        timestampColumnIndexes);
+        columnFilter);
 
-    ValidateColumnFilter(timestampedColumnFilter, versionedReadSchema->GetColumnCount());
+    std::vector<int> idMapping(versionedReadSchema->GetColumnCount());
 
-    auto [idMapping, timestampColumnMapping] = CreateTimestampedMappings(
-        versionedReadSchema,
-        timestampedColumnFilter,
-        nameTable,
-        {dataSource.OmittedInaccessibleColumns().begin(), dataSource.OmittedInaccessibleColumns().end()});
+    try {
+        for (int columnIndex = 0; columnIndex < std::ssize(versionedReadSchema->Columns()); ++columnIndex) {
+            const auto& column = versionedReadSchema->Columns()[columnIndex];
+            if (versionedColumnFilter.ContainsIndex(columnIndex) && !omittedInaccessibleColumnSet.contains(column.Name())) {
+                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
+            } else {
+                // We should skip this column in schemaless reading.
+                idMapping[columnIndex] = -1;
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging multi chunk reader")
+            << ex;
+    }
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
@@ -1214,7 +1145,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkReaderHost,
         chunkReadOptions,
         chunkSpecs,
-        versionedReadSchema,
+        tableSchema,
+        versionedReadSchema = versionedReadSchema,
         timestamp,
         renameDescriptors,
         multiReaderMemoryManager,
@@ -1377,10 +1309,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
-        timestampedColumnFilter,
+        TColumnFilter(),
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
-        retentionTimestamp,
-        timestampColumnMapping);
+        retentionTimestamp);
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),

@@ -33,10 +33,8 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , NestedColumnsSchema_(std::move(nestedColumnsSchema))
 {
     ColumnIdToTimestampColumnId_.assign(static_cast<size_t>(columnCount), -1);
-    IsTimestampColumn_.assign(static_cast<size_t>(columnCount), false);
     for (auto [columnId, timestampColumnId] : timestampColumnMapping) {
         ColumnIdToTimestampColumnId_[columnId] = timestampColumnId;
-        IsTimestampColumn_[timestampColumnId] = true;
     }
 
     if (columnFilter.IsUniversal()) {
@@ -52,10 +50,6 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
         auto columnId = ColumnIds_[columnIndex];
         ColumnIdToIndex_[columnId] = columnIndex;
-
-        if (IsTimestampColumn_[columnId]) {
-            continue;
-        }
 
         if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
             AggregateColumnIds_.push_back(columnId);
@@ -305,9 +299,7 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
     for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
         int columnId = ColumnIds_[columnIndex];
-        bool notAggregate = IsTimestampColumn_[columnId] || !ColumnEvaluator_->IsAggregate(columnId);
-
-        if (MergedTimestamps_[columnIndex] < LatestDelete_ && notAggregate) {
+        if (MergedTimestamps_[columnIndex] < LatestDelete_ && !ColumnEvaluator_->IsAggregate(columnId)) {
             MergedRow_[columnIndex] = MakeUnversionedNullValue(columnId);
         }
     }
