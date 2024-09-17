@@ -58,8 +58,6 @@ protected:
 
     static void SyncUnmountTable(const NYPath::TYPath& path);
 
-    static void SyncFlushTable(const NYPath::TYPath& path);
-
     static std::tuple<TSharedRange<NTableClient::TUnversionedRow>, NTableClient::TNameTablePtr> PrepareUnversionedRow(
         const std::vector<TString>& names,
         const TString& rowString);

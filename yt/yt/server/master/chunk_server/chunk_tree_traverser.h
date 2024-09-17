@@ -118,15 +118,6 @@ void TraverseChunkTree(
     NTableClient::TComparator comparator,
     TTraverserTestingOptions testingOptions = {});
 
-void TraverseHunkChunkTree(
-    IChunkTraverserContextPtr traverserContext,
-    IChunkVisitorPtr visitor,
-    const TChunkLists& roots,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
-    NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
-
 //! Legacy version of previous function. Works by transforming legacy lower and upper
 //! limits into new read limits and invoking previous version.
 void TraverseChunkTree(
@@ -140,15 +131,6 @@ void TraverseChunkTree(
 
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
-    IChunkVisitorPtr visitor,
-    const TChunkLists& roots,
-    const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
-    const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
-    NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
-
-void TraverseHunkChunkTree(
-    IChunkTraverserContextPtr traverserContext,
     IChunkVisitorPtr visitor,
     const TChunkLists& roots,
     const NChunkClient::TLegacyReadLimit& legacyLowerLimit,

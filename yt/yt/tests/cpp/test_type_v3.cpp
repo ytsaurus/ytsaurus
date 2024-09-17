@@ -290,7 +290,8 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
     // Read data
     checkRows();
 
-    SyncFlushTable(path);
+    SyncUnmountTable(path);
+    SyncMountTable(path);
 
     checkRows();
 
@@ -361,7 +362,8 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
     // Read data
     checkRows();
 
-    SyncFlushTable(path);
+    SyncUnmountTable(path);
+    SyncMountTable(path);
 
     checkRows();
 }

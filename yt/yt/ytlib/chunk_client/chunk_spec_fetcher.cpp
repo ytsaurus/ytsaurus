@@ -55,8 +55,7 @@ TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     int maxChunksPerLocateRequest,
     const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)>& initializeFetchRequest,
     const TLogger& logger,
-    bool skipUnavailableChunks,
-    bool fetchHunkChunks)
+    bool skipUnavailableChunks)
     : Client_(client)
     , MasterReadOptions_(masterReadOptions)
     , NodeDirectory_(nodeDirectory)
@@ -66,7 +65,6 @@ TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     , InitializeFetchRequest_(initializeFetchRequest)
     , Logger(logger)
     , SkipUnavailableChunks_(skipUnavailableChunks)
-    , FetchHunkChunks_(fetchHunkChunks)
 { }
 
 void TMasterChunkSpecFetcher::Add(
@@ -106,9 +104,6 @@ void TMasterChunkSpecFetcher::Add(
             InitializeFetchRequest_(req.Get(), tableIndex);
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
-            if (FetchHunkChunks_) {
-                req->set_chunk_list_content_type(static_cast<int>(EChunkListContentType::Hunk));
-            }
             SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_);
 
             state.BatchReq->AddRequest(req, "fetch");

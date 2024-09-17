@@ -207,12 +207,6 @@ void TDynamicTablesTestBase::SyncUnmountTable(const TYPath& path)
     WaitUntilEqual(path + "/@tablet_state", "unmounted");
 }
 
-void TDynamicTablesTestBase::SyncFlushTable(const NYPath::TYPath& path)
-{
-    SyncFreezeTable(path);
-    SyncUnfreezeTable(path);
-}
-
 std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareUnversionedRow(
     const std::vector<TString>& names,
     const TString& rowString)

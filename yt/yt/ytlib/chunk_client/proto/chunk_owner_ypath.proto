@@ -115,8 +115,6 @@ message TReqFetch
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 15;
-
-    optional int32 chunk_list_content_type = 16 [default = 0]; // EChunkListContentType [default = Main]
 }
 
 message TRspFetch
