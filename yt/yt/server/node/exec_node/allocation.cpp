@@ -503,9 +503,15 @@ void TAllocation::OnAllocationFinished()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Job_.Reset();
+    YT_VERIFY(!Job_);
 
     AllocationFinished_.Fire(MakeStrong(this));
+
+    if (ResourceHolder_) {
+        ResourceHolder_->ResetOwner({});
+    }
+
+    ResourceHolder_.Reset();
 }
 
 void TAllocation::OnJobPrepared(TJobPtr job)
